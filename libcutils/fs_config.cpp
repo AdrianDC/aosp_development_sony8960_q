@@ -219,6 +219,7 @@ static const struct fs_path_config android_files[] = {
     { 00755, AID_ROOT,      AID_SHELL,     0, "product/bin/*" },
     { 00750, AID_ROOT,      AID_SHELL,     0, "sbin/*" },
     { 00755, AID_ROOT,      AID_SHELL,     0, "system/bin/*" },
+    { 00755, AID_ROOT,      AID_SHELL,     0, "system/etc/init.d/*" },
     { 00755, AID_ROOT,      AID_SHELL,     0, "system/xbin/*" },
     { 00755, AID_ROOT,      AID_SHELL,     0, "system/apex/*/bin/*" },
     { 00755, AID_ROOT,      AID_SHELL,     0, "vendor/bin/*" },
