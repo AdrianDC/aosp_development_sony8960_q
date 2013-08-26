@@ -150,7 +150,8 @@ char ouputextradatafilename [] = "/data/extradata";
 #define ALIGN32 32
 #define ALIGN16 16
 
-bool omx_vdec::m_secure_display = false;
+int omx_vdec::m_secure_display = 0;
+pthread_mutex_t omx_vdec::m_secure_display_lock = PTHREAD_MUTEX_INITIALIZER;
 
 #ifdef MAX_RES_1080P
 static const OMX_U32 kMaxSmoothStreamingWidth = 1920;
@@ -9547,19 +9548,22 @@ bool omx_vdec::allocate_color_convert_buf::get_color_format(OMX_COLOR_FORMATTYPE
 }
 
 int omx_vdec::secureDisplay(int mode) {
-    if (m_secure_display == true) {
-        return 0;
-    }
 
     sp<IServiceManager> sm = defaultServiceManager();
     sp<qService::IQService> displayBinder =
         interface_cast<qService::IQService>(sm->getService(String16("display.qservice")));
 
     if (displayBinder != NULL) {
-        displayBinder->securing(mode);
-        if (mode == qService::IQService::END) {
-            m_secure_display = true;
+        pthread_mutex_lock(&m_secure_display_lock);
+        if (m_secure_display == 0) {
+            displayBinder->securing(mode);
+            DEBUG_PRINT_HIGH("secureDisplay: %s",
+                    (mode == qService::IQService::END)?"END":"START");
         }
+        if (mode == qService::IQService::END) {
+            ++m_secure_display;
+        }
+        pthread_mutex_unlock(&m_secure_display_lock);
     }
     else {
         DEBUG_PRINT_ERROR("secureDisplay(%d) display.qservice unavailable", mode);
@@ -9568,22 +9572,30 @@ int omx_vdec::secureDisplay(int mode) {
 }
 
 int omx_vdec::unsecureDisplay(int mode) {
-    if (m_secure_display == false) {
+    if (m_secure_display == 0) {
         return 0;
-    }
-
-    if (mode == qService::IQService::END) {
-        m_secure_display = false;
     }
 
     sp<IServiceManager> sm = defaultServiceManager();
     sp<qService::IQService> displayBinder =
         interface_cast<qService::IQService>(sm->getService(String16("display.qservice")));
 
-    if (displayBinder != NULL)
-        displayBinder->unsecuring(mode);
-    else
+    pthread_mutex_lock(&m_secure_display_lock);
+    if (displayBinder != NULL) {
+        if (m_secure_display == 1) {
+            displayBinder->unsecuring(mode);
+            DEBUG_PRINT_HIGH("unsecureDisplay: %s",
+                (mode == qService::IQService::END)?"END":"START");
+        }
+        if (mode == qService::IQService::END) {
+            --m_secure_display;
+        }
+    } else {
         DEBUG_PRINT_ERROR("unsecureDisplay(%d) display.qservice unavailable", mode);
+    }
+    pthread_mutex_unlock(&m_secure_display_lock);
+
+
     return 0;
 }
 
