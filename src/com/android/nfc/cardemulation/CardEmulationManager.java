@@ -388,7 +388,7 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
                 throws RemoteException {
             NfcPermissions.validateUserId(userId);
             NfcPermissions.enforceAdminPermissions(mContext);
-            if (!isServiceRegistered(userId, service)) {
+            if (service != null && !isServiceRegistered(userId, service)) {
                 return false;
             }
             return mPreferredServices.setDefaultForNextTap(service);
