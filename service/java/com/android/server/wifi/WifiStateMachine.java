@@ -217,7 +217,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private int mLastSignalLevel = -1;
     private String mLastBssid;
     private int mLastNetworkId; // The network Id we successfully joined
-    private boolean linkDebouncing = false;
+    private boolean mIsLinkDebouncing = false;
 
     @Override
     public void onRssiThresholdBreached(byte curRssi) {
@@ -1750,7 +1750,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     public boolean isLinkDebouncing() {
-        return linkDebouncing;
+        return mIsLinkDebouncing;
     }
 
     /**
@@ -2473,7 +2473,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     sb.append(" freq=").append(mWifiInfo.getFrequency());
                     sb.append(" rssi=").append(mWifiInfo.getRssi());
                 }
-                if (linkDebouncing) {
+                if (isLinkDebouncing()) {
                     sb.append(" debounce");
                 }
                 break;
@@ -2979,7 +2979,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
         }
 
-        if (linkDebouncing) {
+        if (isLinkDebouncing()) {
             // If debouncing, we dont re-select a SSID or BSSID hence
             // there is no need to call the network selection code
             // in WifiAutoJoinController, instead,
@@ -3287,7 +3287,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private boolean setNetworkDetailedState(NetworkInfo.DetailedState state) {
         boolean hidden = false;
 
-        if (linkDebouncing || isRoaming()) {
+        if (isLinkDebouncing() || isRoaming()) {
             // There is generally a confusion in the system about colluding
             // WiFi Layer 2 state (as reported by supplicant) and the Network state
             // which leads to multiple confusion.
@@ -3349,7 +3349,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         // this implies that wpa_supplicant is already disconnected.
         // We should pretend we are still connected when linkDebouncing is on.
         if ((stateChangeResult.wifiSsid == null
-                || stateChangeResult.wifiSsid.toString().isEmpty()) && linkDebouncing) {
+                || stateChangeResult.wifiSsid.toString().isEmpty()) && isLinkDebouncing()) {
             return state;
         }
         // Network id is only valid when we start connecting
@@ -3394,7 +3394,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         /* Reset data structures */
         mWifiScoreReport = null;
         mWifiInfo.reset();
-        linkDebouncing = false;
+        mIsLinkDebouncing = false;
         /* Reset roaming parameters */
         mAutoRoaming = false;
 
@@ -5110,7 +5110,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     String getCurrentBSSID() {
-        if (linkDebouncing) {
+        if (isLinkDebouncing()) {
             return null;
         }
         return mLastBssid;
@@ -5237,7 +5237,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // we can figure this from the supplicant state. If supplicant
                     // state is DISCONNECTED, but the mNetworkInfo says we are not
                     // disconnected, we need to handle a disconnection
-                    if (!linkDebouncing && state == SupplicantState.DISCONNECTED &&
+                    if (!isLinkDebouncing() && state == SupplicantState.DISCONNECTED &&
                             mNetworkInfo.getState() != NetworkInfo.State.DISCONNECTED) {
                         if (mVerboseLoggingEnabled) {
                             log("Missed CTRL-EVENT-DISCONNECTED, disconnect");
@@ -5629,7 +5629,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                          WifiConfiguration.INVALID_NETWORK_ID);
                         }
                         mAutoRoaming = false;
-                        if (isRoaming() || linkDebouncing) {
+                        if (isRoaming() || isLinkDebouncing()) {
                             transitionTo(mRoamingState);
                         } else if (didDisconnect) {
                             transitionTo(mDisconnectingState);
@@ -6480,7 +6480,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     replyToMessage(message, WifiManager.RSSI_PKTCNT_FETCH_SUCCEEDED, info);
                     break;
                 case CMD_DELAYED_NETWORK_DISCONNECT:
-                    if (!linkDebouncing && mWifiConfigManager.mEnableLinkDebouncing) {
+                    if (!isLinkDebouncing()) {
 
                         // Ignore if we are not debouncing
                         logd("CMD_DELAYED_NETWORK_DISCONNECT and not debouncing - ignore "
@@ -6490,7 +6490,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         logd("CMD_DELAYED_NETWORK_DISCONNECT and debouncing - disconnect "
                                 + message.arg1);
 
-                        linkDebouncing = false;
+                        mIsLinkDebouncing = false;
                         // If we are still debouncing while this message comes,
                         // it means we were not able to reconnect within the alloted time
                         // = LINK_FLAPPING_DEBOUNCE_MSEC
@@ -6555,7 +6555,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             // Reset link Debouncing, indicating we have successfully re-connected to the AP
             // We might still be roaming
-            linkDebouncing = false;
+            mIsLinkDebouncing = false;
 
             // Send event to CM & network change broadcast
             setNetworkDetailedState(DetailedState.OBTAINING_IPADDR);
@@ -6857,7 +6857,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             lastConnectAttemptTimestamp = 0;
             targetWificonfiguration = null;
             // Paranoia
-            linkDebouncing = false;
+            mIsLinkDebouncing = false;
 
             // Not roaming anymore
             mAutoRoaming = false;
@@ -6959,8 +6959,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                 WifiLogger.REPORT_REASON_UNEXPECTED_DISCONNECT);
                     }
                     config = getCurrentWifiConfiguration();
-                    if (mScreenOn
-                            && !linkDebouncing
+                    if (mWifiConfigManager.mEnableLinkDebouncing
+                            && mScreenOn
+                            && !isLinkDebouncing()
                             && config != null
                             && config.getNetworkSelectionStatus().isNetworkEnabled()
                             && !mWifiConfigManager.isLastSelectedConfiguration(config)
@@ -6979,7 +6980,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         // roaming cycle and enter Obtaining IP address
                         // before signalling the disconnect to ConnectivityService and L3
                         startScanForConfiguration(getCurrentWifiConfiguration());
-                        linkDebouncing = true;
+                        mIsLinkDebouncing = true;
 
                         sendMessageDelayed(obtainMessage(CMD_DELAYED_NETWORK_DISCONNECT,
                                 0, mLastNetworkId), LINK_FLAPPING_DEBOUNCE_MSEC);
@@ -6998,7 +6999,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                     + " BSSID=" + mWifiInfo.getBSSID()
                                     + " RSSI=" + mWifiInfo.getRssi()
                                     + " freq=" + mWifiInfo.getFrequency()
-                                    + " was debouncing=" + linkDebouncing
+                                    + " was debouncing=" + isLinkDebouncing()
                                     + " reason=" + message.arg2
                                     + " Network Selection Status=" + (config == null ? "Unavailable"
                                     : config.getNetworkSelectionStatus().getNetworkStatusString()));
@@ -7283,7 +7284,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (mVerboseLoggingEnabled) {
                         logd("SUPPLICANT_STATE_CHANGE_EVENT state=" + stateChangeResult.state +
                                 " -> state= " + WifiInfo.getDetailedStateOf(stateChangeResult.state)
-                                + " debouncing=" + linkDebouncing);
+                                + " debouncing=" + isLinkDebouncing());
                     }
                     setNetworkDetailedState(WifiInfo.getDetailedStateOf(stateChangeResult.state));
                     /* ConnectModeState does the rest of the handling */
