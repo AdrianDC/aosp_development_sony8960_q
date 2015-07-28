@@ -1,3 +1,5 @@
+# TODO(c-ninja): Fix
+
 test: foo bar baz bazz
 A:=foo: ; echo PASS
 $(A)

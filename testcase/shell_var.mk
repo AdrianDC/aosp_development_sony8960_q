@@ -1,3 +1,5 @@
+# TODO(c-ninja): Fix - ninja.sh should not use $SHELL.
+
 $(info $(SHELL))
 
 SHELL:=/bin/echo

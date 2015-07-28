@@ -88,8 +88,16 @@ def run_in_testdir(test_filename)
   end
 end
 
-def normalize_ninja_log(log)
+def normalize_ninja_log(log, mk)
   log.gsub!(/^\[\d+\/\d+\] .*\n/, '')
+  log.gsub!(/^ninja: no work to do\.\n/, '')
+  log.gsub!(/^ninja: error: (.*, needed by .*),.*/,
+            '*** No rule to make target \\1.')
+  if mk =~ /err_error_in_recipe.mk/
+    # This test expects ninja fails. Strip ninja specific error logs.
+    log.gsub!(/^FAILED: .*\n/, '')
+    log.gsub!(/^ninja: .*\n/, '')
+  end
   log
 end
 
@@ -131,12 +139,27 @@ end
 
 run_make_test = proc do |mk|
   c = File.read(mk)
-  expected_failure = c =~ /\A# TODO(?:\((go|c)\))?/
-  if $1
-    if $1 == 'go' && ckati
-      expected_failure = false
-    elsif $1 == 'c' && !ckati
-      expected_failure = false
+  expected_failure = false
+  if c =~ /\A# TODO(?:\(([-a-z|]+)\))?/
+    if $1
+      todos = $1.split('|')
+      if todos.include?('go') && !ckati
+        expected_failure = true
+      end
+      if todos.include?('c') && ckati
+        expected_failure = true
+      end
+      if todos.include?('go-ninja') && !ckati && via_ninja
+        expected_failure = true
+      end
+      if todos.include?('c-ninja') && ckati && via_ninja
+        expected_failure = true
+      end
+      if todos.include?('ninja') && via_ninja
+        expected_failure = true
+      end
+    else
+      expected_failure = true
     end
   end
 
@@ -184,8 +207,9 @@ run_make_test = proc do |mk|
       end
       cmd += " #{tc} 2>&1"
       res = IO.popen(cmd, 'r:binary', &:read)
-      if via_ninja && File.exist?('build.ninja')
-        res += normalize_ninja_log(IO.popen('ninja -j1 -v', 'r:binary', &:read))
+      if via_ninja && File.exist?('build.ninja') && File.exists?('ninja.sh')
+        log = IO.popen('./ninja.sh -j1 -v 2>&1', 'r:binary', &:read)
+        res += normalize_ninja_log(log, mk)
       end
       res = normalize_kati_log(res)
       output += "=== #{tc} ===\n" + res

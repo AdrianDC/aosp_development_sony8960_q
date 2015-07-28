@@ -253,13 +253,8 @@ void JoinFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
 void WildcardFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
   COLLECT_STATS("func wildcard time");
   shared_ptr<string> pat = args[0]->Eval(ev);
-  if (ev->avoid_io()) {
-    *s += "$(/bin/ls -d ";
-    *s += *pat;
-    *s += " 2> /dev/null)";
-    return;
-  }
-
+  // Note GNU make does not delay the execution of $(wildcard) so we
+  // do not need to check avoid_io here.
   WordWriter ww(s);
   vector<string>* files;
   for (StringPiece tok : WordScanner(*pat)) {
@@ -334,7 +329,9 @@ void AddprefixFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
 void RealpathFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
   shared_ptr<string> text = args[0]->Eval(ev);
   if (ev->avoid_io()) {
-    *s += "KATI_TODO(realpath)";
+    *s += "$(realpath ";
+    *s += *text;
+    *s += " 2> /dev/null)";
     return;
   }
 
@@ -485,7 +482,7 @@ void ShellFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
 }
 
 void CallFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
-  static const char* tmpvar_names[] = {
+  static const string tmpvar_names[] = {
     "0", "1",  "2",  "3",  "4",  "5",  "6",  "7",  "8",  "9"
   };
 
@@ -499,9 +496,17 @@ void CallFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
   }
   vector<unique_ptr<ScopedVar>> sv;
   for (size_t i = 1; i < args.size(); i++) {
+    string s;
+    StringPiece tmpvar_name;
+    if (i < sizeof(tmpvar_names)/sizeof(tmpvar_names[0])) {
+      tmpvar_name = tmpvar_names[i];
+    } else {
+      s = StringPrintf("%d", i);
+      tmpvar_name = s;
+    }
     sv.push_back(move(unique_ptr<ScopedVar>(
         new ScopedVar(ev->mutable_vars(),
-                      Intern(tmpvar_names[i]), av[i-1].get()))));
+                      Intern(tmpvar_name), av[i-1].get()))));
   }
   func->Eval(ev, s);
 }
@@ -531,30 +536,33 @@ void FlavorFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
   *s += var->Flavor();
 }
 
-void InfoFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
+void InfoFunc(const vector<Value*>& args, Evaluator* ev, string*) {
   shared_ptr<string> a = args[0]->Eval(ev);
   if (ev->avoid_io()) {
-    *s += "KATI_TODO(info)";
+    ev->add_delayed_output_command(StringPrintf("echo '%s'", a->c_str()));
     return;
   }
   printf("%s\n", a->c_str());
   fflush(stdout);
 }
 
-void WarningFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
+void WarningFunc(const vector<Value*>& args, Evaluator* ev, string*) {
   shared_ptr<string> a = args[0]->Eval(ev);
   if (ev->avoid_io()) {
-    *s += "KATI_TODO(warning)";
+    ev->add_delayed_output_command(
+        StringPrintf("echo '%s:%d: %s' 2>&1", LOCF(ev->loc()), a->c_str()));
     return;
   }
   printf("%s:%d: %s\n", LOCF(ev->loc()), a->c_str());
   fflush(stdout);
 }
 
-void ErrorFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
+void ErrorFunc(const vector<Value*>& args, Evaluator* ev, string*) {
   shared_ptr<string> a = args[0]->Eval(ev);
   if (ev->avoid_io()) {
-    *s += "KATI_TODO(error)";
+    ev->add_delayed_output_command(
+        StringPrintf("echo '%s:%d: *** %s.' 2>&1 && false",
+                     LOCF(ev->loc()), a->c_str()));
     return;
   }
   ev->Error(StringPrintf("*** %s.", a->c_str()));

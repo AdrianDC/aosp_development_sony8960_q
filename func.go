@@ -574,15 +574,8 @@ func (f *funcWildcard) Eval(w evalWriter, ev *Evaluator) error {
 		return err
 	}
 	te := traceEvent.begin("wildcard", tmpval(wb.Bytes()), traceEventMain)
-	if ev.avoidIO {
-		ev.hasIO = true
-		io.WriteString(w, "$(/bin/ls -d ")
-		w.Write(wb.Bytes())
-		io.WriteString(w, " 2> /dev/null)")
-		wb.release()
-		traceEvent.end(te)
-		return nil
-	}
+	// Note GNU make does not delay the execution of $(wildcard) so we
+	// do not need to check avoid_io here.
 	t := time.Now()
 	for _, word := range wb.words {
 		pat := string(word)
@@ -773,16 +766,18 @@ func (f *funcRealpath) Eval(w evalWriter, ev *Evaluator) error {
 	if err != nil {
 		return err
 	}
-	if ev.avoidIO {
-		io.WriteString(w, "KATI_TODO(realpath)")
-		ev.hasIO = true
-		return nil
-	}
 	wb := newWbuf()
 	err = f.args[1].Eval(wb, ev)
 	if err != nil {
 		return err
 	}
+	if ev.avoidIO {
+		fmt.Fprintf(w, "$(realpath %s 2>/dev/null)", string(wb.Bytes()))
+		ev.hasIO = true
+		wb.release()
+		return nil
+	}
+
 	t := time.Now()
 	for _, word := range wb.words {
 		name := string(word)
@@ -1337,15 +1332,17 @@ func (f *funcInfo) Eval(w evalWriter, ev *Evaluator) error {
 	if err != nil {
 		return err
 	}
-	if ev.avoidIO {
-		io.WriteString(w, "KATI_TODO(info)")
-		ev.hasIO = true
-		return nil
-	}
 	abuf := newEbuf()
 	err = f.args[1].Eval(abuf, ev)
 	if err != nil {
 		return err
+	}
+	if ev.avoidIO {
+		ev.delayedOutputs = append(ev.delayedOutputs,
+			fmt.Sprintf("echo %q", abuf.String()))
+		ev.hasIO = true
+		abuf.release()
+		return nil
 	}
 	fmt.Printf("%s\n", abuf.String())
 	abuf.release()
@@ -1360,15 +1357,17 @@ func (f *funcWarning) Eval(w evalWriter, ev *Evaluator) error {
 	if err != nil {
 		return err
 	}
-	if ev.avoidIO {
-		io.WriteString(w, "KATI_TODO(warning)")
-		ev.hasIO = true
-		return nil
-	}
 	abuf := newEbuf()
 	err = f.args[1].Eval(abuf, ev)
 	if err != nil {
 		return err
+	}
+	if ev.avoidIO {
+		ev.delayedOutputs = append(ev.delayedOutputs,
+			fmt.Sprintf("echo '%s: %s' 1>&2", ev.srcpos, abuf.String()))
+		ev.hasIO = true
+		abuf.release()
+		return nil
 	}
 	fmt.Printf("%s: %s\n", ev.srcpos, abuf.String())
 	abuf.release()
@@ -1383,16 +1382,18 @@ func (f *funcError) Eval(w evalWriter, ev *Evaluator) error {
 	if err != nil {
 		return err
 	}
-	if ev.avoidIO {
-		io.WriteString(w, "KATI_TODO(error)")
-		ev.hasIO = true
-		return nil
-	}
 	var abuf evalBuffer
 	abuf.resetSep()
 	err = f.args[1].Eval(&abuf, ev)
 	if err != nil {
 		return err
+	}
+	if ev.avoidIO {
+		ev.delayedOutputs = append(ev.delayedOutputs,
+			fmt.Sprintf("echo '%s: *** %s.' 1>&2 && false", ev.srcpos, abuf.String()))
+		ev.hasIO = true
+		abuf.release()
+		return nil
 	}
 	return ev.errorf("*** %s.", abuf.String())
 }

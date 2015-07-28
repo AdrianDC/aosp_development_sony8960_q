@@ -20,13 +20,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "command.h"
 #include "dep.h"
 #include "eval.h"
+#include "file_cache.h"
 #include "flags.h"
 #include "log.h"
 #include "string_piece.h"
@@ -35,9 +38,16 @@
 #include "var.h"
 #include "version.h"
 
+static size_t FindCommandLineFlag(StringPiece cmd, StringPiece name) {
+  const size_t found = cmd.find(name);
+  if (found == string::npos || found == 0)
+    return string::npos;
+  return found;
+}
+
 static StringPiece FindCommandLineFlagWithArg(StringPiece cmd,
                                               StringPiece name) {
-  size_t index = cmd.find(name);
+  size_t index = FindCommandLineFlag(cmd, name);
   if (index == string::npos)
     return StringPiece();
 
@@ -48,8 +58,7 @@ static StringPiece FindCommandLineFlagWithArg(StringPiece cmd,
     index = val.find(name);
   }
 
-  index = val.find(' ');
-  CHECK(index != string::npos);
+  index = val.find_first_of(" \t");
   return val.substr(0, index);
 }
 
@@ -84,19 +93,19 @@ size_t GetGomaccPosForAndroidCompileCommand(StringPiece cmdline) {
 }
 
 static bool GetDepfileFromCommandImpl(StringPiece cmd, string* out) {
-  if ((cmd.find(StringPiece(" -MD ")) == string::npos &&
-       cmd.find(StringPiece(" -MMD ")) == string::npos) ||
-      cmd.find(StringPiece(" -c ")) == string::npos) {
+  if ((FindCommandLineFlag(cmd, " -MD") == string::npos &&
+       FindCommandLineFlag(cmd, " -MMD") == string::npos) ||
+      FindCommandLineFlag(cmd, " -c") == string::npos) {
     return false;
   }
 
-  StringPiece mf = FindCommandLineFlagWithArg(cmd, StringPiece(" -MF "));
+  StringPiece mf = FindCommandLineFlagWithArg(cmd, " -MF");
   if (!mf.empty()) {
     mf.AppendToString(out);
     return true;
   }
 
-  StringPiece o = FindCommandLineFlagWithArg(cmd, StringPiece(" -o "));
+  StringPiece o = FindCommandLineFlagWithArg(cmd, " -o");
   if (o.empty()) {
     ERROR("Cannot find the depfile in %s", cmd.as_string().c_str());
     return false;
@@ -109,8 +118,6 @@ static bool GetDepfileFromCommandImpl(StringPiece cmd, string* out) {
 
 bool GetDepfileFromCommand(string* cmd, string* out) {
   CHECK(!cmd->empty());
-  CHECK((*cmd)[cmd->size()-1] == ' ');
-
   if (!GetDepfileFromCommandImpl(*cmd, out))
     return false;
 
@@ -169,15 +176,23 @@ class NinjaGenerator {
     } else {
       ninja_dir_ = ".";
     }
+
+    for (Symbol e : Vars::used_env_vars()) {
+      shared_ptr<string> val = ev_->EvalVar(e);
+      used_envs_.emplace(e.str(), *val);
+    }
   }
 
   ~NinjaGenerator() {
     ev_->set_avoid_io(false);
   }
 
-  void Generate(const vector<DepNode*>& nodes, bool build_all_targets) {
+  void Generate(const vector<DepNode*>& nodes,
+                bool build_all_targets,
+                const string& orig_args) {
+    GenerateEnvlist();
+    GenerateNinja(nodes, build_all_targets, orig_args);
     GenerateShell();
-    GenerateNinja(nodes, build_all_targets);
   }
 
  private:
@@ -185,8 +200,8 @@ class NinjaGenerator {
     return StringPrintf("rule%d", rule_id_++);
   }
 
-  StringPiece TranslateCommand(const char* in) {
-    const size_t orig_size = cmd_buf_.size();
+  StringPiece TranslateCommand(const char* in, string* cmd_buf) {
+    const size_t orig_size = cmd_buf->size();
     bool prev_backslash = false;
     // Set space as an initial value so the leading comment will be
     // stripped out.
@@ -199,7 +214,7 @@ class NinjaGenerator {
           if (quote == 0 && isspace(prev_char)) {
             done = true;
           } else {
-            cmd_buf_ += *in;
+            *cmd_buf += *in;
           }
           break;
 
@@ -212,31 +227,27 @@ class NinjaGenerator {
           } else if (!prev_backslash) {
             quote = *in;
           }
-          cmd_buf_ += *in;
+          *cmd_buf += *in;
           break;
 
         case '$':
-          cmd_buf_ += "$$";
-          break;
-
-        case '\t':
-          cmd_buf_ += ' ';
+          *cmd_buf += "$$";
           break;
 
         case '\n':
           if (prev_backslash) {
-            cmd_buf_[cmd_buf_.size()-1] = ' ';
+            (*cmd_buf)[cmd_buf->size()-1] = ' ';
           } else {
-            cmd_buf_ += ' ';
+            *cmd_buf += ' ';
           }
           break;
 
         case '\\':
-          cmd_buf_ += '\\';
+          *cmd_buf += '\\';
           break;
 
         default:
-          cmd_buf_ += *in;
+          *cmd_buf += *in;
       }
 
       if (*in == '\\') {
@@ -249,14 +260,14 @@ class NinjaGenerator {
     }
 
     while (true) {
-      char c = cmd_buf_[cmd_buf_.size()-1];
+      char c = (*cmd_buf)[cmd_buf->size()-1];
       if (!isspace(c) && c != ';')
         break;
-      cmd_buf_.resize(cmd_buf_.size() - 1);
+      cmd_buf->resize(cmd_buf->size() - 1);
     }
 
-    return StringPiece(cmd_buf_.data() + orig_size,
-                       cmd_buf_.size() - orig_size);
+    return StringPiece(cmd_buf->data() + orig_size,
+                       cmd_buf->size() - orig_size);
   }
 
   bool GetDescriptionFromCommand(StringPiece cmd, string *out) {
@@ -308,17 +319,18 @@ class NinjaGenerator {
     return true;
   }
 
-  bool GenShellScript(const vector<Command*>& commands, string* description) {
+  bool GenShellScript(const vector<Command*>& commands,
+                      string* cmd_buf,
+                      string* description) {
     bool got_descritpion = false;
     bool use_gomacc = false;
     bool should_ignore_error = false;
-    cmd_buf_.clear();
     for (const Command* c : commands) {
-      if (!cmd_buf_.empty()) {
+      if (!cmd_buf->empty()) {
         if (should_ignore_error) {
-          cmd_buf_ += " ; ";
+          *cmd_buf += " ; ";
         } else {
-          cmd_buf_ += " && ";
+          *cmd_buf += " && ";
         }
       }
       should_ignore_error = c->ignore_error;
@@ -333,41 +345,41 @@ class NinjaGenerator {
       }
 
       if (needs_subshell)
-        cmd_buf_ += '(';
+        *cmd_buf += '(';
 
-      size_t cmd_start = cmd_buf_.size();
-      StringPiece translated = TranslateCommand(in);
+      size_t cmd_start = cmd_buf->size();
+      StringPiece translated = TranslateCommand(in, cmd_buf);
       if (g_detect_android_echo && !got_descritpion && !c->echo &&
           GetDescriptionFromCommand(translated, description)) {
         got_descritpion = true;
-        cmd_buf_.resize(cmd_start);
+        cmd_buf->resize(cmd_start);
         translated.clear();
       }
       if (translated.empty()) {
-        cmd_buf_ += "true";
+        *cmd_buf += "true";
       } else if (g_goma_dir) {
         size_t pos = GetGomaccPosForAndroidCompileCommand(translated);
         if (pos != string::npos) {
-          cmd_buf_.insert(cmd_start + pos, gomacc_);
+          cmd_buf->insert(cmd_start + pos, gomacc_);
           use_gomacc = true;
         }
       }
 
       if (c == commands.back() && c->ignore_error) {
-        cmd_buf_ += " ; true";
+        *cmd_buf += " ; true";
       }
 
       if (needs_subshell)
-        cmd_buf_ += ')';
+        *cmd_buf += ')';
     }
     return g_goma_dir && !use_gomacc;
   }
 
-  void EmitDepfile() {
-    cmd_buf_ += ' ';
+  void EmitDepfile(string* cmd_buf) {
+    *cmd_buf += ' ';
     string depfile;
-    bool result = GetDepfileFromCommand(&cmd_buf_, &depfile);
-    cmd_buf_.resize(cmd_buf_.size()-1);
+    bool result = GetDepfileFromCommand(cmd_buf, &depfile);
+    cmd_buf->resize(cmd_buf->size()-1);
     if (!result)
       return;
     fprintf(fp_, " depfile = %s\n", depfile.c_str());
@@ -379,6 +391,10 @@ class NinjaGenerator {
     if (!p.second)
       return;
 
+    // Removing this will fix auto_vars.mk, build_once.mk, and
+    // command_vars.mk. However, this change will make
+    // ninja_normalized_path2.mk fail and cause a lot of warnings for
+    // Android build.
     if (node->cmds.empty() &&
         node->deps.empty() && node->order_onlys.empty() && !node->is_phony) {
       return;
@@ -403,18 +419,20 @@ class NinjaGenerator {
       fprintf(fp_, "rule %s\n", rule_name.c_str());
 
       string description = "build $out";
-      use_local_pool |= GenShellScript(commands, &description);
+      string cmd_buf;
+      use_local_pool |= GenShellScript(commands, &cmd_buf, &description);
       fprintf(fp_, " description = %s\n", description.c_str());
-      EmitDepfile();
+      EmitDepfile(&cmd_buf);
 
       // It seems Linux is OK with ~130kB and Mac's limit is ~250kB.
       // TODO: Find this number automatically.
-      if (cmd_buf_.size() > 100 * 1000) {
+      if (cmd_buf.size() > 100 * 1000) {
         fprintf(fp_, " rspfile = $out.rsp\n");
-        fprintf(fp_, " rspfile_content = %s\n", cmd_buf_.c_str());
+        fprintf(fp_, " rspfile_content = %s\n", cmd_buf.c_str());
         fprintf(fp_, " command = %s $out.rsp\n", shell_->c_str());
       } else {
-        fprintf(fp_, " command = %s -c \"%s\"\n", shell_->c_str(), EscapeShell(cmd_buf_).c_str());
+        fprintf(fp_, " command = %s -c \"%s\"\n",
+                shell_->c_str(), EscapeShell(cmd_buf).c_str());
       }
     }
 
@@ -496,19 +514,73 @@ class NinjaGenerator {
     fprintf(fp_, "\n");
   }
 
-  string GetNinjaDirectory() const {
-    return ninja_dir_;
+  void EmitRegenRules(const string& orig_args) {
+    if (!g_gen_regen_rule)
+      return;
+
+    fprintf(fp_, "rule regen_ninja\n");
+    fprintf(fp_, " command = %s\n", orig_args.c_str());
+    fprintf(fp_, " generator = 1\n");
+    fprintf(fp_, " description = Regenerate ninja files due to dependency\n");
+    fprintf(fp_, "build %s: regen_ninja", GetNinjaFilename().c_str());
+    unordered_set<string> makefiles;
+    MakefileCacheManager::Get()->GetAllFilenames(&makefiles);
+    for (const string& makefile : makefiles) {
+      fprintf(fp_, " %.*s", SPF(makefile));
+    }
+    // TODO: Add dependencies to directories read by $(wildcard)
+    // or $(shell find).
+    if (!used_envs_.empty())
+      fprintf(fp_, " %s", GetEnvlistFilename().c_str());
+    fprintf(fp_, "\n\n");
+
+    if (used_envs_.empty())
+      return;
+
+    fprintf(fp_, "build .always_build: phony\n");
+    fprintf(fp_, "rule regen_envlist\n");
+    fprintf(fp_, " command = rm -f $out.tmp");
+    for (const auto& p : used_envs_) {
+      fprintf(fp_, " && echo %s=$$%s >> $out.tmp",
+              p.first.c_str(), p.first.c_str());
+    }
+    if (g_error_on_env_change) {
+      fprintf(fp_,
+              " && (diff $out.tmp $out || "
+              "(echo Environment variable changes are detected && false))\n");
+    } else {
+      fprintf(fp_, " && (diff $out.tmp $out || mv $out.tmp $out)\n");
+    }
+    fprintf(fp_, " restat = 1\n");
+    fprintf(fp_, " generator = 1\n");
+    fprintf(fp_, " description = Check $out\n");
+    fprintf(fp_, "build %s: regen_envlist .always_build\n\n",
+            GetEnvlistFilename().c_str());
   }
 
   string GetNinjaFilename() const {
-    return StringPrintf("%s/build%s.ninja", ninja_dir_.c_str(), ninja_suffix_.c_str());
+    return StringPrintf("%s/build%s.ninja",
+                        ninja_dir_.c_str(), ninja_suffix_.c_str());
   }
 
   string GetShellScriptFilename() const {
-    return StringPrintf("%s/ninja%s.sh", ninja_dir_.c_str(), ninja_suffix_.c_str());
+    return StringPrintf("%s/ninja%s.sh",
+                        ninja_dir_.c_str(), ninja_suffix_.c_str());
   }
 
-  void GenerateNinja(const vector<DepNode*>& nodes, bool build_all_targets) {
+  string GetEnvlistFilename() const {
+    return StringPrintf("%s/.kati_env%s",
+                        ninja_dir_.c_str(), ninja_suffix_.c_str());
+  }
+
+  string GetLunchFilename() const {
+    return StringPrintf("%s/.kati_lunch%s",
+                        ninja_dir_.c_str(), ninja_suffix_.c_str());
+  }
+
+  void GenerateNinja(const vector<DepNode*>& nodes,
+                     bool build_all_targets,
+                     const string& orig_args) {
     fp_ = fopen(GetNinjaFilename().c_str(), "wb");
     if (fp_ == NULL)
       PERROR("fopen(build.ninja) failed");
@@ -516,19 +588,20 @@ class NinjaGenerator {
     fprintf(fp_, "# Generated by kati %s\n", kGitVersion);
     fprintf(fp_, "\n");
 
-    if (!Vars::used_env_vars().empty()) {
+    if (!used_envs_.empty()) {
       fprintf(fp_, "# Environment variables used:\n");
-      for (Symbol e : Vars::used_env_vars()) {
-        shared_ptr<string> val = ev_->EvalVar(e);
-        fprintf(fp_, "# %s=%s\n", e.c_str(), val->c_str());
+      for (const auto& p : used_envs_) {
+        fprintf(fp_, "# %s=%s\n", p.first.c_str(), p.second.c_str());
       }
       fprintf(fp_, "\n");
     }
 
     if (g_goma_dir) {
       fprintf(fp_, "pool local_pool\n");
-      fprintf(fp_, " depth = %d\n", g_num_jobs);
+      fprintf(fp_, " depth = %d\n\n", g_num_jobs);
     }
+
+    EmitRegenRules(orig_args);
 
     for (DepNode* node : nodes) {
       EmitNode(node);
@@ -561,6 +634,12 @@ class NinjaGenerator {
     fprintf(fp, "\n");
     if (ninja_dir_ == ".")
       fprintf(fp, "cd $(dirname \"$0\")\n");
+    if (!ninja_suffix_.empty()) {
+      fprintf(fp, "if [ -f %s ]; then\n export $(cat %s)\nfi\n",
+              GetEnvlistFilename().c_str(), GetEnvlistFilename().c_str());
+      fprintf(fp, "if [ -f %s ]; then\n export $(cat %s)\nfi\n",
+              GetLunchFilename().c_str(), GetLunchFilename().c_str());
+    }
 
     for (const auto& p : ev_->exports()) {
       if (p.second) {
@@ -581,24 +660,35 @@ class NinjaGenerator {
       PERROR("chmod ninja.sh failed");
   }
 
+  void GenerateEnvlist() {
+    if (used_envs_.empty())
+      return;
+    FILE* fp = fopen(GetEnvlistFilename().c_str(), "wb");
+    for (const auto& p : used_envs_) {
+      fprintf(fp, "%s=%s\n", p.first.c_str(), p.second.c_str());
+    }
+    fclose(fp);
+  }
+
   CommandEvaluator ce_;
   Evaluator* ev_;
   FILE* fp_;
   unordered_set<Symbol> done_;
   int rule_id_;
-  string cmd_buf_;
   string gomacc_;
   string ninja_suffix_;
   string ninja_dir_;
   unordered_map<Symbol, Symbol> short_names_;
   shared_ptr<string> shell_;
+  map<string, string> used_envs_;
 };
 
 void GenerateNinja(const char* ninja_suffix,
                    const char* ninja_dir,
                    const vector<DepNode*>& nodes,
                    Evaluator* ev,
-                   bool build_all_targets) {
+                   bool build_all_targets,
+                   const string& orig_args) {
   NinjaGenerator ng(ninja_suffix, ninja_dir, ev);
-  ng.Generate(nodes, build_all_targets);
+  ng.Generate(nodes, build_all_targets, orig_args);
 }

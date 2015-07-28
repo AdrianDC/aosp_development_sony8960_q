@@ -24,14 +24,52 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/golang/glog"
 )
+
+type nodeState int
+
+const (
+	nodeInit    nodeState = iota // not visited
+	nodeVisit                    // visited
+	nodeFile                     // visited & file exists
+	nodeAlias                    // visited & alias for other target
+	nodeMissing                  // visited & no target for this output
+	nodeBuild                    // visited & build emitted
+)
+
+func (s nodeState) String() string {
+	switch s {
+	case nodeInit:
+		return "node-init"
+	case nodeVisit:
+		return "node-visit"
+	case nodeFile:
+		return "node-file"
+	case nodeAlias:
+		return "node-alias"
+	case nodeMissing:
+		return "node-missing"
+	case nodeBuild:
+		return "node-build"
+	default:
+		return fmt.Sprintf("node-unknown[%d]", int(s))
+	}
+}
 
 // NinjaGenerator generates ninja build files from DepGraph.
 type NinjaGenerator struct {
+	// Args is original arguments to generate the ninja file.
+	Args []string
+	// Suffix is suffix for generated files.
+	Suffix string
 	// GomaDir is goma directory.  If empty, goma will not be used.
 	GomaDir string
 	// DetectAndroidEcho detects echo as description.
 	DetectAndroidEcho bool
+	// ErrorOnEnvChange cause error when env change is detected when run ninja.
+	ErrorOnEnvChange bool
 
 	f       *os.File
 	nodes   []*DepNode
@@ -40,7 +78,7 @@ type NinjaGenerator struct {
 	ctx *execContext
 
 	ruleID     int
-	done       map[string]bool
+	done       map[string]nodeState
 	shortNames map[string][]string
 }
 
@@ -48,7 +86,7 @@ func (n *NinjaGenerator) init(g *DepGraph) {
 	n.nodes = g.nodes
 	n.exports = g.exports
 	n.ctx = newExecContext(g.vars, g.vpaths, true)
-	n.done = make(map[string]bool)
+	n.done = make(map[string]nodeState)
 	n.shortNames = make(map[string][]string)
 }
 
@@ -237,12 +275,14 @@ func (n *NinjaGenerator) genShellScript(runners []runner) (cmd string, desc stri
 		}
 		cmd := stripShellComment(r.cmd)
 		cmd = trimLeftSpace(cmd)
+		cmd = strings.Replace(cmd, "\\\n\t", "", -1)
 		cmd = strings.Replace(cmd, "\\\n", "", -1)
 		cmd = strings.TrimRight(cmd, " \t\n;")
-		cmd = strings.Replace(cmd, "$", "$$", -1) // for ninja
+		cmd = escapeNinja(cmd)
 		if cmd == "" {
 			cmd = "true"
 		}
+		glog.V(2).Infof("cmd %q=>%q", r.cmd, cmd)
 		if n.GomaDir != "" {
 			rcmd, ok := gomaCmdForAndroidCompileCmd(cmd)
 			if ok {
@@ -334,6 +374,10 @@ func getDepString(node *DepNode) (string, string) {
 	return strings.Join(deps, " "), strings.Join(orderOnlys, " ")
 }
 
+func escapeNinja(s string) string {
+	return strings.Replace(s, "$", "$$", -1)
+}
+
 func escapeShell(s string) string {
 	i := strings.IndexAny(s, "$`!\\\"")
 	if i < 0 {
@@ -361,18 +405,48 @@ func escapeShell(s string) string {
 	return buf.String()
 }
 
+func (n *NinjaGenerator) ninjaVars(s string, nv [][]string, esc func(string) string) string {
+	for _, v := range nv {
+		k, v := v[0], v[1]
+		if v == "" {
+			continue
+		}
+		if strings.Contains(v, "/./") || strings.Contains(v, "/../") || strings.Contains(v, "$") {
+			// ninja will normalize paths (/./, /../), so keep it as is
+			// ninja will emit quoted string for $
+			continue
+		}
+		if esc != nil {
+			v = esc(v)
+		}
+		s = strings.Replace(s, v, k, -1)
+	}
+	return s
+}
+
 func (n *NinjaGenerator) emitNode(node *DepNode) error {
-	if n.done[node.Output] {
+	if _, found := n.done[node.Output]; found {
 		return nil
 	}
-	n.done[node.Output] = true
+	n.done[node.Output] = nodeVisit
 
 	if len(node.Cmds) == 0 && len(node.Deps) == 0 && len(node.OrderOnlys) == 0 && !node.IsPhony {
 		if _, ok := n.ctx.vpaths.exists(node.Output); ok {
+			n.done[node.Output] = nodeFile
 			return nil
 		}
-		n.emitBuild(node.Output, "phony", "", "")
-		fmt.Fprintln(n.f)
+		o := filepath.Clean(node.Output)
+		if o != node.Output {
+			// if normalized target has been done, it marks as alias.
+			if s, found := n.done[o]; found {
+				glog.V(1).Infof("node %s=%s => %s=alias", o, s, node.Output)
+				n.done[node.Output] = nodeAlias
+				return nil
+			}
+		}
+		if node.Filename == "" {
+			n.done[node.Output] = nodeMissing
+		}
 		return nil
 	}
 
@@ -390,7 +464,7 @@ func (n *NinjaGenerator) emitNode(node *DepNode) error {
 	inputs, orderOnlys := getDepString(node)
 	if len(runners) > 0 {
 		ruleName = n.genRuleName()
-		fmt.Fprintf(n.f, "\n# rule for %s\n", node.Output)
+		fmt.Fprintf(n.f, "\n# rule for %q\n", node.Output)
 		fmt.Fprintf(n.f, "rule %s\n", ruleName)
 
 		ss, desc, ulp := n.genShellScript(runners)
@@ -406,23 +480,21 @@ func (n *NinjaGenerator) emitNode(node *DepNode) error {
 			fmt.Fprintf(n.f, " depfile = %s\n", depfile)
 			fmt.Fprintf(n.f, " deps = gcc\n")
 		}
+		nv := [][]string{
+			[]string{"${in}", inputs},
+			[]string{"${out}", escapeNinja(node.Output)},
+		}
 		// It seems Linux is OK with ~130kB.
 		// TODO: Find this number automatically.
 		ArgLenLimit := 100 * 1000
 		if len(cmdline) > ArgLenLimit {
 			fmt.Fprintf(n.f, " rspfile = $out.rsp\n")
-			if inputs != "" {
-				cmdline = strings.Replace(cmdline, inputs, "$in", -1)
-			}
-			cmdline = strings.Replace(cmdline, node.Output, "$out", -1)
+			cmdline = n.ninjaVars(cmdline, nv, nil)
 			fmt.Fprintf(n.f, " rspfile_content = %s\n", cmdline)
 			fmt.Fprintf(n.f, " command = %s $out.rsp\n", n.ctx.shell)
 		} else {
 			cmdline = escapeShell(cmdline)
-			if inputs != "" {
-				cmdline = strings.Replace(cmdline, escapeShell(inputs), "$in", -1)
-			}
-			cmdline = strings.Replace(cmdline, escapeShell(node.Output), "$out", -1)
+			cmdline = n.ninjaVars(cmdline, nv, escapeShell)
 			fmt.Fprintf(n.f, " command = %s -c \"%s\"\n", n.ctx.shell, cmdline)
 		}
 	}
@@ -431,32 +503,104 @@ func (n *NinjaGenerator) emitNode(node *DepNode) error {
 		fmt.Fprintf(n.f, " pool = local_pool\n")
 	}
 	fmt.Fprintf(n.f, "\n")
+	n.done[node.Output] = nodeBuild
 
 	for _, d := range node.Deps {
 		err := n.emitNode(d)
 		if err != nil {
 			return err
 		}
+		glog.V(1).Infof("node %s dep node %q %s", node.Output, d.Output, n.done[d.Output])
 	}
 	for _, d := range node.OrderOnlys {
 		err := n.emitNode(d)
 		if err != nil {
 			return err
 		}
+		glog.V(1).Infof("node %s order node %q %s", node.Output, d.Output, n.done[d.Output])
 	}
 	return nil
 }
 
-func (n *NinjaGenerator) shName(suffix string) string {
-	return fmt.Sprintf("ninja%s.sh", suffix)
+func (n *NinjaGenerator) emitRegenRules() error {
+	if len(n.Args) == 0 {
+		return nil
+	}
+	mkfiles, err := n.ctx.ev.EvaluateVar("MAKEFILE_LIST")
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(n.f, `
+rule regen_ninja
+ description = Regenerate ninja files due to dependency
+ generator=1
+ command=%s
+`, strings.Join(n.Args, " "))
+	fmt.Fprintf(n.f, "build %s: regen_ninja %s", n.ninjaName(), mkfiles)
+	// TODO: Add dependencies to directories read by $(wildcard) or
+	// $(shell find).
+	if len(usedEnvs) > 0 {
+		fmt.Fprintf(n.f, " %s", n.envlistName())
+	}
+	fmt.Fprintf(n.f, "\n\n")
+	if len(usedEnvs) == 0 {
+		return nil
+	}
+	fmt.Fprint(n.f, `
+build .always_build: phony
+rule regen_envlist
+ description = Check $out
+ generator = 1
+ restat = 1
+ command = rm -f $out.tmp`)
+	for env := range usedEnvs {
+		fmt.Fprintf(n.f, " && echo %s=$$%s >> $out.tmp", env, env)
+	}
+	if n.ErrorOnEnvChange {
+		fmt.Fprintln(n.f, " && (cmp -s $out.tmp $out || (echo Environment variable changes are detected && diff -u $out $out.tmp))")
+	} else {
+		fmt.Fprintln(n.f, " && (cmp -s $out.tmp $out || mv $out.tmp $out)")
+	}
+
+	fmt.Fprintf(n.f, "build %s: regen_envlist .always_build\n\n", n.envlistName())
+	return nil
 }
 
-func (n *NinjaGenerator) ninjaName(suffix string) string {
-	return fmt.Sprintf("build%s.ninja", suffix)
+func (n *NinjaGenerator) shName() string {
+	return fmt.Sprintf("ninja%s.sh", n.Suffix)
 }
 
-func (n *NinjaGenerator) generateShell(suffix string) (err error) {
-	f, err := os.Create(n.shName(suffix))
+func (n *NinjaGenerator) ninjaName() string {
+	return fmt.Sprintf("build%s.ninja", n.Suffix)
+}
+
+func (n *NinjaGenerator) envlistName() string {
+	return fmt.Sprintf(".kati_env%s", n.Suffix)
+}
+
+func (n *NinjaGenerator) generateEnvlist() (err error) {
+	f, err := os.Create(n.envlistName())
+	if err != nil {
+		return err
+	}
+	defer func() {
+		cerr := f.Close()
+		if err == nil {
+			err = cerr
+		}
+	}()
+	for k := range usedEnvs {
+		v, err := n.ctx.ev.EvaluateVar(k)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(f, "%q=%q\n", k, v)
+	}
+	return nil
+}
+
+func (n *NinjaGenerator) generateShell() (err error) {
+	f, err := os.Create(n.shName())
 	if err != nil {
 		return err
 	}
@@ -467,32 +611,41 @@ func (n *NinjaGenerator) generateShell(suffix string) (err error) {
 		}
 	}()
 
-	fmt.Fprintf(f, "#!%s\n", n.ctx.shell)
+	fmt.Fprintf(f, "#!/bin/bash\n")
 	fmt.Fprintf(f, "# Generated by kati %s\n", gitVersion)
 	fmt.Fprintln(f)
 	fmt.Fprintln(f, `cd $(dirname "$0")`)
+	if n.Suffix != "" {
+		fmt.Fprintf(f, "if [ -f %s ]; then\n export $(cat %s)\nfi\n", n.envlistName(), n.envlistName())
+	}
 	for name, export := range n.exports {
+		// export "a b"=c will error on bash
+		// bash: export `a b=c': not a valid identifier
+		if strings.ContainsAny(name, " \t\n\r") {
+			glog.V(1).Infof("ignore export %q (export:%t)", name, export)
+			continue
+		}
 		if export {
 			v, err := n.ctx.ev.EvaluateVar(name)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(f, "export %s=%q\n", name, v)
+			fmt.Fprintf(f, "export %q=%q\n", name, v)
 		} else {
-			fmt.Fprintf(f, "unset %s\n", name)
+			fmt.Fprintf(f, "unset %q\n", name)
 		}
 	}
 	if n.GomaDir == "" {
-		fmt.Fprintf(f, `exec ninja -f %s "$@"`+"\n", n.ninjaName(suffix))
+		fmt.Fprintf(f, `exec ninja -f %s "$@"`+"\n", n.ninjaName())
 	} else {
-		fmt.Fprintf(f, `exec ninja -f %s -j500 "$@"`+"\n", n.ninjaName(suffix))
+		fmt.Fprintf(f, `exec ninja -f %s -j500 "$@"`+"\n", n.ninjaName())
 	}
 
 	return f.Chmod(0755)
 }
 
-func (n *NinjaGenerator) generateNinja(suffix, defaultTarget string) (err error) {
-	f, err := os.Create(n.ninjaName(suffix))
+func (n *NinjaGenerator) generateNinja(defaultTarget string) (err error) {
+	f, err := os.Create(n.ninjaName())
 	if err != nil {
 		return err
 	}
@@ -519,14 +672,19 @@ func (n *NinjaGenerator) generateNinja(suffix, defaultTarget string) (err error)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(n.f, "# %s=%s\n", name, v)
+			fmt.Fprintf(n.f, "# %q=%q\n", name, v)
 		}
 		fmt.Fprintf(n.f, "\n")
 	}
 
 	if n.GomaDir != "" {
 		fmt.Fprintf(n.f, "pool local_pool\n")
-		fmt.Fprintf(n.f, " depth = %d\n", runtime.NumCPU())
+		fmt.Fprintf(n.f, " depth = %d\n\n", runtime.NumCPU())
+	}
+
+	err = n.emitRegenRules()
+	if err != nil {
+		return err
 	}
 
 	// defining $out for $@ and $in for $^ here doesn't work well,
@@ -536,38 +694,64 @@ func (n *NinjaGenerator) generateNinja(suffix, defaultTarget string) (err error)
 		if err != nil {
 			return err
 		}
+		glog.V(1).Infof("node %q %s", node.Output, n.done[node.Output])
 	}
 
-	if defaultTarget != "" {
-		fmt.Fprintf(n.f, "\ndefault %s\n", defaultTarget)
-	}
-
-	fmt.Fprintf(n.f, "\n# shortcuts:\n")
-	var names []string
-	for name := range n.shortNames {
-		if n.done[name] {
+	// emit phony targets for visited nodes that are
+	//  - not existing file
+	//  - not alias for other targets.
+	var nodes []string
+	for node, state := range n.done {
+		if state != nodeVisit {
 			continue
 		}
-		names = append(names, name)
+		nodes = append(nodes, node)
 	}
-	sort.Strings(names)
-	for _, name := range names {
+	if len(nodes) > 0 {
+		fmt.Fprintln(n.f)
+		sort.Strings(nodes)
+		for _, node := range nodes {
+			n.emitBuild(node, "phony", "", "")
+			fmt.Fprintln(n.f)
+			n.done[node] = nodeBuild
+		}
+	}
+
+	// emit default if the target was emitted.
+	if defaultTarget != "" && n.done[defaultTarget] == nodeBuild {
+		fmt.Fprintf(n.f, "\ndefault %s\n", escapeNinja(defaultTarget))
+	}
+
+	var names []string
+	for name := range n.shortNames {
+		if n.done[name] != nodeInit {
+			continue
+		}
 		if len(n.shortNames[name]) != 1 {
 			// we generate shortcuts only for targets whose basename are unique.
 			continue
 		}
-		fmt.Fprintf(n.f, "build %s: phony %s\n", name, n.shortNames[name][0])
+		names = append(names, name)
 	}
-	// TODO(ukai): regenerate build.ninja when Makefile or dir used for
-	// wildcard is newer than build.ninja?
+	if len(names) > 0 {
+		fmt.Fprintf(n.f, "\n# shortcuts:\n")
+		sort.Strings(names)
+		for _, name := range names {
+			fmt.Fprintf(n.f, "build %s: phony %s\n", name, n.shortNames[name][0])
+		}
+	}
 	return nil
 }
 
 // Save generates build.ninja from DepGraph.
-func (n *NinjaGenerator) Save(g *DepGraph, suffix string, targets []string) error {
+func (n *NinjaGenerator) Save(g *DepGraph, name string, targets []string) error {
 	startTime := time.Now()
 	n.init(g)
-	err := n.generateShell(suffix)
+	err := n.generateEnvlist()
+	if err != nil {
+		return err
+	}
+	err = n.generateShell()
 	if err != nil {
 		return err
 	}
@@ -575,7 +759,7 @@ func (n *NinjaGenerator) Save(g *DepGraph, suffix string, targets []string) erro
 	if len(targets) == 0 && len(g.nodes) > 0 {
 		defaultTarget = g.nodes[0].Output
 	}
-	err = n.generateNinja(suffix, defaultTarget)
+	err = n.generateNinja(defaultTarget)
 	if err != nil {
 		return err
 	}
