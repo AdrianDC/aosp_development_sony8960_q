@@ -436,7 +436,7 @@ class DepBuilder {
             if (!s->empty())
               *s += ' ';
             new_var->Eval(ev_, s.get());
-            new_var = new SimpleVar(s, old_var->Origin());
+            new_var = new SimpleVar(*s, old_var->Origin());
           }
         } else if (var->op() == AssignOp::QUESTION_EQ) {
           Var* old_var = ev_->LookupVar(name);
@@ -444,8 +444,7 @@ class DepBuilder {
             continue;
           }
         }
-        sv.push_back(move(unique_ptr<ScopedVar>(
-            new ScopedVar(cur_rule_vars_.get(), name, new_var))));
+        sv.emplace_back(new ScopedVar(cur_rule_vars_.get(), name, new_var));
       }
     }
 

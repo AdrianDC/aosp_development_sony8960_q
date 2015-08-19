@@ -15,15 +15,52 @@
 #ifndef FIND_H_
 #define FIND_H_
 
+#include <memory>
 #include <string>
+#include <vector>
+
+#include "string_piece.h"
 
 using namespace std;
+
+class FindCond;
+
+enum struct FindCommandType {
+  FIND,
+  FINDLEAVES,
+  LS,
+};
+
+struct FindCommand {
+  FindCommand();
+  ~FindCommand();
+
+  bool Parse(const string& cmd);
+
+  FindCommandType type;
+  string chdir;
+  string testdir;
+  vector<StringPiece> finddirs;
+  bool follows_symlinks;
+  unique_ptr<FindCond> print_cond;
+  unique_ptr<FindCond> prune_cond;
+  int depth;
+  int mindepth;
+  bool redirect_to_devnull;
+
+  unique_ptr<vector<string>> read_dirs;
+
+ private:
+  FindCommand(const FindCommand&) = delete;
+  void operator=(FindCommand) = delete;
+};
 
 class FindEmulator {
  public:
   virtual ~FindEmulator() = default;
 
-  virtual bool HandleFind(const string& cmd, string* out) = 0;
+  virtual bool HandleFind(const string& cmd, const FindCommand& fc,
+                          string* out) = 0;
 
   static FindEmulator* Get();
 

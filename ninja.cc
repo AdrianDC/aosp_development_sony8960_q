@@ -17,11 +17,12 @@
 #include "ninja.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <map>
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -30,8 +31,13 @@
 #include "dep.h"
 #include "eval.h"
 #include "file_cache.h"
+#include "fileutil.h"
+#include "find.h"
 #include "flags.h"
+#include "func.h"
+#include "io.h"
 #include "log.h"
+#include "stats.h"
 #include "string_piece.h"
 #include "stringprintf.h"
 #include "strutil.h"
@@ -162,8 +168,9 @@ bool GetDepfileFromCommand(string* cmd, string* out) {
 
 class NinjaGenerator {
  public:
-  NinjaGenerator(const char* ninja_suffix, const char* ninja_dir, Evaluator* ev)
-      : ce_(ev), ev_(ev), fp_(NULL), rule_id_(0) {
+  NinjaGenerator(const char* ninja_suffix, const char* ninja_dir, Evaluator* ev,
+                 double start_time)
+      : ce_(ev), ev_(ev), fp_(NULL), rule_id_(0), start_time_(start_time) {
     ev_->set_avoid_io(true);
     shell_ = ev->EvalVar(kShellSym);
     if (g_goma_dir)
@@ -177,10 +184,7 @@ class NinjaGenerator {
       ninja_dir_ = ".";
     }
 
-    for (Symbol e : Vars::used_env_vars()) {
-      shared_ptr<string> val = ev_->EvalVar(e);
-      used_envs_.emplace(e.str(), *val);
-    }
+    GetExecutablePath(&kati_binary_);
   }
 
   ~NinjaGenerator() {
@@ -190,9 +194,17 @@ class NinjaGenerator {
   void Generate(const vector<DepNode*>& nodes,
                 bool build_all_targets,
                 const string& orig_args) {
-    GenerateEnvlist();
     GenerateNinja(nodes, build_all_targets, orig_args);
+    GenerateEnvlist();
     GenerateShell();
+    GenerateStamp();
+  }
+
+  static string GetStampFilename(const char* ninja_dir,
+                                 const char* ninja_suffix) {
+    return StringPrintf("%s/.kati_stamp%s",
+                        ninja_dir ? ninja_dir : ".",
+                        ninja_suffix ? ninja_suffix : "");
   }
 
  private:
@@ -207,12 +219,12 @@ class NinjaGenerator {
     // stripped out.
     char prev_char = ' ';
     char quote = 0;
-    bool done = false;
-    for (; *in && !done; in++) {
+    for (; *in; in++) {
       switch (*in) {
         case '#':
           if (quote == 0 && isspace(prev_char)) {
-            done = true;
+            while (in[1] && *in != '\n')
+              in++;
           } else {
             *cmd_buf += *in;
           }
@@ -236,7 +248,7 @@ class NinjaGenerator {
 
         case '\n':
           if (prev_backslash) {
-            (*cmd_buf)[cmd_buf->size()-1] = ' ';
+            cmd_buf->resize(cmd_buf->size()-1);
           } else {
             *cmd_buf += ' ';
           }
@@ -335,7 +347,7 @@ class NinjaGenerator {
       }
       should_ignore_error = c->ignore_error;
 
-      const char* in = c->cmd->c_str();
+      const char* in = c->cmd.c_str();
       while (isspace(*in))
         in++;
 
@@ -363,6 +375,8 @@ class NinjaGenerator {
           cmd_buf->insert(cmd_start + pos, gomacc_);
           use_gomacc = true;
         }
+      } else if (translated.find("/gomacc") != string::npos) {
+        use_gomacc = true;
       }
 
       if (c == commands.back() && c->ignore_error) {
@@ -372,7 +386,7 @@ class NinjaGenerator {
       if (needs_subshell)
         *cmd_buf += ')';
     }
-    return g_goma_dir && !use_gomacc;
+    return !use_gomacc;
   }
 
   void EmitDepfile(string* cmd_buf) {
@@ -389,6 +403,11 @@ class NinjaGenerator {
   void EmitNode(DepNode* node) {
     auto p = done_.insert(node->output);
     if (!p.second)
+      return;
+
+    // A hack to exclude out phony target in Android. If this exists,
+    // "ninja -t clean" tries to remove this directory and fails.
+    if (g_detect_android_echo && node->output.str() == "out")
       return;
 
     // Removing this will fix auto_vars.mk, build_once.mk, and
@@ -429,10 +448,11 @@ class NinjaGenerator {
       if (cmd_buf.size() > 100 * 1000) {
         fprintf(fp_, " rspfile = $out.rsp\n");
         fprintf(fp_, " rspfile_content = %s\n", cmd_buf.c_str());
-        fprintf(fp_, " command = %s $out.rsp\n", shell_->c_str());
+        fprintf(fp_, " command = %s $out.rsp\n", shell_.c_str());
       } else {
+        EscapeShell(&cmd_buf);
         fprintf(fp_, " command = %s -c \"%s\"\n",
-                shell_->c_str(), EscapeShell(cmd_buf).c_str());
+                shell_.c_str(), cmd_buf.c_str());
       }
     }
 
@@ -448,7 +468,7 @@ class NinjaGenerator {
     }
   }
 
-  string EscapeBuildTarget(Symbol s) {
+  string EscapeBuildTarget(Symbol s) const {
     if (s.str().find_first_of("$: ") == string::npos)
       return s.str();
     string r;
@@ -466,21 +486,21 @@ class NinjaGenerator {
     return r;
   }
 
-  string EscapeShell(string s) {
-    if (s.find_first_of("$`!\\\"") == string::npos)
-      return s;
+  void EscapeShell(string* s) const {
+    if (s->find_first_of("$`!\\\"") == string::npos)
+      return;
     string r;
-    bool lastDollar = false;
-    for (char c : s) {
+    bool last_dollar = false;
+    for (char c : *s) {
       switch (c) {
         case '$':
-          if (lastDollar) {
+          if (last_dollar) {
             r += c;
-            lastDollar = false;
+            last_dollar = false;
           } else {
             r += '\\';
             r += c;
-            lastDollar = true;
+            last_dollar = true;
           }
           break;
         case '`':
@@ -491,10 +511,10 @@ class NinjaGenerator {
           // fall through.
         default:
           r += c;
-          lastDollar = false;
+          last_dollar = false;
       }
     }
-    return r;
+    s->swap(r);
   }
 
   void EmitBuild(DepNode* node, const string& rule_name) {
@@ -528,34 +548,12 @@ class NinjaGenerator {
     for (const string& makefile : makefiles) {
       fprintf(fp_, " %.*s", SPF(makefile));
     }
+    fprintf(fp_, " %s", kati_binary_.c_str());
     // TODO: Add dependencies to directories read by $(wildcard)
     // or $(shell find).
     if (!used_envs_.empty())
       fprintf(fp_, " %s", GetEnvlistFilename().c_str());
     fprintf(fp_, "\n\n");
-
-    if (used_envs_.empty())
-      return;
-
-    fprintf(fp_, "build .always_build: phony\n");
-    fprintf(fp_, "rule regen_envlist\n");
-    fprintf(fp_, " command = rm -f $out.tmp");
-    for (const auto& p : used_envs_) {
-      fprintf(fp_, " && echo %s=$$%s >> $out.tmp",
-              p.first.c_str(), p.first.c_str());
-    }
-    if (g_error_on_env_change) {
-      fprintf(fp_,
-              " && (diff $out.tmp $out || "
-              "(echo Environment variable changes are detected && false))\n");
-    } else {
-      fprintf(fp_, " && (diff $out.tmp $out || mv $out.tmp $out)\n");
-    }
-    fprintf(fp_, " restat = 1\n");
-    fprintf(fp_, " generator = 1\n");
-    fprintf(fp_, " description = Check $out\n");
-    fprintf(fp_, "build %s: regen_envlist .always_build\n\n",
-            GetEnvlistFilename().c_str());
   }
 
   string GetNinjaFilename() const {
@@ -578,6 +576,10 @@ class NinjaGenerator {
                         ninja_dir_.c_str(), ninja_suffix_.c_str());
   }
 
+  string GetStampFilename() const {
+    return GetStampFilename(ninja_dir_.c_str(), ninja_suffix_.c_str());
+  }
+
   void GenerateNinja(const vector<DepNode*>& nodes,
                      bool build_all_targets,
                      const string& orig_args) {
@@ -596,10 +598,8 @@ class NinjaGenerator {
       fprintf(fp_, "\n");
     }
 
-    if (g_goma_dir) {
-      fprintf(fp_, "pool local_pool\n");
-      fprintf(fp_, " depth = %d\n\n", g_num_jobs);
-    }
+    fprintf(fp_, "pool local_pool\n");
+    fprintf(fp_, " depth = %d\n\n", g_num_jobs);
 
     EmitRegenRules(orig_args);
 
@@ -607,9 +607,15 @@ class NinjaGenerator {
       EmitNode(node);
     }
 
+    for (Symbol e : Vars::used_env_vars()) {
+      StringPiece val(getenv(e.c_str()));
+      used_envs_.emplace(e.str(), val.as_string());
+    }
+
     if (!build_all_targets) {
       CHECK(!nodes.empty());
-      fprintf(fp_, "\ndefault %s\n", nodes.front()->output.c_str());
+      fprintf(fp_, "\ndefault %s\n",
+              EscapeBuildTarget(nodes.front()->output).c_str());
     }
 
     fprintf(fp_, "\n# shortcuts:\n");
@@ -626,10 +632,7 @@ class NinjaGenerator {
     if (fp == NULL)
       PERROR("fopen(ninja.sh) failed");
 
-    shared_ptr<string> shell = ev_->EvalVar(kShellSym);
-    if (shell->empty())
-      shell = make_shared<string>("/bin/sh");
-    fprintf(fp, "#!%s\n", shell->c_str());
+    fprintf(fp, "#!/bin/sh\n");
     fprintf(fp, "# Generated by kati %s\n", kGitVersion);
     fprintf(fp, "\n");
     if (ninja_dir_ == ".")
@@ -643,15 +646,17 @@ class NinjaGenerator {
 
     for (const auto& p : ev_->exports()) {
       if (p.second) {
-        shared_ptr<string> val = ev_->EvalVar(p.first);
-        fprintf(fp, "export %s=%s\n", p.first.c_str(), val->c_str());
+        const string val = ev_->EvalVar(p.first);
+        fprintf(fp, "export '%s'='%s'\n", p.first.c_str(), val.c_str());
       } else {
-        fprintf(fp, "unset %s\n", p.first.c_str());
+        fprintf(fp, "unset '%s'\n", p.first.c_str());
       }
     }
 
     fprintf(fp, "exec ninja -f %s ", GetNinjaFilename().c_str());
-    if (g_goma_dir) {
+    if (g_remote_num_jobs > 0) {
+      fprintf(fp, "-j%d ", g_remote_num_jobs);
+    } else if (g_goma_dir) {
       fprintf(fp, "-j500 ");
     }
     fprintf(fp, "\"$@\"\n");
@@ -670,6 +675,128 @@ class NinjaGenerator {
     fclose(fp);
   }
 
+#if 0
+  void GetCommonPrefixDir(const vector<string>& files, string* o) {
+    for (const string& file : files) {
+      size_t l = min(file.size(), o->size());
+      for (size_t i = 0; i < l; i++) {
+        if (file[i] != (*o)[i]) {
+          size_t index = o->rfind('/', i);
+          if (index == string::npos)
+            index = 0;
+          o->resize(index);
+          break;
+        }
+      }
+    }
+  }
+
+  void GetReadDirs(const string& pat,
+                   const vector<string>& files,
+                   unordered_set<string>* dirs) {
+    string prefix_dir = Dirname(pat).as_string();
+    size_t index = prefix_dir.find_first_of("?*[\\");
+    if (index != string::npos) {
+      index = prefix_dir.rfind('/', index);
+      if (index == string::npos) {
+        prefix_dir = "";
+      } else {
+        prefix_dir = prefix_dir.substr(0, index);
+      }
+    }
+
+    GetCommonPrefixDir(files, &prefix_dir);
+    if (prefix_dir.empty())
+      prefix_dir = ".";
+    dirs->insert(prefix_dir);
+    for (const string& file : files) {
+      StringPiece dir = Dirname(file);
+      while (dir != prefix_dir) {
+        dirs->insert(dir.as_string());
+        dir = Dirname(dir);
+      }
+    }
+  }
+#endif
+
+  void GenerateStamp() {
+    FILE* fp = fopen(GetStampFilename().c_str(), "wb");
+    CHECK(fp);
+
+    size_t r = fwrite(&start_time_, sizeof(start_time_), 1, fp);
+    CHECK(r == 1);
+
+    unordered_set<string> makefiles;
+    MakefileCacheManager::Get()->GetAllFilenames(&makefiles);
+    DumpInt(fp, makefiles.size() + 1);
+    DumpString(fp, kati_binary_);
+    for (const string& makefile : makefiles) {
+      DumpString(fp, makefile);
+    }
+
+    DumpInt(fp, Evaluator::used_undefined_vars().size());
+    for (Symbol v : Evaluator::used_undefined_vars()) {
+      DumpString(fp, v.str());
+    }
+
+    DumpInt(fp, used_envs_.size());
+    for (const auto& p : used_envs_) {
+      DumpString(fp, p.first);
+      DumpString(fp, p.second);
+    }
+
+    const unordered_map<string, vector<string>*>& globs = GetAllGlobCache();
+    DumpInt(fp, globs.size());
+    for (const auto& p : globs) {
+      DumpString(fp, p.first);
+      const vector<string>& files = *p.second;
+#if 0
+      unordered_set<string> dirs;
+      GetReadDirs(p.first, files, &dirs);
+      DumpInt(fp, dirs.size());
+      for (const string& dir : dirs) {
+        DumpString(fp, dir);
+      }
+#endif
+      DumpInt(fp, files.size());
+      for (const string& file : files) {
+        DumpString(fp, file);
+      }
+    }
+
+    const vector<CommandResult*>& crs = GetShellCommandResults();
+    DumpInt(fp, crs.size());
+    for (CommandResult* cr : crs) {
+      DumpString(fp, cr->cmd);
+      DumpString(fp, cr->result);
+      if (!cr->find.get()) {
+        // Always re-run this command.
+        DumpInt(fp, 0);
+        continue;
+      }
+
+      DumpInt(fp, 1);
+
+      vector<string> missing_dirs;
+      for (StringPiece fd : cr->find->finddirs) {
+        const string& d = ConcatDir(cr->find->chdir, fd);
+        if (!Exists(d))
+          missing_dirs.push_back(d);
+      }
+      DumpInt(fp, missing_dirs.size());
+      for (const string& d : missing_dirs) {
+        DumpString(fp, d);
+      }
+
+      DumpInt(fp, cr->find->read_dirs->size());
+      for (StringPiece s : *cr->find->read_dirs) {
+        DumpString(fp, ConcatDir(cr->find->chdir, s));
+      }
+    }
+
+    fclose(fp);
+  }
+
   CommandEvaluator ce_;
   Evaluator* ev_;
   FILE* fp_;
@@ -679,8 +806,10 @@ class NinjaGenerator {
   string ninja_suffix_;
   string ninja_dir_;
   unordered_map<Symbol, Symbol> short_names_;
-  shared_ptr<string> shell_;
+  string shell_;
   map<string, string> used_envs_;
+  string kati_binary_;
+  double start_time_;
 };
 
 void GenerateNinja(const char* ninja_suffix,
@@ -688,7 +817,230 @@ void GenerateNinja(const char* ninja_suffix,
                    const vector<DepNode*>& nodes,
                    Evaluator* ev,
                    bool build_all_targets,
-                   const string& orig_args) {
-  NinjaGenerator ng(ninja_suffix, ninja_dir, ev);
+                   const string& orig_args,
+                   double start_time) {
+  NinjaGenerator ng(ninja_suffix, ninja_dir, ev, start_time);
   ng.Generate(nodes, build_all_targets, orig_args);
+}
+
+static bool ShouldIgnoreDirty(StringPiece s) {
+  return (g_ignore_dirty_pattern &&
+          Pattern(g_ignore_dirty_pattern).Match(s));
+}
+
+bool NeedsRegen(const char* ninja_suffix,
+                const char* ninja_dir,
+                bool ignore_kati_binary,
+                bool dump_kati_stamp,
+                double start_time) {
+  bool retval = false;
+#define RETURN_TRUE do {                         \
+    if (dump_kati_stamp)                         \
+      retval = true;                             \
+    else                                         \
+      return true;                               \
+  } while (0)
+
+  const string& stamp_filename =
+      NinjaGenerator::GetStampFilename(ninja_dir, ninja_suffix);
+  FILE* fp = fopen(stamp_filename.c_str(), "rb+");
+  if (!fp)
+    RETURN_TRUE;
+  ScopedFile sfp(fp);
+
+  double gen_time;
+  size_t r = fread(&gen_time, sizeof(gen_time), 1, fp);
+  CHECK(r == 1);
+  if (dump_kati_stamp)
+    printf("Generated time: %f\n", gen_time);
+
+  string s, s2;
+  int num_files = LoadInt(fp);
+  for (int i = 0; i < num_files; i++) {
+    LoadString(fp, &s);
+    double ts = GetTimestamp(s);
+    if (gen_time < ts) {
+      if (ignore_kati_binary) {
+        string kati_binary;
+        GetExecutablePath(&kati_binary);
+        if (s == kati_binary) {
+          fprintf(stderr, "%s was modified, ignored.\n", s.c_str());
+          continue;
+        }
+      }
+      if (ShouldIgnoreDirty(s)) {
+        if (dump_kati_stamp)
+          printf("file %s: ignored (%f)\n", s.c_str(), ts);
+        continue;
+      }
+      if (dump_kati_stamp)
+        printf("file %s: dirty (%f)\n", s.c_str(), ts);
+      else
+        fprintf(stderr, "%s was modified, regenerating...\n", s.c_str());
+      RETURN_TRUE;
+    } else if (dump_kati_stamp) {
+      printf("file %s: clean (%f)\n", s.c_str(), ts);
+    }
+  }
+
+  int num_undefineds = LoadInt(fp);
+  for (int i = 0; i < num_undefineds; i++) {
+    LoadString(fp, &s);
+    if (getenv(s.c_str())) {
+      if (dump_kati_stamp) {
+        printf("env %s: dirty (unset => %s)\n", s.c_str(), getenv(s.c_str()));
+      } else {
+        fprintf(stderr, "Environment variable %s was set, regenerating...\n",
+                s.c_str());
+      }
+      RETURN_TRUE;
+    } else if (dump_kati_stamp) {
+      printf("env %s: clean (unset)\n", s.c_str());
+    }
+  }
+
+  int num_envs = LoadInt(fp);
+  for (int i = 0; i < num_envs; i++) {
+    LoadString(fp, &s);
+    StringPiece val(getenv(s.c_str()));
+    LoadString(fp, &s2);
+    if (val != s2) {
+      if (dump_kati_stamp) {
+        printf("env %s: dirty (%s => %.*s)\n",
+               s.c_str(), s2.c_str(), SPF(val));
+      } else {
+        fprintf(stderr, "Environment variable %s was modified (%s => %.*s), "
+                "regenerating...\n",
+                s.c_str(), s2.c_str(), SPF(val));
+      }
+      RETURN_TRUE;
+    } else if (dump_kati_stamp) {
+      printf("env %s: clean (%.*s)\n", s.c_str(), SPF(val));
+    }
+  }
+
+  {
+    int num_globs = LoadInt(fp);
+    string pat;
+    for (int i = 0; i < num_globs; i++) {
+      COLLECT_STATS("glob time (regen)");
+      LoadString(fp, &pat);
+#if 0
+      bool needs_reglob = false;
+      int num_dirs = LoadInt(fp);
+      for (int j = 0; j < num_dirs; j++) {
+        LoadString(fp, &s);
+        // TODO: Handle removed files properly.
+        needs_reglob |= gen_time < GetTimestamp(s);
+      }
+#endif
+      int num_files = LoadInt(fp);
+      vector<string>* files;
+      Glob(pat.c_str(), &files);
+      sort(files->begin(), files->end());
+      bool needs_regen = files->size() != static_cast<size_t>(num_files);
+      if (!needs_regen) {
+        for (int j = 0; j < num_files; j++) {
+          LoadString(fp, &s);
+          if ((*files)[j] != s) {
+            needs_regen = true;
+            break;
+          }
+        }
+      }
+      if (needs_regen) {
+        if (ShouldIgnoreDirty(pat)) {
+          if (dump_kati_stamp) {
+            printf("wildcard %s: ignored\n", pat.c_str());
+          }
+          continue;
+        }
+        if (dump_kati_stamp) {
+          printf("wildcard %s: dirty\n", pat.c_str());
+        } else {
+          fprintf(stderr, "wildcard(%s) was changed, regenerating...\n",
+                  pat.c_str());
+        }
+        RETURN_TRUE;
+      } else if (dump_kati_stamp) {
+        printf("wildcard %s: clean\n", pat.c_str());
+      }
+    }
+  }
+
+  int num_crs = LoadInt(fp);
+  for (int i = 0; i < num_crs; i++) {
+    string cmd, expected;
+    LoadString(fp, &cmd);
+    LoadString(fp, &expected);
+
+    {
+      COLLECT_STATS("stat time (regen)");
+      bool has_condition = LoadInt(fp);
+      if (has_condition) {
+        bool should_run_command = false;
+
+        int num_missing_dirs = LoadInt(fp);
+        for (int j = 0; j < num_missing_dirs; j++) {
+          LoadString(fp, &s);
+          should_run_command |= Exists(s);
+        }
+
+        int num_read_dirs = LoadInt(fp);
+        for (int j = 0; j < num_read_dirs; j++) {
+          LoadString(fp, &s);
+          // We assume we rarely do a significant change for the top
+          // directory which affects the results of find command.
+          if (s == "" || s == "." || ShouldIgnoreDirty(s))
+            continue;
+          double ts = GetTimestamp(s);
+          should_run_command |= (ts < 0 || gen_time < ts);
+        }
+
+        if (!should_run_command) {
+          if (dump_kati_stamp)
+            printf("shell %s: clean (no rerun)\n", cmd.c_str());
+          continue;
+        }
+      }
+    }
+
+    FindCommand fc;
+    if (fc.Parse(cmd) && !fc.chdir.empty() && ShouldIgnoreDirty(fc.chdir)) {
+      if (dump_kati_stamp)
+        printf("shell %s: ignored\n", cmd.c_str());
+      continue;
+    }
+
+    {
+      COLLECT_STATS_WITH_SLOW_REPORT("shell time (regen)", cmd.c_str());
+      string result;
+      RunCommand("/bin/sh", cmd, RedirectStderr::DEV_NULL, &result);
+      FormatForCommandSubstitution(&result);
+      if (expected != result) {
+        if (dump_kati_stamp) {
+          printf("shell %s: dirty\n", cmd.c_str());
+        } else {
+          fprintf(stderr, "$(shell %s) was changed, regenerating...\n",
+                  cmd.c_str());
+#if 0
+          fprintf(stderr, "%s => %s\n",
+                  expected.c_str(), result.c_str());
+#endif
+        }
+        RETURN_TRUE;
+      } else if (dump_kati_stamp) {
+        printf("shell %s: clean (rerun)\n", cmd.c_str());
+      }
+    }
+  }
+
+  if (!retval) {
+    if (fseek(fp, 0, SEEK_SET) < 0)
+      PERROR("fseek");
+    size_t r = fwrite(&start_time, sizeof(start_time), 1, fp);
+    CHECK(r == 1);
+  }
+
+  return retval;
 }

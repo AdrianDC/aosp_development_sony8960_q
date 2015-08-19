@@ -20,6 +20,7 @@
 #include <limits.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <stack>
 #include <utility>
 
@@ -113,6 +114,18 @@ bool HasPrefix(StringPiece str, StringPiece prefix) {
 bool HasSuffix(StringPiece str, StringPiece suffix) {
   ssize_t size_diff = str.size() - suffix.size();
   return size_diff >= 0 && str.substr(size_diff) == suffix;
+}
+
+bool HasWord(StringPiece str, StringPiece w) {
+  size_t found = str.find(w);
+  if (found == string::npos)
+    return false;
+  if (found != 0 && !isspace(str[found-1]))
+    return false;
+  size_t end = found + w.size();
+  if (end != str.size() && !isspace(str[end]))
+    return false;
+  return true;
 }
 
 StringPiece TrimSuffix(StringPiece str, StringPiece suffix) {
@@ -253,7 +266,12 @@ StringPiece StripExt(StringPiece s) {
   return s.substr(0, found);
 }
 
-void NormalizePath(string* o, size_t start_index) {
+void NormalizePath(string* o) {
+  if (o->empty())
+    return;
+  size_t start_index = 0;
+  if ((*o)[0] == '/')
+    start_index++;
   size_t j = start_index;
   size_t prev_start = start_index;
   for (size_t i = start_index; i <= o->size(); i++) {
@@ -267,13 +285,18 @@ void NormalizePath(string* o, size_t start_index) {
     StringPiece prev_dir = StringPiece(o->data() + prev_start, j - prev_start);
     if (prev_dir == ".") {
       j--;
-    } else if (prev_dir == "..") {
-      j -= 4;
-      j = o->rfind('/', j);
-      if (j == string::npos) {
+    } else if (prev_dir == ".." && j != 2 /* .. */) {
+      if (j == 3) {
+        // /..
         j = start_index;
       } else {
-        j++;
+        j -= 4;
+        j = o->rfind('/', j);
+        if (j == string::npos) {
+          j = start_index;
+        } else {
+          j++;
+        }
       }
     } else if (!prev_dir.empty()) {
       if (c) {
@@ -303,7 +326,7 @@ void AbsPath(StringPiece s, string* o) {
     *o += '/';
   }
   AppendString(s, o);
-  NormalizePath(o, 1);
+  NormalizePath(o);
 }
 
 template<typename Cond>
@@ -374,4 +397,33 @@ StringPiece TrimLeadingCurdir(StringPiece s) {
   while (s.substr(0, 2) == "./")
     s = s.substr(2);
   return s;
+}
+
+void FormatForCommandSubstitution(string* s) {
+  while ((*s)[s->size()-1] == '\n')
+    s->pop_back();
+  for (size_t i = 0; i < s->size(); i++) {
+    if ((*s)[i] == '\n')
+      (*s)[i] = ' ';
+  }
+}
+
+string SortWordsInString(StringPiece s) {
+  vector<string> toks;
+  for (StringPiece tok : WordScanner(s)) {
+    toks.push_back(tok.as_string());
+  }
+  sort(toks.begin(), toks.end());
+  return JoinStrings(toks, " ");
+}
+
+string ConcatDir(StringPiece b, StringPiece n) {
+  string r;
+  if (!b.empty()) {
+    b.AppendToString(&r);
+    r += '/';
+  }
+  n.AppendToString(&r);
+  NormalizePath(&r);
+  return r;
 }

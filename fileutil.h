@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "string_piece.h"
@@ -26,9 +27,22 @@ using namespace std;
 bool Exists(StringPiece f);
 double GetTimestamp(StringPiece f);
 
-int RunCommand(const string& shell, const string& cmd, bool redirect_stderr,
+enum struct RedirectStderr {
+  NONE,
+  STDOUT,
+  DEV_NULL,
+};
+
+int RunCommand(const string& shell, const string& cmd,
+               RedirectStderr redirect_stderr,
                string* out);
 
+void GetExecutablePath(string* path);
+
 void Glob(const char* pat, vector<string>** files);
+
+const unordered_map<string, vector<string>*>& GetAllGlobCache();
+
+void ClearGlobCache();
 
 #endif  // FILEUTIL_H_

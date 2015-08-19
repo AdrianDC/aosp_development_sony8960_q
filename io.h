@@ -12,41 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef FUNC_H_
-#define FUNC_H_
+#ifndef IO_H_
+#define IO_H_
 
-#include <memory>
+#include <stdio.h>
+
 #include <string>
-#include <vector>
 
-#include "value.h"
+#include "string_piece.h"
 
 using namespace std;
 
-struct FuncInfo {
-  const char* name;
-  void (*func)(const vector<Value*>& args, Evaluator* ev, string* s);
-  int arity;
-  int min_arity;
-  // For all parameters.
-  bool trim_space;
-  // Only for the first parameter.
-  bool trim_right_space_1st;
+void DumpInt(FILE* fp, int v);
+void DumpString(FILE* fp, StringPiece s);
+
+int LoadInt(FILE* fp);
+void LoadString(FILE* fp, string* s);
+
+struct ScopedFile {
+ public:
+  explicit ScopedFile(FILE* fp)
+      : fp_(fp) {
+  }
+
+  ~ScopedFile() {
+    if (fp_)
+      fclose(fp_);
+  }
+
+ private:
+  FILE* fp_;
 };
 
-void InitFuncTable();
-void QuitFuncTable();
-
-FuncInfo* GetFuncInfo(StringPiece name);
-
-struct FindCommand;
-
-struct CommandResult {
-  string cmd;
-  unique_ptr<FindCommand> find;
-  string result;
-};
-
-const vector<CommandResult*>& GetShellCommandResults();
-
-#endif  // FUNC_H_
+#endif  // IO_H_

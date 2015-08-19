@@ -1,4 +1,8 @@
-# TODO(go|ninja): This test is only for ckati. Also fix this for ninja.
+# TODO(ninja): This test is only for ckati. ninja: multiple problems
+# go: implement generic builtin find
+# ninja: find . finds ninja temporary files
+# ninja: escaping ! doesn't seem to be working
+# ninja: stderr gets reordered
 
 ifeq ($(shell uname),Darwin)
 USE_GNU_FIND:=
@@ -8,7 +12,7 @@ endif
 
 define run_find
 @echo $$ '$(strip $(1))'
-@echo $(sort $(shell $(1)))
+@echo $(shell $(1))
 endef
 
 test1:
@@ -18,12 +22,16 @@ test1:
 	mkdir testdir/dir1
 	touch testdir/dir1/file1
 	touch testdir/dir1/file2
+	touch testdir/dir1/file3
 	mkdir testdir/dir2
 	touch testdir/dir2/file1
 	touch testdir/dir2/file2
+	touch testdir/dir2/file3
 	ln -s ../dir1/file1 testdir/dir2/link1
 	ln -s ../../testdir/dir1 testdir/dir2/link2
 	ln -s broken testdir/dir2/link3
+	mkdir -p build/tools
+	cp ../../testcase/tools/findleaves.py build/tools
 
 test2:
 	@echo no options
@@ -58,12 +66,15 @@ endif
 	@echo cd
 	$(call run_find, cd testdir && find)
 	$(call run_find, cd testdir/// && find .)
+	$(call run_find, cd testdir///dir1// && find .///)
 	$(call run_find, cd testdir && find ../testdir)
 	@echo test
 	$(call run_find, test -d testdir && find testdir)
 	$(call run_find, if [ -d testdir ] ; then find testdir ; fi)
 	$(call run_find, if [ -d testdir ]; then find testdir; fi)
 	$(call run_find, if [ -d testdir ]; then cd testdir && find .; fi)
+	$(call run_find, test -d testdir//dir1/// && find testdir///dir1///)
+	$(call run_find, test -d testdir//.///dir1/// && find testdir//.///dir1///)
 	@echo prune
 	$(call run_find, find testdir -name dir2 -prune -o -name file1)
 	@echo multi
@@ -82,3 +93,15 @@ endif
 	$(call run_find, find testdir -maxdepth hoge)
 	$(call run_find, find testdir -maxdepth 1hoge)
 	$(call run_find, find testdir -maxdepth -1)
+	@echo findleaves
+	$(call run_find, build/tools/findleaves.py . file1)
+	$(call run_find, build/tools/findleaves.py . file3)
+	$(call run_find, build/tools/findleaves.py --prune=dir1 . file3)
+	$(call run_find, build/tools/findleaves.py --prune=dir1 --prune=dir2 . file3)
+	$(call run_find, build/tools/findleaves.py --mindepth=1 . file1)
+	$(call run_find, build/tools/findleaves.py --mindepth=2 . file1)
+	$(call run_find, build/tools/findleaves.py --mindepth=3 . file1)
+	$(call run_find, build/tools/findleaves.py --mindepth=2 testdir file1)
+	@echo missing chdir / testdir
+	$(call run_find, cd xxx && find .)
+	$(call run_find, if [ -d xxx ]; then find .; fi)

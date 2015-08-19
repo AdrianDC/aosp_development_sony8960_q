@@ -15,7 +15,6 @@
 #ifndef VAR_H_
 #define VAR_H_
 
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -63,7 +62,7 @@ class Var : public Evaluable {
 
 class SimpleVar : public Var {
  public:
-  SimpleVar(shared_ptr<string> v, VarOrigin origin);
+  SimpleVar(const string& v, VarOrigin origin);
 
   virtual const char* Flavor() const {
     return "simple";
@@ -72,9 +71,6 @@ class SimpleVar : public Var {
     return origin_;
   }
 
-  virtual shared_ptr<string> Eval(Evaluator*) const override {
-    return v_;
-  }
   virtual void Eval(Evaluator* ev, string* s) const override;
 
   virtual void AppendVar(Evaluator* ev, Value* v);
@@ -84,7 +80,7 @@ class SimpleVar : public Var {
   virtual string DebugString() const override;
 
  private:
-  shared_ptr<string> v_;
+  string v_;
   VarOrigin origin_;
 };
 

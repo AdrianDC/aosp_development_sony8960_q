@@ -120,6 +120,7 @@ def normalize_make_log(expected)
   expected.gsub!(/Makefile:\d+: commands for target ".*?" failed\n/, '')
   # We treat some warnings as errors.
   expected.gsub!(/Nothing to be done for "test"\.\n/, '')
+  expected.gsub!(/^\/bin\/sh: line 0: /, '')
 
   expected
 end
@@ -134,6 +135,11 @@ def normalize_kati_log(output)
                "\\1\\2: N\\3\n*** No rule to make target \"\\2\".")
   output.gsub!(/\/bin\/sh: ([^:]*): command not found/,
                "\\1: Command not found")
+  output.gsub!(/.*: warning for parse error in an unevaluated line: .*\n/, '')
+  output.gsub!(/^FindEmulator: /, '')
+  output.gsub!(/^\/bin\/sh: line 0: /, '')
+  output.gsub!(/ (\.\/+)+kati\.\S+/, '') # kati log files in find_command.mk
+  output.gsub!(/ (\.\/+)+test\S+.json/, '') # json files in find_command.mk
   output
 end
 
@@ -198,7 +204,7 @@ run_make_test = proc do |mk|
     cleanup
     testcases.each do |tc|
       json = "#{tc.empty? ? 'test' : tc}"
-      cmd = "../../kati -save_json=#{json}.json -log_dir=."
+      cmd = "../../kati -save_json=#{json}.json -log_dir=. --use_find_emulator"
       if ckati
         cmd = "../../ckati --use_find_emulator"
       end
@@ -266,16 +272,42 @@ run_make_test = proc do |mk|
 end
 
 run_shell_test = proc do |sh|
+  is_ninja_test = sh =~ /\/ninja_/
+  if is_ninja_test && (!ckati || !via_ninja)
+    next
+  end
+
   run_in_testdir(sh) do |name|
     cleanup
     cmd = "sh ../../#{sh} make"
+    if is_ninja_test
+      cmd += ' -s'
+    end
     expected = IO.popen(cmd, 'r:binary', &:read)
     cleanup
-    cmd = "sh ../../#{sh} ../../kati --use_cache -log_dir=."
+
+    if is_ninja_test
+      if ckati
+        cmd = "sh ../../#{sh} ../../ckati --ninja --regen"
+      else
+        next
+      end
+    else
+      if ckati
+        cmd = "sh ../../#{sh} ../../ckati"
+      else
+        cmd = "sh ../../#{sh} ../../kati --use_cache -log_dir=."
+      end
+    end
+
     output = IO.popen(cmd, 'r:binary', &:read)
 
     expected = normalize_make_log(expected)
     output = normalize_kati_log(output)
+    if is_ninja_test
+      output = normalize_ninja_log(output, sh)
+      output.gsub!(/No need to regenerate ninja file\n/, '')
+    end
     File.open('out.make', 'w'){|ofile|ofile.print(expected)}
     File.open('out.kati', 'w'){|ofile|ofile.print(output)}
 

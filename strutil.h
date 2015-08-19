@@ -87,6 +87,8 @@ bool HasPrefix(StringPiece str, StringPiece prefix);
 
 bool HasSuffix(StringPiece str, StringPiece suffix);
 
+bool HasWord(StringPiece str, StringPiece w);
+
 StringPiece TrimSuffix(StringPiece str, StringPiece suffix);
 
 class Pattern {
@@ -116,7 +118,7 @@ StringPiece Dirname(StringPiece s);
 StringPiece Basename(StringPiece s);
 StringPiece GetExt(StringPiece s);
 StringPiece StripExt(StringPiece s);
-void NormalizePath(string* o, size_t start_index = 0);
+void NormalizePath(string* o);
 void AbsPath(StringPiece s, string* o);
 
 size_t FindOutsideParen(StringPiece s, char c);
@@ -129,5 +131,11 @@ size_t FindEndOfLine(StringPiece s, size_t e, size_t* lf_cnt);
 // and file are considered to be the same file.
 // From http://www.gnu.org/software/make/manual/make.html#Features
 StringPiece TrimLeadingCurdir(StringPiece s);
+
+void FormatForCommandSubstitution(string* s);
+
+string SortWordsInString(StringPiece s);
+
+string ConcatDir(StringPiece b, StringPiece n);
 
 #endif  // STRUTIL_H_

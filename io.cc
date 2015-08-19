@@ -14,30 +14,30 @@
 
 // +build ignore
 
-#include "timeutil.h"
-
-#include <sys/time.h>
+#include "io.h"
 
 #include "log.h"
 
-double GetTime() {
-#if defined(__linux__)
-  struct timespec ts;
-  clock_gettime(CLOCK_REALTIME, &ts);
-  return ts.tv_sec + ts.tv_nsec * 0.001 * 0.001 * 0.001;
-#else
-  struct timeval tv;
-  if (gettimeofday(&tv, NULL) < 0)
-    PERROR("gettimeofday");
-  return tv.tv_sec + tv.tv_usec * 0.001 * 0.001;
-#endif
+void DumpInt(FILE* fp, int v) {
+  size_t r = fwrite(&v, sizeof(v), 1, fp);
+  CHECK(r == 1);
 }
 
-ScopedTimeReporter::ScopedTimeReporter(const char* name)
-    : name_(name), start_(GetTime()) {
+void DumpString(FILE* fp, StringPiece s) {
+  DumpInt(fp, s.size());
+  size_t r = fwrite(s.data(), 1, s.size(), fp);
+  CHECK(r == s.size());
 }
 
-ScopedTimeReporter::~ScopedTimeReporter() {
-  double elapsed = GetTime() - start_;
-  LOG_STAT("%s: %f", name_, elapsed);
+int LoadInt(FILE* fp) {
+  int v;
+  size_t r = fread(&v, sizeof(v), 1, fp);
+  CHECK(r == 1);
+  return v;
+}
+
+void LoadString(FILE* fp, string* s) {
+  s->resize(LoadInt(fp));
+  size_t r = fread(&(*s)[0], 1, s->size(), fp);
+  CHECK(r == s->size());
 }

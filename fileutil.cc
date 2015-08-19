@@ -17,12 +17,16 @@
 #include "fileutil.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <glob.h>
 #include <limits.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
 
 #include <unordered_map>
 
@@ -43,10 +47,15 @@ double GetTimestamp(StringPiece filename) {
   if (stat(filename.as_string().c_str(), &st) < 0) {
     return -2.0;
   }
+#if defined(__linux__)
+  return st.st_mtime + st.st_mtim.tv_nsec * 0.001 * 0.001 * 0.001;
+#else
   return st.st_mtime;
+#endif
 }
 
-int RunCommand(const string& shell, const string& cmd, bool redirect_stderr,
+int RunCommand(const string& shell, const string& cmd,
+               RedirectStderr redirect_stderr,
                string* s) {
   int pipefd[2];
   if (pipe(pipefd) != 0)
@@ -79,9 +88,14 @@ int RunCommand(const string& shell, const string& cmd, bool redirect_stderr,
     return status;
   } else {
     close(pipefd[0]);
-    if (redirect_stderr) {
+    if (redirect_stderr == RedirectStderr::STDOUT) {
       if (dup2(pipefd[1], 2) < 0)
         PERROR("dup2 failed");
+    } else if (redirect_stderr == RedirectStderr::DEV_NULL) {
+      int fd = open("/dev/null", O_WRONLY);
+      if (dup2(fd, 2) < 0)
+        PERROR("dup2 failed");
+      close(fd);
     }
     if (dup2(pipefd[1], 1) < 0)
       PERROR("dup2 failed");
@@ -95,14 +109,34 @@ int RunCommand(const string& shell, const string& cmd, bool redirect_stderr,
   abort();
 }
 
+void GetExecutablePath(string* path) {
+#if defined(__linux__)
+  char mypath[PATH_MAX + 1];
+  ssize_t l = readlink("/proc/self/exe", mypath, PATH_MAX);
+  if (l < 0) {
+    PERROR("readlink for /proc/self/exe");
+  }
+  mypath[l] = '\0';
+  *path = mypath;
+#elif defined(__APPLE__)
+  char mypath[PATH_MAX + 1];
+  uint32_t size = PATH_MAX;
+  if (_NSGetExecutablePath(mypath, &size) != 0) {
+    ERROR("_NSGetExecutablePath failed");
+  }
+  mypath[size] = 0;
+  *path = mypath;
+#else
+#error "Unsupported OS"
+#endif
+}
+
 namespace {
 
 class GlobCache {
  public:
   ~GlobCache() {
-    for (auto& p : cache_) {
-      delete p.second;
-    }
+    Clear();
   }
 
   void Get(const char* pat, vector<string>** files) {
@@ -124,13 +158,33 @@ class GlobCache {
     *files = p.first->second;
   }
 
+  const unordered_map<string, vector<string>*>& GetAll() const {
+    return cache_;
+  }
+
+  void Clear() {
+    for (auto& p : cache_) {
+      delete p.second;
+    }
+    cache_.clear();
+  }
+
  private:
   unordered_map<string, vector<string>*> cache_;
 };
 
+static GlobCache g_gc;
+
 }  // namespace
 
 void Glob(const char* pat, vector<string>** files) {
-  static GlobCache gc;
-  gc.Get(pat, files);
+  g_gc.Get(pat, files);
+}
+
+const unordered_map<string, vector<string>*>& GetAllGlobCache() {
+  return g_gc.GetAll();
+}
+
+void ClearGlobCache() {
+  g_gc.Clear();
 }

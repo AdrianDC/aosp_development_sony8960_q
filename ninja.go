@@ -68,8 +68,6 @@ type NinjaGenerator struct {
 	GomaDir string
 	// DetectAndroidEcho detects echo as description.
 	DetectAndroidEcho bool
-	// ErrorOnEnvChange cause error when env change is detected when run ninja.
-	ErrorOnEnvChange bool
 
 	f       *os.File
 	nodes   []*DepNode
@@ -83,6 +81,7 @@ type NinjaGenerator struct {
 }
 
 func (n *NinjaGenerator) init(g *DepGraph) {
+	g.resolveVPATH()
 	n.nodes = g.nodes
 	n.exports = g.exports
 	n.ctx = newExecContext(g.vars, g.vpaths, true)
@@ -172,6 +171,21 @@ func getDepfile(cmdline string) (string, string, error) {
 	return cmdline, depfile, nil
 }
 
+func trimTailingSlash(s string) string {
+	if s == "" {
+		return s
+	}
+	if s[len(s)-1] != '\\' {
+		return s
+	}
+	// drop single trailing slash - multiline_arg.mk
+	if len(s) > 2 && s[len(s)-2] != '\\' {
+		return s[:len(s)-1]
+	}
+	// preserve two trailing slash - escaped_backslash.mk
+	return s
+}
+
 func stripShellComment(s string) string {
 	if strings.IndexByte(s, '#') < 0 {
 		// Fast path.
@@ -182,16 +196,40 @@ func stripShellComment(s string) string {
 	lastch := rune(' ')
 	var escape bool
 	var quote rune
-	for i, c := range s {
+	var skip rune
+	var cmdsubst []rune
+	var buf bytes.Buffer
+Loop:
+	for _, c := range s {
+		if skip != 0 {
+			if skip != c {
+				continue Loop
+			}
+			if len(cmdsubst) > 0 && cmdsubst[len(cmdsubst)-1] == skip {
+				cmdsubst = cmdsubst[:len(cmdsubst)-1]
+			}
+			skip = 0
+		}
 		if quote != 0 {
 			if quote == c && (quote == '\'' || !escape) {
 				quote = 0
 			}
 		} else if !escape {
 			if c == '#' && isWhitespace(lastch) {
-				return s[:i]
-			} else if c == '\'' || c == '"' || c == '`' {
+				if len(cmdsubst) == 0 {
+					// strip comment until the end of line.
+					skip = '\n'
+					continue Loop
+				}
+				// strip comment until the end of command subst.
+				skip = cmdsubst[len(cmdsubst)-1]
+				continue Loop
+			} else if c == '\'' || c == '"' {
 				quote = c
+			} else if lastch == '$' && c == '(' {
+				cmdsubst = append(cmdsubst, ')')
+			} else if c == '`' {
+				cmdsubst = append(cmdsubst, '`')
 			}
 		}
 		if escape {
@@ -202,8 +240,9 @@ func stripShellComment(s string) string {
 			escape = false
 		}
 		lastch = c
+		buf.WriteRune(c)
 	}
-	return s
+	return buf.String()
 }
 
 var ccRE = regexp.MustCompile(`^prebuilts/(gcc|clang)/.*(gcc|g\+\+|clang|clang\+\+) .* ?-c `)
@@ -273,7 +312,8 @@ func (n *NinjaGenerator) genShellScript(runners []runner) (cmd string, desc stri
 				buf.WriteString(" && ")
 			}
 		}
-		cmd := stripShellComment(r.cmd)
+		cmd := trimTailingSlash(r.cmd)
+		cmd = stripShellComment(cmd)
 		cmd = trimLeftSpace(cmd)
 		cmd = strings.Replace(cmd, "\\\n\t", "", -1)
 		cmd = strings.Replace(cmd, "\\\n", "", -1)
@@ -336,22 +376,36 @@ func (n *NinjaGenerator) emitBuild(output, rule, inputs, orderOnlys string) {
 }
 
 func escapeBuildTarget(s string) string {
-	i := strings.IndexAny(s, "$: ")
+	i := strings.IndexAny(s, "$: \\")
 	if i < 0 {
 		return s
 	}
+	// unescapeInput only "\ ", "\=" unescape as " ", "=".
+	// TODO(ukai): which char should unescape, which should not here?
+	var esc rune
 	var buf bytes.Buffer
 	for _, c := range s {
 		switch c {
+		case '\\':
+			esc = c
+			continue
 		case '$', ':', ' ':
+			esc = 0
 			buf.WriteByte('$')
 		}
+		if esc != 0 {
+			buf.WriteRune(esc)
+			esc = 0
+		}
 		buf.WriteRune(c)
+	}
+	if esc != 0 {
+		buf.WriteRune(esc)
 	}
 	return buf.String()
 }
 
-func getDepString(node *DepNode) (string, string) {
+func (n *NinjaGenerator) dependency(node *DepNode) (string, string) {
 	var deps []string
 	seen := make(map[string]bool)
 	for _, d := range node.Deps {
@@ -425,34 +479,35 @@ func (n *NinjaGenerator) ninjaVars(s string, nv [][]string, esc func(string) str
 }
 
 func (n *NinjaGenerator) emitNode(node *DepNode) error {
-	if _, found := n.done[node.Output]; found {
+	output := node.Output
+	if _, found := n.done[output]; found {
 		return nil
 	}
-	n.done[node.Output] = nodeVisit
+	n.done[output] = nodeVisit
 
 	if len(node.Cmds) == 0 && len(node.Deps) == 0 && len(node.OrderOnlys) == 0 && !node.IsPhony {
-		if _, ok := n.ctx.vpaths.exists(node.Output); ok {
-			n.done[node.Output] = nodeFile
+		if _, ok := n.ctx.vpaths.exists(output); ok {
+			n.done[output] = nodeFile
 			return nil
 		}
-		o := filepath.Clean(node.Output)
-		if o != node.Output {
+		o := filepath.Clean(output)
+		if o != output {
 			// if normalized target has been done, it marks as alias.
 			if s, found := n.done[o]; found {
 				glog.V(1).Infof("node %s=%s => %s=alias", o, s, node.Output)
-				n.done[node.Output] = nodeAlias
+				n.done[output] = nodeAlias
 				return nil
 			}
 		}
 		if node.Filename == "" {
-			n.done[node.Output] = nodeMissing
+			n.done[output] = nodeMissing
 		}
 		return nil
 	}
 
-	base := filepath.Base(node.Output)
-	if base != node.Output {
-		n.shortNames[base] = append(n.shortNames[base], node.Output)
+	base := filepath.Base(output)
+	if base != output {
+		n.shortNames[base] = append(n.shortNames[base], output)
 	}
 
 	runners, _, err := createRunners(n.ctx, node)
@@ -461,7 +516,7 @@ func (n *NinjaGenerator) emitNode(node *DepNode) error {
 	}
 	ruleName := "phony"
 	useLocalPool := false
-	inputs, orderOnlys := getDepString(node)
+	inputs, orderOnlys := n.dependency(node)
 	if len(runners) > 0 {
 		ruleName = n.genRuleName()
 		fmt.Fprintf(n.f, "\n# rule for %q\n", node.Output)
@@ -482,7 +537,7 @@ func (n *NinjaGenerator) emitNode(node *DepNode) error {
 		}
 		nv := [][]string{
 			[]string{"${in}", inputs},
-			[]string{"${out}", escapeNinja(node.Output)},
+			[]string{"${out}", escapeNinja(output)},
 		}
 		// It seems Linux is OK with ~130kB.
 		// TODO: Find this number automatically.
@@ -498,12 +553,12 @@ func (n *NinjaGenerator) emitNode(node *DepNode) error {
 			fmt.Fprintf(n.f, " command = %s -c \"%s\"\n", n.ctx.shell, cmdline)
 		}
 	}
-	n.emitBuild(node.Output, ruleName, inputs, orderOnlys)
+	n.emitBuild(output, ruleName, inputs, orderOnlys)
 	if useLocalPool {
 		fmt.Fprintf(n.f, " pool = local_pool\n")
 	}
 	fmt.Fprintf(n.f, "\n")
-	n.done[node.Output] = nodeBuild
+	n.done[output] = nodeBuild
 
 	for _, d := range node.Deps {
 		err := n.emitNode(d)
@@ -543,26 +598,6 @@ rule regen_ninja
 		fmt.Fprintf(n.f, " %s", n.envlistName())
 	}
 	fmt.Fprintf(n.f, "\n\n")
-	if len(usedEnvs) == 0 {
-		return nil
-	}
-	fmt.Fprint(n.f, `
-build .always_build: phony
-rule regen_envlist
- description = Check $out
- generator = 1
- restat = 1
- command = rm -f $out.tmp`)
-	for env := range usedEnvs {
-		fmt.Fprintf(n.f, " && echo %s=$$%s >> $out.tmp", env, env)
-	}
-	if n.ErrorOnEnvChange {
-		fmt.Fprintln(n.f, " && (cmp -s $out.tmp $out || (echo Environment variable changes are detected && diff -u $out $out.tmp))")
-	} else {
-		fmt.Fprintln(n.f, " && (cmp -s $out.tmp $out || mv $out.tmp $out)")
-	}
-
-	fmt.Fprintf(n.f, "build %s: regen_envlist .always_build\n\n", n.envlistName())
 	return nil
 }
 
