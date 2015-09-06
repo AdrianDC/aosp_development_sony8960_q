@@ -577,6 +577,7 @@ static void set_next_key_check(charger* charger, key_state* key, int64_t timeout
 }
 
 static void process_key(charger* charger, int code, int64_t now) {
+    struct animation* batt_anim = charger->batt_anim;
     key_state* key = &charger->keys[code];
 
     if (code == KEY_POWER) {
@@ -605,18 +606,25 @@ static void process_key(charger* charger, int code, int64_t now) {
                  * make sure we wake up at the right-ish time to check
                  */
                 set_next_key_check(charger, key, POWER_ON_KEY_TIME);
-
-                /* Turn on the display and kick animation on power-key press
-                 * rather than on key release
-                 */
-                kick_animation(charger->batt_anim);
-                request_suspend(false);
             }
         } else {
-            /* if the power key got released, force screen state cycle */
             if (key->pending) {
-                kick_animation(charger->batt_anim);
-                request_suspend(false);
+                /* If key is pressed when the animation is not running, kick
+                 * the animation and quite suspend; If key is pressed when
+                 * the animation is running, turn off the animation and request
+                 * suspend.
+                 */
+                if (!batt_anim->run) {
+                    kick_animation(batt_anim);
+                    request_suspend(false);
+                } else {
+                    reset_animation(batt_anim);
+                    charger->next_screen_transition = -1;
+                    gr_fb_blank(true);
+                    if (charger->charger_connected) {
+                        request_suspend(true);
+                    }
+                }
             }
         }
     }
