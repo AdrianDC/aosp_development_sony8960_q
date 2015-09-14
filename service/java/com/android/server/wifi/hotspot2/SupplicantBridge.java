@@ -298,7 +298,7 @@ public class SupplicantBridge {
 
     private static ANQPElement buildElement(String text) throws ProtocolException {
         int separator = text.indexOf('=');
-        if (separator < 0) {
+        if (separator < 0 || separator + 1 == text.length()) {
             return null;
         }
 
