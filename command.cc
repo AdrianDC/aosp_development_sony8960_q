@@ -21,6 +21,7 @@
 
 #include "dep.h"
 #include "eval.h"
+#include "flags.h"
 #include "log.h"
 #include "strutil.h"
 #include "var.h"
@@ -120,7 +121,11 @@ void AutoPlusVar::Eval(Evaluator*, string* s) const {
 }
 
 void AutoStarVar::Eval(Evaluator*, string* s) const {
-  AppendString(StripExt(ce_->current_dep_node()->output.str()), s);
+  const DepNode* n = ce_->current_dep_node();
+  if (!n->output_pattern.IsValid())
+    return;
+  Pattern pat(n->output_pattern.str());
+  pat.Stem(n->output.str()).AppendToString(s);
 }
 
 void AutoSuffixDVar::Eval(Evaluator* ev, string* s) const {
@@ -181,7 +186,7 @@ void CommandEvaluator::Eval(DepNode* n, vector<Command*>* commands) {
   for (Value* v : n->cmds) {
     const string&& cmds_buf = v->Eval(ev_);
     StringPiece cmds = cmds_buf;
-    bool global_echo = true;
+    bool global_echo = !g_flags.is_silent_mode;
     bool global_ignore_error = false;
     ParseCommandPrefixes(&cmds, &global_echo, &global_ignore_error);
     if (cmds == "")

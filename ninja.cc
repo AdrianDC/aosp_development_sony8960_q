@@ -173,8 +173,8 @@ class NinjaGenerator {
       : ce_(ev), ev_(ev), fp_(NULL), rule_id_(0), start_time_(start_time) {
     ev_->set_avoid_io(true);
     shell_ = ev->EvalVar(kShellSym);
-    if (g_goma_dir)
-      gomacc_ = StringPrintf("%s/gomacc ", g_goma_dir);
+    if (g_flags.goma_dir)
+      gomacc_ = StringPrintf("%s/gomacc ", g_flags.goma_dir);
     if (ninja_suffix) {
       ninja_suffix_ = ninja_suffix;
     }
@@ -194,6 +194,7 @@ class NinjaGenerator {
   void Generate(const vector<DepNode*>& nodes,
                 bool build_all_targets,
                 const string& orig_args) {
+    unlink(GetStampFilename().c_str());
     GenerateNinja(nodes, build_all_targets, orig_args);
     GenerateShell();
     GenerateStamp(orig_args);
@@ -204,6 +205,11 @@ class NinjaGenerator {
     return StringPrintf("%s/.kati_stamp%s",
                         ninja_dir ? ninja_dir : ".",
                         ninja_suffix ? ninja_suffix : "");
+  }
+
+  static string GetStampTempFilename(const char* ninja_dir,
+                                 const char* ninja_suffix) {
+    return StringPrintf("%s.tmp", GetStampFilename(ninja_dir, ninja_suffix).c_str());
   }
 
  private:
@@ -364,7 +370,7 @@ class NinjaGenerator {
 
       size_t cmd_start = cmd_buf->size();
       StringPiece translated = TranslateCommand(in, cmd_buf);
-      if (g_detect_android_echo && !got_descritpion && !c->echo &&
+      if (g_flags.detect_android_echo && !got_descritpion && !c->echo &&
           GetDescriptionFromCommand(translated, description)) {
         got_descritpion = true;
         cmd_buf->resize(cmd_start);
@@ -372,7 +378,7 @@ class NinjaGenerator {
       }
       if (translated.empty()) {
         *cmd_buf += "true";
-      } else if (g_goma_dir) {
+      } else if (g_flags.goma_dir) {
         size_t pos = GetGomaccPosForAndroidCompileCommand(translated);
         if (pos != string::npos) {
           cmd_buf->insert(cmd_start + pos, gomacc_);
@@ -389,7 +395,7 @@ class NinjaGenerator {
       if (needs_subshell)
         *cmd_buf += ')';
     }
-    return !use_gomacc;
+    return (g_flags.remote_num_jobs || g_flags.goma_dir) && !use_gomacc;
   }
 
   void EmitDepfile(string* cmd_buf) {
@@ -410,7 +416,7 @@ class NinjaGenerator {
 
     // A hack to exclude out phony target in Android. If this exists,
     // "ninja -t clean" tries to remove this directory and fails.
-    if (g_detect_android_echo && node->output.str() == "out")
+    if (g_flags.detect_android_echo && node->output.str() == "out")
       return;
 
     // This node is a leaf node
@@ -528,7 +534,7 @@ class NinjaGenerator {
   }
 
   void EmitRegenRules(const string& orig_args) {
-    if (!g_gen_regen_rule)
+    if (!g_flags.gen_regen_rule)
       return;
 
     fprintf(fp_, "rule regen_ninja\n");
@@ -559,6 +565,10 @@ class NinjaGenerator {
     return GetStampFilename(ninja_dir_.c_str(), ninja_suffix_.c_str());
   }
 
+  string GetStampTempFilename() const {
+    return GetStampTempFilename(ninja_dir_.c_str(), ninja_suffix_.c_str());
+  }
+
   void GenerateNinja(const vector<DepNode*>& nodes,
                      bool build_all_targets,
                      const string& orig_args) {
@@ -582,7 +592,7 @@ class NinjaGenerator {
     }
 
     fprintf(fp_, "pool local_pool\n");
-    fprintf(fp_, " depth = %d\n\n", g_num_jobs);
+    fprintf(fp_, " depth = %d\n\n", g_flags.num_jobs);
 
     fprintf(fp_, "build _kati_always_build_: phony\n\n");
 
@@ -627,9 +637,9 @@ class NinjaGenerator {
     }
 
     fprintf(fp, "exec ninja -f %s ", GetNinjaFilename().c_str());
-    if (g_remote_num_jobs > 0) {
-      fprintf(fp, "-j%d ", g_remote_num_jobs);
-    } else if (g_goma_dir) {
+    if (g_flags.remote_num_jobs > 0) {
+      fprintf(fp, "-j%d ", g_flags.remote_num_jobs);
+    } else if (g_flags.goma_dir) {
       fprintf(fp, "-j500 ");
     }
     fprintf(fp, "\"$@\"\n");
@@ -639,7 +649,7 @@ class NinjaGenerator {
   }
 
   void GenerateStamp(const string& orig_args) {
-    FILE* fp = fopen(GetStampFilename().c_str(), "wb");
+    FILE* fp = fopen(GetStampTempFilename().c_str(), "wb");
     CHECK(fp);
 
     size_t r = fwrite(&start_time_, sizeof(start_time_), 1, fp);
@@ -716,6 +726,8 @@ class NinjaGenerator {
     DumpString(fp, orig_args);
 
     fclose(fp);
+
+    rename(GetStampTempFilename().c_str(), GetStampFilename().c_str());
   }
 
   CommandEvaluator ce_;
@@ -744,8 +756,8 @@ void GenerateNinja(const char* ninja_suffix,
 }
 
 static bool ShouldIgnoreDirty(StringPiece s) {
-  return (g_ignore_dirty_pattern &&
-          Pattern(g_ignore_dirty_pattern).Match(s));
+  return (g_flags.ignore_dirty_pattern &&
+          Pattern(g_flags.ignore_dirty_pattern).Match(s));
 }
 
 bool NeedsRegen(const char* ninja_suffix,

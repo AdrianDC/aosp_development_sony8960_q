@@ -104,7 +104,8 @@ DepNode::DepNode(Symbol o, bool p)
     : output(o),
       has_rule(false),
       is_phony(p),
-      rule_vars(NULL) {
+      rule_vars(NULL),
+      output_pattern(Symbol::IsUninitialized()) {
   g_dep_node_pool->push_back(this);
 }
 
@@ -143,11 +144,10 @@ class DepBuilder {
       CHECK(!first_rule_->outputs.empty());
 
       targets.push_back(first_rule_->outputs[0]);
-
-      if (g_gen_all_phony_targets) {
-        for (Symbol s : phony_)
-          targets.push_back(s);
-      }
+    }
+    if (g_flags.gen_all_phony_targets) {
+      for (Symbol s : phony_)
+        targets.push_back(s);
     }
 
     // TODO: LogStats?
@@ -421,6 +421,11 @@ class DepBuilder {
     Vars* vars;
     if (!PickRule(output, &rule, &vars)) {
       return n;
+    }
+
+    if (rule->output_patterns.size() >= 1) {
+      CHECK(rule->output_patterns.size() == 1);
+      n->output_pattern = rule->output_patterns[0];
     }
 
     vector<unique_ptr<ScopedVar>> sv;

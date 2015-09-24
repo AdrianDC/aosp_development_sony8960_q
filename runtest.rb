@@ -27,6 +27,9 @@ while true
   elsif ARGV[0] == '-n'
     via_ninja = true
     ARGV.shift
+  elsif ARGV[0] == '-v'
+    show_failing = true
+    ARGV.shift
   else
     break
   end
@@ -38,6 +41,7 @@ def get_output_filenames
   files.delete('build.ninja')
   files.delete('ninja.sh')
   files.delete('gmon.out')
+  files.delete('submake')
   files.reject!{|f|f =~ /\.json$/}
   files.reject!{|f|f =~ /^kati\.*/}
   files
@@ -121,9 +125,6 @@ def normalize_make_log(expected, mk, via_ninja)
   # GNU make 4.0 has this output.
   expected.gsub!(/Makefile:\d+: commands for target ".*?" failed\n/, '')
   # We treat some warnings as errors.
-  if mk =~ /err_invalid_ifeq3.mk/
-    expected.gsub!(/Nothing to be done for "test"\.\n/, '')
-  end
   expected.gsub!(/^\/bin\/sh: line 0: /, '')
   # We print out some ninja warnings in some tests to match what we expect
   # ninja to produce. Remove them if we're not testing ninja.
@@ -182,6 +183,7 @@ run_make_test = proc do |mk|
     File.open("Makefile", 'w') do |ofile|
       ofile.print(c)
     end
+    File.symlink('../../testcase/submake', 'submake')
 
     expected = ''
     output = ''
@@ -191,10 +193,12 @@ run_make_test = proc do |mk|
       testcases = ['']
     end
 
+    is_silent_test = mk =~ /\/submake_/
+
     cleanup
     testcases.each do |tc|
       cmd = 'make'
-      if via_ninja
+      if via_ninja || is_silent_test
         cmd += ' -s'
       end
       cmd += " #{tc} 2>&1"
@@ -214,6 +218,9 @@ run_make_test = proc do |mk|
       end
       if via_ninja
         cmd += ' --ninja'
+      end
+      if is_silent_test
+        cmd += ' -s'
       end
       cmd += " #{tc} 2>&1"
       res = IO.popen(cmd, 'r:binary', &:read)
@@ -241,8 +248,10 @@ run_make_test = proc do |mk|
         expected_failures << name
       else
         puts "#{name}: FAIL"
-        puts `diff -u out.make out.kati`
         failures << name
+      end
+      if !expected_failure || show_failing
+        puts `diff -u out.make out.kati`
       end
     else
       if expected_failure
