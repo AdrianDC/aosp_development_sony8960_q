@@ -168,21 +168,13 @@ bool GetDepfileFromCommand(string* cmd, string* out) {
 
 class NinjaGenerator {
  public:
-  NinjaGenerator(const char* ninja_suffix, const char* ninja_dir, Evaluator* ev,
-                 double start_time)
-      : ce_(ev), ev_(ev), fp_(NULL), rule_id_(0), start_time_(start_time) {
+  NinjaGenerator(Evaluator* ev, double start_time)
+      : ce_(ev), ev_(ev), fp_(NULL), rule_id_(0), start_time_(start_time),
+        default_target_(NULL) {
     ev_->set_avoid_io(true);
     shell_ = ev->EvalVar(kShellSym);
     if (g_flags.goma_dir)
       gomacc_ = StringPrintf("%s/gomacc ", g_flags.goma_dir);
-    if (ninja_suffix) {
-      ninja_suffix_ = ninja_suffix;
-    }
-    if (ninja_dir) {
-      ninja_dir_ = ninja_dir;
-    } else {
-      ninja_dir_ = ".";
-    }
 
     GetExecutablePath(&kati_binary_);
   }
@@ -192,24 +184,19 @@ class NinjaGenerator {
   }
 
   void Generate(const vector<DepNode*>& nodes,
-                bool build_all_targets,
                 const string& orig_args) {
     unlink(GetStampFilename().c_str());
-    GenerateNinja(nodes, build_all_targets, orig_args);
+    GenerateNinja(nodes, orig_args);
     GenerateShell();
     GenerateStamp(orig_args);
   }
 
-  static string GetStampFilename(const char* ninja_dir,
-                                 const char* ninja_suffix) {
-    return StringPrintf("%s/.kati_stamp%s",
-                        ninja_dir ? ninja_dir : ".",
-                        ninja_suffix ? ninja_suffix : "");
+  static string GetStampFilename() {
+    return GetFilename(".kati_stamp%s");
   }
 
-  static string GetStampTempFilename(const char* ninja_dir,
-                                 const char* ninja_suffix) {
-    return StringPrintf("%s.tmp", GetStampFilename(ninja_dir, ninja_suffix).c_str());
+  static string GetStampTempFilename() {
+    return GetFilename(".kati_stamp%s.tmp");
   }
 
  private:
@@ -452,9 +439,7 @@ class NinjaGenerator {
       }
     }
 
-    EmitBuild(node, rule_name);
-    if (use_local_pool)
-      fprintf(fp_, " pool = local_pool\n");
+    EmitBuild(node, rule_name, use_local_pool);
 
     for (DepNode* d : node->deps) {
       EmitNode(d);
@@ -513,9 +498,10 @@ class NinjaGenerator {
     s->swap(r);
   }
 
-  void EmitBuild(DepNode* node, const string& rule_name) {
+  void EmitBuild(DepNode* node, const string& rule_name, bool use_local_pool) {
+    string target = EscapeBuildTarget(node->output);
     fprintf(fp_, "build %s: %s",
-            EscapeBuildTarget(node->output).c_str(),
+            target.c_str(),
             rule_name.c_str());
     vector<Symbol> order_onlys;
     if (node->is_phony) {
@@ -531,6 +517,11 @@ class NinjaGenerator {
       }
     }
     fprintf(fp_, "\n");
+    if (use_local_pool)
+      fprintf(fp_, " pool = local_pool\n");
+    if (node->is_default_target) {
+      default_target_ = node;
+    }
   }
 
   void EmitRegenRules(const string& orig_args) {
@@ -552,25 +543,21 @@ class NinjaGenerator {
   }
 
   string GetNinjaFilename() const {
-    return StringPrintf("%s/build%s.ninja",
-                        ninja_dir_.c_str(), ninja_suffix_.c_str());
+    return GetFilename("build%s.ninja");
   }
 
   string GetShellScriptFilename() const {
-    return StringPrintf("%s/ninja%s.sh",
-                        ninja_dir_.c_str(), ninja_suffix_.c_str());
+    return GetFilename("ninja%s.sh");
   }
 
-  string GetStampFilename() const {
-    return GetStampFilename(ninja_dir_.c_str(), ninja_suffix_.c_str());
-  }
-
-  string GetStampTempFilename() const {
-    return GetStampTempFilename(ninja_dir_.c_str(), ninja_suffix_.c_str());
+  static string GetFilename(const char* fmt) {
+    string r = g_flags.ninja_dir ? g_flags.ninja_dir : ".";
+    r += '/';
+    r += StringPrintf(fmt, g_flags.ninja_suffix ? g_flags.ninja_suffix : "");
+    return r;
   }
 
   void GenerateNinja(const vector<DepNode*>& nodes,
-                     bool build_all_targets,
                      const string& orig_args) {
     fp_ = fopen(GetNinjaFilename().c_str(), "wb");
     if (fp_ == NULL)
@@ -587,8 +574,8 @@ class NinjaGenerator {
       fprintf(fp_, "\n");
     }
 
-    if (ninja_dir_ != ".") {
-      fprintf(fp_, "builddir = %s\n\n", ninja_dir_.c_str());
+    if (g_flags.ninja_dir) {
+      fprintf(fp_, "builddir = %s\n\n", g_flags.ninja_dir);
     }
 
     fprintf(fp_, "pool local_pool\n");
@@ -607,11 +594,20 @@ class NinjaGenerator {
       used_envs_.emplace(e.str(), val.as_string());
     }
 
-    if (!build_all_targets) {
-      CHECK(!nodes.empty());
-      fprintf(fp_, "\ndefault %s\n",
-              EscapeBuildTarget(nodes.front()->output).c_str());
+    string default_targets;
+    if (g_flags.targets.empty() ||
+        g_flags.gen_all_targets || g_flags.gen_all_phony_targets) {
+      CHECK(default_target_);
+      default_targets = EscapeBuildTarget(default_target_->output);
+    } else {
+      for (Symbol s : g_flags.targets) {
+        if (!default_targets.empty())
+          default_targets += ' ';
+        default_targets += EscapeBuildTarget(s);
+      }
     }
+    fprintf(fp_, "\n");
+    fprintf(fp_, "default %s\n", default_targets.c_str());
 
     fclose(fp_);
   }
@@ -624,8 +620,6 @@ class NinjaGenerator {
     fprintf(fp, "#!/bin/sh\n");
     fprintf(fp, "# Generated by kati %s\n", kGitVersion);
     fprintf(fp, "\n");
-    if (ninja_dir_ == ".")
-      fprintf(fp, "cd $(dirname \"$0\")\n");
 
     for (const auto& p : ev_->exports()) {
       if (p.second) {
@@ -736,23 +730,19 @@ class NinjaGenerator {
   unordered_set<Symbol> done_;
   int rule_id_;
   string gomacc_;
-  string ninja_suffix_;
-  string ninja_dir_;
   string shell_;
   map<string, string> used_envs_;
   string kati_binary_;
   double start_time_;
+  DepNode* default_target_;
 };
 
-void GenerateNinja(const char* ninja_suffix,
-                   const char* ninja_dir,
-                   const vector<DepNode*>& nodes,
+void GenerateNinja(const vector<DepNode*>& nodes,
                    Evaluator* ev,
-                   bool build_all_targets,
                    const string& orig_args,
                    double start_time) {
-  NinjaGenerator ng(ninja_suffix, ninja_dir, ev, start_time);
-  ng.Generate(nodes, build_all_targets, orig_args);
+  NinjaGenerator ng(ev, start_time);
+  ng.Generate(nodes, orig_args);
 }
 
 static bool ShouldIgnoreDirty(StringPiece s) {
@@ -760,15 +750,10 @@ static bool ShouldIgnoreDirty(StringPiece s) {
           Pattern(g_flags.ignore_dirty_pattern).Match(s));
 }
 
-bool NeedsRegen(const char* ninja_suffix,
-                const char* ninja_dir,
-                bool ignore_kati_binary,
-                bool dump_kati_stamp,
-                double start_time,
-                const string& orig_args) {
+bool NeedsRegen(double start_time, const string& orig_args) {
   bool retval = false;
 #define RETURN_TRUE do {                         \
-    if (dump_kati_stamp)                         \
+    if (g_flags.dump_kati_stamp)                 \
       retval = true;                             \
     else                                         \
       return true;                               \
@@ -790,8 +775,7 @@ bool NeedsRegen(const char* ninja_suffix,
       }                                                                 \
     })
 
-  const string& stamp_filename =
-      NinjaGenerator::GetStampFilename(ninja_dir, ninja_suffix);
+  const string& stamp_filename = NinjaGenerator::GetStampFilename();
   FILE* fp = fopen(stamp_filename.c_str(), "rb+");
   if (!fp)
     RETURN_TRUE;
@@ -803,7 +787,7 @@ bool NeedsRegen(const char* ninja_suffix,
     fprintf(stderr, "incomplete kati_stamp, regenerating...\n");
     RETURN_TRUE;
   }
-  if (dump_kati_stamp)
+  if (g_flags.dump_kati_stamp)
     printf("Generated time: %f\n", gen_time);
 
   string s, s2;
@@ -812,7 +796,7 @@ bool NeedsRegen(const char* ninja_suffix,
     LOAD_STRING(fp, &s);
     double ts = GetTimestamp(s);
     if (gen_time < ts) {
-      if (ignore_kati_binary) {
+      if (g_flags.regen_ignoring_kati_binary) {
         string kati_binary;
         GetExecutablePath(&kati_binary);
         if (s == kati_binary) {
@@ -821,16 +805,16 @@ bool NeedsRegen(const char* ninja_suffix,
         }
       }
       if (ShouldIgnoreDirty(s)) {
-        if (dump_kati_stamp)
+        if (g_flags.dump_kati_stamp)
           printf("file %s: ignored (%f)\n", s.c_str(), ts);
         continue;
       }
-      if (dump_kati_stamp)
+      if (g_flags.dump_kati_stamp)
         printf("file %s: dirty (%f)\n", s.c_str(), ts);
       else
         fprintf(stderr, "%s was modified, regenerating...\n", s.c_str());
       RETURN_TRUE;
-    } else if (dump_kati_stamp) {
+    } else if (g_flags.dump_kati_stamp) {
       printf("file %s: clean (%f)\n", s.c_str(), ts);
     }
   }
@@ -839,14 +823,14 @@ bool NeedsRegen(const char* ninja_suffix,
   for (int i = 0; i < num_undefineds; i++) {
     LOAD_STRING(fp, &s);
     if (getenv(s.c_str())) {
-      if (dump_kati_stamp) {
+      if (g_flags.dump_kati_stamp) {
         printf("env %s: dirty (unset => %s)\n", s.c_str(), getenv(s.c_str()));
       } else {
         fprintf(stderr, "Environment variable %s was set, regenerating...\n",
                 s.c_str());
       }
       RETURN_TRUE;
-    } else if (dump_kati_stamp) {
+    } else if (g_flags.dump_kati_stamp) {
       printf("env %s: clean (unset)\n", s.c_str());
     }
   }
@@ -857,7 +841,7 @@ bool NeedsRegen(const char* ninja_suffix,
     StringPiece val(getenv(s.c_str()));
     LOAD_STRING(fp, &s2);
     if (val != s2) {
-      if (dump_kati_stamp) {
+      if (g_flags.dump_kati_stamp) {
         printf("env %s: dirty (%s => %.*s)\n",
                s.c_str(), s2.c_str(), SPF(val));
       } else {
@@ -866,7 +850,7 @@ bool NeedsRegen(const char* ninja_suffix,
                 s.c_str(), s2.c_str(), SPF(val));
       }
       RETURN_TRUE;
-    } else if (dump_kati_stamp) {
+    } else if (g_flags.dump_kati_stamp) {
       printf("env %s: clean (%.*s)\n", s.c_str(), SPF(val));
     }
   }
@@ -902,19 +886,19 @@ bool NeedsRegen(const char* ninja_suffix,
       }
       if (needs_regen) {
         if (ShouldIgnoreDirty(pat)) {
-          if (dump_kati_stamp) {
+          if (g_flags.dump_kati_stamp) {
             printf("wildcard %s: ignored\n", pat.c_str());
           }
           continue;
         }
-        if (dump_kati_stamp) {
+        if (g_flags.dump_kati_stamp) {
           printf("wildcard %s: dirty\n", pat.c_str());
         } else {
           fprintf(stderr, "wildcard(%s) was changed, regenerating...\n",
                   pat.c_str());
         }
         RETURN_TRUE;
-      } else if (dump_kati_stamp) {
+      } else if (g_flags.dump_kati_stamp) {
         printf("wildcard %s: clean\n", pat.c_str());
       }
     }
@@ -950,7 +934,7 @@ bool NeedsRegen(const char* ninja_suffix,
         }
 
         if (!should_run_command) {
-          if (dump_kati_stamp)
+          if (g_flags.dump_kati_stamp)
             printf("shell %s: clean (no rerun)\n", cmd.c_str());
           continue;
         }
@@ -959,7 +943,7 @@ bool NeedsRegen(const char* ninja_suffix,
 
     FindCommand fc;
     if (fc.Parse(cmd) && !fc.chdir.empty() && ShouldIgnoreDirty(fc.chdir)) {
-      if (dump_kati_stamp)
+      if (g_flags.dump_kati_stamp)
         printf("shell %s: ignored\n", cmd.c_str());
       continue;
     }
@@ -970,7 +954,7 @@ bool NeedsRegen(const char* ninja_suffix,
       RunCommand("/bin/sh", cmd, RedirectStderr::DEV_NULL, &result);
       FormatForCommandSubstitution(&result);
       if (expected != result) {
-        if (dump_kati_stamp) {
+        if (g_flags.dump_kati_stamp) {
           printf("shell %s: dirty\n", cmd.c_str());
         } else {
           fprintf(stderr, "$(shell %s) was changed, regenerating...\n",
@@ -981,7 +965,7 @@ bool NeedsRegen(const char* ninja_suffix,
 #endif
         }
         RETURN_TRUE;
-      } else if (dump_kati_stamp) {
+      } else if (g_flags.dump_kati_stamp) {
         printf("shell %s: clean (rerun)\n", cmd.c_str());
       }
     }
