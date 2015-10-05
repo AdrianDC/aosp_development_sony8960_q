@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -100,11 +101,12 @@ class RuleTrie {
 
 }  // namespace
 
-DepNode::DepNode(Symbol o, bool p)
+DepNode::DepNode(Symbol o, bool p, bool r)
     : output(o),
       has_rule(false),
-      is_phony(p),
       is_default_target(false),
+      is_phony(p),
+      is_restat(r),
       rule_vars(NULL),
       output_pattern(Symbol::IsUninitialized()) {
   g_dep_node_pool->push_back(this);
@@ -131,6 +133,12 @@ class DepBuilder {
         phony_.insert(input);
       }
     }
+    found = rules_.find(Intern(".KATI_RESTAT"));
+    if (found != rules_.end()) {
+      for (Symbol input : found->second->inputs) {
+        restat_.insert(input);
+      }
+    }
   }
 
   ~DepBuilder() {
@@ -142,9 +150,7 @@ class DepBuilder {
     }
     CHECK(!first_rule_->outputs.empty());
 
-    first_rule_->is_default_target = true;
-
-    if (targets.empty()) {
+    if (!g_flags.gen_all_targets && targets.empty()) {
       targets.push_back(first_rule_->outputs[0]);
     }
     if (g_flags.gen_all_phony_targets) {
@@ -152,8 +158,20 @@ class DepBuilder {
         targets.push_back(s);
     }
     if (g_flags.gen_all_targets) {
-      for (const auto& p : rules_)
-        targets.push_back(p.first);
+      unordered_set<Symbol> non_root_targets;
+      for (const auto& p : rules_) {
+        for (Symbol t : p.second->inputs)
+          non_root_targets.insert(t);
+        for (Symbol t : p.second->order_only_inputs)
+          non_root_targets.insert(t);
+      }
+
+      for (const auto& p : rules_) {
+        Symbol t = p.first;
+        if (!non_root_targets.count(t)) {
+          targets.push_back(p.first);
+        }
+      }
     }
 
     // TODO: LogStats?
@@ -285,6 +303,7 @@ class DepBuilder {
       ApplyOutputPattern(old_rule, output, old_rule.order_only_inputs,
                          &r->order_only_inputs);
     }
+    r->is_default_target |= old_rule.is_default_target;
     return r;
   }
 
@@ -299,6 +318,7 @@ class DepBuilder {
       auto p = rules_.insert(make_pair(output, rule));
       if (p.second) {
         if (!first_rule_ && output.get(0) != '.') {
+          rule->is_default_target = true;
           first_rule_ = rule;
         }
       } else {
@@ -386,6 +406,7 @@ class DepBuilder {
         copy(rule->inputs.begin(), rule->inputs.end(),
              back_inserter(r->inputs));
         r->cmds = irule->cmds;
+        r->is_default_target |= irule->is_default_target;
         r->loc = irule->loc;
         r->cmd_lineno = irule->cmd_lineno;
         *out_rule = r;
@@ -419,6 +440,7 @@ class DepBuilder {
         shared_ptr<Rule> r = make_shared<Rule>(*rule);
         r->inputs.insert(r->inputs.begin(), input);
         r->cmds = irule->cmds;
+        r->is_default_target |= irule->is_default_target;
         r->loc = irule->loc;
         r->cmd_lineno = irule->cmd_lineno;
         *out_rule = r;
@@ -446,7 +468,9 @@ class DepBuilder {
       return found->second;
     }
 
-    DepNode* n = new DepNode(output, phony_.count(output));
+    DepNode* n = new DepNode(output,
+                             phony_.count(output),
+                             restat_.count(output));
     done_[output] = n;
 
     shared_ptr<Rule> rule;
@@ -524,7 +548,7 @@ class DepBuilder {
   }
 
   Evaluator* ev_;
-  unordered_map<Symbol, shared_ptr<Rule>> rules_;
+  map<Symbol, shared_ptr<Rule>> rules_;
   const unordered_map<Symbol, Vars*>& rule_vars_;
   unique_ptr<Vars> cur_rule_vars_;
 
@@ -535,6 +559,7 @@ class DepBuilder {
   shared_ptr<Rule> first_rule_;
   unordered_map<Symbol, DepNode*> done_;
   unordered_set<Symbol> phony_;
+  unordered_set<Symbol> restat_;
 };
 
 void MakeDep(Evaluator* ev,
