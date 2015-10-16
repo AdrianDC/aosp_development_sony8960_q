@@ -30,6 +30,8 @@ cc_defaults {
     static_libs: [
         "libavb",
         "libbootloader_message",
+        "libext2_blkid",
+        "libext2_uuid",
         "libfec",
         "libfec_rs",
         "libfs_avb",
