@@ -58,7 +58,7 @@ void StripShellComment(string* cmd) {
     switch (*in) {
       case '#':
         if (quote == 0 && isspace(prev_char)) {
-          while (*in && *in != '\n')
+          while (in[1] && *in != '\n')
             in++;
           break;
         }
@@ -383,7 +383,11 @@ void AddprefixFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
 void RealpathFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
   const string&& text = args[0]->Eval(ev);
   if (ev->avoid_io()) {
-    *s += "$(realpath ";
+    *s += "$(";
+    string kati_binary;
+    GetExecutablePath(&kati_binary);
+    *s += kati_binary;
+    *s += " --realpath ";
     *s += text;
     *s += " 2> /dev/null)";
     return;
@@ -394,7 +398,7 @@ void RealpathFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
     ScopedTerminator st(tok);
     char buf[PATH_MAX];
     if (realpath(tok.data(), buf))
-      *s += buf;
+      ww.Write(buf);
   }
 }
 

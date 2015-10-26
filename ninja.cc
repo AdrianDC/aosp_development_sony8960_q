@@ -471,7 +471,7 @@ class NinjaGenerator {
   }
 
   void EscapeShell(string* s) const {
-    if (s->find_first_of("$`!\\\"") == string::npos)
+    if (s->find_first_of("$`\\\"") == string::npos)
       return;
     string r;
     bool last_dollar = false;
@@ -489,7 +489,6 @@ class NinjaGenerator {
           break;
         case '`':
         case '"':
-        case '!':
         case '\\':
           r += '\\';
           // fall through.
@@ -932,8 +931,21 @@ bool NeedsRegen(double start_time, const string& orig_args) {
           // directory which affects the results of find command.
           if (s == "" || s == "." || ShouldIgnoreDirty(s))
             continue;
-          double ts = GetTimestamp(s);
-          should_run_command |= (ts < 0 || gen_time < ts);
+
+          struct stat st;
+          if (lstat(s.c_str(), &st) != 0) {
+            should_run_command = true;
+            continue;
+          }
+          double ts = GetTimestampFromStat(st);
+          if (gen_time < ts) {
+            should_run_command = true;
+            continue;
+          }
+          if (S_ISLNK(st.st_mode)) {
+            ts = GetTimestamp(s);
+            should_run_command |= (ts < 0 || gen_time < ts);
+          }
         }
 
         if (!should_run_command) {

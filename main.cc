@@ -47,18 +47,6 @@ static void Init() {
   InitFuncTable();
   InitDepNodePool();
   InitParser();
-
-  if (g_flags.makefile == NULL) {
-    if (Exists("GNUmakefile")) {
-      g_flags.makefile = "GNUmakefile";
-#if !defined(__APPLE__)
-    } else if (Exists("makefile")) {
-      g_flags.makefile = "makefile";
-#endif
-    } else if (Exists("Makefile")) {
-      g_flags.makefile = "Makefile";
-    }
-  }
 }
 
 static void Quit() {
@@ -225,7 +213,33 @@ static int Run(const vector<Symbol>& targets,
   return 0;
 }
 
+static void FindFirstMakefie() {
+  if (g_flags.makefile != NULL)
+    return;
+  if (Exists("GNUmakefile")) {
+    g_flags.makefile = "GNUmakefile";
+#if !defined(__APPLE__)
+  } else if (Exists("makefile")) {
+    g_flags.makefile = "makefile";
+#endif
+  } else if (Exists("Makefile")) {
+    g_flags.makefile = "Makefile";
+  }
+}
+
+static void HandleRealpath(int argc, char** argv) {
+  char buf[PATH_MAX];
+  for (int i = 0; i < argc; i++) {
+    if (realpath(argv[i], buf))
+      printf("%s\n", buf);
+  }
+}
+
 int main(int argc, char* argv[]) {
+  if (argc >= 2 && !strcmp(argv[1], "--realpath")) {
+    HandleRealpath(argc - 2, argv + 2);
+    return 0;
+  }
   Init();
   string orig_args;
   for (int i = 0; i < argc; i++) {
@@ -234,6 +248,7 @@ int main(int argc, char* argv[]) {
     orig_args += argv[i];
   }
   g_flags.Parse(argc, argv);
+  FindFirstMakefie();
   if (g_flags.makefile == NULL)
     ERROR("*** No targets specified and no makefile found.");
   // This depends on command line flags.

@@ -102,7 +102,7 @@ def normalize_ninja_log(log, mk)
   log.gsub!(/^ninja: error: (.*, needed by .*),.*/,
             '*** No rule to make target \\1.')
   log.gsub!(/^ninja: warning: multiple rules generate (.*)\. builds involving this target will not be correct.*$/,
-	    'ninja: warning: multiple rules generate \\1.')
+            'ninja: warning: multiple rules generate \\1.')
   if mk =~ /err_error_in_recipe.mk/
     # This test expects ninja fails. Strip ninja specific error logs.
     log.gsub!(/^FAILED: .*\n/, '')
@@ -135,6 +135,8 @@ def normalize_make_log(expected, mk, via_ninja)
   if !via_ninja
     expected.gsub!(/^ninja: warning: .*\n/, '')
   end
+  # Normalization for "include foo" with C++ kati.
+  expected.gsub!(/(: )(\S+): (No such file or directory)\n\*\*\* No rule to make target "\2"./, '\1\2: \3')
 
   expected
 end
@@ -145,8 +147,6 @@ def normalize_kati_log(output)
   output.gsub!(/^\*kati\*.*\n/, '')
   output.gsub!(/^c?kati: /, '')
   output.gsub!(/[`'"]/, '"')
-  output.gsub!(/(: )(?:open )?(\S+): [Nn](o such file or directory)\nNOTE:.*/,
-               "\\1\\2: N\\3\n*** No rule to make target \"\\2\".")
   output.gsub!(/\/bin\/sh: ([^:]*): command not found/,
                "\\1: Command not found")
   output.gsub!(/.*: warning for parse error in an unevaluated line: .*\n/, '')
@@ -154,6 +154,9 @@ def normalize_kati_log(output)
   output.gsub!(/^\/bin\/sh: line 0: /, '')
   output.gsub!(/ (\.\/+)+kati\.\S+/, '') # kati log files in find_command.mk
   output.gsub!(/ (\.\/+)+test\S+.json/, '') # json files in find_command.mk
+  # Normalization for "include foo" with Go kati.
+  output.gsub!(/(: )open (\S+): n(o such file or directory)\nNOTE:.*/,
+               "\\1\\2: N\\3")
   output
 end
 
@@ -390,6 +393,7 @@ puts
 
 if !unexpected_passes.empty? || !failures.empty?
   puts "FAIL! (#{failures.size + unexpected_passes.size} fails #{passes.size} passes)"
+  exit 1
 else
   puts 'PASS!'
 end
