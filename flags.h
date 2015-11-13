@@ -27,7 +27,6 @@ struct Flags {
   bool detect_android_echo;
   bool dump_kati_stamp;
   bool enable_stat_logs;
-  bool gen_all_phony_targets;
   bool gen_all_targets;
   bool gen_regen_rule;
   bool generate_ninja;
@@ -39,6 +38,7 @@ struct Flags {
   bool use_find_emulator;
   const char* goma_dir;
   const char* ignore_dirty_pattern;
+  const char* no_ignore_dirty_pattern;
   const char* ignore_optional_include_pattern;
   const char* makefile;
   const char* ninja_dir;
