@@ -52,6 +52,10 @@ ifneq ($(BOARD_POWER_CUSTOM_BOARD_LIB),)
 else
 
 # Include target-specific files.
+ifeq ($(call is-board-platform-in-list, msm8960), true)
+LOCAL_SRC_FILES += power-8960.c
+endif
+
 ifeq ($(call is-board-platform-in-list, msm8974), true)
 LOCAL_SRC_FILES += power-8974.c
 endif
