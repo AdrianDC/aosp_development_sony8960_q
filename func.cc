@@ -546,6 +546,12 @@ bool ShouldStoreCommandResult(StringPiece cmd) {
 void ShellFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
   string cmd = args[0]->Eval(ev);
   if (ev->avoid_io() && !HasNoIoInShellScript(cmd)) {
+    if (ev->eval_depth() > 1) {
+      // TODO: Make this an error.
+      WARN("%s:%d: kati doesn't support passing results of $(shell) "
+           "to other make constructs: %s",
+           LOCF(ev->loc()), cmd.c_str());
+    }
     StripShellComment(&cmd);
     *s += "$(";
     *s += cmd;
@@ -609,12 +615,16 @@ void CallFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
                                     Intern(tmpvar_name), av[i-1].get()));
     }
   }
+
+  ev->DecrementEvalDepth();
   func->Eval(ev, s);
+  ev->IncrementEvalDepth();
 }
 
 void ForeachFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
   const string&& varname = args[0]->Eval(ev);
   const string&& list = args[1]->Eval(ev);
+  ev->DecrementEvalDepth();
   WordWriter ww(s);
   for (StringPiece tok : WordScanner(list)) {
     unique_ptr<SimpleVar> v(new SimpleVar(
@@ -623,6 +633,7 @@ void ForeachFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
     ww.MaybeAddWhitespace();
     args[2]->Eval(ev, s);
   }
+  ev->IncrementEvalDepth();
 }
 
 void OriginFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
