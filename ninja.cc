@@ -191,14 +191,6 @@ class NinjaGenerator {
     GenerateStamp(orig_args);
   }
 
-  static string GetNinjaFilename() {
-    return GetFilename("build%s.ninja");
-  }
-
-  static string GetShellScriptFilename() {
-    return GetFilename("ninja%s.sh");
-  }
-
   static string GetStampFilename() {
     return GetFilename(".kati_stamp%s");
   }
@@ -562,7 +554,15 @@ class NinjaGenerator {
     fprintf(fp_, "\n\n");
   }
 
-  static string GetEnvScriptFilename() {
+  string GetNinjaFilename() const {
+    return GetFilename("build%s.ninja");
+  }
+
+  string GetShellScriptFilename() const {
+    return GetFilename("ninja%s.sh");
+  }
+
+  string GetEnvScriptFilename() const {
     return GetFilename("env%s.sh");
   }
 
@@ -605,10 +605,7 @@ class NinjaGenerator {
       EmitNode(node);
     }
 
-    unordered_set<Symbol> used_env_vars(Vars::used_env_vars());
-    // PATH changes $(shell).
-    used_env_vars.insert(Intern("PATH"));
-    for (Symbol e : used_env_vars) {
+    for (Symbol e : Vars::used_env_vars()) {
       StringPiece val(getenv(e.c_str()));
       used_envs_.emplace(e.str(), val.as_string());
     }
@@ -807,17 +804,6 @@ bool NeedsRegen(double start_time, const string& orig_args) {
         RETURN_TRUE;                                                    \
       }                                                                 \
     })
-
-  if (!Exists(NinjaGenerator::GetNinjaFilename())) {
-    fprintf(stderr, "%s is missing, regenerating...\n",
-            NinjaGenerator::GetNinjaFilename().c_str());
-    return true;
-  }
-  if (!Exists(NinjaGenerator::GetShellScriptFilename())) {
-    fprintf(stderr, "%s is missing, regenerating...\n",
-            NinjaGenerator::GetShellScriptFilename().c_str());
-    return true;
-  }
 
   const string& stamp_filename = NinjaGenerator::GetStampFilename();
   FILE* fp = fopen(stamp_filename.c_str(), "rb+");

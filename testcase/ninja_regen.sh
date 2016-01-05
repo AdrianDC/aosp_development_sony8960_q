@@ -20,7 +20,7 @@ log=/tmp/log
 mk="$@"
 
 sleep_if_necessary() {
-  if [ x$(uname) != x"Linux" -o x"${TRAVIS}" != x"" ]; then
+  if [ x$(uname) != x"Linux" ]; then
     sleep "$@"
   fi
 }
@@ -51,7 +51,7 @@ EOF
 ${mk} 2> ${log}
 if [ -e ninja.sh ]; then
   if ! grep regenerating ${log} > /dev/null; then
-    echo 'Should be regenerated (Makefile)'
+    echo 'Should be regenerated'
   fi
   ./ninja.sh
 fi
@@ -60,7 +60,7 @@ export VAR=fuga
 ${mk} 2> ${log}
 if [ -e ninja.sh ]; then
   if ! grep regenerating ${log} > /dev/null; then
-    echo 'Should be regenerated (env changed)'
+    echo 'Should be regenerated'
   fi
   ./ninja.sh
 fi
@@ -69,16 +69,7 @@ export VAR2=OK
 ${mk} 2> ${log}
 if [ -e ninja.sh ]; then
   if ! grep regenerating ${log} > /dev/null; then
-    echo 'Should be regenerated (env added)'
-  fi
-  ./ninja.sh
-fi
-
-export PATH=/random_path:$PATH
-${mk} 2> ${log}
-if [ -e ninja.sh ]; then
-  if ! grep regenerating ${log} > /dev/null; then
-    echo 'Should be regenerated (PATH changed)'
+    echo 'Should be regenerated'
   fi
   ./ninja.sh
 fi
@@ -88,7 +79,7 @@ touch PASS.mk
 ${mk} 2> ${log}
 if [ -e ninja.sh ]; then
   if ! grep regenerating ${log} > /dev/null; then
-    echo 'Should be regenerated (wildcard)'
+    echo 'Should be regenerated'
   fi
   ./ninja.sh
 fi
@@ -106,7 +97,7 @@ fi
 ${mk} other 2> ${log}
 if [ -e ninja.sh ]; then
   if ! grep regenerating ${log} >/dev/null; then
-    echo 'Should be regenerated (argument)'
+    echo 'Should be regenerated'
   fi
   ./ninja.sh other
 fi
