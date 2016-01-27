@@ -38,7 +38,6 @@ KATI_CXX_SRCS := \
 	main.cc \
 	ninja.cc \
 	parser.cc \
-	regen.cc \
 	rule.cc \
 	stats.cc \
 	stmt.cc \
@@ -46,7 +45,6 @@ KATI_CXX_SRCS := \
 	stringprintf.cc \
 	strutil.cc \
 	symtab.cc \
-	thread.cc \
 	timeutil.cc \
 	var.cc
 
@@ -71,7 +69,7 @@ KATI_CXXFLAGS += -O -DNOLOG
 #KATI_CXXFLAGS += -pg
 
 ifeq ($(shell uname),Linux)
-KATI_LIBS := -lrt -lpthread
+KATI_LIBS := -lrt
 endif
 
 # Rule to build ckati into KATI_BIN_PATH

@@ -33,7 +33,6 @@
 #include "log.h"
 #include "ninja.h"
 #include "parser.h"
-#include "regen.h"
 #include "stats.h"
 #include "stmt.h"
 #include "string_piece.h"

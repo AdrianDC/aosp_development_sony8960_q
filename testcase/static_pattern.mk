@@ -1,3 +1,4 @@
+# TODO(c): Fix
 srcs := a.cc b.cc c.cc
 srcs := $(addprefix ./,$(srcs))
 objs := $(patsubst ./%.cc,./%.o,$(srcs))

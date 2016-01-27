@@ -442,9 +442,11 @@ class DepBuilder {
         *out_rule = r;
         return true;
       }
-      CHECK(irule->output_patterns.size() == 1);
-      vars = MergeImplicitRuleVars(irule->output_patterns[0], vars);
-      *out_var = vars;
+      if (vars) {
+        CHECK(irule->output_patterns.size() == 1);
+        vars = MergeImplicitRuleVars(irule->output_patterns[0], vars);
+        *out_var = vars;
+      }
       *out_rule = irule;
       return true;
     }

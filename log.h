@@ -44,13 +44,9 @@ extern string* g_last_error;
       fprintf(stderr, "*kati*: %s\n", StringPrintf(args).c_str());  \
   } while(0)
 
-#define PLOG(...) do {                                              \
+#define PERROR(...) do {                                            \
     fprintf(stderr, "%s: %s\n", StringPrintf(__VA_ARGS__).c_str(),  \
             strerror(errno));                                       \
-  } while (0)
-
-#define PERROR(...) do {                                            \
-    PLOG(__VA_ARGS__);                                              \
     exit(1);                                                        \
   } while (0)
 
