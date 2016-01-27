@@ -16,49 +16,68 @@
 
 #include "stats.h"
 
+#include <mutex>
 #include <vector>
 
+#include "flags.h"
 #include "log.h"
 #include "stringprintf.h"
+#include "thread_local.h"
 #include "timeutil.h"
 
 namespace {
 
+mutex g_mu;
 vector<Stats*>* g_stats;
+#ifdef __linux__
+thread_local double g_start_time;
+#define REF(x) x
+#else
+DEFINE_THREAD_LOCAL(double, g_start_time);
+#define REF(x) x.Ref()
+#endif
 
 }  // namespace
 
 Stats::Stats(const char* name)
-    : name_(name), start_time_(0), elapsed_(0), cnt_(0) {
+    : name_(name), elapsed_(0), cnt_(0) {
+  unique_lock<mutex> lock(g_mu);
   if (g_stats == NULL)
     g_stats = new vector<Stats*>;
   g_stats->push_back(this);
 }
 
 string Stats::String() const {
+  unique_lock<mutex> lock(mu_);
   return StringPrintf("%s: %f / %d", name_, elapsed_, cnt_);
 }
 
 void Stats::Start() {
-  CHECK(!start_time_);
+  CHECK(!REF(g_start_time));
+  REF(g_start_time) = GetTime();
+  unique_lock<mutex> lock(mu_);
   cnt_++;
-  start_time_ = GetTime();
 }
 
 double Stats::End() {
-  CHECK(start_time_);
-  double e = GetTime() - start_time_;
+  CHECK(REF(g_start_time));
+  double e = GetTime() - REF(g_start_time);
+  REF(g_start_time) = 0;
+  unique_lock<mutex> lock(mu_);
   elapsed_ += e;
-  start_time_ = 0;
   return e;
 }
 
 ScopedStatsRecorder::ScopedStatsRecorder(Stats* st, const char* msg)
     : st_(st), msg_(msg) {
+  if (!g_flags.enable_stat_logs)
+    return;
   st_->Start();
 }
 
 ScopedStatsRecorder::~ScopedStatsRecorder() {
+  if (!g_flags.enable_stat_logs)
+    return;
   double e = st_->End();
   if (msg_ && e > 3.0) {
     LOG_STAT("slow %s (%f): %s", st_->name_, e, msg_);
