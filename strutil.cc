@@ -24,12 +24,39 @@
 #include <stack>
 #include <utility>
 
+#ifdef __SSE4_2__
+#include <smmintrin.h>
+#endif
+
 #include "log.h"
+
+static bool isSpace(char c) {
+  return (9 <= c && c <= 13) || c == 32;
+}
+
+#ifdef __SSE4_2__
+static int SkipUntilSSE42(const char* s, int len,
+                          const char* ranges, int ranges_size) {
+  __m128i ranges16 = _mm_loadu_si128((const __m128i*)ranges);
+  int i = 0;
+  do {
+    __m128i b16 = _mm_loadu_si128((const __m128i*)(s + i));
+    int r = _mm_cmpestri(
+        ranges16, ranges_size, b16, len - i,
+        _SIDD_LEAST_SIGNIFICANT | _SIDD_CMP_RANGES | _SIDD_UBYTE_OPS);
+    if (r != 16) {
+      return i + r;
+    }
+    i += 16;
+  } while (i < len);
+  return len;
+}
+#endif
 
 WordScanner::Iterator& WordScanner::Iterator::operator++() {
   int len = static_cast<int>(in->size());
   for (s = i; s < len; s++) {
-    if (!isspace((*in)[s]))
+    if (!isSpace((*in)[s]))
       break;
   }
   if (s == len) {
@@ -38,10 +65,18 @@ WordScanner::Iterator& WordScanner::Iterator::operator++() {
     i = 0;
     return *this;
   }
+
+#ifdef __SSE4_2__
+  static const char ranges[] = "\x09\x0d  ";
+  i = s;
+  i += SkipUntilSSE42(in->data() + s, len - s, ranges, 4);
+#else
   for (i = s; i < len; i++) {
-    if (isspace((*in)[i]))
+    if (isSpace((*in)[i]))
       break;
   }
+#endif
+
   return *this;
 }
 
@@ -120,10 +155,10 @@ bool HasWord(StringPiece str, StringPiece w) {
   size_t found = str.find(w);
   if (found == string::npos)
     return false;
-  if (found != 0 && !isspace(str[found-1]))
+  if (found != 0 && !isSpace(str[found-1]))
     return false;
   size_t end = found + w.size();
-  if (end != str.size() && !isspace(str[end]))
+  if (end != str.size() && !isSpace(str[end]))
     return false;
   return true;
 }
@@ -211,7 +246,7 @@ string NoLineBreak(const string& s) {
 StringPiece TrimLeftSpace(StringPiece s) {
   size_t i = 0;
   for (; i < s.size(); i++) {
-    if (isspace(s[i]))
+    if (isSpace(s[i]))
       continue;
     char n = s.get(i+1);
     if (s[i] == '\\' && (n == '\r' || n == '\n')) {
@@ -227,7 +262,7 @@ StringPiece TrimRightSpace(StringPiece s) {
   size_t i = 0;
   for (; i < s.size(); i++) {
     char c = s[s.size() - 1 - i];
-    if (isspace(c)) {
+    if (isSpace(c)) {
       if ((c == '\r' || c == '\n') && s.get(s.size() - 2 - i) == '\\')
         i++;
       continue;
