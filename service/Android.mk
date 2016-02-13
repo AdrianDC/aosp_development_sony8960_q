@@ -89,6 +89,7 @@ LOCAL_C_INCLUDES += \
 	libcore/include
 
 LOCAL_SHARED_LIBRARIES += \
+	liblog \
 	libnativehelper \
 	libcutils \
 	libutils \
@@ -96,7 +97,7 @@ LOCAL_SHARED_LIBRARIES += \
 	libhardware_legacy \
 	libandroid_runtime \
 	libnl \
-    libdl
+	libdl
 
 LOCAL_STATIC_LIBRARIES += libwifi-hal-stub
 LOCAL_STATIC_LIBRARIES += $(LIB_WIFI_HAL)
