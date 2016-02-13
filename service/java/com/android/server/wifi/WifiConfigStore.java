@@ -548,11 +548,13 @@ public class WifiConfigStore extends IpConfigStore {
 
     private WifiStateMachine mWifiStateMachine;
     private FrameworkFacade mFacade;
+    private Clock mClock;
 
     WifiConfigStore(Context c,  WifiStateMachine w, WifiNative wn, FrameworkFacade f,
-            UserManager userManager) {
+            Clock clock, UserManager userManager) {
         mContext = c;
         mFacade = f;
+        mClock = clock;
         mWifiNative = wn;
         mWifiStateMachine = w;
 
@@ -685,7 +687,7 @@ public class WifiConfigStore extends IpConfigStore {
         mConfiguredNetworks = new ConfigurationMap(userManager);
         mMOManager = new PasspointManagementObjectManager(new File(PPS_FILE), hs2on);
         mEnableOsuQueries = true;
-        mAnqpCache = new AnqpCache();
+        mAnqpCache = new AnqpCache(mClock);
         mSupplicantBridge = new SupplicantBridge(mWifiNative, this);
         mScanDetailCaches = new HashMap<>();
 

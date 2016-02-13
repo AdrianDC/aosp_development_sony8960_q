@@ -2,6 +2,7 @@ package com.android.server.wifi.hotspot2;
 
 import android.util.Log;
 
+import com.android.server.wifi.Clock;
 import com.android.server.wifi.anqp.ANQPElement;
 import com.android.server.wifi.anqp.Constants;
 
@@ -15,12 +16,14 @@ public class AnqpCache {
     private static final long CACHE_RECHECK = 60000L;
     private static final boolean STANDARD_ESS = true;  // Regular AP keying; see CacheKey below.
     private long mLastSweep;
+    private Clock mClock;
 
     private final HashMap<CacheKey, ANQPData> mANQPCache;
 
-    public AnqpCache() {
+    public AnqpCache(Clock clock) {
+        mClock = clock;
         mANQPCache = new HashMap<>();
-        mLastSweep = System.currentTimeMillis();
+        mLastSweep = mClock.currentTimeMillis();
     }
 
     private static class CacheKey {
@@ -122,7 +125,7 @@ public class AnqpCache {
         synchronized (mANQPCache) {
             ANQPData data = mANQPCache.get(key);
             if (data == null || data.expired()) {
-                mANQPCache.put(key, new ANQPData(network, data));
+                mANQPCache.put(key, new ANQPData(mClock, network, data));
                 return querySet;
             }
             else {
@@ -148,7 +151,7 @@ public class AnqpCache {
                 data.merge(anqpElements);
             }
             else {
-                data = new ANQPData(network, anqpElements);
+                data = new ANQPData(mClock, network, anqpElements);
                 mANQPCache.put(key, data);
             }
         }
@@ -167,7 +170,7 @@ public class AnqpCache {
 
     public void clear(boolean all, boolean debug) {
         Log.d(Utils.hs2LogTag(getClass()), "Clearing ANQP cache: all: " + all);
-        long now = System.currentTimeMillis();
+        long now = mClock.currentTimeMillis();
         synchronized (mANQPCache) {
             if (all) {
                 mANQPCache.clear();
@@ -192,7 +195,7 @@ public class AnqpCache {
     }
 
     public void dump(PrintWriter out) {
-        out.println("Last sweep " + Utils.toHMS(System.currentTimeMillis() - mLastSweep) + " ago.");
+        out.println("Last sweep " + Utils.toHMS(mClock.currentTimeMillis() - mLastSweep) + " ago.");
         for (ANQPData anqpData : mANQPCache.values()) {
             out.println(anqpData.toString(false));
         }

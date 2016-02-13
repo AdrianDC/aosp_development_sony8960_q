@@ -139,6 +139,7 @@ public class WifiConfigStoreTest {
     @Mock private UserManager mUserManager;
     @Mock private DelayedDiskWrite mWriter;
     @Mock private PasspointManagementObjectManager mMOManager;
+    @Mock private Clock mClock;
     private WifiConfigStore mConfigStore;
     private ConfigurationMap mConfiguredNetworks;
     public byte[] mNetworkHistory;
@@ -165,7 +166,7 @@ public class WifiConfigStoreTest {
         }
 
         mConfigStore = new WifiConfigStore(mContext, mWifiStateMachine, mWifiNative,
-                mFrameworkFacade, mUserManager);
+                mFrameworkFacade, mClock, mUserManager);
 
         final Field configuredNetworksField =
                 WifiConfigStore.class.getDeclaredField("mConfiguredNetworks");

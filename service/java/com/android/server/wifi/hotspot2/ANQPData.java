@@ -1,5 +1,6 @@
 package com.android.server.wifi.hotspot2;
 
+import com.android.server.wifi.Clock;
 import com.android.server.wifi.anqp.ANQPElement;
 import com.android.server.wifi.anqp.Constants;
 
@@ -37,13 +38,15 @@ public class ANQPData {
     private final long mCtime;
     private final long mExpiry;
     private final int mRetry;
+    private final Clock mClock;
 
-    public ANQPData(NetworkDetail network,
+    public ANQPData(Clock clock, NetworkDetail network,
                     Map<Constants.ANQPElementType, ANQPElement> anqpElements) {
 
+        mClock = clock;
         mNetwork = network;
         mANQPElements = anqpElements != null ? new HashMap<>(anqpElements) : null;
-        mCtime = System.currentTimeMillis();
+        mCtime = mClock.currentTimeMillis();
         mRetry = 0;
         if (anqpElements == null) {
             mExpiry = mCtime + ANQP_HOLDOFF_TIME;
@@ -56,10 +59,11 @@ public class ANQPData {
         }
     }
 
-    public ANQPData(NetworkDetail network, ANQPData existing) {
+    public ANQPData(Clock clock, NetworkDetail network, ANQPData existing) {
+        mClock = clock;
         mNetwork = network;
         mANQPElements = null;
-        mCtime = System.currentTimeMillis();
+        mCtime = mClock.currentTimeMillis();
         if (existing == null) {
             mRetry = 0;
             mExpiry = mCtime + ANQP_HOLDOFF_TIME;
@@ -96,7 +100,7 @@ public class ANQPData {
     }
 
     public boolean expired() {
-        return expired(System.currentTimeMillis());
+        return expired(mClock.currentTimeMillis());
     }
 
     public boolean expired(long at) {
@@ -116,7 +120,7 @@ public class ANQPData {
     protected boolean isValid(NetworkDetail nwk) {
         return mANQPElements != null &&
                 nwk.getAnqpDomainID() == mNetwork.getAnqpDomainID() &&
-                mExpiry > System.currentTimeMillis();
+                mExpiry > mClock.currentTimeMillis();
     }
 
     private int getRetry() {
@@ -132,7 +136,7 @@ public class ANQPData {
         else {
             sb.append(", ").append(mANQPElements.size()).append(" elements, ");
         }
-        long now = System.currentTimeMillis();
+        long now = mClock.currentTimeMillis();
         sb.append(Utils.toHMS(now-mCtime)).append(" old, expires in ").
                 append(Utils.toHMS(mExpiry-now)).append(' ');
         if (brief) {
