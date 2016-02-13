@@ -143,7 +143,7 @@ public class PasspointManagementObjectManager {
                 "unrestricted", UpdateInfo.UpdateRestriction.Unrestricted);
     }
 
-    private static void setSelections(String key, Object ... pairs) {
+    private static void setSelections(String key, Object... pairs) {
         Map<String, Object> kvp = new HashMap<>();
         sSelectionMap.put(key, kvp);
         for (int n = 0; n < pairs.length; n += 2) {
@@ -159,10 +159,6 @@ public class PasspointManagementObjectManager {
         mPpsFile = ppsFile;
         mEnabled = hs2enabled;
         mSPs = new HashMap<>();
-    }
-
-    public File getPpsFile() {
-        return mPpsFile;
     }
 
     public boolean isEnabled() {
@@ -184,9 +180,11 @@ public class PasspointManagementObjectManager {
         }
 
         try (BufferedInputStream in = new BufferedInputStream(new FileInputStream(mPpsFile))) {
-            MOTree moTree = MOTree.unmarshal(in);
             mSPs.clear();
-            if (moTree == null) {
+            MOTree moTree;
+            try {
+                moTree = MOTree.unmarshal(in);
+            } catch (FileNotFoundException fnfe) {
                 return Collections.emptyList();     // Empty file
             }
 
@@ -227,6 +225,7 @@ public class PasspointManagementObjectManager {
 
     /**
      * R1 *only* addSP method.
+     *
      * @param homeSP
      * @throws IOException
      */
@@ -282,6 +281,7 @@ public class PasspointManagementObjectManager {
     /**
      * Add an SP sub-tree. mo must be PPS with an immediate instance child (e.g. Cred01) and an
      * optional UpdateIdentifier,
+     *
      * @param mo The new MO
      * @throws IOException
      */
@@ -306,7 +306,7 @@ public class PasspointManagementObjectManager {
             if (instance != null) {
                 String nodeFqdn = getString(instance.getListValue(FQDNPath.iterator()));
                 if (fqdn.equalsIgnoreCase(nodeFqdn)) {
-                    return  (OMAConstructed) node;
+                    return (OMAConstructed) node;
                     // targetTree is rooted at the PPS
                 }
             }
@@ -329,7 +329,7 @@ public class PasspointManagementObjectManager {
         Log.d(Utils.hs2LogTag(getClass()), "modifying SP: " + mods);
         MOTree moTree;
         int ppsMods = 0;
-        int updateIdentifier = 0;
+        int updateIdentifier;
         try (BufferedInputStream in = new BufferedInputStream(new FileInputStream(mPpsFile))) {
             moTree = MOTree.unmarshal(in);
             // moTree is PPS/?/provider-data
@@ -367,7 +367,7 @@ public class PasspointManagementObjectManager {
                     for (OMANode newNode : modRoot.getChildren()) {
                         // newNode is something like Credential
                         // current is the same existing node
-                        OMANode old = current.getParent().replaceNode(current, newNode);
+                        current.getParent().replaceNode(current, newNode);
                         ppsMods++;
                     }
                 }
@@ -447,17 +447,8 @@ public class PasspointManagementObjectManager {
             }
             return MOTree.buildMgmtTree(OMAConstants.PPS_URN,
                     OMAConstants.OMAVersion, target).toXml();
-        }
-    }
-
-    public MOTree getMOTree(HomeSP homeSP) throws IOException {
-        try (BufferedInputStream in = new BufferedInputStream(new FileInputStream(mPpsFile))) {
-            MOTree moTree = MOTree.unmarshal(in);
-            OMAConstructed target = findTargetTree(moTree, homeSP.getFQDN());
-            if (target == null) {
-                throw new IOException("Can't find " + homeSP.getFQDN() + " in MO tree");
-            }
-            return MOTree.buildMgmtTree(OMAConstants.PPS_URN, OMAConstants.OMAVersion, target);
+        } catch (FileNotFoundException fnfe) {
+            return null;
         }
     }
 
@@ -467,20 +458,6 @@ public class PasspointManagementObjectManager {
             moTree.marshal(out);
             out.flush();
         }
-    }
-
-    private static String fqdnList(Collection<HomeSP> sps) {
-        StringBuilder sb = new StringBuilder();
-        boolean first = true;
-        for (HomeSP sp : sps) {
-            if (first) {
-                first = false;
-            } else {
-                sb.append(", ");
-            }
-            sb.append(sp.getFQDN());
-        }
-        return sb.toString();
     }
 
     private static OMANode buildHomeSPTree(HomeSP homeSP, OMAConstructed root, int instanceID)

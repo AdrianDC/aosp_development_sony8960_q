@@ -35,6 +35,10 @@ public class OMAParser extends DefaultHandler {
         }
     }
 
+    public XMLNode getRoot() {
+        return mRoot;
+    }
+
     @Override
     public void startElement(String uri, String localName, String qName, Attributes attributes)
             throws SAXException {

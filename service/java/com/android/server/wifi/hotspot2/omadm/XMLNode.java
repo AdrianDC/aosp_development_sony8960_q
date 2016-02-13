@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,6 +66,46 @@ public class XMLNode {
         mChildren = new ArrayList<>();
 
         mTextBuilder = new StringBuilder();
+    }
+
+    @Override
+    public boolean equals(Object thatObject) {
+        if (thatObject == this) {
+            return true;
+        } else if (thatObject.getClass() != XMLNode.class) {
+            return false;
+        }
+
+        XMLNode that = (XMLNode) thatObject;
+        if (!getTag().equals(that.getTag())
+                || mAttributes.size() != that.mAttributes.size()
+                || mChildren.size() != that.mChildren.size()) {
+            return false;
+        }
+
+        for (Map.Entry<String, NodeAttribute> entry : mAttributes.entrySet()) {
+            if (!entry.getValue().equals(that.mAttributes.get(entry.getKey()))) {
+                return false;
+            }
+        }
+
+        List<XMLNode> cloneOfThat = new ArrayList<>(that.mChildren);
+        for (XMLNode child : mChildren) {
+            Iterator<XMLNode> thatChildren = cloneOfThat.iterator();
+            boolean found = false;
+            while (thatChildren.hasNext()) {
+                XMLNode thatChild = thatChildren.next();
+                if (child.equals(thatChild)) {
+                    found = true;
+                    thatChildren.remove();
+                    break;
+                }
+            }
+            if (!found) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public void setText(String text) {
@@ -150,6 +191,18 @@ public class XMLNode {
 
     public Map<String, NodeAttribute> getAttributes() {
         return Collections.unmodifiableMap(mAttributes);
+    }
+
+    /**
+     * Get the attributes of this node as a map of attribute name to attribute value.
+     * @return The attribute mapping.
+     */
+    public Map<String, String> getTextualAttributes() {
+        Map<String, String> map = new HashMap<>(mAttributes.size());
+        for (Map.Entry<String, NodeAttribute> entry : mAttributes.entrySet()) {
+            map.put(entry.getKey(), entry.getValue().getValue());
+        }
+        return map;
     }
 
     public String getAttributeValue(String name) {

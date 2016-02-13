@@ -16,6 +16,16 @@ public abstract class OMANode {
     private final String mContext;
     private final Map<String, String> mAttributes;
 
+    private static final Map<Character, String> sEscapes = new HashMap<>();
+
+    static {
+        sEscapes.put('"', "&quot;");
+        sEscapes.put('\'', "&apos;");
+        sEscapes.put('<', "&lt;");
+        sEscapes.put('>', "&gt;");
+        sEscapes.put('&', "&amp;");
+    }
+
     protected OMANode(OMAConstructed parent, String name, String context, Map<String, String> avps) {
         mParent = parent;
         mName = name;
@@ -66,6 +76,25 @@ public abstract class OMANode {
         return sb.toString();
     }
 
+    /**
+     * Perform escaping of special XML characters
+     * @param s the raw string
+     * @return a "XML clean" representation
+     */
+    public static String escape(String s) {
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int n = 0; n < s.length(); n++) {
+            char ch = s.charAt(n);
+            String escape = sEscapes.get(ch);
+            if (escape != null) {
+                sb.append(escape);
+            } else {
+                sb.append(ch);
+            }
+        }
+        return sb.toString();
+    }
+
     public abstract OMANode reparent(OMAConstructed parent);
 
     public abstract String getScalarValue(Iterator<String> path) throws OMAException;
@@ -93,7 +122,8 @@ public abstract class OMANode {
         sb.append('<').append(MOTree.NodeTag);
         if (mAttributes != null && !mAttributes.isEmpty()) {
             for (Map.Entry<String, String> avp : mAttributes.entrySet()) {
-                sb.append(' ').append(avp.getKey()).append("=\"").append(avp.getValue()).append('"');
+                sb.append(' ').append(avp.getKey()).append("=\"")
+                        .append(escape(avp.getValue())).append('"');
             }
         }
         sb.append(">\n");

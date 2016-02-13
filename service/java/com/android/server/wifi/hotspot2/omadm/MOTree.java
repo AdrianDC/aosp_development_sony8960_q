@@ -2,6 +2,7 @@ package com.android.server.wifi.hotspot2.omadm;
 
 import org.xml.sax.SAXException;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -40,27 +41,35 @@ public class MOTree {
         mUrn = urn;
         mDtdRev = dtdRev;
 
-        mRoot = new OMAConstructed(null, MgmtTreeTag, null);
+        mRoot = new ManagementTreeRoot(node, dtdRev);
 
         for (XMLNode child : node.getChildren()) {
             buildNode(mRoot, child);
         }
     }
 
-    public MOTree(String urn, String rev, OMAConstructed root) throws IOException {
+    public MOTree(String urn, String rev, OMAConstructed root) {
         mUrn = urn;
         mDtdRev = rev;
         mRoot = root;
     }
 
-    public static MOTree buildMgmtTree(String urn, String rev, OMAConstructed root) throws IOException {
+    /**
+     * Build a Passpoint OMA-DM Management Object tree object.
+     * @param urn The URN for the tree.
+     * @param rev The DTD revision for the tree.
+     * @param root The OMA-DM tree root, in all practical cases the PerProviderSubscription
+     *             node.
+     * @return an MOTree object
+     */
+    public static MOTree buildMgmtTree(String urn, String rev, OMAConstructed root) {
         OMAConstructed realRoot;
         switch (urn) {
             case OMAConstants.PPS_URN:
             case OMAConstants.DevInfoURN:
             case OMAConstants.DevDetailURN:
             case OMAConstants.DevDetailXURN:
-                realRoot = new OMAConstructed(null, MgmtTreeTag, urn, "xmlns", OMAConstants.SyncML);
+                realRoot = new ManagementTreeRoot(OMAConstants.OMAVersion);
                 realRoot.addChild(root);
                 return new MOTree(urn, rev, realRoot);
             default:
@@ -232,7 +241,7 @@ public class MOTree {
         for (; ; ) {
             int octet = in.read();
             if (octet < 0) {
-                return null;
+                throw new FileNotFoundException();
             } else if (octet > ' ') {
                 tree.append((char) octet);
                 strip = false;
@@ -258,11 +267,7 @@ public class MOTree {
 
     public String toXml() {
         StringBuilder sb = new StringBuilder();
-
-        sb.append('<').append(MgmtTreeTag).append(">\n");
-        sb.append("<VerDTD>").append(mDtdRev).append("</VerDTD>\n");
         mRoot.toXml(sb);
-        sb.append("</").append(MgmtTreeTag).append(">\n");
         return sb.toString();
     }
 }

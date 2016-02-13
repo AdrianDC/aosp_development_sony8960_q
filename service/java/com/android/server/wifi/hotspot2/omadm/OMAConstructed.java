@@ -15,7 +15,7 @@ public class OMAConstructed extends OMANode {
         this(parent, name, context, new MultiValueMap<OMANode>(), buildAttributes(avps));
     }
 
-    private OMAConstructed(OMAConstructed parent, String name, String context,
+    protected OMAConstructed(OMAConstructed parent, String name, String context,
                            MultiValueMap<OMANode> children, Map<String, String> avps) {
         super(parent, name, context, avps);
         mChildren = children;
