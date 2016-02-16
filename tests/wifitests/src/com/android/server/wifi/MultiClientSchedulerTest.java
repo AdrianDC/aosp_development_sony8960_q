@@ -34,6 +34,7 @@ import android.net.wifi.WifiScanner.ScanSettings;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.server.wifi.WifiNative.BucketSettings;
+import com.android.server.wifi.scanner.ChannelHelper;
 
 import org.junit.After;
 import org.junit.Before;
@@ -546,36 +547,39 @@ public class MultiClientSchedulerTest {
             if ((settings.reportEvents & WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN) != 0) {
                 if ((bucket.report_events & WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN) == 0) {
                     ignoreString
-                        .append(" ")
-                        .append(WifiChannelHelper.toString(getAllChannels(bucket)))
-                        .append("=after_each_scan:")
-                        .append(bucket.report_events & WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN)
-                        .append("!=")
-                        .append(settings.reportEvents & WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+                            .append(" ")
+                            .append(ChannelHelper.toString(bucket))
+                            .append("=after_each_scan:")
+                            .append(bucket.report_events & WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN)
+                            .append("!=")
+                            .append(settings.reportEvents
+                                    & WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
                     continue;
                 }
             }
             if ((settings.reportEvents & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT) != 0) {
                 if ((bucket.report_events & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT) == 0) {
                     ignoreString
-                        .append(" ")
-                        .append(WifiChannelHelper.toString(getAllChannels(bucket)))
-                        .append("=full_result:")
-                        .append(bucket.report_events & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT)
-                        .append("!=")
-                        .append(settings.reportEvents & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT);
+                            .append(" ")
+                            .append(ChannelHelper.toString(bucket))
+                            .append("=full_result:")
+                            .append(bucket.report_events
+                                    & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT)
+                            .append("!=")
+                            .append(settings.reportEvents
+                                    & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT);
                     continue;
                 }
             }
             if ((settings.reportEvents & WifiScanner.REPORT_EVENT_NO_BATCH) == 0) {
                 if ((bucket.report_events & WifiScanner.REPORT_EVENT_NO_BATCH) != 0) {
                     ignoreString
-                        .append(" ")
-                        .append(WifiChannelHelper.toString(getAllChannels(bucket)))
-                        .append("=no_batch:")
-                        .append(bucket.report_events & WifiScanner.REPORT_EVENT_NO_BATCH)
-                        .append("!=")
-                        .append(settings.reportEvents & WifiScanner.REPORT_EVENT_NO_BATCH);
+                            .append(" ")
+                            .append(ChannelHelper.toString(bucket))
+                            .append("=no_batch:")
+                            .append(bucket.report_events & WifiScanner.REPORT_EVENT_NO_BATCH)
+                            .append("!=")
+                            .append(settings.reportEvents & WifiScanner.REPORT_EVENT_NO_BATCH);
                     continue;
                 }
             }
@@ -596,7 +600,7 @@ public class MultiClientSchedulerTest {
                 if (bucket.period_ms != expectedPeriod) {
                     ignoreString
                             .append(" ")
-                            .append(WifiChannelHelper.toString(getAllChannels(bucket)))
+                            .append(ChannelHelper.toString(bucket))
                             .append("=period:")
                             .append(bucket.period_ms)
                             .append("!=")
@@ -607,7 +611,7 @@ public class MultiClientSchedulerTest {
                 if (bucket.period_ms > expectedPeriod) {
                     ignoreString
                             .append(" ")
-                            .append(WifiChannelHelper.toString(getAllChannels(bucket)))
+                            .append(ChannelHelper.toString(bucket))
                             .append("=period:")
                             .append(bucket.period_ms)
                             .append(">")

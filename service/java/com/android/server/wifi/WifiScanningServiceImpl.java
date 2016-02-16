@@ -49,7 +49,8 @@ import com.android.internal.util.AsyncChannel;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
-import com.android.server.wifi.WifiScannerImpl;
+
+import com.android.server.wifi.scanner.ChannelHelper;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -866,9 +867,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             for (int b = 0; b < schedule.num_buckets; b++) {
                 WifiNative.BucketSettings bucket = schedule.buckets[b];
                 Log.d(TAG, "bucket " + bucket.bucket + " (" + bucket.period_ms + "ms)"
-                     + "[" + bucket.report_events + "]: "
-                     + WifiChannelHelper.toString(bucket.band, bucket.channels,
-                                                  bucket.num_channels, mScheduler.getMaxChannels()));
+                        + "[" + bucket.report_events + "]: "
+                        + ChannelHelper.toString(bucket));
             }
 
             if (mScannerImpl.startBatchedScan(schedule, mStateMachine)) {
@@ -885,8 +885,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     WifiNative.BucketSettings bucket = schedule.buckets[b];
                     loge("bucket " + bucket.bucket + " (" + bucket.period_ms + "ms)"
                             + "[" + bucket.report_events + "]: "
-                            + WifiChannelHelper.toString(bucket.band, bucket.channels,
-                                    bucket.num_channels, mScheduler.getMaxChannels()));
+                            + ChannelHelper.toString(bucket));
                 }
                 return false;
             }
@@ -1512,11 +1511,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             sb.append(", batch=").append(settings.maxScansToCache);
             sb.append(", numAP=").append(settings.numBssidsPerScan);
         }
-        if (settings.band != WifiScanner.WIFI_BAND_UNSPECIFIED) {
-            sb.append(", band=(").append(WifiChannelHelper.toString(settings.band)).append(")");
-        } else {
-            sb.append(", channels=(").append(WifiChannelHelper.toString(settings.channels)).append(")");
-        }
+        sb.append(", ").append(ChannelHelper.toString(settings));
         sb.append("]");
 
         return sb.toString();
@@ -1558,7 +1553,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 WifiNative.BucketSettings bucket = schedule.buckets[b];
                 pw.println("    bucket " + bucket.bucket + " (" + bucket.period_ms + "ms)["
                         + bucket.report_events + "]: "
-                        + WifiChannelHelper.toString(bucket.band, bucket.channels, bucket.num_channels, 8));
+                        + ChannelHelper.toString(bucket));
             }
         }
     }

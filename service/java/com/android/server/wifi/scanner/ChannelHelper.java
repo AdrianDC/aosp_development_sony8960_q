@@ -102,4 +102,90 @@ public abstract class ChannelHelper {
          */
         public abstract Set<Integer> getSupplicantScanFreqs();
     }
+
+
+    /*
+     * Utility methods for converting band/channels to strings
+     */
+
+    /**
+     * Create a string representation of the channels in the ScanSettings.
+     * If it contains a list of channels then the channels are returned, otherwise a string name of
+     * the band is returned.
+     */
+    public static String toString(WifiScanner.ScanSettings scanSettings) {
+        if (scanSettings.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
+            return toString(scanSettings.channels);
+        } else {
+            return toString(scanSettings.band);
+        }
+    }
+
+    /**
+     * Create a string representation of the channels in the BucketSettings.
+     * If it contains a list of channels then the channels are returned, otherwise a string name of
+     * the band is returned.
+     */
+    public static String toString(WifiNative.BucketSettings bucketSettings) {
+        if (bucketSettings.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
+            return toString(bucketSettings.channels, bucketSettings.num_channels);
+        } else {
+            return toString(bucketSettings.band);
+        }
+    }
+
+    private static String toString(WifiScanner.ChannelSpec[] channels) {
+        if (channels == null) {
+            return "null";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        for (int c = 0; c < channels.length; c++) {
+            sb.append(channels[c].frequency);
+            if (c != channels.length - 1) {
+                sb.append(",");
+            }
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    private static String toString(WifiNative.ChannelSettings[] channels, int numChannels) {
+        if (channels == null) {
+            return "null";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        for (int c = 0; c < numChannels; c++) {
+            sb.append(channels[c].frequency);
+            if (c != numChannels - 1) {
+                sb.append(",");
+            }
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    private static String toString(int band) {
+        switch (band) {
+            case WifiScanner.WIFI_BAND_UNSPECIFIED:
+                return "unspecified";
+            case WifiScanner.WIFI_BAND_24_GHZ:
+                return "24Ghz";
+            case WifiScanner.WIFI_BAND_5_GHZ:
+                return "5Ghz (no DFS)";
+            case WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY:
+                return "5Ghz (DFS only)";
+            case WifiScanner.WIFI_BAND_5_GHZ_WITH_DFS:
+                return "5Ghz (DFS incl)";
+            case WifiScanner.WIFI_BAND_BOTH:
+                return "24Ghz & 5Ghz (no DFS)";
+            case WifiScanner.WIFI_BAND_BOTH_WITH_DFS:
+                return "24Ghz & 5Ghz (DFS incl)";
+        }
+
+        return "invalid band";
+    }
 }

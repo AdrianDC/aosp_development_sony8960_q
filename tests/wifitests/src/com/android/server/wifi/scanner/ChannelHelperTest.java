@@ -20,6 +20,7 @@ import static com.android.server.wifi.ScanTestUtil.channelsToNativeSettings;
 import static com.android.server.wifi.ScanTestUtil.channelsToSpec;
 import static com.android.server.wifi.ScanTestUtil.createRequest;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
@@ -41,6 +42,53 @@ import org.junit.runner.RunWith;
 @SmallTest
 @RunWith(Enclosed.class) // WARNING: tests cannot be declared in the outer class
 public class ChannelHelperTest {
+
+    /**
+     * Unit tests for
+     * {@link com.android.server.wifi.scanner.ChannelHelper#toString}.
+     */
+    public static class ToStringTest {
+        /**
+         * Compute a string representing the channels in a ScanSettings with a band set.
+         */
+        @Test
+        public void scanSettings_band() {
+            WifiScanner.ScanSettings scanSettings = createRequest(WifiScanner.WIFI_BAND_BOTH,
+                    10000, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+            assertEquals("24Ghz & 5Ghz (no DFS)", ChannelHelper.toString(scanSettings));
+        }
+
+        /**
+         * Compute a string representing the channels in a ScanSettings with a list of channels set.
+         */
+        @Test
+        public void scanSettings_channels() {
+            WifiScanner.ScanSettings scanSettings = createRequest(channelsToSpec(5150, 2400),
+                    10000, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+            assertEquals("[5150,2400]", ChannelHelper.toString(scanSettings));
+        }
+
+        /**
+         * Compute a string representing the channels in a BucketSettings with a band set.
+         */
+        @Test
+        public void bucketSettings_band() {
+            WifiScanner.ScanSettings scanSettings = createRequest(WifiScanner.WIFI_BAND_5_GHZ,
+                    10000, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+            assertEquals("5Ghz (no DFS)", ChannelHelper.toString(scanSettings));
+        }
+
+        /**
+         * Compute a string representing the channels in a BucketSettings with a list of channels
+         * set.
+         */
+        @Test
+        public void bucketSettings_channels() {
+            WifiScanner.ScanSettings scanSettings = createRequest(channelsToSpec(2400, 5100),
+                    10000, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+            assertEquals("[2400,5100]", ChannelHelper.toString(scanSettings));
+        }
+    }
 
     /**
      * Unit tests for
