@@ -36,6 +36,12 @@ import android.util.SparseArray;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 
+/**
+ * Implementation of the IWifiNanManager AIDL interface. Performs validity
+ * (permission and clientID-UID mapping) checks and delegates execution to the
+ * WifiNanStateManager singleton handler. Limited state to feedback which has to
+ * be provided instantly: client and session IDs.
+ */
 public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     private static final String TAG = "WifiNanService";
     private static final boolean DBG = false;
@@ -46,8 +52,10 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     private final boolean mNanSupported;
 
     private final Object mLock = new Object();
-    private final SparseArray<IBinder.DeathRecipient> mDeathRecipientsByUid = new SparseArray<>();
-    private int mNextNetworkRequestToken = 1;
+    private final SparseArray<IBinder.DeathRecipient> mDeathRecipientsByClientId =
+            new SparseArray<>();
+    private int mNextClientId = 1;
+    private final SparseArray<Integer> mUidByClientId = new SparseArray<>();
     private int mNextSessionId = 1;
 
     public WifiNanServiceImpl(Context context) {
@@ -60,6 +68,10 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         mStateManager = WifiNanStateManager.getInstance();
     }
 
+    /**
+     * Start the service: allocate a new thread (for now), start the handlers of
+     * the components of the service.
+     */
     public void start() {
         Log.i(TAG, "Starting Wi-Fi NAN service");
 
@@ -71,30 +83,36 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
-    public void connect(final IBinder binder, IWifiNanEventListener listener, int events) {
+    public int connect(final IBinder binder, IWifiNanEventListener listener, int events) {
         enforceAccessPermission();
         enforceChangePermission();
 
         final int uid = getCallingUid();
 
-        if (VDBG) Log.v(TAG, "connect: uid=" + uid);
+        final int clientId;
+        synchronized (mLock) {
+            clientId = mNextClientId++;
+            mUidByClientId.put(clientId, uid);
+        }
 
+        if (VDBG) Log.v(TAG, "connect: uid=" + uid + ", clientId=" + clientId);
 
         IBinder.DeathRecipient dr = new IBinder.DeathRecipient() {
             @Override
             public void binderDied() {
-                if (DBG) Log.d(TAG, "binderDied: uid=" + uid);
+                if (DBG) Log.d(TAG, "binderDied: clientId=" + clientId);
                 binder.unlinkToDeath(this, 0);
 
                 synchronized (mLock) {
-                    mDeathRecipientsByUid.delete(uid);
+                    mDeathRecipientsByClientId.delete(clientId);
+                    mUidByClientId.delete(clientId);
                 }
 
-                mStateManager.disconnect(uid);
+                mStateManager.disconnect(clientId);
             }
         };
         synchronized (mLock) {
-            mDeathRecipientsByUid.put(uid, dr);
+            mDeathRecipientsByClientId.put(clientId, dr);
         }
         try {
             binder.linkToDeath(dr, 0);
@@ -102,121 +120,144 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             Log.w(TAG, "Error on linkToDeath - " + e);
         }
 
-        mStateManager.connect(uid, listener, events);
+        mStateManager.connect(clientId, listener, events);
+
+        return clientId;
     }
 
     @Override
-    public void disconnect(IBinder binder) {
+    public void disconnect(int clientId, IBinder binder) {
         enforceAccessPermission();
         enforceChangePermission();
 
         int uid = getCallingUid();
-
-        if (VDBG) Log.v(TAG, "disconnect: uid=" + uid);
+        enforceClientValidity(uid, clientId);
+        if (VDBG) Log.v(TAG, "disconnect: uid=" + uid + ", clientId=" + clientId);
 
         synchronized (mLock) {
-            IBinder.DeathRecipient dr = mDeathRecipientsByUid.get(uid);
+            IBinder.DeathRecipient dr = mDeathRecipientsByClientId.get(clientId);
             if (dr != null) {
                 binder.unlinkToDeath(dr, 0);
-                mDeathRecipientsByUid.delete(uid);
+                mDeathRecipientsByClientId.delete(clientId);
             }
+            mUidByClientId.delete(clientId);
         }
 
-        mStateManager.disconnect(uid);
+        mStateManager.disconnect(clientId);
     }
 
     @Override
-    public void requestConfig(ConfigRequest configRequest) {
+    public void requestConfig(int clientId, ConfigRequest configRequest) {
         enforceAccessPermission();
         enforceChangePermission();
 
+        int uid = getCallingUid();
+        enforceClientValidity(uid, clientId);
         if (VDBG) {
-            Log.v(TAG,
-                    "requestConfig: uid=" + getCallingUid() + ", configRequest=" + configRequest);
+            Log.v(TAG, "requestConfig: uid=" + uid + "clientId=" + clientId + ", configRequest="
+                    + configRequest);
         }
 
-        mStateManager.requestConfig(getCallingUid(), configRequest);
+        mStateManager.requestConfig(clientId, configRequest);
     }
 
     @Override
-    public void stopSession(int sessionId) {
+    public void stopSession(int clientId, int sessionId) {
         enforceAccessPermission();
         enforceChangePermission();
 
-        if (VDBG) Log.v(TAG, "stopSession: sessionId=" + sessionId + ", uid=" + getCallingUid());
+        int uid = getCallingUid();
+        enforceClientValidity(uid, clientId);
+        if (VDBG) {
+            Log.v(TAG, "stopSession: sessionId=" + sessionId + ", uid=" + uid + ", clientId="
+                    + clientId);
+        }
 
-        mStateManager.stopSession(getCallingUid(), sessionId);
+        mStateManager.stopSession(clientId, sessionId);
     }
 
     @Override
-    public void destroySession(int sessionId) {
+    public void destroySession(int clientId, int sessionId) {
         enforceAccessPermission();
         enforceChangePermission();
 
-        if (VDBG) Log.v(TAG, "destroySession: sessionId=" + sessionId + ", uid=" + getCallingUid());
+        int uid = getCallingUid();
+        enforceClientValidity(uid, clientId);
+        if (VDBG) {
+            Log.v(TAG, "destroySession: sessionId=" + sessionId + ", uid=" + uid + ", clientId="
+                    + clientId);
+        }
 
-        mStateManager.destroySession(getCallingUid(), sessionId);
+        mStateManager.destroySession(clientId, sessionId);
     }
 
     @Override
-    public int createSession(IWifiNanSessionListener listener, int events) {
+    public int createSession(int clientId, IWifiNanSessionListener listener, int events) {
         enforceAccessPermission();
         enforceChangePermission();
 
-        if (VDBG) Log.v(TAG, "createSession: uid=" + getCallingUid());
+        int uid = getCallingUid();
+        enforceClientValidity(uid, clientId);
+        if (VDBG) Log.v(TAG, "createSession: uid=" + uid + ", clientId=" + clientId);
 
         int sessionId;
         synchronized (mLock) {
             sessionId = mNextSessionId++;
         }
 
-        mStateManager.createSession(getCallingUid(), sessionId, listener, events);
+        mStateManager.createSession(clientId, sessionId, listener, events);
 
         return sessionId;
     }
 
     @Override
-    public void publish(int sessionId, PublishData publishData, PublishSettings publishSettings) {
+    public void publish(int clientId, int sessionId, PublishData publishData,
+            PublishSettings publishSettings) {
         enforceAccessPermission();
         enforceChangePermission();
 
+        int uid = getCallingUid();
+        enforceClientValidity(uid, clientId);
         if (VDBG) {
-            Log.v(TAG, "publish: uid=" + getCallingUid() + ", sessionId=" + sessionId + ", data='"
-                    + publishData + "', settings=" + publishSettings);
+            Log.v(TAG, "publish: uid=" + uid + ", clientId=" + clientId + ", sessionId=" + sessionId
+                    + ", data='" + publishData + "', settings=" + publishSettings);
         }
 
-        mStateManager.publish(getCallingUid(), sessionId, publishData, publishSettings);
+        mStateManager.publish(clientId, sessionId, publishData, publishSettings);
     }
 
     @Override
-    public void subscribe(int sessionId, SubscribeData subscribeData,
+    public void subscribe(int clientId, int sessionId, SubscribeData subscribeData,
             SubscribeSettings subscribeSettings) {
         enforceAccessPermission();
         enforceChangePermission();
 
+        int uid = getCallingUid();
+        enforceClientValidity(uid, clientId);
         if (VDBG) {
-            Log.v(TAG, "subscribe: uid=" + getCallingUid() + ", sessionId=" + sessionId + ", data='"
-                    + subscribeData + "', settings=" + subscribeSettings);
+            Log.v(TAG, "subscribe: uid=" + uid + ", clientId=" + clientId + ", sessionId="
+                    + sessionId + ", data='" + subscribeData + "', settings=" + subscribeSettings);
         }
 
-        mStateManager.subscribe(getCallingUid(), sessionId, subscribeData, subscribeSettings);
+        mStateManager.subscribe(clientId, sessionId, subscribeData, subscribeSettings);
     }
 
     @Override
-    public void sendMessage(int sessionId, int peerId, byte[] message, int messageLength,
-            int messageId) {
+    public void sendMessage(int clientId, int sessionId, int peerId, byte[] message,
+            int messageLength, int messageId) {
         enforceAccessPermission();
         enforceChangePermission();
 
+        int uid = getCallingUid();
+        enforceClientValidity(uid, clientId);
         if (VDBG) {
             Log.v(TAG,
-                    "sendMessage: sessionId=" + sessionId + ", uid=" + getCallingUid() + ", peerId="
-                            + peerId + ", messageLength=" + messageLength + ", messageId="
-                            + messageId);
+                    "sendMessage: sessionId=" + sessionId + ", uid=" + uid + ", clientId="
+                            + clientId + ", peerId=" + peerId + ", messageLength=" + messageLength
+                            + ", messageId=" + messageId);
         }
 
-        mStateManager.sendMessage(getCallingUid(), sessionId, peerId, message, messageLength,
-                messageId);
+        mStateManager.sendMessage(clientId, sessionId, peerId, message, messageLength, messageId);
     }
 
     @Override
@@ -229,10 +270,24 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         }
         pw.println("Wi-Fi NAN Service");
         pw.println("  mNanSupported: " + mNanSupported);
-        pw.println("  mNextNetworkRequestToken: " + mNextNetworkRequestToken);
+        pw.println("  mNextClientId: " + mNextClientId);
         pw.println("  mNextSessionId: " + mNextSessionId);
-        pw.println("  mDeathRecipientsByUid: " + mDeathRecipientsByUid);
+        pw.println("  mDeathRecipientsByClientId: " + mDeathRecipientsByClientId);
+        pw.println("  mUidByClientId: " + mUidByClientId);
         mStateManager.dump(fd, pw, args);
+    }
+
+    private void enforceClientValidity(int uid, int clientId) {
+        Integer uidLookup;
+        synchronized (mLock) {
+            uidLookup = mUidByClientId.get(clientId);
+        }
+
+        boolean valid = uidLookup != null && uidLookup == uid;
+        if (!valid) {
+            throw new SecurityException("Attempting to use invalid uid+clientId mapping: uid=" + uid
+                    + ", clientId=" + clientId);
+        }
     }
 
     private void enforceAccessPermission() {

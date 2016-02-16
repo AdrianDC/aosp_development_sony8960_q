@@ -32,8 +32,6 @@ import libcore.util.HexEncoding;
  * Native calls to access the Wi-Fi NAN HAL.
  *
  * Relies on WifiNative to perform the actual HAL registration.
- *
- * {@hide}
  */
 public class WifiNanNative {
     private static final String TAG = "WifiNanNative";
@@ -48,6 +46,12 @@ public class WifiNanNative {
 
     private static native int registerNanNatives();
 
+    /**
+     * Returns the singleton WifiNanNative used to manage the actual NAN HAL
+     * interface.
+     *
+     * @return Singleton object.
+     */
     public static WifiNanNative getInstance() {
         // dummy reference - used to make sure that WifiNative is loaded before
         // us since it is the one to load the shared library and starts its
@@ -66,6 +70,10 @@ public class WifiNanNative {
         return sWifiNanNativeSingleton;
     }
 
+    /**
+     * A container class for NAN (vendor) implementation capabilities (or
+     * limitations). Filled-in by the firmware.
+     */
     public static class Capabilities {
         public int maxConcurrentNanClusters;
         public int maxPublishes;
@@ -136,6 +144,13 @@ public class WifiNanNative {
     private static native int enableAndConfigureNative(short transactionId, Object cls, int iface,
             ConfigRequest configRequest);
 
+    /**
+     * Enable and configure NAN.
+     *
+     * @param transactionId Transaction ID for the transaction - used in the
+     *            async callback to match with the original request.
+     * @param configRequest Requested NAN configuration.
+     */
     public void enableAndConfigure(short transactionId, ConfigRequest configRequest) {
         boolean success;
 
@@ -159,6 +174,12 @@ public class WifiNanNative {
 
     private static native int disableNative(short transactionId, Object cls, int iface);
 
+    /**
+     * Disable NAN.
+     *
+     * @param transactionId transactionId Transaction ID for the transaction -
+     *            used in the async callback to match with the original request.
+     */
     public void disable(short transactionId) {
         boolean success;
 
@@ -182,6 +203,16 @@ public class WifiNanNative {
             int iface,
             PublishData publishData, PublishSettings publishSettings);
 
+    /**
+     * Start or modify a service publish session.
+     *
+     * @param transactionId transactionId Transaction ID for the transaction -
+     *            used in the async callback to match with the original request.
+     * @param publishId ID of the requested session - 0 to request a new publish
+     *            session.
+     * @param publishData Data for the discovery session.
+     * @param publishSettings Settings of the discovery session.
+     */
     public void publish(short transactionId, int publishId, PublishData publishData,
             PublishSettings publishSettings) {
         boolean success;
@@ -210,6 +241,16 @@ public class WifiNanNative {
     private static native int subscribeNative(short transactionId, int subscribeId, Object cls,
             int iface, SubscribeData subscribeData, SubscribeSettings subscribeSettings);
 
+    /**
+     * Start or modify a service subscription session.
+     *
+     * @param transactionId transactionId Transaction ID for the transaction -
+     *            used in the async callback to match with the original request.
+     * @param subscribeId ID of the requested session - 0 to request a new
+     *            subscribe session.
+     * @param subscribeData Data for the discovery session.
+     * @param subscribeSettings Settings of the discovery session.
+     */
     public void subscribe(short transactionId, int subscribeId, SubscribeData subscribeData,
             SubscribeSettings subscribeSettings) {
         boolean success;
@@ -238,6 +279,19 @@ public class WifiNanNative {
     private static native int sendMessageNative(short transactionId, Object cls, int iface,
             int pubSubId, int requestorInstanceId, byte[] dest, byte[] message, int messageLength);
 
+    /**
+     * Send a message through an existing discovery session.
+     *
+     * @param transactionId transactionId Transaction ID for the transaction -
+     *            used in the async callback to match with the original request.
+     * @param pubSubId ID of the existing publish/subscribe session.
+     * @param requestorInstanceId ID of the peer to communicate with - obtained
+     *            through a previous discovery (match) operation with that peer.
+     * @param dest MAC address of the peer to communicate with - obtained
+     *            together with requestorInstanceId.
+     * @param message Message.
+     * @param messageLength Message byte array length.
+     */
     public void sendMessage(short transactionId, int pubSubId, int requestorInstanceId, byte[] dest,
             byte[] message, int messageLength) {
         boolean success;
@@ -269,6 +323,14 @@ public class WifiNanNative {
     private static native int stopPublishNative(short transactionId, Object cls, int iface,
             int pubSubId);
 
+    /**
+     * Terminate a publish discovery session.
+     *
+     * @param transactionId transactionId Transaction ID for the transaction -
+     *            used in the async callback to match with the original request.
+     * @param pubSubId ID of the publish/subscribe session - obtained when
+     *            creating a session.
+     */
     public void stopPublish(short transactionId, int pubSubId) {
         boolean success;
 
@@ -295,6 +357,14 @@ public class WifiNanNative {
     private static native int stopSubscribeNative(short transactionId, Object cls, int iface,
             int pubSubId);
 
+    /**
+     * Terminate a subscribe discovery session.
+     *
+     * @param transactionId transactionId Transaction ID for the transaction -
+     *            used in the async callback to match with the original request.
+     * @param pubSubId ID of the publish/subscribe session - obtained when
+     *            creating a session.
+     */
     public void stopSubscribe(short transactionId, int pubSubId) {
         boolean success;
 

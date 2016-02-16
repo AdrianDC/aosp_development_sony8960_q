@@ -27,6 +27,15 @@ import android.util.SparseArray;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 
+/**
+ * Manages the service-side NAN state of an individual "client". A client
+ * corresponds to a single instantiation of the WifiNanManager - there could be
+ * multiple ones per UID/process (each of which is a separate client with its
+ * own session namespace). The client state is primarily: (1) listener (a
+ * singleton per client) through which NAN-wide events are called, and (2) a set
+ * of discovery sessions (publish and/or subscribe) which are created through
+ * this client and whose lifetime is tied to the lifetime of the client.
+ */
 public class WifiNanClientState {
     private static final String TAG = "WifiNanClientState";
     private static final boolean DBG = false;
@@ -39,15 +48,19 @@ public class WifiNanClientState {
     private int mEvents;
     private final SparseArray<WifiNanSessionState> mSessions = new SparseArray<>();
 
-    private int mUid;
+    private int mClientId;
     private ConfigRequest mConfigRequest;
 
-    public WifiNanClientState(int uid, IWifiNanEventListener listener, int events) {
-        mUid = uid;
+    public WifiNanClientState(int clientId, IWifiNanEventListener listener, int events) {
+        mClientId = clientId;
         mListener = listener;
         mEvents = events;
     }
 
+    /**
+     * Destroy the current client - corresponds to a disconnect() request from
+     * the client. Destroys all discovery sessions belonging to this client.
+     */
     public void destroy() {
         mListener = null;
         for (int i = 0; i < mSessions.size(); ++i) {
@@ -65,10 +78,18 @@ public class WifiNanClientState {
         return mConfigRequest;
     }
 
-    public int getUid() {
-        return mUid;
+    public int getClientId() {
+        return mClientId;
     }
 
+    /**
+     * Searches the discovery sessions of this client and returns the one
+     * corresponding to the publish/subscribe ID. Used on callbacks from HAL to
+     * map callbacks to the correct discovery session.
+     *
+     * @param pubSubId The publish/subscribe match session ID.
+     * @return NAN session corresponding to the requested ID.
+     */
     public WifiNanSessionState getNanSessionStateForPubSubId(int pubSubId) {
         for (int i = 0; i < mSessions.size(); ++i) {
             WifiNanSessionState session = mSessions.valueAt(i);
@@ -80,6 +101,14 @@ public class WifiNanClientState {
         return null;
     }
 
+    /**
+     * Create a new discovery session.
+     *
+     * @param sessionId Session ID of the new discovery session.
+     * @param listener Singleton session listener.
+     * @param events List of events (non-overlapping flags) which the session is
+     *            registering to listen for.
+     */
     public void createSession(int sessionId, IWifiNanSessionListener listener, int events) {
         WifiNanSessionState session = mSessions.get(sessionId);
         if (session != null) {
@@ -89,6 +118,12 @@ public class WifiNanClientState {
         mSessions.put(sessionId, new WifiNanSessionState(sessionId, listener, events));
     }
 
+    /**
+     * Destroy the discovery session: terminates discovery and frees up
+     * resources.
+     *
+     * @param sessionId The session ID of the session to be destroyed.
+     */
     public void destroySession(int sessionId) {
         WifiNanSessionState session = mSessions.get(sessionId);
         if (session == null) {
@@ -100,10 +135,23 @@ public class WifiNanClientState {
         session.destroy();
     }
 
+    /**
+     * Retrieve a session.
+     *
+     * @param sessionId Session ID of the session to be retrieved.
+     * @return Session or null if there's no session corresponding to the
+     *         sessionId.
+     */
     public WifiNanSessionState getSession(int sessionId) {
         return mSessions.get(sessionId);
     }
 
+    /**
+     * Called to dispatch the configuration completed event to the client.
+     * Dispatched if the client registered for this event.
+     *
+     * @param completedConfig The configuration which was completed.
+     */
     public void onConfigCompleted(ConfigRequest completedConfig) {
         if (mListener != null && (mEvents & WifiNanEventListener.LISTEN_CONFIG_COMPLETED) != 0) {
             try {
@@ -114,6 +162,13 @@ public class WifiNanClientState {
         }
     }
 
+    /**
+     * Called to dispatch the configuration failed event to the client.
+     * Dispatched if the client registered for this event.
+     *
+     * @param failedConfig The configuration which failed.
+     * @param reason The failure reason.
+     */
     public void onConfigFailed(ConfigRequest failedConfig, int reason) {
         if (mListener != null && (mEvents & WifiNanEventListener.LISTEN_CONFIG_FAILED) != 0) {
             try {
@@ -124,6 +179,13 @@ public class WifiNanClientState {
         }
     }
 
+    /**
+     * Called to dispatch the NAN down event to the client. Dispatched if the
+     * client registered for this event.
+     *
+     * @param reason The reason code for NAN going down.
+     * @return A 1 if registered to listen for event, 0 otherwise.
+     */
     public int onNanDown(int reason) {
         if (mListener != null && (mEvents & WifiNanEventListener.LISTEN_NAN_DOWN) != 0) {
             try {
@@ -138,6 +200,16 @@ public class WifiNanClientState {
         return 0;
     }
 
+    /**
+     * Called to dispatch the NAN interface address change to the client - as an
+     * identity change (interface address information not propagated to client -
+     * privacy concerns). Dispatched if the client registered for the identity
+     * changed event.
+     *
+     * @param mac The new MAC address of the discovery interface - not
+     *            propagated to client!
+     * @return A 1 if registered to listen for event, 0 otherwise.
+     */
     public int onInterfaceAddressChange(byte[] mac) {
         if (mListener != null && (mEvents & WifiNanEventListener.LISTEN_IDENTITY_CHANGED) != 0) {
             try {
@@ -152,6 +224,17 @@ public class WifiNanClientState {
         return 0;
     }
 
+    /**
+     * Called to dispatch the NAN cluster change (due to joining of a new
+     * cluster or starting a cluster) to the client - as an identity change
+     * (interface address information not propagated to client - privacy
+     * concerns). Dispatched if the client registered for the identity changed
+     * event.
+     *
+     * @param mac The (new) MAC address of the discovery interface - not
+     *            propagated to client!
+     * @return A 1 if registered to listen for event, 0 otherwise.
+     */
     public int onClusterChange(int flag, byte[] mac) {
         if (mListener != null && (mEvents & WifiNanEventListener.LISTEN_IDENTITY_CHANGED) != 0) {
             try {
@@ -166,9 +249,12 @@ public class WifiNanClientState {
         return 0;
     }
 
+    /**
+     * Dump the internal state of the class.
+     */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("NanClientState:");
-        pw.println("  mUid: " + mUid);
+        pw.println("  mClientId: " + mClientId);
         pw.println("  mConfigRequest: " + mConfigRequest);
         pw.println("  mListener: " + mListener);
         pw.println("  mEvents: " + mEvents);
