@@ -1899,7 +1899,12 @@ public class WifiConfigStore extends IpConfigStore {
             }
 
             if (networkStatus.isNetworkEnabled()) {
-                mWifiNative.disableNetwork(config.networkId);
+                if (!mWifiNative.disableNetwork(config.networkId)) {
+                    localLog("Fail to disable network: " + config.SSID + " With reason:"
+                            + WifiConfiguration.NetworkSelectionStatus
+                            .getNetworkDisableReasonString(reason));
+                }
+                config.status = Status.DISABLED;
                 sendConfiguredNetworksChangedBroadcast(config,
                         WifiManager.CHANGE_REASON_CONFIG_CHANGE);
                 localLog("Disable network " + config.SSID + " reason:"
