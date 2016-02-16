@@ -1420,11 +1420,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     class IpManagerCallback extends IpManager.Callback {
         @Override
-        public boolean usingIpReachabilityMonitor() {
-            return true;
-        }
-
-        @Override
         public void onPreDhcpAction() {
             sendMessage(DhcpStateMachine.CMD_PRE_DHCP_ACTION);
         }
@@ -8481,7 +8476,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 // same network (in handling of SupplicantState.COMPLETED).
                 if (!isRoaming()) {
                     mIpManager.stop();
-                    mIpManager.startProvisioning();
+                    final IpManager.ProvisioningConfiguration prov =
+                            mIpManager.buildProvisioningConfiguration()
+                                .withPreDhcpAction()
+                                .build();
+                    mIpManager.startProvisioning(prov);
                 }
                 obtainingIpWatchdogCount++;
                 logd("Start Dhcp Watchdog " + obtainingIpWatchdogCount);
@@ -8507,7 +8506,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     logd("Static IP lacks address");
                     sendMessage(CMD_IPV4_PROVISIONING_FAILURE);
                 } else {
-                    mIpManager.startProvisioning(config);
+                    final IpManager.ProvisioningConfiguration prov =
+                            mIpManager.buildProvisioningConfiguration()
+                                .withStaticConfiguration(config)
+                                .build();
+                    mIpManager.startProvisioning(prov);
                 }
             }
         }
