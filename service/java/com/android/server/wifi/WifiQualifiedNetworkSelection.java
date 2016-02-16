@@ -31,10 +31,8 @@ import com.android.internal.R;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 
 class WifiQualifiedNetworkSelector {
     private WifiConfigStore mWifiConfigStore;
@@ -49,7 +47,6 @@ class WifiQualifiedNetworkSelector {
     //buffer most recent scan results
     private List<ScanDetail> mScanDetails = null;
 
-    private Map<String, Integer> mBssidBlackList =  new HashMap<String, Integer>();
     //Minimum time gap between last successful Qualified Network Selection and new selection attempt
     //usable only when current state is connected state   default 10 s
     private static final int MINIMUM_QUALIFIED_NETWORK_SELECTION_INTERVAL = 10 * 1000;
@@ -71,10 +68,10 @@ class WifiQualifiedNetworkSelector {
     public static final int BAND_AWARD_5GHz = 40;
     public static final int SAME_NETWORK_AWARD = 16;
 
-    private static final int SAME_BSSID_AWARD = 24;
-    private static final int LAST_SELECTION_AWARD = 480;
-    private static final int PASSPOINT_SECURITY_AWARD = 40;
-    private static final int SECURITY_AWARD = 80;
+    public static final int SAME_BSSID_AWARD = 24;
+    public static final int LAST_SELECTION_AWARD = 480;
+    public static final int PASSPOINT_SECURITY_AWARD = 40;
+    public static final int SECURITY_AWARD = 80;
     private final int mNoIntnetPenalty;
     //TODO: check whether we still need this one when we update the scan manager
     public static final int SCAN_RESULT_MAXIMUNM_AGE = 40000;
@@ -210,7 +207,8 @@ class WifiQualifiedNetworkSelector {
         }
 
         int currentRssi = mWifiInfo.getRssi();
-        if ((mWifiInfo.is24GHz() && currentRssi < QUALIFIED_RSSI_24G_BAND) || (mWifiInfo.is5GHz()
+        if ((mWifiInfo.is24GHz() && currentRssi < mWifiConfigStore.thresholdQualifiedRssi24.get())
+                || (mWifiInfo.is5GHz()
                 && currentRssi < mWifiConfigStore.thresholdQualifiedRssi5.get())) {
             qnsLog("Current band = " + (mWifiInfo.is24GHz() ? "2.4GHz band" : "5GHz band")
                     + "current RSSI is: " + currentRssi);

@@ -46,6 +46,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -66,6 +67,8 @@ public class WifiQualifiedNetworkSelectionTest {
         mWifiQualifiedNetworkSelector = new WifiQualifiedNetworkSelector(mWifiConfigStore, mContext,
                 mWifiInfo, mClock);
         mWifiQualifiedNetworkSelector.enableVerboseLogging(1);
+        mWifiQualifiedNetworkSelector.setUserPreferredBand(1);
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis());
     }
 
     @After
@@ -85,8 +88,8 @@ public class WifiQualifiedNetworkSelectionTest {
     private static final String TAG = "QNS Unit Test";
 
     private List<ScanDetail> getScanDetails(String[] ssids, String[] bssids, int[] frequencies,
-            String[] caps, int[] levels) {
-        List<ScanDetail> scanDetailList =  new ArrayList<ScanDetail>();
+                                            String[] caps, int[] levels) {
+        List<ScanDetail> scanDetailList = new ArrayList<ScanDetail>();
         long timeStamp = System.currentTimeMillis();
         for (int index = 0; index < ssids.length; index++) {
             ScanDetail scanDetail = new ScanDetail(WifiSsid.createFromAsciiEncoded(ssids[index]),
@@ -160,7 +163,8 @@ public class WifiQualifiedNetworkSelectionTest {
 
     /**
      * This API is used to generate multiple simulated saved configurations used for test
-     * @param ssid array of SSID of saved configuration
+     *
+     * @param ssid     array of SSID of saved configuration
      * @param security array  of securities of  saved configuration
      * @return generated new array of configurations based on input
      */
@@ -172,7 +176,7 @@ public class WifiQualifiedNetworkSelectionTest {
 
         WifiConfiguration[] configs = new WifiConfiguration[ssid.length];
         for (int index = 0; index < ssid.length; index++) {
-            configs[index] = generateWifiConfig(index, 0, ssid[index], false, true, null , null,
+            configs[index] = generateWifiConfig(index, 0, ssid[index], false, true, null, null,
                     security[index]);
         }
 
@@ -181,20 +185,22 @@ public class WifiQualifiedNetworkSelectionTest {
 
     /**
      * set configuration to a passpoint configuration
-     * @param config
+     *
+     * @param config The configuration need to be set as a passipoint configuration
      */
     private void setConfigPasspoint(WifiConfiguration config) {
         config.FQDN = "android.qns.unitTest";
         config.providerFriendlyName = "android.qns.unitTest";
-        WifiEnterpriseConfig  enterpriseConfig = mock(WifiEnterpriseConfig.class);
+        WifiEnterpriseConfig enterpriseConfig = mock(WifiEnterpriseConfig.class);
         when(enterpriseConfig.getEapMethod()).thenReturn(WifiEnterpriseConfig.Eap.PEAP);
 
     }
 
     /**
-     * add the Confgurations to WifiConfigStore (configurestore can take them out according to the
-     * networkd ID)
-     * @param configs input confgures need to be added to WifiConfigureStore
+     * add the Configurations to WifiConfigStore (WifiConfigureStore can take them out according to
+     * the networkd ID)
+     *
+     * @param configs input configuration need to be added to WifiConfigureStore
      */
     private void prepareConfigStore(final WifiConfiguration[] configs) {
         when(mWifiConfigStore.getWifiConfiguration(anyInt()))
@@ -211,11 +217,12 @@ public class WifiQualifiedNetworkSelectionTest {
 
     /**
      * Link scan results to the saved configurations
-     * @param configs saved configurations
+     *
+     * @param configs     saved configurations
      * @param scanDetails come in scan results
      */
     private void scanResultLinkConfiguration(WifiConfiguration[] configs,
-            List<ScanDetail> scanDetails) {
+                                             List<ScanDetail> scanDetails) {
 
         int index = 0;
         for (WifiConfiguration config : configs) {
@@ -229,8 +236,9 @@ public class WifiQualifiedNetworkSelectionTest {
 
     /**
      * verify whether the chosen configuration matched with the expected chosen scan result
+     *
      * @param chosenScanResult the expected chosen scan result
-     * @param candidate the chosen configuration
+     * @param candidate        the chosen configuration
      */
     private void verifySelectedResult(ScanResult chosenScanResult, WifiConfiguration candidate) {
         ScanResult candidateScan = candidate.getNetworkSelectionStatus().getCandidate();
@@ -239,13 +247,16 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     // QNS test under disconnected State
+
     /**
      * Case #1    choose 2GHz stronger RSSI test
+     *
      * In this test. we simulate following scenario
      * WifiStateMachine is under disconnected state
      * Two networks test1, test2 are secured network
      * Both network are enabled, encrypted and at 2.4 GHz
      * test1 is with RSSI -70 test2 is with RSSI -60
+     *
      * Expected behavior: test2 is chosen
      */
     @Test
@@ -277,11 +288,13 @@ public class WifiQualifiedNetworkSelectionTest {
 
     /**
      * Case #2    choose 5GHz Stronger RSSI Test
+     *
      * In this test. we simulate following scenario
      * WifiStateMachine is under disconnected state
      * Two networks test1, test2 are secured network
      * Both network are enabled, encrypted and at 5 GHz
      * test1 is with RSSI -70 test2 is with RSSI -60
+     *
      * Expected behavior: test2 is chosen
      */
     @Test
@@ -312,12 +325,14 @@ public class WifiQualifiedNetworkSelectionTest {
 
     /**
      * Case #3    5GHz over 2GHz bonus Test
+     *
      * In this test. we simulate following scenario
      * WifiStateMachine is under disconnected state
      * Two networks test1, test2 are secured network
      * Both network are enabled
      * test1 is @ 2GHz with RSSI -60
      * test2 is @ 5Ghz with RSSI -65
+     *
      * Expected behavior: test2 is chosen due to 5GHz bonus
      */
     @Test
@@ -346,12 +361,14 @@ public class WifiQualifiedNetworkSelectionTest {
 
     /**
      * Case #4    2GHz over 5GHz dur to 5GHz signal too weak test
+     *
      * In this test. we simulate following scenario
      * WifiStateMachine is under disconnected state
      * Two networks test1, test2 are secured network
      * Both network are enabled
      * test1 is @ 2GHz with RSSI -60
      * test2 is @ 5Ghz with RSSI -75
+     *
      * Expected behavior: test1 is chosen due to 5GHz signal is too weak (5GHz bonus can not
      * compensate)
      */
@@ -381,14 +398,16 @@ public class WifiQualifiedNetworkSelectionTest {
 
     /**
      * Case #5    2GHz signal Saturation test
+     *
      * In this test. we simulate following scenario
      * WifiStateMachine is under disconnected state
      * Two networks test1, test2 are secured network
      * Both network are enabled
      * test1 is @ 2GHz with RSSI -50
      * test2 is @ 5Ghz with RSSI -65
+     *
      * Expected behavior: test2 is chosen. Although the RSSI delta here is 15 too, because 2GHz RSSI
-     * saturates at -60, the real RSSSI delta is only 5, which is less than 5GHz bonus
+     * saturates at -60, the real RSSI delta is only 5, which is less than 5GHz bonus
      */
     @Test
     public void chooseNetworkDisconnect2GRssiSaturationTest() {
@@ -416,13 +435,15 @@ public class WifiQualifiedNetworkSelectionTest {
 
     /**
      * Case #6    Minimum RSSI test
+     *
      * In this test. we simulate following scenario
      * WifiStateMachine is under disconnected state
      * Two networks test1, test2 are secured network
      * Both network are enabled
-     * test1 is @ 2GHz with RSSI -50
-     * test2 is @ 5Ghz with RSSI -65
-     * Expected behavior: no network is chosen because both network are below the minimum threshold
+     * test1 is @ 2GHz with RSSI -86
+     * test2 is @ 5Ghz with RSSI -83
+     *
+     * Expected behavior: no QNS is made because both network are below the minimum threshold, null
      */
     @Test
     public void chooseNetworkMinimumRssiTest() {
@@ -430,7 +451,8 @@ public class WifiQualifiedNetworkSelectionTest {
         String[] bssids = DEFAULT_BSSIDS;
         int[] frequencies = {2437, 5180};
         String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
-        int[] levels = {-86, -83};
+        int[] levels = {WifiQualifiedNetworkSelector.MINIMUM_2G_ACCEPT_RSSI - 1,
+                WifiQualifiedNetworkSelector.MINIMUM_5G_ACCEPT_RSSI - 1};
         int[] security = {SECURITY_EAP, SECURITY_PSK};
 
         List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
@@ -446,13 +468,17 @@ public class WifiQualifiedNetworkSelectionTest {
 
         assertEquals("choose the wrong SSID", null, candidate);
     }
+
     /**
      * Case #7    encrypted network over passpoint network
+     *
      * In this test. we simulate following scenario
      * WifiStateMachine is under disconnected state
      * Two networks test1 is secured network, test2 are passpoint network
      * Both network are enabled and at 2.4 GHz. Both have RSSI of -70
-     * Expected behavior: test1 is chosen
+     *
+     * Expected behavior: test1 is chosen since secured network has higher priority than passpoint
+     * network
      */
     @Test
     public void chooseNetworkSecurityOverPassPoint() {
@@ -481,11 +507,14 @@ public class WifiQualifiedNetworkSelectionTest {
 
     /**
      * Case #8    passpoint network over open network
+     *
      * In this test. we simulate following scenario
      * WifiStateMachine is under disconnected state
      * Two networks test1 is passpoint network, test2 is open network
      * Both network are enabled and at 2.4 GHz. Both have RSSI of -70
-     * Expected behavior: test1 is chosen
+     *
+     * Expected behavior: test1 is chosen since passpoint network has higher priority than open
+     * network
      */
     @Test
     public void chooseNetworkPasspointOverOpen() {
@@ -514,11 +543,14 @@ public class WifiQualifiedNetworkSelectionTest {
 
     /**
      * Case #9    secure network over open network
+     *
      * In this test. we simulate following scenario
      * WifiStateMachine is under disconnected state
      * Two networks test1 is secure network, test2 is open network
      * Both network are enabled and at 2.4 GHz. Both have RSSI of -70
-     * Expected behavior: test1 is chosen
+     *
+     * Expected behavior: test1 is chosen since secured network has higher priority than open
+     * network
      */
     @Test
     public void chooseNetworkSecureOverOpen() {
@@ -544,10 +576,14 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #10
+     * Case #10    first time user select a network
+     *
      * In this test. we simulate following scenario
      * There are three saved networks: test1, test2 and test3. Now user select the network test3
      * check test3 has been saved in test1's and test2's ConnectChoice
+     *
+     * Expected behavior: test1's and test2's ConnectChoice should be test3, test3's ConnectChoice
+     * should be null
      */
     @Test
     public void userSelectsNetworkForFirstTime() {
@@ -577,14 +613,18 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * case 11
+     * Case #11    choose user selected network
+     *
      * In this test, we simulate following scenario:
+     * WifiStateMachine is under disconnected state
      * There are three networks: test1, test2, test3 and test3 is the user preference
      * All three networks are enabled
      * test1 is @ 2.4GHz with RSSI -50 PSK
      * test2 is @ 5Ghz with RSSI -65 PSK
      * test3 is @ 2.4GHz with RSSI -55 open
-     * Expected behavior: test3 is chosen
+     *
+     * Expected behavior: test3 is chosen since it is user selected network. It overcome all other
+     * priorities
      */
     @Test
     public void chooseUserPreferredNetwork() {
@@ -621,8 +661,9 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * case #12
+     * Case #12    enable a blacklisted BSSID
      *
+     * In this test, we simulate following scenario:
      * For two Aps, BSSIDA and BSSIDB. Disable BSSIDA, then check whether BSSIDA is disabled and
      * BSSIDB is enabled. Then enable BSSIDA, check whether both BSSIDs are enabled.
      */
@@ -655,15 +696,17 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * case #13
+     * Case #13    do not choose the BSSID has been disabled
+     *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under disconnected state
      * Two networks test1, test2 are secured network and found in scan results
      * Both network are enabled
-     * test1 is @ 2GHz with RSSI -50
-     * test2 is @ 5Ghz with RSSI -65
+     * test1 is @ 2GHz with RSSI -65
+     * test2 is @ 5Ghz with RSSI -50
      * test2's BSSID is disabled
-     * expected return test1
+     *
+     * expected return test1 since test2's BSSID has been disabled
      */
     @Test
     public void networkChooseWithOneBssidDisabled() {
@@ -671,7 +714,7 @@ public class WifiQualifiedNetworkSelectionTest {
         String[] bssids = DEFAULT_BSSIDS;
         int[] frequencies = {2437, 5180};
         String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
-        int[] levels = {-50, -65};
+        int[] levels = {-65, -50};
         int[] security = {SECURITY_PSK, SECURITY_PSK};
 
         List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
@@ -688,7 +731,732 @@ public class WifiQualifiedNetworkSelectionTest {
                 false, scanDetails, false, false, true, false);
 
         verifySelectedResult(chosenScanResult, candidate);
-
     }
 
+    /**
+     * Case #14    do not choose the SSID has been disabled
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under disconnected state
+     * Two networks test1, test2 are secured network and found in scan results
+     * Both network are enabled
+     * test1 is @ 2GHz with RSSI -65
+     * test2 is @ 5Ghz with RSSI -50
+     * test2's SSID is disabled
+     *
+     * expected return test1 since test2's BSSID has been disabled
+     */
+    @Test
+    public void networkChooseWithOneSsidDisabled() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-65, -50};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
+
+        savedConfigs[1].getNetworkSelectionStatus().setNetworkSelectionStatus(
+                WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED);
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, false, true, false);
+
+        verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    /**
+     * Case #15    do not make QNS is link is bouncing now
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under disconnected state and currently is under link bouncing
+     * Two networks test1, test2 are secured network and found in scan results
+     * Both network are enabled
+     * test1 is @ 2GHz with RSSI -50
+     * test2 is @ 5Ghz with RSSI -50
+     *
+     * expected return null
+     */
+    @Test
+    public void noQNSWhenLinkBouncingDisconnected() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {WifiQualifiedNetworkSelector.MINIMUM_2G_ACCEPT_RSSI - 1,
+                WifiQualifiedNetworkSelector.MINIMUM_5G_ACCEPT_RSSI - 1};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, true, false, true, false);
+
+        assertEquals("choose the wrong network", null, candidate);
+    }
+
+    /**
+     * Case #16    QNS with very short gap
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under disconnected state
+     * If last QNS is made in less than MINIMUM_QUALIFIED_NETWORK_SELECTION_INTERVAL, we
+     * still should make new QNS since it is disconnected now
+     *
+     * expect return test1 because of band bonus
+     */
+    @Test
+    public void networkSelectionInShortGap() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-50, -65};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        //first QNS
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+        //immediately second QNS
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, false, true, false);
+        ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
+
+        verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    //Unit test for Connected State
+
+    /**
+     * Case #17    no QNS with very short gap when connected
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and test2 is connected
+     * When WifiStateMachine is already in connected state, if last QNS is made in less than
+     * MINIMUM_QUALIFIED_NETWORK_SELECTION_INTERVAL, no new QNS should be made
+     *
+     * expect return NULL
+     */
+    @Test
+    public void noNetworkSelectionDueToShortGap() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-50, -65};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        //first QNS
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+        //immediately second QNS
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, true, false, false);
+        ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
+        assertEquals("choose the wrong BSSID", null, candidate);
+    }
+
+    /**
+     * Case #18    force QNS with very short gap under connection
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and test2 is connected
+     * When WifiStateMachine is already in connected state, if last QNS is made in less than
+     * MINIMUM_QUALIFIED_NETWORK_SELECTION_INTERVAL, no new QNS should be made. However, if we force
+     * to make new QNS, QNS still will be made
+     *
+     * expect return test2 since it is the current connected one (bonus)
+     */
+    @Test
+    public void forceNetworkSelectionInShortGap() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-50, -65};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        //first QNS
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+        //immediately second QNS
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(true,
+                false, scanDetails, false, true, false, false);
+        ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
+
+        verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    /**
+     * Case #19    no QNS when connected and user do not allow switch when connected
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and test2 is connected
+     * if user does not allow switch network when connected, do not make new QNS when connected
+     *
+     * expect return NULL
+     */
+    @Test
+    public void noNewNetworkSelectionDuetoUserDisableSwitchWhenConnected() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-50, -65};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, true, false, false);
+        assertEquals("choose the wrong BSSID", null, candidate);
+    }
+
+    /**
+     * Case #20    no new QNS if current network is qualified already
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and test2 is connected
+     * If current connected network is Qualified already, do not make new QNS
+     * simulated current connected network as:
+     * 5GHz, RSSI = WifiQualifiedNetworkSelector.QUALIFIED_RSSI_5G_BAND, secured
+     *
+     * expected return null
+     */
+    @Test
+    public void noNewQNSCurrentNetworkQualified() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-65, WifiQualifiedNetworkSelector.QUALIFIED_RSSI_5G_BAND};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        //first time, connect to test2 due to 5GHz bonus
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+        when(mWifiInfo.getNetworkId()).thenReturn(1);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
+        when(mWifiInfo.is24GHz()).thenReturn(false);
+        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+
+        levels[0] = -50; // if there is QNS, test1 will be chosen
+        scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, true, false, false);
+        assertEquals("choose the wrong BSSID", null, candidate);
+    }
+
+    /**
+     * Case #21    No new QNS when link bouncing when connected
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and test2 is connected
+     * no new QNS when link is bouncing
+     *
+     * expected return null
+     */
+    @Test
+    public void noNewQNSLinkBouncing() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-70, -75};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        //first connect to test2 due to 5GHz bonus
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+        when(mWifiInfo.getNetworkId()).thenReturn(1);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
+        when(mWifiInfo.is24GHz()).thenReturn(false);
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, true, true, false, false);
+        assertEquals("choose the wrong BSSID", null, candidate);
+    }
+
+    /**
+     * Case #22    Qualified network need to be on 5GHz
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and connected to test2
+     * if current connected network is not 5GHz, then it is not qualified. We should make new QNS
+     *
+     * expected result: return test1
+     */
+    @Test
+    public void currentNetworkNotQualifiedDueToBandMismatch() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-50, -65};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        when(mWifiInfo.getNetworkId()).thenReturn(0);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
+        when(mWifiInfo.is24GHz()).thenReturn(true);
+        //connect to config2 first
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+
+        ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, true, false, false);
+        verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    /**
+     * Case #23    Qualified network need to be secured
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and current connects to test2
+     * if current connected network is open network, then it is not qualified. We should make new
+     * QNS
+     *
+     * expected result: return test1 since test1 has higher RSSI
+     */
+    @Test
+    public void currentNetworkNotQualifiedDueToOpenNetwork() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {5400, 5400};
+        String[] caps = {"[NONE]", "[NONE]"};
+        int[] levels = {-70, -65};
+        int[] security = {SECURITY_NONE, SECURITY_NONE};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        //first connect to test2 because of RSSI
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+        when(mWifiInfo.getNetworkId()).thenReturn(1);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
+        when(mWifiInfo.is24GHz()).thenReturn(false);
+        when(mWifiInfo.is5GHz()).thenReturn(true);
+        when(mWifiConfigStore.isOpenNetwork(savedConfigs[1])).thenReturn(true);
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        levels[0] = -60;
+        scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, true, false, false);
+        verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    /**
+     * Case #24    ephemeral network can not be qualified network
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and current connected to test2
+     * if current connected network is ephemeral network, then it is not qualified. We should make
+     * new QNS
+     *
+     * expected result: return test1 (since test2 is ephemeral)
+     */
+    @Test
+    public void currentNetworkNotQualifiedDueToEphemeral() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {5200, 5200};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-100, -50};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        savedConfigs[1].ephemeral = true;
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        //first connect to test2 since test1's RSSI is negligible
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+        when(mWifiInfo.getNetworkId()).thenReturn(1);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
+        when(mWifiInfo.is24GHz()).thenReturn(false);
+
+        levels[0] = -70;
+        scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+
+        ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, true, false, false);
+        verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    /**
+     * Case #25    low signal network can not be Qualified network (5GHz)
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and current connected to test2
+     * if current connected network's rssi is too low, then it is not qualified. We should
+     * make new QNS
+     *
+     * expected result: return test1
+     */
+    @Test
+    public void currentNetworkNotQualifiedDueToLow5GRssi() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {5200, 5200};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-80, WifiQualifiedNetworkSelector.QUALIFIED_RSSI_5G_BAND - 1};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+        when(mWifiInfo.getNetworkId()).thenReturn(1);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
+        when(mWifiInfo.getRssi()).thenReturn(levels[1]);
+        when(mWifiInfo.is24GHz()).thenReturn(false);
+        when(mWifiInfo.is5GHz()).thenReturn(true);
+
+        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        levels[0] = -60;
+        scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
+
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, true, false, false);
+        verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    /**
+     * Case #26    low signal network can not be Qualified network (2.4GHz)
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and current connected to test2
+     * if current connected network's rssi is too low, then it is not qualified. We should
+     * make new QNS
+     *
+     * expected result: return test1
+     */
+    @Test
+    public void currentNetworkNotQualifiedDueToLow2GRssi() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-100, WifiQualifiedNetworkSelector.QUALIFIED_RSSI_24G_BAND - 1};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+
+        when(mWifiInfo.getNetworkId()).thenReturn(1);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
+        when(mWifiInfo.getRssi()).thenReturn(levels[1]);
+        when(mWifiInfo.is24GHz()).thenReturn(false);
+        when(mWifiInfo.is5GHz()).thenReturn(true);
+
+        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        levels[0] = -60;
+        scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, true, false, false);
+        verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    /**
+     * Case #27    Choose current network due to current network bonus
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and current connected to test2
+     * To connect to a network which is not linked to current connected network, unless this network
+     * is more than 10 db higher than current network, we should not switch. So although test2 has a
+     * lower signal, we still choose test2
+     *
+     * expected result: return test2
+     */
+    @Test
+    public void currentNetworkStayDueToSameNetworkBonus() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-100, -80};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+        when(mWifiInfo.getNetworkId()).thenReturn(1);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
+        when(mWifiInfo.is24GHz()).thenReturn(true);
+
+        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        levels[0] = -80 + WifiQualifiedNetworkSelector.SAME_BSSID_AWARD / 4
+                + WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD / 4 - 1;
+        scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, true, false, false);
+        verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    /**
+     * Case #28    choose another network due to current network's signal is too low
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and current connected to test2
+     * To connect to a network which is not linked to current connected network, if this network
+     * is more than 10 db higher than current network, we should switch
+     *
+     * expected new result: return test1
+     */
+    @Test
+    public void switchNetworkStayDueToCurrentNetworkRssiLow() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-100, -80};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+
+        when(mWifiInfo.getNetworkId()).thenReturn(1);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
+        when(mWifiInfo.is24GHz()).thenReturn(true);
+
+        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        levels[0] = -80 + WifiQualifiedNetworkSelector.SAME_BSSID_AWARD / 4
+                + WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD / 4 + 1;
+        scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, true, false, false);
+        verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    /**
+     * Case #29    Choose current BSSID due to current BSSID bonus
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and current connected to test2
+     * Linked network will be treated as same network. To connect to a network which is linked to
+     * current connected network, unless this network is more than 6 db higher than current network,
+     * we should not switch AP and stick to current BSSID
+     *
+     * expected result: return test2
+     */
+    @Test
+    public void currentBssidStayDueToSameBSSIDBonus() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-100, -80};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        //link two configuration
+        savedConfigs[0].linkedConfigurations = new HashMap<String, Integer>();
+        savedConfigs[1].linkedConfigurations = new HashMap<String, Integer>();
+        savedConfigs[0].linkedConfigurations.put(savedConfigs[1].configKey(), 1);
+        savedConfigs[1].linkedConfigurations.put(savedConfigs[0].configKey(), 1);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+
+        when(mWifiInfo.getNetworkId()).thenReturn(1);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
+        when(mWifiInfo.is24GHz()).thenReturn(true);
+
+        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        levels[0] = -80 + WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD / 4 - 1;
+        scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, true, false, false);
+        verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    /**
+     * Case #30    Choose another BSSID due to current BSSID's rssi is too low
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and current connected to test2
+     * Linked network will be treated as same network. To connect to a network which is linked to
+     * current connected network, unless this network is more than 6 db higher than current network,
+     * we should not switch AP and stick to current BSSID
+     *
+     * expected result: return test2
+     */
+    @Test
+    public void swithBssidDueToLowRssi() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-100, -80};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        //link two configuration
+        savedConfigs[0].linkedConfigurations = new HashMap<String, Integer>();
+        savedConfigs[1].linkedConfigurations = new HashMap<String, Integer>();
+        savedConfigs[0].linkedConfigurations.put(savedConfigs[1].configKey(), 1);
+        savedConfigs[1].linkedConfigurations.put(savedConfigs[0].configKey(), 1);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+
+        when(mWifiInfo.getNetworkId()).thenReturn(1);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
+        when(mWifiInfo.is24GHz()).thenReturn(true);
+
+        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        levels[0] = -80 + WifiQualifiedNetworkSelector.SAME_BSSID_AWARD / 4 + 1;
+        scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, true, false, false);
+        verifySelectedResult(chosenScanResult, candidate);
+    }
 }
