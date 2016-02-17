@@ -1866,9 +1866,7 @@ public class WifiNative {
         return true;
     }
 
-    private static void populateScanResult(ScanResult result, byte[] bytes, int beaconCap,
-                                            String dbg) {
-        if (bytes == null) return;
+    private static void populateScanResult(ScanResult result, int beaconCap, String dbg) {
         if (dbg == null) dbg = "";
 
         InformationElementUtil.HtOperation htOperation = new InformationElementUtil.HtOperation();
@@ -1878,7 +1876,7 @@ public class WifiNative {
                 new InformationElementUtil.ExtendedCapabilities();
 
         ScanResult.InformationElement elements[] =
-                InformationElementUtil.parseInformationElements(bytes);
+                InformationElementUtil.parseInformationElements(result.bytes);
         for (ScanResult.InformationElement ie : elements) {
             if(ie.id == ScanResult.InformationElement.EID_HT_OPERATION) {
                 htOperation.from(ie);
@@ -1928,14 +1926,13 @@ public class WifiNative {
     }
 
     // Callback from native
-    private static void onFullScanResult(int id, ScanResult result, byte bytes[],
+    private static void onFullScanResult(int id, ScanResult result,
             int bucketsScanned, int beaconCap) {
-        if (DBG) Log.i(TAG, "Got a full scan results event, ssid = " + result.SSID + ", " +
-                "num = " + bytes.length);
+        if (DBG) Log.i(TAG, "Got a full scan results event, ssid = " + result.SSID);
 
         ScanEventHandler handler = sScanEventHandler;
         if (handler != null) {
-            populateScanResult(result, bytes, beaconCap, " onFullScanResult ");
+            populateScanResult(result, beaconCap, " onFullScanResult ");
             handler.onFullScanResult(result);
         }
     }
@@ -2735,8 +2732,7 @@ public class WifiNative {
                 Log.e(TAG, "onPnoNetworkFound SSID " + results[i].SSID
                         + " " + results[i].level + " " + results[i].frequency);
 
-                populateScanResult(results[i], results[i].bytes, beaconCaps[i],
-                                    "onPnoNetworkFound ");
+                populateScanResult(results[i], beaconCaps[i], "onPnoNetworkFound ");
                 results[i].wifiSsid = WifiSsid.createFromAsciiEncoded(results[i].SSID);
             }
 

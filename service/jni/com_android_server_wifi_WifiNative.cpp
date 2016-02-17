@@ -190,10 +190,9 @@ jboolean setSSIDField(JNIHelper helper, jobject scanResult, const char *rawSsid)
         return true;
     }
 }
-static JNIObject<jobject> createScanResult(JNIHelper &helper, wifi_scan_result *result) {
-
+static JNIObject<jobject> createScanResult(JNIHelper &helper, wifi_scan_result *result,
+        bool fill_ie) {
     // ALOGD("creating scan result");
-
     JNIObject<jobject> scanResult = helper.createObject("android/net/wifi/ScanResult");
     if (scanResult == NULL) {
         ALOGE("Error in creating scan result");
@@ -216,6 +215,17 @@ static JNIObject<jobject> createScanResult(JNIHelper &helper, wifi_scan_result *
     helper.setIntField(scanResult, "level", result->rssi);
     helper.setIntField(scanResult, "frequency", result->channel);
     helper.setLongField(scanResult, "timestamp", result->ts);
+
+    if (fill_ie) {
+        JNIObject<jbyteArray> elements = helper.newByteArray(result->ie_length);
+        if (elements == NULL) {
+            ALOGE("Error in allocating elements array");
+            return JNIObject<jobject>(helper, NULL);
+        }
+        jbyte * bytes = (jbyte *)&(result->ie_data[0]);
+        helper.setByteArrayRegion(elements, 0, result->ie_length, bytes);
+        helper.setObjectField(scanResult, "bytes", "[B", elements);
+    }
 
     return scanResult;
 }
@@ -423,25 +433,14 @@ static void onFullScanResult(wifi_request_id id, wifi_scan_result *result,
 
     //ALOGD("onFullScanResult called, vm = %p, obj = %p, env = %p", mVM, mCls, env);
 
-    JNIObject<jobject> scanResult = createScanResult(helper, result);
+    JNIObject<jobject> scanResult = createScanResult(helper, result, true);
 
-    //ALOGD("Creating a byte array of length %d", result->ie_length);
-
-    JNIObject<jbyteArray> elements = helper.newByteArray(result->ie_length);
-    if (elements == NULL) {
-        ALOGE("Error in allocating array");
+    if (scanResult == NULL) {
         return;
     }
 
-    // ALOGD("Setting byte array");
-
-    jbyte *bytes = (jbyte *)&(result->ie_data[0]);
-    helper.setByteArrayRegion(elements, 0, result->ie_length, bytes);
-
-    // ALOGD("Returning result");
-
-    helper.reportEvent(mCls, "onFullScanResult", "(ILandroid/net/wifi/ScanResult;[BII)V", id,
-            scanResult.get(), elements.get(), buckets_scanned, (jint) result->capability);
+    helper.reportEvent(mCls, "onFullScanResult", "(ILandroid/net/wifi/ScanResult;II)V", id,
+            scanResult.get(), buckets_scanned, (jint) result->capability);
 }
 
 static jboolean android_net_wifi_startScan(
@@ -581,7 +580,7 @@ static jobject android_net_wifi_getScanResults(
             wifi_scan_result *results = scan_data[i].results;
             for (int j = 0; j < scan_data[i].num_results; j++) {
 
-                JNIObject<jobject> scanResult = createScanResult(helper, &results[j]);
+                JNIObject<jobject> scanResult = createScanResult(helper, &results[j], false);
                 if (scanResult == NULL) {
                     ALOGE("Error in creating scan result");
                     return NULL;
@@ -698,7 +697,7 @@ static void onHotlistApFound(wifi_request_id id,
 
     for (unsigned i = 0; i < num_results; i++) {
 
-        JNIObject<jobject> scanResult = createScanResult(helper, &results[i]);
+        JNIObject<jobject> scanResult = createScanResult(helper, &results[i], false);
         if (scanResult == NULL) {
             ALOGE("Error in creating scan result");
             return;
@@ -728,7 +727,7 @@ static void onHotlistApLost(wifi_request_id id,
 
     for (unsigned i = 0; i < num_results; i++) {
 
-        JNIObject<jobject> scanResult = createScanResult(helper, &results[i]);
+        JNIObject<jobject> scanResult = createScanResult(helper, &results[i], false);
         if (scanResult == NULL) {
             ALOGE("Error in creating scan result");
             return;
@@ -1812,68 +1811,48 @@ static jboolean android_net_wifi_reset_log_handler(JNIEnv *env, jclass cls, jint
 
 static void onPnoNetworkFound(wifi_request_id id,
                                           unsigned num_results, wifi_scan_result *results) {
-
     JNIHelper helper(mVM);
-
     ALOGD("onPnoNetworkFound called, vm = %p, obj = %p, num_results %u", mVM, mCls, num_results);
 
-    if (results == 0 || num_results == 0) {
+    if (results == NULL || num_results == 0) {
        ALOGE("onPnoNetworkFound: Error no results");
        return;
     }
 
-    jbyte *bytes;
-    JNIObject<jobjectArray> scanResults(helper, NULL);
-    jintArray beaconCaps;
-    //jbyteArray elements;
+    JNIObject<jobjectArray> scanResults = helper.newObjectArray(num_results,
+            "android/net/wifi/ScanResult", NULL);
+    if (scanResults == NULL) {
+        ALOGE("onpnoNetworkFound: Error in allocating scanResults array");
+        return;
+    }
+
+    JNIObject<jintArray> beaconCaps = helper.newIntArray(num_results);
+    if (beaconCaps == NULL) {
+        ALOGE("onpnoNetworkFound: Error in allocating beaconCaps array");
+        return;
+    }
 
     for (unsigned i=0; i<num_results; i++) {
 
-        JNIObject<jobject> scanResult = createScanResult(helper, &results[i]);
-        if (i == 0) {
-            scanResults = helper.newObjectArray(
-                    num_results, "android/net/wifi/ScanResult", scanResult);
-            if (scanResults == 0) {
-                ALOGE("cant allocate scanResults array");
-            } else {
-                ALOGD("allocated scanResults array %u", helper.getArrayLength(scanResults));
-            }
-            beaconCaps = helper.newIntArray(num_results);
-            if (beaconCaps == 0) {
-                ALOGE("cant allocate beaconCaps array");
-            } else {
-                ALOGD("allocated beaconCaps array %u", helper.getArrayLength(beaconCaps));
-            }
-        } else {
-            helper.setObjectArrayElement(scanResults, i, scanResult);
-            helper.setIntArrayRegion(beaconCaps, i, i+1, (jint *)&(results[i].capability));
+        JNIObject<jobject> scanResult = createScanResult(helper, &results[i], true);
+        if (scanResult == NULL) {
+            ALOGE("Error in creating scan result");
+            return;
         }
 
-        ALOGD("Scan result with ie length %d, i %u, <%s> rssi=%d %02x:%02x:%02x:%02x:%02x:%02x",
-                results->ie_length, i, results[i].ssid, results[i].rssi, results[i].bssid[0],
-                results[i].bssid[1],results[i].bssid[2], results[i].bssid[3], results[i].bssid[4],
-                results[i].bssid[5]);
+        helper.setObjectArrayElement(scanResults, i, scanResult);
+        helper.setIntArrayRegion(beaconCaps, i, 1, (jint *)&(results[i].capability));
 
-        /*elements = helper.newByteArray(results->ie_length);
-        if (elements == NULL) {
-            ALOGE("Error in allocating array");
-            return;
-        }*/
-
-        //ALOGD("onPnoNetworkFound: Setting byte array");
-
-        //bytes = (jbyte *)&(results->ie_data[0]);
-        //helper.setByteArrayRegion(elements, 0, results->ie_length, bytes);
-
-        //ALOGD("onPnoNetworkFound: Returning result");
+        if (DBG) {
+            ALOGD("ScanResult: IE length %d, i %u, <%s> rssi=%d %02x:%02x:%02x:%02x:%02x:%02x",
+                    results->ie_length, i, results[i].ssid, results[i].rssi,
+                    results[i].bssid[0], results[i].bssid[1],results[i].bssid[2],
+                    results[i].bssid[3], results[i].bssid[4], results[i].bssid[5]);
+        }
     }
 
-
-    ALOGD("calling report");
-
     helper.reportEvent(mCls, "onPnoNetworkFound", "(I[Landroid/net/wifi/ScanResult;[I)V", id,
-               scanResults.get(), beaconCaps);
-        ALOGD("free ref");
+               scanResults.get(), beaconCaps.get());
 }
 
 static jboolean android_net_wifi_setPnoListNative(
