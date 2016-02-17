@@ -81,12 +81,11 @@ public class MultiClientScheduler extends WifiScanningScheduler {
      * implications if the scan is scheduled at a significantly lower period.
      *
      * For example if the hardware only supports 2 buckets and scans are requested with periods of
-     * 40s, 20s and 10s then the two buckets shceduled will have periods 40s and 20s and the 10s
+     * 40s, 20s and 10s then the two buckets scheduled will have periods 40s and 20s and the 10s
      * scan will be placed in the 20s bucket.
      *
-     * If there are special scan requests such as exponential back off scan or context hub scan, we
-     * always dedicate a bucket for each type. Regular scan requests will be packed into the
-     * remaining buckets.
+     * If there are special scan requests such as exponential back off, we always dedicate a bucket
+     * for each type. Regular scan requests will be packed into the remaining buckets.
      */
     private static final int[] PREDEFINED_BUCKET_PERIODS = {
         4 * PERIOD_MIN_GCD_MS,   // 40s
@@ -102,7 +101,6 @@ public class MultiClientScheduler extends WifiScanningScheduler {
 
     private static final int EXPONENTIAL_BACK_OFF_BUCKET_IDX =
             (PREDEFINED_BUCKET_PERIODS.length - 1);
-    // TODO: Add support for context hub scan request when it is enabled
     private static final int NUM_OF_REGULAR_BUCKETS =
             (PREDEFINED_BUCKET_PERIODS.length - 1);
 
@@ -432,7 +430,7 @@ public class MultiClientScheduler extends WifiScanningScheduler {
     }
 
     /**
-     * Reduce the number of required buckets by reassigning lower priorty buckets to the next
+     * Reduce the number of required buckets by reassigning lower priority buckets to the next
      * closest period bucket.
      */
     private void compactBuckets(int maxBuckets) {
@@ -443,7 +441,6 @@ public class MultiClientScheduler extends WifiScanningScheduler {
         if (mBuckets.isActive(EXPONENTIAL_BACK_OFF_BUCKET_IDX)) {
             maxRegularBuckets--;
         }
-        // TODO: reserve another bucket for context hub scan request
         for (int i = NUM_OF_REGULAR_BUCKETS - 1;
                 i >= 0 && mBuckets.getActiveRegularBucketCount() > maxRegularBuckets; --i) {
             if (mBuckets.isActive(i)) {
