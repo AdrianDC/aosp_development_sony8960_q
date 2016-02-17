@@ -6953,7 +6953,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                         // If we have a BSSID, tell configStore to black list it
                         synchronized(mScanResultCache) {
                             didBlackListBSSID = mWifiQualifiedNetworkSelector
-                                    .enableBssidForQualitynetworkSelection(bssid, false);
+                                    .enableBssidForQualityNetworkSelection(bssid, false);
                         }
                     }
 
@@ -7775,6 +7775,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
                     mWifiInfo.setBSSID(mLastBssid);
                     mWifiInfo.setNetworkId(mLastNetworkId);
+                    mWifiQualifiedNetworkSelector
+                            .enableBssidForQualityNetworkSelection(mLastBssid, true);
                     sendNetworkStateChangeBroadcast(mLastBssid);
                     transitionTo(mObtainingIpState);
                     break;
@@ -8671,7 +8673,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                         mLastBssid = (String) message.obj;
                         mWifiInfo.setBSSID(mLastBssid);
                         mWifiInfo.setNetworkId(mLastNetworkId);
-                        mWifiQualifiedNetworkSelector.enableBssidForQualitynetworkSelection(
+                        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(
                                 mLastBssid, true);
                         sendNetworkStateChangeBroadcast(mLastBssid);
                         transitionTo(mObtainingIpState);

@@ -677,22 +677,29 @@ public class WifiQualifiedNetworkSelectionTest {
         assertEquals("bssidB should be enabled by default",
                 mWifiQualifiedNetworkSelector.isBssidDisabled(bssidB), false);
 
-        //disable bssidA, check whether A is dsiabled and B is still enabled
-        mWifiQualifiedNetworkSelector.enableBssidForQualitynetworkSelection(bssidA, false);
+        //disable bssidA 3 times, check whether A is dsiabled and B is still enabled
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssidA, false);
+        assertEquals("bssidA should be disabled",
+                mWifiQualifiedNetworkSelector.isBssidDisabled(bssidA), false);
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssidA, false);
+        assertEquals("bssidA should be disabled",
+                mWifiQualifiedNetworkSelector.isBssidDisabled(bssidA), false);
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssidA, false);
         assertEquals("bssidA should be disabled",
                 mWifiQualifiedNetworkSelector.isBssidDisabled(bssidA), true);
         assertEquals("bssidB should still be enabled",
                 mWifiQualifiedNetworkSelector.isBssidDisabled(bssidB), false);
 
         //re-enable bssidA, check whether A is dsiabled and B is still enabled
-        mWifiQualifiedNetworkSelector.enableBssidForQualitynetworkSelection(bssidA, true);
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssidA, true);
         assertEquals("bssidA should be enabled by default",
                 mWifiQualifiedNetworkSelector.isBssidDisabled(bssidA), false);
         assertEquals("bssidB should be enabled by default",
                 mWifiQualifiedNetworkSelector.isBssidDisabled(bssidB), false);
 
         //make sure illegal input will not cause crash
-        mWifiQualifiedNetworkSelector.enableBssidForQualitynetworkSelection(null, true);
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(null, false);
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(null, true);
     }
 
     /**
@@ -726,7 +733,9 @@ public class WifiQualifiedNetworkSelectionTest {
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
-        mWifiQualifiedNetworkSelector.enableBssidForQualitynetworkSelection(bssids[1], false);
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 false, scanDetails, false, false, true, false);
 
@@ -734,7 +743,91 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #14    do not choose the SSID has been disabled
+     * Case #14    re-choose the disabled BSSID after it is re-enabled
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under disconnected state
+     * Two networks test1, test2 are secured network and found in scan results
+     * Both network are enabled
+     * test1 is @ 2GHz with RSSI -65
+     * test2 is @ 5Ghz with RSSI -50
+     * test2's BSSID is disabled
+     *
+     * expected return test2 since test2's BSSID has been enabled again
+     */
+    @Test
+    public void networkChooseWithOneBssidReenaabled() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-65, -50};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
+
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
+        //re-enable it
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], true);
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, false, true, false);
+
+        verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    /**
+     * Case #15    re-choose the disabled BSSID after its disability has expired
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under disconnected state
+     * Two networks test1, test2 are secured network and found in scan results
+     * Both network are enabled
+     * test1 is @ 2GHz with RSSI -65
+     * test2 is @ 5Ghz with RSSI -50
+     * test2's BSSID is disabled
+     *
+     * expected return test2 since test2's BSSID has been enabled again
+     */
+    @Test
+    public void networkChooseWithOneBssidDisableExpire() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {2437, 5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-65, -50};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
+
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
+        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
+        //re-enable it
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis()
+                + WifiQualifiedNetworkSelector.BSSID_BLACKLIST_EXPIRE_TIME);
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, false, true, false);
+
+        verifySelectedResult(chosenScanResult, candidate);
+    }
+    /**
+     * Case #16    do not choose the SSID has been disabled
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under disconnected state
@@ -744,7 +837,7 @@ public class WifiQualifiedNetworkSelectionTest {
      * test2 is @ 5Ghz with RSSI -50
      * test2's SSID is disabled
      *
-     * expected return test1 since test2's BSSID has been disabled
+     * expected return test1 since test2's SSID has been disabled
      */
     @Test
     public void networkChooseWithOneSsidDisabled() {
@@ -773,7 +866,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #15    do not make QNS is link is bouncing now
+     * Case #17    do not make QNS is link is bouncing now
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under disconnected state and currently is under link bouncing
@@ -809,7 +902,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #16    QNS with very short gap
+     * Case #18    QNS with very short gap
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under disconnected state
@@ -848,7 +941,7 @@ public class WifiQualifiedNetworkSelectionTest {
     //Unit test for Connected State
 
     /**
-     * Case #17    no QNS with very short gap when connected
+     * Case #19    no QNS with very short gap when connected
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and test2 is connected
      * When WifiStateMachine is already in connected state, if last QNS is made in less than
@@ -883,7 +976,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #18    force QNS with very short gap under connection
+     * Case #20    force QNS with very short gap under connection
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and test2 is connected
      * When WifiStateMachine is already in connected state, if last QNS is made in less than
@@ -920,7 +1013,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #19    no QNS when connected and user do not allow switch when connected
+     * Case #21    no QNS when connected and user do not allow switch when connected
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and test2 is connected
@@ -951,7 +1044,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #20    no new QNS if current network is qualified already
+     * Case #22    no new QNS if current network is qualified already
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and test2 is connected
@@ -997,7 +1090,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #21    No new QNS when link bouncing when connected
+     * Case #23    No new QNS when link bouncing when connected
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and test2 is connected
@@ -1037,7 +1130,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #22    Qualified network need to be on 5GHz
+     * Case #24    Qualified network need to be on 5GHz
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and connected to test2
@@ -1078,7 +1171,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #23    Qualified network need to be secured
+     * Case #25    Qualified network need to be secured
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and current connects to test2
@@ -1125,7 +1218,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #24    ephemeral network can not be qualified network
+     * Case #26    ephemeral network can not be qualified network
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and current connected to test2
@@ -1172,7 +1265,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #25    low signal network can not be Qualified network (5GHz)
+     * Case #27    low signal network can not be Qualified network (5GHz)
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and current connected to test2
@@ -1219,7 +1312,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #26    low signal network can not be Qualified network (2.4GHz)
+     * Case #28    low signal network can not be Qualified network (2.4GHz)
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and current connected to test2
@@ -1266,7 +1359,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #27    Choose current network due to current network bonus
+     * Case #29    Choose current network due to current network bonus
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and current connected to test2
@@ -1313,7 +1406,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #28    choose another network due to current network's signal is too low
+     * Case #30    choose another network due to current network's signal is too low
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and current connected to test2
@@ -1359,7 +1452,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #29    Choose current BSSID due to current BSSID bonus
+     * Case #31    Choose current BSSID due to current BSSID bonus
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and current connected to test2
@@ -1410,7 +1503,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * Case #30    Choose another BSSID due to current BSSID's rssi is too low
+     * Case #32    Choose another BSSID due to current BSSID's rssi is too low
      *
      * In this test. we simulate following scenario:
      * WifiStateMachine is under connected state and current connected to test2

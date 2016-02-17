@@ -31,8 +31,10 @@ import com.android.internal.R;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 class WifiQualifiedNetworkSelector {
     private WifiConfigStore mWifiConfigStore;
@@ -72,6 +74,8 @@ class WifiQualifiedNetworkSelector {
     public static final int LAST_SELECTION_AWARD = 480;
     public static final int PASSPOINT_SECURITY_AWARD = 40;
     public static final int SECURITY_AWARD = 80;
+    public static final int BSSID_BLACKLIST_THRESHOLD = 3;
+    public static final int BSSID_BLACKLIST_EXPIRE_TIME = 30 * 60 * 1000;
     private final int mNoIntnetPenalty;
     //TODO: check whether we still need this one when we update the scan manager
     public static final int SCAN_RESULT_MAXIMUNM_AGE = 40000;
@@ -87,7 +91,19 @@ class WifiQualifiedNetworkSelector {
     private int mPasspointSecurityAward = PASSPOINT_SECURITY_AWARD;
     private int mSecurityAward = SECURITY_AWARD;
     private int mUserPreferedBand = WifiManager.WIFI_FREQUENCY_BAND_AUTO;
-    private HashSet<String> mBssidBlacklist = new HashSet<String>();
+    private Map<String, BssidBlacklistStatus> mBssidBlacklist =
+            new HashMap<String, BssidBlacklistStatus>();
+
+    /**
+     * class save the blacklist status of a given BSSID
+     */
+    private static class BssidBlacklistStatus {
+        //how many times it is requested to be blacklisted (association rejection trigger this)
+        int mCounter;
+        boolean mIsBlacklisted;
+        long mBlacklistedTimeStamp = INVALID_TIME_STAMP;
+    }
+
     private void qnsLog(String log) {
         if (mDbg) {
             mLocalLog.log(log);
@@ -512,16 +528,49 @@ class WifiQualifiedNetworkSelector {
      * @param enable -- true enable a bssid if it has been disabled
      *               -- false disable a bssid
      */
-    public boolean enableBssidForQualitynetworkSelection(String bssid, boolean enable) {
+    public boolean enableBssidForQualityNetworkSelection(String bssid, boolean enable) {
         if (enable) {
-            return mBssidBlacklist.remove(bssid);
+            return (mBssidBlacklist.remove(bssid) != null);
         } else {
             if (bssid != null) {
-                mBssidBlacklist.add(bssid);
-                return true;
+                BssidBlacklistStatus status = mBssidBlacklist.get(bssid);
+                if (status == null) {
+                    //first time
+                    BssidBlacklistStatus newStatus = new BssidBlacklistStatus();
+                    newStatus.mCounter++;
+                    mBssidBlacklist.put(bssid, newStatus);
+                } else if (!status.mIsBlacklisted) {
+                    status.mCounter++;
+                    if (status.mCounter >= BSSID_BLACKLIST_THRESHOLD) {
+                        status.mIsBlacklisted = true;
+                        status.mBlacklistedTimeStamp = mClock.currentTimeMillis();
+                        return true;
+                    }
+                }
             }
         }
         return false;
+    }
+
+    /**
+     * update the buffered BSSID blacklist
+     *
+     * Go through the whole buffered BSSIDs blacklist and check when the BSSIDs is blocked. If they
+     * were blacked before BSSID_BLACKLIST_EXPIRE_TIME, re-enable it again.
+     */
+    private void updateBssidBlacklist() {
+        Set<String> keys = mBssidBlacklist.keySet();
+        if (keys != null && keys.size() > 0) {
+            for (String bssid : keys) {
+                BssidBlacklistStatus status = mBssidBlacklist.get(bssid);
+                if (status != null && status.mIsBlacklisted) {
+                    if (mClock.currentTimeMillis() - status.mBlacklistedTimeStamp
+                            >= BSSID_BLACKLIST_EXPIRE_TIME) {
+                        enableBssidForQualityNetworkSelection(bssid, true);
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -531,7 +580,8 @@ class WifiQualifiedNetworkSelector {
      *         false -- bssid is not disabled
      */
     public boolean isBssidDisabled(String bssid) {
-        return mBssidBlacklist.contains(bssid);
+        BssidBlacklistStatus status = mBssidBlacklist.get(bssid);
+        return status == null ? false : status.mIsBlacklisted;
     }
 
     /**
@@ -595,6 +645,7 @@ class WifiQualifiedNetworkSelector {
         }
 
         updateSavedNetworkSelectionStatus();
+        updateBssidBlacklist();
 
         StringBuffer lowSignalScan = new StringBuffer();
         StringBuffer notSavedScan = new StringBuffer();
