@@ -19,10 +19,8 @@ package com.android.server.wifi.nan;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventListener;
 import android.net.wifi.nan.IWifiNanSessionListener;
-import android.net.wifi.nan.PublishData;
-import android.net.wifi.nan.PublishSettings;
-import android.net.wifi.nan.SubscribeData;
-import android.net.wifi.nan.SubscribeSettings;
+import android.net.wifi.nan.PublishConfig;
+import android.net.wifi.nan.SubscribeConfig;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -76,10 +74,6 @@ public class WifiNanStateManager {
 
     private static final String MESSAGE_BUNDLE_KEY_SESSION_ID = "session_id";
     private static final String MESSAGE_BUNDLE_KEY_EVENTS = "events";
-    private static final String MESSAGE_BUNDLE_KEY_PUBLISH_DATA = "publish_data";
-    private static final String MESSAGE_BUNDLE_KEY_PUBLISH_SETTINGS = "publish_settings";
-    private static final String MESSAGE_BUNDLE_KEY_SUBSCRIBE_DATA = "subscribe_data";
-    private static final String MESSAGE_BUNDLE_KEY_SUBSCRIBE_SETTINGS = "subscribe_settings";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE = "message";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_PEER_ID = "message_peer_id";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_ID = "message_id";
@@ -202,16 +196,11 @@ public class WifiNanStateManager {
      * Place a request to start a new publish discovery on a session on the
      * handler queue.
      */
-    public void publish(int clientId, int sessionId, PublishData publishData,
-            PublishSettings publishSettings) {
-        Bundle data = new Bundle();
-        data.putParcelable(MESSAGE_BUNDLE_KEY_PUBLISH_DATA, publishData);
-        data.putParcelable(MESSAGE_BUNDLE_KEY_PUBLISH_SETTINGS, publishSettings);
-
+    public void publish(int clientId, int sessionId, PublishConfig publishConfig) {
         Message msg = mHandler.obtainMessage(MESSAGE_PUBLISH);
-        msg.setData(data);
         msg.arg1 = clientId;
         msg.arg2 = sessionId;
+        msg.obj = publishConfig;
         mHandler.sendMessage(msg);
     }
 
@@ -219,16 +208,11 @@ public class WifiNanStateManager {
      * Place a request to start a new subscribe discovery on a session on the
      * handler queue.
      */
-    public void subscribe(int clientId, int sessionId, SubscribeData subscribeData,
-            SubscribeSettings subscribeSettings) {
-        Bundle data = new Bundle();
-        data.putParcelable(MESSAGE_BUNDLE_KEY_SUBSCRIBE_DATA, subscribeData);
-        data.putParcelable(MESSAGE_BUNDLE_KEY_SUBSCRIBE_SETTINGS, subscribeSettings);
-
+    public void subscribe(int clientId, int sessionId, SubscribeConfig subscribeConfig) {
         Message msg = mHandler.obtainMessage(MESSAGE_SUBSCRIBE);
-        msg.setData(data);
         msg.arg1 = clientId;
         msg.arg2 = sessionId;
+        msg.obj = subscribeConfig;
         mHandler.sendMessage(msg);
     }
 
@@ -502,31 +486,11 @@ public class WifiNanStateManager {
                     break;
                 }
                 case MESSAGE_PUBLISH: {
-                    Bundle data = msg.getData();
-                    PublishData publishData = (PublishData) data
-                            .getParcelable(MESSAGE_BUNDLE_KEY_PUBLISH_DATA);
-                    PublishSettings publishSettings = (PublishSettings) data
-                            .getParcelable(MESSAGE_BUNDLE_KEY_PUBLISH_SETTINGS);
-                    if (VDBG) {
-                        Log.d(TAG,
-                                "Publish: data='" + publishData + "', settings=" + publishSettings);
-                    }
-
-                    publishLocal(msg.arg1, msg.arg2, publishData, publishSettings);
+                    publishLocal(msg.arg1, msg.arg2, (PublishConfig) msg.obj);
                     break;
                 }
                 case MESSAGE_SUBSCRIBE: {
-                    Bundle data = msg.getData();
-                    SubscribeData subscribeData = (SubscribeData) data
-                            .getParcelable(MESSAGE_BUNDLE_KEY_SUBSCRIBE_DATA);
-                    SubscribeSettings subscribeSettings = (SubscribeSettings) data
-                            .getParcelable(MESSAGE_BUNDLE_KEY_SUBSCRIBE_SETTINGS);
-                    if (VDBG) {
-                        Log.d(TAG, "Subscribe: data='" + subscribeData + "', settings="
-                                + subscribeSettings);
-                    }
-
-                    subscribeLocal(msg.arg1, msg.arg2, subscribeData, subscribeSettings);
+                    subscribeLocal(msg.arg1, msg.arg2, (SubscribeConfig) msg.obj);
                     break;
                 }
                 case MESSAGE_SEND_MESSAGE: {
@@ -855,28 +819,26 @@ public class WifiNanStateManager {
         client.destroySession(sessionId);
     }
 
-    private void publishLocal(int clientId, int sessionId, PublishData publishData,
-            PublishSettings publishSettings) {
+    private void publishLocal(int clientId, int sessionId, PublishConfig publishConfig) {
         if (VDBG) {
-            Log.v(TAG, "publish(): clientId=" + clientId + ", sessionId=" + sessionId + ", data="
-                    + publishData + ", settings=" + publishSettings);
+            Log.v(TAG, "publish(): clientId=" + clientId + ", sessionId=" + sessionId + ", config="
+                    + publishConfig);
         }
 
         TransactionInfoSession info = createTransactionInfoSession(clientId, sessionId);
 
-        info.mSession.publish(info.mTransactionId, publishData, publishSettings);
+        info.mSession.publish(info.mTransactionId, publishConfig);
     }
 
-    private void subscribeLocal(int clientId, int sessionId, SubscribeData subscribeData,
-            SubscribeSettings subscribeSettings) {
+    private void subscribeLocal(int clientId, int sessionId, SubscribeConfig subscribeConfig) {
         if (VDBG) {
-            Log.v(TAG, "subscribe(): clientId=" + clientId + ", sessionId=" + sessionId + ", data="
-                    + subscribeData + ", settings=" + subscribeSettings);
+            Log.v(TAG, "subscribe(): clientId=" + clientId + ", sessionId=" + sessionId
+                    + ", config=" + subscribeConfig);
         }
 
         TransactionInfoSession info = createTransactionInfoSession(clientId, sessionId);
 
-        info.mSession.subscribe(info.mTransactionId, subscribeData, subscribeSettings);
+        info.mSession.subscribe(info.mTransactionId, subscribeConfig);
     }
 
     private void sendFollowonMessageLocal(int clientId, int sessionId, int peerId, byte[] message,

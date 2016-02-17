@@ -22,10 +22,8 @@ import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventListener;
 import android.net.wifi.nan.IWifiNanManager;
 import android.net.wifi.nan.IWifiNanSessionListener;
-import android.net.wifi.nan.PublishData;
-import android.net.wifi.nan.PublishSettings;
-import android.net.wifi.nan.SubscribeData;
-import android.net.wifi.nan.SubscribeSettings;
+import android.net.wifi.nan.PublishConfig;
+import android.net.wifi.nan.SubscribeConfig;
 import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -211,8 +209,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
-    public void publish(int clientId, int sessionId, PublishData publishData,
-            PublishSettings publishSettings) {
+    public void publish(int clientId, int sessionId, PublishConfig publishConfig) {
         enforceAccessPermission();
         enforceChangePermission();
 
@@ -220,15 +217,14 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceClientValidity(uid, clientId);
         if (VDBG) {
             Log.v(TAG, "publish: uid=" + uid + ", clientId=" + clientId + ", sessionId=" + sessionId
-                    + ", data='" + publishData + "', settings=" + publishSettings);
+                    + ", config=" + publishConfig);
         }
 
-        mStateManager.publish(clientId, sessionId, publishData, publishSettings);
+        mStateManager.publish(clientId, sessionId, publishConfig);
     }
 
     @Override
-    public void subscribe(int clientId, int sessionId, SubscribeData subscribeData,
-            SubscribeSettings subscribeSettings) {
+    public void subscribe(int clientId, int sessionId, SubscribeConfig subscribeConfig) {
         enforceAccessPermission();
         enforceChangePermission();
 
@@ -236,10 +232,10 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceClientValidity(uid, clientId);
         if (VDBG) {
             Log.v(TAG, "subscribe: uid=" + uid + ", clientId=" + clientId + ", sessionId="
-                    + sessionId + ", data='" + subscribeData + "', settings=" + subscribeSettings);
+                    + sessionId + ", config=" + subscribeConfig);
         }
 
-        mStateManager.subscribe(clientId, sessionId, subscribeData, subscribeSettings);
+        mStateManager.subscribe(clientId, sessionId, subscribeConfig);
     }
 
     @Override

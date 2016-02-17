@@ -17,10 +17,8 @@
 package com.android.server.wifi.nan;
 
 import android.net.wifi.nan.IWifiNanSessionListener;
-import android.net.wifi.nan.PublishData;
-import android.net.wifi.nan.PublishSettings;
-import android.net.wifi.nan.SubscribeData;
-import android.net.wifi.nan.SubscribeSettings;
+import android.net.wifi.nan.PublishConfig;
+import android.net.wifi.nan.SubscribeConfig;
 import android.net.wifi.nan.WifiNanSessionListener;
 import android.os.RemoteException;
 import android.util.Log;
@@ -95,17 +93,15 @@ public class WifiNanSessionState {
      *
      * @param transactionId Transaction ID for the transaction - used in the
      *            async callback to match with the original request.
-     * @param data Data configuring the publish session.
-     * @param settings Settings configuring the publish session.
+     * @param config Configuration of the publish session.
      */
-    public void publish(short transactionId, PublishData data, PublishSettings settings) {
+    public void publish(short transactionId, PublishConfig config) {
         if (mSessionType == SESSION_TYPE_SUBSCRIBE) {
             throw new IllegalStateException("A SUBSCRIBE session is being used for publish");
         }
         mSessionType = SESSION_TYPE_PUBLISH;
 
-        WifiNanNative.getInstance().publish(transactionId, mPubSubIdValid ? mPubSubId : 0, data,
-                settings);
+        WifiNanNative.getInstance().publish(transactionId, mPubSubIdValid ? mPubSubId : 0, config);
     }
 
     /**
@@ -113,17 +109,16 @@ public class WifiNanSessionState {
      *
      * @param transactionId Transaction ID for the transaction - used in the
      *            async callback to match with the original request.
-     * @param data Data configuring the subscribe session.
-     * @param settings Settings configuring the subscribe session.
+     * @param config Configuration of the subscribe session.
      */
-    public void subscribe(short transactionId, SubscribeData data, SubscribeSettings settings) {
+    public void subscribe(short transactionId, SubscribeConfig config) {
         if (mSessionType == SESSION_TYPE_PUBLISH) {
             throw new IllegalStateException("A PUBLISH session is being used for publish");
         }
         mSessionType = SESSION_TYPE_SUBSCRIBE;
 
-        WifiNanNative.getInstance().subscribe(transactionId, mPubSubIdValid ? mPubSubId : 0, data,
-                settings);
+        WifiNanNative.getInstance().subscribe(transactionId, mPubSubIdValid ? mPubSubId : 0,
+                config);
     }
 
     /**

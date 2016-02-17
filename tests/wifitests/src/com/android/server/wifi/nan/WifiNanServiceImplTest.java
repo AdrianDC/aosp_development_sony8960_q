@@ -29,10 +29,8 @@ import android.content.pm.PackageManager;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventListener;
 import android.net.wifi.nan.IWifiNanSessionListener;
-import android.net.wifi.nan.PublishData;
-import android.net.wifi.nan.PublishSettings;
-import android.net.wifi.nan.SubscribeData;
-import android.net.wifi.nan.SubscribeSettings;
+import android.net.wifi.nan.PublishConfig;
+import android.net.wifi.nan.SubscribeConfig;
 import android.net.wifi.nan.WifiNanEventListener;
 import android.net.wifi.nan.WifiNanSessionListener;
 import android.os.IBinder;
@@ -246,13 +244,12 @@ public class WifiNanServiceImplTest {
     @Test
     public void testPublish() {
         int sessionId = 1024;
-        PublishData publishData = new PublishData.Builder().build();
-        PublishSettings publishSettings = new PublishSettings.Builder().build();
+        PublishConfig publishConfig = new PublishConfig.Builder().build();
         int clientId = doConnect();
 
-        mDut.publish(clientId, sessionId, publishData, publishSettings);
+        mDut.publish(clientId, sessionId, publishConfig);
 
-        verify(mNanStateManagerMock).publish(clientId, sessionId, publishData, publishSettings);
+        verify(mNanStateManagerMock).publish(clientId, sessionId, publishConfig);
     }
 
     /**
@@ -261,14 +258,12 @@ public class WifiNanServiceImplTest {
     @Test
     public void testSubscribe() {
         int sessionId = 2678;
-        SubscribeData subscribeData = new SubscribeData.Builder().build();
-        SubscribeSettings subscribeSettings = new SubscribeSettings.Builder().build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
         int clientId = doConnect();
 
-        mDut.subscribe(clientId, sessionId, subscribeData, subscribeSettings);
+        mDut.subscribe(clientId, sessionId, subscribeConfig);
 
-        verify(mNanStateManagerMock).subscribe(clientId, sessionId, subscribeData,
-                subscribeSettings);
+        verify(mNanStateManagerMock).subscribe(clientId, sessionId, subscribeConfig);
     }
 
     /**
