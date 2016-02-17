@@ -1481,8 +1481,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     private class WifiLock extends DeathRecipient {
+        int mMode;
+        WorkSource mWorkSource;
+
         WifiLock(int lockMode, String tag, IBinder binder, WorkSource ws) {
-            super(lockMode, tag, binder, ws);
+            super(tag, binder);
+            mMode = lockMode;
+            mWorkSource = ws;
         }
 
         public void binderDied() {
@@ -1492,7 +1497,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
 
         public String toString() {
-            return "WifiLock{" + mTag + " type=" + mMode + " binder=" + mBinder + "}";
+            return "WifiLock{" + mTag + " type=" + mMode + " uid=" + mUid + "}";
         }
     }
 
@@ -1715,16 +1720,14 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private abstract class DeathRecipient
             implements IBinder.DeathRecipient {
         String mTag;
-        int mMode;
+        int mUid;
         IBinder mBinder;
-        WorkSource mWorkSource;
 
-        DeathRecipient(int mode, String tag, IBinder binder, WorkSource ws) {
+        DeathRecipient(String tag, IBinder binder) {
             super();
             mTag = tag;
-            mMode = mode;
+            mUid = Binder.getCallingUid();
             mBinder = binder;
-            mWorkSource = ws;
             try {
                 mBinder.linkToDeath(this, 0);
             } catch (RemoteException e) {
@@ -1735,11 +1738,15 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         void unlinkDeathRecipient() {
             mBinder.unlinkToDeath(this, 0);
         }
+
+        public int getUid() {
+            return mUid;
+        }
     }
 
     private class Multicaster extends DeathRecipient {
         Multicaster(String tag, IBinder binder) {
-            super(Binder.getCallingUid(), tag, binder, null);
+            super(tag, binder);
         }
 
         public void binderDied() {
@@ -1747,17 +1754,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             synchronized (mMulticasters) {
                 int i = mMulticasters.indexOf(this);
                 if (i != -1) {
-                    removeMulticasterLocked(i, mMode);
+                    removeMulticasterLocked(i, mUid);
                 }
             }
         }
 
         public String toString() {
-            return "Multicaster{" + mTag + " binder=" + mBinder + "}";
-        }
-
-        public int getUid() {
-            return mMode;
+            return "Multicaster{" + mTag + " uid=" + mUid  + "}";
         }
     }
 
