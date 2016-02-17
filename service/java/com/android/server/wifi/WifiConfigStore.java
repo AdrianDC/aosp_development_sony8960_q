@@ -3991,6 +3991,31 @@ public class WifiConfigStore extends IpConfigStore {
         return false;
     }
 
+    static boolean isSimConfig(WifiConfiguration config) {
+        if (config == null) {
+            return false;
+        }
+
+        if (config.enterpriseConfig == null) {
+            return false;
+        }
+
+        int method = config.enterpriseConfig.getEapMethod();
+        return (method == WifiEnterpriseConfig.Eap.SIM
+                || method == WifiEnterpriseConfig.Eap.AKA
+                || method == WifiEnterpriseConfig.Eap.AKA_PRIME);
+    }
+
+    void resetSimNetworks() {
+        for(WifiConfiguration config : mConfiguredNetworks.values()) {
+            if (isSimConfig(config)) {
+                /* This configuration may have cached Pseudonym IDs; lets remove them */
+                mWifiNative.setNetworkVariable(config.networkId, "identity", "NULL");
+                mWifiNative.setNetworkVariable(config.networkId, "anonymous_identity", "NULL");
+            }
+        }
+    }
+
     boolean isNetworkConfigured(WifiConfiguration config) {
         // Check if either we have a network Id or a WifiConfiguration
         // matching the one we are trying to add.

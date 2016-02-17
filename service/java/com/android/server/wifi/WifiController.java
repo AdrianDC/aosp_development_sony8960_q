@@ -102,19 +102,20 @@ class WifiController extends StateMachine {
 
     private static final int BASE = Protocol.BASE_WIFI_CONTROLLER;
 
-    static final int CMD_EMERGENCY_MODE_CHANGED     = BASE + 1;
-    static final int CMD_SCREEN_ON                  = BASE + 2;
-    static final int CMD_SCREEN_OFF                 = BASE + 3;
-    static final int CMD_BATTERY_CHANGED            = BASE + 4;
-    static final int CMD_DEVICE_IDLE                = BASE + 5;
-    static final int CMD_LOCKS_CHANGED              = BASE + 6;
-    static final int CMD_SCAN_ALWAYS_MODE_CHANGED   = BASE + 7;
-    static final int CMD_WIFI_TOGGLED               = BASE + 8;
-    static final int CMD_AIRPLANE_TOGGLED           = BASE + 9;
-    static final int CMD_SET_AP                     = BASE + 10;
-    static final int CMD_DEFERRED_TOGGLE            = BASE + 11;
-    static final int CMD_USER_PRESENT               = BASE + 12;
-    static final int CMD_AP_START_FAILURE           = BASE + 13;
+    static final int CMD_EMERGENCY_MODE_CHANGED       = BASE + 1;
+    static final int CMD_SCREEN_ON                    = BASE + 2;
+    static final int CMD_SCREEN_OFF                   = BASE + 3;
+    static final int CMD_BATTERY_CHANGED              = BASE + 4;
+    static final int CMD_DEVICE_IDLE                  = BASE + 5;
+    static final int CMD_LOCKS_CHANGED                = BASE + 6;
+    static final int CMD_SCAN_ALWAYS_MODE_CHANGED     = BASE + 7;
+    static final int CMD_WIFI_TOGGLED                 = BASE + 8;
+    static final int CMD_AIRPLANE_TOGGLED             = BASE + 9;
+    static final int CMD_SET_AP                       = BASE + 10;
+    static final int CMD_DEFERRED_TOGGLE              = BASE + 11;
+    static final int CMD_USER_PRESENT                 = BASE + 12;
+    static final int CMD_AP_START_FAILURE             = BASE + 13;
+    static final int CMD_EMERGENCY_CALL_STATE_CHANGED = BASE + 14;
 
     private static final int WIFI_DISABLED = 0;
     private static final int WIFI_ENABLED = 1;
@@ -384,6 +385,7 @@ class WifiController extends StateMachine {
                 case CMD_WIFI_TOGGLED:
                 case CMD_AIRPLANE_TOGGLED:
                 case CMD_EMERGENCY_MODE_CHANGED:
+                case CMD_EMERGENCY_CALL_STATE_CHANGED:
                 case CMD_AP_START_FAILURE:
                     break;
                 case CMD_USER_PRESENT:
@@ -511,6 +513,7 @@ class WifiController extends StateMachine {
                         transitionTo(mApStaDisabledState);
                     }
                     break;
+                case CMD_EMERGENCY_CALL_STATE_CHANGED:
                 case CMD_EMERGENCY_MODE_CHANGED:
                     if (msg.arg1 == 1) {
                         transitionTo(mEcmState);
@@ -650,6 +653,7 @@ class WifiController extends StateMachine {
                         }
                     }
                     break;
+                case CMD_EMERGENCY_CALL_STATE_CHANGED:
                 case CMD_EMERGENCY_MODE_CHANGED:
                     if (msg.arg1 == 1) {
                         mWifiStateMachine.setHostApRunning(null, false);
@@ -670,15 +674,55 @@ class WifiController extends StateMachine {
     }
 
     class EcmState extends State {
+        // we can enter EcmState either because an emergency call started or because
+        // emergency callback mode started. This count keeps track of how many such
+        // events happened; so we can exit after all are undone
+
+        private int mEcmEntryCount;
         @Override
         public void enter() {
             mWifiStateMachine.setSupplicantRunning(false);
             mWifiStateMachine.clearANQPCache();
+            mEcmEntryCount = 1;
         }
 
         @Override
         public boolean processMessage(Message msg) {
-            if (msg.what == CMD_EMERGENCY_MODE_CHANGED && msg.arg1 == 0) {
+            if (msg.what == CMD_EMERGENCY_CALL_STATE_CHANGED) {
+                if (msg.arg1 == 1) {
+                    // nothing to do - just says emergency call started
+                    mEcmEntryCount++;
+                } else if (msg.arg1 == 0) {
+                    // emergency call ended
+                    decrementCountAndReturnToAppropriateState();
+                }
+                return HANDLED;
+            } else if (msg.what == CMD_EMERGENCY_MODE_CHANGED) {
+
+                if (msg.arg1 == 1) {
+                    // Transitioned into emergency callback mode
+                    mEcmEntryCount++;
+                } else if (msg.arg1 == 0) {
+                    // out of emergency callback mode
+                    decrementCountAndReturnToAppropriateState();
+                }
+                return HANDLED;
+            } else {
+                return NOT_HANDLED;
+            }
+        }
+
+        private void decrementCountAndReturnToAppropriateState() {
+            boolean exitEcm = false;
+
+            if (mEcmEntryCount == 0) {
+                loge("mEcmEntryCount is 0; exiting Ecm");
+                exitEcm = true;
+            } else if (--mEcmEntryCount == 0) {
+                exitEcm = true;
+            }
+
+            if (exitEcm) {
                 if (mSettingsStore.isWifiToggleEnabled()) {
                     if (mDeviceIdle == false) {
                         transitionTo(mDeviceActiveState);
@@ -690,9 +734,6 @@ class WifiController extends StateMachine {
                 } else {
                     transitionTo(mApStaDisabledState);
                 }
-                return HANDLED;
-            } else {
-                return NOT_HANDLED;
             }
         }
     }

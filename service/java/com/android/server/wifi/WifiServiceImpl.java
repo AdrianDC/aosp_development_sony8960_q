@@ -70,6 +70,7 @@ import android.util.Slog;
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.telephony.IccCardConstants;
+import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
 import com.android.server.am.BatteryStatsService;
@@ -99,6 +100,7 @@ import java.util.List;
 
 import static com.android.server.wifi.WifiController.CMD_AIRPLANE_TOGGLED;
 import static com.android.server.wifi.WifiController.CMD_BATTERY_CHANGED;
+import static com.android.server.wifi.WifiController.CMD_EMERGENCY_CALL_STATE_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_MODE_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_LOCKS_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_SCAN_ALWAYS_MODE_CHANGED;
@@ -373,6 +375,8 @@ public final class WifiServiceImpl extends IWifiManager.Stub {
                     public void onReceive(Context context, Intent intent) {
                         String state = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
                         if (state.equals(IccCardConstants.INTENT_VALUE_ICC_ABSENT)) {
+                            Log.d(TAG, "resetting networks because SIM was removed");
+                            mWifiStateMachine.resetSimAuthNetworks();
                             Log.d(TAG, "resetting country code because SIM is removed");
                             mWifiStateMachine.resetCountryCode();
                         }
@@ -1392,6 +1396,9 @@ public final class WifiServiceImpl extends IWifiManager.Stub {
             } else if (action.equals(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED)) {
                 boolean emergencyMode = intent.getBooleanExtra("phoneinECMState", false);
                 mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, emergencyMode ? 1 : 0, 0);
+            } else if (action.equals(TelephonyIntents.ACTION_EMERGENCY_CALL_STATE_CHANGED)) {
+                boolean inCall = intent.getBooleanExtra(PhoneConstants.PHONE_IN_EMERGENCY_CALL, false);
+                mWifiController.sendMessage(CMD_EMERGENCY_CALL_STATE_CHANGED, inCall ? 1 : 0, 0);
             } else if (action.equals(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED)) {
                 handleIdleModeChanged();
             }
@@ -1425,6 +1432,13 @@ public final class WifiServiceImpl extends IWifiManager.Stub {
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
         intentFilter.addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED);
+
+        boolean trackEmergencyCallState = mContext.getResources().getBoolean(
+                com.android.internal.R.bool.config_wifi_turn_off_during_emergency_call);
+        if (trackEmergencyCallState) {
+            intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALL_STATE_CHANGED);
+        }
+
         mContext.registerReceiver(mReceiver, intentFilter);
     }
 
