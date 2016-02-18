@@ -25,10 +25,8 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.content.res.Resources;
-import android.net.BaseDhcpStateMachine;
 import android.net.ConnectivityManager;
 import android.net.DhcpResults;
-import android.net.DhcpStateMachine;
 import android.net.InterfaceConfiguration;
 import android.net.LinkAddress;
 import android.net.NetworkInfo;
@@ -111,7 +109,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
     private Notification mNotification;
 
     INetworkManagementService mNwService;
-    private BaseDhcpStateMachine mDhcpClient;
+    private DhcpClient mDhcpClient;
 
     private P2pStateMachine mP2pStateMachine;
     private AsyncChannel mReplyChannel = new AsyncChannel();
@@ -784,9 +782,9 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                 case DROP_WIFI_USER_REJECT:
                 case GROUP_CREATING_TIMED_OUT:
                 case DISABLE_P2P_TIMED_OUT:
-                case DhcpStateMachine.CMD_PRE_DHCP_ACTION:
-                case DhcpStateMachine.CMD_POST_DHCP_ACTION:
-                case DhcpStateMachine.CMD_ON_QUIT:
+                case DhcpClient.CMD_PRE_DHCP_ACTION:
+                case DhcpClient.CMD_POST_DHCP_ACTION:
+                case DhcpClient.CMD_ON_QUIT:
                 case WifiMonitor.P2P_PROV_DISC_FAILURE_EVENT:
                 case SET_MIRACAST_MODE:
                 case WifiP2pManager.START_LISTEN:
@@ -1719,11 +1717,11 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         startDhcpServer(mGroup.getInterface());
                     } else {
                         mWifiNative.setP2pGroupIdle(mGroup.getInterface(), GROUP_IDLE_TIME_S);
-                        mDhcpClient = DhcpClient.makeDhcpStateMachine(mContext,
+                        mDhcpClient = DhcpClient.makeDhcpClient(mContext,
                                 P2pStateMachine.this, mGroup.getInterface());
                         // TODO: We should use DHCP state machine PRE message like WifiStateMachine
                         mWifiNative.setP2pPowerSave(mGroup.getInterface(), false);
-                        mDhcpClient.sendMessage(DhcpStateMachine.CMD_START_DHCP);
+                        mDhcpClient.sendMessage(DhcpClient.CMD_START_DHCP);
                         WifiP2pDevice groupOwner = mGroup.getOwner();
                         WifiP2pDevice peer = mPeers.get(groupOwner.deviceAddress);
                         if (peer != null) {
@@ -1966,9 +1964,9 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         loge("Disconnect on unknown device: " + device);
                     }
                     break;
-                case DhcpStateMachine.CMD_POST_DHCP_ACTION:
+                case DhcpClient.CMD_POST_DHCP_ACTION:
                     DhcpResults dhcpResults = (DhcpResults) message.obj;
-                    if (message.arg1 == DhcpStateMachine.DHCP_SUCCESS &&
+                    if (message.arg1 == DhcpClient.DHCP_SUCCESS &&
                             dhcpResults != null) {
                         if (DBG) logd("DhcpResults: " + dhcpResults);
                         setWifiP2pInfoOnGroupFormation(dhcpResults.serverAddress);
@@ -2837,7 +2835,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             stopDhcpServer(mGroup.getInterface());
         } else {
             if (DBG) logd("stop DHCP client");
-            mDhcpClient.sendMessage(DhcpStateMachine.CMD_STOP_DHCP);
+            mDhcpClient.sendMessage(DhcpClient.CMD_STOP_DHCP);
             mDhcpClient.doQuit();
             mDhcpClient = null;
             try {

@@ -44,7 +44,6 @@ import android.content.pm.UserInfo;
 import android.database.ContentObserver;
 import android.net.ConnectivityManager;
 import android.net.DhcpResults;
-import android.net.DhcpStateMachine;
 import android.net.InterfaceConfiguration;
 import android.net.LinkAddress;
 import android.net.LinkProperties;
@@ -58,6 +57,7 @@ import android.net.NetworkRequest;
 import android.net.NetworkUtils;
 import android.net.RouteInfo;
 import android.net.StaticIpConfiguration;
+import android.net.dhcp.DhcpClient;
 import android.net.ip.IpManager;
 import android.net.wifi.PasspointManagementObjectDefinition;
 import android.net.wifi.RssiPacketCountInfo;
@@ -1421,12 +1421,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
     class IpManagerCallback extends IpManager.Callback {
         @Override
         public void onPreDhcpAction() {
-            sendMessage(DhcpStateMachine.CMD_PRE_DHCP_ACTION);
+            sendMessage(DhcpClient.CMD_PRE_DHCP_ACTION);
         }
 
         @Override
         public void onPostDhcpAction() {
-            sendMessage(DhcpStateMachine.CMD_POST_DHCP_ACTION);
+            sendMessage(DhcpClient.CMD_POST_DHCP_ACTION);
         }
 
         @Override
@@ -3285,7 +3285,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 sb.append(Integer.toString(msg.arg2));
                 sb.append(" num=").append(mWifiConfigStore.getConfiguredNetworksSize());
                 break;
-            case DhcpStateMachine.CMD_PRE_DHCP_ACTION:
+            case DhcpClient.CMD_PRE_DHCP_ACTION:
                 sb.append(" ");
                 sb.append(Integer.toString(msg.arg1));
                 sb.append(" ");
@@ -3294,14 +3294,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 sb.append(",").append(mWifiInfo.txBad);
                 sb.append(",").append(mWifiInfo.txRetries);
                 break;
-            case DhcpStateMachine.CMD_POST_DHCP_ACTION:
+            case DhcpClient.CMD_POST_DHCP_ACTION:
                 sb.append(" ");
                 sb.append(Integer.toString(msg.arg1));
                 sb.append(" ");
                 sb.append(Integer.toString(msg.arg2));
-                if (msg.arg1 == DhcpStateMachine.DHCP_SUCCESS) {
+                if (msg.arg1 == DhcpClient.DHCP_SUCCESS) {
                     sb.append(" OK ");
-                } else if (msg.arg1 == DhcpStateMachine.DHCP_FAILURE) {
+                } else if (msg.arg1 == DhcpClient.DHCP_FAILURE) {
                     sb.append(" FAIL ");
                 }
                 if (mLinkProperties != null) {
@@ -3398,7 +3398,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 break;
             case CMD_IPV4_PROVISIONING_SUCCESS:
                 sb.append(" ");
-                if (msg.arg1 == DhcpStateMachine.DHCP_SUCCESS) {
+                if (msg.arg1 == DhcpClient.DHCP_SUCCESS) {
                     sb.append("DHCP_OK");
                 } else if (msg.arg1 == CMD_STATIC_IP_SUCCESS) {
                     sb.append("STATIC_OK");
@@ -3408,7 +3408,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 break;
             case CMD_IPV4_PROVISIONING_FAILURE:
                 sb.append(" ");
-                if (msg.arg1 == DhcpStateMachine.DHCP_FAILURE) {
+                if (msg.arg1 == DhcpClient.DHCP_FAILURE) {
                     sb.append("DHCP_FAIL");
                 } else if (msg.arg1 == CMD_STATIC_IP_FAILURE) {
                     sb.append("STATIC_FAIL");
@@ -4886,7 +4886,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         Message msg = new Message();
         msg.what = WifiP2pServiceImpl.BLOCK_DISCOVERY;
         msg.arg1 = WifiP2pServiceImpl.ENABLED;
-        msg.arg2 = DhcpStateMachine.CMD_PRE_DHCP_ACTION_COMPLETE;
+        msg.arg2 = DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE;
         msg.obj = WifiStateMachine.this;
         mWifiP2pChannel.sendMessage(msg);
     }
@@ -5408,9 +5408,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 case CMD_SET_FREQUENCY_BAND:
                 case CMD_RSSI_POLL:
                 case CMD_ENABLE_ALL_NETWORKS:
-                case DhcpStateMachine.CMD_PRE_DHCP_ACTION:
-                case DhcpStateMachine.CMD_PRE_DHCP_ACTION_COMPLETE:
-                case DhcpStateMachine.CMD_POST_DHCP_ACTION:
+                case DhcpClient.CMD_PRE_DHCP_ACTION:
+                case DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE:
+                case DhcpClient.CMD_POST_DHCP_ACTION:
                 case CMD_NO_NETWORKS_PERIODIC_SCAN:
                 case CMD_DISABLE_P2P_RSP:
                 case WifiMonitor.SUP_REQUEST_IDENTITY:
@@ -6523,25 +6523,25 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             case CMD_BOOT_COMPLETED:
                 s = "CMD_BOOT_COMPLETED";
                 break;
-            case DhcpStateMachine.CMD_START_DHCP:
+            case DhcpClient.CMD_START_DHCP:
                 s = "CMD_START_DHCP";
                 break;
-            case DhcpStateMachine.CMD_STOP_DHCP:
+            case DhcpClient.CMD_STOP_DHCP:
                 s = "CMD_STOP_DHCP";
                 break;
-            case DhcpStateMachine.CMD_RENEW_DHCP:
+            case DhcpClient.CMD_RENEW_DHCP:
                 s = "CMD_RENEW_DHCP";
                 break;
-            case DhcpStateMachine.CMD_PRE_DHCP_ACTION:
+            case DhcpClient.CMD_PRE_DHCP_ACTION:
                 s = "CMD_PRE_DHCP_ACTION";
                 break;
-            case DhcpStateMachine.CMD_POST_DHCP_ACTION:
+            case DhcpClient.CMD_POST_DHCP_ACTION:
                 s = "CMD_POST_DHCP_ACTION";
                 break;
-            case DhcpStateMachine.CMD_PRE_DHCP_ACTION_COMPLETE:
+            case DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE:
                 s = "CMD_PRE_DHCP_ACTION_COMPLETE";
                 break;
-            case DhcpStateMachine.CMD_ON_QUIT:
+            case DhcpClient.CMD_ON_QUIT:
                 s = "CMD_ON_QUIT";
                 break;
             case WifiP2pServiceImpl.DISCONNECT_WIFI_REQUEST:
@@ -6757,10 +6757,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             case CMD_STATIC_IP_FAILURE:
                 s = "CMD_STATIC_IP_FAILURE";
                 break;
-            case DhcpStateMachine.DHCP_SUCCESS:
+            case DhcpClient.DHCP_SUCCESS:
                 s = "DHCP_SUCCESS";
                 break;
-            case DhcpStateMachine.DHCP_FAILURE:
+            case DhcpClient.DHCP_FAILURE:
                 s = "DHCP_FAILURE";
                 break;
             case CMD_TARGET_BSSID:
@@ -8102,13 +8102,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             logStateAndMessage(message, this);
 
             switch (message.what) {
-                case DhcpStateMachine.CMD_PRE_DHCP_ACTION:
+                case DhcpClient.CMD_PRE_DHCP_ACTION:
                     handlePreDhcpSetup();
                     break;
-                case DhcpStateMachine.CMD_PRE_DHCP_ACTION_COMPLETE:
+                case DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE:
                     mIpManager.completedPreDhcpAction();
                     break;
-                case DhcpStateMachine.CMD_POST_DHCP_ACTION:
+                case DhcpClient.CMD_POST_DHCP_ACTION:
                     handlePostDhcpSetup();
                     // We advance to mConnectedState because IpManager will also send a
                     // CMD_IPV4_PROVISIONING_SUCCESS message, which calls handleIPv4Success(),
