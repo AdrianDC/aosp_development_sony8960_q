@@ -19,9 +19,9 @@ package com.android.server.wifi.nan;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.wifi.nan.ConfigRequest;
-import android.net.wifi.nan.IWifiNanEventListener;
+import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanManager;
-import android.net.wifi.nan.IWifiNanSessionListener;
+import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
 import android.os.Binder;
@@ -81,7 +81,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
-    public int connect(final IBinder binder, IWifiNanEventListener listener, int events) {
+    public int connect(final IBinder binder, IWifiNanEventCallback callback, int events) {
         enforceAccessPermission();
         enforceChangePermission();
 
@@ -118,7 +118,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             Log.w(TAG, "Error on linkToDeath - " + e);
         }
 
-        mStateManager.connect(clientId, listener, events);
+        mStateManager.connect(clientId, callback, events);
 
         return clientId;
     }
@@ -190,7 +190,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
-    public int createSession(int clientId, IWifiNanSessionListener listener, int events) {
+    public int createSession(int clientId, IWifiNanSessionCallback callback, int events) {
         enforceAccessPermission();
         enforceChangePermission();
 
@@ -203,7 +203,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             sessionId = mNextSessionId++;
         }
 
-        mStateManager.createSession(clientId, sessionId, listener, events);
+        mStateManager.createSession(clientId, sessionId, callback, events);
 
         return sessionId;
     }

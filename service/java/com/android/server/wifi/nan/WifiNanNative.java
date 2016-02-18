@@ -19,7 +19,7 @@ package com.android.server.wifi.nan;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanSessionListener;
+import android.net.wifi.nan.WifiNanSessionCallback;
 import android.util.Log;
 
 import com.android.server.wifi.WifiNative;
@@ -451,12 +451,12 @@ public class WifiNanNative {
     private static int translateHalStatusToPublicStatus(int halStatus) {
         switch (halStatus) {
             case NAN_STATUS_NO_SPACE_AVAILABLE:
-                return WifiNanSessionListener.FAIL_REASON_NO_RESOURCES;
+                return WifiNanSessionCallback.FAIL_REASON_NO_RESOURCES;
 
             case NAN_STATUS_TIMEOUT:
             case NAN_STATUS_DE_FAILURE:
             case NAN_STATUS_DISABLE_IN_PROGRESS:
-                return WifiNanSessionListener.FAIL_REASON_OTHER;
+                return WifiNanSessionCallback.FAIL_REASON_OTHER;
 
             case NAN_STATUS_INVALID_MSG_VERSION:
             case NAN_STATUS_INVALID_MSG_LEN:
@@ -495,13 +495,13 @@ public class WifiNanNative {
             case NAN_STATUS_INVALID_POST_NAN_DISCOVERY_BITMAP_VALUE:
             case NAN_STATUS_MISSING_FUTHER_AVAILABILITY_MAP:
             case NAN_STATUS_INVALID_BAND_CONFIG_FLAGS:
-                return WifiNanSessionListener.FAIL_REASON_INVALID_ARGS;
+                return WifiNanSessionCallback.FAIL_REASON_INVALID_ARGS;
 
                 // publish/subscribe termination reasons
             case NAN_TERMINATED_REASON_TIMEOUT:
             case NAN_TERMINATED_REASON_USER_REQUEST:
             case NAN_TERMINATED_REASON_COUNT_REACHED:
-                return WifiNanSessionListener.TERMINATE_REASON_DONE;
+                return WifiNanSessionCallback.TERMINATE_REASON_DONE;
 
             case NAN_TERMINATED_REASON_INVALID:
             case NAN_TERMINATED_REASON_FAILURE:
@@ -510,10 +510,10 @@ public class WifiNanNative {
             case NAN_TERMINATED_REASON_POST_DISC_ATTR_EXPIRED:
             case NAN_TERMINATED_REASON_POST_DISC_LEN_EXCEEDED:
             case NAN_TERMINATED_REASON_FURTHER_AVAIL_MAP_EMPTY:
-                return WifiNanSessionListener.TERMINATE_REASON_FAIL;
+                return WifiNanSessionCallback.TERMINATE_REASON_FAIL;
         }
 
-        return WifiNanSessionListener.FAIL_REASON_OTHER;
+        return WifiNanSessionCallback.FAIL_REASON_OTHER;
     }
 
     // callback from native

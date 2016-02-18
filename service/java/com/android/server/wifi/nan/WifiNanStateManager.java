@@ -17,8 +17,8 @@
 package com.android.server.wifi.nan;
 
 import android.net.wifi.nan.ConfigRequest;
-import android.net.wifi.nan.IWifiNanEventListener;
-import android.net.wifi.nan.IWifiNanSessionListener;
+import android.net.wifi.nan.IWifiNanEventCallback;
+import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
 import android.os.Bundle;
@@ -128,11 +128,11 @@ public class WifiNanStateManager {
     /**
      * Place a request for a new client connection on the handler queue.
      */
-    public void connect(int clientId, IWifiNanEventListener listener, int events) {
+    public void connect(int clientId, IWifiNanEventCallback callback, int events) {
         Message msg = mHandler.obtainMessage(MESSAGE_CONNECT);
         msg.arg1 = clientId;
         msg.arg2 = events;
-        msg.obj = listener;
+        msg.obj = callback;
         mHandler.sendMessage(msg);
     }
 
@@ -179,7 +179,7 @@ public class WifiNanStateManager {
     /**
      * Place a request to create a new discovery session on the handler queue.
      */
-    public void createSession(int clientId, int sessionId, IWifiNanSessionListener listener,
+    public void createSession(int clientId, int sessionId, IWifiNanSessionCallback callback,
             int events) {
         Bundle data = new Bundle();
         data.putInt(MESSAGE_BUNDLE_KEY_EVENTS, events);
@@ -188,7 +188,7 @@ public class WifiNanStateManager {
         msg.setData(data);
         msg.arg1 = clientId;
         msg.arg2 = sessionId;
-        msg.obj = listener;
+        msg.obj = callback;
         mHandler.sendMessage(msg);
     }
 
@@ -452,7 +452,7 @@ public class WifiNanStateManager {
                     if (VDBG) {
                         Log.d(TAG, "NAN connection request received");
                     }
-                    connectLocal(msg.arg1, (IWifiNanEventListener) msg.obj, msg.arg2);
+                    connectLocal(msg.arg1, (IWifiNanEventCallback) msg.obj, msg.arg2);
                     break;
                 }
                 case MESSAGE_DISCONNECT: {
@@ -474,7 +474,7 @@ public class WifiNanStateManager {
                         Log.d(TAG, "Create session");
                     }
                     int events = msg.getData().getInt(MESSAGE_BUNDLE_KEY_EVENTS);
-                    createSessionLocal(msg.arg1, msg.arg2, (IWifiNanSessionListener) msg.obj,
+                    createSessionLocal(msg.arg1, msg.arg2, (IWifiNanSessionCallback) msg.obj,
                             events);
                     break;
                 }
@@ -698,9 +698,9 @@ public class WifiNanStateManager {
     /*
      * Actions (calls from API to service)
      */
-    private void connectLocal(int clientId, IWifiNanEventListener listener, int events) {
+    private void connectLocal(int clientId, IWifiNanEventCallback callback, int events) {
         if (VDBG) {
-            Log.v(TAG, "connect(): clientId=" + clientId + ", listener=" + listener + ", events="
+            Log.v(TAG, "connect(): clientId=" + clientId + ", callback=" + callback + ", events="
                     + events);
         }
 
@@ -709,7 +709,7 @@ public class WifiNanStateManager {
             return;
         }
 
-        WifiNanClientState client = new WifiNanClientState(clientId, listener, events);
+        WifiNanClientState client = new WifiNanClientState(clientId, callback, events);
         mClients.put(clientId, client);
     }
 
@@ -773,11 +773,11 @@ public class WifiNanStateManager {
                 .enableAndConfigure(createTransactionInfoConfig(merged).mTransactionId, merged);
     }
 
-    private void createSessionLocal(int clientId, int sessionId, IWifiNanSessionListener listener,
+    private void createSessionLocal(int clientId, int sessionId, IWifiNanSessionCallback callback,
             int events) {
         if (VDBG) {
             Log.v(TAG, "createSession(): clientId=" + clientId + ", sessionId=" + sessionId
-                    + ", listener=" + listener + ", events=" + events);
+                    + ", callback=" + callback + ", events=" + events);
         }
 
         WifiNanClientState client = mClients.get(clientId);
@@ -786,7 +786,7 @@ public class WifiNanStateManager {
             return;
         }
 
-        client.createSession(sessionId, listener, events);
+        client.createSession(sessionId, callback, events);
     }
 
     private void destroySessionLocal(int clientId, int sessionId) {
@@ -945,7 +945,7 @@ public class WifiNanStateManager {
         }
 
         if (interested == 0) {
-            Log.e(TAG, "onNanDown: event received but no listeners registered for this event "
+            Log.e(TAG, "onNanDown: event received but no callbacks registered for this event "
                     + "- should be disabled from fw!");
         }
     }
@@ -962,7 +962,7 @@ public class WifiNanStateManager {
         }
 
         if (interested == 0) {
-            Log.e(TAG, "onInterfaceAddressChange: event received but no listeners registered "
+            Log.e(TAG, "onInterfaceAddressChange: event received but no callbacks registered "
                     + "for this event - should be disabled from fw!");
         }
     }
@@ -980,7 +980,7 @@ public class WifiNanStateManager {
         }
 
         if (interested == 0) {
-            Log.e(TAG, "onClusterChange: event received but no listeners registered for this "
+            Log.e(TAG, "onClusterChange: event received but no callbacks registered for this "
                     + "event - should be disabled from fw!");
         }
     }

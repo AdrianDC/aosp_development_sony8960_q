@@ -17,9 +17,9 @@
 package com.android.server.wifi.nan;
 
 import android.net.wifi.nan.ConfigRequest;
-import android.net.wifi.nan.IWifiNanEventListener;
-import android.net.wifi.nan.IWifiNanSessionListener;
-import android.net.wifi.nan.WifiNanEventListener;
+import android.net.wifi.nan.IWifiNanEventCallback;
+import android.net.wifi.nan.IWifiNanSessionCallback;
+import android.net.wifi.nan.WifiNanEventCallback;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.SparseArray;
@@ -31,7 +31,7 @@ import java.io.PrintWriter;
  * Manages the service-side NAN state of an individual "client". A client
  * corresponds to a single instantiation of the WifiNanManager - there could be
  * multiple ones per UID/process (each of which is a separate client with its
- * own session namespace). The client state is primarily: (1) listener (a
+ * own session namespace). The client state is primarily: (1) callback (a
  * singleton per client) through which NAN-wide events are called, and (2) a set
  * of discovery sessions (publish and/or subscribe) which are created through
  * this client and whose lifetime is tied to the lifetime of the client.
@@ -44,16 +44,16 @@ public class WifiNanClientState {
     /* package */ static final int CLUSTER_CHANGE_EVENT_STARTED = 0;
     /* package */ static final int CLUSTER_CHANGE_EVENT_JOINED = 1;
 
-    private IWifiNanEventListener mListener;
+    private IWifiNanEventCallback mCallback;
     private int mEvents;
     private final SparseArray<WifiNanSessionState> mSessions = new SparseArray<>();
 
     private int mClientId;
     private ConfigRequest mConfigRequest;
 
-    public WifiNanClientState(int clientId, IWifiNanEventListener listener, int events) {
+    public WifiNanClientState(int clientId, IWifiNanEventCallback callback, int events) {
         mClientId = clientId;
-        mListener = listener;
+        mCallback = callback;
         mEvents = events;
     }
 
@@ -62,7 +62,7 @@ public class WifiNanClientState {
      * the client. Destroys all discovery sessions belonging to this client.
      */
     public void destroy() {
-        mListener = null;
+        mCallback = null;
         for (int i = 0; i < mSessions.size(); ++i) {
             mSessions.valueAt(i).destroy();
         }
@@ -105,17 +105,17 @@ public class WifiNanClientState {
      * Create a new discovery session.
      *
      * @param sessionId Session ID of the new discovery session.
-     * @param listener Singleton session listener.
+     * @param callback Singleton session callback.
      * @param events List of events (non-overlapping flags) which the session is
      *            registering to listen for.
      */
-    public void createSession(int sessionId, IWifiNanSessionListener listener, int events) {
+    public void createSession(int sessionId, IWifiNanSessionCallback callback, int events) {
         WifiNanSessionState session = mSessions.get(sessionId);
         if (session != null) {
             Log.e(TAG, "createSession: sessionId already exists (replaced) - " + sessionId);
         }
 
-        mSessions.put(sessionId, new WifiNanSessionState(sessionId, listener, events));
+        mSessions.put(sessionId, new WifiNanSessionState(sessionId, callback, events));
     }
 
     /**
@@ -153,9 +153,9 @@ public class WifiNanClientState {
      * @param completedConfig The configuration which was completed.
      */
     public void onConfigCompleted(ConfigRequest completedConfig) {
-        if (mListener != null && (mEvents & WifiNanEventListener.LISTEN_CONFIG_COMPLETED) != 0) {
+        if (mCallback != null && (mEvents & WifiNanEventCallback.LISTEN_CONFIG_COMPLETED) != 0) {
             try {
-                mListener.onConfigCompleted(completedConfig);
+                mCallback.onConfigCompleted(completedConfig);
             } catch (RemoteException e) {
                 Log.w(TAG, "onConfigCompleted: RemoteException - ignored: " + e);
             }
@@ -170,9 +170,9 @@ public class WifiNanClientState {
      * @param reason The failure reason.
      */
     public void onConfigFailed(ConfigRequest failedConfig, int reason) {
-        if (mListener != null && (mEvents & WifiNanEventListener.LISTEN_CONFIG_FAILED) != 0) {
+        if (mCallback != null && (mEvents & WifiNanEventCallback.LISTEN_CONFIG_FAILED) != 0) {
             try {
-                mListener.onConfigFailed(failedConfig, reason);
+                mCallback.onConfigFailed(failedConfig, reason);
             } catch (RemoteException e) {
                 Log.w(TAG, "onConfigFailed: RemoteException - ignored: " + e);
             }
@@ -187,9 +187,9 @@ public class WifiNanClientState {
      * @return A 1 if registered to listen for event, 0 otherwise.
      */
     public int onNanDown(int reason) {
-        if (mListener != null && (mEvents & WifiNanEventListener.LISTEN_NAN_DOWN) != 0) {
+        if (mCallback != null && (mEvents & WifiNanEventCallback.LISTEN_NAN_DOWN) != 0) {
             try {
-                mListener.onNanDown(reason);
+                mCallback.onNanDown(reason);
             } catch (RemoteException e) {
                 Log.w(TAG, "onNanDown: RemoteException - ignored: " + e);
             }
@@ -211,9 +211,9 @@ public class WifiNanClientState {
      * @return A 1 if registered to listen for event, 0 otherwise.
      */
     public int onInterfaceAddressChange(byte[] mac) {
-        if (mListener != null && (mEvents & WifiNanEventListener.LISTEN_IDENTITY_CHANGED) != 0) {
+        if (mCallback != null && (mEvents & WifiNanEventCallback.LISTEN_IDENTITY_CHANGED) != 0) {
             try {
-                mListener.onIdentityChanged();
+                mCallback.onIdentityChanged();
             } catch (RemoteException e) {
                 Log.w(TAG, "onIdentityChanged: RemoteException - ignored: " + e);
             }
@@ -236,9 +236,9 @@ public class WifiNanClientState {
      * @return A 1 if registered to listen for event, 0 otherwise.
      */
     public int onClusterChange(int flag, byte[] mac) {
-        if (mListener != null && (mEvents & WifiNanEventListener.LISTEN_IDENTITY_CHANGED) != 0) {
+        if (mCallback != null && (mEvents & WifiNanEventCallback.LISTEN_IDENTITY_CHANGED) != 0) {
             try {
-                mListener.onIdentityChanged();
+                mCallback.onIdentityChanged();
             } catch (RemoteException e) {
                 Log.w(TAG, "onIdentityChanged: RemoteException - ignored: " + e);
             }
@@ -256,7 +256,7 @@ public class WifiNanClientState {
         pw.println("NanClientState:");
         pw.println("  mClientId: " + mClientId);
         pw.println("  mConfigRequest: " + mConfigRequest);
-        pw.println("  mListener: " + mListener);
+        pw.println("  mCallback: " + mCallback);
         pw.println("  mEvents: " + mEvents);
         pw.println("  mSessions: [" + mSessions + "]");
         for (int i = 0; i < mSessions.size(); ++i) {

@@ -27,12 +27,12 @@ import static org.mockito.Mockito.when;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.wifi.nan.ConfigRequest;
-import android.net.wifi.nan.IWifiNanEventListener;
-import android.net.wifi.nan.IWifiNanSessionListener;
+import android.net.wifi.nan.IWifiNanEventCallback;
+import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanEventListener;
-import android.net.wifi.nan.WifiNanSessionListener;
+import android.net.wifi.nan.WifiNanEventCallback;
+import android.net.wifi.nan.WifiNanSessionCallback;
 import android.os.IBinder;
 import android.os.Looper;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -64,7 +64,7 @@ public class WifiNanServiceImplTest {
     @Mock
     private IBinder mBinderMock;
     @Mock
-    IWifiNanEventListener mListenerMock;
+    IWifiNanEventCallback mCallbackMock;
 
     @Rule
     public ExpectedException thrown = ExpectedException.none();
@@ -173,8 +173,8 @@ public class WifiNanServiceImplTest {
 
         int prevId = 0;
         for (int i = 0; i < loopCount; ++i) {
-            int id = mDut.connect(mBinderMock, mListenerMock,
-                    WifiNanEventListener.LISTEN_IDENTITY_CHANGED);
+            int id = mDut.connect(mBinderMock, mCallbackMock,
+                    WifiNanEventCallback.LISTEN_IDENTITY_CHANGED);
             if (i != 0) {
                 assertTrue("Client ID incrementing", id > prevId);
             }
@@ -226,15 +226,15 @@ public class WifiNanServiceImplTest {
      */
     @Test
     public void testCreateSession() {
-        IWifiNanSessionListener mockListener = mock(IWifiNanSessionListener.class);
-        int events = WifiNanSessionListener.LISTEN_MATCH;
+        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
+        int events = WifiNanSessionCallback.LISTEN_MATCH;
         int clientId = doConnect();
 
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
-        int returnedSessionId = mDut.createSession(clientId, mockListener, events);
+        int returnedSessionId = mDut.createSession(clientId, mockCallback, events);
 
         verify(mNanStateManagerMock).createSession(eq(clientId), sessionId.capture(),
-                eq(mockListener), eq(events));
+                eq(mockCallback), eq(events));
         assertEquals(returnedSessionId, (int) sessionId.getValue());
     }
 
@@ -303,12 +303,12 @@ public class WifiNanServiceImplTest {
      */
 
     private int doConnect() {
-        int events = WifiNanEventListener.LISTEN_IDENTITY_CHANGED;
+        int events = WifiNanEventCallback.LISTEN_IDENTITY_CHANGED;
 
-        int returnedClientId = mDut.connect(mBinderMock, mListenerMock, events);
+        int returnedClientId = mDut.connect(mBinderMock, mCallbackMock, events);
 
         ArgumentCaptor<Integer> clientId = ArgumentCaptor.forClass(Integer.class);
-        verify(mNanStateManagerMock).connect(clientId.capture(), eq(mListenerMock), eq(events));
+        verify(mNanStateManagerMock).connect(clientId.capture(), eq(mCallbackMock), eq(events));
         assertEquals(returnedClientId, (int) clientId.getValue());
 
         return returnedClientId;
