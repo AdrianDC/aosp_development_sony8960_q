@@ -108,8 +108,8 @@ class WifiLogger extends BaseWifiLogger {
             fetchRingBuffers();
         }
 
-        if (mRingBuffers == null) {
-            /* log level chagned, so restart logging with new levels */
+        if (mRingBuffers != null) {
+            /* log level may have changed, so restart logging with new levels */
             stopLoggingAllBuffers();
             startLoggingAllExceptPerPacketBuffers();
         }
