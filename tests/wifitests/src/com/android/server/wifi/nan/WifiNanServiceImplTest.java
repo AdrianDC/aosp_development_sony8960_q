@@ -174,7 +174,7 @@ public class WifiNanServiceImplTest {
         int prevId = 0;
         for (int i = 0; i < loopCount; ++i) {
             int id = mDut.connect(mBinderMock, mCallbackMock,
-                    WifiNanEventCallback.LISTEN_IDENTITY_CHANGED);
+                    WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED);
             if (i != 0) {
                 assertTrue("Client ID incrementing", id > prevId);
             }
@@ -227,7 +227,7 @@ public class WifiNanServiceImplTest {
     @Test
     public void testCreateSession() {
         IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
-        int events = WifiNanSessionCallback.LISTEN_MATCH;
+        int events = WifiNanSessionCallback.FLAG_LISTEN_MATCH;
         int clientId = doConnect();
 
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
@@ -303,7 +303,7 @@ public class WifiNanServiceImplTest {
      */
 
     private int doConnect() {
-        int events = WifiNanEventCallback.LISTEN_IDENTITY_CHANGED;
+        int events = WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED;
 
         int returnedClientId = mDut.connect(mBinderMock, mCallbackMock, events);
 

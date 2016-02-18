@@ -196,7 +196,8 @@ public class WifiNanSessionState {
     public void onPublishFail(int status) {
         mPubSubIdValid = false;
         try {
-            if (mCallback != null && (mEvents & WifiNanSessionCallback.LISTEN_PUBLISH_FAIL) != 0) {
+            if (mCallback != null
+                    && (mEvents & WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_FAIL) != 0) {
                 mCallback.onPublishFail(status);
             }
         } catch (RemoteException e) {
@@ -215,7 +216,7 @@ public class WifiNanSessionState {
         mPubSubIdValid = false;
         try {
             if (mCallback != null
-                    && (mEvents & WifiNanSessionCallback.LISTEN_PUBLISH_TERMINATED) != 0) {
+                    && (mEvents & WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_TERMINATED) != 0) {
                 mCallback.onPublishTerminated(status);
             }
         } catch (RemoteException e) {
@@ -244,7 +245,7 @@ public class WifiNanSessionState {
         mPubSubIdValid = false;
         try {
             if (mCallback != null
-                    && (mEvents & WifiNanSessionCallback.LISTEN_SUBSCRIBE_FAIL) != 0) {
+                    && (mEvents & WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_FAIL) != 0) {
                 mCallback.onSubscribeFail(status);
             }
         } catch (RemoteException e) {
@@ -263,7 +264,7 @@ public class WifiNanSessionState {
         mPubSubIdValid = false;
         try {
             if (mCallback != null
-                    && (mEvents & WifiNanSessionCallback.LISTEN_SUBSCRIBE_TERMINATED) != 0) {
+                    && (mEvents & WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_TERMINATED) != 0) {
                 mCallback.onSubscribeTerminated(status);
             }
         } catch (RemoteException e) {
@@ -280,7 +281,7 @@ public class WifiNanSessionState {
     public void onMessageSendSuccess(int messageId) {
         try {
             if (mCallback != null
-                    && (mEvents & WifiNanSessionCallback.LISTEN_MESSAGE_SEND_SUCCESS) != 0) {
+                    && (mEvents & WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_SUCCESS) != 0) {
                 mCallback.onMessageSendSuccess(messageId);
             }
         } catch (RemoteException e) {
@@ -299,7 +300,7 @@ public class WifiNanSessionState {
     public void onMessageSendFail(int messageId, int status) {
         try {
             if (mCallback != null
-                    && (mEvents & WifiNanSessionCallback.LISTEN_MESSAGE_SEND_FAIL) != 0) {
+                    && (mEvents & WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_FAIL) != 0) {
                 mCallback.onMessageSendFail(messageId, status);
             }
         } catch (RemoteException e) {
@@ -331,7 +332,7 @@ public class WifiNanSessionState {
         if (DBG) Log.d(TAG, "onMatch: previous peer MAC replaced - " + prevMac);
 
         try {
-            if (mCallback != null && (mEvents & WifiNanSessionCallback.LISTEN_MATCH) != 0) {
+            if (mCallback != null && (mEvents & WifiNanSessionCallback.FLAG_LISTEN_MATCH) != 0) {
                 mCallback.onMatch(requestorInstanceId, serviceSpecificInfo,
                         serviceSpecificInfoLength, matchFilter, matchFilterLength);
             }
@@ -362,7 +363,7 @@ public class WifiNanSessionState {
 
         try {
             if (mCallback != null
-                    && (mEvents & WifiNanSessionCallback.LISTEN_MESSAGE_RECEIVED) != 0) {
+                    && (mEvents & WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_RECEIVED) != 0) {
                 mCallback.onMessageReceived(requestorInstanceId, message, messageLength);
             }
         } catch (RemoteException e) {

@@ -153,7 +153,8 @@ public class WifiNanClientState {
      * @param completedConfig The configuration which was completed.
      */
     public void onConfigCompleted(ConfigRequest completedConfig) {
-        if (mCallback != null && (mEvents & WifiNanEventCallback.LISTEN_CONFIG_COMPLETED) != 0) {
+        if (mCallback != null
+                && (mEvents & WifiNanEventCallback.FLAG_LISTEN_CONFIG_COMPLETED) != 0) {
             try {
                 mCallback.onConfigCompleted(completedConfig);
             } catch (RemoteException e) {
@@ -170,7 +171,7 @@ public class WifiNanClientState {
      * @param reason The failure reason.
      */
     public void onConfigFailed(ConfigRequest failedConfig, int reason) {
-        if (mCallback != null && (mEvents & WifiNanEventCallback.LISTEN_CONFIG_FAILED) != 0) {
+        if (mCallback != null && (mEvents & WifiNanEventCallback.FLAG_LISTEN_CONFIG_FAILED) != 0) {
             try {
                 mCallback.onConfigFailed(failedConfig, reason);
             } catch (RemoteException e) {
@@ -187,7 +188,7 @@ public class WifiNanClientState {
      * @return A 1 if registered to listen for event, 0 otherwise.
      */
     public int onNanDown(int reason) {
-        if (mCallback != null && (mEvents & WifiNanEventCallback.LISTEN_NAN_DOWN) != 0) {
+        if (mCallback != null && (mEvents & WifiNanEventCallback.FLAG_LISTEN_NAN_DOWN) != 0) {
             try {
                 mCallback.onNanDown(reason);
             } catch (RemoteException e) {
@@ -211,7 +212,8 @@ public class WifiNanClientState {
      * @return A 1 if registered to listen for event, 0 otherwise.
      */
     public int onInterfaceAddressChange(byte[] mac) {
-        if (mCallback != null && (mEvents & WifiNanEventCallback.LISTEN_IDENTITY_CHANGED) != 0) {
+        if (mCallback != null
+                && (mEvents & WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED) != 0) {
             try {
                 mCallback.onIdentityChanged();
             } catch (RemoteException e) {
@@ -236,7 +238,8 @@ public class WifiNanClientState {
      * @return A 1 if registered to listen for event, 0 otherwise.
      */
     public int onClusterChange(int flag, byte[] mac) {
-        if (mCallback != null && (mEvents & WifiNanEventCallback.LISTEN_IDENTITY_CHANGED) != 0) {
+        if (mCallback != null
+                && (mEvents & WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED) != 0) {
             try {
                 mCallback.onIdentityChanged();
             } catch (RemoteException e) {
