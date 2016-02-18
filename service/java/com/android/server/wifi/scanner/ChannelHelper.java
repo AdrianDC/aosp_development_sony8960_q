@@ -28,6 +28,14 @@ import java.util.Set;
  */
 public abstract class ChannelHelper {
 
+    // TODO: Currently this is simply an estimate and is used for both active and passive channels
+    //       scans. Eventually it should be split between passive and active and perhaps retrieved
+    //       from the driver.
+    /**
+     * The estimated period spent scanning each channel. This is used for estimating scan duration.
+     */
+    public static final int SCAN_PERIOD_PER_CHANNEL_MS = 200;
+
     /**
      * Create a new collection that can be used to store channels
      */
@@ -37,6 +45,17 @@ public abstract class ChannelHelper {
      * Return true if the specified channel is expected for a scan with the given settings
      */
     public abstract boolean settingsContainChannel(WifiScanner.ScanSettings settings, int channel);
+
+    /**
+     * Get the channels that are available for scanning on the supplied band.
+     * This method may return empty if the information is not available.
+     */
+    public abstract WifiScanner.ChannelSpec[] getAvailableScanChannels(int band);
+
+    /**
+     * Estimates the duration that the chip will spend scanning with the given settings
+     */
+    public abstract int estimateScanDuration(WifiScanner.ScanSettings settings);
 
     /**
      * Object that supports accumulation of channels and bands

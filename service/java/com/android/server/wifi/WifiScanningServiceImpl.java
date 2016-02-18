@@ -99,7 +99,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
     @Override
     public Bundle getAvailableChannels(int band) {
-        ChannelSpec channelSpecs[] = WifiChannelHelper.getChannelsForBand(band);
+        ChannelSpec[] channelSpecs = WifiChannelHelper.getChannelsForBand(band);
         ArrayList<Integer> list = new ArrayList<Integer>(channelSpecs.length);
         for (ChannelSpec channelSpec : channelSpecs) {
             list.add(channelSpec.frequency);

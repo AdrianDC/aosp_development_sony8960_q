@@ -51,6 +51,78 @@ public class NoBandChannelHelperTest {
 
     /**
      * Unit tests for
+     * {@link com.android.server.wifi.scanner.NoBandChannelHelper.estimateScanDuration}.
+     */
+    public static class EstimateScanDurationTest {
+        NoBandChannelHelper mChannelHelper;
+
+        /**
+         * Called before each test
+         * Create a channel helper
+         */
+        @Before
+        public void setUp() throws Exception {
+            mChannelHelper = new NoBandChannelHelper();
+        }
+
+        /**
+         * check a settings object with a few channels
+         */
+        @Test
+        public void fewChannels() {
+            WifiScanner.ScanSettings testSettings = createRequest(channelsToSpec(2400, 2450, 5100),
+                    10000, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+
+            assertEquals(ChannelHelper.SCAN_PERIOD_PER_CHANNEL_MS * 3,
+                    mChannelHelper.estimateScanDuration(testSettings));
+        }
+
+        /**
+         * check a settings object with a band
+         */
+        @Test
+        public void band() {
+            WifiScanner.ScanSettings testSettings = createRequest(WifiScanner.WIFI_BAND_24_GHZ,
+                    10000, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+
+            assertTrue("Expected scan to take some time",
+                    mChannelHelper.estimateScanDuration(testSettings)
+                    >= ChannelHelper.SCAN_PERIOD_PER_CHANNEL_MS);
+        }
+    }
+
+    /**
+     * Unit tests for
+     * {@link com.android.server.wifi.scanner.NoBandChannelHelper.getAvailableScanChannels}.
+     */
+    public static class GetAvailableScanChannelsTest {
+        NoBandChannelHelper mChannelHelper;
+
+        /**
+         * Called before each test
+         * Create a channel helper
+         */
+        @Before
+        public void setUp() throws Exception {
+            mChannelHelper = new NoBandChannelHelper();
+        }
+
+        /**
+         * Test that getting the channels for each band results in the expected empty list
+         */
+        @Test
+        public void eachBandValue() {
+            for (int band = WifiScanner.WIFI_BAND_24_GHZ;
+                    band <= WifiScanner.WIFI_BAND_BOTH_WITH_DFS; ++band) {
+                WifiScanner.ChannelSpec[] channels =
+                        mChannelHelper.getAvailableScanChannels(band);
+                assertEquals("expected zero channels", 0, channels.length);
+            }
+        }
+    }
+
+    /**
+     * Unit tests for
      * {@link com.android.server.wifi.scanner.NoBandChannelHelper.settingsContainChannel}.
      */
     public static class SettingsContainChannelTest {

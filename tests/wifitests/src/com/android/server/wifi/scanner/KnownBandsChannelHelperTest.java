@@ -48,6 +48,136 @@ import java.util.HashSet;
 @RunWith(Enclosed.class) // WARNING: tests cannot be declared in the outer class
 public class KnownBandsChannelHelperTest {
 
+    private static final int[] CHANNELS_24_GHZ = new int[]{2400, 2450};
+    private static final int[] CHANNELS_5_GHZ = new int[]{5150, 5175};
+    private static final int[] CHANNELS_DFS = new int[]{5600, 5650, 5660};
+
+    /**
+     * Unit tests for
+     * {@link com.android.server.wifi.scanner.KnownBandsChannelHelper.estimateScanDuration}.
+     */
+    public static class EstimateScanDurationTest {
+        KnownBandsChannelHelper mChannelHelper;
+
+        /**
+         * Called before each test
+         * Create a channel helper
+         */
+        @Before
+        public void setUp() throws Exception {
+            mChannelHelper = new KnownBandsChannelHelper(
+                    CHANNELS_24_GHZ,
+                    CHANNELS_5_GHZ,
+                    CHANNELS_DFS);
+        }
+
+        /**
+         * check a settings object with a few channels
+         */
+        @Test
+        public void fewChannels() {
+            WifiScanner.ScanSettings testSettings = createRequest(channelsToSpec(2400, 2450, 5100),
+                    10000, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+
+            assertEquals(ChannelHelper.SCAN_PERIOD_PER_CHANNEL_MS * 3,
+                    mChannelHelper.estimateScanDuration(testSettings));
+        }
+
+        /**
+         * check a settings object with a band
+         */
+        @Test
+        public void band() {
+            WifiScanner.ScanSettings testSettings = createRequest(WifiScanner.WIFI_BAND_24_GHZ,
+                    10000, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+
+            assertEquals(ChannelHelper.SCAN_PERIOD_PER_CHANNEL_MS * CHANNELS_24_GHZ.length,
+                    mChannelHelper.estimateScanDuration(testSettings));
+        }
+    }
+
+    /**
+     * Unit tests for
+     * {@link com.android.server.wifi.scanner.KnownBandsChannelHelper.getAvailableScanChannels}.
+     */
+    public static class GetAvailableScanChannelsTest {
+        KnownBandsChannelHelper mChannelHelper;
+
+        /**
+         * Called before each test
+         * Create a channel helper
+         */
+        @Before
+        public void setUp() throws Exception {
+            mChannelHelper = new KnownBandsChannelHelper(
+                    CHANNELS_24_GHZ,
+                    CHANNELS_5_GHZ,
+                    CHANNELS_DFS);
+        }
+
+        private void testBand(int[] expectedChannels, int band) {
+            WifiScanner.ChannelSpec[] channels =
+                    mChannelHelper.getAvailableScanChannels(band);
+            assertEquals("nun channels", expectedChannels.length, channels.length);
+            for (int i = 0; i < channels.length; ++i) {
+                assertEquals("channels[" + i + "].frequency",
+                        expectedChannels[i], channels[i].frequency);
+            }
+        }
+
+        /**
+         * test the 2.4GHz band
+         */
+        @Test
+        public void channels24Ghz() {
+            testBand(CHANNELS_24_GHZ, WifiScanner.WIFI_BAND_24_GHZ);
+        }
+
+        /**
+         * test the 5GHz band
+         */
+        @Test
+        public void channels5Ghz() {
+            testBand(CHANNELS_5_GHZ, WifiScanner.WIFI_BAND_5_GHZ);
+        }
+
+        /**
+         * test the 5GHz DFS band
+         */
+        @Test
+        public void channelsDfs() {
+            testBand(CHANNELS_DFS, WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY);
+        }
+
+        /**
+         * test the 2.4GHz and 5GHz band
+         */
+        @Test
+        public void channels24GhzAnd5Ghz() {
+            int[] expectedChannels = new int[CHANNELS_24_GHZ.length + CHANNELS_5_GHZ.length];
+            System.arraycopy(CHANNELS_24_GHZ, 0, expectedChannels, 0, CHANNELS_24_GHZ.length);
+            System.arraycopy(CHANNELS_5_GHZ, 0, expectedChannels, CHANNELS_24_GHZ.length,
+                    CHANNELS_5_GHZ.length);
+            testBand(expectedChannels, WifiScanner.WIFI_BAND_BOTH);
+        }
+
+        /**
+         * test all bands
+         */
+        @Test
+        public void channelsAll() {
+            int[] expectedChannels =
+                    new int[CHANNELS_24_GHZ.length + CHANNELS_5_GHZ.length + CHANNELS_DFS.length];
+            System.arraycopy(CHANNELS_24_GHZ, 0, expectedChannels, 0, CHANNELS_24_GHZ.length);
+            System.arraycopy(CHANNELS_5_GHZ, 0, expectedChannels, CHANNELS_24_GHZ.length,
+                    CHANNELS_5_GHZ.length);
+            System.arraycopy(CHANNELS_DFS, 0, expectedChannels,
+                    CHANNELS_24_GHZ.length + CHANNELS_5_GHZ.length,
+                    CHANNELS_DFS.length);
+            testBand(expectedChannels, WifiScanner.WIFI_BAND_BOTH_WITH_DFS);
+        }
+    }
+
     /**
      * Unit tests for
      * {@link com.android.server.wifi.scanner.KnownBandsChannelHelper.settingsContainChannel}.
@@ -62,9 +192,9 @@ public class KnownBandsChannelHelperTest {
         @Before
         public void setUp() throws Exception {
             mChannelHelper = new KnownBandsChannelHelper(
-                    new int[]{2400, 2450},
-                    new int[]{5150, 5175},
-                    new int[]{5600, 5650, 5660});
+                    CHANNELS_24_GHZ,
+                    CHANNELS_5_GHZ,
+                    CHANNELS_DFS);
         }
 
         /**
@@ -136,9 +266,9 @@ public class KnownBandsChannelHelperTest {
         @Before
         public void setUp() throws Exception {
             KnownBandsChannelHelper channelHelper = new KnownBandsChannelHelper(
-                    new int[]{2400, 2450},
-                    new int[]{5150, 5175},
-                    new int[]{5600, 5650, 5660});
+                    CHANNELS_24_GHZ,
+                    CHANNELS_5_GHZ,
+                    CHANNELS_DFS);
             mChannelCollection = channelHelper.createChannelCollection();
         }
 

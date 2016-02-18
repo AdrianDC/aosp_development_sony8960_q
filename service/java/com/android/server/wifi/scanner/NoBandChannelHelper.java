@@ -29,6 +29,15 @@ import java.util.Set;
  */
 public class NoBandChannelHelper extends ChannelHelper {
 
+    private static final WifiScanner.ChannelSpec[] NO_CHANNELS = new WifiScanner.ChannelSpec[0];
+
+    /**
+     * These parameters are used to estimate the scan duration.
+     * This is a guess at the number of channels the device supports for use when a ScanSettings
+     * specifies a band instead of a list of channels.
+     */
+    private static final int ALL_BAND_CHANNEL_COUNT_ESTIMATE = 36;
+
     @Override
     public boolean settingsContainChannel(WifiScanner.ScanSettings settings, int channel) {
         if (settings.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
@@ -40,6 +49,20 @@ public class NoBandChannelHelper extends ChannelHelper {
             return false;
         } else {
             return true;
+        }
+    }
+
+    @Override
+    public WifiScanner.ChannelSpec[] getAvailableScanChannels(int band) {
+        return NO_CHANNELS; // not supported
+    }
+
+    @Override
+    public int estimateScanDuration(WifiScanner.ScanSettings settings) {
+        if (settings.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
+            return settings.channels.length * SCAN_PERIOD_PER_CHANNEL_MS;
+        } else {
+            return ALL_BAND_CHANNEL_COUNT_ESTIMATE * SCAN_PERIOD_PER_CHANNEL_MS;
         }
     }
 
