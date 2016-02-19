@@ -884,28 +884,6 @@ public class WifiNative {
     }
 
 
-    /**
-     * Object holding the network ID and the corresponding priority to be set before enabling/
-     * disabling PNO.
-     */
-    public static class PnoNetworkPriority {
-        public int networkId;
-        public int priority;
-
-        PnoNetworkPriority(int networkId, int priority) {
-            this.networkId = networkId;
-            this.priority = priority;
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sbuf = new StringBuilder();
-            sbuf.append(" Network ID=").append(this.networkId);
-            sbuf.append(" Priority=").append(this.priority);
-            return sbuf.toString();
-        }
-    }
-
     //PNO Monitor
     private class PnoMonitor {
         private static final int MINIMUM_PNO_GAP = 5 * 1000;
@@ -913,7 +891,7 @@ public class WifiNative {
             "com.android.server.Wifi.action.TOGGLE_PNO";
         long mLastPnoChangeTimeStamp = -1L;
         boolean mExpectedPnoState = false;
-        List<PnoNetworkPriority> mExpectedPnoNetworkPriorityList = null;
+        List<WifiPnoNetwork> mExpectedWifiPnoNetworkList = null;
         boolean mCurrentPnoState = false;;
         boolean mWaitForTimer = false;
         final Object mPnoLock = new Object();
@@ -937,7 +915,7 @@ public class WifiNative {
                                 if (DBG) Log.d(mTAG, "change PNO from " + mCurrentPnoState + " to "
                                         + mExpectedPnoState);
                                 boolean ret = setPno(
-                                        mExpectedPnoState, mExpectedPnoNetworkPriorityList);
+                                        mExpectedPnoState, mExpectedWifiPnoNetworkList);
                                 if (!ret) {
                                     Log.e(mTAG, "set PNO failure");
                                 }
@@ -956,18 +934,18 @@ public class WifiNative {
          * @param enable boolean indicating whether PNO is being enabled or disabled.
          * @param pnoNetworkList list of networks with priorities to be set before PNO setting.
          */
-        private boolean setPno(boolean enable, List<PnoNetworkPriority> pnoNetworkList) {
+        private boolean setPno(boolean enable, List<WifiPnoNetwork> pnoNetworkList) {
             // TODO: Couple of cases yet to be handled:
             // 1. What if the network priority update fails, should we bail out of PNO setting?
             // 2. If PNO setting fails below, should we go back and revert this priority change?
             if (pnoNetworkList != null) {
                 if (DBG) Log.i(mTAG, "Update priorities for PNO. Enable: " + enable);
-                for (PnoNetworkPriority pnoNetwork : pnoNetworkList) {
+                for (WifiPnoNetwork pnoNetwork : pnoNetworkList) {
                     // What if this fails? Should we bail out?
                     boolean isSuccess = setNetworkVariable(pnoNetwork.networkId,
                             WifiConfiguration.priorityVarName,
                             Integer.toString(pnoNetwork.priority));
-                    if (DBG && !isSuccess) {
+                    if (!isSuccess) {
                         Log.e(mTAG, "Update priority failed for :" + pnoNetwork.networkId);
                     }
                 }
@@ -983,12 +961,12 @@ public class WifiNative {
 
         public boolean enableBackgroundScan(
                 boolean enable,
-                List<PnoNetworkPriority> pnoNetworkList) {
+                List<WifiPnoNetwork> pnoNetworkList) {
             synchronized(mPnoLock) {
                 if (mWaitForTimer) {
                     //already has a timer
                     mExpectedPnoState = enable;
-                    mExpectedPnoNetworkPriorityList = pnoNetworkList;
+                    mExpectedWifiPnoNetworkList = pnoNetworkList;
                     if (DBG) Log.d(mTAG, "update expected PNO to " +  mExpectedPnoState);
                 } else {
                     if (mCurrentPnoState == enable) {
@@ -999,7 +977,7 @@ public class WifiNative {
                         return setPno(enable, pnoNetworkList);
                     } else {
                         mExpectedPnoState = enable;
-                        mExpectedPnoNetworkPriorityList = pnoNetworkList;
+                        mExpectedWifiPnoNetworkList = pnoNetworkList;
                         mWaitForTimer = true;
                         if (DBG) Log.d(mTAG, "start PNO timer with delay:" + timeDifference);
                         mAlarmManager.set(AlarmManager.RTC_WAKEUP,
@@ -1013,7 +991,7 @@ public class WifiNative {
 
     public boolean enableBackgroundScan(
             boolean enable,
-            List<PnoNetworkPriority> pnoNetworkList) {
+            List<WifiPnoNetwork> pnoNetworkList) {
         if (mPnoMonitor != null) {
             return mPnoMonitor.enableBackgroundScan(enable, pnoNetworkList);
         } else {
@@ -2634,7 +2612,7 @@ public class WifiNative {
     }
 
     //---------------------------------------------------------------------------------
-    /* Configure ePNO */
+    /* Configure ePNO/PNO */
 
     /* pno flags, keep these values in sync with gscan.h */
     private static int WIFI_PNO_AUTH_CODE_OPEN  = 1; // open
@@ -2650,34 +2628,39 @@ public class WifiNative {
     // Whether strict matching is required (i.e. firmware shall not match on the entire SSID)
     private static int WIFI_PNO_FLAG_STRICT_MATCH = 8;
 
+    /**
+     * Object holding the network ID and the corresponding priority to be set before enabling/
+     * disabling PNO.
+     */
     public static class WifiPnoNetwork {
-        String SSID;
-        int rssi_threshold; // TODO remove
-        int flags;
-        int auth;
-        String configKey; // kept for reference
+        public String SSID;
+        public int rssi_threshold; // TODO remove
+        public int flags;
+        public int auth;
+        public String configKey; // kept for reference
+        public int networkId;
+        public int priority;
 
-        WifiPnoNetwork(WifiConfiguration config, int threshold) {
+        WifiPnoNetwork(WifiConfiguration config, int threshold, int newPriority) {
             if (config.SSID == null) {
-                this.SSID = "";
-                this.flags = WIFI_PNO_FLAG_DIRECTED_SCAN;
+                SSID = "";
+                flags = WIFI_PNO_FLAG_DIRECTED_SCAN;
             } else {
-                this.SSID = config.SSID;
+                SSID = config.SSID;
             }
-            this.rssi_threshold = threshold;
+            rssi_threshold = threshold;
             if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
                 auth |= WIFI_PNO_AUTH_CODE_PSK;
             } else if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP) ||
                     config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
                 auth |= WIFI_PNO_AUTH_CODE_EAPOL;
-            } else if (config.wepKeys[0] != null) {
-                auth |= WIFI_PNO_AUTH_CODE_OPEN;
             } else {
                 auth |= WIFI_PNO_AUTH_CODE_OPEN;
             }
-
             flags |= WIFI_PNO_FLAG_A_BAND | WIFI_PNO_FLAG_G_BAND;
             configKey = config.configKey();
+            networkId = config.networkId;
+            priority = newPriority;
         }
 
         @Override
@@ -2687,6 +2670,8 @@ public class WifiNative {
             sbuf.append(" flags=").append(this.flags);
             sbuf.append(" rssi=").append(this.rssi_threshold);
             sbuf.append(" auth=").append(this.auth);
+            sbuf.append(" Network ID=").append(this.networkId);
+            sbuf.append(" Priority=").append(this.priority);
             return sbuf.toString();
         }
     }
