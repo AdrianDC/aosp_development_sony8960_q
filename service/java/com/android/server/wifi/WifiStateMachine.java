@@ -98,10 +98,12 @@ import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.LruCache;
+import android.util.SparseArray;
 
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.AsyncChannel;
+import com.android.internal.util.MessageUtils;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
@@ -896,6 +898,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
      */
     static final int CMD_IPV4_PROVISIONING_SUCCESS                      = BASE + 200;
     static final int CMD_IPV4_PROVISIONING_FAILURE                      = BASE + 201;
+
+    // For message logging.
+    private static final Class[] sMessageClasses = {
+            AsyncChannel.class, WifiStateMachine.class, DhcpClient.class };
+    private static final SparseArray<String> sSmToString =
+            MessageUtils.findMessageNames(sMessageClasses);
 
 
     /* Wifi state machine modes of operation */
@@ -6449,7 +6457,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
     }
 
     String smToString(int what) {
-        String s = "unknown";
+        String s = sSmToString.get(what);
+        if (s != null) {
+            return s;
+        }
         switch (what) {
             case WifiMonitor.DRIVER_HUNG_EVENT:
                 s = "DRIVER_HUNG_EVENT";
@@ -6460,167 +6471,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             case AsyncChannel.CMD_CHANNEL_DISCONNECTED:
                 s = "AsyncChannel.CMD_CHANNEL_DISCONNECTED";
                 break;
-            case CMD_SET_FREQUENCY_BAND:
-                s = "CMD_SET_FREQUENCY_BAND";
-                break;
-            case CMD_DELAYED_NETWORK_DISCONNECT:
-                s = "CMD_DELAYED_NETWORK_DISCONNECT";
-                break;
-            case CMD_TEST_NETWORK_DISCONNECT:
-                s = "CMD_TEST_NETWORK_DISCONNECT";
-                break;
-            case CMD_OBTAINING_IP_ADDRESS_WATCHDOG_TIMER:
-                s = "CMD_OBTAINING_IP_ADDRESS_WATCHDOG_TIMER";
-                break;
-            case CMD_DISABLE_EPHEMERAL_NETWORK:
-                s = "CMD_DISABLE_EPHEMERAL_NETWORK";
-                break;
-            case CMD_START_DRIVER:
-                s = "CMD_START_DRIVER";
-                break;
-            case CMD_STOP_DRIVER:
-                s = "CMD_STOP_DRIVER";
-                break;
-            case CMD_STOP_SUPPLICANT:
-                s = "CMD_STOP_SUPPLICANT";
-                break;
-            case CMD_STOP_SUPPLICANT_FAILED:
-                s = "CMD_STOP_SUPPLICANT_FAILED";
-                break;
-            case CMD_START_SUPPLICANT:
-                s = "CMD_START_SUPPLICANT";
-                break;
-            case CMD_TETHER_STATE_CHANGE:
-                s = "CMD_TETHER_STATE_CHANGE";
-                break;
-            case CMD_TETHER_NOTIFICATION_TIMED_OUT:
-                s = "CMD_TETHER_NOTIFICATION_TIMED_OUT";
-                break;
-            case CMD_BLUETOOTH_ADAPTER_STATE_CHANGE:
-                s = "CMD_BLUETOOTH_ADAPTER_STATE_CHANGE";
-                break;
-            case CMD_ADD_OR_UPDATE_NETWORK:
-                s = "CMD_ADD_OR_UPDATE_NETWORK";
-                break;
-            case CMD_REMOVE_NETWORK:
-                s = "CMD_REMOVE_NETWORK";
-                break;
-            case CMD_ENABLE_NETWORK:
-                s = "CMD_ENABLE_NETWORK";
-                break;
-            case CMD_ENABLE_ALL_NETWORKS:
-                s = "CMD_ENABLE_ALL_NETWORKS";
-                break;
-            case CMD_AUTO_CONNECT:
-                s = "CMD_AUTO_CONNECT";
-                break;
-            case CMD_AUTO_ROAM:
-                s = "CMD_AUTO_ROAM";
-                break;
-            case CMD_AUTO_SAVE_NETWORK:
-                s = "CMD_AUTO_SAVE_NETWORK";
-                break;
-            case CMD_BOOT_COMPLETED:
-                s = "CMD_BOOT_COMPLETED";
-                break;
-            case DhcpClient.CMD_START_DHCP:
-                s = "CMD_START_DHCP";
-                break;
-            case DhcpClient.CMD_STOP_DHCP:
-                s = "CMD_STOP_DHCP";
-                break;
-            case DhcpClient.CMD_RENEW_DHCP:
-                s = "CMD_RENEW_DHCP";
-                break;
-            case DhcpClient.CMD_PRE_DHCP_ACTION:
-                s = "CMD_PRE_DHCP_ACTION";
-                break;
-            case DhcpClient.CMD_POST_DHCP_ACTION:
-                s = "CMD_POST_DHCP_ACTION";
-                break;
-            case DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE:
-                s = "CMD_PRE_DHCP_ACTION_COMPLETE";
-                break;
-            case DhcpClient.CMD_ON_QUIT:
-                s = "CMD_ON_QUIT";
-                break;
             case WifiP2pServiceImpl.DISCONNECT_WIFI_REQUEST:
                 s = "WifiP2pServiceImpl.DISCONNECT_WIFI_REQUEST";
                 break;
             case WifiManager.DISABLE_NETWORK:
                 s = "WifiManager.DISABLE_NETWORK";
-                break;
-            case CMD_BLACKLIST_NETWORK:
-                s = "CMD_BLACKLIST_NETWORK";
-                break;
-            case CMD_CLEAR_BLACKLIST:
-                s = "CMD_CLEAR_BLACKLIST";
-                break;
-            case CMD_SAVE_CONFIG:
-                s = "CMD_SAVE_CONFIG";
-                break;
-            case CMD_GET_CONFIGURED_NETWORKS:
-                s = "CMD_GET_CONFIGURED_NETWORKS";
-                break;
-            case CMD_GET_SUPPORTED_FEATURES:
-                s = "CMD_GET_SUPPORTED_FEATURES";
-                break;
-            case CMD_UNWANTED_NETWORK:
-                s = "CMD_UNWANTED_NETWORK";
-                break;
-            case CMD_NETWORK_STATUS:
-                s = "CMD_NETWORK_STATUS";
-                break;
-            case CMD_GET_LINK_LAYER_STATS:
-                s = "CMD_GET_LINK_LAYER_STATS";
-                break;
-            case CMD_GET_MATCHING_CONFIG:
-                s = "CMD_GET_MATCHING_CONFIG";
-                break;
-            case CMD_GET_PRIVILEGED_CONFIGURED_NETWORKS:
-                s = "CMD_GET_PRIVILEGED_CONFIGURED_NETWORKS";
-                break;
-            case CMD_DISCONNECT:
-                s = "CMD_DISCONNECT";
-                break;
-            case CMD_RECONNECT:
-                s = "CMD_RECONNECT";
-                break;
-            case CMD_REASSOCIATE:
-                s = "CMD_REASSOCIATE";
-                break;
-            case CMD_GET_CONNECTION_STATISTICS:
-                s = "CMD_GET_CONNECTION_STATISTICS";
-                break;
-            case CMD_SET_HIGH_PERF_MODE:
-                s = "CMD_SET_HIGH_PERF_MODE";
-                break;
-            case CMD_SET_COUNTRY_CODE:
-                s = "CMD_SET_COUNTRY_CODE";
-                break;
-            case CMD_ENABLE_RSSI_POLL:
-                s = "CMD_ENABLE_RSSI_POLL";
-                break;
-            case CMD_RSSI_POLL:
-                s = "CMD_RSSI_POLL";
-                break;
-            case CMD_START_PACKET_FILTERING:
-                s = "CMD_START_PACKET_FILTERING";
-                break;
-            case CMD_STOP_PACKET_FILTERING:
-                s = "CMD_STOP_PACKET_FILTERING";
-                break;
-            case CMD_SET_SUSPEND_OPT_ENABLED:
-                s = "CMD_SET_SUSPEND_OPT_ENABLED";
-                break;
-            case CMD_NO_NETWORKS_PERIODIC_SCAN:
-                s = "CMD_NO_NETWORKS_PERIODIC_SCAN";
-                break;
-            case CMD_UPDATE_LINKPROPERTIES:
-                s = "CMD_UPDATE_LINKPROPERTIES";
-                break;
-            case CMD_RELOAD_TLS_AND_RECONNECT:
-                s = "CMD_RELOAD_TLS_AND_RECONNECT";
                 break;
             case WifiManager.CONNECT_NETWORK:
                 s = "CONNECT_NETWORK";
@@ -6688,18 +6543,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             case WifiMonitor.GAS_QUERY_START_EVENT:
                 s = "WifiMonitor.GAS_QUERY_START_EVENT";
                 break;
-            case CMD_SET_OPERATIONAL_MODE:
-                s = "CMD_SET_OPERATIONAL_MODE";
-                break;
-            case CMD_START_SCAN:
-                s = "CMD_START_SCAN";
-                break;
-            case CMD_DISABLE_P2P_RSP:
-                s = "CMD_DISABLE_P2P_RSP";
-                break;
-            case CMD_DISABLE_P2P_REQ:
-                s = "CMD_DISABLE_P2P_REQ";
-                break;
             case WifiP2pServiceImpl.GROUP_CREATING_TIMED_OUT:
                 s = "GROUP_CREATING_TIMED_OUT";
                 break;
@@ -6741,87 +6584,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 break;
             case WifiManager.RSSI_PKTCNT_FETCH:
                 s = "RSSI_PKTCNT_FETCH";
-                break;
-            case CMD_IP_CONFIGURATION_LOST:
-                s = "CMD_IP_CONFIGURATION_LOST";
-                break;
-            case CMD_IP_CONFIGURATION_SUCCESSFUL:
-                s = "CMD_IP_CONFIGURATION_SUCCESSFUL";
-                break;
-            case CMD_IP_REACHABILITY_LOST:
-                s = "CMD_IP_REACHABILITY_LOST";
-                break;
-            case CMD_STATIC_IP_SUCCESS:
-                s = "CMD_STATIC_IP_SUCCESS";
-                break;
-            case CMD_STATIC_IP_FAILURE:
-                s = "CMD_STATIC_IP_FAILURE";
-                break;
-            case DhcpClient.DHCP_SUCCESS:
-                s = "DHCP_SUCCESS";
-                break;
-            case DhcpClient.DHCP_FAILURE:
-                s = "DHCP_FAILURE";
-                break;
-            case CMD_TARGET_BSSID:
-                s = "CMD_TARGET_BSSID";
-                break;
-            case CMD_ASSOCIATED_BSSID:
-                s = "CMD_ASSOCIATED_BSSID";
-                break;
-            case CMD_REMOVE_APP_CONFIGURATIONS:
-                s = "CMD_REMOVE_APP_CONFIGURATIONS";
-                break;
-            case CMD_REMOVE_USER_CONFIGURATIONS:
-                s = "CMD_REMOVE_USER_CONFIGURATIONS";
-                break;
-            case CMD_ROAM_WATCHDOG_TIMER:
-                s = "CMD_ROAM_WATCHDOG_TIMER";
-                break;
-            case CMD_SCREEN_STATE_CHANGED:
-                s = "CMD_SCREEN_STATE_CHANGED";
-                break;
-            case CMD_DISCONNECTING_WATCHDOG_TIMER:
-                s = "CMD_DISCONNECTING_WATCHDOG_TIMER";
-                break;
-            case CMD_RESTART_AUTOJOIN_OFFLOAD:
-                s = "CMD_RESTART_AUTOJOIN_OFFLOAD";
-                break;
-            case CMD_STARTED_PNO_DBG:
-                s = "CMD_STARTED_PNO_DBG";
-                break;
-            case CMD_STARTED_GSCAN_DBG:
-                s = "CMD_STARTED_GSCAN_DBG";
-                break;
-            case CMD_PNO_NETWORK_FOUND:
-                s = "CMD_PNO_NETWORK_FOUND";
-                break;
-            case CMD_UPDATE_ASSOCIATED_SCAN_PERMISSION:
-                s = "CMD_UPDATE_ASSOCIATED_SCAN_PERMISSION";
-                break;
-            case CMD_START_IP_PACKET_OFFLOAD:
-                s = "CMD_START_IP_PACKET_OFFLOAD";
-                break;
-            case CMD_STOP_IP_PACKET_OFFLOAD:
-                s = "CMD_STOP_IP_PACKET_OFFLOAD";
-                break;
-            case CMD_START_RSSI_MONITORING_OFFLOAD:
-                s = "CMD_START_RSSI_MONITORING_OFFLOAD";
-                break;
-            case CMD_STOP_RSSI_MONITORING_OFFLOAD:
-                s = "CMD_STOP_RSSI_MONITORING_OFFLOAD";
-                break;
-            case CMD_RSSI_THRESHOLD_BREACH:
-                s = "CMD_RSSI_THRESHOLD_BREACH";
-                break;
-            case CMD_USER_SWITCH:
-                s = "CMD_USER_SWITCH";
-                break;
-            case CMD_IPV4_PROVISIONING_SUCCESS:
-                s = "CMD_IPV4_PROVISIONING_SUCCESS";
-                break;
-            case CMD_IPV4_PROVISIONING_FAILURE:
-                s = "CMD_IPV4_PROVISIONING_FAILURE";
                 break;
             default:
                 s = "what:" + Integer.toString(what);
