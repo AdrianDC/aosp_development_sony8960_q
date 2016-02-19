@@ -55,11 +55,11 @@ static int SkipUntilSSE42(const char* s, int len,
 
 WordScanner::Iterator& WordScanner::Iterator::operator++() {
   int len = static_cast<int>(in->size());
-  for (s = i; s < len; s++) {
+  for (s = i + 1; s < len; s++) {
     if (!isSpace((*in)[s]))
       break;
   }
-  if (s == len) {
+  if (s >= len) {
     in = NULL;
     s = 0;
     i = 0;
@@ -92,7 +92,7 @@ WordScanner::Iterator WordScanner::begin() const {
   Iterator iter;
   iter.in = &in_;
   iter.s = 0;
-  iter.i = 0;
+  iter.i = -1;
   ++iter;
   return iter;
 }
@@ -423,6 +423,30 @@ size_t FindThreeOutsideParen(StringPiece s, char c1, char c2, char c3) {
 }
 
 size_t FindEndOfLine(StringPiece s, size_t e, size_t* lf_cnt) {
+#ifdef __SSE4_2__
+  static const char ranges[] = "\n\n\\\\";
+  while (e < s.size()) {
+    e += SkipUntilSSE42(s.data() + e, s.size() - e, ranges, 4);
+    char c = s[e];
+    if (c == '\\') {
+      if (s[e+1] == '\n') {
+        e += 2;
+        ++*lf_cnt;
+      } else if (s[e+1] == '\r' && s[e+2] == '\n') {
+        e += 3;
+        ++*lf_cnt;
+      } else if (s[e+1] == '\\') {
+        e += 2;
+      } else {
+        e++;
+      }
+    } else if (c == '\n') {
+      ++*lf_cnt;
+      return e;
+    }
+  }
+  return e;
+#else
   bool prev_backslash = false;
   for (; e < s.size(); e++) {
     char c = s[e];
@@ -439,6 +463,7 @@ size_t FindEndOfLine(StringPiece s, size_t e, size_t* lf_cnt) {
     }
   }
   return e;
+#endif
 }
 
 StringPiece TrimLeadingCurdir(StringPiece s) {
@@ -495,4 +520,34 @@ string EchoEscape(const string str) {
     }
   }
   return buf;
+}
+
+void EscapeShell(string* s) {
+  if (s->find_first_of("$`\\\"") == string::npos)
+    return;
+  string r;
+  bool last_dollar = false;
+  for (char c : *s) {
+    switch (c) {
+      case '$':
+        if (last_dollar) {
+          r += c;
+          last_dollar = false;
+        } else {
+          r += '\\';
+          r += c;
+          last_dollar = true;
+        }
+        break;
+      case '`':
+      case '"':
+      case '\\':
+        r += '\\';
+        // fall through.
+      default:
+        r += c;
+        last_dollar = false;
+    }
+  }
+  s->swap(r);
 }

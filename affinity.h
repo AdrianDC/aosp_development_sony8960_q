@@ -12,26 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "mutex.h"
+#ifndef AFFINITY_H_
+#define AFFINITY_H_
 
-#include "log.h"
+void SetAffinityForSingleThread();
+void SetAffinityForMultiThread();
 
-Mutex::Mutex() {
-  if (pthread_mutex_init(&mu_, NULL) != 0)
-    PERROR("pthread_mutex_init");
-}
-
-Mutex::~Mutex() {
-  if (pthread_mutex_destroy(&mu_) != 0)
-    PERROR("pthread_mutex_destroy");
-}
-
-void Mutex::lock() {
-  if (pthread_mutex_lock(&mu_) != 0)
-    PERROR("pthread_mutex_lock");
-}
-
-void Mutex::unlock() {
-  if (pthread_mutex_unlock(&mu_) != 0)
-    PERROR("pthread_mutex_unlock");
-}
+#endif

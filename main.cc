@@ -21,6 +21,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "affinity.h"
 #include "dep.h"
 #include "eval.h"
 #include "exec.h"
@@ -123,7 +124,7 @@ static int Run(const vector<Symbol>& targets,
   if (g_flags.generate_ninja && (g_flags.regen || g_flags.dump_kati_stamp)) {
     ScopedTimeReporter tr("regen check time");
     if (!NeedsRegen(start_time, orig_args)) {
-      printf("No need to regenerate ninja file\n");
+      fprintf(stderr, "No need to regenerate ninja file\n");
       return 0;
     }
     if (g_flags.dump_kati_stamp) {
@@ -133,9 +134,14 @@ static int Run(const vector<Symbol>& targets,
     ClearGlobCache();
   }
 
+  SetAffinityForSingleThread();
+
   MakefileCacheManager* cache_mgr = NewMakefileCacheManager();
 
   Vars* vars = new Vars();
+  vars->Assign(Intern("MAKEFILE_LIST"),
+               new SimpleVar(StringPrintf(" %s", g_flags.makefile),
+                             VarOrigin::FILE));
   for (char** p = environ; *p; p++) {
     SetVar(*p, VarOrigin::ENVIRONMENT, vars);
   }
@@ -153,10 +159,6 @@ static int Run(const vector<Symbol>& targets,
   for (StringPiece l : cl_vars) {
     SetVar(l, VarOrigin::COMMAND_LINE, ev->mutable_vars());
   }
-
-  vars->Assign(Intern("MAKEFILE_LIST"),
-               new SimpleVar(StringPrintf(" %s", g_flags.makefile),
-                             VarOrigin::FILE));
 
   {
     ScopedTimeReporter tr("eval time");
@@ -208,6 +210,8 @@ static int Run(const vector<Symbol>& targets,
   for (Stmt* stmt : bootstrap_asts)
     delete stmt;
   delete ev;
+  // Each Var will be deleted by |ev|.
+  vars->clear();
   delete vars;
   delete cache_mgr;
 
