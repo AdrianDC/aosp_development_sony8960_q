@@ -799,12 +799,13 @@ public class WifiQualifiedNetworkSelectionTest {
      */
     @Test
     public void networkChooseWithOneBssidDisableExpire() {
-        String[] ssids = DEFAULT_SSIDS;
-        String[] bssids = DEFAULT_BSSIDS;
-        int[] frequencies = {2437, 5180};
-        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]"};
-        int[] levels = {-65, -50};
-        int[] security = {SECURITY_PSK, SECURITY_PSK};
+        String[] ssids = {"\"test1\"", "\"test2\"", "\"test3\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4", "6c:f3:7f:ae:8c:f5"};
+        int[] frequencies = {2437, 5180, 5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS][ESS]",
+                "[WPA2-EAP-CCMP][ESS][ESS]"};
+        int[] levels = {-65, -50, -60};
+        int[] security = {SECURITY_PSK, SECURITY_PSK, SECURITY_PSK};
 
         List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
         WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
@@ -815,9 +816,12 @@ public class WifiQualifiedNetworkSelectionTest {
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
 
-        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
-        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
-        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
+        for (int index = 0; index < WifiQualifiedNetworkSelector.BSSID_BLACKLIST_THRESHOLD;
+                index++) {
+            mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
+            mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[2], false);
+        }
+
         //re-enable it
         when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis()
                 + WifiQualifiedNetworkSelector.BSSID_BLACKLIST_EXPIRE_TIME);

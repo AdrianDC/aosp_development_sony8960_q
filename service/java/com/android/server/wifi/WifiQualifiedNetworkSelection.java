@@ -32,9 +32,9 @@ import com.android.internal.R;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 class WifiQualifiedNetworkSelector {
     private WifiConfigStore mWifiConfigStore;
@@ -559,15 +559,13 @@ class WifiQualifiedNetworkSelector {
      * were blacked before BSSID_BLACKLIST_EXPIRE_TIME, re-enable it again.
      */
     private void updateBssidBlacklist() {
-        Set<String> keys = mBssidBlacklist.keySet();
-        if (keys != null && keys.size() > 0) {
-            for (String bssid : keys) {
-                BssidBlacklistStatus status = mBssidBlacklist.get(bssid);
-                if (status != null && status.mIsBlacklisted) {
-                    if (mClock.currentTimeMillis() - status.mBlacklistedTimeStamp
+        Iterator<BssidBlacklistStatus> iter = mBssidBlacklist.values().iterator();
+        while (iter.hasNext()) {
+            BssidBlacklistStatus status = iter.next();
+            if (status != null && status.mIsBlacklisted) {
+                if (mClock.currentTimeMillis() - status.mBlacklistedTimeStamp
                             >= BSSID_BLACKLIST_EXPIRE_TIME) {
-                        enableBssidForQualityNetworkSelection(bssid, true);
-                    }
+                    iter.remove();
                 }
             }
         }
