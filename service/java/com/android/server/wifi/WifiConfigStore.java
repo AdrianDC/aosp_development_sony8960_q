@@ -478,18 +478,6 @@ public class WifiConfigStore extends IpConfigStore {
      */
     static final String EMPTY_VALUE = "NULL";
 
-    // Internal use only
-    private static final String[] ENTERPRISE_CONFIG_SUPPLICANT_KEYS = new String[] {
-            WifiEnterpriseConfig.EAP_KEY, WifiEnterpriseConfig.PHASE2_KEY,
-            WifiEnterpriseConfig.IDENTITY_KEY, WifiEnterpriseConfig.ANON_IDENTITY_KEY,
-            WifiEnterpriseConfig.PASSWORD_KEY, WifiEnterpriseConfig.CLIENT_CERT_KEY,
-            WifiEnterpriseConfig.CA_CERT_KEY, WifiEnterpriseConfig.SUBJECT_MATCH_KEY,
-            WifiEnterpriseConfig.ENGINE_KEY, WifiEnterpriseConfig.ENGINE_ID_KEY,
-            WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY, WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY,
-            WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY, WifiEnterpriseConfig.CA_PATH_KEY
-    };
-
-
     /**
      * If Connectivity Service has triggered an unwanted network disconnect
      */
@@ -549,6 +537,61 @@ public class WifiConfigStore extends IpConfigStore {
     private WifiStateMachine mWifiStateMachine;
     private FrameworkFacade mFacade;
     private Clock mClock;
+
+    private class SupplicantSaver implements WifiEnterpriseConfig.SupplicantSaver {
+        private final int mNetId;
+        private final String mSetterSSID;
+
+        SupplicantSaver(int netId, String setterSSID) {
+            mNetId = netId;
+            mSetterSSID = setterSSID;
+        }
+
+        @Override
+        public boolean saveValue(String key, String value) {
+            if (key.equals(WifiEnterpriseConfig.PASSWORD_KEY)
+                    && value != null && value.equals("*")) {
+                // No need to try to set an obfuscated password, which will fail
+                return true;
+            }
+            if (key.equals(WifiEnterpriseConfig.REALM_KEY)
+                    || key.equals(WifiEnterpriseConfig.PLMN_KEY)) {
+                // No need to save realm or PLMN in supplicant
+                return true;
+            }
+            // TODO: We need a way to clear values in wpa_supplicant as opposed to
+            // mapping unset values to empty strings.
+            if (value == null) {
+                value = "\"\"";
+            }
+            if (!mWifiNative.setNetworkVariable(mNetId, key, value)) {
+                loge(mSetterSSID + ": failed to set " + key + ": " + value);
+                return false;
+            }
+            return true;
+        }
+    }
+
+    private class SupplicantLoader implements WifiEnterpriseConfig.SupplicantLoader {
+        private final int mNetId;
+
+        SupplicantLoader(int netId) {
+            mNetId = netId;
+        }
+
+        @Override
+        public String loadValue(String key) {
+            String value = mWifiNative.getNetworkVariable(mNetId, key);
+            if (!TextUtils.isEmpty(value)) {
+                if (!enterpriseConfigKeyShouldBeQuoted(key)) {
+                    value = removeDoubleQuotes(value);
+                }
+                return value;
+            } else {
+                return null;
+            }
+        }
+    }
 
     WifiConfigStore(Context c,  WifiStateMachine w, WifiNative wn, FrameworkFacade f,
             Clock clock, UserManager userManager) {
@@ -2974,6 +3017,190 @@ public class WifiConfigStore extends IpConfigStore {
         return Utils.toHex(removeDoubleQuotes(str).getBytes(StandardCharsets.UTF_8));
     }
 
+    private boolean saveConfigToSupplicant(WifiConfiguration config, int netId) {
+        if (config.SSID != null && !mWifiNative.setNetworkVariable(
+                    netId,
+                    WifiConfiguration.ssidVarName,
+                    encodeSSID(config.SSID))) {
+            loge("failed to set SSID: " + config.SSID);
+            return false;
+        }
+
+        final Map<String, String> metadata = new HashMap<String, String>();
+        if (config.isPasspoint()) {
+            metadata.put(ID_STRING_KEY_FQDN, config.FQDN);
+        }
+        metadata.put(ID_STRING_KEY_CONFIG_KEY, config.configKey());
+        metadata.put(ID_STRING_KEY_CREATOR_UID, Integer.toString(config.creatorUid));
+        if (!mWifiNative.setNetworkExtra(netId, ID_STRING_VAR_NAME, metadata)) {
+            loge("failed to set id_str: " + metadata.toString());
+            return false;
+        }
+
+        //set selected BSSID to supplicant
+        if (config.getNetworkSelectionStatus().getNetworkSelectionBSSID() != null) {
+            String bssid = config.getNetworkSelectionStatus().getNetworkSelectionBSSID();
+            if (!mWifiNative.setNetworkVariable(netId, WifiConfiguration.bssidVarName, bssid)) {
+                loge("failed to set BSSID: " + bssid);
+                return false;
+            }
+        }
+
+        String allowedKeyManagementString =
+                makeString(config.allowedKeyManagement, WifiConfiguration.KeyMgmt.strings);
+        if (config.allowedKeyManagement.cardinality() != 0 && !mWifiNative.setNetworkVariable(
+                    netId,
+                    WifiConfiguration.KeyMgmt.varName,
+                    allowedKeyManagementString)) {
+            loge("failed to set key_mgmt: " + allowedKeyManagementString);
+            return false;
+        }
+
+        String allowedProtocolsString =
+                makeString(config.allowedProtocols, WifiConfiguration.Protocol.strings);
+        if (config.allowedProtocols.cardinality() != 0 && !mWifiNative.setNetworkVariable(
+                    netId,
+                    WifiConfiguration.Protocol.varName,
+                    allowedProtocolsString)) {
+            loge("failed to set proto: " + allowedProtocolsString);
+            return false;
+        }
+
+        String allowedAuthAlgorithmsString =
+                makeString(config.allowedAuthAlgorithms, WifiConfiguration.AuthAlgorithm.strings);
+        if (config.allowedAuthAlgorithms.cardinality() != 0 && !mWifiNative.setNetworkVariable(
+                    netId,
+                    WifiConfiguration.AuthAlgorithm.varName,
+                    allowedAuthAlgorithmsString)) {
+            loge("failed to set auth_alg: " + allowedAuthAlgorithmsString);
+            return false;
+        }
+
+        String allowedPairwiseCiphersString = makeString(config.allowedPairwiseCiphers,
+                WifiConfiguration.PairwiseCipher.strings);
+        if (config.allowedPairwiseCiphers.cardinality() != 0 && !mWifiNative.setNetworkVariable(
+                    netId,
+                    WifiConfiguration.PairwiseCipher.varName,
+                    allowedPairwiseCiphersString)) {
+            loge("failed to set pairwise: " + allowedPairwiseCiphersString);
+            return false;
+        }
+
+        String allowedGroupCiphersString =
+                makeString(config.allowedGroupCiphers, WifiConfiguration.GroupCipher.strings);
+        if (config.allowedGroupCiphers.cardinality() != 0 && !mWifiNative.setNetworkVariable(
+                    netId,
+                    WifiConfiguration.GroupCipher.varName,
+                    allowedGroupCiphersString)) {
+            loge("failed to set group: " + allowedGroupCiphersString);
+            return false;
+        }
+
+        // Prevent client screw-up by passing in a WifiConfiguration we gave it
+        // by preventing "*" as a key.
+        if (config.preSharedKey != null && !config.preSharedKey.equals("*")
+                && !mWifiNative.setNetworkVariable(
+                    netId,
+                    WifiConfiguration.pskVarName,
+                    config.preSharedKey)) {
+            loge("failed to set psk");
+            return false;
+        }
+
+        boolean hasSetKey = false;
+        if (config.wepKeys != null) {
+            for (int i = 0; i < config.wepKeys.length; i++) {
+                // Prevent client screw-up by passing in a WifiConfiguration we gave it
+                // by preventing "*" as a key.
+                if (config.wepKeys[i] != null && !config.wepKeys[i].equals("*")) {
+                    if (!mWifiNative.setNetworkVariable(
+                                netId,
+                                WifiConfiguration.wepKeyVarNames[i],
+                                config.wepKeys[i])) {
+                        loge("failed to set wep_key" + i + ": " + config.wepKeys[i]);
+                        return false;
+                    }
+                    hasSetKey = true;
+                }
+            }
+        }
+
+        if (hasSetKey) {
+            if (!mWifiNative.setNetworkVariable(
+                        netId,
+                        WifiConfiguration.wepTxKeyIdxVarName,
+                        Integer.toString(config.wepTxKeyIndex))) {
+                loge("failed to set wep_tx_keyidx: " + config.wepTxKeyIndex);
+                return false;
+            }
+        }
+
+        if (!mWifiNative.setNetworkVariable(
+                    netId,
+                    WifiConfiguration.priorityVarName,
+                    Integer.toString(config.priority))) {
+            loge(config.SSID + ": failed to set priority: " + config.priority);
+            return false;
+        }
+
+        if (config.hiddenSSID && !mWifiNative.setNetworkVariable(
+                    netId,
+                    WifiConfiguration.hiddenSSIDVarName,
+                    Integer.toString(config.hiddenSSID ? 1 : 0))) {
+            loge(config.SSID + ": failed to set hiddenSSID: " + config.hiddenSSID);
+            return false;
+        }
+
+        if (config.requirePMF && !mWifiNative.setNetworkVariable(
+                    netId,
+                    WifiConfiguration.pmfVarName,
+                    "2")) {
+            loge(config.SSID + ": failed to set requirePMF: " + config.requirePMF);
+            return false;
+        }
+
+        if (config.updateIdentifier != null && !mWifiNative.setNetworkVariable(
+                netId,
+                WifiConfiguration.updateIdentiferVarName,
+                config.updateIdentifier)) {
+            loge(config.SSID + ": failed to set updateIdentifier: " + config.updateIdentifier);
+            return false;
+        }
+
+        if (config.enterpriseConfig != null
+                && config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
+
+            WifiEnterpriseConfig enterpriseConfig = config.enterpriseConfig;
+
+            if (needsKeyStore(enterpriseConfig)) {
+                try {
+                    /* config passed may include only fields being updated.
+                     * In order to generate the key id, fetch uninitialized
+                     * fields from the currently tracked configuration
+                     */
+                    WifiConfiguration currentConfig = mConfiguredNetworks.getForCurrentUser(netId);
+                    String keyId = config.getKeyIdForCredentials(currentConfig);
+
+                    if (!installKeys(currentConfig != null
+                            ? currentConfig.enterpriseConfig : null, enterpriseConfig, keyId)) {
+                        loge(config.SSID + ": failed to install keys");
+                        return false;
+                    }
+                } catch (IllegalStateException e) {
+                    loge(config.SSID + " invalid config for key installation");
+                    return false;
+                }
+            }
+
+            if (!enterpriseConfig.saveToSupplicant(new SupplicantSaver(netId, config.SSID))) {
+                removeKeys(enterpriseConfig);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private NetworkUpdateResult addOrUpdateNetworkNative(WifiConfiguration config, int uid) {
         /*
          * If the supplied networkId is INVALID_NETWORK_ID, we create a new empty
@@ -3013,231 +3240,7 @@ public class WifiConfigStore extends IpConfigStore {
             }
         }
 
-        boolean updateFailed = true;
-
-        setVariables: {
-
-            if (config.SSID != null &&
-                    !mWifiNative.setNetworkVariable(
-                        netId,
-                        WifiConfiguration.ssidVarName,
-                        encodeSSID(config.SSID))) {
-                loge("failed to set SSID: "+config.SSID);
-                break setVariables;
-            }
-
-            final Map<String, String> metadata = new HashMap<String, String>();
-            if (config.isPasspoint()) {
-                metadata.put(ID_STRING_KEY_FQDN, config.FQDN);
-            }
-            metadata.put(ID_STRING_KEY_CONFIG_KEY, config.configKey());
-            metadata.put(ID_STRING_KEY_CREATOR_UID, Integer.toString(config.creatorUid));
-            if (!mWifiNative.setNetworkExtra(netId, ID_STRING_VAR_NAME, metadata)) {
-                loge("failed to set id_str: " + metadata.toString());
-                break setVariables;
-            }
-
-            //set selected BSSID to supplicant
-            if (config.getNetworkSelectionStatus().getNetworkSelectionBSSID() != null) {
-                String bssid = config.getNetworkSelectionStatus().getNetworkSelectionBSSID();
-                if (!mWifiNative.setNetworkVariable(
-                        netId,
-                        WifiConfiguration.bssidVarName,
-                        bssid)) {
-                    loge("failed to set BSSID: " + bssid);
-                    break setVariables;
-                }
-            }
-
-            String allowedKeyManagementString =
-                makeString(config.allowedKeyManagement, WifiConfiguration.KeyMgmt.strings);
-            if (config.allowedKeyManagement.cardinality() != 0 &&
-                    !mWifiNative.setNetworkVariable(
-                        netId,
-                        WifiConfiguration.KeyMgmt.varName,
-                        allowedKeyManagementString)) {
-                loge("failed to set key_mgmt: "+
-                        allowedKeyManagementString);
-                break setVariables;
-            }
-
-            String allowedProtocolsString =
-                makeString(config.allowedProtocols, WifiConfiguration.Protocol.strings);
-            if (config.allowedProtocols.cardinality() != 0 &&
-                    !mWifiNative.setNetworkVariable(
-                        netId,
-                        WifiConfiguration.Protocol.varName,
-                        allowedProtocolsString)) {
-                loge("failed to set proto: "+
-                        allowedProtocolsString);
-                break setVariables;
-            }
-
-            String allowedAuthAlgorithmsString =
-                makeString(config.allowedAuthAlgorithms, WifiConfiguration.AuthAlgorithm.strings);
-            if (config.allowedAuthAlgorithms.cardinality() != 0 &&
-                    !mWifiNative.setNetworkVariable(
-                        netId,
-                        WifiConfiguration.AuthAlgorithm.varName,
-                        allowedAuthAlgorithmsString)) {
-                loge("failed to set auth_alg: "+
-                        allowedAuthAlgorithmsString);
-                break setVariables;
-            }
-
-            String allowedPairwiseCiphersString =
-                    makeString(config.allowedPairwiseCiphers,
-                    WifiConfiguration.PairwiseCipher.strings);
-            if (config.allowedPairwiseCiphers.cardinality() != 0 &&
-                    !mWifiNative.setNetworkVariable(
-                        netId,
-                        WifiConfiguration.PairwiseCipher.varName,
-                        allowedPairwiseCiphersString)) {
-                loge("failed to set pairwise: "+
-                        allowedPairwiseCiphersString);
-                break setVariables;
-            }
-
-            String allowedGroupCiphersString =
-                makeString(config.allowedGroupCiphers, WifiConfiguration.GroupCipher.strings);
-            if (config.allowedGroupCiphers.cardinality() != 0 &&
-                    !mWifiNative.setNetworkVariable(
-                        netId,
-                        WifiConfiguration.GroupCipher.varName,
-                        allowedGroupCiphersString)) {
-                loge("failed to set group: "+
-                        allowedGroupCiphersString);
-                break setVariables;
-            }
-
-            // Prevent client screw-up by passing in a WifiConfiguration we gave it
-            // by preventing "*" as a key.
-            if (config.preSharedKey != null && !config.preSharedKey.equals("*") &&
-                    !mWifiNative.setNetworkVariable(
-                        netId,
-                        WifiConfiguration.pskVarName,
-                        config.preSharedKey)) {
-                loge("failed to set psk");
-                break setVariables;
-            }
-
-            boolean hasSetKey = false;
-            if (config.wepKeys != null) {
-                for (int i = 0; i < config.wepKeys.length; i++) {
-                    // Prevent client screw-up by passing in a WifiConfiguration we gave it
-                    // by preventing "*" as a key.
-                    if (config.wepKeys[i] != null && !config.wepKeys[i].equals("*")) {
-                        if (!mWifiNative.setNetworkVariable(
-                                    netId,
-                                    WifiConfiguration.wepKeyVarNames[i],
-                                    config.wepKeys[i])) {
-                            loge("failed to set wep_key" + i + ": " + config.wepKeys[i]);
-                            break setVariables;
-                        }
-                        hasSetKey = true;
-                    }
-                }
-            }
-
-            if (hasSetKey) {
-                if (!mWifiNative.setNetworkVariable(
-                            netId,
-                            WifiConfiguration.wepTxKeyIdxVarName,
-                            Integer.toString(config.wepTxKeyIndex))) {
-                    loge("failed to set wep_tx_keyidx: " + config.wepTxKeyIndex);
-                    break setVariables;
-                }
-            }
-
-            if (!mWifiNative.setNetworkVariable(
-                        netId,
-                        WifiConfiguration.priorityVarName,
-                        Integer.toString(config.priority))) {
-                loge(config.SSID + ": failed to set priority: "
-                        +config.priority);
-                break setVariables;
-            }
-
-            if (config.hiddenSSID && !mWifiNative.setNetworkVariable(
-                        netId,
-                        WifiConfiguration.hiddenSSIDVarName,
-                        Integer.toString(config.hiddenSSID ? 1 : 0))) {
-                loge(config.SSID + ": failed to set hiddenSSID: "+
-                        config.hiddenSSID);
-                break setVariables;
-            }
-
-            if (config.requirePMF && !mWifiNative.setNetworkVariable(
-                        netId,
-                        WifiConfiguration.pmfVarName,
-                        "2")) {
-                loge(config.SSID + ": failed to set requirePMF: "+
-                        config.requirePMF);
-                break setVariables;
-            }
-
-            if (config.updateIdentifier != null && !mWifiNative.setNetworkVariable(
-                    netId,
-                    WifiConfiguration.updateIdentiferVarName,
-                    config.updateIdentifier)) {
-                loge(config.SSID + ": failed to set updateIdentifier: "+
-                        config.updateIdentifier);
-                break setVariables;
-            }
-
-            if (config.enterpriseConfig != null &&
-                    config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
-
-                WifiEnterpriseConfig enterpriseConfig = config.enterpriseConfig;
-
-                if (needsKeyStore(enterpriseConfig)) {
-                    try {
-                        /* config passed may include only fields being updated.
-                         * In order to generate the key id, fetch uninitialized
-                         * fields from the currently tracked configuration
-                         */
-                        WifiConfiguration currentConfig =
-                                mConfiguredNetworks.getForCurrentUser(netId);
-                        String keyId = config.getKeyIdForCredentials(currentConfig);
-
-                        if (!installKeys(currentConfig != null
-                                ? currentConfig.enterpriseConfig : null, enterpriseConfig, keyId)) {
-                            loge(config.SSID + ": failed to install keys");
-                            break setVariables;
-                        }
-                    } catch (IllegalStateException e) {
-                        loge(config.SSID + " invalid config for key installation");
-                        break setVariables;
-                    }
-                }
-
-                HashMap<String, String> enterpriseFields = enterpriseConfig.getFields();
-                for (String key : enterpriseFields.keySet()) {
-                        String value = enterpriseFields.get(key);
-                        if (key.equals("password") && value != null && value.equals("*")) {
-                            // No need to try to set an obfuscated password, which will fail
-                            continue;
-                        }
-                        if (key.equals(WifiEnterpriseConfig.REALM_KEY)
-                                || key.equals(WifiEnterpriseConfig.PLMN_KEY)) {
-                            // No need to save realm or PLMN in supplicant
-                            continue;
-                        }
-                        if (!mWifiNative.setNetworkVariable(
-                                    netId,
-                                    key,
-                                    value)) {
-                            removeKeys(enterpriseConfig);
-                            loge(config.SSID + ": failed to set " + key +
-                                    ": " + value);
-                            break setVariables;
-                        }
-                }
-            }
-            updateFailed = false;
-        } // End of setVariables
-
-        if (updateFailed) {
+        if (!saveConfigToSupplicant(config, netId)) {
             if (newNetwork) {
                 mWifiNative.removeNetwork(netId);
                 loge("Failed to set a network variable, removed network: " + netId);
@@ -4225,18 +4228,7 @@ public class WifiConfigStore extends IpConfigStore {
         if (config.enterpriseConfig == null) {
             config.enterpriseConfig = new WifiEnterpriseConfig();
         }
-        HashMap<String, String> enterpriseFields = config.enterpriseConfig.getFields();
-        for (String key : ENTERPRISE_CONFIG_SUPPLICANT_KEYS) {
-            value = mWifiNative.getNetworkVariable(netId, key);
-            if (!TextUtils.isEmpty(value)) {
-                if (!enterpriseConfigKeyShouldBeQuoted(key)) {
-                    value = removeDoubleQuotes(value);
-                }
-                enterpriseFields.put(key, value);
-            } else {
-                enterpriseFields.put(key, EMPTY_VALUE);
-            }
-        }
+        config.enterpriseConfig.loadFromSupplicant(new SupplicantLoader(netId));
 
         if (migrateOldEapTlsNative(config.enterpriseConfig, netId)) {
             saveConfig();
