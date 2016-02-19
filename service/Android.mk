@@ -107,8 +107,6 @@ LOCAL_SRC_FILES := \
 	jni/jni_helper.cpp
 
 LOCAL_MODULE := libwifi-service
-# b/22172328
-LOCAL_CLANG := false
 
 include $(BUILD_SHARED_LIBRARY)
 
