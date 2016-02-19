@@ -39,6 +39,7 @@ import android.content.res.Resources;
 import android.net.ConnectivityManager;
 import android.net.DhcpResults;
 import android.net.LinkProperties;
+import android.net.dhcp.DhcpClient;
 import android.net.ip.IpManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.SupplicantState;
@@ -812,6 +813,16 @@ public class WifiStateMachineTest {
         assertEquals("DisconnectedState", getCurrentState().getName());
     }
 
+
+    @Test
+    public void smToString() throws Exception {
+        assertEquals("CMD_CHANNEL_HALF_CONNECTED", mWsm.smToString(
+                AsyncChannel.CMD_CHANNEL_HALF_CONNECTED));
+        assertEquals("CMD_PRE_DHCP_ACTION", mWsm.smToString(
+                DhcpClient.CMD_PRE_DHCP_ACTION));
+        assertEquals("CMD_IP_REACHABILITY_LOST", mWsm.smToString(
+                WifiStateMachine.CMD_IP_REACHABILITY_LOST));
+    }
 
     @Test
     public void disconnect() throws Exception {
