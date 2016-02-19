@@ -550,4 +550,52 @@ public class InformationElementUtil {
             return capabilities;
         }
     }
+
+    /**
+     * Parser for the Traffic Indication Map (TIM) Information Element (EID 5). This element will
+     * only be present in scan results that are derived from a Beacon Frame, not from the more
+     * plentiful probe responses. Call 'isValid()' after parsing, to ensure the results are correct.
+     */
+    public static class TrafficIndicationMap {
+        private static final int MAX_TIM_LENGTH = 254;
+        private boolean mValid = false;
+        public int mLength = 0;
+        public int mDtimCount = -1;
+        //Negative DTIM Period means no TIM element was given this frame.
+        public int mDtimPeriod = -1;
+        public int mBitmapControl = 0;
+
+        /**
+         * Is this a valid TIM information element.
+         */
+        public boolean isValid() {
+            return mValid;
+        }
+
+        // Traffic Indication Map format (size unit: byte)
+        //
+        //| ElementID | Length | DTIM Count | DTIM Period | BitmapControl | Partial Virtual Bitmap |
+        //      1          1          1            1               1                1 - 251
+        //
+        // Note: InformationElement.bytes has 'Element ID' and 'Length'
+        //       stripped off already
+        //
+        public void from(InformationElement ie) {
+            if (ie == null || ie.bytes == null) return;
+            mLength = ie.bytes.length;
+            ByteBuffer data = ByteBuffer.wrap(ie.bytes).order(ByteOrder.LITTLE_ENDIAN);
+            try {
+                mDtimCount = data.get() & Constants.BYTE_MASK;
+                mDtimPeriod = data.get() & Constants.BYTE_MASK;
+                mBitmapControl = data.get() & Constants.BYTE_MASK;
+                //A valid TIM element must have atleast one more byte
+                data.get();
+            } catch (BufferUnderflowException e) {
+                return;
+            }
+            if (mLength <= MAX_TIM_LENGTH) {
+                mValid = true;
+            }
+        }
+    }
 }

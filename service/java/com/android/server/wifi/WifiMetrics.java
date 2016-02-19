@@ -89,7 +89,6 @@ public class WifiMetrics {
             if (config != null) {
                 /*<TODO>
                 mRouterFingerPrintProto.roamType
-                mRouterFingerPrintProto.dtim
                 mRouterFingerPrintProto.routerTechnology
                 mRouterFingerPrintProto.supportsIpv6
                 */
@@ -106,7 +105,12 @@ public class WifiMetrics {
                 }
                 mRouterFingerPrintProto.hidden = config.hiddenSSID;
                 mRouterFingerPrintProto.channelInfo = config.apChannel;
-
+                // Config may not have a valid dtimInterval set yet, in which case dtim will be zero
+                // (These are only populated from beacon frame scan results, which are returned as
+                // scan results from the chip far less frequently than Probe-responses)
+                if (config.dtimInterval > 0) {
+                    mRouterFingerPrintProto.dtim = config.dtimInterval;
+                }
             }
         }
     }
@@ -144,19 +148,11 @@ public class WifiMetrics {
 
         private ConnectionEvent() {
             mConnectionEvent = new WifiMetricsProto.ConnectionEvent();
-            mConnectionEvent.startTimeMillis = -1;
-            mRealEndTime = -1;
-            mConnectionEvent.durationTakenToConnectMillis = -1;
+            mRealEndTime = 0;
+            mRealStartTime = 0;
+            mEventCompleteness = 0;
             mRouterFingerPrint = new RouterFingerPrint();
             mConnectionEvent.routerFingerprint = mRouterFingerPrint.mRouterFingerPrintProto;
-            mConnectionEvent.signalStrength = -1;
-            mConnectionEvent.roamType = WifiMetricsProto.ConnectionEvent.ROAM_UNKNOWN;
-            mConnectionEvent.connectionResult = -1;
-            mConnectionEvent.level2FailureCode = -1;
-            mConnectionEvent.connectivityLevelFailureCode =
-                    WifiMetricsProto.ConnectionEvent.HLF_UNKNOWN;
-            mConnectionEvent.automaticBugReportTaken = false;
-            mEventCompleteness = 0;
         }
 
         public String toString() {
@@ -222,6 +218,7 @@ public class WifiMetrics {
      * Gathers and sets the RouterFingerPrint data as well
      *
      * @param wifiInfo WifiInfo for the current connection attempt, used for connection metrics
+     * @param config WifiConfiguration of the config used for the current connection attempt
      * @param roamType Roam type that caused connection attempt, see WifiMetricsProto.WifiLog.ROAM_X
      */
     public void startConnectionEvent(WifiInfo wifiInfo, WifiConfiguration config, int roamType) {

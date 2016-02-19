@@ -4048,6 +4048,22 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                         activeScanDetail = resultDetail;
                     }
                 }
+                // Cache DTIM values parsed from the beacon frame Traffic Indication Map (TIM)
+                // Information Element (IE), into the associated WifiConfigurations. Most of the
+                // time there is no TIM IE in the scan result (Probe Response instead of Beacon
+                // Frame), these scanResult DTIM's are negative and ignored.
+                NetworkDetail networkDetail = resultDetail.getNetworkDetail();
+                if (networkDetail != null && networkDetail.getDtimInterval() > 0) {
+                    List<WifiConfiguration> associatedWifiConfigurations =
+                            mWifiConfigStore.updateSavedNetworkWithNewScanDetail(resultDetail);
+                    if (associatedWifiConfigurations != null) {
+                        for (WifiConfiguration associatedConf : associatedWifiConfigurations) {
+                            if (associatedConf != null) {
+                                associatedConf.dtimInterval = networkDetail.getDtimInterval();
+                            }
+                        }
+                    }
+                }
             }
             mActiveScanDetail = activeScanDetail;
         }
@@ -7148,12 +7164,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     // TODO(b/26786318): Keep track of the lastSelectedConfiguration and the
                     // lastConnectUid on a per-user basis.
                     int lastConnectUid = WifiConfiguration.UNKNOWN_UID;
+                    mWifiMetrics.startConnectionEvent(mWifiInfo, config,
+                            WifiMetricsProto.ConnectionEvent.ROAM_NONE);
                     if (mWifiConfigStore.isLastSelectedConfiguration(config)
                             && isCurrentUserProfile(UserHandle.getUserId(config.lastConnectUid))) {
                         lastConnectUid = config.lastConnectUid;
+                        mWifiMetrics.setConnectionEventRoamType(
+                                WifiMetricsProto.ConnectionEvent.ROAM_USER_SELECTED);
                     }
-                    mWifiMetrics.startConnectionEvent(mWifiInfo, config,
-                            WifiMetricsProto.ConnectionEvent.ROAM_NONE);
                     if (mWifiConfigStore.selectNetwork(config, /* updatePriorities = */ false,
                             lastConnectUid) && mWifiNative.reconnect()) {
                         lastConnectAttemptTimestamp = System.currentTimeMillis();
@@ -7176,8 +7194,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                             mWifiConfigStore.
                                  setAndEnableLastSelectedConfiguration(
                                          WifiConfiguration.INVALID_NETWORK_ID);
-                            mWifiMetrics.setConnectionEventRoamType(
-                                    WifiMetricsProto.ConnectionEvent.ROAM_USER_SELECTED);
                         }
                         mAutoRoaming = false;
                         if (isRoaming() || linkDebouncing) {
