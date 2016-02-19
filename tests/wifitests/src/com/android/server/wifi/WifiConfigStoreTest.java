@@ -967,21 +967,22 @@ public class WifiConfigStoreTest {
      * network in expectedNetworkIDOrder list.
      */
     private static void verifyPnoNetworkListOrder(
-            ArrayList<WifiNative.PnoNetworkPriority> pnoNetworkList,
+            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList,
             ArrayList<Integer> expectedNetworkIdOrder) throws Exception  {
         int i = 0;
-        for (WifiNative.PnoNetworkPriority pnoNetwork : pnoNetworkList) {
+        for (WifiNative.WifiPnoNetwork pnoNetwork : pnoNetworkList) {
             Log.i(TAG, "PNO Network List Index: " + i + ", networkID: " + pnoNetwork.networkId);
-            assertTrue(pnoNetwork.networkId == expectedNetworkIdOrder.get(i++));
+            assertEquals("Expected network ID: " + pnoNetwork.networkId,
+                    pnoNetwork.networkId, expectedNetworkIdOrder.get(i++).intValue());
         }
     }
 
     /**
-     * Verifies the retrievePnoNetworkPriorityList API. The test verifies that the list returned
-     * from the API is sorted as expected.
+     * Verifies the retrieveDisconnectedWifiPnoNetworkList API. The test verifies that the list
+     * returned from the API is sorted as expected.
      */
     @Test
-    public void testPnoNetworkPriorityListCreation() throws Exception {
+    public void testDisconnectedWifiPnoNetworkListCreation() throws Exception {
         addNetworks();
 
         Random rand = new Random(WifiTestUtil.getTestMethod().hashCode());
@@ -999,15 +1000,14 @@ public class WifiConfigStoreTest {
             for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
                 config.numAssociation = numAssociationValues.pop();
                 config.priority = rand.nextInt(10000);
-                config.status = WifiConfiguration.Status.ENABLED;
                 config.getNetworkSelectionStatus().setNetworkSelectionStatus(
                         WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLED);
                 numAssociationToNetworkIdMap.put(config.numAssociation, config.networkId);
                 Log.i(TAG, "networkID: " + config.networkId + ", numAssociation: "
                         + config.numAssociation);
             }
-            ArrayList<WifiNative.PnoNetworkPriority> pnoNetworkList =
-                    mConfigStore.retrievePnoNetworkPriorityList(true);
+            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList =
+                    mConfigStore.retrieveDisconnectedWifiPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(numAssociationToNetworkIdMap.values()));
         }
@@ -1024,14 +1024,13 @@ public class WifiConfigStoreTest {
             for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
                 config.numAssociation = 0;
                 config.priority = priorityValues.pop();
-                config.status = WifiConfiguration.Status.ENABLED;
                 config.getNetworkSelectionStatus().setNetworkSelectionStatus(
                         WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLED);
                 priorityToNetworkIdMap.put(config.priority, config.networkId);
                 Log.i(TAG, "networkID: " + config.networkId + ", priority: " + config.priority);
             }
-            ArrayList<WifiNative.PnoNetworkPriority> pnoNetworkList =
-                    mConfigStore.retrievePnoNetworkPriorityList(true);
+            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList =
+                    mConfigStore.retrieveDisconnectedWifiPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(priorityToNetworkIdMap.values()));
         }
@@ -1049,7 +1048,6 @@ public class WifiConfigStoreTest {
             for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
                 config.numAssociation = rand.nextInt(10000);
                 config.priority = rand.nextInt(10000);
-                config.status = WifiConfiguration.Status.ENABLED;
                 config.getNetworkSelectionStatus().setNetworkSelectionStatus(
                         networkSelectionStatusValues.pop());
                 networkSelectionStatusToNetworkIdMap.put(
@@ -1058,8 +1056,98 @@ public class WifiConfigStoreTest {
                 Log.i(TAG, "networkID: " + config.networkId + ", NetworkSelectionStatus: "
                         + config.getNetworkSelectionStatus().getNetworkSelectionStatus());
             }
-            ArrayList<WifiNative.PnoNetworkPriority> pnoNetworkList =
-                    mConfigStore.retrievePnoNetworkPriorityList(true);
+            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList =
+                    mConfigStore.retrieveDisconnectedWifiPnoNetworkList();
+            verifyPnoNetworkListOrder(pnoNetworkList,
+                    new ArrayList(networkSelectionStatusToNetworkIdMap.values()));
+        }
+    }
+
+    /**
+     * Verifies the retrieveConnectedWifiPnoNetworkList API. The test verifies that the list
+     * returned from the API is sorted as expected.
+     */
+    @Test
+    public void testConnectedWifiPnoNetworkListCreation() throws Exception {
+        addNetworks();
+
+        Random rand = new Random(WifiTestUtil.getTestMethod().hashCode());
+
+        // First assign |lastSeen| values and verify that the list is sorted
+        // in descending order of |lastSeen| values. Keep NetworkSelectionStatus
+        // values constant.
+        for (int userId : USER_IDS) {
+            switchUser(userId);
+            TreeMap<Boolean, Integer> lastSeenToNetworkIdMap =
+                    new TreeMap<>(Collections.reverseOrder());
+            ArrayDeque<Integer> lastSeenValues = getUniqueRandomNumberValues(1, 2, 2);
+            if (mConfiguredNetworks.valuesForCurrentUser().size() > 2) continue;
+            for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
+                config.numAssociation = rand.nextInt(10000);
+                config.priority = rand.nextInt(10000);
+                config.getNetworkSelectionStatus().setNetworkSelectionStatus(
+                        WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLED);
+                boolean lastSeenValue = (lastSeenValues.pop()  == 1);
+                config.getNetworkSelectionStatus().setSeenInLastQualifiedNetworkSelection(
+                        lastSeenValue);
+                lastSeenToNetworkIdMap.put(lastSeenValue, config.networkId);
+                Log.i(TAG, "networkID: " + config.networkId + ", lastSeen: " + lastSeenValue);
+            }
+            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList =
+                    mConfigStore.retrieveConnectedWifiPnoNetworkList();
+            verifyPnoNetworkListOrder(pnoNetworkList,
+                    new ArrayList(lastSeenToNetworkIdMap.values()));
+        }
+
+        // Assign random |numAssociation| values and verify that the list is sorted
+        // in descending order of |numAssociation| values. Keep NetworkSelectionStatus/lastSeen
+        // values constant.
+        for (int userId : USER_IDS) {
+            switchUser(userId);
+            TreeMap<Integer, Integer> numAssociationToNetworkIdMap =
+                    new TreeMap<>(Collections.reverseOrder());
+            ArrayDeque<Integer> numAssociationValues =
+                    getUniqueRandomNumberValues(
+                            1, 10000, mConfiguredNetworks.valuesForCurrentUser().size());
+            for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
+                config.numAssociation = numAssociationValues.pop();
+                config.priority = rand.nextInt(10000);
+                config.getNetworkSelectionStatus().setNetworkSelectionStatus(
+                        WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLED);
+                config.getNetworkSelectionStatus().setSeenInLastQualifiedNetworkSelection(true);
+                numAssociationToNetworkIdMap.put(config.numAssociation, config.networkId);
+                Log.i(TAG, "networkID: " + config.networkId + ", numAssociation: "
+                        + config.numAssociation);
+            }
+            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList =
+                    mConfigStore.retrieveConnectedWifiPnoNetworkList();
+            verifyPnoNetworkListOrder(pnoNetworkList,
+                    new ArrayList(numAssociationToNetworkIdMap.values()));
+        }
+
+        // Now assign random |NetworkSelectionStatus| values and verify that the list is sorted in
+        // ascending order of |NetworkSelectionStatus| values.
+        for (int userId : USER_IDS) {
+            switchUser(userId);
+            TreeMap<Integer, Integer> networkSelectionStatusToNetworkIdMap = new TreeMap<>();
+            ArrayDeque<Integer> networkSelectionStatusValues =
+                    getUniqueRandomNumberValues(
+                            3,
+                            WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_STATUS_MAX,
+                            mConfiguredNetworks.valuesForCurrentUser().size());
+            for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
+                config.numAssociation = rand.nextInt(10000);
+                config.priority = rand.nextInt(10000);
+                config.getNetworkSelectionStatus().setNetworkSelectionStatus(
+                        networkSelectionStatusValues.pop());
+                networkSelectionStatusToNetworkIdMap.put(
+                        config.getNetworkSelectionStatus().getNetworkSelectionStatus(),
+                        config.networkId);
+                Log.i(TAG, "networkID: " + config.networkId + ", NetworkSelectionStatus: "
+                        + config.getNetworkSelectionStatus().getNetworkSelectionStatus());
+            }
+            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList =
+                    mConfigStore.retrieveConnectedWifiPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(networkSelectionStatusToNetworkIdMap.values()));
         }

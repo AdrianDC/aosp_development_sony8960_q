@@ -2517,8 +2517,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         if (enable) {
             mWifiConfigStore.enableAllNetworks();
         }
-        List<WifiNative.PnoNetworkPriority> pnoList =
-                mWifiConfigStore.retrievePnoNetworkPriorityList(enable);
+        List<WifiNative.WifiPnoNetwork> pnoList =
+                mWifiConfigStore.retrieveDisconnectedWifiPnoNetworkList(enable);
         boolean ret = mWifiNative.enableBackgroundScan(enable, pnoList);
         if (ret) {
             mLegacyPnoEnabled = enable;
@@ -6616,6 +6616,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 //records how long this network is connected in future
                 config.lastConnected = System.currentTimeMillis();
                 config.getNetworkSelectionStatus().clearDisableReasonCounter();
+                config.numAssociation++;
             }
             mBadLinkspeedcount = 0;
        }
