@@ -21,9 +21,11 @@ import static org.mockito.Mockito.when;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 
 /**
  * Utils for wifi tests.
@@ -51,4 +53,14 @@ public class TestUtil {
         broadcastReceiver.onReceive(context, intent);
     }
 
+    /**
+     * Send {@link ConnectivityManager#ACTION_TETHER_STATE_CHANGED} broadcast.
+     */
+    public static void sendTetherStateChanged(BroadcastReceiver broadcastReceiver,
+            Context context, ArrayList<String> available, ArrayList<String> active) {
+        Intent intent = new Intent(ConnectivityManager.ACTION_TETHER_STATE_CHANGED);
+        intent.putExtra(ConnectivityManager.EXTRA_AVAILABLE_TETHER, available);
+        intent.putExtra(ConnectivityManager.EXTRA_ACTIVE_TETHER, active);
+        broadcastReceiver.onReceive(context, intent);
+    }
 }
