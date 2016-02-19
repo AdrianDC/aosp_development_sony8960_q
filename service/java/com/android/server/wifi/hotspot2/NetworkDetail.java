@@ -1,13 +1,12 @@
 package com.android.server.wifi.hotspot2;
 
+import static com.android.server.wifi.anqp.Constants.BYTES_IN_EUI48;
+import static com.android.server.wifi.anqp.Constants.BYTE_MASK;
+
 import android.net.wifi.ScanResult;
 import android.util.Log;
 
 import com.android.server.wifi.anqp.ANQPElement;
-
-import static com.android.server.wifi.anqp.Constants.BYTE_MASK;
-import static com.android.server.wifi.anqp.Constants.BYTES_IN_EUI48;
-
 import com.android.server.wifi.anqp.Constants;
 import com.android.server.wifi.anqp.RawByteElement;
 import com.android.server.wifi.anqp.VenueNameElement;
@@ -103,6 +102,7 @@ public class NetworkDetail {
      */
     private final int mAnqpOICount;
     private final long[] mRoamingConsortiums;
+    private int mDtimInterval = -1;
 
     private final InformationElementUtil.ExtendedCapabilities mExtendedCapabilities;
 
@@ -136,8 +136,9 @@ public class NetworkDetail {
         InformationElementUtil.ExtendedCapabilities extendedCapabilities =
                 new InformationElementUtil.ExtendedCapabilities();
 
+        InformationElementUtil.TrafficIndicationMap trafficIndicationMap =
+                new InformationElementUtil.TrafficIndicationMap();
         RuntimeException exception = null;
-
         try {
             for (ScanResult.InformationElement ie : infoElements) {
                 switch (ie.id) {
@@ -165,6 +166,9 @@ public class NetworkDetail {
                     case ScanResult.InformationElement.EID_EXTENDED_CAPS:
                         extendedCapabilities.from(ie);
                         break;
+                    case ScanResult.InformationElement.EID_TIM:
+                        trafficIndicationMap.from(ie);
+                        break;
                     default:
                         break;
                 }
@@ -177,7 +181,6 @@ public class NetworkDetail {
             }
             exception = e;
         }
-
         if (ssidOctets != null) {
             /*
              * Strict use of the "UTF-8 SSID" bit by APs appears to be spotty at best even if the
@@ -234,6 +237,10 @@ public class NetworkDetail {
             mCenterfreq0 = htOperation.getCenterFreq0(mPrimaryFreq);
             mCenterfreq1  = 0;
         }
+
+        // If trafficIndicationMap is not valid, mDtimPeriod will be negative
+        mDtimInterval = trafficIndicationMap.mDtimPeriod;
+
         if (VDBG) {
             Log.d(TAG, mSSID + "ChannelWidth is: " + mChannelWidth + " PrimaryFreq: " + mPrimaryFreq +
                     " mCenterfreq0: " + mCenterfreq0 + " mCenterfreq1: " + mCenterfreq1 +
@@ -271,6 +278,7 @@ public class NetworkDetail {
         mPrimaryFreq = base.mPrimaryFreq;
         mCenterfreq0 = base.mCenterfreq0;
         mCenterfreq1 = base.mCenterfreq1;
+        mDtimInterval = base.mDtimInterval;
     }
 
     public NetworkDetail complete(Map<Constants.ANQPElementType, ANQPElement> anqpElements) {
@@ -386,6 +394,10 @@ public class NetworkDetail {
 
     public int getCenterfreq1() {
         return mCenterfreq1;
+    }
+
+    public int getDtimInterval() {
+        return mDtimInterval;
     }
 
     public boolean is80211McResponderSupport() {

@@ -662,7 +662,11 @@ public class WifiNative {
 
                             NetworkDetail networkDetail = new NetworkDetail(bssid,
                                     infoElements, anqpLines, freq);
-
+                            if (DBG) {
+                                Log.v(TAG + ":DTIM", "SSID" + networkDetail.getSSID()
+                                        + ", DTIM=" + networkDetail.getDtimInterval() + ", "
+                                        + " IEstr:" + infoElementsStr);
+                            }
                             String xssid = (wifiSsid != null) ? wifiSsid.toString() : WifiSsid.NONE;
                             if (!xssid.equals(networkDetail.getTrimmedSSID())) {
                                 Log.d(TAG, String.format(

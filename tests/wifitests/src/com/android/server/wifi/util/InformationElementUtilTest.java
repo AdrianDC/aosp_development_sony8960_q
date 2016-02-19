@@ -342,4 +342,54 @@ public class InformationElementUtilTest {
 
         assertEquals("", result);
     }
+
+    /**
+     * Test a that a correctly formed TIM Information Element is decoded into a valid TIM element,
+     * and the values are captured
+     */
+    @Test
+    public void parseTrafficIndicationMapInformationElementValid() {
+        InformationElement ie = new InformationElement();
+        ie.id = InformationElement.EID_TIM;
+        ie.bytes = new byte[] { (byte) 0x03, (byte) 0x05, (byte) 0x00, (byte) 0x00};
+        InformationElementUtil.TrafficIndicationMap trafficIndicationMap =
+                new InformationElementUtil.TrafficIndicationMap();
+        trafficIndicationMap.from(ie);
+        assertEquals(trafficIndicationMap.mLength, 4);
+        assertEquals(trafficIndicationMap.mDtimCount, 3);
+        assertEquals(trafficIndicationMap.mDtimPeriod, 5);
+        assertEquals(trafficIndicationMap.mBitmapControl, 0);
+        assertEquals(trafficIndicationMap.isValid(), true);
+    }
+
+    /**
+     * Test that a short invalid Information Element is marked as being an invalid TIM element when
+     * parsed as Traffic Indication Map.
+     */
+    @Test
+    public void parseTrafficIndicationMapInformationElementInvalidTooShort() {
+        InformationElement ie = new InformationElement();
+        ie.id = InformationElement.EID_TIM;
+        ie.bytes = new byte[] { (byte) 0x01, (byte) 0x07 };
+        InformationElementUtil.TrafficIndicationMap trafficIndicationMap =
+                new InformationElementUtil.TrafficIndicationMap();
+        trafficIndicationMap.from(ie);
+        assertEquals(trafficIndicationMap.isValid(), false);
+    }
+
+    /**
+     * Test that a too-large invalid Information Element is marked as an invalid TIM element when
+     * parsed as Traffic Indication Map.
+     */
+    @Test
+    public void parseTrafficIndicationMapInformationElementInvalidTooLong() {
+        InformationElement ie = new InformationElement();
+        ie.id = InformationElement.EID_TIM;
+        ie.bytes = new byte[255]; // bytes length of upto 254 is valid for TIM
+        Arrays.fill(ie.bytes, (byte) 7);
+        InformationElementUtil.TrafficIndicationMap trafficIndicationMap =
+                new InformationElementUtil.TrafficIndicationMap();
+        trafficIndicationMap.from(ie);
+        assertEquals(trafficIndicationMap.isValid(), false);
+    }
 }
