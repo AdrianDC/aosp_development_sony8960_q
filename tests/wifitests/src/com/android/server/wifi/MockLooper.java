@@ -22,6 +22,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.MessageQueue;
 import android.os.SystemClock;
+import android.util.Log;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -42,6 +43,9 @@ public class MockLooper {
     private static final Field MESSAGE_NEXT_FIELD;
     private static final Field MESSAGE_WHEN_FIELD;
     private static final Method MESSAGE_MARK_IN_USE_METHOD;
+    private static final String TAG = "MockLooper";
+
+    private AutoDispatchThread mAutoDispatchThread;
 
     static {
         try {
@@ -143,7 +147,7 @@ public class MockLooper {
     /**
      * @return true if there are pending messages in the message queue
      */
-    public boolean isIdle() {
+    public synchronized boolean isIdle() {
         Message messageList = getMessageLinkedList();
 
         return messageList != null && SystemClock.uptimeMillis() >= messageList.getWhen();
@@ -152,7 +156,7 @@ public class MockLooper {
     /**
      * @return the next message in the Looper's message queue or null if there is none
      */
-    public Message nextMessage() {
+    public synchronized Message nextMessage() {
         if (isIdle()) {
             return messageQueueNext();
         } else {
@@ -164,7 +168,7 @@ public class MockLooper {
      * Dispatch the next message in the queue
      * Asserts that there is a message in the queue
      */
-    public void dispatchNext() {
+    public synchronized void dispatchNext() {
         assertTrue(isIdle());
         Message msg = messageQueueNext();
         if (msg == null) {
@@ -178,12 +182,102 @@ public class MockLooper {
      * Will not fail if there are no messages pending
      * @return the number of messages dispatched
      */
-    public int dispatchAll() {
+    public synchronized int dispatchAll() {
         int count = 0;
         while (isIdle()) {
             dispatchNext();
             ++count;
         }
         return count;
+    }
+
+    /**
+     * Thread used to dispatch messages when the main thread is blocked waiting for a response.
+     */
+    private class AutoDispatchThread extends Thread {
+        private static final int MAX_LOOPS = 100;
+        private static final int LOOP_SLEEP_TIME_MS = 10;
+
+        private RuntimeException mAutoDispatchException = null;
+
+        /**
+         * Run method for the auto dispatch thread.
+         * The thread loops a maximum of MAX_LOOPS times with a 10ms sleep between loops.
+         * The thread continues looping and attempting to dispatch all messages until at
+         * least one message has been dispatched.
+         */
+        @Override
+        public void run() {
+            int dispatchCount = 0;
+            for (int i = 0; i < MAX_LOOPS; i++) {
+                try {
+                    dispatchCount = dispatchAll();
+                } catch (RuntimeException e) {
+                    mAutoDispatchException = e;
+                }
+                Log.d(TAG, "dispatched " + dispatchCount + " messages");
+                if (dispatchCount > 0) {
+                    return;
+                }
+                try {
+                    Thread.sleep(LOOP_SLEEP_TIME_MS);
+                } catch (InterruptedException e) {
+                    mAutoDispatchException = new IllegalStateException(
+                            "stopAutoDispatch called before any messages were dispatched.");
+                    return;
+                }
+            }
+            Log.e(TAG, "AutoDispatchThread did not dispatch any messages.");
+            mAutoDispatchException = new IllegalStateException(
+                    "MockLooper did not dispatch any messages before exiting.");
+        }
+
+        /**
+         * Method allowing the MockLooper to pass any exceptions thrown by the thread to be passed
+         * to the main thread.
+         *
+         * @return RuntimeException Exception created by stopping without dispatching a message
+         */
+        public RuntimeException getException() {
+            return mAutoDispatchException;
+        }
+    }
+
+    /**
+     * Create and start a new AutoDispatchThread if one is not already running.
+     */
+    public void startAutoDispatch() {
+        if (mAutoDispatchThread != null) {
+            throw new IllegalStateException(
+                    "startAutoDispatch called with the AutoDispatchThread already running.");
+        }
+        mAutoDispatchThread = new AutoDispatchThread();
+        mAutoDispatchThread.start();
+    }
+
+    /**
+     * If an AutoDispatchThread is currently running, stop and clean up.
+     */
+    public void stopAutoDispatch() {
+        if (mAutoDispatchThread != null) {
+            if (mAutoDispatchThread.isAlive()) {
+                mAutoDispatchThread.interrupt();
+            }
+            try {
+                mAutoDispatchThread.join();
+            } catch (InterruptedException e) {
+                // Catch exception from join.
+            }
+
+            RuntimeException e = mAutoDispatchThread.getException();
+            mAutoDispatchThread = null;
+            if (e != null) {
+                throw e;
+            }
+        } else {
+            // stopAutoDispatch was called when startAutoDispatch has not created a new thread.
+            throw new IllegalStateException(
+                    "stopAutoDispatch called without startAutoDispatch.");
+        }
     }
 }
