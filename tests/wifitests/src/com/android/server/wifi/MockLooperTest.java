@@ -11,12 +11,13 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
 
 package com.android.server.wifi;
 
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -257,5 +258,87 @@ public class MockLooperTest {
         collector.checkThat("4: messageB", messageB, equalTo(messageCaptor.getValue().what));
 
         inOrder.verify(mHandlerSpy, never()).handleMessage(any(Message.class));
+    }
+
+    /**
+     * Test AutoDispatch for a single message.
+     * Enable AutoDispatch, add message, confirm it was sent and the state was cleaned up.
+     * <p>
+     * Expected: get message and have cleaned up state.
+     */
+    @Test
+    public void testAutoDispatchWithSingleMessage() {
+        final int messageA = 1;
+
+        InOrder inOrder = inOrder(mHandlerSpy);
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+
+        mMockLooper.startAutoDispatch();
+        mHandlerSpy.sendMessage(mHandler.obtainMessage(messageA));
+        mMockLooper.stopAutoDispatch();
+
+        inOrder.verify(mHandlerSpy).handleMessage(messageCaptor.capture());
+        collector.checkThat("1: messageA", messageA, equalTo(messageCaptor.getValue().what));
+
+        inOrder.verify(mHandlerSpy, never()).handleMessage(any(Message.class));
+    }
+
+    /**
+     * Test starting AutoDispatch while already running throws IllegalStateException
+     * Enable AutoDispatch two times in a row.
+     * <p>
+     * Expected: catch IllegalStateException on second call.
+     */
+    @Test(expected = IllegalStateException.class)
+    public void testRepeatedStartAutoDispatchThrowsException() {
+        mMockLooper.startAutoDispatch();
+        mMockLooper.startAutoDispatch();
+    }
+
+    /**
+     * Test stopping AutoDispatch without previously starting throws IllegalStateException
+     * Stop AutoDispatch
+     * <p>
+     * Expected: catch IllegalStateException on second call.
+     */
+    @Test(expected = IllegalStateException.class)
+    public void testStopAutoDispatchWithoutStartThrowsException() {
+        mMockLooper.stopAutoDispatch();
+    }
+
+    /**
+     * Test AutoDispatch exits and does not dispatch a later message.
+     * Start and stop AutoDispatch then add a message.
+     * <p>
+     * Expected: After AutoDispatch is stopped, dispatchAll will return 1.
+     */
+    @Test
+    public void testAutoDispatchStopsCleanlyWithoutDispatchingAMessage() {
+        final int messageA = 1;
+
+        InOrder inOrder = inOrder(mHandlerSpy);
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+
+        mMockLooper.startAutoDispatch();
+        try {
+            mMockLooper.stopAutoDispatch();
+        } catch (IllegalStateException e) {
+            //  Stopping without a dispatch will throw an exception.
+        }
+
+        mHandlerSpy.sendMessage(mHandler.obtainMessage(messageA));
+        assertEquals("One message should be dispatched", 1, mMockLooper.dispatchAll());
+    }
+
+    /**
+     * Test AutoDispatch throws an exception when no messages are dispatched.
+     * Start and stop AutoDispatch
+     * <p>
+     * Expected: Exception is thrown with the stopAutoDispatch call.
+     */
+    @Test(expected = IllegalStateException.class)
+    public void testAutoDispatchThrowsExceptionWhenNoMessagesDispatched() {
+        mMockLooper.startAutoDispatch();
+        mMockLooper.stopAutoDispatch();
     }
 }

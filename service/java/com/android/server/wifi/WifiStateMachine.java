@@ -1159,10 +1159,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     private FrameworkFacade mFacade;
 
-    public WifiStateMachine(Context context, WifiTrafficPoller trafficPoller,
-                            FrameworkFacade facade, WifiMetrics wifiMetrics,
-                            UserManager userManager) {
-        super("WifiStateMachine");
+    public WifiStateMachine(Context context, FrameworkFacade facade, Looper looper,
+                            UserManager userManager, WifiMetrics wifiMetrics) {
+        super("WifiStateMachine", looper);
+
         mWifiMetrics = wifiMetrics;
         mContext = context;
         mFacade = facade;
