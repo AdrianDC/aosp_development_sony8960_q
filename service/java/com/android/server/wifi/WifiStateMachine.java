@@ -44,8 +44,6 @@ import android.content.pm.UserInfo;
 import android.database.ContentObserver;
 import android.net.ConnectivityManager;
 import android.net.DhcpResults;
-import android.net.InterfaceConfiguration;
-import android.net.LinkAddress;
 import android.net.LinkProperties;
 import android.net.Network;
 import android.net.NetworkAgent;
@@ -657,16 +655,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     /* Start the soft access point */
     static final int CMD_START_AP                                       = BASE + 21;
-    /* Indicates soft ap start succeeded */
-    static final int CMD_START_AP_SUCCESS                               = BASE + 22;
     /* Indicates soft ap start failed */
-    static final int CMD_START_AP_FAILURE                               = BASE + 23;
+    static final int CMD_START_AP_FAILURE                               = BASE + 22;
     /* Stop the soft access point */
-    static final int CMD_STOP_AP                                        = BASE + 24;
-    /* Invoked when getting a tether state change notification */
-    static final int CMD_TETHER_STATE_CHANGE                            = BASE + 29;
-    /* A delayed message sent to indicate tether state change failed to arrive */
-    static final int CMD_TETHER_NOTIFICATION_TIMED_OUT                  = BASE + 30;
+    static final int CMD_STOP_AP                                        = BASE + 23;
+    /* Soft access point teardown is completed. */
+    static final int CMD_AP_STOPPED                                     = BASE + 24;
 
     static final int CMD_BLUETOOTH_ADAPTER_STATE_CHANGE                 = BASE + 31;
 
@@ -1036,19 +1030,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
     private State mDisconnectedState = new DisconnectedState();
     /* Waiting for WPS to be completed*/
     private State mWpsRunningState = new WpsRunningState();
-
-    /* Soft ap is starting up */
-    private State mSoftApStartingState = new SoftApStartingState();
-    /* Soft ap is running */
-    private State mSoftApStartedState = new SoftApStartedState();
-    /* Soft ap is running and we are waiting for tether notification */
-    private State mTetheringState = new TetheringState();
-    /* Soft ap is running and we are tethered through connectivity service */
-    private State mTetheredState = new TetheredState();
-    /* Waiting for untether confirmation before stopping soft Ap */
-    private State mUntetheringState = new UntetheringState();
-
-
+    /* Soft ap state */
+    private State mSoftApState = new SoftApState();
 
     private class WifiScanListener implements WifiScanner.ScanListener {
         @Override
@@ -1271,18 +1254,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 new BroadcastReceiver() {
                     @Override
                     public void onReceive(Context context, Intent intent) {
-                        ArrayList<String> available = intent.getStringArrayListExtra(
-                                ConnectivityManager.EXTRA_AVAILABLE_TETHER);
-                        ArrayList<String> active = intent.getStringArrayListExtra(
-                                ConnectivityManager.EXTRA_ACTIVE_TETHER);
-                        sendMessage(CMD_TETHER_STATE_CHANGE, new TetherStateChange(available, active));
-                    }
-                }, new IntentFilter(ConnectivityManager.ACTION_TETHER_STATE_CHANGED));
-
-        mContext.registerReceiver(
-                new BroadcastReceiver() {
-                    @Override
-                    public void onReceive(Context context, Intent intent) {
                         sScanAlarmIntentCount++; // Used for debug only
                         startScan(SCAN_ALARM_SOURCE, mDelayedScanCounter.incrementAndGet(), null, null);
                         if (VDBG)
@@ -1351,6 +1322,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         mTcpBufferSizes = mContext.getResources().getString(
                 com.android.internal.R.string.config_wifi_tcp_buffers);
 
+        // CHECKSTYLE:OFF IndentationCheck
         addState(mDefaultState);
             addState(mInitialState, mDefaultState);
             addState(mSupplicantStartingState, mDefaultState);
@@ -1370,11 +1342,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 addState(mDriverStoppingState, mSupplicantStartedState);
                 addState(mDriverStoppedState, mSupplicantStartedState);
             addState(mSupplicantStoppingState, mDefaultState);
-            addState(mSoftApStartingState, mDefaultState);
-            addState(mSoftApStartedState, mDefaultState);
-                addState(mTetheringState, mSoftApStartedState);
-                addState(mTetheredState, mSoftApStartedState);
-                addState(mUntetheringState, mSoftApStartedState);
+            addState(mSoftApState, mDefaultState);
+        // CHECKSTYLE:ON IndentationCheck
 
         setInitialState(mInitialState);
 
@@ -3808,86 +3777,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         }
     }
 
-    private boolean startTethering(ArrayList<String> available) {
-
-        boolean wifiAvailable = false;
-
-        checkAndSetConnectivityInstance();
-
-        String[] wifiRegexs = mCm.getTetherableWifiRegexs();
-
-        for (String intf : available) {
-            for (String regex : wifiRegexs) {
-                if (intf.matches(regex)) {
-
-                    InterfaceConfiguration ifcg = null;
-                    try {
-                        ifcg = mNwService.getInterfaceConfig(intf);
-                        if (ifcg != null) {
-                            /* IP/netmask: 192.168.43.1/255.255.255.0 */
-                            ifcg.setLinkAddress(new LinkAddress(
-                                    NetworkUtils.numericToInetAddress("192.168.43.1"), 24));
-                            ifcg.setInterfaceUp();
-
-                            mNwService.setInterfaceConfig(intf, ifcg);
-                        }
-                    } catch (Exception e) {
-                        loge("Error configuring interface " + intf + ", :" + e);
-                        return false;
-                    }
-
-                    if (mCm.tether(intf) != ConnectivityManager.TETHER_ERROR_NO_ERROR) {
-                        loge("Error tethering on " + intf);
-                        return false;
-                    }
-                    mTetherInterfaceName = intf;
-                    return true;
-                }
-            }
-        }
-        // We found no interfaces to tether
-        return false;
-    }
-
-    private void stopTethering() {
-
-        checkAndSetConnectivityInstance();
-
-        /* Clear the interface config to allow dhcp correctly configure new
-           ip settings */
-        InterfaceConfiguration ifcg = null;
-        try {
-            ifcg = mNwService.getInterfaceConfig(mTetherInterfaceName);
-            if (ifcg != null) {
-                ifcg.setLinkAddress(
-                        new LinkAddress(NetworkUtils.numericToInetAddress("0.0.0.0"), 0));
-                mNwService.setInterfaceConfig(mTetherInterfaceName, ifcg);
-            }
-        } catch (Exception e) {
-            loge("Error resetting interface " + mTetherInterfaceName + ", :" + e);
-        }
-
-        if (mCm.untether(mTetherInterfaceName) != ConnectivityManager.TETHER_ERROR_NO_ERROR) {
-            loge("Untether initiate failed!");
-        }
-    }
-
-    private boolean isWifiTethered(ArrayList<String> active) {
-
-        checkAndSetConnectivityInstance();
-
-        String[] wifiRegexs = mCm.getTetherableWifiRegexs();
-        for (String intf : active) {
-            for (String regex : wifiRegexs) {
-                if (intf.matches(regex)) {
-                    return true;
-                }
-            }
-        }
-        // We found no interfaces that are tethered
-        return false;
-    }
-
     /**
      * Set the country code from the system setting value, if any.
      */
@@ -5084,11 +4973,16 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         return apChannel;
     }
 
-    /* SoftAP configuration */
-    private boolean enableSoftAp() {
+    /* Driver/firmware setup for soft AP. */
+    private boolean setupDriverForSoftAp() {
+        if (!mWifiNative.loadDriver()) {
+            Log.e(TAG, "Failed to load driver for softap");
+            return false;
+        }
+
         if (mWifiNative.getInterfaces() != 0) {
             if (!mWifiNative.toggleInterface(0)) {
-                if (DBG) Log.e(TAG, "toggleInterface failed");
+                Log.e(TAG, "toggleInterface failed");
                 return false;
             }
         } else {
@@ -5102,91 +4996,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             Log.e(TAG, "Failed to reload AP firmware " + e);
         }
 
-        if (mWifiNative.startHal() == false) {
+        if (!mWifiNative.startHal()) {
             /* starting HAL is optional */
             Log.e(TAG, "Failed to start HAL");
         }
         return true;
-    }
-
-    /* Current design is to not set the config on a running hostapd but instead
-     * stop and start tethering when user changes config on a running access point
-     *
-     * TODO: Add control channel setup through hostapd that allows changing config
-     * on a running daemon
-     */
-    private void startSoftApWithConfig(final WifiConfiguration configuration) {
-        // set channel
-        final WifiConfiguration config = new WifiConfiguration(configuration);
-
-        if (DBG) {
-            Log.d(TAG, "SoftAp config channel is: " + config.apChannel);
-        }
-
-        //We need HAL support to set country code and get available channel list, if HAL is
-        //not available, like razor, we regress to original implementaion (2GHz, channel 6)
-        if (mWifiNative.isHalStarted()) {
-            //set country code through HAL Here
-            String countryCode = getCurrentCountryCode();
-
-            if (countryCode != null) {
-                if (!mWifiNative.setCountryCodeHal(countryCode.toUpperCase(Locale.ROOT))) {
-                    if (config.apBand != 0) {
-                        Log.e(TAG, "Fail to set country code. Can not setup Softap on 5GHz");
-                        //countrycode is mandatory for 5GHz
-                        sendMessage(CMD_START_AP_FAILURE, WifiManager.SAP_START_FAILURE_GENERAL);
-                        return;
-                    }
-                }
-            } else {
-                if (config.apBand != 0) {
-                    //countrycode is mandatory for 5GHz
-                    Log.e(TAG, "Can not setup softAp on 5GHz without country code!");
-                    sendMessage(CMD_START_AP_FAILURE, WifiManager.SAP_START_FAILURE_GENERAL);
-                    return;
-                }
-            }
-
-            if (config.apChannel == 0) {
-                config.apChannel = chooseApChannel(config.apBand);
-                if (config.apChannel == 0) {
-                    if(mWifiNative.isGetChannelsForBandSupported()) {
-                        //fail to get available channel
-                        sendMessage(CMD_START_AP_FAILURE, WifiManager.SAP_START_FAILURE_NO_CHANNEL);
-                        return;
-                    } else {
-                        //for some old device, wifiHal may not be supportedget valid channels are not
-                        //supported
-                        config.apBand = 0;
-                        config.apChannel = 6;
-                    }
-                }
-            }
-        } else {
-            //for some old device, wifiHal may not be supported
-            config.apBand = 0;
-            config.apChannel = 6;
-        }
-        // Start hostapd on a separate thread
-        new Thread(new Runnable() {
-            public void run() {
-                try {
-                    mNwService.startAccessPoint(config, mInterfaceName);
-                } catch (Exception e) {
-                    loge("Exception in softap start " + e);
-                    try {
-                        mNwService.stopAccessPoint(mInterfaceName);
-                        mNwService.startAccessPoint(config, mInterfaceName);
-                    } catch (Exception e1) {
-                        loge("Exception in softap re-start " + e1);
-                        sendMessage(CMD_START_AP_FAILURE, WifiManager.SAP_START_FAILURE_GENERAL);
-                        return;
-                    }
-                }
-                if (DBG) log("Soft AP start successful");
-                sendMessage(CMD_START_AP_SUCCESS);
-            }
-        }).start();
     }
 
     private byte[] macAddressFromString(String macString) {
@@ -5407,11 +5221,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 case CMD_STOP_DRIVER:
                 case CMD_DRIVER_START_TIMED_OUT:
                 case CMD_START_AP:
-                case CMD_START_AP_SUCCESS:
                 case CMD_START_AP_FAILURE:
                 case CMD_STOP_AP:
-                case CMD_TETHER_STATE_CHANGE:
-                case CMD_TETHER_NOTIFICATION_TIMED_OUT:
+                case CMD_AP_STOPPED:
                 case CMD_DISCONNECT:
                 case CMD_RECONNECT:
                 case CMD_REASSOCIATE:
@@ -5675,17 +5487,16 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     }
                     break;
                 case CMD_START_AP:
-                    if (mWifiNative.loadDriver() == false) {
-                        loge("Failed to load driver for softap");
+                    if (setupDriverForSoftAp()) {
+                        transitionTo(mSoftApState);
                     } else {
-                        if (enableSoftAp() == true) {
-                            setWifiApState(WIFI_AP_STATE_ENABLING, 0);
-                            transitionTo(mSoftApStartingState);
-                        } else {
-                            setWifiApState(WIFI_AP_STATE_FAILED,
-                                    WifiManager.SAP_START_FAILURE_GENERAL);
-                            transitionTo(mInitialState);
-                        }
+                        setWifiApState(WIFI_AP_STATE_FAILED,
+                                WifiManager.SAP_START_FAILURE_GENERAL);
+                        /**
+                         * Transition to InitialState (current state) to reset the
+                         * driver/HAL back to the initial state.
+                         */
+                        transitionTo(mInitialState);
                     }
                     break;
                 default:
@@ -9296,7 +9107,22 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         }
     }
 
-    class SoftApStartingState extends State {
+    class SoftApState extends State {
+        private SoftApManager mSoftApManager;
+
+        private class SoftApListener implements SoftApManager.Listener {
+            @Override
+            public void onStateChanged(int state, int reason) {
+                if (state == WIFI_AP_STATE_DISABLED) {
+                    sendMessage(CMD_AP_STOPPED);
+                } else if (state == WIFI_AP_STATE_FAILED) {
+                    sendMessage(CMD_START_AP_FAILURE);
+                }
+
+                setWifiApState(state, reason);
+            }
+        }
+
         @Override
         public void enter() {
             final Message message = getCurrentMessage();
@@ -9313,197 +9139,40 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     /* Update AP configuration. */
                     mWifiApConfigStore.setApConfiguration(config);
                 }
-                startSoftApWithConfig(config);
+
+                checkAndSetConnectivityInstance();
+                mSoftApManager = mFacade.makeSoftApManager(
+                        mContext, getHandler().getLooper(), mWifiNative, mNwService,
+                        mCm, getCurrentCountryCode(),
+                        mWifiApConfigStore.getAllowed2GChannel(),
+                        new SoftApListener());
+                mSoftApManager.start(config);
             } else {
-                throw new RuntimeException("Illegal transition to SoftApStartingState: " + message);
+                throw new RuntimeException("Illegal transition to SoftApState: " + message);
             }
         }
+
+        @Override
+        public void exit() {
+            mSoftApManager = null;
+        }
+
         @Override
         public boolean processMessage(Message message) {
             logStateAndMessage(message, this);
 
             switch(message.what) {
-                case CMD_START_SUPPLICANT:
-                case CMD_STOP_SUPPLICANT:
                 case CMD_START_AP:
-                case CMD_STOP_AP:
-                case CMD_START_DRIVER:
-                case CMD_STOP_DRIVER:
-                case CMD_SET_OPERATIONAL_MODE:
-                case CMD_SET_COUNTRY_CODE:
-                case CMD_SET_FREQUENCY_BAND:
-                case CMD_START_PACKET_FILTERING:
-                case CMD_STOP_PACKET_FILTERING:
-                case CMD_TETHER_STATE_CHANGE:
-                    deferMessage(message);
+                    /* Ignore start command when it is starting/started. */
                     break;
-                case CMD_START_AP_SUCCESS:
-                    setWifiApState(WIFI_AP_STATE_ENABLED, 0);
-                    transitionTo(mSoftApStartedState);
+                case CMD_STOP_AP:
+                    mSoftApManager.stop();
                     break;
                 case CMD_START_AP_FAILURE:
-                    setWifiApState(WIFI_AP_STATE_FAILED, message.arg1);
                     transitionTo(mInitialState);
                     break;
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
-        }
-    }
-
-    class SoftApStartedState extends State {
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-
-            switch(message.what) {
-                case CMD_STOP_AP:
-                    if (DBG) log("Stopping Soft AP");
-                    /* We have not tethered at this point, so we just shutdown soft Ap */
-                    try {
-                        mNwService.stopAccessPoint(mInterfaceName);
-                    } catch(Exception e) {
-                        loge("Exception in stopAccessPoint()");
-                    }
-                    setWifiApState(WIFI_AP_STATE_DISABLED, 0);
+                case CMD_AP_STOPPED:
                     transitionTo(mInitialState);
-                    break;
-                case CMD_START_AP:
-                    // Ignore a start on a running access point
-                    break;
-                    // Fail client mode operation when soft AP is enabled
-                case CMD_START_SUPPLICANT:
-                    loge("Cannot start supplicant with a running soft AP");
-                    setWifiState(WIFI_STATE_UNKNOWN);
-                    break;
-                case CMD_TETHER_STATE_CHANGE:
-                    TetherStateChange stateChange = (TetherStateChange) message.obj;
-                    if (startTethering(stateChange.available)) {
-                        transitionTo(mTetheringState);
-                    }
-                    break;
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
-        }
-    }
-
-    class TetheringState extends State {
-        @Override
-        public void enter() {
-            /* Send ourselves a delayed message to shut down if tethering fails to notify */
-            sendMessageDelayed(obtainMessage(CMD_TETHER_NOTIFICATION_TIMED_OUT,
-                    ++mTetherToken, 0), TETHER_NOTIFICATION_TIME_OUT_MSECS);
-        }
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-
-            switch(message.what) {
-                case CMD_TETHER_STATE_CHANGE:
-                    TetherStateChange stateChange = (TetherStateChange) message.obj;
-                    if (isWifiTethered(stateChange.active)) {
-                        transitionTo(mTetheredState);
-                    }
-                    return HANDLED;
-                case CMD_TETHER_NOTIFICATION_TIMED_OUT:
-                    if (message.arg1 == mTetherToken) {
-                        loge("Failed to get tether update, shutdown soft access point");
-                        transitionTo(mSoftApStartedState);
-                        // Needs to be first thing handled
-                        sendMessageAtFrontOfQueue(CMD_STOP_AP);
-                    }
-                    break;
-                case CMD_START_SUPPLICANT:
-                case CMD_STOP_SUPPLICANT:
-                case CMD_START_AP:
-                case CMD_STOP_AP:
-                case CMD_START_DRIVER:
-                case CMD_STOP_DRIVER:
-                case CMD_SET_OPERATIONAL_MODE:
-                case CMD_SET_COUNTRY_CODE:
-                case CMD_SET_FREQUENCY_BAND:
-                case CMD_START_PACKET_FILTERING:
-                case CMD_STOP_PACKET_FILTERING:
-                    deferMessage(message);
-                    break;
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
-        }
-    }
-
-    class TetheredState extends State {
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-
-            switch(message.what) {
-                case CMD_TETHER_STATE_CHANGE:
-                    TetherStateChange stateChange = (TetherStateChange) message.obj;
-                    if (!isWifiTethered(stateChange.active)) {
-                        loge("Tethering reports wifi as untethered!, shut down soft Ap");
-                        setHostApRunning(null, false);
-                        setHostApRunning(null, true);
-                    }
-                    return HANDLED;
-                case CMD_STOP_AP:
-                    if (DBG) log("Untethering before stopping AP");
-                    setWifiApState(WIFI_AP_STATE_DISABLING, 0);
-                    stopTethering();
-                    transitionTo(mUntetheringState);
-                    // More work to do after untethering
-                    deferMessage(message);
-                    break;
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
-        }
-    }
-
-    class UntetheringState extends State {
-        @Override
-        public void enter() {
-            /* Send ourselves a delayed message to shut down if tethering fails to notify */
-            sendMessageDelayed(obtainMessage(CMD_TETHER_NOTIFICATION_TIMED_OUT,
-                    ++mTetherToken, 0), TETHER_NOTIFICATION_TIME_OUT_MSECS);
-
-        }
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-
-            switch(message.what) {
-                case CMD_TETHER_STATE_CHANGE:
-                    TetherStateChange stateChange = (TetherStateChange) message.obj;
-
-                    /* Wait till wifi is untethered */
-                    if (isWifiTethered(stateChange.active)) break;
-
-                    transitionTo(mSoftApStartedState);
-                    break;
-                case CMD_TETHER_NOTIFICATION_TIMED_OUT:
-                    if (message.arg1 == mTetherToken) {
-                        loge("Failed to get tether update, force stop access point");
-                        transitionTo(mSoftApStartedState);
-                    }
-                    break;
-                case CMD_START_SUPPLICANT:
-                case CMD_STOP_SUPPLICANT:
-                case CMD_START_AP:
-                case CMD_STOP_AP:
-                case CMD_START_DRIVER:
-                case CMD_STOP_DRIVER:
-                case CMD_SET_OPERATIONAL_MODE:
-                case CMD_SET_COUNTRY_CODE:
-                case CMD_SET_FREQUENCY_BAND:
-                case CMD_START_PACKET_FILTERING:
-                case CMD_STOP_PACKET_FILTERING:
-                    deferMessage(message);
                     break;
                 default:
                     return NOT_HANDLED;
