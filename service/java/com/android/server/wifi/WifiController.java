@@ -16,6 +16,10 @@
 
 package com.android.server.wifi;
 
+import static android.net.wifi.WifiManager.WIFI_MODE_FULL;
+import static android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF;
+import static android.net.wifi.WifiManager.WIFI_MODE_SCAN_ONLY;
+
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
@@ -27,9 +31,6 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
-import static android.net.wifi.WifiManager.WIFI_MODE_FULL;
-import static android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF;
-import static android.net.wifi.WifiManager.WIFI_MODE_SCAN_ONLY;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -118,6 +119,7 @@ class WifiController extends StateMachine {
     static final int CMD_USER_PRESENT                 = BASE + 12;
     static final int CMD_AP_START_FAILURE             = BASE + 13;
     static final int CMD_EMERGENCY_CALL_STATE_CHANGED = BASE + 14;
+    static final int CMD_AP_STOPPED                   = BASE + 15;
 
     private static final int WIFI_DISABLED = 0;
     private static final int WIFI_ENABLED = 1;
@@ -196,9 +198,11 @@ class WifiController extends StateMachine {
                             int state = intent.getIntExtra(
                                     WifiManager.EXTRA_WIFI_AP_STATE,
                                     WifiManager.WIFI_AP_STATE_FAILED);
-                            if(state == WifiManager.WIFI_AP_STATE_FAILED) {
+                            if (state == WifiManager.WIFI_AP_STATE_FAILED) {
                                 loge(TAG + "SoftAP start failed");
                                 sendMessage(CMD_AP_START_FAILURE);
+                            } else if (state == WifiManager.WIFI_AP_STATE_DISABLED) {
+                                sendMessage(CMD_AP_STOPPED);
                             }
                         }
                     }
@@ -391,6 +395,7 @@ class WifiController extends StateMachine {
                 case CMD_EMERGENCY_MODE_CHANGED:
                 case CMD_EMERGENCY_CALL_STATE_CHANGED:
                 case CMD_AP_START_FAILURE:
+                case CMD_AP_STOPPED:
                     break;
                 case CMD_USER_PRESENT:
                     mFirstUserSignOnSeen = true;
@@ -521,8 +526,8 @@ class WifiController extends StateMachine {
                 case CMD_EMERGENCY_MODE_CHANGED:
                     if (msg.arg1 == 1) {
                         transitionTo(mEcmState);
-                        break;
                     }
+                    break;
                 case CMD_SET_AP:
                     if (msg.arg1 == 1) {
                         // remeber that we were enabled
@@ -582,6 +587,7 @@ class WifiController extends StateMachine {
                             ! mSettingsStore.isWifiToggleEnabled()) {
                         transitionTo(mApStaDisabledState);
                     }
+                    break;
                 case CMD_SCAN_ALWAYS_MODE_CHANGED:
                     if (! mSettingsStore.isScanAlwaysAvailable()) {
                         transitionTo(mApStaDisabledState);
@@ -629,47 +635,71 @@ class WifiController extends StateMachine {
 
     }
 
+    /**
+     * Only transition out of this state when AP failed to start or AP is stopped.
+     */
     class ApEnabledState extends State {
+        /**
+         * Save the pending state when stopping the AP, so that it will transition
+         * to the correct state when AP is stopped.  This is to avoid a possible
+         * race condition where the new state might try to update the driver/interface
+         * state before AP is completely torn down.
+         */
+        private State mPendingState = null;
+
+        /**
+         * Determine the next state based on the current settings (e.g. saved
+         * wifi state).
+         */
+        private State getNextWifiState() {
+            int wifiSavedState = mFacade.getIntegerSetting(mContext,
+                    Settings.Global.WIFI_SAVED_STATE, WIFI_DISABLED);
+            if (wifiSavedState == WIFI_ENABLED) {
+                return mStaEnabledState;
+            }
+
+            if (mSettingsStore.isScanAlwaysAvailable()) {
+                return mStaDisabledWithScanState;
+            }
+
+            return mApStaDisabledState;
+        }
+
         @Override
         public boolean processMessage(Message msg) {
             switch (msg.what) {
                 case CMD_AIRPLANE_TOGGLED:
                     if (mSettingsStore.isAirplaneModeOn()) {
                         mWifiStateMachine.setHostApRunning(null, false);
-                        transitionTo(mApStaDisabledState);
+                        mPendingState = mApStaDisabledState;
                     }
                     break;
                 case CMD_SET_AP:
                     if (msg.arg1 == 0) {
                         mWifiStateMachine.setHostApRunning(null, false);
-                        int wifiSavedState = mFacade.getIntegerSetting(mContext,
-                                Settings.Global.WIFI_SAVED_STATE, WIFI_DISABLED);
-                        if (wifiSavedState == WIFI_ENABLED) {
-                            transitionTo(mStaEnabledState);
-                        }
-                        else {
-                            if (mSettingsStore.isScanAlwaysAvailable()) {
-                                transitionTo(mStaDisabledWithScanState);
-                            }
-                            else {
-                                transitionTo(mApStaDisabledState);
-                            }
-                        }
+                        mPendingState = getNextWifiState();
                     }
+                    break;
+                case CMD_AP_STOPPED:
+                    if (mPendingState == null) {
+                        /**
+                         * Stop triggered internally, either tether notification
+                         * timed out or wifi is untethered for some reason.
+                         */
+                        mPendingState = getNextWifiState();
+                    }
+                    transitionTo(mPendingState);
                     break;
                 case CMD_EMERGENCY_CALL_STATE_CHANGED:
                 case CMD_EMERGENCY_MODE_CHANGED:
                     if (msg.arg1 == 1) {
                         mWifiStateMachine.setHostApRunning(null, false);
-                        transitionTo(mEcmState);
-                        break;
+                        mPendingState = mEcmState;
                     }
+                    break;
                 case CMD_AP_START_FAILURE:
-                    if(!mSettingsStore.isScanAlwaysAvailable()) {
-                        transitionTo(mApStaDisabledState);
-                    } else {
-                        transitionTo(mStaDisabledWithScanState);
-                    }
+                    transitionTo(getNextWifiState());
+                    break;
                 default:
                     return NOT_HANDLED;
             }
