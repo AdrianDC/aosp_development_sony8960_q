@@ -4,7 +4,7 @@ import android.util.Base64;
 import android.util.Log;
 
 import com.android.server.wifi.ScanDetail;
-import com.android.server.wifi.WifiConfigStore;
+import com.android.server.wifi.WifiConfigManager;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.anqp.ANQPElement;
 import com.android.server.wifi.anqp.ANQPFactory;
@@ -30,7 +30,7 @@ import java.util.Map;
 
 public class SupplicantBridge {
     private final WifiNative mSupplicantHook;
-    private final WifiConfigStore mConfigStore;
+    private final WifiConfigManager mConfigStore;
     private final Map<Long, ScanDetail> mRequestMap = new HashMap<>();
 
     private static final int IconChunkSize = 1400;  // 2K*3/4 - overhead
@@ -57,7 +57,7 @@ public class SupplicantBridge {
         return split >= 0 && sWpsNames.containsKey(line.substring(0, split));
     }
 
-    public SupplicantBridge(WifiNative supplicantHook, WifiConfigStore configStore) {
+    public SupplicantBridge(WifiNative supplicantHook, WifiConfigManager configStore) {
         mSupplicantHook = supplicantHook;
         mConfigStore = configStore;
     }

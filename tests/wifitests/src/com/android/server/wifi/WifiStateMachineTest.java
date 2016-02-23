@@ -335,7 +335,7 @@ public class WifiStateMachineTest {
                 .thenCallRealMethod();
 
         when(factory.makeSupplicantStateTracker(
-                any(Context.class), any(WifiStateMachine.class), any(WifiConfigStore.class),
+                any(Context.class), any(WifiStateMachine.class), any(WifiConfigManager.class),
                 any(Handler.class))).thenReturn(mSupplicantStateTracker);
 
         when(mUserManager.getProfileParent(11))
