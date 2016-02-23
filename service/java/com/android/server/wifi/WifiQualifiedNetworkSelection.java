@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 class WifiQualifiedNetworkSelector {
-    private WifiConfigStore mWifiConfigStore;
+    private WifiConfigManager mWifiConfigManager;
     private WifiInfo mWifiInfo;
     private NetworkScoreManager mScoreManager;
     private WifiNetworkScoreCache mNetworkScoreCache;
@@ -130,9 +130,9 @@ class WifiQualifiedNetworkSelector {
         mUserPreferedBand = band;
     }
 
-    WifiQualifiedNetworkSelector(WifiConfigStore configureStore, Context context,
+    WifiQualifiedNetworkSelector(WifiConfigManager configureStore, Context context,
             WifiInfo wifiInfo, Clock clock) {
-        mWifiConfigStore = configureStore;
+        mWifiConfigManager = configureStore;
         mWifiInfo = wifiInfo;
         mClock = clock;
         mScoreManager =
@@ -158,9 +158,9 @@ class WifiQualifiedNetworkSelector {
                 R.integer.config_wifi_framework_PASSPOINT_SECURITY_AWARD);
         mSecurityAward = context.getResources().getInteger(
                 R.integer.config_wifi_framework_SECURITY_AWARD);
-        mNoIntnetPenalty = (mWifiConfigStore.thresholdSaturatedRssi24.get() + mRssiScoreOffset)
-                * mRssiScoreSlope + mWifiConfigStore.bandAward5Ghz.get()
-                + mWifiConfigStore.currentNetworkBoost.get() + mSameBssidAward + mSecurityAward;
+        mNoIntnetPenalty = (mWifiConfigManager.thresholdSaturatedRssi24.get() + mRssiScoreOffset)
+                * mRssiScoreSlope + mWifiConfigManager.bandAward5Ghz.get()
+                + mWifiConfigManager.currentNetworkBoost.get() + mSameBssidAward + mSecurityAward;
     }
 
     void enableVerboseLogging(int verbose) {
@@ -178,9 +178,9 @@ class WifiQualifiedNetworkSelector {
 
     void enableNetworkByUser(WifiConfiguration network) {
         if (network != null) {
-            mWifiConfigStore.updateNetworkSelectionStatus(network,
+            mWifiConfigManager.updateNetworkSelectionStatus(network,
                     WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
-            mWifiConfigStore.setLatestUserSelectedConfiguration(network);
+            mWifiConfigManager.setLatestUserSelectedConfiguration(network);
         }
     }
 
@@ -209,7 +209,7 @@ class WifiQualifiedNetworkSelector {
         }
 
         //if current network is open network, not qualified
-        if (mWifiConfigStore.isOpenNetwork(currentNetwork)) {
+        if (mWifiConfigManager.isOpenNetwork(currentNetwork)) {
             qnsLog("Current network is open network");
             return false;
         }
@@ -223,9 +223,9 @@ class WifiQualifiedNetworkSelector {
         }
 
         int currentRssi = mWifiInfo.getRssi();
-        if ((mWifiInfo.is24GHz() && currentRssi < mWifiConfigStore.thresholdQualifiedRssi24.get())
+        if ((mWifiInfo.is24GHz() && currentRssi < mWifiConfigManager.thresholdQualifiedRssi24.get())
                 || (mWifiInfo.is5GHz()
-                && currentRssi < mWifiConfigStore.thresholdQualifiedRssi5.get())) {
+                && currentRssi < mWifiConfigManager.thresholdQualifiedRssi5.get())) {
             qnsLog("Current band = " + (mWifiInfo.is24GHz() ? "2.4GHz band" : "5GHz band")
                     + "current RSSI is: " + currentRssi);
             return false;
@@ -265,7 +265,7 @@ class WifiQualifiedNetworkSelector {
             //already connected. Just try to find better candidate
             //if switch network is not allowed in connected mode, do not trigger Qualified Network
             //Selection
-            if (!mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()) {
+            if (!mWifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()) {
                 qnsLog("Switch network under connection is not allowed");
                 return false;
             }
@@ -282,7 +282,7 @@ class WifiQualifiedNetworkSelector {
             }
 
             WifiConfiguration currentNetwork =
-                    mWifiConfigStore.getWifiConfiguration(mWifiInfo.getNetworkId());
+                    mWifiConfigManager.getWifiConfiguration(mWifiInfo.getNetworkId());
             if (currentNetwork == null) {
                 // WifiStateMachine in connected state but WifiInfo is not. It means there is a race
                 // condition happened. Do not make QNS until WifiStateMachine goes into
@@ -343,20 +343,20 @@ class WifiQualifiedNetworkSelector {
 
         int score = 0;
         //calculate the RSSI score
-        int rssi = scanResult.level <= mWifiConfigStore.thresholdSaturatedRssi24.get()
-                ? scanResult.level : mWifiConfigStore.thresholdSaturatedRssi24.get();
+        int rssi = scanResult.level <= mWifiConfigManager.thresholdSaturatedRssi24.get()
+                ? scanResult.level : mWifiConfigManager.thresholdSaturatedRssi24.get();
         score += (rssi + mRssiScoreOffset) * mRssiScoreSlope;
         sbuf.append(" RSSI score: " +  score);
         if (scanResult.is5GHz()) {
             //5GHz band
-            score += mWifiConfigStore.bandAward5Ghz.get();
-            sbuf.append(" 5GHz bonus: " + mWifiConfigStore.bandAward5Ghz.get());
+            score += mWifiConfigManager.bandAward5Ghz.get();
+            sbuf.append(" 5GHz bonus: " + mWifiConfigManager.bandAward5Ghz.get());
         }
 
         //last user selection award
         if (sameSelect) {
             long timeDifference = mClock.currentTimeMillis()
-                    - mWifiConfigStore.getLastSelectedTimeStamp();
+                    - mWifiConfigManager.getLastSelectedTimeStamp();
 
             if (timeDifference > 0) {
                 int bonus = mLastSelectionAward - (int) (timeDifference / 1000 / 60);
@@ -368,9 +368,9 @@ class WifiQualifiedNetworkSelector {
 
         //same network award
         if (network == currentNetwork || network.isLinked(currentNetwork)) {
-            score += mWifiConfigStore.currentNetworkBoost.get();
+            score += mWifiConfigManager.currentNetworkBoost.get();
             sbuf.append(" Same network with current associated. Bonus: "
-                    + mWifiConfigStore.currentNetworkBoost.get());
+                    + mWifiConfigManager.currentNetworkBoost.get());
         }
 
         //same BSSID award
@@ -383,7 +383,7 @@ class WifiQualifiedNetworkSelector {
         if (network.isPasspoint()) {
             score += mPasspointSecurityAward;
             sbuf.append(" Passpoint Bonus:" + mPasspointSecurityAward);
-        } else if (!mWifiConfigStore.isOpenNetwork(network)) {
+        } else if (!mWifiConfigManager.isOpenNetwork(network)) {
             score += mSecurityAward;
             sbuf.append(" Secure network Bonus:" + mSecurityAward);
         }
@@ -406,7 +406,7 @@ class WifiQualifiedNetworkSelector {
      * This API try to update all the saved networks' network selection status
      */
     private void updateSavedNetworkSelectionStatus() {
-        List<WifiConfiguration> savedNetworks = mWifiConfigStore.getConfiguredNetworks();
+        List<WifiConfiguration> savedNetworks = mWifiConfigManager.getConfiguredNetworks();
         if (savedNetworks.size() == 0) {
             qnsLog("no saved network");
             return;
@@ -414,13 +414,13 @@ class WifiQualifiedNetworkSelector {
 
         StringBuffer sbuf = new StringBuffer("Saved Network List\n");
         for (WifiConfiguration network : savedNetworks) {
-            WifiConfiguration config = mWifiConfigStore.getWifiConfiguration(network.networkId);
+            WifiConfiguration config = mWifiConfigManager.getWifiConfiguration(network.networkId);
             WifiConfiguration.NetworkSelectionStatus status =
                     config.getNetworkSelectionStatus();
 
             //If the configuration is temporarily disabled, try to re-enable it
             if (status.isNetworkTemporaryDisabled()) {
-                mWifiConfigStore.tryEnableQualifiedNetwork(network.networkId);
+                mWifiConfigManager.tryEnableQualifiedNetwork(network.networkId);
             }
 
             //clean the cached candidate, score and seen
@@ -460,7 +460,7 @@ class WifiQualifiedNetworkSelector {
      *         false -- There is no change made to connection choice of any saved network
      */
     public boolean userSelectNetwork(int netId, boolean persist) {
-        WifiConfiguration selected = mWifiConfigStore.getWifiConfiguration(netId);
+        WifiConfiguration selected = mWifiConfigManager.getWifiConfiguration(netId);
         qnsLog("userSelectNetwork:" + netId + " persist:" + persist);
         if (selected == null || selected.SSID == null) {
             qnsLoge("userSelectNetwork: Bad configuration with nid=" + netId);
@@ -469,7 +469,7 @@ class WifiQualifiedNetworkSelector {
 
 
         if (!selected.getNetworkSelectionStatus().isNetworkEnabled()) {
-            mWifiConfigStore.updateNetworkSelectionStatus(netId,
+            mWifiConfigManager.updateNetworkSelectionStatus(netId,
                     WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
         }
 
@@ -481,10 +481,10 @@ class WifiQualifiedNetworkSelector {
         boolean change = false;
         String key = selected.configKey();
         long currentTime = mClock.currentTimeMillis();
-        List<WifiConfiguration> savedNetworks = mWifiConfigStore.getConfiguredNetworks();
+        List<WifiConfiguration> savedNetworks = mWifiConfigManager.getConfiguredNetworks();
 
         for (WifiConfiguration network : savedNetworks) {
-            WifiConfiguration config = mWifiConfigStore.getWifiConfiguration(network.networkId);
+            WifiConfiguration config = mWifiConfigManager.getWifiConfiguration(network.networkId);
             WifiConfiguration.NetworkSelectionStatus status = config.getNetworkSelectionStatus();
             if (config.networkId == selected.networkId) {
                 if (status.getConnectChoice() != null) {
@@ -511,7 +511,7 @@ class WifiQualifiedNetworkSelector {
         }
         //Write this change to file
         if (change) {
-            mWifiConfigStore.writeKnownNetworkHistory();
+            mWifiConfigManager.writeKnownNetworkHistory();
             return true;
         }
 
@@ -613,7 +613,7 @@ class WifiQualifiedNetworkSelector {
         mScanDetails = scanDetails;
         if (mCurrentConnectedNetwork == null) {
             mCurrentConnectedNetwork =
-                    mWifiConfigStore.getWifiConfiguration(mWifiInfo.getNetworkId());
+                    mWifiConfigManager.getWifiConfiguration(mWifiInfo.getNetworkId());
         }
 
         if (mCurrentBssid == null) {
@@ -633,12 +633,12 @@ class WifiQualifiedNetworkSelector {
         int unTrustedHighestScore = WifiNetworkScoreCache.INVALID_NETWORK_SCORE;
         ScanResult untrustedScanResultCandidate = null;
         WifiConfiguration unTrustedNetworkCandidate = null;
-        String lastUserSelectedNetWorkKey = mWifiConfigStore.getLastSelectedConfiguration();
+        String lastUserSelectedNetWorkKey = mWifiConfigManager.getLastSelectedConfiguration();
         WifiConfiguration lastUserSelectedNetwork =
-                mWifiConfigStore.getWifiConfiguration(lastUserSelectedNetWorkKey);
+                mWifiConfigManager.getWifiConfiguration(lastUserSelectedNetWorkKey);
         if (lastUserSelectedNetwork != null) {
             qnsLog("Last selection is " + lastUserSelectedNetwork.SSID + " Time to now: "
-                    + ((mClock.currentTimeMillis() - mWifiConfigStore.getLastSelectedTimeStamp())
+                    + ((mClock.currentTimeMillis() - mWifiConfigManager.getLastSelectedTimeStamp())
                             / 1000 / 60 + " minutes"));
         }
 
@@ -664,7 +664,7 @@ class WifiQualifiedNetworkSelector {
 
             String scanId = scanResult.SSID + ":" + scanResult.BSSID;
             //check whether this BSSID is blocked or not
-            if (mWifiConfigStore.isBssidBlacklisted(scanResult.BSSID)
+            if (mWifiConfigManager.isBssidBlacklisted(scanResult.BSSID)
                     || isBssidDisabled(scanResult.BSSID)) {
                 //We should not see this in ePNO
                 Log.e(TAG, scanId + " is in blacklist.");
@@ -673,9 +673,9 @@ class WifiQualifiedNetworkSelector {
 
             //skip scan result with too weak signals
             if ((scanResult.is24GHz() && scanResult.level
-                    < mWifiConfigStore.thresholdMinimumRssi24.get())
+                    < mWifiConfigManager.thresholdMinimumRssi24.get())
                     || (scanResult.is5GHz() && scanResult.level
-                    < mWifiConfigStore.thresholdMinimumRssi5.get())) {
+                    < mWifiConfigManager.thresholdMinimumRssi5.get())) {
                 if (mDbg) {
                     lowSignalScan.append(scanId + "(" + (scanResult.is24GHz() ? "2.4GHz" : "5GHz")
                             + ")" + scanResult.level + " / ");
@@ -686,7 +686,7 @@ class WifiQualifiedNetworkSelector {
             //check whether this scan result belong to a saved network
             boolean ephemeral = false;
             List<WifiConfiguration> associatedWifiConfigurations =
-                    mWifiConfigStore.updateSavedNetworkWithNewScanDetail(scanDetail);
+                    mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetail);
             if (associatedWifiConfigurations == null) {
                 ephemeral =  true;
                 if (mDbg) {
@@ -774,7 +774,7 @@ class WifiQualifiedNetworkSelector {
 
             while (tempConfig.getNetworkSelectionStatus().getConnectChoice() != null) {
                 String key = tempConfig.getNetworkSelectionStatus().getConnectChoice();
-                tempConfig = mWifiConfigStore.getWifiConfiguration(key);
+                tempConfig = mWifiConfigManager.getWifiConfiguration(key);
 
                 if (tempConfig != null) {
                     WifiConfiguration.NetworkSelectionStatus tempStatus =
@@ -803,11 +803,11 @@ class WifiQualifiedNetworkSelector {
 
             if (unTrustedNetworkCandidate == null) {
                 unTrustedNetworkCandidate =
-                        mWifiConfigStore.wifiConfigurationFromScanResult(
+                        mWifiConfigManager.wifiConfigurationFromScanResult(
                                 untrustedScanResultCandidate);
 
                 unTrustedNetworkCandidate.ephemeral = true;
-                mWifiConfigStore.saveNetwork(unTrustedNetworkCandidate,
+                mWifiConfigManager.saveNetwork(unTrustedNetworkCandidate,
                         WifiConfiguration.UNKNOWN_UID);
 
 
@@ -837,7 +837,7 @@ class WifiQualifiedNetworkSelector {
         //In passpoint, saved configuration has garbage SSID. We need update it with the SSID of
         //the scan result.
         if (networkCandidate.isPasspoint()) {
-            // This will updateb the passpoint configuration in WifiConfigStore
+            // This will updateb the passpoint configuration in WifiConfigManager
             networkCandidate.SSID = "\"" + scanResultCandidate.SSID + "\"";
         }
 

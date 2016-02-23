@@ -61,11 +61,11 @@ public class WifiQualifiedNetworkSelectionTest {
         mResource = getResource();
         mScoreManager = getNetworkScoreManager();
         mContext = getContext();
-        mWifiConfigStore = getWifiConfigStore();
+        mWifiConfigManager = getWifiConfigManager();
         mWifiInfo = getWifiInfo();
 
-        mWifiQualifiedNetworkSelector = new WifiQualifiedNetworkSelector(mWifiConfigStore, mContext,
-                mWifiInfo, mClock);
+        mWifiQualifiedNetworkSelector = new WifiQualifiedNetworkSelector(mWifiConfigManager,
+                mContext, mWifiInfo, mClock);
         mWifiQualifiedNetworkSelector.enableVerboseLogging(1);
         mWifiQualifiedNetworkSelector.setUserPreferredBand(1);
         when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis());
@@ -77,7 +77,7 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     private WifiQualifiedNetworkSelector mWifiQualifiedNetworkSelector = null;
-    private WifiConfigStore mWifiConfigStore = null;
+    private WifiConfigManager mWifiConfigManager = null;
     private Context mContext;
     private Resources mResource;
     private NetworkScoreManager mScoreManager;
@@ -142,23 +142,23 @@ public class WifiQualifiedNetworkSelectionTest {
         return wifiInfo;
     }
 
-    WifiConfigStore getWifiConfigStore() {
-        WifiConfigStore wifiConfigStore = mock(WifiConfigStore.class);
-        wifiConfigStore.thresholdSaturatedRssi24 = new AtomicInteger(
+    WifiConfigManager getWifiConfigManager() {
+        WifiConfigManager wifiConfigManager = mock(WifiConfigManager.class);
+        wifiConfigManager.thresholdSaturatedRssi24 = new AtomicInteger(
                 WifiQualifiedNetworkSelector.RSSI_SATURATION_2G_BAND);
-        wifiConfigStore.bandAward5Ghz = new AtomicInteger(
+        wifiConfigManager.bandAward5Ghz = new AtomicInteger(
                 WifiQualifiedNetworkSelector.BAND_AWARD_5GHz);
-        wifiConfigStore.currentNetworkBoost = new AtomicInteger(
+        wifiConfigManager.currentNetworkBoost = new AtomicInteger(
                 WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD);
-        wifiConfigStore.thresholdQualifiedRssi5 = new AtomicInteger(
+        wifiConfigManager.thresholdQualifiedRssi5 = new AtomicInteger(
                 WifiQualifiedNetworkSelector.QUALIFIED_RSSI_5G_BAND);
-        wifiConfigStore.thresholdMinimumRssi24 = new AtomicInteger(
+        wifiConfigManager.thresholdMinimumRssi24 = new AtomicInteger(
                 WifiQualifiedNetworkSelector.MINIMUM_2G_ACCEPT_RSSI);
-        wifiConfigStore.thresholdMinimumRssi5 = new AtomicInteger(
+        wifiConfigManager.thresholdMinimumRssi5 = new AtomicInteger(
                 WifiQualifiedNetworkSelector.MINIMUM_5G_ACCEPT_RSSI);
 
-        when(wifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
-        return wifiConfigStore;
+        when(wifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        return wifiConfigManager;
     }
 
     /**
@@ -197,13 +197,13 @@ public class WifiQualifiedNetworkSelectionTest {
     }
 
     /**
-     * add the Configurations to WifiConfigStore (WifiConfigureStore can take them out according to
-     * the networkd ID)
+     * add the Configurations to WifiConfigManager (WifiConfigureStore can take them out according
+     * to the networkd ID)
      *
      * @param configs input configuration need to be added to WifiConfigureStore
      */
     private void prepareConfigStore(final WifiConfiguration[] configs) {
-        when(mWifiConfigStore.getWifiConfiguration(anyInt()))
+        when(mWifiConfigManager.getWifiConfiguration(anyInt()))
                 .then(new AnswerWithArguments() {
                     public WifiConfiguration answer(int netId) {
                         if (netId >= 0 && netId < configs.length) {
@@ -228,7 +228,7 @@ public class WifiQualifiedNetworkSelectionTest {
         for (WifiConfiguration config : configs) {
             List<WifiConfiguration> associateWithScanResult = new ArrayList<WifiConfiguration>();
             associateWithScanResult.add(config);
-            when(mWifiConfigStore.updateSavedNetworkWithNewScanDetail(scanDetails.get(index)))
+            when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetails.get(index)))
                     .thenReturn(associateWithScanResult);
             index++;
         }
@@ -274,7 +274,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
 
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
@@ -312,7 +312,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         ScanResult chosenScanResult = scanDetails.get(scanDetails.size() - 1).getScanResult();
@@ -349,7 +349,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(scanDetails.size() - 1).getScanResult();
 
@@ -386,7 +386,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
@@ -423,7 +423,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(scanDetails.size() - 1).getScanResult();
 
@@ -460,7 +460,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
@@ -495,7 +495,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
@@ -531,7 +531,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
@@ -566,7 +566,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
@@ -592,7 +592,7 @@ public class WifiQualifiedNetworkSelectionTest {
 
         final WifiConfiguration[] configs = generateWifiConfigurations(ssids, security);
         prepareConfigStore(configs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(Arrays.asList(configs));
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(Arrays.asList(configs));
         for (WifiConfiguration network : configs) {
             WifiConfiguration.NetworkSelectionStatus status = network.getNetworkSelectionStatus();
             status.setSeenInLastQualifiedNetworkSelection(true);
@@ -638,7 +638,7 @@ public class WifiQualifiedNetworkSelectionTest {
             status.setSeenInLastQualifiedNetworkSelection(true);
         }
 
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(Arrays.asList(configs));
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(Arrays.asList(configs));
 
         //set user preference
         mWifiQualifiedNetworkSelector.userSelectNetwork(ssids.length - 1, true);
@@ -652,7 +652,7 @@ public class WifiQualifiedNetworkSelectionTest {
         scanResultLinkConfiguration(configs, scanDetails);
 
         ScanResult chosenScanResult = scanDetails.get(scanDetails.size() - 1).getScanResult();
-        when(mWifiConfigStore.getWifiConfiguration(configs[2].configKey()))
+        when(mWifiConfigManager.getWifiConfiguration(configs[2].configKey()))
                 .thenReturn(configs[2]);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
@@ -729,7 +729,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
@@ -769,7 +769,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
 
@@ -812,7 +812,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
 
@@ -857,7 +857,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
@@ -896,7 +896,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
@@ -929,7 +929,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         //first QNS
         mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
@@ -967,7 +967,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         //first QNS
         mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
@@ -1003,7 +1003,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         //first QNS
         mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
@@ -1039,7 +1039,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
@@ -1072,7 +1072,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         //first time, connect to test2 due to 5GHz bonus
@@ -1081,7 +1081,7 @@ public class WifiQualifiedNetworkSelectionTest {
         when(mWifiInfo.getNetworkId()).thenReturn(1);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
-        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mWifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
         when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
 
         levels[0] = -50; // if there is QNS, test1 will be chosen
@@ -1116,7 +1116,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         //first connect to test2 due to 5GHz bonus
@@ -1126,7 +1126,7 @@ public class WifiQualifiedNetworkSelectionTest {
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
         when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
-        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mWifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 false, scanDetails, true, true, false, false);
@@ -1156,7 +1156,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         when(mWifiInfo.getNetworkId()).thenReturn(0);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
@@ -1166,7 +1166,7 @@ public class WifiQualifiedNetworkSelectionTest {
                 false, true, false);
 
         when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
-        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mWifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
@@ -1198,7 +1198,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         //first connect to test2 because of RSSI
@@ -1208,9 +1208,9 @@ public class WifiQualifiedNetworkSelectionTest {
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
         when(mWifiInfo.is5GHz()).thenReturn(true);
-        when(mWifiConfigStore.isOpenNetwork(savedConfigs[1])).thenReturn(true);
+        when(mWifiConfigManager.isOpenNetwork(savedConfigs[1])).thenReturn(true);
         when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
-        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mWifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
         levels[0] = -60;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
@@ -1246,7 +1246,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         //first connect to test2 since test1's RSSI is negligible
@@ -1259,7 +1259,7 @@ public class WifiQualifiedNetworkSelectionTest {
         levels[0] = -70;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
-        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mWifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
         when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
@@ -1292,7 +1292,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
@@ -1303,7 +1303,7 @@ public class WifiQualifiedNetworkSelectionTest {
         when(mWifiInfo.is24GHz()).thenReturn(false);
         when(mWifiInfo.is5GHz()).thenReturn(true);
 
-        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mWifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
         when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
         levels[0] = -60;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
@@ -1338,7 +1338,7 @@ public class WifiQualifiedNetworkSelectionTest {
         WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
         prepareConfigStore(savedConfigs);
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
@@ -1350,7 +1350,7 @@ public class WifiQualifiedNetworkSelectionTest {
         when(mWifiInfo.is24GHz()).thenReturn(false);
         when(mWifiInfo.is5GHz()).thenReturn(true);
 
-        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mWifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
         levels[0] = -60;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
         when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
@@ -1387,7 +1387,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
@@ -1396,7 +1396,7 @@ public class WifiQualifiedNetworkSelectionTest {
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(true);
 
-        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mWifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
         levels[0] = -80 + WifiQualifiedNetworkSelector.SAME_BSSID_AWARD / 4
                 + WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD / 4 - 1;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
@@ -1433,7 +1433,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
                 false, true, false);
@@ -1442,7 +1442,7 @@ public class WifiQualifiedNetworkSelectionTest {
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(true);
 
-        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mWifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
         levels[0] = -80 + WifiQualifiedNetworkSelector.SAME_BSSID_AWARD / 4
                 + WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD / 4 + 1;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
@@ -1485,7 +1485,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
                 false, true, false);
@@ -1494,7 +1494,7 @@ public class WifiQualifiedNetworkSelectionTest {
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(true);
 
-        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mWifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
         levels[0] = -80 + WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD / 4 - 1;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
         when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
@@ -1536,7 +1536,7 @@ public class WifiQualifiedNetworkSelectionTest {
         prepareConfigStore(savedConfigs);
 
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
-        when(mWifiConfigStore.getConfiguredNetworks()).thenReturn(savedNetwork);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
                 false, true, false);
@@ -1545,7 +1545,7 @@ public class WifiQualifiedNetworkSelectionTest {
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(true);
 
-        when(mWifiConfigStore.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
+        when(mWifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()).thenReturn(true);
         levels[0] = -80 + WifiQualifiedNetworkSelector.SAME_BSSID_AWARD / 4 + 1;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
         when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);

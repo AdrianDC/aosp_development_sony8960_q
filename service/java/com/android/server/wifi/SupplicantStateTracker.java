@@ -50,7 +50,7 @@ public class SupplicantStateTracker extends StateMachine {
     private static boolean DBG = false;
 
     private final WifiStateMachine mWifiStateMachine;
-    private final WifiConfigStore mWifiConfigStore;
+    private final WifiConfigManager mWifiConfigManager;
     private final IBatteryStats mBatteryStats;
     /* Indicates authentication failure in supplicant broadcast.
      * TODO: enhance auth failure reporting to include notification
@@ -89,12 +89,13 @@ public class SupplicantStateTracker extends StateMachine {
         return getCurrentState().getName();
     }
 
-    public SupplicantStateTracker(Context c, WifiStateMachine wsm, WifiConfigStore wcs, Handler t) {
+    public SupplicantStateTracker(Context c, WifiStateMachine wsm, WifiConfigManager wcs,
+            Handler t) {
         super(TAG, t.getLooper());
 
         mContext = c;
         mWifiStateMachine = wsm;
-        mWifiConfigStore = wcs;
+        mWifiConfigManager = wcs;
         mBatteryStats = (IBatteryStats)ServiceManager.getService(BatteryStats.SERVICE_NAME);
         addState(mDefaultState);
             addState(mUninitializedState, mDefaultState);
@@ -121,11 +122,11 @@ public class SupplicantStateTracker extends StateMachine {
 
         /* If other networks disabled during connection, enable them */
         if (mNetworksDisabledDuringConnect) {
-            mWifiConfigStore.enableAllNetworks();
+            mWifiConfigManager.enableAllNetworks();
             mNetworksDisabledDuringConnect = false;
         }
         /* update network status */
-        mWifiConfigStore.updateNetworkSelectionStatus(netId, disableReason);
+        mWifiConfigManager.updateNetworkSelectionStatus(netId, disableReason);
     }
 
     private void transitionOnSupplicantStateChange(StateChangeResult stateChangeResult) {
@@ -342,7 +343,7 @@ public class SupplicantStateTracker extends StateMachine {
              if (DBG) Log.d(TAG, getName() + "\n");
              /* Reset authentication failure count */
              if (mNetworksDisabledDuringConnect) {
-                 mWifiConfigStore.enableAllNetworks();
+                 mWifiConfigManager.enableAllNetworks();
                  mNetworksDisabledDuringConnect = false;
              }
         }

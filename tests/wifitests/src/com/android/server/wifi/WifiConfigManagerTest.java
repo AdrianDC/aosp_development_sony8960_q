@@ -92,10 +92,10 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * Unit tests for {@link com.android.server.wifi.WifiConfigStore}.
+ * Unit tests for {@link com.android.server.wifi.WifiConfigManager}.
  */
 @SmallTest
-public class WifiConfigStoreTest {
+public class WifiConfigManagerTest {
     private static final List<WifiConfiguration> CONFIGS = Arrays.asList(
             WifiConfigurationTestUtil.generateWifiConfig(
                     0, 1000000, "\"red\"", true, true, null, null),
@@ -131,7 +131,7 @@ public class WifiConfigStoreTest {
         }
     }
 
-    public static final String TAG = "WifiConfigStoreTest";
+    public static final String TAG = "WifiConfigManagerTest";
     @Mock private Context mContext;
     @Mock private WifiStateMachine mWifiStateMachine;
     @Mock private WifiNative mWifiNative;
@@ -140,7 +140,7 @@ public class WifiConfigStoreTest {
     @Mock private DelayedDiskWrite mWriter;
     @Mock private PasspointManagementObjectManager mMOManager;
     @Mock private Clock mClock;
-    private WifiConfigStore mConfigStore;
+    private WifiConfigManager mConfigStore;
     private ConfigurationMap mConfiguredNetworks;
     public byte[] mNetworkHistory;
     private MockKeyStore mMockKeyStore;
@@ -165,11 +165,11 @@ public class WifiConfigStoreTest {
             when(mUserManager.getProfiles(userId)).thenReturn(USER_PROFILES.get(userId));
         }
 
-        mConfigStore = new WifiConfigStore(mContext, mWifiStateMachine, mWifiNative,
+        mConfigStore = new WifiConfigManager(mContext, mWifiStateMachine, mWifiNative,
                 mFrameworkFacade, mClock, mUserManager);
 
         final Field configuredNetworksField =
-                WifiConfigStore.class.getDeclaredField("mConfiguredNetworks");
+                WifiConfigManager.class.getDeclaredField("mConfiguredNetworks");
         configuredNetworksField.setAccessible(true);
         mConfiguredNetworks = (ConfigurationMap) configuredNetworksField.get(mConfigStore);
 
@@ -182,17 +182,17 @@ public class WifiConfigStoreTest {
                 stream.close();
                 mNetworkHistory = buffer.toByteArray();
             }}).when(mWriter).write(anyString(), (DelayedDiskWrite.Writer) anyObject());
-        final Field writerField = WifiConfigStore.class.getDeclaredField("mWriter");
+        final Field writerField = WifiConfigManager.class.getDeclaredField("mWriter");
         writerField.setAccessible(true);
         writerField.set(mConfigStore, mWriter);
 
         when(mMOManager.isEnabled()).thenReturn(true);
-        final Field moManagerField = WifiConfigStore.class.getDeclaredField("mMOManager");
+        final Field moManagerField = WifiConfigManager.class.getDeclaredField("mMOManager");
         moManagerField.setAccessible(true);
         moManagerField.set(mConfigStore, mMOManager);
 
         mMockKeyStore = new MockKeyStore();
-        final Field mKeyStoreField = WifiConfigStore.class.getDeclaredField("mKeyStore");
+        final Field mKeyStoreField = WifiConfigManager.class.getDeclaredField("mKeyStore");
         mKeyStoreField.setAccessible(true);
         mKeyStoreField.set(mConfigStore, mMockKeyStore.createMock());
     }
@@ -240,7 +240,7 @@ public class WifiConfigStoreTest {
 
     private WifiNative createNewWifiNativeMock() throws Exception {
         final WifiNative wifiNative = mock(WifiNative.class);
-        final Field wifiNativeField = WifiConfigStore.class.getDeclaredField("mWifiNative");
+        final Field wifiNativeField = WifiConfigManager.class.getDeclaredField("mWifiNative");
         wifiNativeField.setAccessible(true);
         wifiNativeField.set(mConfigStore, wifiNative);
         return wifiNative;
@@ -470,12 +470,12 @@ public class WifiConfigStoreTest {
         // configuration.
         final Map<String, String> metadata = new HashMap<String, String>();
         if (CONFIGS.get(network).FQDN != null) {
-            metadata.put(WifiConfigStore.ID_STRING_KEY_FQDN, CONFIGS.get(network).FQDN);
+            metadata.put(WifiConfigManager.ID_STRING_KEY_FQDN, CONFIGS.get(network).FQDN);
         }
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(network).configKey());
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiConfigManager.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(network).configKey());
+        metadata.put(WifiConfigManager.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(CONFIGS.get(network).creatorUid));
-        verify(mWifiNative).setNetworkExtra(network, WifiConfigStore.ID_STRING_VAR_NAME,
+        verify(mWifiNative).setNetworkExtra(network, WifiConfigManager.ID_STRING_VAR_NAME,
                 metadata);
 
         // Verify that no wpa_supplicant variables were read or written for any other network
@@ -507,19 +507,19 @@ public class WifiConfigStoreTest {
         // Verify that a networkHistory.txt entry was written correctly for the network
         // configuration.
         assertTrue(keys.size() >= 3);
-        assertEquals(WifiConfigStore.CONFIG_KEY, keys.get(0));
+        assertEquals(WifiConfigManager.CONFIG_KEY, keys.get(0));
         assertEquals(CONFIGS.get(network).configKey(), values.get(0));
-        final int creatorUidIndex = keys.indexOf(WifiConfigStore.CREATOR_UID_KEY);
+        final int creatorUidIndex = keys.indexOf(WifiConfigManager.CREATOR_UID_KEY);
         assertTrue(creatorUidIndex != -1);
         assertEquals(Integer.toString(CONFIGS.get(network).creatorUid),
                 values.get(creatorUidIndex));
-        final int sharedIndex = keys.indexOf(WifiConfigStore.SHARED_KEY);
+        final int sharedIndex = keys.indexOf(WifiConfigManager.SHARED_KEY);
         assertTrue(sharedIndex != -1);
         assertEquals(Boolean.toString(CONFIGS.get(network).shared), values.get(sharedIndex));
 
         // Verify that no networkHistory.txt entries were written for any other network
         // configurations.
-        final int lastConfigIndex = keys.lastIndexOf(WifiConfigStore.CONFIG_KEY);
+        final int lastConfigIndex = keys.lastIndexOf(WifiConfigManager.CONFIG_KEY);
         assertEquals(0, lastConfigIndex);
     }
 
@@ -572,42 +572,42 @@ public class WifiConfigStoreTest {
                 .thenReturn(encodeConfigSSID(CONFIGS.get(i)));
         }
         // Legacy regular network configuration: No "id_str".
-        when(mWifiNative.getNetworkExtra(0, WifiConfigStore.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkExtra(0, WifiConfigManager.ID_STRING_VAR_NAME))
             .thenReturn(null);
         // Legacy Hotspot 2.0 network configuration: Quoted FQDN in "id_str".
-        when(mWifiNative.getNetworkExtra(1, WifiConfigStore.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkExtra(1, WifiConfigManager.ID_STRING_VAR_NAME))
             .thenReturn(null);
-        when(mWifiNative.getNetworkVariable(1, WifiConfigStore.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkVariable(1, WifiConfigManager.ID_STRING_VAR_NAME))
             .thenReturn('"' + CONFIGS.get(1).FQDN + '"');
         // Up-to-date Hotspot 2.0 network configuration: Metadata in "id_str".
         Map<String, String> metadata = new HashMap<String, String>();
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(2).configKey());
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiConfigManager.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(2).configKey());
+        metadata.put(WifiConfigManager.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(CONFIGS.get(2).creatorUid));
-        metadata.put(WifiConfigStore.ID_STRING_KEY_FQDN, CONFIGS.get(2).FQDN);
-        when(mWifiNative.getNetworkExtra(2, WifiConfigStore.ID_STRING_VAR_NAME))
+        metadata.put(WifiConfigManager.ID_STRING_KEY_FQDN, CONFIGS.get(2).FQDN);
+        when(mWifiNative.getNetworkExtra(2, WifiConfigManager.ID_STRING_VAR_NAME))
             .thenReturn(metadata);
         // Up-to-date regular network configuration: Metadata in "id_str".
         metadata = new HashMap<String, String>();
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(3).configKey());
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiConfigManager.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(3).configKey());
+        metadata.put(WifiConfigManager.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(CONFIGS.get(3).creatorUid));
-        when(mWifiNative.getNetworkExtra(3, WifiConfigStore.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkExtra(3, WifiConfigManager.ID_STRING_VAR_NAME))
             .thenReturn(metadata);
 
         // Set up networkHistory.txt file.
         final File file = File.createTempFile("networkHistory.txt", null);
         file.deleteOnExit();
-        Field wifiConfigStoreNetworkHistoryConfigFile =
-                WifiConfigStore.class.getDeclaredField("networkHistoryConfigFile");
-        wifiConfigStoreNetworkHistoryConfigFile.setAccessible(true);
-        wifiConfigStoreNetworkHistoryConfigFile.set(null, file.getAbsolutePath());
+        Field wifiConfigManagerNetworkHistoryConfigFile =
+                WifiConfigManager.class.getDeclaredField("networkHistoryConfigFile");
+        wifiConfigManagerNetworkHistoryConfigFile.setAccessible(true);
+        wifiConfigManagerNetworkHistoryConfigFile.set(null, file.getAbsolutePath());
         final DataOutputStream stream = new DataOutputStream(new FileOutputStream(file));
         for (WifiConfiguration config : CONFIGS) {
-            stream.writeUTF(WifiConfigStore.CONFIG_KEY + ":  " + config.configKey() + '\n');
-            stream.writeUTF(WifiConfigStore.CREATOR_UID_KEY + ":  "
+            stream.writeUTF(WifiConfigManager.CONFIG_KEY + ":  " + config.configKey() + '\n');
+            stream.writeUTF(WifiConfigManager.CREATOR_UID_KEY + ":  "
                     + Integer.toString(config.creatorUid) + '\n');
-            stream.writeUTF(WifiConfigStore.SHARED_KEY + ":  "
+            stream.writeUTF(WifiConfigManager.SHARED_KEY + ":  "
                     + Boolean.toString(config.shared) + '\n');
         }
         stream.close();
@@ -655,10 +655,10 @@ public class WifiConfigStoreTest {
         when(mWifiNative.getNetworkVariable(anyInt(), eq(WifiConfiguration.ssidVarName)))
             .thenReturn(encodeConfigSSID(config));
         final Map<String, String> metadata = new HashMap<String, String>();
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, config.configKey());
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiConfigManager.ID_STRING_KEY_CONFIG_KEY, config.configKey());
+        metadata.put(WifiConfigManager.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(config.creatorUid));
-        when(mWifiNative.getNetworkExtra(anyInt(), eq(WifiConfigStore.ID_STRING_VAR_NAME)))
+        when(mWifiNative.getNetworkExtra(anyInt(), eq(WifiConfigManager.ID_STRING_VAR_NAME)))
             .thenReturn(metadata);
 
         // Load network configurations.
@@ -681,7 +681,7 @@ public class WifiConfigStoreTest {
 
         final WifiNative wifiNative = createNewWifiNativeMock();
         final Field lastSelectedConfigurationField =
-                WifiConfigStore.class.getDeclaredField("lastSelectedConfiguration");
+                WifiConfigManager.class.getDeclaredField("lastSelectedConfiguration");
         lastSelectedConfigurationField.setAccessible(true);
         WifiConfiguration removedEphemeralConfig = null;
         final Set<WifiConfiguration> oldUserOnlyConfigs = new HashSet<>();

@@ -126,7 +126,7 @@ import java.util.zip.Checksum;
  * It deals with the following
  * - Add/update/remove a WifiConfiguration
  *   The configuration contains two types of information.
- *     = IP and proxy configuration that is handled by WifiConfigStore and
+ *     = IP and proxy configuration that is handled by WifiConfigManager and
  *       is saved to disk on any change.
  *
  *       The format of configuration file is as follows:
@@ -163,10 +163,10 @@ import java.util.zip.Checksum;
  * - Maintain a list of configured networks for quick access
  *
  */
-public class WifiConfigStore {
+public class WifiConfigManager {
 
     private Context mContext;
-    public static final String TAG = "WifiConfigStore";
+    public static final String TAG = "WifiConfigManager";
     private static final boolean DBG = true;
     private static boolean VDBG = false;
     private static boolean VVDBG = false;
@@ -590,7 +590,7 @@ public class WifiConfigStore {
         }
     }
 
-    WifiConfigStore(Context c,  WifiStateMachine w, WifiNative wn, FrameworkFacade f,
+    WifiConfigManager(Context c,  WifiStateMachine w, WifiNative wn, FrameworkFacade f,
             Clock clock, UserManager userManager) {
         mContext = c;
         mFacade = f;
@@ -1099,9 +1099,9 @@ public class WifiConfigStore {
             return new NetworkUpdateResult(INVALID_NETWORK_ID);
         }
 
-        if (VDBG) localLogNetwork("WifiConfigStore: saveNetwork netId", config.networkId);
+        if (VDBG) localLogNetwork("WifiConfigManager: saveNetwork netId", config.networkId);
         if (VDBG) {
-            logd("WifiConfigStore saveNetwork,"
+            logd("WifiConfigManager saveNetwork,"
                     + " size=" + Integer.toString(mConfiguredNetworks.sizeForAllUsers())
                     + " (for all users)"
                     + " SSID=" + config.SSID
@@ -1111,7 +1111,7 @@ public class WifiConfigStore {
 
         if (mDeletedEphemeralSSIDs.remove(config.SSID)) {
             if (VDBG) {
-                loge("WifiConfigStore: removed from ephemeral blacklist: " + config.SSID);
+                loge("WifiConfigManager: removed from ephemeral blacklist: " + config.SSID);
             }
             // NOTE: This will be flushed to disk as part of the addOrUpdateNetworkNative call
             // below, since we're creating/modifying a config.
@@ -1121,11 +1121,11 @@ public class WifiConfigStore {
         NetworkUpdateResult result = addOrUpdateNetworkNative(config, uid);
         int netId = result.getNetworkId();
 
-        if (VDBG) localLogNetwork("WifiConfigStore: saveNetwork got it back netId=", netId);
+        if (VDBG) localLogNetwork("WifiConfigManager: saveNetwork got it back netId=", netId);
 
         /* enable a new network */
         if (newNetwork && netId != INVALID_NETWORK_ID) {
-            if (VDBG) localLogNetwork("WifiConfigStore: will enable netId=", netId);
+            if (VDBG) localLogNetwork("WifiConfigManager: will enable netId=", netId);
 
             mWifiNative.enableNetwork(netId, false);
             conf = mConfiguredNetworks.getForCurrentUser(netId);
@@ -1136,7 +1136,7 @@ public class WifiConfigStore {
         conf = mConfiguredNetworks.getForCurrentUser(netId);
         if (conf != null) {
             if (!conf.getNetworkSelectionStatus().isNetworkEnabled()) {
-                if (VDBG) localLog("WifiConfigStore: re-enabling: " + conf.SSID);
+                if (VDBG) localLog("WifiConfigManager: re-enabling: " + conf.SSID);
 
                 // reenable autojoin, since new information has been provided
                 updateNetworkSelectionStatus(netId,
@@ -1144,7 +1144,7 @@ public class WifiConfigStore {
                 enableNetworkWithoutBroadcast(conf.networkId, false);
             }
             if (VDBG) {
-                loge("WifiConfigStore: saveNetwork got config back netId="
+                loge("WifiConfigManager: saveNetwork got config back netId="
                         + Integer.toString(netId)
                         + " uid=" + Integer.toString(config.creatorUid));
             }
@@ -2200,7 +2200,7 @@ public class WifiConfigStore {
             String[] lines = listStr.split("\n");
 
             if (showNetworks) {
-                localLog("WifiConfigStore: loadConfiguredNetworks:  ");
+                localLog("WifiConfigManager: loadConfiguredNetworks:  ");
                 for (String net : lines) {
                     localLog(net);
                 }
@@ -2939,7 +2939,8 @@ public class WifiConfigStore {
                              * when reading the configuration from file we don't update the date
                              * so as to avoid reading back stale or non-sensical data that would
                              * depend on network time.
-                             * The date of a WifiConfiguration should only come from actual scan result.
+                             * The date of a WifiConfiguration should only come from actual scan
+                             * result.
                              *
                             String s = key.replace(FREQ_KEY, "");
                             seen = Integer.getInteger(s);
@@ -3747,7 +3748,8 @@ public class WifiConfigStore {
         intent.putExtra(WifiManager.EXTRA_PASSPOINT_ICON_BSSID, iconEvent.getBSSID());
         intent.putExtra(WifiManager.EXTRA_PASSPOINT_ICON_FILE, iconEvent.getFileName());
         try {
-            intent.putExtra(WifiManager.EXTRA_PASSPOINT_ICON_DATA, mSupplicantBridge.retrieveIcon(iconEvent));
+            intent.putExtra(WifiManager.EXTRA_PASSPOINT_ICON_DATA,
+                    mSupplicantBridge.retrieveIcon(iconEvent));
         } catch (IOException ioe) {
             /* Simply omit the icon data as a failure indication */
         }
@@ -4384,7 +4386,7 @@ public class WifiConfigStore {
     }
 
     void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("Dump of WifiConfigStore");
+        pw.println("Dump of WifiConfigManager");
         pw.println("mLastPriority " + mLastPriority);
         pw.println("Configured networks");
         for (WifiConfiguration conf : getAllConfiguredNetworks()) {
@@ -4398,9 +4400,9 @@ public class WifiConfigStore {
             }
         }
         if (mLocalLog != null) {
-            pw.println("WifiConfigStore - Log Begin ----");
+            pw.println("WifiConfigManager - Log Begin ----");
             mLocalLog.dump(fd, pw, args);
-            pw.println("WifiConfigStore - Log End ----");
+            pw.println("WifiConfigManager - Log End ----");
         }
         if (mMOManager.isConfigured()) {
             pw.println("Begin dump of ANQP Cache");
