@@ -125,7 +125,7 @@ public class WifiEnterpriseConfigTest {
 
         @Override
         public boolean saveValue(String key, String value) {
-            if (key == mKey) {
+            if (key.equals(mKey)) {
                 mValue = value;
             }
             return true;
