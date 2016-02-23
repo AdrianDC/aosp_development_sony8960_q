@@ -182,7 +182,7 @@ public class WifiConfigStoreTest {
                 stream.close();
                 mNetworkHistory = buffer.toByteArray();
             }}).when(mWriter).write(anyString(), (DelayedDiskWrite.Writer) anyObject());
-        final Field writerField = WifiConfigStore.class.getSuperclass().getDeclaredField("mWriter");
+        final Field writerField = WifiConfigStore.class.getDeclaredField("mWriter");
         writerField.setAccessible(true);
         writerField.set(mConfigStore, mWriter);
 

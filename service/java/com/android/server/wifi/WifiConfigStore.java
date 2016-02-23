@@ -163,7 +163,7 @@ import java.util.zip.Checksum;
  * - Maintain a list of configured networks for quick access
  *
  */
-public class WifiConfigStore extends IpConfigStore {
+public class WifiConfigStore {
 
     private Context mContext;
     public static final String TAG = "WifiConfigStore";
@@ -500,6 +500,9 @@ public class WifiConfigStore extends IpConfigStore {
     private WifiNative mWifiNative;
     private final KeyStore mKeyStore = KeyStore.getInstance();
 
+    private IpConfigStore mIpconfigStore;
+    private DelayedDiskWrite mWriter;
+
     /**
      * The lastSelectedConfiguration is used to remember which network
      * was selected last by the user.
@@ -729,6 +732,8 @@ public class WifiConfigStore extends IpConfigStore {
         mScanDetailCaches = new HashMap<>();
 
         mSIMAccessor = new SIMAccessor(mContext);
+        mWriter = new DelayedDiskWrite();
+        mIpconfigStore = new IpConfigStore(mWriter);
     }
 
     public void trimANQPCache(boolean all) {
@@ -3028,11 +3033,12 @@ public class WifiConfigStore extends IpConfigStore {
             }
         }
 
-        super.writeIpAndProxyConfigurations(ipConfigFile, networks);
+        mIpconfigStore.writeIpAndProxyConfigurations(ipConfigFile, networks);
     }
 
     private void readIpAndProxyConfigurations() {
-        SparseArray<IpConfiguration> networks = super.readIpAndProxyConfigurations(ipConfigFile);
+        SparseArray<IpConfiguration> networks =
+                mIpconfigStore.readIpAndProxyConfigurations(ipConfigFile);
 
         if (networks == null || networks.size() == 0) {
             // IpConfigStore.readIpAndProxyConfigurations has already logged an error.
