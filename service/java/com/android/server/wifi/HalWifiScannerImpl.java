@@ -36,7 +36,7 @@ import java.util.Set;
  * @see com.android.server.wifi.WifiScannerImpl for more details on each method
  */
 public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callback {
-    private static final String TAG = "SupplicantWifiScannerImpl";
+    private static final String TAG = "HalWifiScannerImpl";
     private static final boolean DBG = false;
 
     private final WifiNative mWifiNative;
