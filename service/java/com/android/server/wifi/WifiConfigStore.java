@@ -3340,19 +3340,21 @@ public class WifiConfigStore extends IpConfigStore {
 
         if (!existingMO && config.isPasspoint()) {
             try {
-                Credential credential =
-                        new Credential(config.enterpriseConfig, mKeyStore, !newNetwork);
-                HashSet<Long> roamingConsortiumIds = new HashSet<Long>();
-                for (Long roamingConsortiumId : config.roamingConsortiumIds) {
-                    roamingConsortiumIds.add(roamingConsortiumId);
+                if (config.updateIdentifier == null) {   // Only create an MO for r1 networks
+                    Credential credential =
+                            new Credential(config.enterpriseConfig, mKeyStore, !newNetwork);
+                    HashSet<Long> roamingConsortiumIds = new HashSet<Long>();
+                    for (Long roamingConsortiumId : config.roamingConsortiumIds) {
+                        roamingConsortiumIds.add(roamingConsortiumId);
+                    }
+
+                    homeSP = new HomeSP(Collections.<String, Long>emptyMap(), config.FQDN,
+                            roamingConsortiumIds, Collections.<String>emptySet(),
+                            Collections.<Long>emptySet(), Collections.<Long>emptyList(),
+                            config.providerFriendlyName, null, credential);
+
+                    log("created a homeSP object for " + config.networkId + ":" + config.SSID);
                 }
-
-                homeSP = new HomeSP(Collections.<String, Long>emptyMap(), config.FQDN,
-                        roamingConsortiumIds, Collections.<String>emptySet(),
-                        Collections.<Long>emptySet(), Collections.<Long>emptyList(),
-                        config.providerFriendlyName, null, credential);
-
-                log("created a homeSP object for " + config.networkId + ":" + config.SSID);
 
                 /* fix enterprise config properties for passpoint */
                 currentConfig.enterpriseConfig.setRealm(config.enterpriseConfig.getRealm());
