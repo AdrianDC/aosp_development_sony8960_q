@@ -18,12 +18,14 @@ package com.android.server.wifi;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -262,25 +264,50 @@ public class MockLooperTest {
 
     /**
      * Test AutoDispatch for a single message.
-     * Enable AutoDispatch, add message, confirm it was sent and the state was cleaned up.
+     * This test would ideally use the Channel sendMessageSynchronously.  At this time, the setup to
+     * get a working test channel is cumbersome.  Until this is fixed, we substitute with a
+     * sendMessage followed by a blocking call.  The main test thread blocks until the test handler
+     * receives the test message (messageA) and sets a boolean true.  Once the boolean is true, the
+     * main thread will exit the busy wait loop, stop autoDispatch and check the assert.
+     *
+     * Enable AutoDispatch, add message, block on message being handled and stop AutoDispatch.
      * <p>
-     * Expected: get message and have cleaned up state.
+     * Expected: handleMessage is called for messageA and stopAutoDispatch is called.
      */
     @Test
     public void testAutoDispatchWithSingleMessage() {
+        final int mLoopSleepTimeMs = 5;
+
         final int messageA = 1;
 
-        InOrder inOrder = inOrder(mHandlerSpy);
-        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        MockLooper mockLooper = new MockLooper();
+        class TestHandler extends Handler {
+            public volatile boolean handledMessage = false;
+            TestHandler(Looper looper) {
+                super(looper);
+            }
 
-        mMockLooper.startAutoDispatch();
-        mHandlerSpy.sendMessage(mHandler.obtainMessage(messageA));
-        mMockLooper.stopAutoDispatch();
+            @Override
+            public void handleMessage(Message msg) {
+                if (msg.what == messageA) {
+                    handledMessage = true;
+                }
+            }
+        }
 
-        inOrder.verify(mHandlerSpy).handleMessage(messageCaptor.capture());
-        collector.checkThat("1: messageA", messageA, equalTo(messageCaptor.getValue().what));
-
-        inOrder.verify(mHandlerSpy, never()).handleMessage(any(Message.class));
+        TestHandler testHandler = new TestHandler(mockLooper.getLooper());
+        mockLooper.startAutoDispatch();
+        testHandler.sendMessage(testHandler.obtainMessage(messageA));
+        while (!testHandler.handledMessage) {
+            // Block until message is handled
+            try {
+                Thread.sleep(mLoopSleepTimeMs);
+            } catch (InterruptedException e) {
+                // Interrupted while sleeping.
+            }
+        }
+        mockLooper.stopAutoDispatch();
+        assertTrue("TestHandler should have received messageA", testHandler.handledMessage);
     }
 
     /**
