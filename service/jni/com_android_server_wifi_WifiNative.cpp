@@ -35,6 +35,7 @@
 #include "wifi_hal_stub.h"
 #define REPLY_BUF_SIZE 4096 + 1         // wpa_supplicant's maximum size + 1 for nul
 #define EVENT_BUF_SIZE 2048
+#define WAKE_REASON_TYPE_MAX 10
 
 namespace android {
 
@@ -2062,6 +2063,74 @@ static jint android_net_wifi_stop_rssi_monitoring_native(JNIEnv *env, jclass cls
     wifi_request_id id = idx;
     ret = hal_fn.wifi_stop_rssi_monitoring(id, handle);
     return ret;
+}
+
+static jobject android_net_wifi_get_wlan_wake_reason_count(JNIEnv *env, jclass cls, jint iface) {
+
+    JNIHelper helper(env);
+    WLAN_DRIVER_WAKE_REASON_CNT wake_reason_cnt;
+    int cmd_event_wake_cnt_array[WAKE_REASON_TYPE_MAX];
+    int driver_fw_local_wake_cnt_array[WAKE_REASON_TYPE_MAX];
+    wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
+    wifi_error ret;
+
+    wake_reason_cnt.cmd_event_wake_cnt = cmd_event_wake_cnt_array;
+    wake_reason_cnt.cmd_event_wake_cnt_sz = WAKE_REASON_TYPE_MAX;
+    wake_reason_cnt.cmd_event_wake_cnt_used = 0;
+
+    wake_reason_cnt.driver_fw_local_wake_cnt = driver_fw_local_wake_cnt_array;
+    wake_reason_cnt.driver_fw_local_wake_cnt_sz = WAKE_REASON_TYPE_MAX;
+    wake_reason_cnt.driver_fw_local_wake_cnt_used = 0;
+
+    ret = hal_fn.wifi_get_wake_reason_stats(handle, &wake_reason_cnt);
+
+    if (ret != WIFI_SUCCESS) {
+        ALOGE("android_net_wifi_get_wlan_wake_reason_count: failed to get wake reason count\n");
+        return NULL;
+    }
+
+    JNIObject<jobject> stats = helper.createObject( "android/net/wifi/WifiWakeReasonAndCounts");
+    if (stats == NULL) {
+        ALOGE("android_net_wifi_get_wlan_wake_reason_count: error allocating object\n");
+        return NULL;
+    }
+    JNIObject<jintArray> cmd_wake_arr =
+            helper.newIntArray(wake_reason_cnt.cmd_event_wake_cnt_used);
+    if (cmd_wake_arr == NULL) {
+        ALOGE("android_net_wifi_get_wlan_wake_reason_count: error allocating array object\n");
+        return NULL;
+    }
+    JNIObject<jintArray> local_wake_arr =
+            helper.newIntArray(wake_reason_cnt.driver_fw_local_wake_cnt_used);
+    if (local_wake_arr == NULL) {
+        ALOGE("android_net_wifi_get_wlan_wake_reason_count: error allocating array object\n");
+        return NULL;
+    }
+
+    helper.setIntField(stats, "totalCmdEventWake", wake_reason_cnt.total_cmd_event_wake);
+    helper.setIntField(stats, "totalDriverFwLocalWake", wake_reason_cnt.total_driver_fw_local_wake);
+    helper.setIntField(stats, "totalRxDataWake", wake_reason_cnt.total_rx_data_wake);
+    helper.setIntField(stats, "rxUnicast", wake_reason_cnt.rx_wake_details.rx_unicast_cnt);
+    helper.setIntField(stats, "rxMulticast", wake_reason_cnt.rx_wake_details.rx_multicast_cnt);
+    helper.setIntField(stats, "rxBroadcast", wake_reason_cnt.rx_wake_details.rx_broadcast_cnt);
+    helper.setIntField(stats, "icmp", wake_reason_cnt.rx_wake_pkt_classification_info.icmp_pkt);
+    helper.setIntField(stats, "icmp6", wake_reason_cnt.rx_wake_pkt_classification_info.icmp6_pkt);
+    helper.setIntField(stats, "icmp6Ra", wake_reason_cnt.rx_wake_pkt_classification_info.icmp6_ra);
+    helper.setIntField(stats, "icmp6Na", wake_reason_cnt.rx_wake_pkt_classification_info.icmp6_na);
+    helper.setIntField(stats, "icmp6Ns", wake_reason_cnt.rx_wake_pkt_classification_info.icmp6_ns);
+    helper.setIntField(stats, "ipv4RxMulticast",
+            wake_reason_cnt.rx_multicast_wake_pkt_info.ipv4_rx_multicast_addr_cnt);
+    helper.setIntField(stats, "ipv6Multicast",
+            wake_reason_cnt.rx_multicast_wake_pkt_info.ipv6_rx_multicast_addr_cnt);
+    helper.setIntField(stats, "otherRxMulticast",
+            wake_reason_cnt.rx_multicast_wake_pkt_info.other_rx_multicast_addr_cnt);
+    helper.setIntArrayRegion(cmd_wake_arr, 0, wake_reason_cnt.cmd_event_wake_cnt_used,
+            wake_reason_cnt.cmd_event_wake_cnt);
+    helper.setIntArrayRegion(local_wake_arr, 0, wake_reason_cnt.driver_fw_local_wake_cnt_used,
+            wake_reason_cnt.driver_fw_local_wake_cnt);
+    helper.setObjectField(stats, "cmdEventWakeCntArray", "[I", cmd_wake_arr);
+    helper.setObjectField(stats, "driverFWLocalWakeCntArray", "[I", local_wake_arr);
+    return stats.detach();
 }
 
 static jbyteArray android_net_wifi_readKernelLog(JNIEnv *env, jclass cls) {

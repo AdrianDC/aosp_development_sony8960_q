@@ -2888,4 +2888,19 @@ public class WifiNative {
     }
 
     private static native WifiWakeReasonAndCounts getWlanWakeReasonCountNative(int iface);
+
+    /**
+     * Fetch the host wakeup reasons stats from wlan driver.
+     * @return the |WifiWakeReasonAndCounts| object retrieved from the wlan driver.
+     */
+    public WifiWakeReasonAndCounts getWlanWakeReasonCount() {
+        Log.d(TAG, "getWlanWakeReasonCount " + sWlan0Index);
+        synchronized (sLock) {
+            if (isHalStarted()) {
+                return getWlanWakeReasonCountNative(sWlan0Index);
+            } else {
+                return null;
+            }
+        }
+    }
 }
