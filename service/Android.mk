@@ -111,8 +111,6 @@ LOCAL_SRC_FILES += \
 endif
 
 LOCAL_MODULE := libwifi-service
-# b/22172328
-LOCAL_CLANG := false
 
 include $(BUILD_SHARED_LIBRARY)
 
