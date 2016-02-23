@@ -765,9 +765,8 @@ public class WifiStateMachineTest {
         dhcpResults.addDns("8.8.8.8");
         dhcpResults.setLeaseDuration(3600);
 
-        mLooper.startAutoDispatch();
         mTestIpManager.injectDhcpSuccess(dhcpResults);
-        mLooper.stopAutoDispatch();
+        mLooper.dispatchAll();
 
         assertEquals("ConnectedState", getCurrentState().getName());
     }
@@ -794,9 +793,8 @@ public class WifiStateMachineTest {
 
         assertEquals("ObtainingIpState", getCurrentState().getName());
 
-        mLooper.startAutoDispatch();
         mTestIpManager.injectDhcpFailure();
-        mLooper.stopAutoDispatch();
+        mLooper.dispatchAll();
 
         assertEquals("DisconnectingState", getCurrentState().getName());
     }
