@@ -301,6 +301,7 @@ public class WifiStateMachineTest {
     @Mock SupplicantStateTracker mSupplicantStateTracker;
     @Mock WifiMetrics mWifiMetrics;
     @Mock UserManager mUserManager;
+    @Mock WifiApConfigStore mApConfigStore;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -331,8 +332,7 @@ public class WifiStateMachineTest {
                 WifiManager.WIFI_FREQUENCY_BAND_AUTO)).thenReturn(
                 WifiManager.WIFI_FREQUENCY_BAND_AUTO);
 
-        when(factory.makeApConfigStore(Mockito.eq(context)))
-                .thenCallRealMethod();
+        when(factory.makeApConfigStore(Mockito.eq(context))).thenReturn(mApConfigStore);
 
         when(factory.makeSupplicantStateTracker(
                 any(Context.class), any(WifiStateMachine.class), any(WifiConfigManager.class),
