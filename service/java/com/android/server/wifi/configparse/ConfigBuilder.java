@@ -4,6 +4,7 @@ import android.content.Context;
 import android.net.Uri;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.provider.DocumentsContract;
 import android.util.Base64;
 import android.util.Log;
 
@@ -79,7 +80,11 @@ public class ConfigBuilder {
     }
 
     private static void dropFile(Uri uri, Context context) {
-        context.getContentResolver().delete(uri, null, null);
+        if (DocumentsContract.isDocumentUri(context, uri)) {
+            DocumentsContract.deleteDocument(context.getContentResolver(), uri);
+        } else {
+            context.getContentResolver().delete(uri, null, null);
+        }
     }
 
     private static WifiConfiguration parse(MIMEContainer root)
