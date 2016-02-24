@@ -17,11 +17,9 @@
 package com.android.server.wifi.nan;
 
 import android.net.wifi.nan.ConfigRequest;
-import android.net.wifi.nan.PublishData;
-import android.net.wifi.nan.PublishSettings;
-import android.net.wifi.nan.SubscribeData;
-import android.net.wifi.nan.SubscribeSettings;
-import android.net.wifi.nan.WifiNanSessionListener;
+import android.net.wifi.nan.PublishConfig;
+import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanSessionCallback;
 import android.util.Log;
 
 import com.android.server.wifi.WifiNative;
@@ -32,8 +30,6 @@ import libcore.util.HexEncoding;
  * Native calls to access the Wi-Fi NAN HAL.
  *
  * Relies on WifiNative to perform the actual HAL registration.
- *
- * {@hide}
  */
 public class WifiNanNative {
     private static final String TAG = "WifiNanNative";
@@ -48,6 +44,12 @@ public class WifiNanNative {
 
     private static native int registerNanNatives();
 
+    /**
+     * Returns the singleton WifiNanNative used to manage the actual NAN HAL
+     * interface.
+     *
+     * @return Singleton object.
+     */
     public static WifiNanNative getInstance() {
         // dummy reference - used to make sure that WifiNative is loaded before
         // us since it is the one to load the shared library and starts its
@@ -66,6 +68,10 @@ public class WifiNanNative {
         return sWifiNanNativeSingleton;
     }
 
+    /**
+     * A container class for NAN (vendor) implementation capabilities (or
+     * limitations). Filled-in by the firmware.
+     */
     public static class Capabilities {
         public int maxConcurrentNanClusters;
         public int maxPublishes;
@@ -136,6 +142,13 @@ public class WifiNanNative {
     private static native int enableAndConfigureNative(short transactionId, Object cls, int iface,
             ConfigRequest configRequest);
 
+    /**
+     * Enable and configure NAN.
+     *
+     * @param transactionId Transaction ID for the transaction - used in the
+     *            async callback to match with the original request.
+     * @param configRequest Requested NAN configuration.
+     */
     public void enableAndConfigure(short transactionId, ConfigRequest configRequest) {
         boolean success;
 
@@ -159,6 +172,12 @@ public class WifiNanNative {
 
     private static native int disableNative(short transactionId, Object cls, int iface);
 
+    /**
+     * Disable NAN.
+     *
+     * @param transactionId transactionId Transaction ID for the transaction -
+     *            used in the async callback to match with the original request.
+     */
     public void disable(short transactionId) {
         boolean success;
 
@@ -179,23 +198,29 @@ public class WifiNanNative {
     }
 
     private static native int publishNative(short transactionId, int publishId, Object cls,
-            int iface,
-            PublishData publishData, PublishSettings publishSettings);
+            int iface, PublishConfig publishConfig);
 
-    public void publish(short transactionId, int publishId, PublishData publishData,
-            PublishSettings publishSettings) {
+    /**
+     * Start or modify a service publish session.
+     *
+     * @param transactionId transactionId Transaction ID for the transaction -
+     *            used in the async callback to match with the original request.
+     * @param publishId ID of the requested session - 0 to request a new publish
+     *            session.
+     * @param publishConfig Configuration of the discovery session.
+     */
+    public void publish(short transactionId, int publishId, PublishConfig publishConfig) {
         boolean success;
 
         if (VDBG) {
-            Log.d(TAG, "publish: transactionId=" + transactionId + ",data='" + publishData
-                    + "', settings=" + publishSettings);
+            Log.d(TAG, "publish: transactionId=" + transactionId + ", config=" + publishConfig);
         }
 
         if (isNanInit(true)) {
             int ret;
             synchronized (WifiNative.sLock) {
                 ret = publishNative(transactionId, publishId, WifiNative.class,
-                        WifiNative.sWlan0Index, publishData, publishSettings);
+                        WifiNative.sWlan0Index, publishConfig);
             }
             if (DBG) Log.d(TAG, "publishNative: ret=" + ret);
             success = ret == WIFI_SUCCESS;
@@ -208,22 +233,29 @@ public class WifiNanNative {
     }
 
     private static native int subscribeNative(short transactionId, int subscribeId, Object cls,
-            int iface, SubscribeData subscribeData, SubscribeSettings subscribeSettings);
+            int iface, SubscribeConfig subscribeConfig);
 
-    public void subscribe(short transactionId, int subscribeId, SubscribeData subscribeData,
-            SubscribeSettings subscribeSettings) {
+    /**
+     * Start or modify a service subscription session.
+     *
+     * @param transactionId transactionId Transaction ID for the transaction -
+     *            used in the async callback to match with the original request.
+     * @param subscribeId ID of the requested session - 0 to request a new
+     *            subscribe session.
+     * @param subscribeConfig Configuration of the discovery session.
+     */
+    public void subscribe(short transactionId, int subscribeId, SubscribeConfig subscribeConfig) {
         boolean success;
 
         if (VDBG) {
-            Log.d(TAG, "subscribe: transactionId=" + transactionId + ", data='" + subscribeData
-                    + "', settings=" + subscribeSettings);
+            Log.d(TAG, "subscribe: transactionId=" + transactionId + ", config=" + subscribeConfig);
         }
 
         if (isNanInit(true)) {
             int ret;
             synchronized (WifiNative.sLock) {
                 ret = subscribeNative(transactionId, subscribeId, WifiNative.class,
-                        WifiNative.sWlan0Index, subscribeData, subscribeSettings);
+                        WifiNative.sWlan0Index, subscribeConfig);
             }
             if (DBG) Log.d(TAG, "subscribeNative: ret=" + ret);
             success = ret == WIFI_SUCCESS;
@@ -238,6 +270,19 @@ public class WifiNanNative {
     private static native int sendMessageNative(short transactionId, Object cls, int iface,
             int pubSubId, int requestorInstanceId, byte[] dest, byte[] message, int messageLength);
 
+    /**
+     * Send a message through an existing discovery session.
+     *
+     * @param transactionId transactionId Transaction ID for the transaction -
+     *            used in the async callback to match with the original request.
+     * @param pubSubId ID of the existing publish/subscribe session.
+     * @param requestorInstanceId ID of the peer to communicate with - obtained
+     *            through a previous discovery (match) operation with that peer.
+     * @param dest MAC address of the peer to communicate with - obtained
+     *            together with requestorInstanceId.
+     * @param message Message.
+     * @param messageLength Message byte array length.
+     */
     public void sendMessage(short transactionId, int pubSubId, int requestorInstanceId, byte[] dest,
             byte[] message, int messageLength) {
         boolean success;
@@ -269,6 +314,14 @@ public class WifiNanNative {
     private static native int stopPublishNative(short transactionId, Object cls, int iface,
             int pubSubId);
 
+    /**
+     * Terminate a publish discovery session.
+     *
+     * @param transactionId transactionId Transaction ID for the transaction -
+     *            used in the async callback to match with the original request.
+     * @param pubSubId ID of the publish/subscribe session - obtained when
+     *            creating a session.
+     */
     public void stopPublish(short transactionId, int pubSubId) {
         boolean success;
 
@@ -295,6 +348,14 @@ public class WifiNanNative {
     private static native int stopSubscribeNative(short transactionId, Object cls, int iface,
             int pubSubId);
 
+    /**
+     * Terminate a subscribe discovery session.
+     *
+     * @param transactionId transactionId Transaction ID for the transaction -
+     *            used in the async callback to match with the original request.
+     * @param pubSubId ID of the publish/subscribe session - obtained when
+     *            creating a session.
+     */
     public void stopSubscribe(short transactionId, int pubSubId) {
         boolean success;
 
@@ -390,12 +451,12 @@ public class WifiNanNative {
     private static int translateHalStatusToPublicStatus(int halStatus) {
         switch (halStatus) {
             case NAN_STATUS_NO_SPACE_AVAILABLE:
-                return WifiNanSessionListener.FAIL_REASON_NO_RESOURCES;
+                return WifiNanSessionCallback.FAIL_REASON_NO_RESOURCES;
 
             case NAN_STATUS_TIMEOUT:
             case NAN_STATUS_DE_FAILURE:
             case NAN_STATUS_DISABLE_IN_PROGRESS:
-                return WifiNanSessionListener.FAIL_REASON_OTHER;
+                return WifiNanSessionCallback.FAIL_REASON_OTHER;
 
             case NAN_STATUS_INVALID_MSG_VERSION:
             case NAN_STATUS_INVALID_MSG_LEN:
@@ -434,13 +495,13 @@ public class WifiNanNative {
             case NAN_STATUS_INVALID_POST_NAN_DISCOVERY_BITMAP_VALUE:
             case NAN_STATUS_MISSING_FUTHER_AVAILABILITY_MAP:
             case NAN_STATUS_INVALID_BAND_CONFIG_FLAGS:
-                return WifiNanSessionListener.FAIL_REASON_INVALID_ARGS;
+                return WifiNanSessionCallback.FAIL_REASON_INVALID_ARGS;
 
                 // publish/subscribe termination reasons
             case NAN_TERMINATED_REASON_TIMEOUT:
             case NAN_TERMINATED_REASON_USER_REQUEST:
             case NAN_TERMINATED_REASON_COUNT_REACHED:
-                return WifiNanSessionListener.TERMINATE_REASON_DONE;
+                return WifiNanSessionCallback.TERMINATE_REASON_DONE;
 
             case NAN_TERMINATED_REASON_INVALID:
             case NAN_TERMINATED_REASON_FAILURE:
@@ -449,10 +510,10 @@ public class WifiNanNative {
             case NAN_TERMINATED_REASON_POST_DISC_ATTR_EXPIRED:
             case NAN_TERMINATED_REASON_POST_DISC_LEN_EXCEEDED:
             case NAN_TERMINATED_REASON_FURTHER_AVAIL_MAP_EMPTY:
-                return WifiNanSessionListener.TERMINATE_REASON_FAIL;
+                return WifiNanSessionCallback.TERMINATE_REASON_FAIL;
         }
 
-        return WifiNanSessionListener.FAIL_REASON_OTHER;
+        return WifiNanSessionCallback.FAIL_REASON_OTHER;
     }
 
     // callback from native

@@ -22,12 +22,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
 import android.net.wifi.nan.ConfigRequest;
-import android.net.wifi.nan.PublishData;
-import android.net.wifi.nan.PublishSettings;
-import android.net.wifi.nan.SubscribeData;
-import android.net.wifi.nan.SubscribeSettings;
+import android.net.wifi.nan.PublishConfig;
+import android.net.wifi.nan.SubscribeConfig;
 import android.net.wifi.nan.TlvBufferUtils;
-import android.net.wifi.nan.WifiNanSessionListener;
+import android.net.wifi.nan.WifiNanSessionCallback;
 import android.os.Bundle;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -122,7 +120,7 @@ public class WifiNanHalTest {
         tlvRx.allocate(150).putByte(0, (byte) 66).putInt(0, 127).putString(0, "some other string")
                 .putZeroLengthElement(0).putByteArray(0, serviceName.getBytes());
 
-        testPublish(transactionId, publishId, PublishSettings.PUBLISH_TYPE_UNSOLICITED, serviceName,
+        testPublish(transactionId, publishId, PublishConfig.PUBLISH_TYPE_UNSOLICITED, serviceName,
                 ssi, tlvTx, tlvRx, publishCount, publishTtl);
     }
 
@@ -143,7 +141,7 @@ public class WifiNanHalTest {
         tlvRx.allocate(150).putByte(0, (byte) 66).putInt(0, 127).putString(0, "some other string")
                 .putZeroLengthElement(0).putByteArray(0, serviceName.getBytes());
 
-        testPublish(transactionId, publishId, PublishSettings.PUBLISH_TYPE_SOLICITED, serviceName,
+        testPublish(transactionId, publishId, PublishConfig.PUBLISH_TYPE_SOLICITED, serviceName,
                 ssi, tlvTx, tlvRx, publishCount, publishTtl);
     }
 
@@ -178,7 +176,7 @@ public class WifiNanHalTest {
         tlvRx.allocate(150).putByte(0, (byte) 66).putInt(0, 127).putString(0, "some other string")
                 .putZeroLengthElement(0).putByteArray(0, serviceName.getBytes());
 
-        testSubscribe(transactionId, subscribeId, SubscribeSettings.SUBSCRIBE_TYPE_PASSIVE,
+        testSubscribe(transactionId, subscribeId, SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE,
                 serviceName, ssi, tlvTx, tlvRx, subscribeCount, subscribeTtl);
     }
 
@@ -199,7 +197,7 @@ public class WifiNanHalTest {
         tlvRx.allocate(150).putByte(0, (byte) 66).putInt(0, 127).putString(0, "some other string")
                 .putZeroLengthElement(0).putByteArray(0, serviceName.getBytes());
 
-        testSubscribe(transactionId, subscribeId, SubscribeSettings.SUBSCRIBE_TYPE_ACTIVE,
+        testSubscribe(transactionId, subscribeId, SubscribeConfig.SUBSCRIBE_TYPE_ACTIVE,
                 serviceName, ssi, tlvTx, tlvRx, subscribeCount, subscribeTtl);
     }
 
@@ -342,7 +340,7 @@ public class WifiNanHalTest {
                 HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onConfigFailed(transactionId,
-                WifiNanSessionListener.FAIL_REASON_INVALID_ARGS);
+                WifiNanSessionCallback.FAIL_REASON_INVALID_ARGS);
     }
 
     @Test
@@ -377,7 +375,7 @@ public class WifiNanHalTest {
                 HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onPublishFail(transactionId,
-                WifiNanSessionListener.FAIL_REASON_NO_RESOURCES);
+                WifiNanSessionCallback.FAIL_REASON_NO_RESOURCES);
     }
 
     @Test
@@ -428,7 +426,7 @@ public class WifiNanHalTest {
                 HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onSubscribeFail(transactionId,
-                WifiNanSessionListener.FAIL_REASON_OTHER);
+                WifiNanSessionCallback.FAIL_REASON_OTHER);
     }
 
     @Test
@@ -475,7 +473,7 @@ public class WifiNanHalTest {
                 HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onMessageSendFail(transactionId,
-                WifiNanSessionListener.FAIL_REASON_OTHER);
+                WifiNanSessionCallback.FAIL_REASON_OTHER);
     }
 
     @Test
@@ -489,7 +487,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callPublishTerminated(HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onPublishTerminated(publishId,
-                WifiNanSessionListener.TERMINATE_REASON_DONE);
+                WifiNanSessionCallback.TERMINATE_REASON_DONE);
     }
 
     @Test
@@ -503,7 +501,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callSubscribeTerminated(HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onSubscribeTerminated(subscribeId,
-                WifiNanSessionListener.TERMINATE_REASON_FAIL);
+                WifiNanSessionCallback.TERMINATE_REASON_FAIL);
     }
 
     @Test
@@ -584,7 +582,7 @@ public class WifiNanHalTest {
 
         WifiNanHalMock.callDisabled(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onNanDown(WifiNanSessionListener.FAIL_REASON_OTHER);
+        verify(mNanStateManager).onNanDown(WifiNanSessionCallback.FAIL_REASON_OTHER);
     }
 
     /*
@@ -650,15 +648,13 @@ public class WifiNanHalTest {
             String serviceName, String ssi, TlvBufferUtils.TlvConstructor tlvTx,
             TlvBufferUtils.TlvConstructor tlvRx, int publishCount, int publishTtl)
                     throws JSONException {
-        PublishData publishData = new PublishData.Builder().setServiceName(serviceName)
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(ssi)
                 .setTxFilter(tlvTx.getArray(), tlvTx.getActualLength())
-                .setRxFilter(tlvRx.getArray(), tlvRx.getActualLength()).build();
-
-        PublishSettings publishSettings = new PublishSettings.Builder().setPublishType(publishType)
+                .setRxFilter(tlvRx.getArray(), tlvRx.getActualLength()).setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl).build();
 
-        mDut.publish(transactionId, publishId, publishData, publishSettings);
+        mDut.publish(transactionId, publishId, publishConfig);
 
         verify(mNanHalMock).publishHalMockNative(eq(transactionId), mArgs.capture());
 
@@ -668,7 +664,7 @@ public class WifiNanHalTest {
         collector.checkThat("ttl", argsData.getInt("ttl"), equalTo(publishTtl));
         collector.checkThat("publish_type", argsData.getInt("publish_type"), equalTo(publishType));
         collector.checkThat("tx_type", argsData.getInt("tx_type"),
-                equalTo(publishType == PublishSettings.PUBLISH_TYPE_UNSOLICITED ? 0 : 1));
+                equalTo(publishType == PublishConfig.PUBLISH_TYPE_UNSOLICITED ? 0 : 1));
         collector.checkThat("publish_count", argsData.getInt("publish_count"),
                 equalTo(publishCount));
         collector.checkThat("service_name_len", argsData.getInt("service_name_len"),
@@ -698,16 +694,14 @@ public class WifiNanHalTest {
             String serviceName, String ssi, TlvBufferUtils.TlvConstructor tlvTx,
             TlvBufferUtils.TlvConstructor tlvRx, int subscribeCount, int subscribeTtl)
                     throws JSONException {
-        SubscribeData subscribeData = new SubscribeData.Builder().setServiceName(serviceName)
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(ssi)
                 .setTxFilter(tlvTx.getArray(), tlvTx.getActualLength())
-                .setRxFilter(tlvRx.getArray(), tlvRx.getActualLength()).build();
-
-        SubscribeSettings subscribeSettings = new SubscribeSettings.Builder()
+                .setRxFilter(tlvRx.getArray(), tlvRx.getActualLength())
                 .setSubscribeType(subscribeType).setSubscribeCount(subscribeCount)
                 .setTtlSec(subscribeTtl).build();
 
-        mDut.subscribe(transactionId, subscribeId, subscribeData, subscribeSettings);
+        mDut.subscribe(transactionId, subscribeId, subscribeConfig);
 
         verify(mNanHalMock).subscribeHalMockNative(eq(transactionId), mArgs.capture());
 
