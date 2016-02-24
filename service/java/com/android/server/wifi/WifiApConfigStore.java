@@ -16,7 +16,6 @@
 
 package com.android.server.wifi;
 
-import android.app.backup.BackupManager;
 import android.content.Context;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.KeyMgmt;
@@ -53,13 +52,17 @@ public class WifiApConfigStore {
 
     private final Context mContext;
     private final String mApConfigFile;
+    private final BackupManagerProxy mBackupManagerProxy;
 
-    WifiApConfigStore(Context context) {
-        this(context, DEFAULT_AP_CONFIG_FILE);
+    WifiApConfigStore(Context context, BackupManagerProxy backupManagerProxy) {
+        this(context, backupManagerProxy, DEFAULT_AP_CONFIG_FILE);
     }
 
-    WifiApConfigStore(Context context, String apConfigFile) {
+    WifiApConfigStore(Context context,
+                      BackupManagerProxy backupManagerProxy,
+                      String apConfigFile) {
         mContext = context;
+        mBackupManagerProxy = backupManagerProxy;
         mApConfigFile = apConfigFile;
 
         String ap2GChannelListStr = mContext.getResources().getString(
@@ -106,8 +109,9 @@ public class WifiApConfigStore {
             mWifiApConfig = config;
         }
         writeApConfiguration(mApConfigFile, mWifiApConfig);
+
         // Stage the backup of the SettingsProvider package which backs this up
-        BackupManager.dataChanged("com.android.providers.settings");
+        mBackupManagerProxy.notifyDataChanged();
     }
 
     public ArrayList<Integer> getAllowed2GChannel() {

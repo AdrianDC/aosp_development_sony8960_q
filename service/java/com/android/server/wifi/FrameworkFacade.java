@@ -57,8 +57,15 @@ public class FrameworkFacade {
         return new SupplicantStateTracker(context, wifiStateMachine, configStore, handler);
     }
 
-    public WifiApConfigStore makeApConfigStore(Context context) {
-        return new WifiApConfigStore(context);
+    /**
+     * Create a new instance of WifiApConfigStore.
+     * @param context reference to a Context
+     * @param backupManagerProxy reference to a BackupManagerProxy
+     * @return an instance of WifiApConfigStore
+     */
+    public WifiApConfigStore makeApConfigStore(Context context,
+                                               BackupManagerProxy backupManagerProxy) {
+        return new WifiApConfigStore(context, backupManagerProxy);
     }
 
     public long getTxPackets(String iface) {

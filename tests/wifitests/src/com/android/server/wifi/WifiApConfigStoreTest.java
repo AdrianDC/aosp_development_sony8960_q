@@ -18,6 +18,7 @@ package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
@@ -50,6 +51,7 @@ public class WifiApConfigStoreTest {
     private static final String TEST_CONFIGURED_AP_SSID = "ConfiguredAP";
 
     @Mock Context mContext;
+    @Mock BackupManagerProxy mBackupManagerProxy;
     File mApConfigFile;
 
     @Before
@@ -114,7 +116,8 @@ public class WifiApConfigStoreTest {
      */
     @Test
     public void initWithDefaultConfiguration() throws Exception {
-        WifiApConfigStore store = new WifiApConfigStore(mContext, mApConfigFile.getPath());
+        WifiApConfigStore store = new WifiApConfigStore(
+                mContext, mBackupManagerProxy, mApConfigFile.getPath());
         verifyDefaultApConfig(store.getApConfiguration());
     }
 
@@ -131,7 +134,8 @@ public class WifiApConfigStoreTest {
                 1,                 /* AP band (5GHz) */
                 40                 /* AP channel */);
         assertTrue(writeApConfigFile(expectedConfig));
-        WifiApConfigStore store = new WifiApConfigStore(mContext, mApConfigFile.getPath());
+        WifiApConfigStore store = new WifiApConfigStore(
+                mContext, mBackupManagerProxy, mApConfigFile.getPath());
         verifyApConfig(expectedConfig, store.getApConfiguration());
     }
 
@@ -150,11 +154,13 @@ public class WifiApConfigStoreTest {
                 1,                 /* AP band (5GHz) */
                 40                 /* AP channel */);
         assertTrue(writeApConfigFile(expectedConfig));
-        WifiApConfigStore store = new WifiApConfigStore(mContext, mApConfigFile.getPath());
+        WifiApConfigStore store = new WifiApConfigStore(
+                mContext, mBackupManagerProxy, mApConfigFile.getPath());
         verifyApConfig(expectedConfig, store.getApConfiguration());
 
         store.setApConfiguration(null);
         verifyDefaultApConfig(store.getApConfiguration());
+        verify(mBackupManagerProxy).notifyDataChanged();
     }
 
     /**
@@ -163,7 +169,8 @@ public class WifiApConfigStoreTest {
     @Test
     public void updateApConfiguration() throws Exception {
         /* Initialize WifiApConfigStore with default configuration. */
-        WifiApConfigStore store = new WifiApConfigStore(mContext, mApConfigFile.getPath());
+        WifiApConfigStore store = new WifiApConfigStore(
+                mContext, mBackupManagerProxy, mApConfigFile.getPath());
         verifyDefaultApConfig(store.getApConfiguration());
 
         /* Update with a valid configuration. */
@@ -175,5 +182,6 @@ public class WifiApConfigStoreTest {
                 40                 /* AP channel */);
         store.setApConfiguration(expectedConfig);
         verifyApConfig(expectedConfig, store.getApConfiguration());
+        verify(mBackupManagerProxy).notifyDataChanged();
     }
 }
