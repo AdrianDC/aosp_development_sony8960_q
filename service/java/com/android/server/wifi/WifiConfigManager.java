@@ -79,14 +79,10 @@ import com.android.server.wifi.hotspot2.pps.HomeSP;
 
 import org.xml.sax.SAXException;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
-import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.EOFException;
 import java.io.File;
 import java.io.FileDescriptor;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
@@ -210,59 +206,8 @@ public class WifiConfigManager {
     private static final String ipConfigFile = Environment.getDataDirectory() +
             "/misc/wifi/ipconfig.txt";
 
-    private static final String networkHistoryConfigFile = Environment.getDataDirectory() +
-            "/misc/wifi/networkHistory.txt";
-
     private static final String autoJoinConfigFile = Environment.getDataDirectory() +
             "/misc/wifi/autojoinconfig.txt";
-
-    /* Network History Keys */
-    private static final String SSID_KEY = "SSID";
-    static final String CONFIG_KEY = "CONFIG";
-    private static final String CONFIG_BSSID_KEY = "CONFIG_BSSID";
-    private static final String CHOICE_KEY = "CHOICE";
-    private static final String CHOICE_TIME_KEY = "CHOICE_TIME";
-    private static final String LINK_KEY = "LINK";
-    private static final String BSSID_KEY = "BSSID";
-    private static final String BSSID_KEY_END = "/BSSID";
-    private static final String RSSI_KEY = "RSSI";
-    private static final String FREQ_KEY = "FREQ";
-    private static final String DATE_KEY = "DATE";
-    private static final String MILLI_KEY = "MILLI";
-    private static final String BLACKLIST_MILLI_KEY = "BLACKLIST_MILLI";
-    private static final String NETWORK_ID_KEY = "ID";
-    private static final String PRIORITY_KEY = "PRIORITY";
-    private static final String DEFAULT_GW_KEY = "DEFAULT_GW";
-    private static final String AUTH_KEY = "AUTH";
-    private static final String BSSID_STATUS_KEY = "BSSID_STATUS";
-    private static final String SELF_ADDED_KEY = "SELF_ADDED";
-    private static final String FAILURE_KEY = "FAILURE";
-    private static final String DID_SELF_ADD_KEY = "DID_SELF_ADD";
-    private static final String PEER_CONFIGURATION_KEY = "PEER_CONFIGURATION";
-    static final String CREATOR_UID_KEY = "CREATOR_UID_KEY";
-    private static final String CONNECT_UID_KEY = "CONNECT_UID_KEY";
-    private static final String UPDATE_UID_KEY = "UPDATE_UID";
-    private static final String FQDN_KEY = "FQDN";
-    private static final String SCORER_OVERRIDE_KEY = "SCORER_OVERRIDE";
-    private static final String SCORER_OVERRIDE_AND_SWITCH_KEY = "SCORER_OVERRIDE_AND_SWITCH";
-    private static final String VALIDATED_INTERNET_ACCESS_KEY = "VALIDATED_INTERNET_ACCESS";
-    private static final String NO_INTERNET_ACCESS_REPORTS_KEY = "NO_INTERNET_ACCESS_REPORTS";
-    private static final String EPHEMERAL_KEY = "EPHEMERAL";
-    private static final String NUM_ASSOCIATION_KEY = "NUM_ASSOCIATION";
-    private static final String DELETED_CRC32_KEY = "DELETED_CRC32";
-    private static final String DELETED_EPHEMERAL_KEY = "DELETED_EPHEMERAL";
-    private static final String CREATOR_NAME_KEY = "CREATOR_NAME";
-    private static final String UPDATE_NAME_KEY = "UPDATE_NAME";
-    private static final String USER_APPROVED_KEY = "USER_APPROVED";
-    private static final String CREATION_TIME_KEY = "CREATION_TIME";
-    private static final String UPDATE_TIME_KEY = "UPDATE_TIME";
-    static final String SHARED_KEY = "SHARED";
-    private static final String NETWORK_SELECTION_STATUS_KEY = "NETWORK_SELECTION_STATUS";
-    private static final String NETWORK_SELECTION_DISABLE_REASON_KEY =
-            "NETWORK_SELECTION_DISABLE_REASON";
-
-    private static final String SEPARATOR = ":  ";
-    private static final String NL = "\n";
 
     private static final String THRESHOLD_GOOD_RSSI_5_KEY
             = "THRESHOLD_GOOD_RSSI_5";
@@ -506,6 +451,7 @@ public class WifiConfigManager {
     private IpConfigStore mIpconfigStore;
     private DelayedDiskWrite mWriter;
 
+    private final WifiNetworkHistory mWifiNetworkHistory;
     /**
      * The lastSelectedConfiguration is used to remember which network
      * was selected last by the user.
@@ -737,6 +683,8 @@ public class WifiConfigManager {
         mSIMAccessor = new SIMAccessor(mContext);
         mWriter = new DelayedDiskWrite();
         mIpconfigStore = new IpConfigStore(mWriter);
+
+        mWifiNetworkHistory = new WifiNetworkHistory(c, mLocalLog, mWriter);
     }
 
     public void trimANQPCache(boolean all) {
@@ -1103,7 +1051,9 @@ public class WifiConfigManager {
             mWifiNative.saveConfig();
 
         updateLastConnectUid(config, uid);
+
         writeKnownNetworkHistory();
+
 
         /* Enable the given network while disabling all other networks */
         selectNetworkWithoutBroadcast(config.networkId);
@@ -1294,7 +1244,6 @@ public class WifiConfigManager {
         }
 
         writeKnownNetworkHistory();
-
         return foundConfig;
     }
 
@@ -1705,6 +1654,7 @@ public class WifiConfigManager {
             if (!config.ephemeral) {
                 removeUserSelectionPreference(key);
             }
+
             writeKnownNetworkHistory();
         }
         return true;
@@ -1800,6 +1750,7 @@ public class WifiConfigManager {
             ret = selectNetworkWithoutBroadcast(netId);
             if (VDBG) localLogNetwork("enableNetwork(disableOthers=true, uid=" + uid + ") ", netId);
             updateLastConnectUid(getWifiConfiguration(netId), uid);
+
             writeKnownNetworkHistory();
             sendConfiguredNetworksChangedBroadcast();
         } else {
@@ -2355,7 +2306,7 @@ public class WifiConfigManager {
             logKernelTime();
             logContents(SUPPLICANT_CONFIG_FILE);
             logContents(SUPPLICANT_CONFIG_FILE_BACKUP);
-            logContents(networkHistoryConfigFile);
+            logContents(mWifiNetworkHistory.NETWORK_HISTORY_CONFIG_FILE);
         }
     }
 
@@ -2554,189 +2505,28 @@ public class WifiConfigManager {
         }, false);
     }
 
-    public void writeKnownNetworkHistory() {
+    /**
+     *  Write network history, WifiConfigurations and mScanDetailCaches to file.
+     */
+    private void readNetworkHistory(Map<String, WifiConfiguration> configs) {
+        mWifiNetworkHistory.readNetworkHistory(configs,
+                mScanDetailCaches,
+                mDeletedSSIDs,
+                mDeletedEphemeralSSIDs);
+    }
 
-        /* Make a copy */
+    /**
+     *  Read Network history from file, merge it into mConfiguredNetowrks and mScanDetailCaches
+     */
+    public void writeKnownNetworkHistory() {
         final List<WifiConfiguration> networks = new ArrayList<WifiConfiguration>();
         for (WifiConfiguration config : mConfiguredNetworks.valuesForAllUsers()) {
             networks.add(new WifiConfiguration(config));
         }
-        if (VDBG) {
-            loge(" writeKnownNetworkHistory() num networks:"
-                    + mConfiguredNetworks.valuesForCurrentUser());
-        }
-
-        mWriter.write(networkHistoryConfigFile, new DelayedDiskWrite.Writer() {
-            public void onWriteCalled(DataOutputStream out) throws IOException {
-                for (WifiConfiguration config : networks) {
-                    //loge("onWriteCalled write SSID: " + config.SSID);
-                   /* if (config.getLinkProperties() != null)
-                        loge(" lp " + config.getLinkProperties().toString());
-                    else
-                        loge("attempt config w/o lp");
-                    */
-                    WifiConfiguration.NetworkSelectionStatus status =
-                            config.getNetworkSelectionStatus();
-                    if (VDBG) {
-                        int numlink = 0;
-                        if (config.linkedConfigurations != null) {
-                            numlink = config.linkedConfigurations.size();
-                        }
-                        String disableTime;
-                        if (config.getNetworkSelectionStatus().isNetworkEnabled()) {
-                            disableTime = "";
-                        } else {
-                            disableTime = "Disable time: " + DateFormat.getInstance().format(
-                                    config.getNetworkSelectionStatus().getDisableTime());
-                        }
-                        loge("saving network history: " + config.configKey()  + " gw: "
-                                + config.defaultGwMacAddress + " Network Selection-status: "
-                                + status.getNetworkStatusString()
-                                + disableTime + " ephemeral=" + config.ephemeral
-                                + " choice:" + status.getConnectChoice()
-                                + " link:" + numlink
-                                + " status:" + config.status
-                                + " nid:" + config.networkId);
-                    }
-
-                    if (!WifiServiceImpl.isValid(config))
-                        continue;
-
-                    if (config.SSID == null) {
-                        if (VDBG) {
-                            loge("writeKnownNetworkHistory trying to write config with null SSID");
-                        }
-                        continue;
-                    }
-                    if (VDBG) {
-                        loge("writeKnownNetworkHistory write config " + config.configKey());
-                    }
-                    out.writeUTF(CONFIG_KEY + SEPARATOR + config.configKey() + NL);
-
-                    if (config.SSID != null) {
-                        out.writeUTF(SSID_KEY + SEPARATOR + config.SSID + NL);
-                    }
-                    if (config.BSSID != null) {
-                        out.writeUTF(CONFIG_BSSID_KEY + SEPARATOR + config.BSSID + NL);
-                    } else {
-                        out.writeUTF(CONFIG_BSSID_KEY + SEPARATOR + "null" + NL);
-                    }
-                    if (config.FQDN != null) {
-                        out.writeUTF(FQDN_KEY + SEPARATOR + config.FQDN + NL);
-                    }
-
-                    out.writeUTF(PRIORITY_KEY + SEPARATOR +
-                            Integer.toString(config.priority) + NL);
-                    out.writeUTF(NETWORK_ID_KEY + SEPARATOR +
-                            Integer.toString(config.networkId) + NL);
-                    out.writeUTF(SELF_ADDED_KEY + SEPARATOR +
-                            Boolean.toString(config.selfAdded) + NL);
-                    out.writeUTF(DID_SELF_ADD_KEY + SEPARATOR +
-                            Boolean.toString(config.didSelfAdd) + NL);
-                    out.writeUTF(NO_INTERNET_ACCESS_REPORTS_KEY + SEPARATOR +
-                            Integer.toString(config.numNoInternetAccessReports) + NL);
-                    out.writeUTF(VALIDATED_INTERNET_ACCESS_KEY + SEPARATOR +
-                            Boolean.toString(config.validatedInternetAccess) + NL);
-                    out.writeUTF(EPHEMERAL_KEY + SEPARATOR +
-                            Boolean.toString(config.ephemeral) + NL);
-                    if (config.creationTime != null) {
-                        out.writeUTF(CREATION_TIME_KEY + SEPARATOR + config.creationTime + NL);
-                    }
-                    if (config.updateTime != null) {
-                        out.writeUTF(UPDATE_TIME_KEY + SEPARATOR + config.updateTime + NL);
-                    }
-                    if (config.peerWifiConfiguration != null) {
-                        out.writeUTF(PEER_CONFIGURATION_KEY + SEPARATOR +
-                                config.peerWifiConfiguration + NL);
-                    }
-                    out.writeUTF(SCORER_OVERRIDE_KEY + SEPARATOR +
-                            Integer.toString(config.numScorerOverride) + NL);
-                    out.writeUTF(SCORER_OVERRIDE_AND_SWITCH_KEY + SEPARATOR +
-                            Integer.toString(config.numScorerOverrideAndSwitchedNetwork) + NL);
-                    out.writeUTF(NUM_ASSOCIATION_KEY + SEPARATOR +
-                            Integer.toString(config.numAssociation) + NL);
-                    out.writeUTF(CREATOR_UID_KEY + SEPARATOR +
-                            Integer.toString(config.creatorUid) + NL);
-                    out.writeUTF(CONNECT_UID_KEY + SEPARATOR +
-                            Integer.toString(config.lastConnectUid) + NL);
-                    out.writeUTF(UPDATE_UID_KEY + SEPARATOR +
-                            Integer.toString(config.lastUpdateUid) + NL);
-                    out.writeUTF(CREATOR_NAME_KEY + SEPARATOR +
-                            config.creatorName + NL);
-                    out.writeUTF(UPDATE_NAME_KEY + SEPARATOR +
-                            config.lastUpdateName + NL);
-                    out.writeUTF(USER_APPROVED_KEY + SEPARATOR +
-                            Integer.toString(config.userApproved) + NL);
-                    out.writeUTF(SHARED_KEY + SEPARATOR + Boolean.toString(config.shared) + NL);
-                    String allowedKeyManagementString =
-                            makeString(config.allowedKeyManagement,
-                                    WifiConfiguration.KeyMgmt.strings);
-                    out.writeUTF(AUTH_KEY + SEPARATOR +
-                            allowedKeyManagementString + NL);
-                    out.writeUTF(NETWORK_SELECTION_STATUS_KEY + SEPARATOR
-                            + status.getNetworkSelectionStatus() + NL);
-                    out.writeUTF(NETWORK_SELECTION_DISABLE_REASON_KEY + SEPARATOR
-                            + status.getNetworkSelectionDisableReason() + NL);
-
-                    if (status.getConnectChoice() != null) {
-                        out.writeUTF(CHOICE_KEY + SEPARATOR + status.getConnectChoice() + NL);
-                        out.writeUTF(CHOICE_TIME_KEY + SEPARATOR
-                                + status.getConnectChoiceTimestamp() + NL);
-                    }
-
-                    if (config.linkedConfigurations != null) {
-                        log("writeKnownNetworkHistory write linked "
-                                + config.linkedConfigurations.size());
-
-                        for (String key : config.linkedConfigurations.keySet()) {
-                            out.writeUTF(LINK_KEY + SEPARATOR + key + NL);
-                        }
-                    }
-
-                    String macAddress = config.defaultGwMacAddress;
-                    if (macAddress != null) {
-                        out.writeUTF(DEFAULT_GW_KEY + SEPARATOR + macAddress + NL);
-                    }
-
-                    if (getScanDetailCache(config) != null) {
-                        for (ScanDetail scanDetail : getScanDetailCache(config).values()) {
-                            ScanResult result = scanDetail.getScanResult();
-                            out.writeUTF(BSSID_KEY + SEPARATOR +
-                                    result.BSSID + NL);
-
-                            out.writeUTF(FREQ_KEY + SEPARATOR +
-                                    Integer.toString(result.frequency) + NL);
-
-                            out.writeUTF(RSSI_KEY + SEPARATOR +
-                                    Integer.toString(result.level) + NL);
-
-                            out.writeUTF(BSSID_KEY_END + NL);
-                        }
-                    }
-                    if (config.lastFailure != null) {
-                        out.writeUTF(FAILURE_KEY + SEPARATOR + config.lastFailure + NL);
-                    }
-                    out.writeUTF(NL);
-                    // Add extra blank lines for clarity
-                    out.writeUTF(NL);
-                    out.writeUTF(NL);
-                }
-                if (mDeletedSSIDs != null && mDeletedSSIDs.size() > 0) {
-                    for (Long i : mDeletedSSIDs) {
-                        out.writeUTF(DELETED_CRC32_KEY);
-                        out.writeUTF(String.valueOf(i));
-                        out.writeUTF(NL);
-                    }
-                }
-                if (mDeletedEphemeralSSIDs != null && mDeletedEphemeralSSIDs.size() > 0) {
-                    for (String ssid : mDeletedEphemeralSSIDs) {
-                        out.writeUTF(DELETED_EPHEMERAL_KEY);
-                        out.writeUTF(ssid);
-                        out.writeUTF(NL);
-                    }
-                }
-            }
-        });
+        mWifiNetworkHistory.writeKnownNetworkHistory(networks,
+                mScanDetailCaches,
+                mDeletedSSIDs,
+                mDeletedEphemeralSSIDs);
     }
 
     public void setAndEnableLastSelectedConfiguration(int netId) {
@@ -2782,235 +2572,6 @@ public class WifiConfigManager {
         return (lastSelectedConfiguration != null
                 && config != null
                 && lastSelectedConfiguration.equals(config.configKey()));
-    }
-
-    /**
-     * Adds information stored in networkHistory.txt to the given configs. The configs are provided
-     * as a mapping from configKey to WifiConfiguration, because the WifiConfigurations themselves
-     * do not contain sufficient information to compute their configKeys until after the information
-     * that is stored in networkHistory.txt has been added to them.
-     *
-     * @param configs mapping from configKey to a WifiConfiguration that contains the information
-     *         information read from wpa_supplicant.conf
-     */
-    private void readNetworkHistory(Map<String, WifiConfiguration> configs) {
-        if (showNetworks) {
-            localLog("readNetworkHistory() path:" + networkHistoryConfigFile);
-        }
-
-        try (DataInputStream in =
-                     new DataInputStream(new BufferedInputStream(
-                             new FileInputStream(networkHistoryConfigFile)))) {
-
-            String bssid = null;
-            String ssid = null;
-
-            int freq = 0;
-            int status = 0;
-            long seen = 0;
-            int rssi = WifiConfiguration.INVALID_RSSI;
-            String caps = null;
-
-            WifiConfiguration config = null;
-            while (true) {
-                String line = in.readUTF();
-                if (line == null) {
-                    break;
-                }
-                int colon = line.indexOf(':');
-                if (colon < 0) {
-                    continue;
-                }
-
-                String key = line.substring(0, colon).trim();
-                String value = line.substring(colon + 1).trim();
-
-                if (key.equals(CONFIG_KEY)) {
-                    config = configs.get(value);
-
-                    // skip reading that configuration data
-                    // since we don't have a corresponding network ID
-                    if (config == null) {
-                        localLog("readNetworkHistory didnt find netid for hash="
-                                + Integer.toString(value.hashCode())
-                                + " key: " + value);
-                        mLostConfigsDbg.add(value);
-                        continue;
-                    } else {
-                        // After an upgrade count old connections as owned by system
-                        if (config.creatorName == null || config.lastUpdateName == null) {
-                            config.creatorName =
-                                mContext.getPackageManager().getNameForUid(Process.SYSTEM_UID);
-                            config.lastUpdateName = config.creatorName;
-
-                            if (DBG) Log.w(TAG, "Upgrading network " + config.networkId
-                                    + " to " + config.creatorName);
-                        }
-                    }
-                } else if (config != null) {
-                    WifiConfiguration.NetworkSelectionStatus networkStatus =
-                            config.getNetworkSelectionStatus();
-                    switch (key) {
-                        case SSID_KEY:
-                            if (config.isPasspoint()) {
-                                break;
-                            }
-                            ssid = value;
-                            if (config.SSID != null && !config.SSID.equals(ssid)) {
-                                loge("Error parsing network history file, mismatched SSIDs");
-                                config = null; //error
-                                ssid = null;
-                            } else {
-                                config.SSID = ssid;
-                            }
-                            break;
-                        case CONFIG_BSSID_KEY:
-                            config.BSSID = value.equals("null") ? null : value;
-                            break;
-                        case FQDN_KEY:
-                            // Check for literal 'null' to be backwards compatible.
-                            config.FQDN = value.equals("null") ? null : value;
-                            break;
-                        case DEFAULT_GW_KEY:
-                            config.defaultGwMacAddress = value;
-                            break;
-                        case SELF_ADDED_KEY:
-                            config.selfAdded = Boolean.parseBoolean(value);
-                            break;
-                        case DID_SELF_ADD_KEY:
-                            config.didSelfAdd = Boolean.parseBoolean(value);
-                            break;
-                        case NO_INTERNET_ACCESS_REPORTS_KEY:
-                            config.numNoInternetAccessReports = Integer.parseInt(value);
-                            break;
-                        case VALIDATED_INTERNET_ACCESS_KEY:
-                            config.validatedInternetAccess = Boolean.parseBoolean(value);
-                            break;
-                        case CREATION_TIME_KEY:
-                            config.creationTime = value;
-                            break;
-                        case UPDATE_TIME_KEY:
-                            config.updateTime = value;
-                            break;
-                        case EPHEMERAL_KEY:
-                            config.ephemeral = Boolean.parseBoolean(value);
-                            break;
-                        case CREATOR_UID_KEY:
-                            config.creatorUid = Integer.parseInt(value);
-                            break;
-                        case BLACKLIST_MILLI_KEY:
-                            networkStatus.setDisableTime(Long.parseLong(value));
-                            break;
-                        case SCORER_OVERRIDE_KEY:
-                            config.numScorerOverride = Integer.parseInt(value);
-                            break;
-                        case SCORER_OVERRIDE_AND_SWITCH_KEY:
-                            config.numScorerOverrideAndSwitchedNetwork = Integer.parseInt(value);
-                            break;
-                        case NUM_ASSOCIATION_KEY:
-                            config.numAssociation = Integer.parseInt(value);
-                            break;
-                        case CONNECT_UID_KEY:
-                            config.lastConnectUid = Integer.parseInt(value);
-                            break;
-                        case UPDATE_UID_KEY:
-                            config.lastUpdateUid = Integer.parseInt(value);
-                            break;
-                        case FAILURE_KEY:
-                            config.lastFailure = value;
-                            break;
-                        case PEER_CONFIGURATION_KEY:
-                            config.peerWifiConfiguration = value;
-                            break;
-                        case NETWORK_SELECTION_STATUS_KEY:
-                            networkStatus.setNetworkSelectionStatus(Integer.parseInt(value));
-                            break;
-                        case NETWORK_SELECTION_DISABLE_REASON_KEY:
-                            networkStatus.setNetworkSelectionDisableReason(Integer.parseInt(value));
-                            break;
-                        case CHOICE_KEY:
-                            networkStatus.setConnectChoice(value);
-                            break;
-                        case CHOICE_TIME_KEY:
-                            networkStatus.setConnectChoiceTimestamp(Long.parseLong(value));
-                            break;
-                        case LINK_KEY:
-                            if (config.linkedConfigurations == null) {
-                                config.linkedConfigurations = new HashMap<>();
-                            }
-                            else {
-                                config.linkedConfigurations.put(value, -1);
-                            }
-                            break;
-                        case BSSID_KEY:
-                            status = 0;
-                            ssid = null;
-                            bssid = null;
-                            freq = 0;
-                            seen = 0;
-                            rssi = WifiConfiguration.INVALID_RSSI;
-                            caps = "";
-                            break;
-                        case RSSI_KEY:
-                            rssi = Integer.parseInt(value);
-                            break;
-                        case FREQ_KEY:
-                            freq = Integer.parseInt(value);
-                            break;
-                        case DATE_KEY:
-                            /*
-                             * when reading the configuration from file we don't update the date
-                             * so as to avoid reading back stale or non-sensical data that would
-                             * depend on network time.
-                             * The date of a WifiConfiguration should only come from actual scan
-                             * result.
-                             *
-                            String s = key.replace(FREQ_KEY, "");
-                            seen = Integer.getInteger(s);
-                            */
-                            break;
-                        case BSSID_KEY_END:
-                            if ((bssid != null) && (ssid != null)) {
-
-                                if (getScanDetailCache(config) != null) {
-                                    WifiSsid wssid = WifiSsid.createFromAsciiEncoded(ssid);
-                                    ScanDetail scanDetail = new ScanDetail(wssid, bssid,
-                                            caps, rssi, freq, (long) 0, seen);
-                                    getScanDetailCache(config).put(scanDetail);
-                                    scanDetail.getScanResult().autoJoinStatus = status;
-                                }
-                            }
-                            break;
-                        case DELETED_CRC32_KEY:
-                            mDeletedSSIDs.add(Long.parseLong(value));
-                            break;
-                        case DELETED_EPHEMERAL_KEY:
-                            if (!TextUtils.isEmpty(value)) {
-                                mDeletedEphemeralSSIDs.add(value);
-                            }
-                            break;
-                        case CREATOR_NAME_KEY:
-                            config.creatorName = value;
-                            break;
-                        case UPDATE_NAME_KEY:
-                            config.lastUpdateName = value;
-                            break;
-                        case USER_APPROVED_KEY:
-                            config.userApproved = Integer.parseInt(value);
-                            break;
-                        case SHARED_KEY:
-                            config.shared = Boolean.parseBoolean(value);
-                            break;
-                    }
-                }
-            }
-        } catch (NumberFormatException e) {
-            Log.e(TAG, "readNetworkHistory: failed to read, revert to default, " + e, e);
-        } catch (EOFException e) {
-            // do nothing
-        } catch (IOException e) {
-            Log.e(TAG, "readNetworkHistory: No config file, revert to default, " + e, e);
-        }
     }
 
     private void readAutoJoinConfig() {
@@ -4085,6 +3646,7 @@ public class WifiConfigManager {
                 mWifiNative.removeNetwork(config.networkId);
             }
             mWifiNative.saveConfig();
+
             writeKnownNetworkHistory();
         }
 
