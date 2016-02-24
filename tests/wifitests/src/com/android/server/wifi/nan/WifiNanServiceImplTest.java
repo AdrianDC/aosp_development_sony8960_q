@@ -53,7 +53,8 @@ import java.lang.reflect.Field;
  */
 @SmallTest
 public class WifiNanServiceImplTest {
-    private WifiNanServiceImpl mDut;
+    private WifiNanServiceImplSpy mDut;
+    private int mDefaultUid = 1500;
 
     @Mock
     private Context mContextMock;
@@ -70,6 +71,27 @@ public class WifiNanServiceImplTest {
     public ExpectedException thrown = ExpectedException.none();
 
     /**
+     * Using instead of spy to avoid native crash failures - possibly due to
+     * spy's copying of state.
+     */
+    private class WifiNanServiceImplSpy extends WifiNanServiceImpl {
+        public int fakeUid;
+
+        WifiNanServiceImplSpy(Context context) {
+            super(context);
+        }
+
+        /**
+         * Return the fake UID instead of the real one: pseudo-spy
+         * implementation.
+         */
+        @Override
+        public int getMockableCallingUid() {
+            return fakeUid;
+        }
+    }
+
+    /**
      * Initializes mocks.
      */
     @Before
@@ -83,7 +105,8 @@ public class WifiNanServiceImplTest {
 
         installMockNanStateManager();
 
-        mDut = new WifiNanServiceImpl(mContextMock);
+        mDut = new WifiNanServiceImplSpy(mContextMock);
+        mDut.fakeUid = mDefaultUid;
     }
 
     /**
@@ -146,6 +169,38 @@ public class WifiNanServiceImplTest {
         validateInternalStateCleanedUp(clientId);
 
         mDut.disconnect(clientId, mBinderMock);
+    }
+
+    /**
+     * Validate that trying to use a client ID from a UID which is different
+     * from the one that created it fails - and that the internal state is not
+     * modified so that a valid call (from the correct UID) will subsequently
+     * succeed.
+     */
+    @Test
+    public void testFailOnAccessClientIdFromWrongUid() throws Exception {
+        int clientId = doConnect();
+
+        mDut.fakeUid = mDefaultUid + 1;
+
+        /*
+         * Not using thrown.expect(...) since want to test that subsequent
+         * access works.
+         */
+        boolean failsAsExpected = false;
+        try {
+            mDut.disconnect(clientId, mBinderMock);
+        } catch (SecurityException e) {
+            failsAsExpected = true;
+        }
+
+        mDut.fakeUid = mDefaultUid;
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        mDut.requestConfig(clientId, configRequest);
+
+        verify(mNanStateManagerMock).requestConfig(clientId, configRequest);
+        assertTrue("SecurityException for invalid access from wrong UID thrown", failsAsExpected);
     }
 
     /**

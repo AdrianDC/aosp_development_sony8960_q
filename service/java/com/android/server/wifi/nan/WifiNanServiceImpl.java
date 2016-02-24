@@ -67,6 +67,14 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     /**
+     * Proxy for the final native call of the parent class. Enables mocking of
+     * the function.
+     */
+    public int getMockableCallingUid() {
+        return getCallingUid();
+    }
+
+    /**
      * Start the service: allocate a new thread (for now), start the handlers of
      * the components of the service.
      */
@@ -85,7 +93,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
-        final int uid = getCallingUid();
+        final int uid = getMockableCallingUid();
 
         final int clientId;
         synchronized (mLock) {
@@ -128,7 +136,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
-        int uid = getCallingUid();
+        int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) Log.v(TAG, "disconnect: uid=" + uid + ", clientId=" + clientId);
 
@@ -149,7 +157,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
-        int uid = getCallingUid();
+        int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
             Log.v(TAG, "requestConfig: uid=" + uid + "clientId=" + clientId + ", configRequest="
@@ -164,7 +172,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
-        int uid = getCallingUid();
+        int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
             Log.v(TAG, "stopSession: sessionId=" + sessionId + ", uid=" + uid + ", clientId="
@@ -179,7 +187,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
-        int uid = getCallingUid();
+        int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
             Log.v(TAG, "destroySession: sessionId=" + sessionId + ", uid=" + uid + ", clientId="
@@ -194,7 +202,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
-        int uid = getCallingUid();
+        int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) Log.v(TAG, "createSession: uid=" + uid + ", clientId=" + clientId);
 
@@ -213,7 +221,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
-        int uid = getCallingUid();
+        int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
             Log.v(TAG, "publish: uid=" + uid + ", clientId=" + clientId + ", sessionId=" + sessionId
@@ -228,7 +236,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
-        int uid = getCallingUid();
+        int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
             Log.v(TAG, "subscribe: uid=" + uid + ", clientId=" + clientId + ", sessionId="
@@ -244,7 +252,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
-        int uid = getCallingUid();
+        int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
             Log.v(TAG,
