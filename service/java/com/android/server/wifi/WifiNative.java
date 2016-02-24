@@ -460,21 +460,32 @@ public class WifiNative {
                 + Thread.currentThread().getStackTrace()[6].getMethodName());
 
     }
-    public boolean enableNetwork(int netId, boolean disableOthers) {
-        if (DBG) logDbg("enableNetwork nid=" + Integer.toString(netId)
-                + " disableOthers=" + disableOthers);
-        if (disableOthers) {
-            return doBooleanCommand("SELECT_NETWORK " + netId);
-        } else {
-            return doBooleanCommand("ENABLE_NETWORK " + netId);
-        }
+
+    /**
+     * Enables a network in wpa_supplicant.
+     * @param netId - Network ID of the network to be enabled.
+     * @return true if command succeeded, false otherwise.
+     */
+    public boolean enableNetwork(int netId) {
+        if (DBG) logDbg("enableNetwork nid=" + Integer.toString(netId));
+        return doBooleanCommand("ENABLE_NETWORK " + netId);
     }
 
+    /**
+     * Disables a network in wpa_supplicant.
+     * @param netId - Network ID of the network to be disabled.
+     * @return true if command succeeded, false otherwise.
+     */
     public boolean disableNetwork(int netId) {
         if (DBG) logDbg("disableNetwork nid=" + Integer.toString(netId));
         return doBooleanCommand("DISABLE_NETWORK " + netId);
     }
 
+    /**
+     * Select a network in wpa_supplicant (Disables all others).
+     * @param netId - Network ID of the network to be selected.
+     * @return true if command succeeded, false otherwise.
+     */
     public boolean selectNetwork(int netId) {
         if (DBG) logDbg("selectNetwork nid=" + Integer.toString(netId));
         return doBooleanCommand("SELECT_NETWORK " + netId);

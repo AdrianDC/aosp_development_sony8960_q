@@ -23,7 +23,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.anyString;
@@ -363,7 +362,6 @@ public class WifiConfigManagerTest {
     @Test
     public void testEnableAllNetworks() throws Exception {
         addNetworks();
-        when(mWifiNative.enableNetwork(anyInt(), anyBoolean())).thenReturn(true);
         for (int userId : USER_IDS) {
             switchUser(userId);
 
@@ -406,6 +404,7 @@ public class WifiConfigManagerTest {
 
                 // Try to select a network configuration.
                 final WifiNative wifiNative = createNewWifiNativeMock();
+                when(wifiNative.selectNetwork(config.networkId)).thenReturn(true);
                 final boolean success =
                         mConfigStore.selectNetwork(config, false, config.creatorUid);
                 if (!WifiConfigurationUtil.isVisibleToAnyProfile(config,
@@ -414,7 +413,7 @@ public class WifiConfigManagerTest {
                     // nothing changed.
                     assertFalse(success);
                     verify(wifiNative, never()).selectNetwork(anyInt());
-                    verify(wifiNative, never()).enableNetwork(anyInt(), anyBoolean());
+                    verify(wifiNative, never()).enableNetwork(anyInt());
                     for (WifiConfiguration config2 : mConfiguredNetworks.valuesForAllUsers()) {
                         assertEquals(WifiConfiguration.Status.ENABLED, config2.status);
                     }
@@ -425,10 +424,8 @@ public class WifiConfigManagerTest {
                     assertTrue(success);
                     verify(wifiNative).selectNetwork(config.networkId);
                     verify(wifiNative, never()).selectNetwork(intThat(not(config.networkId)));
-                    verify(wifiNative).enableNetwork(config.networkId, true);
-                    verify(wifiNative, never()).enableNetwork(config.networkId, false);
-                    verify(wifiNative, never()).enableNetwork(intThat(not(config.networkId)),
-                            anyBoolean());
+                    verify(wifiNative, never()).enableNetwork(config.networkId);
+                    verify(wifiNative, never()).enableNetwork(intThat(not(config.networkId)));
                     for (WifiConfiguration config2 : mConfiguredNetworks.valuesForAllUsers()) {
                         if (WifiConfigurationUtil.isVisibleToAnyProfile(config2,
                                 USER_PROFILES.get(userId))
@@ -739,8 +736,10 @@ public class WifiConfigManagerTest {
                 if (neitherUserConfigs.contains(config)) {
                     assertEquals(WifiConfiguration.Status.DISABLED, config.status);
                 } else {
-                    assertEquals(WifiConfiguration.Status.ENABLED, config.status);
+                    // Only enabled in networkSelection.
+                    assertTrue(config.getNetworkSelectionStatus().isNetworkEnabled());
                 }
+
             }
         }
     }

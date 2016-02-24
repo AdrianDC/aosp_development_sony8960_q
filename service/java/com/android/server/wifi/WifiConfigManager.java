@@ -257,6 +257,9 @@ public class WifiConfigManager {
     private static final String CREATION_TIME_KEY = "CREATION_TIME";
     private static final String UPDATE_TIME_KEY = "UPDATE_TIME";
     static final String SHARED_KEY = "SHARED";
+    private static final String NETWORK_SELECTION_STATUS_KEY = "NETWORK_SELECTION_STATUS";
+    private static final String NETWORK_SELECTION_DISABLE_REASON_KEY =
+            "NETWORK_SELECTION_DISABLE_REASON";
 
     private static final String SEPARATOR = ":  ";
     private static final String NL = "\n";
@@ -982,6 +985,39 @@ public class WifiConfigManager {
         }
     }
 
+    /**
+     * Enable a network in wpa_supplicant.
+     */
+    boolean enableNetworkNative(WifiConfiguration config) {
+        if (VDBG) localLog("enableNetworkNative: " + config);
+        if (!mWifiNative.enableNetwork(config.networkId)) {
+            loge("Enable network in wpa_supplicant failed on " + config.networkId);
+            return false;
+        }
+        config.status = Status.ENABLED;
+        return true;
+    }
+
+    /**
+     * Enable all networks in wpa_supplicant.
+     */
+    void enableAllNetworksNative() {
+        if (VDBG) localLog("enableAllNetworksNative");
+        boolean networkEnabledStateChanged = false;
+        for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
+            if (config != null && !config.ephemeral
+                    && !config.getNetworkSelectionStatus().isNetworkEnabled()) {
+                if (enableNetworkNative(config)) {
+                    networkEnabledStateChanged = true;
+                }
+            }
+        }
+        if (networkEnabledStateChanged) {
+            mWifiNative.saveConfig();
+            sendConfiguredNetworksChangedBroadcast();
+        }
+    }
+
     private boolean setNetworkPriorityNative(int netId, int priority) {
         return mWifiNative.setNetworkVariable(netId,
                 WifiConfiguration.priorityVarName, Integer.toString(priority));
@@ -1065,14 +1101,12 @@ public class WifiConfigManager {
 
         if (updatePriorities)
             mWifiNative.saveConfig();
-        else
-            mWifiNative.selectNetwork(config.networkId);
 
         updateLastConnectUid(config, uid);
         writeKnownNetworkHistory();
 
         /* Enable the given network while disabling all other networks */
-        enableNetworkWithoutBroadcast(config.networkId, true);
+        selectNetworkWithoutBroadcast(config.networkId);
 
        /* Avoid saving the config & sending a broadcast to prevent settings
         * from displaying a disabled list of networks */
@@ -1123,16 +1157,6 @@ public class WifiConfigManager {
 
         if (VDBG) localLogNetwork("WifiConfigManager: saveNetwork got it back netId=", netId);
 
-        /* enable a new network */
-        if (newNetwork && netId != INVALID_NETWORK_ID) {
-            if (VDBG) localLogNetwork("WifiConfigManager: will enable netId=", netId);
-
-            mWifiNative.enableNetwork(netId, false);
-            conf = mConfiguredNetworks.getForCurrentUser(netId);
-            if (conf != null)
-                conf.status = Status.ENABLED;
-        }
-
         conf = mConfiguredNetworks.getForCurrentUser(netId);
         if (conf != null) {
             if (!conf.getNetworkSelectionStatus().isNetworkEnabled()) {
@@ -1141,7 +1165,6 @@ public class WifiConfigManager {
                 // reenable autojoin, since new information has been provided
                 updateNetworkSelectionStatus(netId,
                         WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
-                enableNetworkWithoutBroadcast(conf.networkId, false);
             }
             if (VDBG) {
                 loge("WifiConfigManager: saveNetwork got config back netId="
@@ -1772,9 +1795,9 @@ public class WifiConfigManager {
         if (config == null) {
             return false;
         }
-
-        boolean ret = enableNetworkWithoutBroadcast(netId, disableOthers);
+        boolean ret = true;
         if (disableOthers) {
+            ret = selectNetworkWithoutBroadcast(netId);
             if (VDBG) localLogNetwork("enableNetwork(disableOthers=true, uid=" + uid + ") ", netId);
             updateLastConnectUid(getWifiConfiguration(netId), uid);
             writeKnownNetworkHistory();
@@ -1794,45 +1817,61 @@ public class WifiConfigManager {
         return ret;
     }
 
-    boolean enableNetworkWithoutBroadcast(int netId, boolean disableOthers) {
+    boolean selectNetworkWithoutBroadcast(int netId) {
+        if (VDBG) localLog("selectNetworkWithoutBroadcast: " + netId);
         final WifiConfiguration config = mConfiguredNetworks.getForCurrentUser(netId);
         if (config == null) {
             return false;
         }
-
-        boolean ret = mWifiNative.enableNetwork(netId, disableOthers);
-
-        config.status = Status.ENABLED;
-
-        if (disableOthers) {
-            markAllNetworksDisabledExcept(netId);
+        if (!mWifiNative.selectNetwork(netId)) {
+            loge("Select network in wpa_supplicant failed on " + netId);
+            return false;
         }
-        return ret;
+        config.status = Status.ENABLED;
+        markAllNetworksDisabledExcept(netId);
+        return true;
     }
 
-    void disableAllNetworks() {
+    /**
+     * Disable a network in wpa_supplicant.
+     */
+    boolean disableNetworkNative(WifiConfiguration config) {
+        if (VDBG) localLog("disableNetworkNative: " + config);
+        if (!mWifiNative.disableNetwork(config.networkId)) {
+            loge("Disable network in wpa_supplicant failed on " + config.networkId);
+            return false;
+        }
+        config.status = Status.DISABLED;
+        return true;
+    }
+
+    /**
+     * Disable all networks in wpa_supplicant.
+     */
+    void disableAllNetworksNative() {
         if (VDBG) localLog("disableAllNetworks");
         boolean networkDisabled = false;
         for (WifiConfiguration enabled : mConfiguredNetworks.getEnabledNetworksForCurrentUser()) {
-            if(mWifiNative.disableNetwork(enabled.networkId)) {
+            if (disableNetworkNative(enabled)) {
                 networkDisabled = true;
-                enabled.status = Status.DISABLED;
-            } else {
-                loge("Disable network failed on " + enabled.networkId);
             }
         }
-
         if (networkDisabled) {
             sendConfiguredNetworksChangedBroadcast();
         }
     }
+
     /**
      * Disable a network. Note that there is no saveConfig operation.
      * @param netId network to be disabled
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
     boolean disableNetwork(int netId) {
-        boolean ret = mWifiNative.disableNetwork(netId);
+        WifiConfiguration config = getWifiConfiguration(netId);
+        if (config == null) {
+            return false;
+        }
+        boolean ret = disableNetworkNative(config);
         if (ret) {
             mWifiStateMachine.registerNetworkDisabled(netId);
         }
@@ -1954,13 +1993,6 @@ public class WifiConfigManager {
                 }
                 return false;
             }
-            //enable the network
-            if (!mWifiNative.enableNetwork(config.networkId, false)) {
-                localLog("fail to disable network: " + config.SSID + " With reason:"
-                        + WifiConfiguration.NetworkSelectionStatus
-                        .getNetworkDisableReasonString(reason));
-                return false;
-            }
             networkStatus.setNetworkSelectionStatus(WifiConfiguration.NetworkSelectionStatus
                     .NETWORK_SELECTION_ENABLED);
             networkStatus.setNetworkSelectionDisableReason(reason);
@@ -1996,12 +2028,7 @@ public class WifiConfigManager {
             }
 
             if (networkStatus.isNetworkEnabled()) {
-                if (!mWifiNative.disableNetwork(config.networkId)) {
-                    localLog("Fail to disable network: " + config.SSID + " With reason:"
-                            + WifiConfiguration.NetworkSelectionStatus
-                            .getNetworkDisableReasonString(reason));
-                }
-                config.status = Status.DISABLED;
+                disableNetworkNative(config);
                 sendConfiguredNetworksChangedBroadcast(config,
                         WifiManager.CHANGE_REASON_CONFIG_CHANGE);
                 localLog("Disable network " + config.SSID + " reason:"
@@ -2217,16 +2244,6 @@ public class WifiConfigManager {
                 } catch(NumberFormatException e) {
                     loge("Failed to read network-id '" + result[0] + "'");
                     continue;
-                }
-                if (result.length > 3) {
-                    if (result[3].indexOf("[CURRENT]") != -1)
-                        config.status = WifiConfiguration.Status.CURRENT;
-                    else if (result[3].indexOf("[DISABLED]") != -1)
-                        config.status = WifiConfiguration.Status.DISABLED;
-                    else
-                        config.status = WifiConfiguration.Status.ENABLED;
-                } else {
-                    config.status = WifiConfiguration.Status.ENABLED;
                 }
 
                 readNetworkVariables(config);
@@ -2656,7 +2673,10 @@ public class WifiConfigManager {
                                     WifiConfiguration.KeyMgmt.strings);
                     out.writeUTF(AUTH_KEY + SEPARATOR +
                             allowedKeyManagementString + NL);
-
+                    out.writeUTF(NETWORK_SELECTION_STATUS_KEY + SEPARATOR
+                            + status.getNetworkSelectionStatus() + NL);
+                    out.writeUTF(NETWORK_SELECTION_DISABLE_REASON_KEY + SEPARATOR
+                            + status.getNetworkSelectionDisableReason() + NL);
 
                     if (status.getConnectChoice() != null) {
                         out.writeUTF(CHOICE_KEY + SEPARATOR + status.getConnectChoice() + NL);
@@ -2734,9 +2754,6 @@ public class WifiConfigManager {
             } else {
                 lastSelectedConfiguration = selected.configKey();
                 mLastSelectedTimeStamp = System.currentTimeMillis();
-                if (selected.status == Status.DISABLED) {
-                    mWifiNative.enableNetwork(netId, false);
-                }
                 updateNetworkSelectionStatus(netId,
                         WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
                 if (VDBG) {
@@ -2904,6 +2921,12 @@ public class WifiConfigManager {
                             break;
                         case PEER_CONFIGURATION_KEY:
                             config.peerWifiConfiguration = value;
+                            break;
+                        case NETWORK_SELECTION_STATUS_KEY:
+                            networkStatus.setNetworkSelectionStatus(Integer.parseInt(value));
+                            break;
+                        case NETWORK_SELECTION_DISABLE_REASON_KEY:
+                            networkStatus.setNetworkSelectionDisableReason(Integer.parseInt(value));
                             break;
                         case CHOICE_KEY:
                             networkStatus.setConnectChoice(value);
@@ -4068,13 +4091,7 @@ public class WifiConfigManager {
         final List<WifiConfiguration> hiddenConfigurations =
                 mConfiguredNetworks.handleUserSwitch(mWifiStateMachine.getCurrentUserId());
         for (WifiConfiguration network : hiddenConfigurations) {
-            if (mWifiNative.disableNetwork(network.networkId)) {
-                network.status = Status.DISABLED;
-            }
-        }
-
-        for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
-            enableNetworkWithoutBroadcast(config.networkId, false);
+            disableNetworkNative(network);
         }
         enableAllNetworks();
 
