@@ -23,7 +23,6 @@ import static org.mockito.Mockito.when;
 
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiScanner;
-import android.net.wifi.WifiScanner.ChannelSpec;
 import android.net.wifi.WifiScanner.ScanData;
 import android.net.wifi.WifiSsid;
 
@@ -45,9 +44,6 @@ public class ScanTestUtil {
         Field field = WifiNative.class.getDeclaredField("wlanNativeInterface");
         field.setAccessible(true);
         field.set(null, wifiNative);
-
-        // Clear static state
-        WifiChannelHelper.clearChannelCache();
     }
 
     public static void setupMockChannels(WifiNative wifiNative, int[] channels24, int[] channels5,
@@ -133,7 +129,7 @@ public class ScanTestUtil {
         }
 
         public NativeScanSettingsBuilder addBucketWithChannels(
-                int period, int reportEvents, ChannelSpec... channels) {
+                int period, int reportEvents, WifiScanner.ChannelSpec... channels) {
             int[] channelFreqs = new int[channels.length];
             for (int i = 0; i < channels.length; ++i) {
                 channelFreqs[i] = channels[i].frequency;
@@ -270,11 +266,11 @@ public class ScanTestUtil {
                     expected.buckets[i].band, actual.buckets[i].band);
             if (expected.buckets[i].band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
                 Set<Integer> expectedChannels = new HashSet<>();
-                for (ChannelSpec channel : getAllChannels(expected.buckets[i])) {
+                for (WifiNative.ChannelSettings channel : expected.buckets[i].channels) {
                     expectedChannels.add(channel.frequency);
                 }
                 Set<Integer> actualChannels = new HashSet<>();
-                for (ChannelSpec channel : getAllChannels(actual.buckets[i])) {
+                for (WifiNative.ChannelSettings channel : actual.buckets[i].channels) {
                     actualChannels.add(channel.frequency);
                 }
                 assertEquals("channels", expectedChannels, actualChannels);
@@ -301,29 +297,6 @@ public class ScanTestUtil {
             channelSpecs[i].frequency = channels[i];
         }
         return channelSpecs;
-    }
-
-    public static ChannelSpec[] getAllChannels(WifiNative.BucketSettings bucket) {
-        if (bucket.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
-            ChannelSpec[] channels = new ChannelSpec[bucket.num_channels];
-            for (int i = 0; i < bucket.num_channels; i++) {
-                channels[i] = new ChannelSpec(bucket.channels[i].frequency);
-            }
-            return channels;
-        } else {
-            return WifiChannelHelper.getChannelsForBand(bucket.band);
-        }
-    }
-    public static ChannelSpec[] getAllChannels(WifiScanner.ScanSettings settings) {
-        if (settings.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
-            ChannelSpec[] channels = new ChannelSpec[settings.channels.length];
-            for (int i = 0; i < settings.channels.length; i++) {
-                channels[i] = new ChannelSpec(settings.channels[i].frequency);
-            }
-            return channels;
-        } else {
-            return WifiChannelHelper.getChannelsForBand(settings.band);
-        }
     }
 
     /**

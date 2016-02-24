@@ -16,6 +16,8 @@
 
 package com.android.server.wifi;
 
+import static com.android.server.wifi.ScanTestUtil.setupMockChannels;
+
 import android.os.Handler;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -31,7 +33,11 @@ public class HalWifiScannerTest extends BaseWifiScannerImplTest {
 
     @Before
     public void setUp() throws Exception {
-        mScanner = new HalWifiScannerImpl(WifiNative.getWlanNativeInterface(), mLooper.getLooper());
+        setupMockChannels(mWifiNative,
+                new int[]{2400, 2450},
+                new int[]{5150, 5175},
+                new int[]{5600, 5650});
+        mScanner = new HalWifiScannerImpl(mWifiNative, mLooper.getLooper());
 
         // TODO remove this once HalWifiScannerImpl wifi monitor registration is enabled
         Field eventHandlerField = HalWifiScannerImpl.class.getDeclaredField("mEventHandler");

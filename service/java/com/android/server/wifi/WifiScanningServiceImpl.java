@@ -99,7 +99,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
     @Override
     public Bundle getAvailableChannels(int band) {
-        ChannelSpec[] channelSpecs = WifiChannelHelper.getChannelsForBand(band);
+        ChannelSpec[] channelSpecs = mChannelHelper.getAvailableScanChannels(band);
         ArrayList<Integer> list = new ArrayList<Integer>(channelSpecs.length);
         for (ChannelSpec channelSpec : channelSpecs) {
             list.add(channelSpec.frequency);
@@ -222,7 +222,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private final WifiScannerImpl.WifiScannerImplFactory mScannerImplFactory;
     private final ArrayMap<Messenger, ClientInfo> mClients;
 
-    private final WifiScanningScheduler mScheduler;
+    private ChannelHelper mChannelHelper;
+    private WifiScanningScheduler mScheduler;
     private WifiNative.ScanSettings mPreviousSchedule;
 
     private WifiScanningStateMachine mStateMachine;
@@ -237,7 +238,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         mBatteryStats = batteryStats;
         mClients = new ArrayMap<>();
 
-        mScheduler = new MultiClientScheduler();
         mPreviousSchedule = null;
     }
 
@@ -358,6 +358,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                             return HANDLED;
                         }
 
+                        mChannelHelper = mScannerImpl.getChannelHelper();
+                        mScheduler = new MultiClientScheduler(mChannelHelper);
                         mScheduler.setMaxBuckets(capabilities.max_scan_buckets);
                         mScheduler.setMaxApPerScan(capabilities.max_ap_cache_per_scan);
 
@@ -571,16 +573,17 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
         }
 
+        // TODO migrate batterystats to accept scan duration per hour instead of csph
         int getCsph() {
-            int csph = 0;
+            int totalScanDurationPerHour = 0;
             for (ScanSettings settings : getScanSettings()) {
-                int num_channels = WifiChannelHelper.getChannelsForScanSettings(settings).length;
+                int scanDurationMs = mChannelHelper.estimateScanDuration(settings);
                 int scans_per_Hour = settings.periodInMs == 0 ? 1 : (3600 * 1000) /
                         settings.periodInMs;
-                csph += num_channels * scans_per_Hour;
+                totalScanDurationPerHour += scanDurationMs * scans_per_Hour;
             }
 
-            return csph;
+            return totalScanDurationPerHour / ChannelHelper.SCAN_PERIOD_PER_CHANNEL_MS;
         }
 
         void reportScanWorkUpdate() {
@@ -915,19 +918,24 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             return false;
         }
         if (settings.periodInMs < WifiScanner.MIN_SCAN_PERIOD_MS) {
-            localLog("Failing scan request because periodInMs is " + settings.periodInMs);
+            loge("Failing scan request because periodInMs is " + settings.periodInMs
+                    + ", min scan period is: " + WifiScanner.MIN_SCAN_PERIOD_MS);
             return false;
         }
 
-        int channelCount = WifiChannelHelper.getChannelsForScanSettings(settings).length;
-        if (channelCount == 0) {
+        if (settings.band == WifiScanner.WIFI_BAND_UNSPECIFIED && settings.channels == null) {
+            loge("Channels was null with unspecified band");
+            return false;
+        }
+
+        if (settings.band == WifiScanner.WIFI_BAND_UNSPECIFIED && settings.channels.length == 0) {
             loge("No channels specified");
             return false;
         }
-        int minSupportedPeriodMs = channelCount * MIN_PERIOD_PER_CHANNEL_MS;
 
+        int minSupportedPeriodMs = mChannelHelper.estimateScanDuration(settings);
         if (settings.periodInMs < minSupportedPeriodMs) {
-            localLog("Failing scan request because minSupportedPeriodMs is "
+            loge("Failing scan request because minSupportedPeriodMs is "
                     + minSupportedPeriodMs + " but the request wants " + settings.periodInMs);
             return false;
         }
@@ -935,18 +943,18 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         // check truncated binary exponential back off scan settings
         if (settings.maxPeriodInMs != 0 && settings.maxPeriodInMs != settings.periodInMs) {
             if (settings.maxPeriodInMs < settings.periodInMs) {
-                localLog("Failing scan request because maxPeriodInMs is " + settings.maxPeriodInMs
+                loge("Failing scan request because maxPeriodInMs is " + settings.maxPeriodInMs
                         + " but less than periodInMs " + settings.periodInMs);
                 return false;
             }
             if (settings.maxPeriodInMs > WifiScanner.MAX_SCAN_PERIOD_MS) {
-                localLog("Failing scan request because maxSupportedPeriodMs is "
-                    + WifiScanner.MAX_SCAN_PERIOD_MS + " but the request wants "
-                    + settings.maxPeriodInMs);
+                loge("Failing scan request because maxSupportedPeriodMs is "
+                        + WifiScanner.MAX_SCAN_PERIOD_MS + " but the request wants "
+                        + settings.maxPeriodInMs);
                 return false;
             }
             if (settings.stepCount < 1) {
-                localLog("Failing scan request because stepCount is " + settings.stepCount
+                loge("Failing scan request because stepCount is " + settings.stepCount
                         + " which is less than 1");
                 return false;
             }

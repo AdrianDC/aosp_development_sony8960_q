@@ -18,23 +18,19 @@ package com.android.server.wifi;
 
 import static com.android.server.wifi.ScanTestUtil.channelsToSpec;
 import static com.android.server.wifi.ScanTestUtil.createRequest;
-import static com.android.server.wifi.ScanTestUtil.getAllChannels;
-import static com.android.server.wifi.ScanTestUtil.installWlanWifiNative;
-import static com.android.server.wifi.ScanTestUtil.setupMockChannels;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.validateMockitoUsage;
 
 import android.net.wifi.WifiScanner;
-import android.net.wifi.WifiScanner.ChannelSpec;
 import android.net.wifi.WifiScanner.ScanSettings;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.server.wifi.WifiNative.BucketSettings;
-import com.android.server.wifi.scanner.ChannelHelper;
+import com.android.server.wifi.scanner.KnownBandsChannelHelper;
+import com.android.server.wifi.scanner.KnownBandsChannelHelper.KnownBandsChannelCollection;
 
 import org.junit.After;
 import org.junit.Before;
@@ -44,7 +40,6 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -58,19 +53,16 @@ public class MultiClientSchedulerTest {
     private static final int DEFAULT_MAX_BATCH = 11;
     private static final int DEFAULT_MAX_AP_PER_SCAN = 33;
 
-    private WifiNative mWifiNative;
+    private KnownBandsChannelHelper mChannelHelper;
     private MultiClientScheduler mScheduler;
 
     @Before
     public void setUp() throws Exception {
-        mWifiNative = mock(WifiNative.class);
-        setupMockChannels(mWifiNative,
+        mChannelHelper = new KnownBandsChannelHelper(
                 new int[]{2400, 2450},
                 new int[]{5150, 5175},
                 new int[]{5600, 5650, 5660});
-        installWlanWifiNative(mWifiNative);
-
-        mScheduler = new MultiClientScheduler();
+        mScheduler = new MultiClientScheduler(mChannelHelper);
         mScheduler.setMaxBuckets(DEFAULT_MAX_BUCKETS);
         mScheduler.setMaxChannels(DEFAULT_MAX_CHANNELS);
         mScheduler.setMaxBatch(DEFAULT_MAX_BATCH);
@@ -453,6 +445,18 @@ public class MultiClientSchedulerTest {
         }
     }
 
+    protected Set<Integer> getAllChannels(BucketSettings bucket) {
+        KnownBandsChannelCollection collection = mChannelHelper.createChannelCollection();
+        collection.addChannels(bucket);
+        return collection.getAllChannels();
+    }
+
+    protected Set<Integer> getAllChannels(WifiScanner.ScanSettings settings) {
+        KnownBandsChannelCollection collection = mChannelHelper.createChannelCollection();
+        collection.addChannels(settings);
+        return collection.getAllChannels();
+    }
+
     public void scheduleAndTestExactRequest(ScanSettings settings) {
         Collection<ScanSettings> requests = new ArrayList<>();
         requests.add(settings);
@@ -481,15 +485,8 @@ public class MultiClientSchedulerTest {
                 schedule.buckets[0].period_ms);
         if (settings.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
             assertEquals("band", settings.band, schedule.buckets[0].band);
-            Set<Integer> expectedChannels = new HashSet<>();
-            for (ChannelSpec channel : getAllChannels(settings)) {
-                expectedChannels.add(channel.frequency);
-            }
-            Set<Integer> actualChannels = new HashSet<>();
-            for (ChannelSpec channel : getAllChannels(schedule.buckets[0])) {
-                actualChannels.add(channel.frequency);
-            }
-            assertEquals("channels", expectedChannels, actualChannels);
+            assertEquals("channels", getAllChannels(settings),
+                    getAllChannels(schedule.buckets[0]));
         }
         else {
             assertEquals("band", settings.band, schedule.buckets[0].band);
@@ -522,7 +519,7 @@ public class MultiClientSchedulerTest {
         }
     }
 
-    private static void assertSettingsSatisfied(WifiNative.ScanSettings schedule,
+    private void assertSettingsSatisfied(WifiNative.ScanSettings schedule,
             ScanSettings settings, boolean bucketsLimited, boolean exactPeriod) {
         assertTrue("bssids per scan: " + schedule.max_ap_per_scan + " /<= "
                 + settings.numBssidsPerScan,
@@ -534,21 +531,18 @@ public class MultiClientSchedulerTest {
                     schedule.report_threshold_num_scans <= settings.maxScansToCache);
         }
 
-        HashSet<Integer> channelSet = new HashSet<>();
-        for (ChannelSpec channel : getAllChannels(settings)) {
-            channelSet.add(channel.frequency);
-        }
+        Set<Integer> channelSet = getAllChannels(settings);
 
         StringBuilder ignoreString = new StringBuilder();
 
-        HashSet<Integer> scheduleChannelSet = new HashSet<>();
+        KnownBandsChannelCollection scheduleChannels = mChannelHelper.createChannelCollection();
         for (int b = 0; b < schedule.num_buckets; b++) {
             BucketSettings bucket = schedule.buckets[b];
             if ((settings.reportEvents & WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN) != 0) {
                 if ((bucket.report_events & WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN) == 0) {
                     ignoreString
                             .append(" ")
-                            .append(ChannelHelper.toString(bucket))
+                            .append(getAllChannels(bucket))
                             .append("=after_each_scan:")
                             .append(bucket.report_events & WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN)
                             .append("!=")
@@ -561,7 +555,7 @@ public class MultiClientSchedulerTest {
                 if ((bucket.report_events & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT) == 0) {
                     ignoreString
                             .append(" ")
-                            .append(ChannelHelper.toString(bucket))
+                            .append(getAllChannels(bucket))
                             .append("=full_result:")
                             .append(bucket.report_events
                                     & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT)
@@ -575,7 +569,7 @@ public class MultiClientSchedulerTest {
                 if ((bucket.report_events & WifiScanner.REPORT_EVENT_NO_BATCH) != 0) {
                     ignoreString
                             .append(" ")
-                            .append(ChannelHelper.toString(bucket))
+                            .append(getAllChannels(bucket))
                             .append("=no_batch:")
                             .append(bucket.report_events & WifiScanner.REPORT_EVENT_NO_BATCH)
                             .append("!=")
@@ -600,7 +594,7 @@ public class MultiClientSchedulerTest {
                 if (bucket.period_ms != expectedPeriod) {
                     ignoreString
                             .append(" ")
-                            .append(ChannelHelper.toString(bucket))
+                            .append(getAllChannels(bucket))
                             .append("=period:")
                             .append(bucket.period_ms)
                             .append("!=")
@@ -611,7 +605,7 @@ public class MultiClientSchedulerTest {
                 if (bucket.period_ms > expectedPeriod) {
                     ignoreString
                             .append(" ")
-                            .append(ChannelHelper.toString(bucket))
+                            .append(getAllChannels(bucket))
                             .append("=period:")
                             .append(bucket.period_ms)
                             .append(">")
@@ -619,14 +613,12 @@ public class MultiClientSchedulerTest {
                     continue;
                 }
             }
-            for (ChannelSpec channel : getAllChannels(bucket)) {
-                scheduleChannelSet.add(channel.frequency);
-            }
+            scheduleChannels.addChannels(bucket);
         }
 
-        assertTrue("expected that " + scheduleChannelSet + " contained " + channelSet
-                + ", Channel ignore reasons:" + ignoreString.toString(),
-                scheduleChannelSet.containsAll(channelSet));
+        assertTrue("expected that " + scheduleChannels.getAllChannels() + " contained "
+                + channelSet + ", Channel ignore reasons:" + ignoreString.toString(),
+                scheduleChannels.getAllChannels().containsAll(channelSet));
     }
 
     private static int[] getPredefinedBuckets() {
