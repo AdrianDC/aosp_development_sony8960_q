@@ -8070,21 +8070,24 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             // cause the roam to fail and the device to disconnect.
             clearCurrentConfigBSSID("ObtainingIpAddress");
 
+            // Stop IpManager in case we're switching from DHCP to static
+            // configuration or vice versa.
+            //
+            // TODO: Only ever enter this state the first time we connect to a
+            // network, never on switching between static configuration and
+            // DHCP. When we transition from static configuration to DHCP in
+            // particular, we must tell ConnectivityService that we're
+            // disconnected, because DHCP might take a long time during which
+            // connectivity APIs such as getActiveNetworkInfo should not return
+            // CONNECTED.
+            stopIpManager();
+
             if (!mWifiConfigManager.isUsingStaticIp(mLastNetworkId)) {
-                // We used to do DHCPv4 RENEWs on framework roams.
-                // TODO: Investigate whether we should reinstitute this.
-                //
-                // When we get here after a roam, we will already have called
-                // mIpManager.confirmConfiguration() to ensure we're on the
-                // same network (in handling of SupplicantState.COMPLETED).
-                if (!isRoaming()) {
-                    mIpManager.stop();
-                    final IpManager.ProvisioningConfiguration prov =
-                            mIpManager.buildProvisioningConfiguration()
-                                .withPreDhcpAction()
-                                .build();
-                    mIpManager.startProvisioning(prov);
-                }
+                final IpManager.ProvisioningConfiguration prov =
+                        mIpManager.buildProvisioningConfiguration()
+                            .withPreDhcpAction()
+                            .build();
+                mIpManager.startProvisioning(prov);
                 obtainingIpWatchdogCount++;
                 logd("Start Dhcp Watchdog " + obtainingIpWatchdogCount);
                 // Get Link layer stats so as we get fresh tx packet counters
@@ -8092,17 +8095,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 sendMessageDelayed(obtainMessage(CMD_OBTAINING_IP_ADDRESS_WATCHDOG_TIMER,
                         obtainingIpWatchdogCount, 0), OBTAINING_IP_ADDRESS_GUARD_TIMER_MSEC);
             } else {
-                // Stop IpManager in case we're switching from static
-                // configuration to DHCP.
-                //
-                // TODO: Only ever enter this state the first time we
-                // connect to a network, never on changing from static
-                // configuration to DHCP. When we transition from static
-                // configuration to DHCP, we must tell ConnectivityService
-                // that we're disconnected, because DHCP might take a long
-                // time, during which connectivity APIs such as
-                // getActiveNetworkInfo should not return CONNECTED.
-                stopIpManager();
                 StaticIpConfiguration config = mWifiConfigManager.getStaticIpConfiguration(
                         mLastNetworkId);
                 if (config.ipAddress == null) {
@@ -8278,7 +8270,16 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                         mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(
                                 mLastBssid, true);
                         sendNetworkStateChangeBroadcast(mLastBssid);
-                        transitionTo(mObtainingIpState);
+
+                        // We used to transition to ObtainingIpState in an
+                        // attempt to do DHCPv4 RENEWs on framework roams.
+                        // DHCP can take too long to time out, and we now rely
+                        // upon IpManager's use of IpReachabilityMonitor to
+                        // confirm our current network configuration.
+                        //
+                        // mIpManager.confirmConfiguration() is called within
+                        // the handling of SupplicantState.COMPLETED.
+                        transitionTo(mConnectedState);
                     } else {
                         messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     }
