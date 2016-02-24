@@ -2485,6 +2485,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
     void enableBackgroundScan(boolean enable) {
         if (enable) {
             mWifiConfigManager.enableAllNetworks();
+            // Now enable all the networks in wpa_supplicant. These will be
+            // disabled when we connect to a network after PNO.
+            mWifiConfigManager.enableAllNetworksNative();
         }
         List<WifiNative.WifiPnoNetwork> pnoList =
                 mWifiConfigManager.retrieveDisconnectedWifiPnoNetworkList(enable);
@@ -5920,7 +5923,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
             if (mOperationalMode != CONNECT_MODE) {
                 mWifiNative.disconnect();
-                mWifiConfigManager.disableAllNetworks();
+                mWifiConfigManager.disableAllNetworksNative();
                 if (mOperationalMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
                     setWifiState(WIFI_STATE_DISABLED);
                 }
@@ -6014,7 +6017,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     int mode = message.arg1;
 
                     log("stop driver");
-                    mWifiConfigManager.disableAllNetworks();
+                    mWifiConfigManager.disableAllNetworksNative();
 
                     if (getCurrentState() != mDisconnectedState) {
                         mWifiNative.disconnect();
@@ -6663,8 +6666,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     } else {
                         WifiConfiguration curConfig = getCurrentWifiConfiguration();
                         if (curConfig != null && config != null) {
-                            if (curConfig.priority < config.priority
-                                    && config.status == WifiConfiguration.Status.ENABLED) {
+                            WifiConfiguration.NetworkSelectionStatus networkStatus =
+                                    config.getNetworkSelectionStatus();
+                            if (curConfig.priority < config.priority && networkStatus != null
+                                    && !networkStatus.isNetworkPermanentlyDisabled()) {
                                 // Interpret this as a connect attempt
                                 // Set the last selected configuration so as to allow the system to
                                 // stick the last user choice without persisting the choice
@@ -6974,9 +6979,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                         break;
                     }
 
-                    // Make sure the network is enabled, since supplicant will not reenable it
-                    mWifiConfigManager.enableNetworkWithoutBroadcast(netId, false);
-
                     // If we're autojoining a network that the user or an app explicitly selected,
                     // keep track of the UID that selected it.
                     // TODO(b/26786318): Keep track of the lastSelectedConfiguration and the
@@ -7158,9 +7160,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                         didDisconnect = true;
                         mWifiNative.disconnect();
                     }
-
-                    // Make sure the network is enabled, since supplicant will not reenable it
-                    mWifiConfigManager.enableNetworkWithoutBroadcast(netId, false);
 
                     if (mWifiConfigManager.selectNetwork(config, /* updatePriorities = */ true,
                             message.sendingUid) && mWifiNative.reconnect()) {
@@ -8574,8 +8573,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
                     setTargetBssid(config, bssid);
                     mTargetNetworkId = netId;
-                    // Make sure the network is enabled, since supplicant will not re-enable it
-                    mWifiConfigManager.enableNetworkWithoutBroadcast(netId, false);
 
                     if (deferForUserInput(message, netId, false)) {
                         break;
@@ -8811,8 +8808,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 case CMD_SET_OPERATIONAL_MODE:
                     if (message.arg1 != CONNECT_MODE) {
                         mOperationalMode = message.arg1;
-
-                        mWifiConfigManager.disableAllNetworks();
+                        mWifiConfigManager.disableAllNetworksNative();
                         if (mOperationalMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
                             mWifiP2pChannel.sendMessage(CMD_DISABLE_P2P_REQ);
                             setWifiState(WIFI_STATE_DISABLED);

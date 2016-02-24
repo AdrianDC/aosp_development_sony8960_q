@@ -616,13 +616,13 @@ public class WifiStateMachineTest {
     }
 
     private void enableNetworkAndVerifySuccess() throws Exception {
-        when(mWifiNative.enableNetwork(0, true)).thenReturn(true);
+        when(mWifiNative.selectNetwork(0)).thenReturn(true);
 
         mLooper.startAutoDispatch();
         assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
         mLooper.stopAutoDispatch();
 
-        verify(mWifiNative).enableNetwork(0, true);
+        verify(mWifiNative).selectNetwork(0);
     }
 
     private void enableNetworkAndVerifyFailure() throws Exception {
@@ -630,7 +630,7 @@ public class WifiStateMachineTest {
         assertFalse(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
         mLooper.stopAutoDispatch();
 
-        verify(mWifiNative, never()).enableNetwork(anyInt(), anyBoolean());
+        verify(mWifiNative, never()).selectNetwork(anyInt());
     }
 
     /**
@@ -748,7 +748,7 @@ public class WifiStateMachineTest {
         mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
         mLooper.stopAutoDispatch();
 
-        verify(mWifiNative).enableNetwork(0, true);
+        verify(mWifiNative).selectNetwork(0);
 
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, sBSSID);
         mLooper.dispatchAll();
@@ -782,7 +782,7 @@ public class WifiStateMachineTest {
         mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
         mLooper.stopAutoDispatch();
 
-        verify(mWifiNative).enableNetwork(0, true);
+        verify(mWifiNative).selectNetwork(0);
 
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, sBSSID);
         mLooper.dispatchAll();
@@ -810,7 +810,7 @@ public class WifiStateMachineTest {
         mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
         mLooper.stopAutoDispatch();
 
-        verify(mWifiNative).enableNetwork(0, true);
+        verify(mWifiNative).selectNetwork(0);
 
         mWsm.sendMessage(WifiMonitor.NETWORK_DISCONNECTION_EVENT, 0, 0, sBSSID);
         mLooper.dispatchAll();
