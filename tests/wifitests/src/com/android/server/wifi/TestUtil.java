@@ -22,6 +22,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 
 import java.lang.reflect.Field;
@@ -44,12 +45,43 @@ public class TestUtil {
     }
 
     /**
+     * Send {@link WifiManager#NETWORK_STATE_CHANGED_ACTION} broadcast.
+     */
+    public static void sendNetworkStateChanged(BroadcastReceiver broadcastReceiver,
+            Context context, NetworkInfo.DetailedState detailedState) {
+        Intent intent = new Intent(WifiManager.NETWORK_STATE_CHANGED_ACTION);
+        NetworkInfo networkInfo = new NetworkInfo(0, 0, "", "");
+        networkInfo.setDetailedState(detailedState, "", "");
+        intent.putExtra(WifiManager.EXTRA_NETWORK_INFO, networkInfo);
+        broadcastReceiver.onReceive(context, intent);
+    }
+
+    /**
+     * Send {@link WifiManager#SCAN_RESULTS_AVAILABLE_ACTION} broadcast.
+     */
+    public static void sendScanResultsAvailable(BroadcastReceiver broadcastReceiver,
+            Context context) {
+        Intent intent = new Intent(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
+        broadcastReceiver.onReceive(context, intent);
+    }
+
+    /**
      * Send {@link WifiManager#WIFI_SCAN_AVAILABLE} broadcast.
      */
     public static void sendWifiScanAvailable(BroadcastReceiver broadcastReceiver,
             Context context, int scanAvailable) {
         Intent intent = new Intent(WifiManager.WIFI_SCAN_AVAILABLE);
         intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, scanAvailable);
+        broadcastReceiver.onReceive(context, intent);
+    }
+
+    /**
+     * Send {@link WifiManager#WIFI_STATE_CHANGED} broadcast.
+     */
+    public static void sendWifiStateChanged(BroadcastReceiver broadcastReceiver,
+            Context context, int wifiState) {
+        Intent intent = new Intent(WifiManager.WIFI_STATE_CHANGED_ACTION);
+        intent.putExtra(WifiManager.EXTRA_WIFI_STATE, wifiState);
         broadcastReceiver.onReceive(context, intent);
     }
 
