@@ -97,7 +97,10 @@ public class WifiNanSessionState {
      */
     public void publish(short transactionId, PublishConfig config) {
         if (mSessionType == SESSION_TYPE_SUBSCRIBE) {
-            throw new IllegalStateException("A SUBSCRIBE session is being used for publish");
+            Log.e(TAG, "A SUBSCRIBE session is being used for publish");
+            WifiNanStateManager.getInstance().onPublishFail(transactionId,
+                    WifiNanSessionCallback.FAIL_REASON_OTHER);
+            return;
         }
         mSessionType = SESSION_TYPE_PUBLISH;
 
@@ -113,7 +116,10 @@ public class WifiNanSessionState {
      */
     public void subscribe(short transactionId, SubscribeConfig config) {
         if (mSessionType == SESSION_TYPE_PUBLISH) {
-            throw new IllegalStateException("A PUBLISH session is being used for publish");
+            Log.e(TAG, "A PUBLISH session is being used for publish");
+            WifiNanStateManager.getInstance().onSubscribeFail(transactionId,
+                    WifiNanSessionCallback.FAIL_REASON_OTHER);
+            return;
         }
         mSessionType = SESSION_TYPE_SUBSCRIBE;
 

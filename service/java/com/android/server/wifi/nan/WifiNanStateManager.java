@@ -627,22 +627,23 @@ public class WifiNanStateManager {
         mPendingResponses.put(info.mTransactionId, info);
     }
 
-    private void fillInTransactionInfoSession(TransactionInfoSession info, int clientId,
+    private boolean fillInTransactionInfoSession(TransactionInfoSession info, int clientId,
             int sessionId) {
         WifiNanClientState client = mClients.get(clientId);
         if (client == null) {
-            throw new IllegalStateException(
-                    "getAndRegisterTransactionId: no client exists for clientId=" + clientId);
+            Log.w(TAG, "getAndRegisterTransactionId: no client exists for clientId=" + clientId);
+            return false;
         }
         info.mClient = client;
 
         WifiNanSessionState session = info.mClient.getSession(sessionId);
         if (session == null) {
-            throw new IllegalStateException(
-                    "getAndRegisterSessionTransactionId: no session exists for clientId=" + clientId
-                            + ", sessionId=" + sessionId);
+            Log.w(TAG, "getAndRegisterSessionTransactionId: no session exists for clientId="
+                    + clientId + ", sessionId=" + sessionId);
+            return false;
         }
         info.mSession = session;
+        return true;
     }
 
     private TransactionInfoBase createTransactionInfo() {
@@ -653,7 +654,9 @@ public class WifiNanStateManager {
 
     private TransactionInfoSession createTransactionInfoSession(int clientId, int sessionId) {
         TransactionInfoSession info = new TransactionInfoSession();
-        fillInTransactionInfoSession(info, clientId, sessionId);
+        if (!fillInTransactionInfoSession(info, clientId, sessionId)) {
+            return null;
+        }
         allocateAndRegisterTransactionId(info);
         return info;
     }
@@ -661,7 +664,9 @@ public class WifiNanStateManager {
     private TransactionInfoMessage createTransactionInfoMessage(int clientId, int sessionId,
             int messageId) {
         TransactionInfoMessage info = new TransactionInfoMessage();
-        fillInTransactionInfoSession(info, clientId, sessionId);
+        if (!fillInTransactionInfoSession(info, clientId, sessionId)) {
+            return null;
+        }
         info.mMessageId = messageId;
         allocateAndRegisterTransactionId(info);
         return info;
@@ -826,6 +831,9 @@ public class WifiNanStateManager {
         }
 
         TransactionInfoSession info = createTransactionInfoSession(clientId, sessionId);
+        if (info == null) {
+            return;
+        }
 
         info.mSession.publish(info.mTransactionId, publishConfig);
     }
@@ -837,6 +845,9 @@ public class WifiNanStateManager {
         }
 
         TransactionInfoSession info = createTransactionInfoSession(clientId, sessionId);
+        if (info == null) {
+            return;
+        }
 
         info.mSession.subscribe(info.mTransactionId, subscribeConfig);
     }
@@ -851,6 +862,9 @@ public class WifiNanStateManager {
         }
 
         TransactionInfoMessage info = createTransactionInfoMessage(clientId, sessionId, messageId);
+        if (info == null) {
+            return;
+        }
 
         info.mSession.sendMessage(info.mTransactionId, peerId, message, messageLength, messageId);
     }
@@ -861,6 +875,9 @@ public class WifiNanStateManager {
         }
 
         TransactionInfoSession info = createTransactionInfoSession(clientId, sessionId);
+        if (info == null) {
+            return;
+        }
 
         info.mSession.stop(info.mTransactionId);
     }
