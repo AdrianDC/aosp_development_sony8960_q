@@ -31,7 +31,6 @@ import android.Manifest;
 import android.app.ActivityManager;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
-import android.app.backup.IBackupManager;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -1142,8 +1141,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     private FrameworkFacade mFacade;
 
+    private final BackupManagerProxy mBackupManagerProxy;
+
     public WifiStateMachine(Context context, FrameworkFacade facade, Looper looper,
-                            UserManager userManager, WifiMetrics wifiMetrics) {
+                            UserManager userManager, WifiMetrics wifiMetrics,
+                            BackupManagerProxy backupManagerProxy) {
         super("WifiStateMachine", looper);
 
         mWifiMetrics = wifiMetrics;
@@ -1151,6 +1153,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         mFacade = facade;
         mUserManager = userManager;
         mWifiNative = WifiNative.getWlanNativeInterface();
+        mBackupManagerProxy = backupManagerProxy;
 
         // TODO refactor WifiNative use of context out into it's own class
         mWifiNative.initContext(mContext);
@@ -5427,7 +5430,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             }
 
             if (mWifiApConfigStore == null) {
-                mWifiApConfigStore = mFacade.makeApConfigStore(mContext);
+                mWifiApConfigStore =
+                        mFacade.makeApConfigStore(mContext, mBackupManagerProxy);
             }
 
             if (mWifiConfigManager.enableHalBasedPno.get()) {
@@ -6798,15 +6802,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     replyToMessage(message, CMD_SAVE_CONFIG, ok ? SUCCESS : FAILURE);
 
                     // Inform the backup manager about a data change
-                    IBackupManager ibm = IBackupManager.Stub.asInterface(
-                            mFacade.getService(Context.BACKUP_SERVICE));
-                    if (ibm != null) {
-                        try {
-                            ibm.dataChanged("com.android.providers.settings");
-                        } catch (Exception e) {
-                            // Try again later
-                        }
-                    }
+                    mBackupManagerProxy.notifyDataChanged();
                     break;
                 case CMD_GET_CONFIGURED_NETWORKS:
                     replyToMessage(message, message.what,

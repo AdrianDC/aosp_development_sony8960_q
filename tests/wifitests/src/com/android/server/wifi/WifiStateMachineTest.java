@@ -304,6 +304,7 @@ public class WifiStateMachineTest {
     @Mock WifiMetrics mWifiMetrics;
     @Mock UserManager mUserManager;
     @Mock WifiApConfigStore mApConfigStore;
+    @Mock BackupManagerProxy mBackupManagerProxy;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -334,7 +335,8 @@ public class WifiStateMachineTest {
                 WifiManager.WIFI_FREQUENCY_BAND_AUTO)).thenReturn(
                 WifiManager.WIFI_FREQUENCY_BAND_AUTO);
 
-        when(factory.makeApConfigStore(Mockito.eq(context))).thenReturn(mApConfigStore);
+        when(factory.makeApConfigStore(eq(context), eq(mBackupManagerProxy)))
+                .thenReturn(mApConfigStore);
 
         when(factory.makeSupplicantStateTracker(
                 any(Context.class), any(WifiStateMachine.class), any(WifiConfigManager.class),
@@ -347,7 +349,7 @@ public class WifiStateMachineTest {
                 new UserInfo(11, "managed profile", 0)));
 
         mWsm = new WifiStateMachine(context, factory, mLooper.getLooper(),
-            mUserManager, mWifiMetrics);
+            mUserManager, mWifiMetrics, mBackupManagerProxy);
         mWsmThread = getWsmHandlerThread(mWsm);
 
         final AsyncChannel channel = new AsyncChannel();
