@@ -20,21 +20,21 @@ import static com.android.server.wifi.ScanTestUtil.channelsToSpec;
 import static com.android.server.wifi.ScanTestUtil.createRequest;
 import static com.android.server.wifi.ScanTestUtil.createScanDatas;
 import static com.android.server.wifi.ScanTestUtil.createScanResult;
-import static com.android.server.wifi.ScanTestUtil.installWlanWifiNative;
-import static com.android.server.wifi.ScanTestUtil.setupMockChannels;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.validateMockitoUsage;
 
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiScanner.ScanData;
 import android.net.wifi.WifiScanner.ScanSettings;
 import android.test.suitebuilder.annotation.SmallTest;
+
+import com.android.server.wifi.scanner.ChannelHelper;
+import com.android.server.wifi.scanner.KnownBandsChannelHelper;
 
 import org.junit.After;
 import org.junit.Before;
@@ -58,14 +58,11 @@ public class MultiClientSchedulerFilterTest {
 
     @Before
     public void setUp() throws Exception {
-        mWifiNative = mock(WifiNative.class);
-        setupMockChannels(mWifiNative,
+        ChannelHelper channelHelper = new KnownBandsChannelHelper(
                 new int[]{2400, 2450},
                 new int[]{5150, 5175},
                 new int[]{5600, 5650});
-        installWlanWifiNative(mWifiNative);
-
-        mScheduler = new MultiClientScheduler();
+        mScheduler = new MultiClientScheduler(channelHelper);
         mScheduler.setMaxBuckets(DEFAULT_MAX_BUCKETS);
         mScheduler.setMaxChannels(DEFAULT_MAX_CHANNELS);
         mScheduler.setMaxBatch(DEFAULT_MAX_BATCH);

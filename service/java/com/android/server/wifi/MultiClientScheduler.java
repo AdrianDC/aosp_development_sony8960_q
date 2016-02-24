@@ -20,12 +20,13 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiScanner;
-import android.net.wifi.WifiScanner.ChannelSpec;
 import android.net.wifi.WifiScanner.ScanData;
 import android.net.wifi.WifiScanner.ScanSettings;
-import android.util.ArraySet;
 import android.util.Rational;
 import android.util.Slog;
+
+import com.android.server.wifi.scanner.ChannelHelper;
+import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -107,7 +108,7 @@ public class MultiClientScheduler extends WifiScanningScheduler {
     /**
      * this class is an intermediate representation for scheduling
      */
-    private static class Bucket {
+    private class Bucket {
         public int period;
         public final List<ScanSettings> settings = new ArrayList<>();
 
@@ -118,7 +119,7 @@ public class MultiClientScheduler extends WifiScanningScheduler {
         /**
          * convert ChannelSpec to native representation
          */
-        private static WifiNative.ChannelSettings createChannelSettings(int frequency) {
+        private WifiNative.ChannelSettings createChannelSettings(int frequency) {
             WifiNative.ChannelSettings channelSettings = new WifiNative.ChannelSettings();
             channelSettings.frequency = frequency;
             return channelSettings;
@@ -132,10 +133,9 @@ public class MultiClientScheduler extends WifiScanningScheduler {
             int reportEvents = WifiScanner.REPORT_EVENT_NO_BATCH;
             int maxPeriodInMs = 0;
             int stepCount = 0;
-            ArraySet<Integer> channels = new ArraySet<Integer>();
-            int exactBands = 0;
-            int allBands = 0;
             int bucketIndex = 0;
+
+            mChannelCollection.clear();
 
             for (int i = 0; i < settings.size(); ++i) {
                 WifiScanner.ScanSettings setting = settings.get(i);
@@ -150,16 +150,7 @@ public class MultiClientScheduler extends WifiScanningScheduler {
                     reportEvents |= WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT;
                 }
 
-                WifiScanner.ChannelSpec[] settingChannels =
-                        WifiChannelHelper.getChannelsForScanSettings(setting);
-                for (int j = 0; j < settingChannels.length; ++j) {
-                    channels.add(settingChannels[j].frequency);
-                    allBands |=
-                            WifiChannelHelper.getBandFromChannel(settingChannels[j].frequency);
-                }
-                if (setting.band != WifiScanner.WIFI_BAND_UNSPECIFIED) {
-                    exactBands |= setting.band;
-                }
+                mChannelCollection.addChannels(setting);
 
                 // For the bucket allocated to exponential back off scan, the values of
                 // the exponential back off scan related parameters from the very first
@@ -187,19 +178,7 @@ public class MultiClientScheduler extends WifiScanningScheduler {
             bucketSettings.period_ms = period;
             bucketSettings.max_period_ms = maxPeriodInMs;
             bucketSettings.step_count = stepCount;
-            if (channels.size() > maxChannels || allBands == exactBands) {
-                bucketSettings.band = allBands;
-                bucketSettings.num_channels = 0;
-                bucketSettings.channels = null;
-            } else {
-                bucketSettings.band = WifiScanner.WIFI_BAND_UNSPECIFIED;
-                bucketSettings.num_channels = channels.size();
-                bucketSettings.channels = new WifiNative.ChannelSettings[channels.size()];
-                for (int i = 0; i < channels.size(); ++i) {
-                    bucketSettings.channels[i] = createChannelSettings(channels.valueAt(i));
-                }
-            }
-
+            mChannelCollection.fillBucketSettings(bucketSettings, maxChannels);
             return bucketSettings;
         }
     }
@@ -207,7 +186,7 @@ public class MultiClientScheduler extends WifiScanningScheduler {
     /**
      * Maintains a list of buckets and the number that are active (non-null)
      */
-    private static class BucketList {
+    private class BucketList {
         private final Bucket[] mBuckets;
         private int mActiveBucketCount = 0;
 
@@ -262,9 +241,13 @@ public class MultiClientScheduler extends WifiScanningScheduler {
     }
 
     private final BucketList mBuckets = new BucketList();
+    private final ChannelHelper mChannelHelper;
+    private final ChannelCollection mChannelCollection;
     private WifiNative.ScanSettings mSchedule;
 
-    public MultiClientScheduler() {
+    public MultiClientScheduler(ChannelHelper channelHelper) {
+        mChannelHelper = channelHelper;
+        mChannelCollection = mChannelHelper.createChannelCollection();
         mSchedule = createSchedule(Collections.<ScanSettings>emptyList());
     }
 
@@ -289,30 +272,19 @@ public class MultiClientScheduler extends WifiScanningScheduler {
     @Override
     public boolean shouldReportFullScanResultForSettings(@NonNull ScanResult result,
             @NonNull ScanSettings settings) {
-        ChannelSpec desiredChannels[] = WifiChannelHelper.getChannelsForScanSettings(settings);
-        for (ChannelSpec channelSpec : desiredChannels) {
-            if (channelSpec.frequency == result.frequency) {
-                return true;
-            }
-        }
-        return false;
+        return mChannelHelper.settingsContainChannel(settings, result.frequency);
     }
 
     @Override
     public @Nullable ScanData[] filterResultsForSettings(@NonNull ScanData[] scanDatas,
             @NonNull ScanSettings settings) {
-        ChannelSpec desiredChannels[] = WifiChannelHelper.getChannelsForScanSettings(settings);
-
         ArrayList<ScanData> filteredScanDatas = new ArrayList<>(scanDatas.length);
         ArrayList<ScanResult> filteredResults = new ArrayList<>();
         for (ScanData scanData : scanDatas) {
             filteredResults.clear();
             for (ScanResult scanResult : scanData.getResults()) {
-                for (ChannelSpec channelSpec : desiredChannels) {
-                    if (channelSpec.frequency == scanResult.frequency) {
-                        filteredResults.add(scanResult);
-                        break;
-                    }
+                if (mChannelHelper.settingsContainChannel(settings, scanResult.frequency)) {
+                    filteredResults.add(scanResult);
                 }
                 if (settings.numBssidsPerScan > 0
                         && filteredResults.size() >= settings.numBssidsPerScan) {

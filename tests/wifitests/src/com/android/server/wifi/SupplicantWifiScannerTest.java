@@ -50,7 +50,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
 
     @Before
     public void setup() throws Exception {
-        mScanner = new SupplicantWifiScannerImpl(mContext, WifiNative.getWlanNativeInterface(),
+        mScanner = new SupplicantWifiScannerImpl(mContext, mWifiNative,
                 mLooper.getLooper());
 
         // TODO remove this once SupplicantWifiScannerImpl wifi monitor registration is enabled
@@ -75,10 +75,10 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         ScanPeriod[] expectedPeriods = new ScanPeriod[] {
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(0, 2400),
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(1, 2450),
-                    createFreqSet(2400, 2450))
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ))
         };
 
         doSuccessfulTest(settings, expectedPeriods);
@@ -106,7 +106,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
                                     "00:00:00:00:00:00", "", -80, 2450, Long.MAX_VALUE, 0),
                             new ScanDetail(WifiSsid.createFromAsciiEncoded("TEST AP 4"),
                                     "AA:BB:CC:11:22:33", "", -65, 2450, Long.MAX_VALUE, 0)),
-                    createFreqSet(2400, 2450))
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ))
         };
 
         doSuccessfulTest(settings, expectedPeriods);
@@ -126,10 +126,10 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         ScanPeriod[] expectedPeriods = new ScanPeriod[] {
             new ScanPeriod(ScanPeriod.ReportType.FULL_AND_RESULT,
                     ScanResults.create(0, 2400, 2450, 2400, 2400),
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.FULL_AND_RESULT,
                     ScanResults.create(1, 2450, 2400, 2450, 2400),
-                    createFreqSet(2400, 2450))
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ))
         };
 
         doSuccessfulTest(settings, expectedPeriods);
@@ -152,13 +152,13 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         ScanPeriod[] expectedPeriods = new ScanPeriod[] {
             new ScanPeriod(ScanPeriod.ReportType.FULL_AND_RESULT,
                     ScanResults.create(0, 2400, 2450, 2400, 5175),
-                    createFreqSet(2400, 2450, 5150, 5175)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_BOTH)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(1, 2450, 2400, 2450, 2400),
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.FULL_AND_RESULT,
                     ScanResults.create(2, 2450, 2400, 2450, 5150),
-                    createFreqSet(2400, 2450, 5150, 5175))
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_BOTH))
         };
 
         doSuccessfulTest(settings, expectedPeriods);
@@ -177,13 +177,13 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         ScanPeriod[] expectedPeriods = new ScanPeriod[] {
             new ScanPeriod(ScanPeriod.ReportType.NONE,
                     ScanResults.create(0, 2400, 2400, 2400),
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.NONE,
                     ScanResults.create(1, 2400, 2400, 2450),
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.NONE,
                     ScanResults.create(2, 2400, 2450, 2400),
-                    createFreqSet(2400, 2450))
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ))
         };
 
         doSuccessfulTest(settings, expectedPeriods);
@@ -212,30 +212,30 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         ScanPeriod[] expectedPeriods = new ScanPeriod[] {
             new ScanPeriod(ScanPeriod.ReportType.NONE,
                     periodResults[0],
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.NONE,
                     periodResults[1],
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     new ScanResults[] {
                         periodResults[0],
                         periodResults[1],
                         periodResults[2]
                     },
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.NONE,
                     periodResults[3],
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.NONE,
                     periodResults[4],
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     new ScanResults[] {
                         periodResults[3],
                         periodResults[4],
                         periodResults[5]
                     },
-                    createFreqSet(2400, 2450))
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ))
         };
 
         doSuccessfulTest(settings, expectedPeriods);
@@ -257,25 +257,25 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         ScanPeriod[] expectedPeriods = new ScanPeriod[] {
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(0, 2400, 5175),
-                    createFreqSet(2400, 2450, 5150, 5175, 5650)),
+                    expectedBandAndChannelScanFreqs(WifiScanner.WIFI_BAND_BOTH, 5650)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(1, 2400),
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(2, 2450, 5650),
-                    createFreqSet(2400, 2450, 5650)),
+                    expectedBandAndChannelScanFreqs(WifiScanner.WIFI_BAND_24_GHZ, 5650)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(3, 2450, 5175),
-                    createFreqSet(2400, 2450, 5150, 5175)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_BOTH)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(4, new int[0]),
-                    createFreqSet(2400, 2450, 5650)),
+                    expectedBandAndChannelScanFreqs(WifiScanner.WIFI_BAND_24_GHZ, 5650)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(5, 2400, 2400, 2400, 2450),
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(6, 5150, 5650, 5650),
-                    createFreqSet(2400, 2450, 5150, 5175, 5650))
+                    expectedBandAndChannelScanFreqs(WifiScanner.WIFI_BAND_BOTH, 5650))
         };
 
         doSuccessfulTest(settings, expectedPeriods);
@@ -296,21 +296,21 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         ScanPeriod[] expectedPeriods = new ScanPeriod[] {
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(0, 2400, 5175),
-                    createFreqSet(2400, 2450, 5150, 5175, 5650)),
+                    expectedBandAndChannelScanFreqs(WifiScanner.WIFI_BAND_BOTH, 5650)),
             null,
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(1, 5650),
                     createFreqSet(5650)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(2, 2450, 5175),
-                    createFreqSet(2400, 2450, 5150, 5175)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_BOTH)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(3, 5650, 5650, 5650),
                     createFreqSet(5650)),
             null,
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(4, 2400, 2400, 2400, 2450),
-                    createFreqSet(2400, 2450, 5150, 5175, 5650))
+                    expectedBandAndChannelScanFreqs(WifiScanner.WIFI_BAND_BOTH, 5650))
         };
 
         doSuccessfulTest(settings, expectedPeriods);
@@ -326,8 +326,6 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
                         WifiScanner.WIFI_BAND_24_GHZ)
                 .build();
 
-        Set<Integer> freqs = createFreqSet(2400, 2450); // expected scan frequencies
-
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // All scans fail
@@ -338,14 +336,16 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
 
         assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
 
-        expectFailedScanStart(order, eventHandler, freqs);
+        expectFailedScanStart(order, eventHandler,
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ));
 
         // Fire alarm to start next scan
         dispatchOnlyAlarm();
 
         assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
 
-        expectFailedScanStart(order, eventHandler, freqs);
+        expectFailedScanStart(order, eventHandler,
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ));
 
         verifyNoMoreInteractions(eventHandler);
     }
@@ -361,8 +361,6 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
                         WifiScanner.WIFI_BAND_24_GHZ)
                 .build();
 
-        Set<Integer> freqs = createFreqSet(2400, 2450); // expected scan frequencies
-
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // All scan starts succeed
@@ -373,14 +371,16 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
 
         assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
 
-        expectFailedEventScan(order, eventHandler, freqs);
+        expectFailedEventScan(order, eventHandler,
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ));
 
         // Fire alarm to start next scan
         dispatchOnlyAlarm();
 
         assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
 
-        expectFailedEventScan(order, eventHandler, freqs);
+        expectFailedEventScan(order, eventHandler,
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ));
 
         verifyNoMoreInteractions(eventHandler);
     }
@@ -402,10 +402,10 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         ScanPeriod[] expectedPeriods = new ScanPeriod[] {
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(0, 2400, 2450, 2450),
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(1, 2400),
-                    createFreqSet(2400, 2450))
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ))
         };
 
         InOrder order = inOrder(eventHandler, mWifiNative);
@@ -457,10 +457,10 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         ScanPeriod[] expectedPeriods = new ScanPeriod[] {
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(0, 2400, 2450, 2450),
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ)),
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(1, 2400),
-                    createFreqSet(2400, 2450))
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ))
         };
 
         InOrder order = inOrder(eventHandler, mWifiNative);
@@ -530,13 +530,13 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         ScanPeriod[] expectedPeriods = new ScanPeriod[] {
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(0, 2400, 2450, 2450),
-                    createFreqSet(2400, 2450)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ))
         };
 
         ScanPeriod[] expectedPeriods2 = new ScanPeriod[] {
             new ScanPeriod(ScanPeriod.ReportType.RESULT,
                     ScanResults.create(1, 5150, 5175, 5175),
-                    createFreqSet(5150, 5175)),
+                    expectedBandScanFreqs(WifiScanner.WIFI_BAND_5_GHZ)),
         };
 
         InOrder order = inOrder(eventHandler, mWifiNative);

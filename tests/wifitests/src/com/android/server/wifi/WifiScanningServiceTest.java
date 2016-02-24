@@ -19,8 +19,6 @@ package com.android.server.wifi;
 import static com.android.server.wifi.ScanTestUtil.assertNativeScanSettingsEquals;
 import static com.android.server.wifi.ScanTestUtil.assertScanDatasEquals;
 import static com.android.server.wifi.ScanTestUtil.createRequest;
-import static com.android.server.wifi.ScanTestUtil.installWlanWifiNative;
-import static com.android.server.wifi.ScanTestUtil.setupMockChannels;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -46,6 +44,8 @@ import android.test.suitebuilder.annotation.SmallTest;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.Protocol;
 import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
+import com.android.server.wifi.scanner.ChannelHelper;
+import com.android.server.wifi.scanner.KnownBandsChannelHelper;
 
 import org.junit.After;
 import org.junit.Before;
@@ -63,7 +63,6 @@ public class WifiScanningServiceTest {
     public static final String TAG = "WifiScanningServiceTest";
 
     @Mock Context mContext;
-    @Mock WifiNative mWifiNative;
     @Mock WifiScannerImpl mWifiScannerImpl;
     @Mock WifiScannerImpl.WifiScannerImplFactory mWifiScannerImplFactory;
     @Mock IBatteryStats mBatteryStats;
@@ -74,15 +73,15 @@ public class WifiScanningServiceTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        setupMockChannels(mWifiNative,
+        ChannelHelper channelHelper = new KnownBandsChannelHelper(
                 new int[]{2400, 2450},
                 new int[]{5150, 5175},
                 new int[]{5600, 5650, 5660});
-        installWlanWifiNative(mWifiNative);
 
         mLooper = new MockLooper();
         when(mWifiScannerImplFactory.create(any(Context.class), any(Looper.class)))
                 .thenReturn(mWifiScannerImpl);
+        when(mWifiScannerImpl.getChannelHelper()).thenReturn(channelHelper);
         mWifiScanningServiceImpl = new WifiScanningServiceImpl(mContext, mLooper.getLooper(),
                 mWifiScannerImplFactory, mBatteryStats);
     }

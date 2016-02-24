@@ -205,16 +205,21 @@ public class KnownBandsChannelHelper extends ChannelHelper {
 
         @Override
         public Set<Integer> getSupplicantScanFreqs() {
-            if (mAllBands == mExactBands && mExactBands == WifiScanner.WIFI_BAND_BOTH_WITH_DFS) {
+            if (mExactBands == WifiScanner.WIFI_BAND_BOTH_WITH_DFS) {
                 return null;
             } else {
                 return new ArraySet<Integer>(mChannels);
             }
         }
+
+        public Set<Integer> getAllChannels() {
+            return new ArraySet<Integer>(mChannels);
+        }
     }
 
     @Override
-    public ChannelCollection createChannelCollection() {
+
+    public KnownBandsChannelCollection createChannelCollection() {
         return new KnownBandsChannelCollection();
     }
 }

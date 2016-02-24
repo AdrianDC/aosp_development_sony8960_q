@@ -23,10 +23,12 @@ import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
 
-import com.android.server.wifi.WifiNative;
+import com.android.server.wifi.scanner.ChannelHelper;
+import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
+import com.android.server.wifi.scanner.KnownBandsChannelHelper;
+import com.android.server.wifi.scanner.NoBandChannelHelper;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -41,6 +43,7 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
 
     private final WifiNative mWifiNative;
     private final Handler mEventHandler;
+    private final ChannelHelper mChannelHelper;
     private boolean mReportSingleScanFullResults = false;
     private WifiNative.ScanEventHandler mSingleScanEventHandler = null;
     private WifiScanner.ScanData mLatestSingleScanResult =
@@ -49,6 +52,33 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
     public HalWifiScannerImpl(WifiNative wifiNative, Looper looper) {
         mWifiNative = wifiNative;
         mEventHandler = new Handler(looper, this);
+
+        // TODO(b/27324226) Remove this retry loop
+        // Sometimes angler returns an empty channel list the first time the channel list is queried
+        int[] channels24G = new int[0];
+        int[] channels5G = new int[0];
+        int[] channelsDfs = new int[0];
+        ChannelHelper channelHelper = null;
+        for (int i = 0; i < 4; ++i) {
+            channels24G = mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_24_GHZ);
+            if (channels24G == null) Log.e(TAG, "Failed to get channels for 2.4GHz band");
+            channels5G = mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ);
+            if (channels5G == null) Log.e(TAG, "Failed to get channels for 5GHz band");
+            channelsDfs = mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY);
+            if (channelsDfs == null) Log.e(TAG, "Failed to get channels for 5GHz DFS only band");
+            if (channels24G == null || channels5G == null || channelsDfs == null) {
+                Log.e(TAG, "Falling back to NoBandChannelHelper");
+                channelHelper = new NoBandChannelHelper();
+                break;
+            } else if (channels24G.length > 0 || channels5G.length > 0 || channelsDfs.length > 0) {
+                channelHelper = new KnownBandsChannelHelper(channels24G, channels5G, channelsDfs);
+            }
+            try { Thread.sleep(50); } catch (Exception e) {}
+        }
+        if (channelHelper == null) {
+            channelHelper = new KnownBandsChannelHelper(channels24G, channels5G, channelsDfs);
+        }
+        mChannelHelper = channelHelper;
 
         // We can't enable these until WifiStateMachine switches to using WifiScanner because
         //   WifiMonitor only supports sending results to one listener
@@ -95,7 +125,8 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
             Log.w(TAG, "A single scan is already running");
             return false;
         }
-        Set<Integer> freqs = new HashSet<>();
+
+        ChannelCollection scanChannels = mChannelHelper.createChannelCollection();
         mReportSingleScanFullResults = false;
         for (int i = 0; i < settings.num_buckets; ++i) {
             WifiNative.BucketSettings bucketSettings = settings.buckets[i];
@@ -103,21 +134,11 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
                             & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT) != 0) {
                 mReportSingleScanFullResults = true;
             }
-            if (bucketSettings.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
-                for (int j = 0; j < bucketSettings.num_channels; ++j) {
-                    WifiNative.ChannelSettings channel = bucketSettings.channels[j];
-                    freqs.add(channel.frequency);
-                }
-            } else {
-                WifiScanner.ChannelSpec[] channels =
-                    WifiChannelHelper.getChannelsForBand(bucketSettings.band);
-                for (WifiScanner.ChannelSpec channel : channels) {
-                    freqs.add(channel.frequency);
-                }
-            }
+            scanChannels.addChannels(bucketSettings);
         }
 
         mSingleScanEventHandler = eventHandler;
+        Set<Integer> freqs = scanChannels.getSupplicantScanFreqs();
         if (!mWifiNative.scan(freqs)) {
             Log.e(TAG, "Failed to start scan, freqs=" + freqs);
             // indicate scan failure async
@@ -166,6 +187,11 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
     @Override
     public boolean getScanCapabilities(WifiNative.ScanCapabilities capabilities) {
         return mWifiNative.getScanCapabilities(capabilities);
+    }
+
+    @Override
+    public ChannelHelper getChannelHelper() {
+        return mChannelHelper;
     }
 
     @Override

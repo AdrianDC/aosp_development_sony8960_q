@@ -21,7 +21,7 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiScanner;
 import android.os.Looper;
 
-import com.android.server.wifi.WifiNative;
+import com.android.server.wifi.scanner.ChannelHelper;
 
 import java.util.Comparator;
 
@@ -62,8 +62,18 @@ public abstract class WifiScannerImpl {
         }
     };
 
-
+    /**
+     * Get the supported scan capabilities.
+     *
+     * @param capabilities Object that will be filled with the supported capabilities if successful
+     * @return true if the scan capabilities were retrieved successfully
+     */
     public abstract boolean getScanCapabilities(WifiNative.ScanCapabilities capabilities);
+
+    /**
+     * Get a ChannelHelper that can be used to perform operations on scan channels
+     */
+    public abstract ChannelHelper getChannelHelper();
 
     /**
      * Start a one time scan. This method should only be called when there is no scan going on
