@@ -927,6 +927,137 @@ public class WifiNanStateManagerTest {
     }
 
     /**
+     * Validate that an unknown transaction (i.e. a callback from HAL with an
+     * unknown type) is simply ignored - but also cleans up its state.
+     */
+    @Test
+    public void testUnknownTransactionType() throws Exception {
+        final int clientId = 129;
+        final int clusterLow = 15;
+        final int clusterHigh = 192;
+        final int masterPref = 234;
+        final int publishSessionId = 19;
+        final String serviceName = "some-service-name";
+        final String ssi = "some much longer and more arbitrary data";
+        final int publishCount = 15;
+        final int status = WifiNanSessionCallback.FAIL_REASON_OTHER;
+        final int responseType = 9999;
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().setClusterLow(clusterLow)
+                .setClusterHigh(clusterHigh).setMasterPreference(masterPref).build();
+
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
+                .setServiceSpecificInfo(ssi).setPublishType(PublishConfig.PUBLISH_TYPE_UNSOLICITED)
+                .setPublishCount(publishCount).build();
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        IWifiNanSessionCallback mockPublishSessionCallback = mock(IWifiNanSessionCallback.class);
+        InOrder inOrder = inOrder(mMockNative, mockCallback, mockPublishSessionCallback);
+
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.requestConfig(clientId, configRequest);
+        mDut.createSession(clientId, publishSessionId, mockPublishSessionCallback,
+                mAllNanSessionEventFlags);
+        mDut.publish(clientId, publishSessionId, publishConfig);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest));
+        short transactionIdConfig = transactionId.getValue();
+
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        short transactionIdPublish = transactionId.getValue();
+
+        mDut.onUnknownTransaction(responseType, transactionIdConfig, status);
+        mDut.onUnknownTransaction(responseType, transactionIdPublish, status);
+        mMockLooper.dispatchAll();
+
+        verifyNoMoreInteractions(mockCallback);
+        verifyNoMoreInteractions(mockPublishSessionCallback);
+        validateInternalTransactionInfoCleanedUp(transactionIdConfig);
+        validateInternalTransactionInfoCleanedUp(transactionIdPublish);
+    }
+
+    /**
+     * Validate that a NoOp transaction (i.e. a callback from HAL which doesn't
+     * require any action except clearing up state) actually cleans up its state
+     * (and does nothing else).
+     */
+    @Test
+    public void testNoOpTransaction() throws Exception {
+        final int clientId = 1294;
+        final int sessionId = 19;
+
+        PublishConfig publishConfig = new PublishConfig.Builder().build();
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
+        InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
+
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.createSession(clientId, sessionId, mockSessionCallback, mAllNanSessionEventFlags);
+        mDut.publish(clientId, sessionId, publishConfig);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+
+        mDut.onNoOpTransaction(transactionId.getValue());
+        mMockLooper.dispatchAll();
+
+        verifyNoMoreInteractions(mockCallback);
+        verifyNoMoreInteractions(mockSessionCallback);
+        validateInternalTransactionInfoCleanedUp(transactionId.getValue());
+    }
+
+    /**
+     * Validate that getting callbacks from HAL with unknown (expired)
+     * transaction ID or invalid publish/subscribe ID session doesn't have any
+     * impact.
+     */
+    @Test
+    public void testInvalidCallbackIdParameters() throws Exception {
+        final int clientId = 132;
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().build();
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        InOrder inOrder = inOrder(mMockNative, mockCallback);
+
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.requestConfig(clientId, configRequest);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest));
+        short transactionIdConfig = transactionId.getValue();
+
+        mDut.onConfigCompleted(transactionIdConfig);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mockCallback).onConfigCompleted(configRequest);
+        validateInternalTransactionInfoCleanedUp(transactionIdConfig);
+
+        mDut.onCapabilitiesUpdate(transactionIdConfig, null);
+        mDut.onConfigCompleted(transactionIdConfig);
+        mDut.onConfigFailed(transactionIdConfig, -1);
+        mDut.onPublishSuccess(transactionIdConfig, -1);
+        mDut.onPublishFail(transactionIdConfig, -1);
+        mDut.onMessageSendSuccess(transactionIdConfig);
+        mDut.onMessageSendFail(transactionIdConfig, -1);
+        mDut.onSubscribeSuccess(transactionIdConfig, -1);
+        mDut.onSubscribeFail(transactionIdConfig, -1);
+        mDut.onUnknownTransaction(-10, transactionIdConfig, -1);
+        mDut.onMatch(-1, -1, null, null, 0, null, 0);
+        mDut.onPublishTerminated(-1, -1);
+        mDut.onSubscribeTerminated(-1, -1);
+        mDut.onMessageReceived(-1, -1, null, null, 0);
+        mMockLooper.dispatchAll();
+
+        verifyNoMoreInteractions(mockCallback);
+    }
+
+    /**
      * Validate that trying to (re)subscribe on a publish session fails.
      */
     @Test

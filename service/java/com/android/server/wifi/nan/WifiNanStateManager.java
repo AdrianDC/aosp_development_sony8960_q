@@ -71,6 +71,7 @@ public class WifiNanStateManager {
     private static final int MESSAGE_ON_MATCH = 25;
     private static final int MESSAGE_ON_MESSAGE_RECEIVED = 26;
     private static final int MESSAGE_ON_CAPABILITIES_UPDATED = 27;
+    private static final int MESSAGE_ON_NO_OP_TRANSACTION = 28;
 
     private static final String MESSAGE_BUNDLE_KEY_SESSION_ID = "session_id";
     private static final String MESSAGE_BUNDLE_KEY_EVENTS = "events";
@@ -334,6 +335,19 @@ public class WifiNanStateManager {
     }
 
     /**
+     * Place a callback request on the handler queue: HAL callback with a NOP
+     * operation - the only purpose is to clean-up the state of the pending
+     * transaction ID.
+     *
+     * @param transactionId Transaction ID of the operation to be cleaned-up.
+     */
+    public void onNoOpTransaction(short transactionId) {
+        Message msg = mHandler.obtainMessage(MESSAGE_ON_NO_OP_TRANSACTION);
+        msg.arg1 = transactionId;
+        mHandler.sendMessage(msg);
+    }
+
+    /**
      * Place a callback request on the handler queue: HAL callback with an
      * unknown transaction type.
      */
@@ -563,6 +577,9 @@ public class WifiNanStateManager {
                     onUnknownTransactionLocal(
                             msg.getData().getInt(MESSAGE_BUNDLE_KEY_RESPONSE_TYPE),
                             (short) msg.arg1, msg.arg2);
+                    break;
+                case MESSAGE_ON_NO_OP_TRANSACTION:
+                    onNoOpNotificationLocal((short) msg.arg1);
                     break;
                 case MESSAGE_ON_MATCH: {
                     int pubSubId = msg.arg1;
@@ -1162,6 +1179,18 @@ public class WifiNanStateManager {
         TransactionInfoBase info = getAndRemovePendingResponseTransactionInfo(transactionId);
         if (info == null) {
             Log.e(TAG, "onUnknownTransaction(): no info registered for transactionId="
+                    + transactionId);
+        }
+    }
+
+    private void onNoOpNotificationLocal(short transactionId) {
+        if (VDBG) {
+            Log.v(TAG, "onNoOpNotificationLocal: transactionId=" + transactionId);
+        }
+
+        TransactionInfoBase info = getAndRemovePendingResponseTransactionInfo(transactionId);
+        if (info == null) {
+            Log.e(TAG, "onNoOpNotificationLocal(): no info registered for transactionId="
                     + transactionId);
         }
     }
