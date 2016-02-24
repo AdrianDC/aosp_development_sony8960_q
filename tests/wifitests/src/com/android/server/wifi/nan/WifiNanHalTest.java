@@ -576,7 +576,7 @@ public class WifiNanHalTest {
     }
 
     @Test
-    public void testClusterChange() throws JSONException {
+    public void testClusterJoined() throws JSONException {
         final byte[] mac = HexEncoding.decode("060504030201".toCharArray(), false);
 
         Bundle args = new Bundle();
@@ -586,6 +586,20 @@ public class WifiNanHalTest {
         WifiNanHalMock.callDiscEngEvent(HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onClusterChange(WifiNanClientState.CLUSTER_CHANGE_EVENT_JOINED,
+                mac);
+    }
+
+    @Test
+    public void testClusterStarted() throws JSONException {
+        final byte[] mac = HexEncoding.decode("0A0B0C0B0A00".toCharArray(), false);
+
+        Bundle args = new Bundle();
+        args.putInt("event_type", WifiNanNative.NAN_EVENT_ID_STARTED_CLUSTER);
+        args.putByteArray("data", mac);
+
+        WifiNanHalMock.callDiscEngEvent(HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager).onClusterChange(WifiNanClientState.CLUSTER_CHANGE_EVENT_STARTED,
                 mac);
     }
 
