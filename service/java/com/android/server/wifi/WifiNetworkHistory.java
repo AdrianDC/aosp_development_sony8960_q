@@ -502,7 +502,6 @@ public class WifiNetworkHistory {
                                     ScanDetail scanDetail = new ScanDetail(wssid, bssid,
                                             caps, rssi, freq, (long) 0, seen);
                                     getScanDetailCache(config, scanDetailCaches).put(scanDetail);
-                                    scanDetail.getScanResult().autoJoinStatus = status;
                                 }
                             }
                             break;

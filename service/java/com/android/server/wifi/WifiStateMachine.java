@@ -8233,10 +8233,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     // ASSOCIATING to a new BSSID while already connected, indicates
                     // that driver is roaming
                     mLastDriverRoamAttempt = System.currentTimeMillis();
-                    String toBSSID = (String)message.obj;
-                    if (toBSSID != null && !toBSSID.equals(mWifiInfo.getBSSID())) {
-                        mWifiConfigManager.driverRoamedFrom(mWifiInfo);
-                    }
                     return NOT_HANDLED;
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
                     long lastRoam = 0;
