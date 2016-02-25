@@ -1906,7 +1906,7 @@ static jboolean android_net_wifi_setPnoListNative(
         }
         int ssid_len = strnlen((const char*)ssid, 33);
         if (ssid_len > 32) {
-           ALOGE("Error setPnoListNative: long ssid %u", strnlen((const char*)ssid, 256));
+           ALOGE("Error setPnoListNative: long ssid %zu", strnlen((const char*)ssid, 256));
            return false;
         }
 

@@ -80,7 +80,8 @@ include $(CLEAR_VARS)
 
 LOCAL_REQUIRED_MODULES := libhardware_legacy
 
-LOCAL_CFLAGS += -Wno-unused-parameter -Wall -Werror
+LOCAL_CFLAGS += -Wall -Werror -Wno-unused-parameter -Wno-unused-function \
+                -Wno-unused-variable
 
 LOCAL_C_INCLUDES += \
 	$(JNI_H_INCLUDE) \
