@@ -1056,31 +1056,6 @@ public class WifiConfigManager {
         return result;
     }
 
-    /**
-     * Firmware is roaming away from this BSSID, and this BSSID was on 5GHz, and it's RSSI was good,
-     * this means we have a situation where we would want to remain on this BSSID but firmware
-     * is not successful at it.
-     * This situation is observed on a small number of Access Points, b/17960587
-     * In that situation, blacklist this BSSID really hard so as framework will not attempt to
-     * roam to it for the next 8 hours. We do not to keep flipping between 2.4 and 5GHz band..
-     * TODO: review the blacklisting strategy so as to make it softer and adaptive
-     * @param info
-     */
-    void driverRoamedFrom(WifiInfo info) {
-        if (info != null && info.getBSSID() != null && ScanResult.is5GHz(info.getFrequency())
-                && info.getRssi() > (thresholdSaturatedRssi5.get())) {
-            WifiConfiguration config = getWifiConfiguration(info.getNetworkId());
-            if (config != null) {
-                if (getScanDetailCache(config) != null) {
-                    ScanResult result = getScanDetailCache(config).get(info.getBSSID());
-                    if (result != null) {
-                        result.setAutoJoinStatus(ScanResult.AUTO_ROAM_DISABLED + 1);
-                    }
-                }
-            }
-        }
-    }
-
     void noteRoamingFailure(WifiConfiguration config, int reason) {
         if (config == null) return;
         config.lastRoamingFailure = System.currentTimeMillis();
@@ -3317,7 +3292,6 @@ public class WifiConfigManager {
         ScanResult result = scanDetailCache.get(scanResult.BSSID);
         if (result != null) {
             // transfer the black list status
-            scanResult.autoJoinStatus = result.autoJoinStatus;
             scanResult.blackListTimestamp = result.blackListTimestamp;
             scanResult.numIpConfigFailures = result.numIpConfigFailures;
             scanResult.numConnection = result.numConnection;
