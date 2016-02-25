@@ -4,7 +4,6 @@ import android.util.Base64;
 import android.util.Log;
 
 import com.android.server.wifi.ScanDetail;
-import com.android.server.wifi.WifiConfigManager;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.anqp.ANQPElement;
 import com.android.server.wifi.anqp.ANQPFactory;
@@ -30,7 +29,7 @@ import java.util.Map;
 
 public class SupplicantBridge {
     private final WifiNative mSupplicantHook;
-    private final WifiConfigManager mConfigStore;
+    private final SupplicantBridgeCallbacks mCallbacks;
     private final Map<Long, ScanDetail> mRequestMap = new HashMap<>();
 
     private static final int IconChunkSize = 1400;  // 2K*3/4 - overhead
@@ -52,14 +51,34 @@ public class SupplicantBridge {
         sWpsNames.put("hs20_osu_providers_list", Constants.ANQPElementType.HSOSUProviders);
     }
 
+    /**
+     * Interface to be implemented by the client to receive callbacks from SupplicantBridge.
+     */
+    public interface SupplicantBridgeCallbacks {
+        /**
+         * Response from supplicant bridge for the initiated request.
+         * @param scanDetail
+         * @param anqpElements
+         */
+        void notifyANQPResponse(
+                ScanDetail scanDetail,
+                Map<Constants.ANQPElementType, ANQPElement> anqpElements);
+
+        /**
+         * Notify failure.
+         * @param bssid
+         */
+        void notifyIconFailed(long bssid);
+    }
+
     public static boolean isAnqpAttribute(String line) {
         int split = line.indexOf('=');
         return split >= 0 && sWpsNames.containsKey(line.substring(0, split));
     }
 
-    public SupplicantBridge(WifiNative supplicantHook, WifiConfigManager configStore) {
+    public SupplicantBridge(WifiNative supplicantHook, SupplicantBridgeCallbacks callbacks) {
         mSupplicantHook = supplicantHook;
-        mConfigStore = configStore;
+        mCallbacks = callbacks;
     }
 
     public static Map<Constants.ANQPElementType, ANQPElement> parseANQPLines(List<String> lines) {
@@ -161,7 +180,7 @@ public class SupplicantBridge {
 
         if (scanDetail == null) {
             if (!success) {
-                mConfigStore.notifyIconFailed(bssid);
+                mCallbacks.notifyIconFailed(bssid);
             }
             return;
         }
@@ -171,7 +190,7 @@ public class SupplicantBridge {
             Map<Constants.ANQPElementType, ANQPElement> elements = parseWPSData(bssData);
             Log.d(Utils.hs2LogTag(getClass()), String.format("%s ANQP response for %012x: %s",
                     success ? "successful" : "failed", bssid, elements));
-            mConfigStore.notifyANQPResponse(scanDetail, success ? elements : null);
+            mCallbacks.notifyANQPResponse(scanDetail, success ? elements : null);
         }
         catch (IOException ioe) {
             Log.e(Utils.hs2LogTag(getClass()), "Failed to parse ANQP: " +
@@ -181,7 +200,7 @@ public class SupplicantBridge {
             Log.e(Utils.hs2LogTag(getClass()), "Failed to parse ANQP: " +
                     rte.toString() + ": " + bssData, rte);
         }
-        mConfigStore.notifyANQPResponse(scanDetail, null);
+        mCallbacks.notifyANQPResponse(scanDetail, null);
     }
 
     private static String escapeSSID(NetworkDetail networkDetail) {
