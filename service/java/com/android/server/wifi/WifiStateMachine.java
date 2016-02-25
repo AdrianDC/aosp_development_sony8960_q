@@ -3163,8 +3163,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 if (report != null) {
                     sb.append(" ").append(report);
                 }
-                if (wifiScoringReport != null) {
-                    sb.append(wifiScoringReport);
+                if (mWifiScoreReport != null) {
+                    sb.append(mWifiScoreReport.getReport());
                 }
                 if (mConnectedModeGScanOffloadStarted) {
                     sb.append(" offload-started periodMilli " + mGScanPeriodMilli);
@@ -4130,259 +4130,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         mWifiInfo.txSuccessRate = 0;
         mWifiInfo.txRetriesRate = 0;
         mWifiInfo.rxSuccessRate = 0;
+        mWifiScoreReport = null;
     }
 
-    int mBadLinkspeedcount = 0;
-
-    // For debug, provide information about the last scoring operation
-    String wifiScoringReport = null;
-
-    private void calculateWifiScore(WifiLinkLayerStats stats) {
-        StringBuilder sb = new StringBuilder();
-
-        int score = 56; // Starting score, temporarily hardcoded in between 50 and 60
-        boolean isBadLinkspeed = (mWifiInfo.is24GHz()
-                && mWifiInfo.getLinkSpeed() < mWifiConfigManager.badLinkSpeed24)
-                || (mWifiInfo.is5GHz() && mWifiInfo.getLinkSpeed()
-                < mWifiConfigManager.badLinkSpeed5);
-        boolean isGoodLinkspeed = (mWifiInfo.is24GHz()
-                && mWifiInfo.getLinkSpeed() >= mWifiConfigManager.goodLinkSpeed24)
-                || (mWifiInfo.is5GHz() && mWifiInfo.getLinkSpeed()
-                >= mWifiConfigManager.goodLinkSpeed5);
-
-        if (isBadLinkspeed) {
-            if (mBadLinkspeedcount < 6)
-                mBadLinkspeedcount++;
-        } else {
-            if (mBadLinkspeedcount > 0)
-                mBadLinkspeedcount--;
-        }
-
-        if (isBadLinkspeed) sb.append(" bl(").append(mBadLinkspeedcount).append(")");
-        if (isGoodLinkspeed) sb.append(" gl");
-
-        /**
-         * We want to make sure that we use the 24GHz RSSI thresholds if
-         * there are 2.4GHz scan results
-         * otherwise we end up lowering the score based on 5GHz values
-         * which may cause a switch to LTE before roaming has a chance to try 2.4GHz
-         * We also might unblacklist the configuation based on 2.4GHz
-         * thresholds but joining 5GHz anyhow, and failing over to 2.4GHz because 5GHz is not good
-         */
-        boolean use24Thresholds = false;
-        boolean homeNetworkBoost = false;
-        WifiConfiguration currentConfiguration = getCurrentWifiConfiguration();
-        ScanDetailCache scanDetailCache =
-                mWifiConfigManager.getScanDetailCache(currentConfiguration);
-        if (currentConfiguration != null && scanDetailCache != null) {
-            currentConfiguration.setVisibility(scanDetailCache.getVisibility(12000));
-            if (currentConfiguration.visibility != null) {
-                if (currentConfiguration.visibility.rssi24 != WifiConfiguration.INVALID_RSSI
-                        && currentConfiguration.visibility.rssi24
-                        >= (currentConfiguration.visibility.rssi5 - 2)) {
-                    use24Thresholds = true;
-                }
-            }
-            if (scanDetailCache.size() <= 6
-                && currentConfiguration.allowedKeyManagement.cardinality() == 1
-                && currentConfiguration.allowedKeyManagement.
-                    get(WifiConfiguration.KeyMgmt.WPA_PSK) == true) {
-                // A PSK network with less than 6 known BSSIDs
-                // This is most likely a home network and thus we want to stick to wifi more
-                homeNetworkBoost = true;
-            }
-        }
-        if (homeNetworkBoost) sb.append(" hn");
-        if (use24Thresholds) sb.append(" u24");
-
-        int rssi = mWifiInfo.getRssi() - 6 * mAggressiveHandover
-                + (homeNetworkBoost ? WifiConfiguration.HOME_NETWORK_RSSI_BOOST : 0);
-        sb.append(String.format(" rssi=%d ag=%d", rssi, mAggressiveHandover));
-
-        boolean is24GHz = use24Thresholds || mWifiInfo.is24GHz();
-
-        boolean isBadRSSI = (is24GHz && rssi < mWifiConfigManager.thresholdMinimumRssi24.get())
-                || (!is24GHz && rssi < mWifiConfigManager.thresholdMinimumRssi5.get());
-        boolean isLowRSSI = (is24GHz && rssi < mWifiConfigManager.thresholdQualifiedRssi24.get())
-                || (!is24GHz &&
-                    mWifiInfo.getRssi() < mWifiConfigManager.thresholdMinimumRssi5.get());
-        boolean isHighRSSI = (is24GHz && rssi >= mWifiConfigManager.thresholdSaturatedRssi24.get())
-                || (!is24GHz && mWifiInfo.getRssi()
-                >= mWifiConfigManager.thresholdSaturatedRssi5.get());
-
-        if (isBadRSSI) sb.append(" br");
-        if (isLowRSSI) sb.append(" lr");
-        if (isHighRSSI) sb.append(" hr");
-
-        int penalizedDueToUserTriggeredDisconnect = 0;        // For debug information
-        if (currentConfiguration != null &&
-                (mWifiInfo.txSuccessRate > 5 || mWifiInfo.rxSuccessRate > 5)) {
-            if (isBadRSSI) {
-                currentConfiguration.numTicksAtBadRSSI++;
-                if (currentConfiguration.numTicksAtBadRSSI > 1000) {
-                    // We remained associated for a compound amount of time while passing
-                    // traffic, hence loose the corresponding user triggered disabled stats
-                    if (currentConfiguration.numUserTriggeredWifiDisableBadRSSI > 0) {
-                        currentConfiguration.numUserTriggeredWifiDisableBadRSSI--;
-                    }
-                    if (currentConfiguration.numUserTriggeredWifiDisableLowRSSI > 0) {
-                        currentConfiguration.numUserTriggeredWifiDisableLowRSSI--;
-                    }
-                    if (currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI > 0) {
-                        currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI--;
-                    }
-                    currentConfiguration.numTicksAtBadRSSI = 0;
-                }
-                if (mWifiConfigManager.enableWifiCellularHandoverUserTriggeredAdjustment &&
-                        (currentConfiguration.numUserTriggeredWifiDisableBadRSSI > 0
-                                || currentConfiguration.numUserTriggeredWifiDisableLowRSSI > 0
-                                || currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI > 0)) {
-                    score = score - 5;
-                    penalizedDueToUserTriggeredDisconnect = 1;
-                    sb.append(" p1");
-                }
-            } else if (isLowRSSI) {
-                currentConfiguration.numTicksAtLowRSSI++;
-                if (currentConfiguration.numTicksAtLowRSSI > 1000) {
-                    // We remained associated for a compound amount of time while passing
-                    // traffic, hence loose the corresponding user triggered disabled stats
-                    if (currentConfiguration.numUserTriggeredWifiDisableLowRSSI > 0) {
-                        currentConfiguration.numUserTriggeredWifiDisableLowRSSI--;
-                    }
-                    if (currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI > 0) {
-                        currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI--;
-                    }
-                    currentConfiguration.numTicksAtLowRSSI = 0;
-                }
-                if (mWifiConfigManager.enableWifiCellularHandoverUserTriggeredAdjustment &&
-                        (currentConfiguration.numUserTriggeredWifiDisableLowRSSI > 0
-                                || currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI > 0)) {
-                    score = score - 5;
-                    penalizedDueToUserTriggeredDisconnect = 2;
-                    sb.append(" p2");
-                }
-            } else if (!isHighRSSI) {
-                currentConfiguration.numTicksAtNotHighRSSI++;
-                if (currentConfiguration.numTicksAtNotHighRSSI > 1000) {
-                    // We remained associated for a compound amount of time while passing
-                    // traffic, hence loose the corresponding user triggered disabled stats
-                    if (currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI > 0) {
-                        currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI--;
-                    }
-                    currentConfiguration.numTicksAtNotHighRSSI = 0;
-                }
-                if (mWifiConfigManager.enableWifiCellularHandoverUserTriggeredAdjustment &&
-                        currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI > 0) {
-                    score = score - 5;
-                    penalizedDueToUserTriggeredDisconnect = 3;
-                    sb.append(" p3");
-                }
-            }
-            sb.append(String.format(" ticks %d,%d,%d", currentConfiguration.numTicksAtBadRSSI,
-                    currentConfiguration.numTicksAtLowRSSI,
-                    currentConfiguration.numTicksAtNotHighRSSI));
-        }
-
-        if (PDBG) {
-            String rssiStatus = "";
-            if (isBadRSSI) rssiStatus += " badRSSI ";
-            else if (isHighRSSI) rssiStatus += " highRSSI ";
-            else if (isLowRSSI) rssiStatus += " lowRSSI ";
-            if (isBadLinkspeed) rssiStatus += " lowSpeed ";
-            logd("calculateWifiScore freq=" + Integer.toString(mWifiInfo.getFrequency())
-                    + " speed=" + Integer.toString(mWifiInfo.getLinkSpeed())
-                    + " score=" + Integer.toString(mWifiInfo.score)
-                    + rssiStatus
-                    + " -> txbadrate=" + String.format("%.2f", mWifiInfo.txBadRate)
-                    + " txgoodrate=" + String.format("%.2f", mWifiInfo.txSuccessRate)
-                    + " txretriesrate=" + String.format("%.2f", mWifiInfo.txRetriesRate)
-                    + " rxrate=" + String.format("%.2f", mWifiInfo.rxSuccessRate)
-                    + " userTriggerdPenalty" + penalizedDueToUserTriggeredDisconnect);
-        }
-
-        if ((mWifiInfo.txBadRate >= 1) && (mWifiInfo.txSuccessRate < 3)
-                && (isBadRSSI || isLowRSSI)) {
-            // Link is stuck
-            if (mWifiInfo.linkStuckCount < 5)
-                mWifiInfo.linkStuckCount += 1;
-            sb.append(String.format(" ls+=%d", mWifiInfo.linkStuckCount));
-            if (PDBG) logd(" bad link -> stuck count ="
-                    + Integer.toString(mWifiInfo.linkStuckCount));
-        } else if (mWifiInfo.txBadRate < 0.3) {
-            if (mWifiInfo.linkStuckCount > 0)
-                mWifiInfo.linkStuckCount -= 1;
-            sb.append(String.format(" ls-=%d", mWifiInfo.linkStuckCount));
-            if (PDBG) logd(" good link -> stuck count ="
-                    + Integer.toString(mWifiInfo.linkStuckCount));
-        }
-
-        sb.append(String.format(" [%d", score));
-
-        if (mWifiInfo.linkStuckCount > 1) {
-            // Once link gets stuck for more than 3 seconds, start reducing the score
-            score = score - 2 * (mWifiInfo.linkStuckCount - 1);
-        }
-        sb.append(String.format(",%d", score));
-
-        if (isBadLinkspeed) {
-            score -= 4;
-            if (PDBG) {
-                logd(" isBadLinkspeed   ---> count=" + mBadLinkspeedcount
-                        + " score=" + Integer.toString(score));
-            }
-        } else if ((isGoodLinkspeed) && (mWifiInfo.txSuccessRate > 5)) {
-            score += 4; // So as bad rssi alone dont kill us
-        }
-        sb.append(String.format(",%d", score));
-
-        if (isBadRSSI) {
-            if (mWifiInfo.badRssiCount < 7)
-                mWifiInfo.badRssiCount += 1;
-        } else if (isLowRSSI) {
-            mWifiInfo.lowRssiCount = 1; // Dont increment the lowRssi count above 1
-            if (mWifiInfo.badRssiCount > 0) {
-                // Decrement bad Rssi count
-                mWifiInfo.badRssiCount -= 1;
-            }
-        } else {
-            mWifiInfo.badRssiCount = 0;
-            mWifiInfo.lowRssiCount = 0;
-        }
-
-        score -= mWifiInfo.badRssiCount * 2 + mWifiInfo.lowRssiCount;
-        sb.append(String.format(",%d", score));
-
-        if (PDBG) logd(" badRSSI count" + Integer.toString(mWifiInfo.badRssiCount)
-                + " lowRSSI count" + Integer.toString(mWifiInfo.lowRssiCount)
-                + " --> score " + Integer.toString(score));
-
-
-        if (isHighRSSI) {
-            score += 5;
-            if (PDBG) logd(" isHighRSSI       ---> score=" + Integer.toString(score));
-        }
-        sb.append(String.format(",%d]", score));
-
-        sb.append(String.format(" brc=%d lrc=%d", mWifiInfo.badRssiCount, mWifiInfo.lowRssiCount));
-
-        //sanitize boundaries
-        if (score > NetworkAgent.WIFI_BASE_SCORE)
-            score = NetworkAgent.WIFI_BASE_SCORE;
-        if (score < 0)
-            score = 0;
-
-        //report score
-        if (score != mWifiInfo.score) {
-            if (DBG) {
-                logd("calculateWifiScore() report new score " + Integer.toString(score));
-            }
-            mWifiInfo.score = score;
-            if (mNetworkAgent != null) {
-                mNetworkAgent.sendNetworkScore(score);
-            }
-        }
-        wifiScoringReport = sb.toString();
-    }
+    // Object holding most recent wifi score report and bad Linkspeed count
+    WifiScoreReport mWifiScoreReport = null;
 
     public double getTxPacketRate() {
         if (mWifiInfo != null) {
@@ -4725,7 +4477,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         stopIpManager();
 
         /* Reset data structures */
-        mBadLinkspeedcount = 0;
+        mWifiScoreReport = null;
         mWifiInfo.reset();
         linkDebouncing = false;
         /* Reset roaming parameters */
@@ -6441,7 +6193,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 config.getNetworkSelectionStatus().clearDisableReasonCounter();
                 config.numAssociation++;
             }
-            mBadLinkspeedcount = 0;
+            // On connect, reset wifiScoreReport
+            mWifiScoreReport = null;
        }
     }
 
@@ -7948,7 +7701,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                             }
                             // Get Info and continue polling
                             fetchRssiLinkSpeedAndFrequencyNative();
-                            calculateWifiScore(stats);
+                            mWifiScoreReport =
+                                    WifiScoreReport.calculateScore(mWifiInfo,
+                                                                   getCurrentWifiConfiguration(),
+                                                                   mWifiConfigManager,
+                                                                   mNetworkAgent,
+                                                                   mWifiScoreReport,
+                                                                   mAggressiveHandover);
                         }
                         sendMessageDelayed(obtainMessage(CMD_RSSI_POLL,
                                 mRssiPollToken, 0), POLL_RSSI_INTERVAL_MSECS);
