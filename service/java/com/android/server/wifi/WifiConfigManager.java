@@ -206,75 +206,6 @@ public class WifiConfigManager {
     private static final String ipConfigFile = Environment.getDataDirectory() +
             "/misc/wifi/ipconfig.txt";
 
-    private static final String autoJoinConfigFile = Environment.getDataDirectory() +
-            "/misc/wifi/autojoinconfig.txt";
-
-    private static final String THRESHOLD_GOOD_RSSI_5_KEY
-            = "THRESHOLD_GOOD_RSSI_5";
-    private static final String THRESHOLD_LOW_RSSI_5_KEY
-            = "THRESHOLD_LOW_RSSI_5";
-    private static final String THRESHOLD_BAD_RSSI_5_KEY
-            = "THRESHOLD_BAD_RSSI_5";
-    private static final String THRESHOLD_GOOD_RSSI_24_KEY
-            = "THRESHOLD_GOOD_RSSI_24";
-    private static final String THRESHOLD_LOW_RSSI_24_KEY
-            = "THRESHOLD_LOW_RSSI_24";
-    private static final String THRESHOLD_BAD_RSSI_24_KEY
-            = "THRESHOLD_BAD_RSSI_24";
-    private static final String THRESHOLD_MAX_TX_PACKETS_FOR_NETWORK_SWITCHING_KEY
-            = "THRESHOLD_MAX_TX_PACKETS_FOR_NETWORK_SWITCHING";
-    private static final String THRESHOLD_MAX_RX_PACKETS_FOR_NETWORK_SWITCHING_KEY
-            = "THRESHOLD_MAX_RX_PACKETS_FOR_NETWORK_SWITCHING";
-
-    private static final String THRESHOLD_MAX_TX_PACKETS_FOR_FULL_SCANS_KEY
-            = "THRESHOLD_MAX_TX_PACKETS_FOR_FULL_SCANS";
-    private static final String THRESHOLD_MAX_RX_PACKETS_FOR_FULL_SCANS_KEY
-            = "THRESHOLD_MAX_RX_PACKETS_FOR_FULL_SCANS";
-
-    private static final String THRESHOLD_MAX_TX_PACKETS_FOR_PARTIAL_SCANS_KEY
-            = "THRESHOLD_MAX_TX_PACKETS_FOR_PARTIAL_SCANS";
-    private static final String THRESHOLD_MAX_RX_PACKETS_FOR_PARTIAL_SCANS_KEY
-            = "THRESHOLD_MAX_RX_PACKETS_FOR_PARTIAL_SCANS";
-
-    private static final String MAX_NUM_ACTIVE_CHANNELS_FOR_PARTIAL_SCANS_KEY
-            = "MAX_NUM_ACTIVE_CHANNELS_FOR_PARTIAL_SCANS";
-    private static final String MAX_NUM_PASSIVE_CHANNELS_FOR_PARTIAL_SCANS_KEY
-            = "MAX_NUM_PASSIVE_CHANNELS_FOR_PARTIAL_SCANS";
-
-    private static final String A_BAND_PREFERENCE_RSSI_THRESHOLD_LOW_KEY =
-            "A_BAND_PREFERENCE_RSSI_THRESHOLD_LOW";
-    private static final String A_BAND_PREFERENCE_RSSI_THRESHOLD_KEY =
-            "A_BAND_PREFERENCE_RSSI_THRESHOLD";
-    private static final String G_BAND_PREFERENCE_RSSI_THRESHOLD_KEY =
-            "G_BAND_PREFERENCE_RSSI_THRESHOLD";
-
-    private static final String ENABLE_AUTOJOIN_WHILE_ASSOCIATED_KEY
-            = "ENABLE_AUTOJOIN_WHILE_ASSOCIATED:   ";
-
-    private static final String ASSOCIATED_PARTIAL_SCAN_PERIOD_KEY
-            = "ASSOCIATED_PARTIAL_SCAN_PERIOD";
-    private static final String ASSOCIATED_FULL_SCAN_BACKOFF_KEY
-            = "ASSOCIATED_FULL_SCAN_BACKOFF_PERIOD";
-    private static final String ALWAYS_ENABLE_SCAN_WHILE_ASSOCIATED_KEY
-            = "ALWAYS_ENABLE_SCAN_WHILE_ASSOCIATED";
-    private static final String ONLY_LINK_SAME_CREDENTIAL_CONFIGURATIONS_KEY
-            = "ONLY_LINK_SAME_CREDENTIAL_CONFIGURATIONS";
-
-    private static final String ENABLE_FULL_BAND_SCAN_WHEN_ASSOCIATED_KEY
-            = "ENABLE_FULL_BAND_SCAN_WHEN_ASSOCIATED";
-
-    private static final String ENABLE_HAL_BASED_PNO
-            = "ENABLE_HAL_BASED_PNO";
-
-    // The three below configurations are mainly for power stats and CPU usage tracking
-    // allowing to incrementally disable framework features
-    private static final String ENABLE_AUTO_JOIN_WHILE_ASSOCIATED_KEY
-            = "ENABLE_AUTO_JOIN_WHILE_ASSOCIATED";
-    private static final String ENABLE_CHIP_WAKE_UP_WHILE_ASSOCIATED_KEY
-            = "ENABLE_CHIP_WAKE_UP_WHILE_ASSOCIATED";
-    private static final String ENABLE_RSSI_POLL_WHILE_ASSOCIATED_KEY
-            = "ENABLE_RSSI_POLL_WHILE_ASSOCIATED_KEY";
-
     // This is the only variable whose contents will not be interpreted by wpa_supplicant. We use it
     // to store metadata that allows us to correlate a wpa_supplicant.conf entry with additional
     // information about the same network stored in other files. The metadata is stored as a
@@ -400,7 +331,6 @@ public class WifiConfigManager {
             WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD);
     public AtomicInteger bandAward5Ghz = new AtomicInteger(
             WifiQualifiedNetworkSelector.BAND_AWARD_5GHz);
-    private static final Map<String, Object> sKeyMap = new HashMap<>();
 
     /**
      * Regex pattern for extracting a connect choice.
@@ -574,38 +504,6 @@ public class WifiConfigManager {
         mClock = clock;
         mWifiNative = wn;
         mWifiStateMachine = w;
-
-        // A map for value setting in readAutoJoinConfig() - replacing the replicated code.
-        sKeyMap.put(ENABLE_AUTO_JOIN_WHILE_ASSOCIATED_KEY, enableAutoJoinWhenAssociated);
-        sKeyMap.put(ENABLE_FULL_BAND_SCAN_WHEN_ASSOCIATED_KEY, enableFullBandScanWhenAssociated);
-        sKeyMap.put(ENABLE_CHIP_WAKE_UP_WHILE_ASSOCIATED_KEY, enableChipWakeUpWhenAssociated);
-        sKeyMap.put(ENABLE_RSSI_POLL_WHILE_ASSOCIATED_KEY, enableRssiPollWhenAssociated);
-        sKeyMap.put(THRESHOLD_GOOD_RSSI_5_KEY, thresholdSaturatedRssi5);
-        sKeyMap.put(THRESHOLD_LOW_RSSI_5_KEY, thresholdQualifiedRssi5);
-        sKeyMap.put(THRESHOLD_BAD_RSSI_5_KEY, thresholdMinimumRssi5);
-        sKeyMap.put(THRESHOLD_GOOD_RSSI_24_KEY, thresholdSaturatedRssi24);
-        sKeyMap.put(THRESHOLD_LOW_RSSI_24_KEY, thresholdQualifiedRssi24);
-        sKeyMap.put(THRESHOLD_BAD_RSSI_24_KEY, thresholdMinimumRssi24);
-        sKeyMap.put(THRESHOLD_MAX_TX_PACKETS_FOR_NETWORK_SWITCHING_KEY,
-                maxTxPacketForNetworkSwitching);
-        sKeyMap.put(THRESHOLD_MAX_RX_PACKETS_FOR_NETWORK_SWITCHING_KEY,
-                maxRxPacketForNetworkSwitching);
-        sKeyMap.put(THRESHOLD_MAX_TX_PACKETS_FOR_FULL_SCANS_KEY, maxTxPacketForNetworkSwitching);
-        sKeyMap.put(THRESHOLD_MAX_RX_PACKETS_FOR_FULL_SCANS_KEY, maxRxPacketForNetworkSwitching);
-        sKeyMap.put(THRESHOLD_MAX_TX_PACKETS_FOR_PARTIAL_SCANS_KEY, maxTxPacketForNetworkSwitching);
-        sKeyMap.put(THRESHOLD_MAX_RX_PACKETS_FOR_PARTIAL_SCANS_KEY, maxRxPacketForNetworkSwitching);
-        sKeyMap.put(WIFI_VERBOSE_LOGS_KEY, enableVerboseLogging);
-        sKeyMap.put(ASSOCIATED_PARTIAL_SCAN_PERIOD_KEY, wifiAssociatedShortScanIntervalMilli);
-        sKeyMap.put(ASSOCIATED_PARTIAL_SCAN_PERIOD_KEY, wifiAssociatedShortScanIntervalMilli);
-
-        sKeyMap.put(ASSOCIATED_FULL_SCAN_BACKOFF_KEY, associatedFullScanBackoff);
-        sKeyMap.put(ALWAYS_ENABLE_SCAN_WHILE_ASSOCIATED_KEY, alwaysEnableScansWhileAssociated);
-        sKeyMap.put(MAX_NUM_PASSIVE_CHANNELS_FOR_PARTIAL_SCANS_KEY,
-                maxNumPassiveChannelsForPartialScans);
-        sKeyMap.put(MAX_NUM_ACTIVE_CHANNELS_FOR_PARTIAL_SCANS_KEY,
-                maxNumActiveChannelsForPartialScans);
-        sKeyMap.put(ENABLE_HAL_BASED_PNO, enableHalBasedPno);
-        sKeyMap.put(ENABLE_HAL_BASED_PNO, enableSsidWhitelist);
 
         if (showNetworks) {
             mLocalLog = mWifiNative.getLocalLog();
@@ -2321,7 +2219,6 @@ public class WifiConfigManager {
         }
 
         readIpAndProxyConfigurations();
-        readAutoJoinConfig();
 
         sendConfiguredNetworksChangedBroadcast();
 
@@ -2602,42 +2499,6 @@ public class WifiConfigManager {
                 && config != null
                 && lastSelectedConfiguration.equals(config.configKey()));
     }
-
-    private void readAutoJoinConfig() {
-        try (BufferedReader reader = new BufferedReader(new FileReader(autoJoinConfigFile))) {
-            for (String key = reader.readLine(); key != null; key = reader.readLine()) {
-                Log.d(TAG, "readAutoJoinConfig line: " + key);
-
-                int split = key.indexOf(':');
-                if (split < 0) {
-                    continue;
-                }
-
-                String name = key.substring(0, split);
-                Object reference = sKeyMap.get(name);
-                if (reference == null) {
-                    continue;
-                }
-
-                try {
-                    int value = Integer.parseInt(key.substring(split+1).trim());
-                    if (reference.getClass() == AtomicBoolean.class) {
-                        ((AtomicBoolean)reference).set(value != 0);
-                    }
-                    else {
-                        ((AtomicInteger)reference).set(value);
-                    }
-                    Log.d(TAG,"readAutoJoinConfig: " + name + " = " + value);
-                }
-                catch (NumberFormatException nfe) {
-                    Log.d(TAG,"readAutoJoinConfig: incorrect format :" + key);
-                }
-            }
-        } catch (IOException e) {
-            loge("readNetworkSelectionStatus: Error parsing configuration" + e);
-        }
-    }
-
 
     private void writeIpAndProxyConfigurations() {
         final SparseArray<IpConfiguration> networks = new SparseArray<IpConfiguration>();
