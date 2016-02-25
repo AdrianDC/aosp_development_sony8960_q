@@ -19,7 +19,6 @@ package com.android.server.wifi.nan;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.PublishConfig;
@@ -381,7 +380,6 @@ public class WifiNanHalTest {
     @Test
     public void testNotifyResponsePublishCancel() throws JSONException {
         final short transactionId = 23;
-        final int publishId = 127;
 
         Bundle args = new Bundle();
         args.putInt("status", WifiNanNative.NAN_STATUS_SUCCESS);
@@ -391,7 +389,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verifyZeroInteractions(mNanStateManager);
+        verify(mNanStateManager).onNoOpTransaction(transactionId);
     }
 
     @Test
@@ -432,17 +430,16 @@ public class WifiNanHalTest {
     @Test
     public void testNotifyResponseSubscribeCancel() throws JSONException {
         final short transactionId = 23;
-        final int subscribeId = 127;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_SUCCESS);
+        args.putInt("status", WifiNanNative.NAN_STATUS_DE_FAILURE);
         args.putInt("value", 0);
         args.putInt("response_type", WifiNanNative.NAN_RESPONSE_SUBSCRIBE_CANCEL);
 
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verifyZeroInteractions(mNanStateManager);
+        verify(mNanStateManager).onNoOpTransaction(transactionId);
     }
 
     @Test
@@ -474,6 +471,23 @@ public class WifiNanHalTest {
 
         verify(mNanStateManager).onMessageSendFail(transactionId,
                 WifiNanSessionCallback.FAIL_REASON_OTHER);
+    }
+
+    @Test
+    public void testNotifyResponseUnknown() throws JSONException {
+        final int invalidTransactionId = 99999;
+        final short transactionId = 46;
+
+        Bundle args = new Bundle();
+        args.putInt("status", WifiNanNative.NAN_STATUS_SUCCESS);
+        args.putInt("value", 0);
+        args.putInt("response_type", invalidTransactionId);
+
+        WifiNanHalMock.callNotifyResponse(transactionId,
+                HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager).onUnknownTransaction(invalidTransactionId, transactionId,
+                WifiNanNative.NAN_STATUS_SUCCESS);
     }
 
     @Test
@@ -562,7 +576,7 @@ public class WifiNanHalTest {
     }
 
     @Test
-    public void testClusterChange() throws JSONException {
+    public void testClusterJoined() throws JSONException {
         final byte[] mac = HexEncoding.decode("060504030201".toCharArray(), false);
 
         Bundle args = new Bundle();
@@ -572,6 +586,20 @@ public class WifiNanHalTest {
         WifiNanHalMock.callDiscEngEvent(HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onClusterChange(WifiNanClientState.CLUSTER_CHANGE_EVENT_JOINED,
+                mac);
+    }
+
+    @Test
+    public void testClusterStarted() throws JSONException {
+        final byte[] mac = HexEncoding.decode("0A0B0C0B0A00".toCharArray(), false);
+
+        Bundle args = new Bundle();
+        args.putInt("event_type", WifiNanNative.NAN_EVENT_ID_STARTED_CLUSTER);
+        args.putByteArray("data", mac);
+
+        WifiNanHalMock.callDiscEngEvent(HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager).onClusterChange(WifiNanClientState.CLUSTER_CHANGE_EVENT_STARTED,
                 mac);
     }
 

@@ -71,6 +71,7 @@ public class WifiNanStateManager {
     private static final int MESSAGE_ON_MATCH = 25;
     private static final int MESSAGE_ON_MESSAGE_RECEIVED = 26;
     private static final int MESSAGE_ON_CAPABILITIES_UPDATED = 27;
+    private static final int MESSAGE_ON_NO_OP_TRANSACTION = 28;
 
     private static final String MESSAGE_BUNDLE_KEY_SESSION_ID = "session_id";
     private static final String MESSAGE_BUNDLE_KEY_EVENTS = "events";
@@ -334,6 +335,19 @@ public class WifiNanStateManager {
     }
 
     /**
+     * Place a callback request on the handler queue: HAL callback with a NOP
+     * operation - the only purpose is to clean-up the state of the pending
+     * transaction ID.
+     *
+     * @param transactionId Transaction ID of the operation to be cleaned-up.
+     */
+    public void onNoOpTransaction(short transactionId) {
+        Message msg = mHandler.obtainMessage(MESSAGE_ON_NO_OP_TRANSACTION);
+        msg.arg1 = transactionId;
+        mHandler.sendMessage(msg);
+    }
+
+    /**
      * Place a callback request on the handler queue: HAL callback with an
      * unknown transaction type.
      */
@@ -564,6 +578,9 @@ public class WifiNanStateManager {
                             msg.getData().getInt(MESSAGE_BUNDLE_KEY_RESPONSE_TYPE),
                             (short) msg.arg1, msg.arg2);
                     break;
+                case MESSAGE_ON_NO_OP_TRANSACTION:
+                    onNoOpNotificationLocal((short) msg.arg1);
+                    break;
                 case MESSAGE_ON_MATCH: {
                     int pubSubId = msg.arg1;
                     int requestorInstanceId = msg.arg2;
@@ -627,22 +644,23 @@ public class WifiNanStateManager {
         mPendingResponses.put(info.mTransactionId, info);
     }
 
-    private void fillInTransactionInfoSession(TransactionInfoSession info, int clientId,
+    private boolean fillInTransactionInfoSession(TransactionInfoSession info, int clientId,
             int sessionId) {
         WifiNanClientState client = mClients.get(clientId);
         if (client == null) {
-            throw new IllegalStateException(
-                    "getAndRegisterTransactionId: no client exists for clientId=" + clientId);
+            Log.w(TAG, "getAndRegisterTransactionId: no client exists for clientId=" + clientId);
+            return false;
         }
         info.mClient = client;
 
         WifiNanSessionState session = info.mClient.getSession(sessionId);
         if (session == null) {
-            throw new IllegalStateException(
-                    "getAndRegisterSessionTransactionId: no session exists for clientId=" + clientId
-                            + ", sessionId=" + sessionId);
+            Log.w(TAG, "getAndRegisterSessionTransactionId: no session exists for clientId="
+                    + clientId + ", sessionId=" + sessionId);
+            return false;
         }
         info.mSession = session;
+        return true;
     }
 
     private TransactionInfoBase createTransactionInfo() {
@@ -653,7 +671,9 @@ public class WifiNanStateManager {
 
     private TransactionInfoSession createTransactionInfoSession(int clientId, int sessionId) {
         TransactionInfoSession info = new TransactionInfoSession();
-        fillInTransactionInfoSession(info, clientId, sessionId);
+        if (!fillInTransactionInfoSession(info, clientId, sessionId)) {
+            return null;
+        }
         allocateAndRegisterTransactionId(info);
         return info;
     }
@@ -661,7 +681,9 @@ public class WifiNanStateManager {
     private TransactionInfoMessage createTransactionInfoMessage(int clientId, int sessionId,
             int messageId) {
         TransactionInfoMessage info = new TransactionInfoMessage();
-        fillInTransactionInfoSession(info, clientId, sessionId);
+        if (!fillInTransactionInfoSession(info, clientId, sessionId)) {
+            return null;
+        }
         info.mMessageId = messageId;
         allocateAndRegisterTransactionId(info);
         return info;
@@ -826,6 +848,9 @@ public class WifiNanStateManager {
         }
 
         TransactionInfoSession info = createTransactionInfoSession(clientId, sessionId);
+        if (info == null) {
+            return;
+        }
 
         info.mSession.publish(info.mTransactionId, publishConfig);
     }
@@ -837,6 +862,9 @@ public class WifiNanStateManager {
         }
 
         TransactionInfoSession info = createTransactionInfoSession(clientId, sessionId);
+        if (info == null) {
+            return;
+        }
 
         info.mSession.subscribe(info.mTransactionId, subscribeConfig);
     }
@@ -851,6 +879,9 @@ public class WifiNanStateManager {
         }
 
         TransactionInfoMessage info = createTransactionInfoMessage(clientId, sessionId, messageId);
+        if (info == null) {
+            return;
+        }
 
         info.mSession.sendMessage(info.mTransactionId, peerId, message, messageLength, messageId);
     }
@@ -861,6 +892,9 @@ public class WifiNanStateManager {
         }
 
         TransactionInfoSession info = createTransactionInfoSession(clientId, sessionId);
+        if (info == null) {
+            return;
+        }
 
         info.mSession.stop(info.mTransactionId);
     }
@@ -1145,6 +1179,18 @@ public class WifiNanStateManager {
         TransactionInfoBase info = getAndRemovePendingResponseTransactionInfo(transactionId);
         if (info == null) {
             Log.e(TAG, "onUnknownTransaction(): no info registered for transactionId="
+                    + transactionId);
+        }
+    }
+
+    private void onNoOpNotificationLocal(short transactionId) {
+        if (VDBG) {
+            Log.v(TAG, "onNoOpNotificationLocal: transactionId=" + transactionId);
+        }
+
+        TransactionInfoBase info = getAndRemovePendingResponseTransactionInfo(transactionId);
+        if (info == null) {
+            Log.e(TAG, "onNoOpNotificationLocal(): no info registered for transactionId="
                     + transactionId);
         }
     }

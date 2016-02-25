@@ -524,13 +524,14 @@ public class WifiNanNative {
                     "onNanNotifyResponse: transactionId=" + transactionId + ", responseType="
                     + responseType + ", status=" + status + ", value=" + value);
         }
+        WifiNanStateManager stateMgr = WifiNanStateManager.getInstance();
 
         switch (responseType) {
             case NAN_RESPONSE_ENABLED:
                 if (status == NAN_STATUS_SUCCESS) {
-                    WifiNanStateManager.getInstance().onConfigCompleted(transactionId);
+                    stateMgr.onConfigCompleted(transactionId);
                 } else {
-                    WifiNanStateManager.getInstance().onConfigFailed(transactionId,
+                    stateMgr.onConfigFailed(transactionId,
                             translateHalStatusToPublicStatus(status));
                 }
                 break;
@@ -539,12 +540,13 @@ public class WifiNanNative {
                     Log.e(TAG, "onNanNotifyResponse: NAN_RESPONSE_PUBLISH_CANCEL error - status="
                             + status + ", value=" + value);
                 }
+                stateMgr.onNoOpTransaction(transactionId);
                 break;
             case NAN_RESPONSE_TRANSMIT_FOLLOWUP:
                 if (status == NAN_STATUS_SUCCESS) {
-                    WifiNanStateManager.getInstance().onMessageSendSuccess(transactionId);
+                    stateMgr.onMessageSendSuccess(transactionId);
                 } else {
-                    WifiNanStateManager.getInstance().onMessageSendFail(transactionId,
+                    stateMgr.onMessageSendFail(transactionId,
                             translateHalStatusToPublicStatus(status));
                 }
                 break;
@@ -553,10 +555,10 @@ public class WifiNanNative {
                     Log.e(TAG, "onNanNotifyResponse: NAN_RESPONSE_PUBLISH_CANCEL error - status="
                             + status + ", value=" + value);
                 }
+                stateMgr.onNoOpTransaction(transactionId);
                 break;
             default:
-                WifiNanStateManager.getInstance().onUnknownTransaction(responseType, transactionId,
-                        translateHalStatusToPublicStatus(status));
+                stateMgr.onUnknownTransaction(responseType, transactionId, status);
                 break;
         }
     }
@@ -589,7 +591,7 @@ public class WifiNanNative {
                 break;
             default:
                 WifiNanStateManager.getInstance().onUnknownTransaction(responseType, transactionId,
-                        translateHalStatusToPublicStatus(status));
+                        status);
                 break;
         }
     }

@@ -64,6 +64,20 @@ public class WifiNanStateManagerTest {
     @Rule
     public ErrorCollector collector = new ErrorCollector();
 
+    private int mAllNanEventFlags = WifiNanEventCallback.FLAG_LISTEN_CONFIG_COMPLETED
+            | WifiNanEventCallback.FLAG_LISTEN_CONFIG_FAILED
+            | WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED
+            | WifiNanEventCallback.FLAG_LISTEN_NAN_DOWN;
+
+    private int mAllNanSessionEventFlags = WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_FAIL
+            | WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_TERMINATED
+            | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_FAIL
+            | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_TERMINATED
+            | WifiNanSessionCallback.FLAG_LISTEN_MATCH
+            | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_SUCCESS
+            | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_FAIL
+            | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_RECEIVED;
+
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
@@ -98,11 +112,7 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mMockNative);
 
-        mDut.connect(clientId, mockCallback,
-                WifiNanEventCallback.FLAG_LISTEN_CONFIG_COMPLETED
-                        | WifiNanEventCallback.FLAG_LISTEN_CONFIG_FAILED
-                        | WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED
-                        | WifiNanEventCallback.FLAG_LISTEN_NAN_DOWN);
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
         mDut.requestConfig(clientId, configRequest1);
         mMockLooper.dispatchAll();
 
@@ -201,17 +211,8 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mMockNative);
 
-        int allEvents = WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_MATCH
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_SUCCESS
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_RECEIVED;
-
         mDut.connect(clientId, null, 0);
-        mDut.createSession(clientId, sessionId, mockCallback, allEvents);
+        mDut.createSession(clientId, sessionId, mockCallback, mAllNanSessionEventFlags);
 
         // publish - fail
         mDut.publish(clientId, sessionId, publishConfig);
@@ -275,18 +276,9 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mMockNative);
 
-        int allEvents = WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_MATCH
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_SUCCESS
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_RECEIVED;
-
         mDut.connect(clientId, null, 0);
         mDut.createSession(clientId, sessionId, mockCallback,
-                allEvents & ~WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_FAIL
+                mAllNanSessionEventFlags & ~WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_FAIL
                         & ~WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_TERMINATED);
 
         // publish - fail
@@ -337,17 +329,8 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mMockNative);
 
-        int allEvents = WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_MATCH
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_SUCCESS
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_RECEIVED;
-
         mDut.connect(clientId, null, 0);
-        mDut.createSession(clientId, sessionId, mockCallback, allEvents);
+        mDut.createSession(clientId, sessionId, mockCallback, mAllNanSessionEventFlags);
 
         // subscribe - fail
         mDut.subscribe(clientId, sessionId, subscribeConfig);
@@ -412,18 +395,9 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mMockNative);
 
-        int allEvents = WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_MATCH
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_SUCCESS
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_RECEIVED;
-
         mDut.connect(clientId, null, 0);
         mDut.createSession(clientId, sessionId, mockCallback,
-                allEvents & ~WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_FAIL
+                mAllNanSessionEventFlags & ~WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_FAIL
                         & ~WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_TERMINATED);
 
         // subscribe - fail
@@ -478,17 +452,8 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mMockNative);
 
-        int allEvents = WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_MATCH
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_SUCCESS
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_RECEIVED;
-
         mDut.connect(clientId, null, 0);
-        mDut.createSession(clientId, sessionId, mockCallback, allEvents);
+        mDut.createSession(clientId, sessionId, mockCallback, mAllNanSessionEventFlags);
         mDut.subscribe(clientId, sessionId, subscribeConfig);
         mMockLooper.dispatchAll();
 
@@ -570,23 +535,9 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
-        int allEvents = WifiNanEventCallback.FLAG_LISTEN_CONFIG_COMPLETED
-                | WifiNanEventCallback.FLAG_LISTEN_CONFIG_FAILED
-                | WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED
-                | WifiNanEventCallback.FLAG_LISTEN_NAN_DOWN;
-
-        int allSessionEvents = WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_MATCH
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_SUCCESS
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_RECEIVED;
-
-        mDut.connect(clientId, mockCallback, allEvents);
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
         mDut.requestConfig(clientId, configRequest);
-        mDut.createSession(clientId, sessionId, mockSessionCallback, allSessionEvents);
+        mDut.createSession(clientId, sessionId, mockSessionCallback, mAllNanSessionEventFlags);
         mDut.publish(clientId, sessionId, publishConfig);
         mMockLooper.dispatchAll();
 
@@ -666,23 +617,9 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
-        int allEvents = WifiNanEventCallback.FLAG_LISTEN_CONFIG_COMPLETED
-                | WifiNanEventCallback.FLAG_LISTEN_CONFIG_FAILED
-                | WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED
-                | WifiNanEventCallback.FLAG_LISTEN_NAN_DOWN;
-
-        int allSessionEvents = WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_MATCH
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_SUCCESS
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_RECEIVED;
-
-        mDut.connect(clientId, mockCallback, allEvents);
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
         mDut.requestConfig(clientId, configRequest);
-        mDut.createSession(clientId, sessionId, mockSessionCallback, allSessionEvents);
+        mDut.createSession(clientId, sessionId, mockSessionCallback, mAllNanSessionEventFlags);
         mDut.publish(clientId, sessionId, publishConfig);
         mMockLooper.dispatchAll();
 
@@ -731,6 +668,51 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mockSessionCallback).onMessageSendSuccess(msgToPeerId2);
 
         verifyNoMoreInteractions(mMockNative, mockCallback, mockSessionCallback);
+    }
+
+    @Test
+    public void testSendMessageToInvalidPeerId() throws Exception {
+        final int clientId = 1005;
+        final int sessionId = 20;
+        final String ssi = "some much longer and more arbitrary data";
+        final int subscribeId = 15;
+        final int requestorId = 22;
+        final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
+        final String peerSsi = "some peer ssi data";
+        final String peerMatchFilter = "filter binary array represented as string";
+        final int messageId = 6948;
+
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
+
+        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        InOrder inOrder = inOrder(mockCallback, mMockNative);
+
+        mDut.connect(clientId, null, 0);
+        mDut.createSession(clientId, sessionId, mockCallback, mAllNanSessionEventFlags);
+        mDut.subscribe(clientId, sessionId, subscribeConfig);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+
+        mDut.onSubscribeSuccess(transactionId.getValue(), subscribeId);
+        mDut.onMatch(subscribeId, requestorId, peerMac, peerSsi.getBytes(), peerSsi.length(),
+                peerMatchFilter.getBytes(), peerMatchFilter.length());
+        mMockLooper.dispatchAll();
+
+        validateInternalTransactionInfoCleanedUp(transactionId.getValue());
+        inOrder.verify(mockCallback).onMatch(requestorId, peerSsi.getBytes(), peerSsi.length(),
+                peerMatchFilter.getBytes(), peerMatchFilter.length());
+
+        mDut.sendMessage(clientId, sessionId, requestorId + 5, ssi.getBytes(), ssi.length(),
+                messageId);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mockCallback).onMessageSendFail(messageId,
+                WifiNanSessionCallback.FAIL_REASON_NO_MATCH_SESSION);
+        validateInternalTransactionInfoCleanedUp(transactionId.getValue());
+
+        verifyNoMoreInteractions(mockCallback, mMockNative);
     }
 
     @Test
@@ -887,25 +869,12 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
-        int allEvents = WifiNanEventCallback.FLAG_LISTEN_CONFIG_COMPLETED
-                | WifiNanEventCallback.FLAG_LISTEN_CONFIG_FAILED
-                | WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED
-                | WifiNanEventCallback.FLAG_LISTEN_NAN_DOWN;
-
-        int allSessionEvents = WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_MATCH
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_SUCCESS
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_RECEIVED;
-
-        mDut.connect(clientId, mockCallback, allEvents);
-        mDut.createSession(clientId, sessionId, mockSessionCallback, allSessionEvents);
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.createSession(clientId, sessionId, mockSessionCallback, mAllNanSessionEventFlags);
         mDut.requestConfig(clientId, configRequest);
         mDut.publish(clientId, sessionId, publishConfig);
         mDut.disconnect(clientId);
+        mDut.publish(clientId, sessionId, publishConfig);
         mMockLooper.dispatchAll();
 
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest));
@@ -967,29 +936,16 @@ public class WifiNanStateManagerTest {
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockPublishSessionCallback,
                 mockSubscribeSessionCallback);
 
-        int allEvents = WifiNanEventCallback.FLAG_LISTEN_CONFIG_COMPLETED
-                | WifiNanEventCallback.FLAG_LISTEN_CONFIG_FAILED
-                | WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED
-                | WifiNanEventCallback.FLAG_LISTEN_NAN_DOWN;
-
-        int allSessionEvents = WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_PUBLISH_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_SUBSCRIBE_TERMINATED
-                | WifiNanSessionCallback.FLAG_LISTEN_MATCH
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_SUCCESS
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_SEND_FAIL
-                | WifiNanSessionCallback.FLAG_LISTEN_MESSAGE_RECEIVED;
-
-        mDut.connect(clientId, mockCallback, allEvents);
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
         mDut.requestConfig(clientId, configRequest);
         mDut.createSession(clientId, publishSessionId, mockPublishSessionCallback,
-                allSessionEvents);
+                mAllNanSessionEventFlags);
         mDut.publish(clientId, publishSessionId, publishConfig);
         mDut.createSession(clientId, subscribeSessionId, mockSubscribeSessionCallback,
-                allSessionEvents);
+                mAllNanSessionEventFlags);
         mDut.subscribe(clientId, subscribeSessionId, subscribeConfig);
         mDut.destroySession(clientId, publishSessionId);
+        mDut.publish(clientId, publishSessionId, publishConfig);
         mMockLooper.dispatchAll();
 
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest));
@@ -1006,15 +962,301 @@ public class WifiNanStateManagerTest {
         mDut.onConfigCompleted(transactionIdConfig);
         mDut.onPublishSuccess(transactionIdPublish, publishId);
         mDut.onSubscribeSuccess(transactionIdSubscribe, subscribeId);
-        mMockLooper.dispatchAll();
-
         mDut.onPublishTerminated(publishId, reason);
         mDut.destroySession(clientId, subscribeSessionId);
+        mDut.onSubscribeTerminated(subscribeId, reason);
         mMockLooper.dispatchAll();
 
         inOrder.verify(mockCallback).onConfigCompleted(configRequest);
+        inOrder.verify(mMockNative).stopSubscribe(anyShort(), eq(subscribeId));
         verifyZeroInteractions(mockPublishSessionCallback);
         verifyNoMoreInteractions(mockSubscribeSessionCallback);
+        validateInternalTransactionInfoCleanedUp(transactionIdConfig);
+        validateInternalTransactionInfoCleanedUp(transactionIdSubscribe);
+    }
+
+    /**
+     * Summary: stop a session while there are pending transactions. Validate
+     * that active publish/subscribe is cancelled - callbacks are routed until
+     * the Terminate callback (kind of bogus since HAL wouldn't trigger callback
+     * past termination).
+     */
+    @Test
+    public void testStopSessionWithPendingTransactions() throws Exception {
+        final int clientId = 128;
+        final int clusterLow = 15;
+        final int clusterHigh = 192;
+        final int masterPref = 234;
+        final int publishSessionId = 19;
+        final int subscribeSessionId = 24;
+        final String serviceName = "some-service-name";
+        final String ssi = "some much longer and more arbitrary data";
+        final int publishCount = 15;
+        final int subscribeCount = 22;
+        final int reason = WifiNanSessionCallback.TERMINATE_REASON_DONE;
+        final int publishId = 23;
+        final int subscribeId = 55;
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().setClusterLow(clusterLow)
+                .setClusterHigh(clusterHigh).setMasterPreference(masterPref).build();
+
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
+                .setServiceSpecificInfo(ssi).setPublishType(PublishConfig.PUBLISH_TYPE_UNSOLICITED)
+                .setPublishCount(publishCount).build();
+
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
+                .setServiceSpecificInfo(ssi)
+                .setSubscribeType(SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE)
+                .setSubscribeCount(subscribeCount).build();
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        IWifiNanSessionCallback mockPublishSessionCallback = mock(IWifiNanSessionCallback.class);
+        IWifiNanSessionCallback mockSubscribeSessionCallback = mock(IWifiNanSessionCallback.class);
+        InOrder inOrder = inOrder(mMockNative, mockCallback, mockPublishSessionCallback,
+                mockSubscribeSessionCallback);
+
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.requestConfig(clientId, configRequest);
+        mDut.createSession(clientId, publishSessionId, mockPublishSessionCallback,
+                mAllNanSessionEventFlags);
+        mDut.publish(clientId, publishSessionId, publishConfig);
+        mDut.createSession(clientId, subscribeSessionId, mockSubscribeSessionCallback,
+                mAllNanSessionEventFlags);
+        mDut.subscribe(clientId, subscribeSessionId, subscribeConfig);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest));
+        short transactionIdConfig = transactionId.getValue();
+
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        short transactionIdPublish = transactionId.getValue();
+
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        short transactionIdSubscribe = transactionId.getValue();
+
+        mDut.onConfigCompleted(transactionIdConfig);
+        mDut.onPublishSuccess(transactionIdPublish, publishId);
+        mDut.onSubscribeSuccess(transactionIdSubscribe, subscribeId);
+        mDut.stopSession(clientId, publishSessionId);
+        mDut.stopSession(clientId, subscribeSessionId);
+        mDut.onPublishTerminated(publishId, reason);
+        mDut.onSubscribeTerminated(subscribeId, reason);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mockCallback).onConfigCompleted(configRequest);
+        inOrder.verify(mMockNative).stopPublish(anyShort(), eq(publishId));
+        inOrder.verify(mMockNative).stopSubscribe(anyShort(), eq(subscribeId));
+        inOrder.verify(mockPublishSessionCallback).onPublishTerminated(reason);
+        inOrder.verify(mockSubscribeSessionCallback).onSubscribeTerminated(reason);
+        verifyNoMoreInteractions(mockPublishSessionCallback);
+        verifyNoMoreInteractions(mockSubscribeSessionCallback);
+        validateInternalTransactionInfoCleanedUp(transactionIdConfig);
+        validateInternalTransactionInfoCleanedUp(transactionIdPublish);
+        validateInternalTransactionInfoCleanedUp(transactionIdSubscribe);
+    }
+
+    /**
+     * Validate that an unknown transaction (i.e. a callback from HAL with an
+     * unknown type) is simply ignored - but also cleans up its state.
+     */
+    @Test
+    public void testUnknownTransactionType() throws Exception {
+        final int clientId = 129;
+        final int clusterLow = 15;
+        final int clusterHigh = 192;
+        final int masterPref = 234;
+        final int publishSessionId = 19;
+        final String serviceName = "some-service-name";
+        final String ssi = "some much longer and more arbitrary data";
+        final int publishCount = 15;
+        final int status = WifiNanSessionCallback.FAIL_REASON_OTHER;
+        final int responseType = 9999;
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().setClusterLow(clusterLow)
+                .setClusterHigh(clusterHigh).setMasterPreference(masterPref).build();
+
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
+                .setServiceSpecificInfo(ssi).setPublishType(PublishConfig.PUBLISH_TYPE_UNSOLICITED)
+                .setPublishCount(publishCount).build();
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        IWifiNanSessionCallback mockPublishSessionCallback = mock(IWifiNanSessionCallback.class);
+        InOrder inOrder = inOrder(mMockNative, mockCallback, mockPublishSessionCallback);
+
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.requestConfig(clientId, configRequest);
+        mDut.createSession(clientId, publishSessionId, mockPublishSessionCallback,
+                mAllNanSessionEventFlags);
+        mDut.publish(clientId, publishSessionId, publishConfig);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest));
+        short transactionIdConfig = transactionId.getValue();
+
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        short transactionIdPublish = transactionId.getValue();
+
+        mDut.onUnknownTransaction(responseType, transactionIdConfig, status);
+        mDut.onUnknownTransaction(responseType, transactionIdPublish, status);
+        mMockLooper.dispatchAll();
+
+        verifyNoMoreInteractions(mockCallback);
+        verifyNoMoreInteractions(mockPublishSessionCallback);
+        validateInternalTransactionInfoCleanedUp(transactionIdConfig);
+        validateInternalTransactionInfoCleanedUp(transactionIdPublish);
+    }
+
+    /**
+     * Validate that a NoOp transaction (i.e. a callback from HAL which doesn't
+     * require any action except clearing up state) actually cleans up its state
+     * (and does nothing else).
+     */
+    @Test
+    public void testNoOpTransaction() throws Exception {
+        final int clientId = 1294;
+        final int sessionId = 19;
+
+        PublishConfig publishConfig = new PublishConfig.Builder().build();
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
+        InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
+
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.createSession(clientId, sessionId, mockSessionCallback, mAllNanSessionEventFlags);
+        mDut.publish(clientId, sessionId, publishConfig);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+
+        mDut.onNoOpTransaction(transactionId.getValue());
+        mMockLooper.dispatchAll();
+
+        verifyNoMoreInteractions(mockCallback);
+        verifyNoMoreInteractions(mockSessionCallback);
+        validateInternalTransactionInfoCleanedUp(transactionId.getValue());
+    }
+
+    /**
+     * Validate that getting callbacks from HAL with unknown (expired)
+     * transaction ID or invalid publish/subscribe ID session doesn't have any
+     * impact.
+     */
+    @Test
+    public void testInvalidCallbackIdParameters() throws Exception {
+        final int clientId = 132;
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().build();
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        InOrder inOrder = inOrder(mMockNative, mockCallback);
+
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.requestConfig(clientId, configRequest);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest));
+        short transactionIdConfig = transactionId.getValue();
+
+        mDut.onConfigCompleted(transactionIdConfig);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mockCallback).onConfigCompleted(configRequest);
+        validateInternalTransactionInfoCleanedUp(transactionIdConfig);
+
+        mDut.onCapabilitiesUpdate(transactionIdConfig, null);
+        mDut.onConfigCompleted(transactionIdConfig);
+        mDut.onConfigFailed(transactionIdConfig, -1);
+        mDut.onPublishSuccess(transactionIdConfig, -1);
+        mDut.onPublishFail(transactionIdConfig, -1);
+        mDut.onMessageSendSuccess(transactionIdConfig);
+        mDut.onMessageSendFail(transactionIdConfig, -1);
+        mDut.onSubscribeSuccess(transactionIdConfig, -1);
+        mDut.onSubscribeFail(transactionIdConfig, -1);
+        mDut.onUnknownTransaction(-10, transactionIdConfig, -1);
+        mDut.onMatch(-1, -1, null, null, 0, null, 0);
+        mDut.onPublishTerminated(-1, -1);
+        mDut.onSubscribeTerminated(-1, -1);
+        mDut.onMessageReceived(-1, -1, null, null, 0);
+        mMockLooper.dispatchAll();
+
+        verifyNoMoreInteractions(mockCallback);
+    }
+
+    /**
+     * Validate that trying to (re)subscribe on a publish session fails.
+     */
+    @Test
+    public void testSubscribeOnPublishSessionType() throws Exception {
+        final int clientId = 188;
+        final int sessionId = 19;
+        final int status = WifiNanSessionCallback.FAIL_REASON_NO_RESOURCES;
+
+        PublishConfig publishConfig = new PublishConfig.Builder().build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
+        InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
+
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.createSession(clientId, sessionId, mockSessionCallback, mAllNanSessionEventFlags);
+        mDut.publish(clientId, sessionId, publishConfig);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+
+        mDut.onPublishFail(transactionId.getValue(), status);
+        mDut.subscribe(clientId, sessionId, subscribeConfig);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mockSessionCallback).onPublishFail(status);
+        inOrder.verify(mockSessionCallback)
+                .onSubscribeFail(WifiNanSessionCallback.FAIL_REASON_OTHER);
+        verifyNoMoreInteractions(mockCallback);
+        verifyNoMoreInteractions(mockSessionCallback);
+        validateInternalTransactionInfoCleanedUp(transactionId.getValue());
+    }
+
+    /**
+     * Validate that trying to (re)subscribe on a publish session or (re)publish
+     * on a subscribe session fails.
+     */
+    @Test
+    public void testPublishOnSubscribeSessionType() throws Exception {
+        final int clientId = 188;
+        final int sessionId = 19;
+        final int status = WifiNanSessionCallback.FAIL_REASON_NO_RESOURCES;
+
+        PublishConfig publishConfig = new PublishConfig.Builder().build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
+        InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
+
+        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.createSession(clientId, sessionId, mockSessionCallback, mAllNanSessionEventFlags);
+        mDut.subscribe(clientId, sessionId, subscribeConfig);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+
+        mDut.onSubscribeFail(transactionId.getValue(), status);
+        mDut.publish(clientId, sessionId, publishConfig);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mockSessionCallback).onSubscribeFail(status);
+        inOrder.verify(mockSessionCallback).onPublishFail(WifiNanSessionCallback.FAIL_REASON_OTHER);
+        verifyNoMoreInteractions(mockCallback);
+        verifyNoMoreInteractions(mockSessionCallback);
+        validateInternalTransactionInfoCleanedUp(transactionId.getValue());
     }
 
     @Test
