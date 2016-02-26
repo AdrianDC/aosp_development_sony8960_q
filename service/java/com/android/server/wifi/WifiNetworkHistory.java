@@ -158,7 +158,7 @@ public class WifiNetworkHistory {
                             disableTime = "Disable time: " + DateFormat.getInstance().format(
                                     config.getNetworkSelectionStatus().getDisableTime());
                         }
-                        loge("saving network history: " + config.configKey()  + " gw: "
+                        logd("saving network history: " + config.configKey()  + " gw: "
                                 + config.defaultGwMacAddress + " Network Selection-status: "
                                 + status.getNetworkStatusString()
                                 + disableTime + " ephemeral=" + config.ephemeral
@@ -174,12 +174,12 @@ public class WifiNetworkHistory {
 
                     if (config.SSID == null) {
                         if (VDBG) {
-                            loge("writeKnownNetworkHistory trying to write config with null SSID");
+                            logv("writeKnownNetworkHistory trying to write config with null SSID");
                         }
                         continue;
                     }
                     if (VDBG) {
-                        loge("writeKnownNetworkHistory write config " + config.configKey());
+                        logv("writeKnownNetworkHistory write config " + config.configKey());
                     }
                     out.writeUTF(CONFIG_KEY + SEPARATOR + config.configKey() + NL);
 
@@ -581,13 +581,18 @@ public class WifiNetworkHistory {
         return buf.toString();
     }
 
+    protected void logv(String s) {
+        Log.v(TAG, s);
+    }
+    protected void logd(String s) {
+        Log.d(TAG, s);
+    }
     protected void log(String s) {
         Log.d(TAG, s);
     }
     protected void loge(String s) {
         loge(s, false);
     }
-
     protected void loge(String s, boolean stack) {
         if (stack) {
             Log.e(TAG, s + " stack:" + Thread.currentThread().getStackTrace()[2].getMethodName()
