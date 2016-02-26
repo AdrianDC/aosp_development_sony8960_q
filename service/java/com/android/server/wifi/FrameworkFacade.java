@@ -14,6 +14,7 @@ import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.UserManager;
 import android.provider.Settings;
 
 import java.util.ArrayList;
@@ -112,5 +113,12 @@ public class FrameworkFacade {
      */
     public int checkUidPermission(String permName, int uid) throws RemoteException {
         return AppGlobals.getPackageManager().checkUidPermission(permName, uid);
+    }
+
+    public WifiConfigManager makeWifiConfigManager(Context context,
+            WifiStateMachine wifiStateMachine, WifiNative wifiNative,
+            FrameworkFacade frameworkFacade, Clock clock, UserManager userManager){
+        return new WifiConfigManager(context, wifiStateMachine, wifiNative, frameworkFacade, clock,
+                userManager);
     }
 }

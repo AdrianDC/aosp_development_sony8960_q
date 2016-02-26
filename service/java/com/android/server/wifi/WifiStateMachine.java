@@ -1168,7 +1168,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         mP2pSupported = mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_WIFI_DIRECT);
 
-        mWifiConfigManager = new WifiConfigManager(context, this, mWifiNative, facade,
+        mWifiConfigManager = mFacade.makeWifiConfigManager(context, this, mWifiNative, facade,
                 mClock, userManager);
 
         mWifiMonitor = WifiMonitor.getInstance();

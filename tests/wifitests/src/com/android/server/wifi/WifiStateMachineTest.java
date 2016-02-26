@@ -196,6 +196,17 @@ public class WifiStateMachineTest {
         when(facade.checkUidPermission(eq(android.Manifest.permission.OVERRIDE_WIFI_CONFIG),
                 anyInt())).thenReturn(PackageManager.PERMISSION_GRANTED);
 
+        when(facade.makeWifiConfigManager(any(Context.class),  any(WifiStateMachine.class),
+                any(WifiNative.class), any(FrameworkFacade.class), any(Clock.class),
+                any(UserManager.class))).then(new AnswerWithArguments() {
+            public WifiConfigManager answer(Context context, WifiStateMachine wifiStateMachine,
+                    WifiNative wifiNative, FrameworkFacade frameworkFacade, Clock clock,
+                    UserManager userManager){
+                mWifiConfigManager = new WifiConfigManager(context, wifiStateMachine, wifiNative,
+                        frameworkFacade, clock, userManager);
+                return mWifiConfigManager;
+            }
+        });
         return facade;
     }
 
@@ -298,6 +309,7 @@ public class WifiStateMachineTest {
     MockWifiMonitor mWifiMonitor;
     TestIpManager mTestIpManager;
     MockLooper mLooper;
+    WifiConfigManager mWifiConfigManager;
 
     @Mock WifiNative mWifiNative;
     @Mock SupplicantStateTracker mSupplicantStateTracker;
