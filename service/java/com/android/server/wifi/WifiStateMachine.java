@@ -4511,6 +4511,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         mLastBssid = null;
         registerDisconnected();
         mLastNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
+
+        /* End Current Connection Event */
+        mWifiMetrics.endConnectionEvent(
+                WifiMetrics.ConnectionEvent.LLF_NETWORK_DISCONNECTION,
+                WifiMetricsProto.ConnectionEvent.HLF_NONE);
     }
 
     private void handleSupplicantConnectionLoss(boolean killSupplicant) {
@@ -6733,8 +6738,17 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     // TODO(b/26786318): Keep track of the lastSelectedConfiguration and the
                     // lastConnectUid on a per-user basis.
                     int lastConnectUid = WifiConfiguration.UNKNOWN_UID;
-                    mWifiMetrics.startConnectionEvent(mWifiInfo, config,
-                            WifiMetricsProto.ConnectionEvent.ROAM_NONE);
+
+                    //Start a new ConnectionEvent due to auto_connect, assume we are connecting
+                    //between different networks due to QNS, setting ROAM_UNRELATED
+                    mWifiMetrics.startConnectionEvent(config,
+                            WifiMetricsProto.ConnectionEvent.ROAM_UNRELATED);
+                    if (!didDisconnect) {
+                        //If we were originally disconnected, then this was not any kind of ROAM
+                        mWifiMetrics.setConnectionEventRoamType(
+                                WifiMetricsProto.ConnectionEvent.ROAM_NONE);
+                    }
+                    //Determine if this CONNECTION is for a user selection
                     if (mWifiConfigManager.isLastSelectedConfiguration(config)
                             && isCurrentUserProfile(UserHandle.getUserId(config.lastConnectUid))) {
                         lastConnectUid = config.lastConnectUid;
@@ -6836,7 +6850,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                                            WifiManager.NOT_AUTHORIZED);
                             break;
                         }
-
                         String configKey = config.configKey(true /* allowCached */);
                         WifiConfiguration savedConfig =
                                 mWifiConfigManager.getWifiConfiguration(configKey);
@@ -6910,6 +6923,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                         mWifiNative.disconnect();
                     }
 
+                    //Start a new ConnectionEvent due to connect_network, this is always user
+                    //selected
+                    mWifiMetrics.startConnectionEvent(config,
+                            WifiMetricsProto.ConnectionEvent.ROAM_USER_SELECTED);
                     if (mWifiConfigManager.selectNetwork(config, /* updatePriorities = */ true,
                             message.sendingUid) && mWifiNative.reconnect()) {
                         lastConnectAttemptTimestamp = System.currentTimeMillis();
@@ -6937,6 +6954,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                         loge("Failed to connect config: " + config + " netId: " + netId);
                         replyToMessage(message, WifiManager.CONNECT_NETWORK_FAILED,
                                 WifiManager.ERROR);
+                        mWifiMetrics.endConnectionEvent(
+                                WifiMetrics.ConnectionEvent.LLF_CONNECT_NETWORK_FAILED,
+                                WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         break;
                     }
                     break;
@@ -8026,6 +8046,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                                 mLastBssid, true);
                         sendNetworkStateChangeBroadcast(mLastBssid);
 
+                        // Successful framework roam! (probably)
+                        mWifiMetrics.endConnectionEvent(
+                                WifiMetrics.ConnectionEvent.LLF_NONE,
+                                WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         // We used to transition to ObtainingIpState in an
                         // attempt to do DHCPv4 RENEWs on framework roams.
                         // DHCP can take too long to time out, and we now rely
@@ -8299,6 +8323,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     // Clear the driver roam indication since we are attempting a framework roam
                     mLastDriverRoamAttempt = 0;
 
+                    /*<TODO> 2016-02-24
+                        Fix CMD_AUTO_ROAM to use the candidate (message.arg1) networkID, rather than
+                        the old networkID.
+                        The current code only handles roaming between BSSIDs on the same networkID,
+                        and will break for roams between different (but linked) networkIDs. This
+                        case occurs for DBDC roaming, and the CMD_AUTO_ROAM sent due to it will
+                        fail.
+                    */
                     /* Connect command coming from auto-join */
                     ScanResult candidate = (ScanResult)message.obj;
                     String bssid = "any";
@@ -8325,27 +8357,39 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
                     setTargetBssid(config, bssid);
                     mTargetNetworkId = netId;
-
+                    mWifiMetrics.startConnectionEvent(config,
+                            WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
+                    /* <TODO> 2016-02-24
+                        Detect DBDC (2.4 <-> 5Ghz, same AP) roaming events, once CMD_AUTO_ROAM
+                        has been fixed to handle them correctly:
+                            mWifiMetrics.setConnectionEventRoamType(
+                                  WifiMetricsProto.ConnectionEvent.ROAM_DBDC);
+                            Handy statements:
+                                ABSSID.regionMatches(true, 0, BBSSID, 0, 16) //BSSID matching
+                                currentConfig.isLinked(config) //check the configs are linked
+                    */
                     if (deferForUserInput(message, netId, false)) {
+                        mWifiMetrics.endConnectionEvent(
+                                WifiMetrics.ConnectionEvent.LLF_CONNECT_NETWORK_FAILED,
+                                WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         break;
                     } else if (mWifiConfigManager.getWifiConfiguration(netId).userApproved ==
                             WifiConfiguration.USER_BANNED) {
                         replyToMessage(message, WifiManager.CONNECT_NETWORK_FAILED,
                                 WifiManager.NOT_AUTHORIZED);
+                        mWifiMetrics.endConnectionEvent(
+                                WifiMetrics.ConnectionEvent.LLF_CONNECT_NETWORK_FAILED,
+                                WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         break;
                     }
 
                     boolean ret = false;
                     if (mLastNetworkId != netId) {
-                        mWifiMetrics.startConnectionEvent(mWifiInfo, config,
-                                WifiMetricsProto.ConnectionEvent.ROAM_UNRELATED);
                         if (mWifiConfigManager.selectNetwork(config, /* updatePriorities = */ false,
                                 WifiConfiguration.UNKNOWN_UID) && mWifiNative.reconnect()) {
                             ret = true;
                         }
                     } else {
-                        mWifiMetrics.startConnectionEvent(mWifiInfo, config,
-                                WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
                         ret = mWifiNative.reassociate();
                     }
                     if (ret) {

@@ -17,15 +17,11 @@ package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.when;
 
-import android.net.wifi.WifiInfo;
 import android.util.Base64;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
@@ -40,11 +36,8 @@ public class WifiMetricsTest {
 
     WifiMetrics mWifiMetrics;
     WifiMetricsProto.WifiLog mDeserializedWifiMetrics;
-    @Mock WifiInfo mWifiInfo;
     @Before
     public void setUp() throws Exception {
-        MockitoAnnotations.initMocks(this);
-        when(mWifiInfo.getRssi()).thenReturn(-70);
         mDeserializedWifiMetrics = null;
         mWifiMetrics = new WifiMetrics();
     }
@@ -56,7 +49,7 @@ public class WifiMetricsTest {
     @Test
     public void startAndEndConnectionEventSucceeds() throws Exception {
         //Start and end Connection event
-        mWifiMetrics.startConnectionEvent(mWifiInfo, null,
+        mWifiMetrics.startConnectionEvent(null,
                 WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
         mWifiMetrics.endConnectionEvent(
                 WifiMetrics.ConnectionEvent.LLF_AUTHENTICATION_FAILURE,
@@ -66,9 +59,9 @@ public class WifiMetricsTest {
                 WifiMetrics.ConnectionEvent.LLF_AUTHENTICATION_FAILURE,
                 WifiMetricsProto.ConnectionEvent.HLF_DHCP);
         //start two ConnectionEvents in a row
-        mWifiMetrics.startConnectionEvent(mWifiInfo, null,
+        mWifiMetrics.startConnectionEvent(null,
                 WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
-        mWifiMetrics.startConnectionEvent(mWifiInfo, null,
+        mWifiMetrics.startConnectionEvent(null,
                 WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
     }
 
