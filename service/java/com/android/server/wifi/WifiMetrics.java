@@ -16,8 +16,8 @@
 
 package com.android.server.wifi;
 
+import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiInfo;
 import android.os.SystemClock;
 import android.util.Base64;
 import android.util.SparseArray;
@@ -120,15 +120,6 @@ public class WifiMetrics {
      */
     class ConnectionEvent {
         WifiMetricsProto.ConnectionEvent mConnectionEvent;
-        RouterFingerPrint mRouterFingerPrint;
-        private long mRealStartTime;
-        /**
-         * Bitset tracking the capture completeness of this connection event bit 1='Event started',
-         * bit 2='Event ended' value = 3 for capture completeness
-         */
-        private int mEventCompleteness;
-        private long mRealEndTime;
-
         //<TODO> Move these constants into a wifi.proto Enum
         // Level 2 Failure Codes
         // Failure is unknown
@@ -141,18 +132,26 @@ public class WifiMetrics {
         public static final int LLF_AUTHENTICATION_FAILURE = 3;
         // SSID_TEMP_DISABLED (Also Auth failure)
         public static final int LLF_SSID_TEMP_DISABLED = 4;
-        // CONNECT_NETWORK_FAILED
+        // reconnect() or reassociate() call to WifiNative failed
         public static final int LLF_CONNECT_NETWORK_FAILED = 5;
         // NETWORK_DISCONNECTION_EVENT
         public static final int LLF_NETWORK_DISCONNECTION = 6;
+        // NEW_CONNECTION_ATTEMPT before previous finished
+        public static final int LLF_NEW_CONNECTION_ATTEMPT = 7;
+        RouterFingerPrint mRouterFingerPrint;
+        private long mRealStartTime;
+        private long mRealEndTime;
+        private String mConfigSsid;
+        private String mConfigBssid;
 
         private ConnectionEvent() {
             mConnectionEvent = new WifiMetricsProto.ConnectionEvent();
             mRealEndTime = 0;
             mRealStartTime = 0;
-            mEventCompleteness = 0;
             mRouterFingerPrint = new RouterFingerPrint();
             mConnectionEvent.routerFingerprint = mRouterFingerPrint.mRouterFingerPrintProto;
+            mConfigSsid = "<NULL>";
+            mConfigBssid = "<NULL>";
         }
 
         public String toString() {
@@ -163,14 +162,14 @@ public class WifiMetrics {
                 c.setTimeInMillis(mConnectionEvent.startTimeMillis);
                 sb.append(mConnectionEvent.startTimeMillis == 0 ? "            <null>" :
                         String.format("%tm-%td %tH:%tM:%tS.%tL", c, c, c, c, c, c));
-                sb.append(", endTime=");
-                c.setTimeInMillis(mRealEndTime);
-                sb.append(mRealEndTime == 0 ? "            <null>" :
-                        String.format("%tm-%td %tH:%tM:%tS.%tL", c, c, c, c, c, c));
-                sb.append(", durationTakenToConnectMillis=");
+                sb.append(", SSID=");
+                sb.append(mConfigSsid);
+                sb.append(", BSSID=");
+                sb.append(mConfigBssid);
+                sb.append(", durationMillis=");
                 sb.append(mConnectionEvent.durationTakenToConnectMillis);
                 sb.append(", roamType=");
-                switch(mConnectionEvent.roamType){
+                switch(mConnectionEvent.roamType) {
                     case 1:
                         sb.append("ROAM_NONE");
                         break;
@@ -189,12 +188,55 @@ public class WifiMetrics {
                     default:
                         sb.append("ROAM_UNKNOWN");
                 }
+                sb.append(", connectionResult=");
+                sb.append(mConnectionEvent.connectionResult);
                 sb.append(", level2FailureCode=");
-                sb.append(mConnectionEvent.level2FailureCode);
+                switch(mConnectionEvent.level2FailureCode) {
+                    case LLF_NONE:
+                        sb.append("NONE");
+                        break;
+                    case LLF_ASSOCIATION_REJECTION:
+                        sb.append("ASSOCIATION_REJECTION");
+                        break;
+                    case LLF_AUTHENTICATION_FAILURE:
+                        sb.append("AUTHENTICATION_FAILURE");
+                        break;
+                    case LLF_SSID_TEMP_DISABLED:
+                        sb.append("SSID_TEMP_DISABLED");
+                        break;
+                    case LLF_CONNECT_NETWORK_FAILED:
+                        sb.append("CONNECT_NETWORK_FAILED");
+                        break;
+                    case LLF_NETWORK_DISCONNECTION:
+                        sb.append("NETWORK_DISCONNECTION");
+                        break;
+                    case LLF_NEW_CONNECTION_ATTEMPT:
+                        sb.append("NEW_CONNECTION_ATTEMPT");
+                        break;
+                    default:
+                        sb.append("UNKNOWN");
+                        break;
+                }
                 sb.append(", connectivityLevelFailureCode=");
-                sb.append(mConnectionEvent.connectivityLevelFailureCode);
-                sb.append(", mEventCompleteness=");
-                sb.append(mEventCompleteness);
+                switch(mConnectionEvent.connectivityLevelFailureCode) {
+                    case WifiMetricsProto.ConnectionEvent.HLF_NONE:
+                        sb.append("NONE");
+                        break;
+                    case WifiMetricsProto.ConnectionEvent.HLF_DHCP:
+                        sb.append("DHCP");
+                        break;
+                    case WifiMetricsProto.ConnectionEvent.HLF_NO_INTERNET:
+                        sb.append("NO_INTERNET");
+                        break;
+                    case WifiMetricsProto.ConnectionEvent.HLF_UNWANTED:
+                        sb.append("UNWANTED");
+                        break;
+                    default:
+                        sb.append("UNKNOWN");
+                        break;
+                }
+                sb.append(", signalStrength=");
+                sb.append(mConnectionEvent.signalStrength);
                 sb.append("\n  ");
                 sb.append("mRouterFingerprint: ");
                 sb.append(mRouterFingerPrint.toString());
@@ -217,30 +259,37 @@ public class WifiMetrics {
      * failure code.
      * Gathers and sets the RouterFingerPrint data as well
      *
-     * @param wifiInfo WifiInfo for the current connection attempt, used for connection metrics
      * @param config WifiConfiguration of the config used for the current connection attempt
      * @param roamType Roam type that caused connection attempt, see WifiMetricsProto.WifiLog.ROAM_X
      */
-    public void startConnectionEvent(WifiInfo wifiInfo, WifiConfiguration config, int roamType) {
-        synchronized (mLock) {
-            if (mConnectionEventList.size() <= MAX_CONNECTION_EVENTS) {
-                mCurrentConnectionEvent = new ConnectionEvent();
-                mCurrentConnectionEvent.mEventCompleteness |= 1;
-                mCurrentConnectionEvent.mConnectionEvent.startTimeMillis =
-                        System.currentTimeMillis();
-                mCurrentConnectionEvent.mConnectionEvent.roamType = roamType;
-                mCurrentConnectionEvent.mRouterFingerPrint.updateFromWifiConfiguration(config);
-                if (wifiInfo != null) {
-                    mCurrentConnectionEvent.mConnectionEvent.signalStrength = wifiInfo.getRssi();
-                }
-                mCurrentConnectionEvent.mRealStartTime = SystemClock.elapsedRealtime();
-                mConnectionEventList.add(mCurrentConnectionEvent);
-            }
+    public void startConnectionEvent(WifiConfiguration config, int roamType) {
+        if (mCurrentConnectionEvent != null) {
+            endConnectionEvent(ConnectionEvent.LLF_NEW_CONNECTION_ATTEMPT,
+                    WifiMetricsProto.ConnectionEvent.HLF_NONE);
         }
-    }
-
-    public void startConnectionEvent(WifiInfo wifiInfo) {
-        startConnectionEvent(wifiInfo, null, WifiMetricsProto.ConnectionEvent.ROAM_NONE);
+        synchronized (mLock) {
+            //If at maximum connection events, start removing the oldest
+            while(mConnectionEventList.size() >= MAX_CONNECTION_EVENTS) {
+                mConnectionEventList.remove(0);
+            }
+            mCurrentConnectionEvent = new ConnectionEvent();
+            mCurrentConnectionEvent.mConnectionEvent.startTimeMillis =
+                    System.currentTimeMillis();
+            mCurrentConnectionEvent.mConnectionEvent.roamType = roamType;
+            mCurrentConnectionEvent.mRouterFingerPrint.updateFromWifiConfiguration(config);
+            if (config != null) {
+                //RSSI
+                ScanResult candidate = config.getNetworkSelectionStatus().getCandidate();
+                if (candidate != null) {
+                    mCurrentConnectionEvent.mConnectionEvent.signalStrength =
+                            candidate.level;
+                }
+                mCurrentConnectionEvent.mConfigSsid = config.SSID;
+                mCurrentConnectionEvent.mConfigBssid = config.BSSID;
+            }
+            mCurrentConnectionEvent.mRealStartTime = SystemClock.elapsedRealtime();
+            mConnectionEventList.add(mCurrentConnectionEvent);
+        }
     }
 
     /**
@@ -265,7 +314,6 @@ public class WifiMetrics {
                 boolean result = (level2FailureCode == 1)
                         && (connectivityFailureCode == WifiMetricsProto.ConnectionEvent.HLF_NONE);
                 mCurrentConnectionEvent.mConnectionEvent.connectionResult = result ? 1 : 0;
-                mCurrentConnectionEvent.mEventCompleteness |= 2;
                 mCurrentConnectionEvent.mRealEndTime = SystemClock.elapsedRealtime();
                 mCurrentConnectionEvent.mConnectionEvent.durationTakenToConnectMillis = (int)
                         (mCurrentConnectionEvent.mRealEndTime
