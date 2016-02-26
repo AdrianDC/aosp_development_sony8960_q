@@ -1161,9 +1161,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 if (++dnsFound > 1) break;
             }
         }
-        InetAddress serverAddress = dhcpResults.serverAddress;
-        if (serverAddress instanceof Inet4Address) {
-            info.serverAddress = NetworkUtils.inetAddressToInt((Inet4Address)serverAddress);
+        Inet4Address serverAddress = dhcpResults.serverAddress;
+        if (serverAddress != null) {
+            info.serverAddress = NetworkUtils.inetAddressToInt(serverAddress);
         }
         info.leaseDuration = dhcpResults.leaseDuration;
 

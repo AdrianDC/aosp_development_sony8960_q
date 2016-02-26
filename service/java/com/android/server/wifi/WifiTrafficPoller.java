@@ -44,7 +44,7 @@ final class WifiTrafficPoller {
     private boolean DBG = false;
     private boolean VDBG = false;
 
-    private final String TAG = "WifiTrafficPoller";
+    private static final String TAG = "WifiTrafficPoller";
     /**
      * Interval in milliseconds between polling for traffic
      * statistics

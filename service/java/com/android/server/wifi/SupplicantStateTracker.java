@@ -274,11 +274,6 @@ public class SupplicantStateTracker extends StateMachine {
         @Override
          public void enter() {
              if (DBG) Log.d(TAG, getName() + "\n");
-             /* If a disconnect event happens after authentication failure
-              * exceeds maximum retries, disable the network
-              */
-             Message message = getCurrentMessage();
-             StateChangeResult stateChangeResult = (StateChangeResult) message.obj;
          }
     }
 

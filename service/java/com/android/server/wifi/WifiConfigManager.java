@@ -1497,7 +1497,7 @@ public class WifiConfigManager {
         boolean ret = mWifiNative.removeNetwork(netId);
         if (ret) {
             removeConfigAndSendBroadcastIfNeeded(netId);
-            if (config != null && config.isPasspoint()) {
+            if (config.isPasspoint()) {
                 writePasspointConfigs(config.FQDN, null);
             }
         }
@@ -3342,42 +3342,12 @@ public class WifiConfigManager {
         return encryption.contains("WEP");
     }
 
-    private boolean isEncryptionWep(ScanResult scan) {
-        String scanResultEncrypt = scan.capabilities;
-        return isEncryptionWep(scanResultEncrypt);
-    }
-
-    private boolean isEncryptionWep(WifiConfiguration config) {
-        String configEncrypt = config.configKey();
-        return isEncryptionWep(configEncrypt);
-    }
-
     private boolean isEncryptionPsk(String encryption) {
         return encryption.contains("PSK");
     }
 
-    private boolean isEncryptionPsk(ScanResult scan) {
-        String scanResultEncrypt = scan.capabilities;
-        return isEncryptionPsk(scanResultEncrypt);
-    }
-
-    private boolean isEncryptionPsk(WifiConfiguration config) {
-        String configEncrypt = config.configKey();
-        return isEncryptionPsk(configEncrypt);
-    }
-
     private boolean isEncryptionEap(String encryption) {
         return encryption.contains("EAP");
-    }
-
-    private boolean isEncryptionEap(ScanResult scan) {
-        String scanResultEncrypt = scan.capabilities;
-        return isEncryptionEap(scanResultEncrypt);
-    }
-
-    private boolean isEncryptionEap(WifiConfiguration config) {
-        String configEncrypt = config.configKey();
-        return isEncryptionEap(configEncrypt);
     }
 
     public boolean isOpenNetwork(String encryption) {

@@ -230,8 +230,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     private boolean mHalBasedPnoDriverSupported = false;
 
-    // Below booleans are configurations coming from the Developper Settings
-    private boolean mEnableAssociatedNetworkSwitchingInDevSettings = true;
     private boolean mHalBasedPnoEnableInDevSettings = false;
 
     private int mHalFeatureSet = 0;
@@ -596,7 +594,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     private AlarmManager mAlarmManager;
     private PendingIntent mScanIntent;
-    private PendingIntent mDriverStopIntent;
     private PendingIntent mPnoIntent;
 
     private int mDisconnectedPnoAlarmCount = 0;
@@ -1847,7 +1844,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
     private int mRxTimeThisScan = 0;
 
     private int mOnTimeScreenStateChange = 0;
-    private int mOnTimeAtLastReport = 0;
     private long lastOntimeReportTimeStamp = 0;
     private long lastScreenStateChangeTimeStamp = 0;
     private int mOnTimeLastReport = 0;
@@ -6205,7 +6201,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     void registerDisconnected() {
         if (mLastNetworkId != WifiConfiguration.INVALID_NETWORK_ID) {
-            long now_ms = System.currentTimeMillis();
             // We are switching away from this configuration,
             // hence record the time we were connected last
             WifiConfiguration config = mWifiConfigManager.getWifiConfiguration(mLastNetworkId);
