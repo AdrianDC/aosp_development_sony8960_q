@@ -54,7 +54,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Unit tests for {@link com.android.server.wifi.WifiQualifiedNetworkSelector}.
  */
 @SmallTest
-public class WifiQualifiedNetworkSelectionTest {
+public class WifiQualifiedNetworkSelectorTest {
 
     @Before
     public void setUp() throws Exception {
