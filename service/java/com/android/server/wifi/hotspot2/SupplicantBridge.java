@@ -275,69 +275,6 @@ public class SupplicantBridge {
         return sb.toString();
     }
 
-    /**
-     * Build a wpa_supplicant ANQP query command
-     * @param networkDetail The network to query.
-     * @param matchSet Add ANQP elements necessary for SP matching.
-     * @param osu Add the OSU Provider list element.
-     * @return A command string.
-     */
-    private static String buildWPSQueryRequest(NetworkDetail networkDetail,
-                                               boolean matchSet, boolean osu) {
-        List<Constants.ANQPElementType> querySet = new ArrayList<>();
-
-        if (matchSet) {
-            querySet.addAll(ANQPFactory.getBaseANQPSet(networkDetail.getAnqpOICount() > 0));
-        }
-
-        if (networkDetail.getHSRelease() != null) {
-            boolean includeOSU = osu && networkDetail.getHSRelease() == NetworkDetail.HSRelease.R2;
-            if (matchSet) {
-                querySet.addAll(ANQPFactory.getHS20ANQPSet(includeOSU));
-            }
-            else if (includeOSU) {
-                querySet.add(Constants.ANQPElementType.HSOSUProviders);
-            }
-        }
-
-        if (querySet.isEmpty()) {
-            return null;
-        }
-
-        StringBuilder sb = new StringBuilder();
-        if (matchSet) {
-            sb.append("ANQP_GET ");
-        }
-        else {
-            sb.append("HS20_ANQP_GET ");     // ANQP_GET does not work for a sole hs20:8 (OSU) query
-        }
-        sb.append(networkDetail.getBSSIDString()).append(' ');
-
-        boolean first = true;
-        for (Constants.ANQPElementType elementType : querySet) {
-            if (first) {
-                first = false;
-            }
-            else {
-                sb.append(',');
-            }
-
-            Integer id = Constants.getANQPElementID(elementType);
-            if (id != null) {
-                sb.append(id);
-            }
-            else {
-                id = Constants.getHS20ElementID(elementType);
-                if (matchSet) {
-                    sb.append("hs20:");
-                }
-                sb.append(id);
-            }
-        }
-
-        return sb.toString();
-    }
-
     private static List<String> getWPSNetCommands(String netID, NetworkDetail networkDetail,
                                                  Credential credential) {
 

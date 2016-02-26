@@ -27,11 +27,9 @@ import com.android.server.wifi.anqp.RawByteElement;
 import com.android.server.wifi.anqp.VenueNameElement;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.PasspointMatch;
-import com.android.server.wifi.hotspot2.PasspointMatchInfo;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.hotspot2.pps.HomeSP;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 

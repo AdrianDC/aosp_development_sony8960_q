@@ -17,7 +17,6 @@
 package com.android.server.wifi.p2p;
 
 import android.app.AlertDialog;
-import android.app.Notification;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.DialogInterface.OnClickListener;
@@ -106,7 +105,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
     private static final String NETWORKTYPE = "WIFI_P2P";
 
     private Context mContext;
-    private Notification mNotification;
 
     INetworkManagementService mNwService;
     private DhcpClient mDhcpClient;
@@ -523,9 +521,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
         // The deviceAddress will be an empty string when the device is inactive
         // or if it is connected without any ongoing join request
         private WifiP2pConfig mSavedPeerConfig = new WifiP2pConfig();
-
-        // Saved WifiP2pGroup from invitation request
-        private WifiP2pGroup mSavedP2pGroup;
 
         P2pStateMachine(String name, Looper looper, boolean p2pSupported) {
             super(name, looper);
@@ -2204,7 +2199,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
         pw.println("mWifiP2pInfo " + mWifiP2pInfo);
         pw.println("mGroup " + mGroup);
         pw.println("mSavedPeerConfig " + mSavedPeerConfig);
-        pw.println("mSavedP2pGroup " + mSavedP2pGroup);
         pw.println();
     }
 

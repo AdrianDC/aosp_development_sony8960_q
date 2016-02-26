@@ -555,7 +555,6 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                 int reportNumScansThreshold, int reportPercentThreshold) {
             this.backgroundScanActive = true;
             this.scanId = scanId;
-            this.startTime = startTime;
             this.maxAps = maxAps;
             this.reportEvents = reportEvents;
             this.reportNumScansThreshold = reportNumScansThreshold;
