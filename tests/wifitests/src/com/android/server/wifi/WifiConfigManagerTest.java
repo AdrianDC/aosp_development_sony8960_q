@@ -29,7 +29,6 @@ import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.intThat;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -164,8 +163,10 @@ public class WifiConfigManagerTest {
             when(mUserManager.getProfiles(userId)).thenReturn(USER_PROFILES.get(userId));
         }
 
+        mMockKeyStore = new MockKeyStore();
+
         mWifiConfigManager = new WifiConfigManager(mContext, mWifiStateMachine, mWifiNative,
-                mFrameworkFacade, mClock, mUserManager);
+                mFrameworkFacade, mClock, mUserManager, mMockKeyStore.createMock());
 
         final Field configuredNetworksField =
                 WifiConfigManager.class.getDeclaredField("mConfiguredNetworks");
@@ -198,11 +199,6 @@ public class WifiConfigManagerTest {
         final Field moManagerField = WifiConfigManager.class.getDeclaredField("mMOManager");
         moManagerField.setAccessible(true);
         moManagerField.set(mWifiConfigManager, mMOManager);
-
-        mMockKeyStore = new MockKeyStore();
-        final Field mKeyStoreField = WifiConfigManager.class.getDeclaredField("mKeyStore");
-        mKeyStoreField.setAccessible(true);
-        mKeyStoreField.set(mWifiConfigManager, mMockKeyStore.createMock());
     }
 
     private void switchUser(int newUserId) {
@@ -244,14 +240,6 @@ public class WifiConfigManagerTest {
     private String encodeConfigSSID(WifiConfiguration config) throws Exception {
         return new BigInteger(1, config.SSID.substring(1, config.SSID.length() - 1)
                 .getBytes("UTF-8")).toString(16);
-    }
-
-    private WifiNative createNewWifiNativeMock() throws Exception {
-        final WifiNative wifiNative = mock(WifiNative.class);
-        final Field wifiNativeField = WifiConfigManager.class.getDeclaredField("mWifiNative");
-        wifiNativeField.setAccessible(true);
-        wifiNativeField.set(mWifiConfigManager, wifiNative);
-        return wifiNative;
     }
 
     /**
@@ -413,8 +401,8 @@ public class WifiConfigManagerTest {
                 }
 
                 // Try to select a network configuration.
-                final WifiNative wifiNative = createNewWifiNativeMock();
-                when(wifiNative.selectNetwork(config.networkId)).thenReturn(true);
+                reset(mWifiNative);
+                when(mWifiNative.selectNetwork(config.networkId)).thenReturn(true);
                 final boolean success =
                         mWifiConfigManager.selectNetwork(config, false, config.creatorUid);
                 if (!WifiConfigurationUtil.isVisibleToAnyProfile(config,
@@ -422,8 +410,8 @@ public class WifiConfigManagerTest {
                     // If the network configuration is not visible to the current user, verify that
                     // nothing changed.
                     assertFalse(success);
-                    verify(wifiNative, never()).selectNetwork(anyInt());
-                    verify(wifiNative, never()).enableNetwork(anyInt());
+                    verify(mWifiNative, never()).selectNetwork(anyInt());
+                    verify(mWifiNative, never()).enableNetwork(anyInt());
                     for (WifiConfiguration config2 : mConfiguredNetworks.valuesForAllUsers()) {
                         assertEquals(WifiConfiguration.Status.ENABLED, config2.status);
                     }
@@ -432,10 +420,10 @@ public class WifiConfigManagerTest {
                     // was enabled and all other network configurations visible to the user were
                     // disabled.
                     assertTrue(success);
-                    verify(wifiNative).selectNetwork(config.networkId);
-                    verify(wifiNative, never()).selectNetwork(intThat(not(config.networkId)));
-                    verify(wifiNative, never()).enableNetwork(config.networkId);
-                    verify(wifiNative, never()).enableNetwork(intThat(not(config.networkId)));
+                    verify(mWifiNative).selectNetwork(config.networkId);
+                    verify(mWifiNative, never()).selectNetwork(intThat(not(config.networkId)));
+                    verify(mWifiNative, never()).enableNetwork(config.networkId);
+                    verify(mWifiNative, never()).enableNetwork(intThat(not(config.networkId)));
                     for (WifiConfiguration config2 : mConfiguredNetworks.valuesForAllUsers()) {
                         if (WifiConfigurationUtil.isVisibleToAnyProfile(config2,
                                 USER_PROFILES.get(userId))
@@ -477,12 +465,12 @@ public class WifiConfigManagerTest {
         // configuration.
         final Map<String, String> metadata = new HashMap<String, String>();
         if (CONFIGS.get(network).FQDN != null) {
-            metadata.put(WifiConfigManager.ID_STRING_KEY_FQDN, CONFIGS.get(network).FQDN);
+            metadata.put(WifiConfigStore.ID_STRING_KEY_FQDN, CONFIGS.get(network).FQDN);
         }
-        metadata.put(WifiConfigManager.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(network).configKey());
-        metadata.put(WifiConfigManager.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(network).configKey());
+        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(CONFIGS.get(network).creatorUid));
-        verify(mWifiNative).setNetworkExtra(network, WifiConfigManager.ID_STRING_VAR_NAME,
+        verify(mWifiNative).setNetworkExtra(network, WifiConfigStore.ID_STRING_VAR_NAME,
                 metadata);
 
         // Verify that no wpa_supplicant variables were read or written for any other network
@@ -579,27 +567,27 @@ public class WifiConfigManagerTest {
                 .thenReturn(encodeConfigSSID(CONFIGS.get(i)));
         }
         // Legacy regular network configuration: No "id_str".
-        when(mWifiNative.getNetworkExtra(0, WifiConfigManager.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkExtra(0, WifiConfigStore.ID_STRING_VAR_NAME))
             .thenReturn(null);
         // Legacy Hotspot 2.0 network configuration: Quoted FQDN in "id_str".
-        when(mWifiNative.getNetworkExtra(1, WifiConfigManager.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkExtra(1, WifiConfigStore.ID_STRING_VAR_NAME))
             .thenReturn(null);
-        when(mWifiNative.getNetworkVariable(1, WifiConfigManager.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkVariable(1, WifiConfigStore.ID_STRING_VAR_NAME))
             .thenReturn('"' + CONFIGS.get(1).FQDN + '"');
         // Up-to-date Hotspot 2.0 network configuration: Metadata in "id_str".
         Map<String, String> metadata = new HashMap<String, String>();
-        metadata.put(WifiConfigManager.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(2).configKey());
-        metadata.put(WifiConfigManager.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(2).configKey());
+        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(CONFIGS.get(2).creatorUid));
-        metadata.put(WifiConfigManager.ID_STRING_KEY_FQDN, CONFIGS.get(2).FQDN);
-        when(mWifiNative.getNetworkExtra(2, WifiConfigManager.ID_STRING_VAR_NAME))
+        metadata.put(WifiConfigStore.ID_STRING_KEY_FQDN, CONFIGS.get(2).FQDN);
+        when(mWifiNative.getNetworkExtra(2, WifiConfigStore.ID_STRING_VAR_NAME))
             .thenReturn(metadata);
         // Up-to-date regular network configuration: Metadata in "id_str".
         metadata = new HashMap<String, String>();
-        metadata.put(WifiConfigManager.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(3).configKey());
-        metadata.put(WifiConfigManager.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(3).configKey());
+        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(CONFIGS.get(3).creatorUid));
-        when(mWifiNative.getNetworkExtra(3, WifiConfigManager.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkExtra(3, WifiConfigStore.ID_STRING_VAR_NAME))
             .thenReturn(metadata);
 
         // Set up networkHistory.txt file.
@@ -664,10 +652,10 @@ public class WifiConfigManagerTest {
         when(mWifiNative.getNetworkVariable(anyInt(), eq(WifiConfiguration.ssidVarName)))
             .thenReturn(encodeConfigSSID(config));
         final Map<String, String> metadata = new HashMap<String, String>();
-        metadata.put(WifiConfigManager.ID_STRING_KEY_CONFIG_KEY, config.configKey());
-        metadata.put(WifiConfigManager.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, config.configKey());
+        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(config.creatorUid));
-        when(mWifiNative.getNetworkExtra(anyInt(), eq(WifiConfigManager.ID_STRING_VAR_NAME)))
+        when(mWifiNative.getNetworkExtra(anyInt(), eq(WifiConfigStore.ID_STRING_VAR_NAME)))
             .thenReturn(metadata);
 
         // Load network configurations.
@@ -688,7 +676,7 @@ public class WifiConfigManagerTest {
         addNetworks();
         switchUser(oldUserId);
 
-        final WifiNative wifiNative = createNewWifiNativeMock();
+        reset(mWifiNative);
         final Field lastSelectedConfigurationField =
                 WifiConfigManager.class.getDeclaredField("lastSelectedConfiguration");
         lastSelectedConfigurationField.setAccessible(true);
@@ -721,7 +709,8 @@ public class WifiConfigManagerTest {
                 }
             }
         }
-        when(wifiNative.disableNetwork(anyInt())).thenReturn(true);
+
+        when(mWifiNative.disableNetwork(anyInt())).thenReturn(true);
 
         switchUser(newUserId);
         if (makeOneConfigEphemeral) {
@@ -729,7 +718,7 @@ public class WifiConfigManagerTest {
             assertNotNull(removedEphemeralConfig);
             assertNull(mConfiguredNetworks.getForAllUsers(removedEphemeralConfig.networkId));
             assertNull(lastSelectedConfigurationField.get(mWifiConfigManager));
-            verify(wifiNative).removeNetwork(removedEphemeralConfig.networkId);
+            verify(mWifiNative).removeNetwork(removedEphemeralConfig.networkId);
             --expectedNumberOfConfigs;
         } else {
             assertNull(removedEphemeralConfig);
@@ -741,10 +730,10 @@ public class WifiConfigManagerTest {
         assertEquals(expectedNumberOfConfigs, newConfigs.size());
         for (WifiConfiguration config : newConfigs) {
             if (oldUserOnlyConfigs.contains(config)) {
-                verify(wifiNative).disableNetwork(config.networkId);
+                verify(mWifiNative).disableNetwork(config.networkId);
                 assertEquals(WifiConfiguration.Status.DISABLED, config.status);
             } else {
-                verify(wifiNative, never()).disableNetwork(config.networkId);
+                verify(mWifiNative, never()).disableNetwork(config.networkId);
                 if (neitherUserConfigs.contains(config)) {
                     assertEquals(WifiConfiguration.Status.DISABLED, config.status);
                 } else {

@@ -91,6 +91,7 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.WorkSource;
 import android.provider.Settings;
+import android.security.KeyStore;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
@@ -492,9 +493,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         if (VDBG) {
             logd("autoRoamSetBSSID " + bssid + " key=" + config.configKey());
         }
-        config.getNetworkSelectionStatus().setNetworkSelectionBSSID(bssid);
         mTargetRoamBSSID = bssid;
-        mWifiConfigManager.saveWifiConfigBSSID(config);
+        mWifiConfigManager.saveWifiConfigBSSID(config, bssid);
         return ret;
     }
 
@@ -533,10 +533,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         if (DBG) {
             Log.d(TAG, "target set to " + config.SSID + ":" + bssid);
         }
-
-        config.getNetworkSelectionStatus().setNetworkSelectionBSSID(bssid);
         mTargetRoamBSSID = bssid;
-        mWifiConfigManager.saveWifiConfigBSSID(config);
+        mWifiConfigManager.saveWifiConfigBSSID(config, bssid);
         return true;
     }
     /**
@@ -1166,7 +1164,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 PackageManager.FEATURE_WIFI_DIRECT);
 
         mWifiConfigManager = mFacade.makeWifiConfigManager(context, this, mWifiNative, facade,
-                mClock, userManager);
+                mClock, userManager, KeyStore.getInstance());
 
         mWifiMonitor = WifiMonitor.getInstance();
 
@@ -7402,12 +7400,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     + " config.NetworkSelectionStatus.mNetworkSelectionBSSID "
                     + config.getNetworkSelectionStatus().getNetworkSelectionBSSID());
         }
-        config.getNetworkSelectionStatus().setNetworkSelectionBSSID("any");
         if (DBG) {
            logd(dbg + " " + config.SSID
                     + " nid=" + Integer.toString(config.networkId));
         }
-        mWifiConfigManager.saveWifiConfigBSSID(config);
+        mWifiConfigManager.saveWifiConfigBSSID(config, "any");
     }
 
     class L2ConnectedState extends State {

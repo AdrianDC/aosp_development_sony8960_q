@@ -16,6 +16,7 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.UserManager;
 import android.provider.Settings;
+import android.security.KeyStore;
 
 import java.util.ArrayList;
 
@@ -117,8 +118,9 @@ public class FrameworkFacade {
 
     public WifiConfigManager makeWifiConfigManager(Context context,
             WifiStateMachine wifiStateMachine, WifiNative wifiNative,
-            FrameworkFacade frameworkFacade, Clock clock, UserManager userManager){
+            FrameworkFacade frameworkFacade, Clock clock, UserManager userManager,
+            KeyStore keyStore) {
         return new WifiConfigManager(context, wifiStateMachine, wifiNative, frameworkFacade, clock,
-                userManager);
+                userManager, keyStore);
     }
 }
