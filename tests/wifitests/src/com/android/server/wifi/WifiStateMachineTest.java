@@ -62,6 +62,7 @@ import android.os.PowerManager;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
+import android.security.KeyStore;
 import android.telephony.TelephonyManager;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Base64;
@@ -198,12 +199,12 @@ public class WifiStateMachineTest {
 
         when(facade.makeWifiConfigManager(any(Context.class),  any(WifiStateMachine.class),
                 any(WifiNative.class), any(FrameworkFacade.class), any(Clock.class),
-                any(UserManager.class))).then(new AnswerWithArguments() {
+                any(UserManager.class), any(KeyStore.class))).then(new AnswerWithArguments() {
             public WifiConfigManager answer(Context context, WifiStateMachine wifiStateMachine,
                     WifiNative wifiNative, FrameworkFacade frameworkFacade, Clock clock,
-                    UserManager userManager){
+                    UserManager userManager, KeyStore keyStore){
                 mWifiConfigManager = new WifiConfigManager(context, wifiStateMachine, wifiNative,
-                        frameworkFacade, clock, userManager);
+                        frameworkFacade, clock, userManager, keyStore);
                 return mWifiConfigManager;
             }
         });
