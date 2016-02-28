@@ -16,22 +16,22 @@
 
 #include "log.h"
 
-Mutex::Mutex() {
+mutex::mutex() {
   if (pthread_mutex_init(&mu_, NULL) != 0)
     PERROR("pthread_mutex_init");
 }
 
-Mutex::~Mutex() {
+mutex::~mutex() {
   if (pthread_mutex_destroy(&mu_) != 0)
     PERROR("pthread_mutex_destroy");
 }
 
-void Mutex::lock() {
+void mutex::lock() {
   if (pthread_mutex_lock(&mu_) != 0)
     PERROR("pthread_mutex_lock");
 }
 
-void Mutex::unlock() {
+void mutex::unlock() {
   if (pthread_mutex_unlock(&mu_) != 0)
     PERROR("pthread_mutex_unlock");
 }

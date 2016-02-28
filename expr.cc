@@ -62,8 +62,7 @@ class Literal : public Value {
     s->append(s_.begin(), s_.end());
   }
 
-  virtual bool IsLiteral() const override { return true; }
-  virtual StringPiece GetLiteralValueUnsafe() const { return s_; }
+  virtual bool IsLiteral() const { return true; }
 
   virtual string DebugString_() const override {
     return s_.as_string();
@@ -110,7 +109,7 @@ class Expr : public Value {
     return r;
   }
 
-  virtual Value* Compact() override {
+  virtual Value* Compact() {
     if (vals_.size() != 1) {
       return this;
     }

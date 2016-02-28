@@ -24,7 +24,7 @@ class condition_variable {
   condition_variable();
   ~condition_variable();
 
-  void wait(const UniqueLock<Mutex>& mu);
+  void wait(const unique_lock<mutex>& mu);
   void notify_one();
   void notify_all();
 

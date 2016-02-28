@@ -32,7 +32,6 @@
 #include <unordered_map>
 
 #include "log.h"
-#include "strutil.h"
 
 bool Exists(StringPiece filename) {
   CHECK(filename.size() < PATH_MAX);
@@ -63,13 +62,6 @@ double GetTimestamp(StringPiece filename) {
 int RunCommand(const string& shell, const string& cmd,
                RedirectStderr redirect_stderr,
                string* s) {
-  string cmd_escaped = cmd;
-  EscapeShell(&cmd_escaped);
-  string cmd_with_shell = shell + " -c \"" + cmd_escaped + "\"";
-  const char* argv[] = {
-    "/bin/sh", "-c", cmd_with_shell.c_str(), NULL
-  };
-
   int pipefd[2];
   if (pipe(pipefd) != 0)
     PERROR("pipe failed");
@@ -114,6 +106,9 @@ int RunCommand(const string& shell, const string& cmd,
       PERROR("dup2 failed");
     close(pipefd[1]);
 
+    const char* argv[] = {
+      shell.c_str(), "-c", cmd.c_str(), NULL
+    };
     execvp(argv[0], const_cast<char**>(argv));
     PLOG("execvp for %s failed", argv[0]);
     kill(getppid(), SIGTERM);

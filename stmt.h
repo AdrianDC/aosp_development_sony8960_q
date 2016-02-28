@@ -20,7 +20,6 @@
 
 #include "loc.h"
 #include "string_piece.h"
-#include "symtab.h"
 
 using namespace std;
 
@@ -86,19 +85,11 @@ struct AssignStmt : public Stmt {
   AssignOp op;
   AssignDirective directive;
 
-  AssignStmt()
-      : lhs_sym_cache_(Symbol::IsUninitialized{}) {
-  }
   virtual ~AssignStmt();
 
   virtual void Eval(Evaluator* ev) const;
 
   virtual string DebugString() const;
-
-  Symbol GetLhsSymbol(Evaluator* ev) const;
-
- private:
-  mutable Symbol lhs_sym_cache_;
 };
 
 struct CommandStmt : public Stmt {

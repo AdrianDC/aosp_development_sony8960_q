@@ -17,10 +17,10 @@
 
 #include <pthread.h>
 
-class Mutex {
+class mutex {
  public:
-  explicit Mutex();
-  ~Mutex();
+  explicit mutex();
+  ~mutex();
 
   void lock();
   void unlock();
@@ -31,17 +31,17 @@ class Mutex {
   friend class condition_variable;
 };
 
-template<class T> class UniqueLock {
+template<class T> class unique_lock {
  public:
-  explicit UniqueLock(T& mu)
+  explicit unique_lock(T& mu)
       : mu_(mu) {
     mu_.lock();
   }
-  ~UniqueLock() {
+  ~unique_lock() {
     mu_.unlock();
   }
 
-  T* Mutex() const { return &mu_; }
+  T* mutex() const { return &mu_; }
 
  private:
   T& mu_;

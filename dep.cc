@@ -27,10 +27,8 @@
 #include "fileutil.h"
 #include "log.h"
 #include "rule.h"
-#include "stats.h"
 #include "strutil.h"
 #include "symtab.h"
-#include "timeutil.h"
 #include "var.h"
 
 namespace {
@@ -118,14 +116,13 @@ DepNode::DepNode(Symbol o, bool p, bool r)
 class DepBuilder {
  public:
   DepBuilder(Evaluator* ev,
-             const vector<const Rule*>& rules,
+             const vector<shared_ptr<Rule>>& rules,
              const unordered_map<Symbol, Vars*>& rule_vars)
       : ev_(ev),
         rule_vars_(rule_vars),
         implicit_rules_(new RuleTrie()),
         first_rule_(NULL),
         depfile_var_name_(Intern(".KATI_DEPFILE")) {
-    ScopedTimeReporter tr("make dep (populate)");
     PopulateRules(rules);
     LOG_STAT("%zu variables", ev->mutable_vars()->size());
     LOG_STAT("%zu explicit rules", rules_.size());
@@ -229,8 +226,8 @@ class DepBuilder {
     return ::Exists(target.str());
   }
 
-  void PopulateRules(const vector<const Rule*>& rules) {
-    for (const Rule* rule : rules) {
+  void PopulateRules(const vector<shared_ptr<Rule>>& rules) {
+    for (shared_ptr<Rule> rule : rules) {
       if (rule->outputs.empty()) {
         PopulateImplicitRule(rule);
       } else {
@@ -242,7 +239,7 @@ class DepBuilder {
     }
   }
 
-  bool PopulateSuffixRule(const Rule* rule, Symbol output) {
+  bool PopulateSuffixRule(shared_ptr<Rule> rule, Symbol output) {
     if (output.empty() || output.str()[0] != '.')
       return false;
 
@@ -294,7 +291,6 @@ class DepBuilder {
                               const Rule& rule,
                               Symbol output,
                               bool is_suffix_rule) {
-    COLLECT_STATS("make dep (merge rule)");
     if (old_rule.is_double_colon != rule.is_double_colon) {
       ERROR("%s:%d: *** target file `%s' has both : and :: entries.",
             LOCF(rule.loc), output.str().c_str());
@@ -341,7 +337,7 @@ class DepBuilder {
     return r;
   }
 
-  void PopulateExplicitRule(const Rule* orig_rule) {
+  void PopulateExplicitRule(shared_ptr<Rule> orig_rule) {
     for (Symbol output : orig_rule->outputs) {
       const bool is_suffix_rule = PopulateSuffixRule(orig_rule, output);
 
@@ -349,7 +345,7 @@ class DepBuilder {
       rule->outputs.clear();
       rule->outputs.push_back(output);
 
-      auto p = rules_.emplace(output, rule);
+      auto p = rules_.insert(make_pair(output, rule));
       if (p.second) {
         if (!first_rule_ && output.get(0) != '.') {
           rule->is_default_target = true;
@@ -362,24 +358,9 @@ class DepBuilder {
     }
   }
 
-  static bool IsIgnorableImplicitRule(const Rule* rule) {
-    // As kati doesn't have RCS/SCCS related default rules, we can
-    // safely ignore suppression for them.
-    if (rule->inputs.size() != 1)
-      return false;
-    if (!rule->order_only_inputs.empty())
-      return false;
-    if (!rule->cmds.empty())
-      return false;
-    const string& i = rule->inputs[0].str();
-    return (i == "RCS/%,v" || i == "RCS/%" || i == "%,v" ||
-            i == "s.%" || i == "SCCS/s.%");
-  }
-
-  void PopulateImplicitRule(const Rule* rule) {
+  void PopulateImplicitRule(shared_ptr<Rule> rule) {
     for (Symbol output_pattern : rule->output_patterns) {
-      if (output_pattern.str() != "%" || !IsIgnorableImplicitRule(rule))
-        implicit_rules_->Add(output_pattern.str(), rule);
+      implicit_rules_->Add(output_pattern.str(), rule.get());
     }
   }
 
@@ -456,7 +437,6 @@ class DepBuilder {
 
   bool PickRule(Symbol output, DepNode* n,
                 shared_ptr<Rule>* out_rule, Vars** out_var) {
-    COLLECT_STATS("make dep (pick rule)");
     shared_ptr<Rule> rule = LookupRule(output);
     Vars* vars = LookupRuleVars(output);
     *out_rule = rule;
@@ -559,7 +539,6 @@ class DepBuilder {
 
     vector<unique_ptr<ScopedVar>> sv;
     if (vars) {
-      COLLECT_STATS("make dep (create scope)");
       for (const auto& p : *vars) {
         Symbol name = p.first;
         RuleVar* var = reinterpret_cast<RuleVar*>(p.second);
@@ -640,12 +619,11 @@ class DepBuilder {
 };
 
 void MakeDep(Evaluator* ev,
-             const vector<const Rule*>& rules,
+             const vector<shared_ptr<Rule>>& rules,
              const unordered_map<Symbol, Vars*>& rule_vars,
              const vector<Symbol>& targets,
              vector<DepNode*>* nodes) {
   DepBuilder db(ev, rules, rule_vars);
-  ScopedTimeReporter tr("make dep (build)");
   db.Build(targets, nodes);
 }
 

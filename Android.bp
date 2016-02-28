@@ -15,7 +15,6 @@
 cc_library_host_static {
     name: "libckati",
     srcs: [
-        "affinity.cc",
         "command.cc",
         "condvar.cc",
         "dep.cc",

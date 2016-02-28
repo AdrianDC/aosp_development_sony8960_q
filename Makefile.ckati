@@ -22,7 +22,6 @@ KATI_INTERMEDIATES_PATH ?= .
 KATI_BIN_PATH ?= .
 
 KATI_CXX_SRCS := \
-	affinity.cc \
 	command.cc \
 	condvar.cc \
 	dep.cc \

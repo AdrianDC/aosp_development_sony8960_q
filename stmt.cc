@@ -55,19 +55,6 @@ string AssignStmt::DebugString() const {
                       opstr, dirstr, LOCF(loc()));
 }
 
-Symbol AssignStmt::GetLhsSymbol(Evaluator* ev) const {
-  if (!lhs->IsLiteral()) {
-    string buf;
-    lhs->Eval(ev, &buf);
-    return Intern(buf);
-  }
-
-  if (!lhs_sym_cache_.IsValid()) {
-    lhs_sym_cache_ = Intern(lhs->GetLiteralValueUnsafe());
-  }
-  return lhs_sym_cache_;
-}
-
 string CommandStmt::DebugString() const {
   return StringPrintf("CommandStmt(%s, loc=%s:%d)",
                       expr->DebugString().c_str(), LOCF(loc()));
