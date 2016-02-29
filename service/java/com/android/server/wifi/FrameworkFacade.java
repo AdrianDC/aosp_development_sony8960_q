@@ -55,8 +55,8 @@ public class FrameworkFacade {
     }
 
     public SupplicantStateTracker makeSupplicantStateTracker(Context context,
-             WifiStateMachine wifiStateMachine, WifiConfigManager configStore, Handler handler) {
-        return new SupplicantStateTracker(context, wifiStateMachine, configStore, handler);
+             WifiStateMachine wifiStateMachine, WifiConfigManager configManager, Handler handler) {
+        return new SupplicantStateTracker(context, wifiStateMachine, configManager, handler);
     }
 
     /**
