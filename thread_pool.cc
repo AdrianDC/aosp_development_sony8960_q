@@ -17,6 +17,7 @@
 #include <stack>
 #include <vector>
 
+#include "affinity.h"
 #include "condvar.h"
 #include "mutex.h"
 #include "thread.h"
@@ -25,6 +26,7 @@ class ThreadPoolImpl : public ThreadPool {
  public:
   explicit ThreadPoolImpl(int num_threads)
       : is_waiting_(false) {
+    SetAffinityForMultiThread();
     threads_.reserve(num_threads);
     for (int i = 0; i < num_threads; i++) {
       threads_.push_back(thread([this]() { Loop(); }));
@@ -35,14 +37,14 @@ class ThreadPoolImpl : public ThreadPool {
   }
 
   virtual void Submit(function<void(void)> task) override {
-    unique_lock<mutex> lock(mu_);
+    UniqueLock<Mutex> lock(mu_);
     tasks_.push(task);
     cond_.notify_one();
   }
 
   virtual void Wait() override {
     {
-      unique_lock<mutex> lock(mu_);
+      UniqueLock<Mutex> lock(mu_);
       is_waiting_ = true;
       cond_.notify_all();
     }
@@ -50,6 +52,8 @@ class ThreadPoolImpl : public ThreadPool {
     for (thread& th : threads_) {
       th.join();
     }
+
+    SetAffinityForSingleThread();
   }
 
  private:
@@ -57,7 +61,7 @@ class ThreadPoolImpl : public ThreadPool {
     while (true) {
       function<void(void)> task;
       {
-        unique_lock<mutex> lock(mu_);
+        UniqueLock<Mutex> lock(mu_);
         if (tasks_.empty()) {
           if (is_waiting_)
             return;
@@ -75,7 +79,7 @@ class ThreadPoolImpl : public ThreadPool {
   }
 
   vector<thread> threads_;
-  mutex mu_;
+  Mutex mu_;
   condition_variable cond_;
   stack<function<void(void)>> tasks_;
   bool is_waiting_;
