@@ -1336,17 +1336,14 @@ public class WifiConfigManager {
     boolean removeNetwork(int netId) {
         if (showNetworks) localLogNetwork("removeNetwork", netId);
         WifiConfiguration config = mConfiguredNetworks.getForCurrentUser(netId);
-        if (!mWifiConfigStore.removeNetwork(config)) {
-            loge("Failed to remove network " + netId);
+        if (!removeConfigAndSendBroadcastIfNeeded(config)) {
             return false;
         }
-        removeConfigAndSendBroadcastIfNeeded(netId);
-        if (config != null && config.isPasspoint()) {
+        if (config.isPasspoint()) {
             writePasspointConfigs(config.FQDN, null);
         }
         return true;
     }
-
 
     static private Long getChecksum(String source) {
         Checksum csum = new CRC32();
@@ -1354,49 +1351,54 @@ public class WifiConfigManager {
         return csum.getValue();
     }
 
-    private boolean removeConfigAndSendBroadcastIfNeeded(int netId) {
-        WifiConfiguration config = mConfiguredNetworks.getForCurrentUser(netId);
-        if (config != null) {
-            String key = config.configKey();
-            if (VDBG) {
-                loge("removeNetwork " + netId + " key=" + key + " config.id=" + config.networkId);
-            }
+    private boolean removeConfigWithoutBroadcast(WifiConfiguration config) {
+        if (config == null) {
+            return false;
+        }
+        if (!mWifiConfigStore.removeNetwork(config)) {
+            loge("Failed to remove network " + config.networkId);
+            return false;
+        }
+        if (config.configKey().equals(lastSelectedConfiguration)) {
+            lastSelectedConfiguration = null;
+        }
+        mConfiguredNetworks.remove(config.networkId);
+        mScanDetailCaches.remove(config.networkId);
+        return true;
+    }
 
-            // cancel the last user choice
-            if (key.equals(lastSelectedConfiguration)) {
-                lastSelectedConfiguration = null;
-            }
-
-            if (config.selfAdded || config.linkedConfigurations != null
-                    || config.allowedKeyManagement.get(KeyMgmt.WPA_PSK)) {
-                if (!TextUtils.isEmpty(config.SSID)) {
+    private boolean removeConfigAndSendBroadcastIfNeeded(WifiConfiguration config) {
+        if (!removeConfigWithoutBroadcast(config)) {
+            return false;
+        }
+        String key = config.configKey();
+        if (VDBG) {
+            logd("removeNetwork " + " key=" + key + " config.id=" + config.networkId);
+        }
+        if (config.selfAdded || config.linkedConfigurations != null
+                || config.allowedKeyManagement.get(KeyMgmt.WPA_PSK)) {
+            if (!TextUtils.isEmpty(config.SSID)) {
                     /* Remember that we deleted this PSK SSID */
-                    if (config.SSID != null) {
-                        Long csum = getChecksum(config.SSID);
-                        mDeletedSSIDs.add(csum);
-                        loge("removeNetwork " + netId
-                                + " key=" + key
-                                + " config.id=" + config.networkId
-                                + "  crc=" + csum);
-                    } else {
-                        loge("removeNetwork " + netId
-                                + " key=" + key
-                                + " config.id=" + config.networkId);
-                    }
+                if (config.SSID != null) {
+                    Long csum = getChecksum(config.SSID);
+                    mDeletedSSIDs.add(csum);
+                    logd("removeNetwork "
+                            + " key=" + key
+                            + " config.id=" + config.networkId
+                            + "  crc=" + csum);
+                } else {
+                    logd("removeNetwork "
+                            + " key=" + key
+                            + " config.id=" + config.networkId);
                 }
             }
-
-            mConfiguredNetworks.remove(netId);
-            mScanDetailCaches.remove(netId);
-
-            writeIpAndProxyConfigurations();
-            sendConfiguredNetworksChangedBroadcast(config, WifiManager.CHANGE_REASON_REMOVED);
-            if (!config.ephemeral) {
-                removeUserSelectionPreference(key);
-            }
-
-            writeKnownNetworkHistory();
         }
+        writeIpAndProxyConfigurations();
+        sendConfiguredNetworksChangedBroadcast(config, WifiManager.CHANGE_REASON_REMOVED);
+        if (!config.ephemeral) {
+            removeUserSelectionPreference(key);
+        }
+        writeKnownNetworkHistory();
         return true;
     }
 
@@ -2843,12 +2845,7 @@ public class WifiConfigManager {
         }
         if (!ephemeralConfigs.isEmpty()) {
             for (WifiConfiguration config : ephemeralConfigs) {
-                if (config.configKey().equals(lastSelectedConfiguration)) {
-                    lastSelectedConfiguration = null;
-                }
-                mConfiguredNetworks.remove(config.networkId);
-                mScanDetailCaches.remove(config.networkId);
-                mWifiConfigStore.removeNetwork(config);
+                removeConfigWithoutBroadcast(config);
             }
             saveConfig();
             writeKnownNetworkHistory();

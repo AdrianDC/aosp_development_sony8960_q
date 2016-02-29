@@ -711,6 +711,7 @@ public class WifiConfigManagerTest {
         }
 
         when(mWifiNative.disableNetwork(anyInt())).thenReturn(true);
+        when(mWifiNative.removeNetwork(anyInt())).thenReturn(true);
 
         switchUser(newUserId);
         if (makeOneConfigEphemeral) {
