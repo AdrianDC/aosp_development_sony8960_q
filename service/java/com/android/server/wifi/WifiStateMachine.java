@@ -1122,7 +1122,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     private final IBatteryStats mBatteryStats;
 
-    private String mTcpBufferSizes = null;
+    private final String mTcpBufferSizes;
 
     // Used for debug and stats gathering
     private static int sScanAlarmIntentCount = 0;
@@ -4168,35 +4168,21 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         }
     }
 
-    private void notifyLinkProperties() {
-        // TODO: Add setters for TCP buffer sizes and HTTP proxy to IpManager.
-        // Once that is done delete this.
-        updateLinkProperties(new LinkProperties(mLinkProperties));
-    }
-
     private void updateLinkProperties(LinkProperties newLp) {
-        // HTTP proxy and TCP buffer sizes are locally configured.
-        newLp.setHttpProxy(mWifiConfigManager.getProxyProperties(mLastNetworkId));
-        if (!TextUtils.isEmpty(mTcpBufferSizes)) {
-            newLp.setTcpBufferSizes(mTcpBufferSizes);
+        if (DBG) {
+            log("Link configuration changed for netId: " + mLastNetworkId
+                    + " old: " + mLinkProperties + " new: " + newLp);
+        }
+        // We own this instance of LinkProperties because IpManager passes us a copy.
+        mLinkProperties = newLp;
+        if (mNetworkAgent != null) {
+            mNetworkAgent.sendLinkProperties(mLinkProperties);
         }
 
-        if (!newLp.equals(mLinkProperties)) {
-            if (DBG) {
-                log("Link configuration changed for netId: " + mLastNetworkId
-                        + " old: " + mLinkProperties + " new: " + newLp);
-            }
-            // We own this instance of LinkProperties because IpManager passes us a copy.
-            mLinkProperties = newLp;
-            if (mNetworkAgent != null) {
-                mNetworkAgent.sendLinkProperties(mLinkProperties);
-            }
-
-            if (getNetworkDetailedState() == DetailedState.CONNECTED) {
-                // If anything has changed and we're already connected, send out a notification.
-                // TODO: Update all callers to use NetworkCallbacks and delete this.
-                sendLinkConfigurationChangedBroadcast();
-            }
+        if (getNetworkDetailedState() == DetailedState.CONNECTED) {
+            // If anything has changed and we're already connected, send out a notification.
+            // TODO: Update all callers to use NetworkCallbacks and delete this.
+            sendLinkConfigurationChangedBroadcast();
         }
 
         if (DBG) {
@@ -7013,7 +6999,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                             }
                             if (result.hasProxyChanged()) {
                                 log("Reconfiguring proxy on connection");
-                                notifyLinkProperties();
+                                mIpManager.setHttpProxy(
+                                        mWifiConfigManager.getProxyProperties(mLastNetworkId));
                             }
                         }
                         replyToMessage(message, WifiManager.SAVE_NETWORK_SUCCEEDED);
@@ -7420,9 +7407,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             }
             setNetworkDetailedState(DetailedState.CONNECTING);
 
-            if (!TextUtils.isEmpty(mTcpBufferSizes)) {
-                mLinkProperties.setTcpBufferSizes(mTcpBufferSizes);
-            }
             mNetworkAgent = new WifiNetworkAgent(getHandler().getLooper(), mContext,
                     "WifiNetworkAgent", mNetworkInfo, mNetworkCapabilitiesFilter,
                     mLinkProperties, 60);
@@ -7848,6 +7832,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             // connectivity APIs such as getActiveNetworkInfo should not return
             // CONNECTED.
             stopIpManager();
+
+            mIpManager.setHttpProxy(mWifiConfigManager.getProxyProperties(mLastNetworkId));
+            if (!TextUtils.isEmpty(mTcpBufferSizes)) {
+                mIpManager.setTcpBufferSizes(mTcpBufferSizes);
+            }
 
             if (!mWifiConfigManager.isUsingStaticIp(mLastNetworkId)) {
                 final IpManager.ProvisioningConfiguration prov =
