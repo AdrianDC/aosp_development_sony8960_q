@@ -116,6 +116,28 @@ void TestNormalizePath() {
   ASSERT_EQ(NormalizePath("./../../a/b"), "../../a/b");
 }
 
+string EscapeShell(string s) {
+  ::EscapeShell(&s);
+  return s;
+}
+
+void TestEscapeShell() {
+  ASSERT_EQ(EscapeShell(""), "");
+  ASSERT_EQ(EscapeShell("foo"), "foo");
+  ASSERT_EQ(EscapeShell("foo$`\\baz\"bar"), "foo\\$\\`\\\\baz\\\"bar");
+  ASSERT_EQ(EscapeShell("$$"), "\\$$");
+  ASSERT_EQ(EscapeShell("$$$"), "\\$$\\$");
+  ASSERT_EQ(EscapeShell("\\\n"), "\\\\\n");
+}
+
+void TestFindEndOfLine() {
+  size_t lf_cnt = 0;
+  ASSERT_EQ(FindEndOfLine("foo", 0, &lf_cnt), 3);
+  char buf[10] = {'f', 'o', '\\', '\0', 'x', 'y'};
+  ASSERT_EQ(FindEndOfLine(StringPiece(buf, 6), 0, &lf_cnt), 3);
+  ASSERT_EQ(FindEndOfLine(StringPiece(buf, 2), 0, &lf_cnt), 2);
+}
+
 }  // namespace
 
 int main() {
@@ -126,5 +148,7 @@ int main() {
   TestNoLineBreak();
   TestHasWord();
   TestNormalizePath();
+  TestEscapeShell();
+  TestFindEndOfLine();
   assert(!g_failed);
 }

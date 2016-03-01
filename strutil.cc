@@ -424,10 +424,16 @@ size_t FindThreeOutsideParen(StringPiece s, char c1, char c2, char c3) {
 
 size_t FindEndOfLine(StringPiece s, size_t e, size_t* lf_cnt) {
 #ifdef __SSE4_2__
-  static const char ranges[] = "\n\n\\\\";
+  static const char ranges[] = "\0\0\n\n\\\\";
   while (e < s.size()) {
-    e += SkipUntilSSE42(s.data() + e, s.size() - e, ranges, 4);
+    e += SkipUntilSSE42(s.data() + e, s.size() - e, ranges, 6);
+    if (e >= s.size()) {
+      CHECK(s.size() == e);
+      break;
+    }
     char c = s[e];
+    if (c == '\0')
+      break;
     if (c == '\\') {
       if (s[e+1] == '\n') {
         e += 2;
@@ -523,6 +529,32 @@ string EchoEscape(const string str) {
 }
 
 void EscapeShell(string* s) {
+#ifdef __SSE4_2__
+  static const char ranges[] = "\0\0\"\"$$\\\\``";
+  size_t prev = 0;
+  size_t i = SkipUntilSSE42(s->c_str(), s->size(), ranges, 10);
+  if (i == s->size())
+    return;
+
+  string r;
+  for (; i < s->size();) {
+    StringPiece(*s).substr(prev, i - prev).AppendToString(&r);
+    char c = (*s)[i];
+    r += '\\';
+    if (c == '$') {
+      if ((*s)[i+1] == '$') {
+        r += '$';
+        i++;
+      }
+    }
+    r += c;
+    i++;
+    prev = i;
+    i += SkipUntilSSE42(s->c_str() + i, s->size() - i, ranges, 10);
+  }
+  StringPiece(*s).substr(prev).AppendToString(&r);
+  s->swap(r);
+#else
   if (s->find_first_of("$`\\\"") == string::npos)
     return;
   string r;
@@ -550,4 +582,5 @@ void EscapeShell(string* s) {
     }
   }
   s->swap(r);
+#endif
 }

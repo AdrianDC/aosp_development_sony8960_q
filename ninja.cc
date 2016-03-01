@@ -201,7 +201,7 @@ class NinjaGenerator {
                 const string& orig_args) {
     unlink(GetNinjaStampFilename().c_str());
     PopulateNinjaNodes(nodes);
-    GenerateNinja(orig_args);
+    GenerateNinja();
     GenerateShell();
     GenerateStamp(orig_args);
   }
@@ -569,34 +569,16 @@ class NinjaGenerator {
     if (use_local_pool)
       *o << " pool = local_pool\n";
     if (node->is_default_target) {
-      UniqueLock<Mutex> lock(mu_);
+      unique_lock<mutex> lock(mu_);
       default_target_ = node;
     }
-  }
-
-  void EmitRegenRules(const string& orig_args) {
-    if (!g_flags.gen_regen_rule)
-      return;
-
-    fprintf(fp_, "rule regen_ninja\n");
-    fprintf(fp_, " command = %s\n", orig_args.c_str());
-    fprintf(fp_, " generator = 1\n");
-    fprintf(fp_, " description = Regenerate ninja files due to dependency\n");
-    fprintf(fp_, "build %s: regen_ninja", GetNinjaFilename().c_str());
-    unordered_set<string> makefiles;
-    MakefileCacheManager::Get()->GetAllFilenames(&makefiles);
-    for (const string& makefile : makefiles) {
-      fprintf(fp_, " %.*s", SPF(makefile));
-    }
-    fprintf(fp_, " %s", kati_binary_.c_str());
-    fprintf(fp_, "\n\n");
   }
 
   static string GetEnvScriptFilename() {
     return GetFilename("env%s.sh");
   }
 
-  void GenerateNinja(const string& orig_args) {
+  void GenerateNinja() {
     ScopedTimeReporter tr("ninja gen (emit)");
     fp_ = fopen(GetNinjaFilename().c_str(), "wb");
     if (fp_ == NULL)
@@ -621,8 +603,6 @@ class NinjaGenerator {
     fprintf(fp_, " depth = %d\n\n", g_flags.num_jobs);
 
     fprintf(fp_, "build _kati_always_build_: phony\n\n");
-
-    EmitRegenRules(orig_args);
 
     unique_ptr<ThreadPool> tp(NewThreadPool(g_flags.num_jobs));
     CHECK(g_flags.num_jobs);
@@ -807,7 +787,7 @@ class NinjaGenerator {
   const double start_time_;
   vector<NinjaNode*> nodes_;
 
-  Mutex mu_;
+  mutex mu_;
   const DepNode* default_target_;
 };
 
