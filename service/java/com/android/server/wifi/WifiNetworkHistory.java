@@ -44,6 +44,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Provides an API to read and write the network history from WifiConfigurations to file
@@ -124,7 +125,7 @@ public class WifiNetworkHistory {
      * @param networks List of ConfiguredNetworks to write to NetworkHistory
      */
     public void writeKnownNetworkHistory(final List<WifiConfiguration> networks,
-            final HashMap<Integer, ScanDetailCache> scanDetailCaches,
+            final ConcurrentHashMap<Integer, ScanDetailCache> scanDetailCaches,
             final Set<Long> deletedSSIDs,
             final Set<String> deletedEphemeralSSIDs) {
 
@@ -318,7 +319,7 @@ public class WifiNetworkHistory {
      *         information read from wpa_supplicant.conf
      */
     public void readNetworkHistory(Map<String, WifiConfiguration> configs,
-            HashMap<Integer, ScanDetailCache> scanDetailCaches,
+            ConcurrentHashMap<Integer, ScanDetailCache> scanDetailCaches,
             Set<Long> deletedSSIDs,
             Set<String> deletedEphemeralSSIDs) {
         localLog("readNetworkHistory() path:" + NETWORK_HISTORY_CONFIG_FILE);
@@ -611,7 +612,7 @@ public class WifiNetworkHistory {
     }
 
     private ScanDetailCache getScanDetailCache(WifiConfiguration config,
-            HashMap<Integer, ScanDetailCache> scanDetailCaches) {
+            ConcurrentHashMap<Integer, ScanDetailCache> scanDetailCaches) {
         if (config == null || scanDetailCaches == null) return null;
         ScanDetailCache cache = scanDetailCaches.get(config.networkId);
         if (cache == null && config.networkId != WifiConfiguration.INVALID_NETWORK_ID) {
