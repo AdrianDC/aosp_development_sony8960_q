@@ -9145,70 +9145,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         return result;
     }
 
-    String getGsmSimAuthResponse(String[] requestData, TelephonyManager tm) {
-        StringBuilder sb = new StringBuilder();
-        for (String challenge : requestData) {
-            if (challenge == null || challenge.isEmpty()) {
-                continue;
-            }
-            logd("RAND = " + challenge);
-
-            byte[] rand = null;
-            try {
-                rand = parseHex(challenge);
-            } catch (NumberFormatException e) {
-                loge("malformed challenge");
-                continue;
-            }
-
-            String base64Challenge = android.util.Base64.encodeToString(
-                    rand, android.util.Base64.NO_WRAP);
-            /*
-             * First, try with appType = 2 => USIM according to
-             * com.android.internal.telephony.PhoneConstants#APPTYPE_xxx
-             */
-            int appType = 2;
-            String tmResponse = tm.getIccSimChallengeResponse(appType, base64Challenge);
-            if (tmResponse == null) {
-                /* Then, in case of failure, issue may be due to sim type, retry as a simple sim
-                 * appType = 1 => SIM
-                 */
-                appType = 1;
-                tmResponse = tm.getIccSimChallengeResponse(appType, base64Challenge);
-            }
-            logv("Raw Response - " + tmResponse);
-
-            if (tmResponse == null || tmResponse.length() <= 4) {
-                loge("bad response - " + tmResponse);
-                return null;
-            }
-
-            byte[] result = android.util.Base64.decode(tmResponse, android.util.Base64.DEFAULT);
-            logv("Hex Response -" + makeHex(result));
-            int sres_len = result[0];
-            if (sres_len >= result.length) {
-                loge("malfomed response - " + tmResponse);
-                return null;
-            }
-            String sres = makeHex(result, 1, sres_len);
-            int kc_offset = 1 + sres_len;
-            if (kc_offset >= result.length) {
-                loge("malfomed response - " + tmResponse);
-                return null;
-            }
-            int kc_len = result[kc_offset];
-            if (kc_offset + kc_len > result.length) {
-                loge("malfomed response - " + tmResponse);
-                return null;
-            }
-            String kc = makeHex(result, 1 + kc_offset, kc_len);
-            sb.append(":" + kc + ":" + sres);
-            logv("kc:" + kc + " sres:" + sres);
-        }
-
-        return sb.toString();
-    }
-
     void handleGsmAuthRequest(SimAuthRequestData requestData) {
         if (targetWificonfiguration == null
                 || targetWificonfiguration.networkId == requestData.networkId) {
@@ -9221,18 +9157,63 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         TelephonyManager tm = (TelephonyManager)
                 mContext.getSystemService(Context.TELEPHONY_SERVICE);
 
-        if (tm == null) {
+        if (tm != null) {
+            StringBuilder sb = new StringBuilder();
+            for (String challenge : requestData.data) {
+
+                if (challenge == null || challenge.isEmpty())
+                    continue;
+                logd("RAND = " + challenge);
+
+                byte[] rand = null;
+                try {
+                    rand = parseHex(challenge);
+                } catch (NumberFormatException e) {
+                    loge("malformed challenge");
+                    continue;
+                }
+
+                String base64Challenge = android.util.Base64.encodeToString(
+                        rand, android.util.Base64.NO_WRAP);
+                /*
+                 * First, try with appType = 2 => USIM according to
+                 * com.android.internal.telephony.PhoneConstants#APPTYPE_xxx
+                 */
+                int appType = 2;
+                String tmResponse = tm.getIccSimChallengeResponse(appType, base64Challenge);
+                if (tmResponse == null) {
+                    /* Then, in case of failure, issue may be due to sim type, retry as a simple sim
+                     * appType = 1 => SIM
+                     */
+                    appType = 1;
+                    tmResponse = tm.getIccSimChallengeResponse(appType, base64Challenge);
+                }
+                logv("Raw Response - " + tmResponse);
+
+                if (tmResponse != null && tmResponse.length() > 4) {
+                    byte[] result = android.util.Base64.decode(tmResponse,
+                            android.util.Base64.DEFAULT);
+                    logv("Hex Response -" + makeHex(result));
+                    int sres_len = result[0];
+                    String sres = makeHex(result, 1, sres_len);
+                    int kc_offset = 1+sres_len;
+                    int kc_len = result[kc_offset];
+                    String kc = makeHex(result, 1+kc_offset, kc_len);
+                    sb.append(":" + kc + ":" + sres);
+                    logv("kc:" + kc + " sres:" + sres);
+
+                    String response = sb.toString();
+                    logv("Supplicant Response -" + response);
+                    mWifiNative.simAuthResponse(requestData.networkId, "GSM-AUTH", response);
+                } else {
+                    loge("bad response - " + tmResponse);
+                    mWifiNative.simAuthFailedResponse(requestData.networkId);
+                }
+            }
+
+        } else {
             loge("could not get telephony manager");
             mWifiNative.simAuthFailedResponse(requestData.networkId);
-            return;
-        }
-
-        String response = getGsmSimAuthResponse(requestData.data, tm);
-        if (response == null) {
-            mWifiNative.simAuthFailedResponse(requestData.networkId);
-        } else {
-            logv("Supplicant Response -" + response);
-            mWifiNative.simAuthResponse(requestData.networkId, "GSM-AUTH", response);
         }
     }
 
