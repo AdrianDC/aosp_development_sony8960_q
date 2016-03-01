@@ -127,8 +127,8 @@ public class WifiStateMachineTest {
 
     private class TestIpManager extends IpManager {
         TestIpManager(Context context, String ifname, IpManager.Callback callback) {
-            // Call test-only superclass constructor.
-            super(ifname, callback);
+            // Call dependency-injection superclass constructor.
+            super(context, ifname, callback, mock(INetworkManagementService.class));
         }
 
         @Override
