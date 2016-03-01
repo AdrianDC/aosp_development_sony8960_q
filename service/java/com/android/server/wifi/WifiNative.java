@@ -1123,6 +1123,16 @@ public class WifiNative {
         return doBooleanCommand("CTRL-RSP-SIM-" + id + ":" + type + response);
     }
 
+    public boolean simAuthFailedResponse(int id) {
+        // should be used with type GSM-AUTH
+        return doBooleanCommand("CTRL-RSP-SIM-" + id + ":GSM-FAIL");
+    }
+
+    public boolean umtsAuthFailedResponse(int id) {
+        // should be used with type UMTS-AUTH
+        return doBooleanCommand("CTRL-RSP-SIM-" + id + ":UMTS-FAIL");
+    }
+
     public boolean simIdentityResponse(int id, String response) {
         return doBooleanCommand("CTRL-RSP-IDENTITY-" + id + ":" + response);
     }
