@@ -96,6 +96,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
@@ -168,7 +169,7 @@ public class WifiConfigManager {
      * map supplicant config to IP configuration. */
 
     /* Stores a map of NetworkId to ScanCache */
-    private HashMap<Integer, ScanDetailCache> mScanDetailCaches;
+    private ConcurrentHashMap<Integer, ScanDetailCache> mScanDetailCaches;
 
     /**
      * Framework keeps a list of (the CRC32 hashes of) all SSIDs that where deleted by user,
@@ -523,7 +524,7 @@ public class WifiConfigManager {
         mAnqpCache = new AnqpCache(mClock);
         mSupplicantBridgeCallbacks = new SupplicantBridgeCallbacks();
         mSupplicantBridge = new SupplicantBridge(wifiNative, mSupplicantBridgeCallbacks);
-        mScanDetailCaches = new HashMap<>();
+        mScanDetailCaches = new ConcurrentHashMap<>();
         mSIMAccessor = new SIMAccessor(mContext);
         mWriter = new DelayedDiskWrite();
         mIpconfigStore = new IpConfigStore(mWriter);
