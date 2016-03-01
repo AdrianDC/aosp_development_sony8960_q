@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import android.content.Context;
 import android.net.NetworkKey;
 import android.net.NetworkScoreManager;
+import android.net.WifiKey;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
@@ -31,6 +32,7 @@ import com.android.internal.R;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -649,6 +651,7 @@ class WifiQualifiedNetworkSelector {
         StringBuffer notSavedScan = new StringBuffer();
         StringBuffer noValidSsid = new StringBuffer();
         StringBuffer scoreHistory =  new StringBuffer();
+        ArrayList<NetworkKey> unscoredNetworks = new ArrayList<NetworkKey>();
 
         //iterate all scan results and find the best candidate with the highest score
         for (ScanDetail scanDetail : mScanDetails) {
@@ -681,6 +684,22 @@ class WifiQualifiedNetworkSelector {
                             + ")" + scanResult.level + " / ");
                 }
                 continue;
+            }
+
+            //check if there is already a score for this network
+            if (mNetworkScoreCache != null && !mNetworkScoreCache.isScoredNetwork(scanResult)) {
+                //no score for this network yet.
+                WifiKey wifiKey;
+
+                try {
+                    wifiKey = new WifiKey("\"" + scanResult.SSID + "\"", scanResult.BSSID);
+                    NetworkKey ntwkKey = new NetworkKey(wifiKey);
+                    //add to the unscoredNetworks list so we can request score later
+                    unscoredNetworks.add(ntwkKey);
+                } catch (IllegalArgumentException e) {
+                    Log.w(TAG, "Invalid SSID=" + scanResult.SSID + " BSSID=" + scanResult.BSSID
+                            + " for network score. Skip.");
+                }
             }
 
             //check whether this scan result belong to a saved network
@@ -759,6 +778,13 @@ class WifiQualifiedNetworkSelector {
                 scanResultCandidate = scanResult;
                 networkCandidate = configurationCandidateForThisScan;
             }
+        }
+
+        //kick the score manager if there is any unscored network
+        if (mScoreManager != null && unscoredNetworks.size() != 0) {
+            NetworkKey[] unscoredNetworkKeys =
+                    unscoredNetworks.toArray(new NetworkKey[unscoredNetworks.size()]);
+            mScoreManager.requestScores(unscoredNetworkKeys);
         }
 
         if (mDbg) {
