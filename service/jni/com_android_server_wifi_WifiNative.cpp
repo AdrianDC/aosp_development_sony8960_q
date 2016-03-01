@@ -1234,7 +1234,7 @@ static jobject android_net_wifi_enableResponder(
     wifi_channel_info channel;
     // Get channel information from HAL if it's not provided by caller.
     if (channel_hint == NULL) {
-        bool status = hal_fn.wifi_rtt_get_available_channnel(handle, &channel);
+        bool status = hal_fn.wifi_rtt_get_available_channel(handle, &channel);
         if (status != WIFI_SUCCESS) {
             ALOGE("could not get available channel for responder");
             return NULL;

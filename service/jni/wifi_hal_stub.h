@@ -70,13 +70,12 @@ wifi_error wifi_rtt_range_cancel_stub(wifi_request_id id,  wifi_interface_handle
          unsigned num_devices, mac_addr addr[]);
 wifi_error wifi_get_rtt_capabilities_stub(wifi_interface_handle iface,
          wifi_rtt_capabilities *capabilities);
-wifi_error wifi_rtt_get_available_channnel_stub(wifi_interface_handle iface,
+wifi_error wifi_rtt_get_available_channel_stub(wifi_interface_handle iface,
         wifi_channel_info* channel);
 wifi_error wifi_enable_responder_stub(wifi_request_id id, wifi_interface_handle iface,
         wifi_channel_info channel_hint, unsigned max_duration_seconds,
         wifi_channel_info* channel_used);
 wifi_error wifi_disable_responder_stub(wifi_request_id id, wifi_interface_handle iface);
-wifi_error rtt_get_available_channnel_stub(wifi_request_id id, wifi_interface_handle iface);
 
 wifi_error wifi_set_nodfs_flag_stub(wifi_interface_handle iface, u32 nodfs);
 wifi_error wifi_start_logging_stub(wifi_interface_handle iface, u32 verbose_level, u32 flags,
