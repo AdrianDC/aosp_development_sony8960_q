@@ -162,7 +162,7 @@ wifi_error wifi_disable_responder_stub(wifi_request_id id, wifi_interface_handle
 }
 
 /* API to get available channel for RTT responder role */
-wifi_error wifi_rtt_get_available_channnel_stub(wifi_interface_handle iface, wifi_channel_info* channel) {
+wifi_error wifi_rtt_get_available_channel_stub(wifi_interface_handle iface, wifi_channel_info* channel) {
     return WIFI_ERROR_NOT_SUPPORTED;
 }
 
