@@ -2914,4 +2914,21 @@ public class WifiNative {
             }
         }
     }
+
+    private static native int configureNeighborDiscoveryOffload(int iface, boolean enabled);
+
+    public boolean configureNeighborDiscoveryOffload(boolean enabled) {
+        final String logMsg =  "configureNeighborDiscoveryOffload(" + enabled + ")";
+        Log.d(mTAG, logMsg);
+        synchronized (sLock) {
+            if (isHalStarted()) {
+                final int ret = configureNeighborDiscoveryOffload(sWlan0Index, enabled);
+                if (ret != 0) {
+                    Log.d(mTAG, logMsg + " returned: " + ret);
+                }
+                return (ret == 0);
+            }
+        }
+        return false;
+    }
 }
