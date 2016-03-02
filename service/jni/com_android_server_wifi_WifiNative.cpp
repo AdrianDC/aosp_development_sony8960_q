@@ -2177,6 +2177,15 @@ static jbyteArray android_net_wifi_readKernelLog(JNIEnv *env, jclass cls) {
     return result.detach();
 }
 
+static jint android_net_wifi_configure_nd_offload(JNIEnv *env, jclass cls,
+        jint iface, jboolean enable) {
+    JNIHelper helper(env);
+    return hal_fn.wifi_configure_nd_offload(
+            getIfaceHandle(helper, cls, iface),
+            static_cast<int>(enable));
+}
+
+
 // ----------------------------------------------------------------------------
 
 /*
@@ -2278,7 +2287,8 @@ static JNINativeMethod gWifiMethods[] = {
             (void*) android_net_wifi_get_wlan_wake_reason_count},
     {"isGetChannelsForBandSupportedNative", "()Z",
             (void*)android_net_wifi_is_get_channels_for_band_supported},
-    {"readKernelLogNative", "()[B", (void*)android_net_wifi_readKernelLog}
+    {"readKernelLogNative", "()[B", (void*)android_net_wifi_readKernelLog},
+    {"configureNeighborDiscoveryOffload", "(IZ)I", (void*)android_net_wifi_configure_nd_offload},
 };
 
 /* User to register native functions */

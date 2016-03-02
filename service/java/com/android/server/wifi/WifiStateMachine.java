@@ -1420,6 +1420,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         }
 
         @Override
+        public void on464XlatChange(boolean enabled) {
+            mWifiNative.configureNeighborDiscoveryOffload(!enabled);
+        }
+
+        @Override
         public void onLinkPropertiesChange(LinkProperties newLp) {
             sendMessage(CMD_UPDATE_LINKPROPERTIES, newLp);
         }
