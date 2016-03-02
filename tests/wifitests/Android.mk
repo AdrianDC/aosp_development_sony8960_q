@@ -70,6 +70,35 @@ LOCAL_SRC_FILES := $(filter-out $(call all-java-files-under, \
           src/com/android/server/wifi/nan),$(LOCAL_SRC_FILES))
 endif
 
+# Provide jack a list of classes to exclude form code coverage
+# This list is generated from the java source files in this module
+# The list is a comma separated list of class names with * matching zero or more characters.
+# Example:
+#   Input files: src/com/android/server/wifi/Test.java src/com/android/server/wifi/AnotherTest.java
+#   Generated exclude list: com.android.server.wifi.Test*,com.android.server.wifi.AnotherTest*
+
+# Filter all src files to just java files
+local_java_files := $(filter %.java,$(LOCAL_SRC_FILES))
+# Transform java file names into full class names.
+# This only works if the class name matches the file name and the directory structure
+# matches the package.
+local_classes := $(subst /,.,$(patsubst src/%.java,%,$(local_java_files)))
+# Utility variables to allow replacing a space with a comma
+comma:= ,
+empty:=
+space:= $(empty) $(empty)
+# Convert class name list to jacoco exclude list
+# This appends a * to all classes and replace the space separators with commas.
+# These patterns will match all classes in this module and their inner classes.
+jacoco_exclude := $(subst $(space),$(comma),$(patsubst %,%*,$(local_classes)))
+
+jacoco_include := com.android.server.wifi.*,android.net.wifi.*
+
+
+LOCAL_JACK_FLAGS := \
+	-D jack.coverage.jacoco.include=$(jacoco_include) \
+	-D jack.coverage.jacoco.exclude=$(jacoco_exclude)
+
 LOCAL_STATIC_JAVA_LIBRARIES := \
 	mockito-target \
 	android-support-test \
