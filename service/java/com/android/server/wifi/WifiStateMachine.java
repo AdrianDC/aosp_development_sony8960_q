@@ -95,7 +95,6 @@ import android.security.KeyStore;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
-import android.util.LruCache;
 import android.util.SparseArray;
 
 import com.android.internal.R;
@@ -131,7 +130,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Pattern;
 
 /**
  * TODO:
@@ -206,9 +204,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     /* Scan results handling */
     private List<ScanDetail> mScanResults = new ArrayList<>();
-    private static final Pattern scanResultPattern = Pattern.compile("\t+");
-    private static final int SCAN_RESULT_CACHE_SIZE = 160;
-    private final LruCache<NetworkDetail, ScanDetail> mScanResultCache;
+    private final Object mScanResultsLock = new Object();
+
     // For debug, number of known scan results that were found as part of last scan result event,
     // as well the number of scans results returned by the supplicant with that message
     private int mNumScanResultsKnown;
@@ -1309,8 +1306,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 },
                 new IntentFilter(Intent.ACTION_BOOT_COMPLETED));
 
-        mScanResultCache = new LruCache<>(SCAN_RESULT_CACHE_SIZE);
-
         PowerManager powerManager = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
         mWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, getName());
 
@@ -2254,7 +2249,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
      * TODO: doc
      */
     public List<ScanResult> syncGetScanResultsList() {
-        synchronized (mScanResultCache) {
+        synchronized (mScanResultsLock) {
             List<ScanResult> scanList = new ArrayList<ScanResult>();
             for (ScanDetail result : mScanResults) {
                 scanList.add(new ScanResult(result.getScanResult()));
@@ -3927,12 +3922,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             }
         }
 
-        synchronized (mScanResultCache) {
+        synchronized (mScanResultsLock) {
             ScanDetail activeScanDetail = null;
             mScanResults = scanResults;
             mNumScanResultsReturned = mScanResults.size();
             for (ScanDetail resultDetail : mScanResults) {
-                mScanResultCache.put(resultDetail.getNetworkDetail(), resultDetail);
                 if (connected && resultDetail.getNetworkDetail().getBSSID() == activeBssid) {
                     if (activeScanDetail == null
                             || activeScanDetail.getNetworkDetail().getBSSID() != activeBssid
@@ -3994,7 +3988,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
     }
 
     public ScanDetail getActiveScanDetail() {
-        synchronized (mScanResultCache) {
+        synchronized (mScanResultsLock) {
             return mActiveScanDetail;
         }
     }
@@ -6291,10 +6285,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     }
                     if (bssid != null) {
                         // If we have a BSSID, tell configStore to black list it
-                        synchronized(mScanResultCache) {
-                            didBlackListBSSID = mWifiQualifiedNetworkSelector
-                                    .enableBssidForQualityNetworkSelection(bssid, false);
-                        }
+                        didBlackListBSSID = mWifiQualifiedNetworkSelector
+                                .enableBssidForQualityNetworkSelection(bssid, false);
                     }
 
                     mWifiConfigManager.updateNetworkSelectionStatus(mTargetNetworkId,
@@ -7011,31 +7003,29 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                                     + Integer.toString(result.getNetworkId()));
                         }
 
-                        synchronized(mScanResultCache) {
-                            /**
-                             * If the command comes from WifiManager, then
-                             * tell autojoin the user did try to modify and save that network,
-                             * and interpret the SAVE_NETWORK as a request to connect
-                             */
-                            boolean user = message.what == WifiManager.SAVE_NETWORK;
+                        /**
+                         * If the command comes from WifiManager, then
+                         * tell autojoin the user did try to modify and save that network,
+                         * and interpret the SAVE_NETWORK as a request to connect
+                         */
+                        boolean user = message.what == WifiManager.SAVE_NETWORK;
 
-                            // Did this connect come from settings
-                            boolean persistConnect =
+                        // Did this connect come from settings
+                        boolean persistConnect =
                                 mWifiConfigManager.checkConfigOverridePermission(
                                         message.sendingUid);
 
-                            if (user) {
-                                mWifiConfigManager.updateLastConnectUid(config, message.sendingUid);
-                                mWifiConfigManager.writeKnownNetworkHistory();
-                            }
-                            //Fixme, CMD_AUTO_SAVE_NETWORK can be cleaned
-                            mWifiQualifiedNetworkSelector.userSelectNetwork(
-                                    result.getNetworkId(), persistConnect);
-                            candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(true,
-                                    mAllowUntrustedConnections, mScanResults, linkDebouncing,
-                                    isConnected(), isDisconnected(), isSupplicantTransientState());
-                            tryToConnectToNetwork(candidate);
+                        if (user) {
+                            mWifiConfigManager.updateLastConnectUid(config, message.sendingUid);
+                            mWifiConfigManager.writeKnownNetworkHistory();
                         }
+                        //Fixme, CMD_AUTO_SAVE_NETWORK can be cleaned
+                        mWifiQualifiedNetworkSelector.userSelectNetwork(
+                                result.getNetworkId(), persistConnect);
+                        candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(true,
+                                mAllowUntrustedConnections, mScanResults, linkDebouncing,
+                                isConnected(), isDisconnected(), isSupplicantTransientState());
+                        tryToConnectToNetwork(candidate);
                     } else {
                         loge("Failed to save network");
                         messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
