@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Maps BSSIDs to their individual ScanDetails for a given WifiConfiguration.
@@ -41,13 +42,13 @@ public class ScanDetailCache {
     private static final boolean DBG = false;
 
     private WifiConfiguration mConfig;
-    private HashMap<String, ScanDetail> mMap;
-    private HashMap<String, PasspointMatchInfo> mPasspointMatches;
+    private ConcurrentHashMap<String, ScanDetail> mMap;
+    private ConcurrentHashMap<String, PasspointMatchInfo> mPasspointMatches;
 
     ScanDetailCache(WifiConfiguration config) {
         mConfig = config;
-        mMap = new HashMap();
-        mPasspointMatches = new HashMap();
+        mMap = new ConcurrentHashMap(16, 0.75f, 2);
+        mPasspointMatches = new ConcurrentHashMap(16, 0.75f, 2);
     }
 
     void put(ScanDetail scanDetail) {

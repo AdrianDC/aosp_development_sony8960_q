@@ -524,7 +524,7 @@ public class WifiConfigManager {
         mAnqpCache = new AnqpCache(mClock);
         mSupplicantBridgeCallbacks = new SupplicantBridgeCallbacks();
         mSupplicantBridge = new SupplicantBridge(wifiNative, mSupplicantBridgeCallbacks);
-        mScanDetailCaches = new ConcurrentHashMap<>();
+        mScanDetailCaches = new ConcurrentHashMap<>(16, 0.75f, 2);
         mSIMAccessor = new SIMAccessor(mContext);
         mWriter = new DelayedDiskWrite();
         mIpconfigStore = new IpConfigStore(mWriter);
