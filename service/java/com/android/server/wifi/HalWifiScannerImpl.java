@@ -25,8 +25,7 @@ import android.util.Log;
 
 import com.android.server.wifi.scanner.ChannelHelper;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
-import com.android.server.wifi.scanner.KnownBandsChannelHelper;
-import com.android.server.wifi.scanner.NoBandChannelHelper;
+import com.android.server.wifi.scanner.HalChannelHelper;
 
 import java.util.Arrays;
 import java.util.List;
@@ -53,32 +52,7 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
         mWifiNative = wifiNative;
         mEventHandler = new Handler(looper, this);
 
-        // TODO(b/27324226) Remove this retry loop
-        // Sometimes angler returns an empty channel list the first time the channel list is queried
-        int[] channels24G = new int[0];
-        int[] channels5G = new int[0];
-        int[] channelsDfs = new int[0];
-        ChannelHelper channelHelper = null;
-        for (int i = 0; i < 4; ++i) {
-            channels24G = mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_24_GHZ);
-            if (channels24G == null) Log.e(TAG, "Failed to get channels for 2.4GHz band");
-            channels5G = mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ);
-            if (channels5G == null) Log.e(TAG, "Failed to get channels for 5GHz band");
-            channelsDfs = mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY);
-            if (channelsDfs == null) Log.e(TAG, "Failed to get channels for 5GHz DFS only band");
-            if (channels24G == null || channels5G == null || channelsDfs == null) {
-                Log.e(TAG, "Falling back to NoBandChannelHelper");
-                channelHelper = new NoBandChannelHelper();
-                break;
-            } else if (channels24G.length > 0 || channels5G.length > 0 || channelsDfs.length > 0) {
-                channelHelper = new KnownBandsChannelHelper(channels24G, channels5G, channelsDfs);
-            }
-            try { Thread.sleep(50); } catch (Exception e) {}
-        }
-        if (channelHelper == null) {
-            channelHelper = new KnownBandsChannelHelper(channels24G, channels5G, channelsDfs);
-        }
-        mChannelHelper = channelHelper;
+        mChannelHelper = new HalChannelHelper(wifiNative);
 
         // We can't enable these until WifiStateMachine switches to using WifiScanner because
         //   WifiMonitor only supports sending results to one listener

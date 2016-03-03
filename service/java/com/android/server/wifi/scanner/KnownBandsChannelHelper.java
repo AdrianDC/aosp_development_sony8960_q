@@ -29,11 +29,9 @@ import java.util.Set;
  */
 public class KnownBandsChannelHelper extends ChannelHelper {
 
-    private static final WifiScanner.ChannelSpec[] NO_CHANNELS = new WifiScanner.ChannelSpec[0];
-
     private WifiScanner.ChannelSpec[][] mBandsToChannels;
 
-    public KnownBandsChannelHelper(int[] channels2G, int[] channels5G, int[] channelsDfs) {
+    protected void setBandChannels(int[] channels2G, int[] channels5G, int[] channelsDfs) {
         mBandsToChannels = new WifiScanner.ChannelSpec[8][];
 
         mBandsToChannels[0] = NO_CHANNELS;

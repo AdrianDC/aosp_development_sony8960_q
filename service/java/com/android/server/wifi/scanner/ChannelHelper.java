@@ -36,6 +36,8 @@ public abstract class ChannelHelper {
      */
     public static final int SCAN_PERIOD_PER_CHANNEL_MS = 200;
 
+    protected static final WifiScanner.ChannelSpec[] NO_CHANNELS = new WifiScanner.ChannelSpec[0];
+
     /**
      * Create a new collection that can be used to store channels
      */
@@ -56,6 +58,17 @@ public abstract class ChannelHelper {
      * Estimates the duration that the chip will spend scanning with the given settings
      */
     public abstract int estimateScanDuration(WifiScanner.ScanSettings settings);
+
+    /**
+     * Update the channel information that this object has. The source of the update is
+     * implementation dependent and may result in no change. Warning the behavior of a
+     * ChannelCollection created using {@link #createChannelCollection createChannelCollection} is
+     * undefined after calling this method until the {@link ChannelColleciton#clear() clear} method
+     * is called on it.
+     */
+    public void updateChannels() {
+        // default implementation does nothing
+    }
 
     /**
      * Object that supports accumulation of channels and bands
