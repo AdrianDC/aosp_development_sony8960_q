@@ -2593,7 +2593,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     || TextUtils.equals(countryCode, currentCountryCode) == false) {
 
                 int countryCodeSequence = mCountryCodeSequence.incrementAndGet();
-                sendMessage(CMD_SET_COUNTRY_CODE, countryCodeSequence, persist ? 1 : 0, 
+                sendMessage(CMD_SET_COUNTRY_CODE, countryCodeSequence, persist ? 1 : 0,
                         countryCode);
             }
         }
@@ -4294,6 +4294,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 mNetworkInfo.getDetailedState() == DetailedState.CONNECTED) {
             // We no longer report MAC address to third-parties and our code does
             // not rely on this broadcast, so just send the default MAC address.
+            fetchRssiLinkSpeedAndFrequencyNative();
             WifiInfo sentWifiInfo = new WifiInfo(mWifiInfo);
             sentWifiInfo.setMacAddress(WifiInfo.DEFAULT_MAC_ADDRESS);
             intent.putExtra(WifiManager.EXTRA_WIFI_INFO, sentWifiInfo);
