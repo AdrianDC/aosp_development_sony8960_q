@@ -19,6 +19,9 @@ package com.android.server.wifi;
 import android.util.Base64;
 import android.util.Log;
 
+import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.wifi.util.ByteArrayRingBuffer;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.FileDescriptor;
@@ -64,8 +67,7 @@ class WifiLogger extends BaseWifiLogger {
     public static final int REPORT_REASON_SCAN_FAILURE              = 6;
     public static final int REPORT_REASON_USER_ACTION               = 7;
 
-    /** number of ring buffer entries to cache */
-    public static final int MAX_RING_BUFFERS                        = 10;
+    public static final int MAX_RING_BUFFER_SIZE_BYTES              = 32 * 1024;
 
     /** number of bug reports to hold */
     public static final int MAX_BUG_REPORTS                         = 4;
@@ -184,7 +186,7 @@ class WifiLogger extends BaseWifiLogger {
     }
 
     /* private methods and data */
-    private static class BugReport {
+    class BugReport {
         long systemTimeMs;
         long kernelTimeNanos;
         int errorCode;
@@ -260,7 +262,7 @@ class WifiLogger extends BaseWifiLogger {
         }
     }
 
-    private static class LimitedCircularArray<E> {
+    class LimitedCircularArray<E> {
         private ArrayList<E> mArrayList;
         private int mMax;
         LimitedCircularArray(int max) {
@@ -287,7 +289,7 @@ class WifiLogger extends BaseWifiLogger {
             new LimitedCircularArray<BugReport>(MAX_ALERT_REPORTS);
     private final LimitedCircularArray<BugReport> mLastBugReports =
             new LimitedCircularArray<BugReport>(MAX_BUG_REPORTS);
-    private final HashMap<String, LimitedCircularArray<byte[]>> mRingBufferData = new HashMap();
+    private final HashMap<String, ByteArrayRingBuffer> mRingBufferData = new HashMap();
 
     private final WifiNative.WifiLoggerEventHandler mHandler =
             new WifiNative.WifiLoggerEventHandler() {
@@ -303,9 +305,9 @@ class WifiLogger extends BaseWifiLogger {
     };
 
     synchronized void onRingBufferData(WifiNative.RingBufferStatus status, byte[] buffer) {
-        LimitedCircularArray<byte[]> ring = mRingBufferData.get(status.name);
+        ByteArrayRingBuffer ring = mRingBufferData.get(status.name);
         if (ring != null) {
-            ring.addLast(buffer);
+            ring.appendBuffer(buffer);
         }
     }
 
@@ -325,7 +327,7 @@ class WifiLogger extends BaseWifiLogger {
                 if (DBG) Log.d(TAG, "RingBufferStatus is: \n" + buffer.name);
                 if (mRingBufferData.containsKey(buffer.name) == false) {
                     mRingBufferData.put(buffer.name,
-                            new LimitedCircularArray<byte[]>(MAX_RING_BUFFERS));
+                            new ByteArrayRingBuffer(MAX_RING_BUFFER_SIZE_BYTES));
                 }
                 if ((buffer.flag & RING_BUFFER_FLAG_HAS_PER_PACKET_ENTRIES) != 0) {
                     mPerPacketRingBuffer = buffer;
@@ -417,10 +419,10 @@ class WifiLogger extends BaseWifiLogger {
             for (WifiNative.RingBufferStatus buffer : mRingBuffers) {
                 /* this will push data in mRingBuffers */
                 mWifiNative.getRingBufferData(buffer.name);
-                LimitedCircularArray<byte[]> data = mRingBufferData.get(buffer.name);
-                byte[][] buffers = new byte[data.size()][];
-                for (int i = 0; i < data.size(); i++) {
-                    buffers[i] = data.get(i).clone();
+                ByteArrayRingBuffer data = mRingBufferData.get(buffer.name);
+                byte[][] buffers = new byte[data.getNumBuffers()][];
+                for (int i = 0; i < data.getNumBuffers(); i++) {
+                    buffers[i] = data.getBuffer(i).clone();
                 }
                 report.ringBuffers.put(buffer.name, buffers);
             }
@@ -433,6 +435,11 @@ class WifiLogger extends BaseWifiLogger {
             report.fwMemoryDump = mWifiNative.getFwMemoryDump();
         }
         return report;
+    }
+
+    @VisibleForTesting
+    LimitedCircularArray<BugReport> getBugReports() {
+        return mLastBugReports;
     }
 
     private static String compressToBase64(byte[] input) {
