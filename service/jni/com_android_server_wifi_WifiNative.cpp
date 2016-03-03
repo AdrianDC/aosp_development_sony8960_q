@@ -1388,6 +1388,39 @@ static jobject android_net_wifi_get_rtt_capabilities(JNIEnv *env, jclass cls, ji
     }
 }
 
+static jobject android_net_wifi_get_packet_filter_capabilities(JNIEnv *env, jclass cls,
+        jint iface) {
+
+    JNIHelper helper(env);
+    u32 version = 0, max_len = 0;
+    wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
+    wifi_error ret = hal_fn.wifi_get_packet_filter_capabilities(handle, &version, &max_len);
+
+    if (WIFI_SUCCESS == ret) {
+        JNIObject<jobject> capabilities = helper.createObject(
+                "com/android/server/wifi/WifiNative$PacketFilterCapabilities");
+        helper.setIntField(capabilities, "apfVersionSupported", version);
+        helper.setIntField(capabilities, "maximumApfProgramSize", max_len);
+        ALOGD("APF version supported: %d", version);
+        ALOGD("Maximum APF program size: %d", max_len);
+        return capabilities.detach();
+    } else {
+        return NULL;
+    }
+}
+
+static jboolean android_net_wifi_install_packet_filter(JNIEnv *env, jclass cls, jint iface,
+        jbyteArray jfilter) {
+
+    JNIHelper helper(env);
+    const u8* filter = (uint8_t*)env->GetByteArrayElements(jfilter, NULL);
+    const u32 filter_len = env->GetArrayLength(jfilter);
+    wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
+    wifi_error ret = hal_fn.wifi_set_packet_filter(handle, filter, filter_len);
+    env->ReleaseByteArrayElements(jfilter, (jbyte*)filter, JNI_ABORT);
+    return WIFI_SUCCESS == ret;
+}
+
 static jboolean android_net_wifi_set_Country_Code_Hal(JNIEnv *env,jclass cls, jint iface,
         jstring country_code) {
 
@@ -2248,6 +2281,9 @@ static JNINativeMethod gWifiMethods[] = {
     { "toggleInterfaceNative",    "(I)Z",  (void*) android_net_wifi_toggle_interface},
     { "getRttCapabilitiesNative", "(I)Landroid/net/wifi/RttManager$RttCapabilities;",
             (void*) android_net_wifi_get_rtt_capabilities},
+    { "getPacketFilterCapabilitiesNative", "(I)Lcom/android/server/wifi/WifiNative$PacketFilterCapabilities;",
+            (void*) android_net_wifi_get_packet_filter_capabilities},
+    { "installPacketFilterNative", "(I[B)Z", (void*) android_net_wifi_install_packet_filter},
     {"setCountryCodeHalNative", "(ILjava/lang/String;)Z",
             (void*) android_net_wifi_set_Country_Code_Hal},
     { "setPnoListNative", "(II[Lcom/android/server/wifi/WifiNative$WifiPnoNetwork;)Z",

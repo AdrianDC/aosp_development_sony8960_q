@@ -26,6 +26,7 @@ import static android.net.wifi.WifiManager.WIFI_STATE_DISABLING;
 import static android.net.wifi.WifiManager.WIFI_STATE_ENABLED;
 import static android.net.wifi.WifiManager.WIFI_STATE_ENABLING;
 import static android.net.wifi.WifiManager.WIFI_STATE_UNKNOWN;
+import static android.system.OsConstants.ARPHRD_ETHER;
 
 import android.Manifest;
 import android.app.ActivityManager;
@@ -50,6 +51,7 @@ import android.net.NetworkCapabilities;
 import android.net.NetworkFactory;
 import android.net.NetworkInfo;
 import android.net.NetworkInfo.DetailedState;
+import android.net.NetworkMisc;
 import android.net.NetworkRequest;
 import android.net.NetworkUtils;
 import android.net.RouteInfo;
@@ -625,6 +627,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     // Used to filter out requests we couldn't possibly satisfy.
     private final NetworkCapabilities mNetworkCapabilitiesFilter = new NetworkCapabilities();
+
+    // Provide packet filter capabilities to ConnectivityService.
+    private final NetworkMisc mNetworkMisc = new NetworkMisc();
 
     /* The base for wifi message types */
     static final int BASE = Protocol.BASE_WIFI;
@@ -7194,8 +7199,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     private class WifiNetworkAgent extends NetworkAgent {
         public WifiNetworkAgent(Looper l, Context c, String TAG, NetworkInfo ni,
-                NetworkCapabilities nc, LinkProperties lp, int score) {
-            super(l, c, TAG, ni, nc, lp, score);
+                NetworkCapabilities nc, LinkProperties lp, int score, NetworkMisc misc) {
+            super(l, c, TAG, ni, nc, lp, score, misc);
         }
         protected void unwanted() {
             // Ignore if we're not the current networkAgent.
@@ -7282,6 +7287,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         protected void preventAutomaticReconnect() {
             if (this != mNetworkAgent) return;
             unwantedNetwork(NETWORK_STATUS_UNWANTED_DISABLE_AUTOJOIN);
+        }
+
+        @Override
+        protected boolean installPacketFilter(byte[] filter) {
+            return mWifiNative.installPacketFilter(filter);
         }
     }
 
@@ -7404,9 +7414,19 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             }
             setNetworkDetailedState(DetailedState.CONNECTING);
 
+            WifiNative.PacketFilterCapabilities packetFilterCapabilities =
+                    mWifiNative.getPacketFilterCapabilities();
+            if (packetFilterCapabilities != null) {
+                mNetworkMisc.apfVersionSupported =
+                        packetFilterCapabilities.apfVersionSupported;
+                mNetworkMisc.maximumApfProgramSize =
+                        packetFilterCapabilities.maximumApfProgramSize;
+                mNetworkMisc.apfPacketFormat = ARPHRD_ETHER;
+            }
+
             mNetworkAgent = new WifiNetworkAgent(getHandler().getLooper(), mContext,
                     "WifiNetworkAgent", mNetworkInfo, mNetworkCapabilitiesFilter,
-                    mLinkProperties, 60);
+                    mLinkProperties, 60, mNetworkMisc);
 
             // We must clear the config BSSID, as the wifi chipset may decide to roam
             // from this point on and having the BSSID specified in the network block would

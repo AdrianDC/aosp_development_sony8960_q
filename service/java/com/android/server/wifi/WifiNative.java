@@ -2363,6 +2363,40 @@ public class WifiNative {
         }
     }
 
+    public static final class PacketFilterCapabilities {
+        /**
+         * Version of APF instruction set supported for packet filtering.  0 indicates no support for
+         * packet filtering using APF programs.
+         */
+        public int apfVersionSupported;
+
+        /**
+         * Maximum size of APF program allowed.
+         */
+        public int maximumApfProgramSize;
+    }
+    private static native PacketFilterCapabilities getPacketFilterCapabilitiesNative(int iface);
+    public PacketFilterCapabilities getPacketFilterCapabilities() {
+        synchronized (sLock) {
+            if (isHalStarted()) {
+                return getPacketFilterCapabilitiesNative(sWlan0Index);
+            } else {
+                return null;
+            }
+        }
+    }
+
+    private static native boolean installPacketFilterNative(int iface, byte[] filter);
+    public boolean installPacketFilter(byte[] filter) {
+        synchronized (sLock) {
+            if (isHalStarted()) {
+                return installPacketFilterNative(sWlan0Index, filter);
+            } else {
+                return false;
+            }
+        }
+    }
+
     private static native boolean setCountryCodeHalNative(int iface, String CountryCode);
     public boolean setCountryCodeHal(String CountryCode) {
         synchronized (sLock) {
