@@ -67,8 +67,6 @@ class WifiLogger extends BaseWifiLogger {
     public static final int REPORT_REASON_SCAN_FAILURE              = 6;
     public static final int REPORT_REASON_USER_ACTION               = 7;
 
-    public static final int MAX_RING_BUFFER_SIZE_BYTES              = 32 * 1024;
-
     /** number of bug reports to hold */
     public static final int MAX_BUG_REPORTS                         = 4;
 
@@ -85,10 +83,13 @@ class WifiLogger extends BaseWifiLogger {
     private WifiNative.RingBufferStatus mPerPacketRingBuffer;
     private WifiStateMachine mWifiStateMachine;
     private final WifiNative mWifiNative;
+    private final int mMaxRingBufferSizeBytes;
 
-    public WifiLogger(WifiStateMachine wifiStateMachine, WifiNative wifiNative) {
+    public WifiLogger(
+            WifiStateMachine wifiStateMachine, WifiNative wifiNative, int maxRingBufferSizeBytes) {
         mWifiStateMachine = wifiStateMachine;
         mWifiNative = wifiNative;
+        mMaxRingBufferSizeBytes = maxRingBufferSizeBytes;
     }
 
     @Override
@@ -327,7 +328,7 @@ class WifiLogger extends BaseWifiLogger {
                 if (DBG) Log.d(TAG, "RingBufferStatus is: \n" + buffer.name);
                 if (mRingBufferData.containsKey(buffer.name) == false) {
                     mRingBufferData.put(buffer.name,
-                            new ByteArrayRingBuffer(MAX_RING_BUFFER_SIZE_BYTES));
+                            new ByteArrayRingBuffer(mMaxRingBufferSizeBytes));
                 }
                 if ((buffer.flag & RING_BUFFER_FLAG_HAS_PER_PACKET_ENTRIES) != 0) {
                     mPerPacketRingBuffer = buffer;

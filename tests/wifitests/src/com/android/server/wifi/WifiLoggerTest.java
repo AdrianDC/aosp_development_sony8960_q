@@ -36,6 +36,7 @@ import org.mockito.MockitoAnnotations;
 @SmallTest
 public class WifiLoggerTest {
     public static final String TAG = "WifiLoggerTest";
+    private static final int MAX_RING_BUFFER_SIZE_BYTES = 1024;
 
     @Mock WifiStateMachine mWsm;
     @Mock WifiNative mWifiNative;
@@ -69,7 +70,7 @@ public class WifiLoggerTest {
         when(mWifiNative.getRingBufferStatus()).thenReturn(ringBufferStatuses);
         when(mWifiNative.readKernelLog()).thenReturn("");
 
-        mWifiLogger = new WifiLogger(mWsm, mWifiNative);
+        mWifiLogger = new WifiLogger(mWsm, mWifiNative, MAX_RING_BUFFER_SIZE_BYTES);
     }
 
     /**
@@ -99,7 +100,7 @@ public class WifiLoggerTest {
         final boolean verbosityToggle = false;
         mWifiLogger.startLogging(verbosityToggle);
 
-        final byte[] data = new byte[WifiLogger.MAX_RING_BUFFER_SIZE_BYTES];
+        final byte[] data = new byte[MAX_RING_BUFFER_SIZE_BYTES];
         mWifiLogger.onRingBufferData(mFakeRbs, data);
         mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
 
@@ -116,7 +117,7 @@ public class WifiLoggerTest {
         final boolean verbosityToggle = false;
         mWifiLogger.startLogging(verbosityToggle);
 
-        final byte[] data1 = new byte[WifiLogger.MAX_RING_BUFFER_SIZE_BYTES];
+        final byte[] data1 = new byte[MAX_RING_BUFFER_SIZE_BYTES];
         final byte[] data2 = {1, 2, 3};
         mWifiLogger.onRingBufferData(mFakeRbs, data1);
         mWifiLogger.onRingBufferData(mFakeRbs, data2);

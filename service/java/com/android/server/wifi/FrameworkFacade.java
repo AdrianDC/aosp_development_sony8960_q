@@ -30,8 +30,9 @@ public class FrameworkFacade {
         return new BaseWifiLogger();
     }
 
-    public BaseWifiLogger makeRealLogger(WifiStateMachine stateMachine, WifiNative wifiNative) {
-        return new WifiLogger(stateMachine, wifiNative);
+    public BaseWifiLogger makeRealLogger(
+            WifiStateMachine stateMachine, WifiNative wifiNative, int maxRingbufferSizeBytes) {
+        return new WifiLogger(stateMachine, wifiNative, maxRingbufferSizeBytes);
     }
 
     public int getIntegerSetting(Context context, String name, int def) {
