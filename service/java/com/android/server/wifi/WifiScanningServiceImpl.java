@@ -99,6 +99,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
     @Override
     public Bundle getAvailableChannels(int band) {
+        mChannelHelper.updateChannels();
         ChannelSpec[] channelSpecs = mChannelHelper.getAvailableScanChannels(band);
         ArrayList<Integer> list = new ArrayList<Integer>(channelSpecs.length);
         for (ChannelSpec channelSpec : channelSpecs) {
@@ -843,6 +844,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     }
 
     private boolean updateSchedule() {
+        mChannelHelper.updateChannels();
         ArrayList<ScanSettings> settings = new ArrayList<>();
         for (ClientInfo client : mClients.values()) {
             settings.addAll(client.getScanSettings());

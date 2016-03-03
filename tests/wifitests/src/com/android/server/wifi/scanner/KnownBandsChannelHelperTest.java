@@ -65,7 +65,7 @@ public class KnownBandsChannelHelperTest {
          */
         @Before
         public void setUp() throws Exception {
-            mChannelHelper = new KnownBandsChannelHelper(
+            mChannelHelper = new PresetKnownBandsChannelHelper(
                     CHANNELS_24_GHZ,
                     CHANNELS_5_GHZ,
                     CHANNELS_DFS);
@@ -109,7 +109,7 @@ public class KnownBandsChannelHelperTest {
          */
         @Before
         public void setUp() throws Exception {
-            mChannelHelper = new KnownBandsChannelHelper(
+            mChannelHelper = new PresetKnownBandsChannelHelper(
                     CHANNELS_24_GHZ,
                     CHANNELS_5_GHZ,
                     CHANNELS_DFS);
@@ -191,7 +191,7 @@ public class KnownBandsChannelHelperTest {
          */
         @Before
         public void setUp() throws Exception {
-            mChannelHelper = new KnownBandsChannelHelper(
+            mChannelHelper = new PresetKnownBandsChannelHelper(
                     CHANNELS_24_GHZ,
                     CHANNELS_5_GHZ,
                     CHANNELS_DFS);
@@ -265,7 +265,7 @@ public class KnownBandsChannelHelperTest {
          */
         @Before
         public void setUp() throws Exception {
-            KnownBandsChannelHelper channelHelper = new KnownBandsChannelHelper(
+            KnownBandsChannelHelper channelHelper = new PresetKnownBandsChannelHelper(
                     CHANNELS_24_GHZ,
                     CHANNELS_5_GHZ,
                     CHANNELS_DFS);

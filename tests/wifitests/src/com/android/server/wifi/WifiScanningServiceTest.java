@@ -45,7 +45,7 @@ import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.Protocol;
 import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
 import com.android.server.wifi.scanner.ChannelHelper;
-import com.android.server.wifi.scanner.KnownBandsChannelHelper;
+import com.android.server.wifi.scanner.PresetKnownBandsChannelHelper;
 
 import org.junit.After;
 import org.junit.Before;
@@ -73,7 +73,7 @@ public class WifiScanningServiceTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        ChannelHelper channelHelper = new KnownBandsChannelHelper(
+        ChannelHelper channelHelper = new PresetKnownBandsChannelHelper(
                 new int[]{2400, 2450},
                 new int[]{5150, 5175},
                 new int[]{5600, 5650, 5660});

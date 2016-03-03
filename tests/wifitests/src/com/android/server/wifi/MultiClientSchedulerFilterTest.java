@@ -34,7 +34,7 @@ import android.net.wifi.WifiScanner.ScanSettings;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.server.wifi.scanner.ChannelHelper;
-import com.android.server.wifi.scanner.KnownBandsChannelHelper;
+import com.android.server.wifi.scanner.PresetKnownBandsChannelHelper;
 
 import org.junit.After;
 import org.junit.Before;
@@ -58,7 +58,7 @@ public class MultiClientSchedulerFilterTest {
 
     @Before
     public void setUp() throws Exception {
-        ChannelHelper channelHelper = new KnownBandsChannelHelper(
+        ChannelHelper channelHelper = new PresetKnownBandsChannelHelper(
                 new int[]{2400, 2450},
                 new int[]{5150, 5175},
                 new int[]{5600, 5650});

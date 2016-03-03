@@ -29,8 +29,6 @@ import java.util.Set;
  */
 public class NoBandChannelHelper extends ChannelHelper {
 
-    private static final WifiScanner.ChannelSpec[] NO_CHANNELS = new WifiScanner.ChannelSpec[0];
-
     /**
      * These parameters are used to estimate the scan duration.
      * This is a guess at the number of channels the device supports for use when a ScanSettings
