@@ -2777,38 +2777,6 @@ public class WifiNative {
         }
     }
 
-    // TODO remove
-    public static class WifiLazyRoamParams {
-        int A_band_boost_threshold;
-        int A_band_penalty_threshold;
-        int A_band_boost_factor;
-        int A_band_penalty_factor;
-        int A_band_max_boost;
-        int lazy_roam_hysteresis;
-        int alert_roam_rssi_trigger;
-
-        WifiLazyRoamParams() {
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sbuf = new StringBuilder();
-            sbuf.append(" A_band_boost_threshold=").append(this.A_band_boost_threshold);
-            sbuf.append(" A_band_penalty_threshold=").append(this.A_band_penalty_threshold);
-            sbuf.append(" A_band_boost_factor=").append(this.A_band_boost_factor);
-            sbuf.append(" A_band_penalty_factor=").append(this.A_band_penalty_factor);
-            sbuf.append(" A_band_max_boost=").append(this.A_band_max_boost);
-            sbuf.append(" lazy_roam_hysteresis=").append(this.lazy_roam_hysteresis);
-            sbuf.append(" alert_roam_rssi_trigger=").append(this.alert_roam_rssi_trigger);
-            return sbuf.toString();
-        }
-    }
-
-    // TODO remove
-    public boolean setLazyRoam(boolean enabled, WifiLazyRoamParams params) {
-        return false;
-    }
-
     private native static boolean setBssidBlacklistNative(int iface, int id,
                                               String list[]);
 
