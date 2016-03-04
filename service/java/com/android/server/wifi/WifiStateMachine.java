@@ -3711,9 +3711,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
         if (mWifiNative.setBand(band)) {
             mFrequencyBand.set(band);
+            mWifiQualifiedNetworkSelector.setUserPreferredBand(band);
             if (DBG) {
                 logd("done set frequency band " + band);
-                mWifiQualifiedNetworkSelector.setUserPreferredBand(band);
             }
         } else {
             loge("Failed to set frequency band " + band);
