@@ -310,11 +310,14 @@ public class WifiConfigStore {
      * @param config the {@link WifiConfiguration} object to be filled in.
      */
     public void readNetworkVariables(WifiConfiguration config) {
+        if (config == null) {
+            return;
+        }
+        if (VDBG) localLog("readNetworkVariables: " + config.networkId);
         int netId = config.networkId;
         if (netId < 0) {
             return;
         }
-
         /*
          * TODO: maybe should have a native method that takes an array of
          * variable names and returns an array of values. But we'd still
@@ -433,7 +436,7 @@ public class WifiConfigStore {
             }
             String[] lines = listStr.split("\n");
             if (mShowNetworks) {
-                localLog("WifiConfigStore: loadConfiguredNetworks:  ");
+                localLog("loadNetworks:  ");
                 for (String net : lines) {
                     localLog(net);
                 }
@@ -655,7 +658,7 @@ public class WifiConfigStore {
         if (config == null) {
             return false;
         }
-        if (VDBG) localLog("saveNetwork " + netId);
+        if (VDBG) localLog("saveNetwork: " + netId);
         if (config.SSID != null && !mWifiNative.setNetworkVariable(
                 netId,
                 WifiConfiguration.ssidVarName,
@@ -840,8 +843,7 @@ public class WifiConfigStore {
         if (config == null) {
             return false;
         }
-         /* TODO(rpius) */
-        if (VDBG) localLog("addOrUpdateNetwork " + config.networkId);
+        if (VDBG) localLog("addOrUpdateNetwork: " + config.networkId);
         int netId = config.networkId;
         boolean newNetwork = false;
         /*
@@ -1089,7 +1091,7 @@ public class WifiConfigStore {
         // information found in that file).
         Map<String, String> result = new HashMap<>();
         BufferedReader reader = null;
-        if (VDBG) loge("readNetworkVariablesFromSupplicantFile key=" + key);
+        if (VDBG) localLog("readNetworkVariablesFromSupplicantFile key=" + key);
         try {
             reader = new BufferedReader(new FileReader(SUPPLICANT_CONFIG_FILE));
             boolean found = false;
@@ -1146,7 +1148,7 @@ public class WifiConfigStore {
         long end = SystemClock.elapsedRealtimeNanos();
 
         if (VDBG) {
-            loge("readNetworkVariableFromSupplicantFile ssid=[" + ssid + "] key=" + key
+            localLog("readNetworkVariableFromSupplicantFile ssid=[" + ssid + "] key=" + key
                     + " duration=" + (long) (end - start));
         }
         return data.get(ssid);
@@ -1179,6 +1181,7 @@ public class WifiConfigStore {
      * @param configs List of all the networks.
      */
     public void resetSimNetworks(Collection<WifiConfiguration> configs) {
+        if (VDBG) localLog("resetSimNetworks");
         for (WifiConfiguration config : configs) {
             if (isSimConfig(config)) {
                 /* This configuration may have cached Pseudonym IDs; lets remove them */
@@ -1192,6 +1195,7 @@ public class WifiConfigStore {
      * Clear BSSID blacklist in wpa_supplicant.
      */
     public void clearBssidBlacklist() {
+        if (VDBG) localLog("clearBlacklist");
         mBssidBlacklist.clear();
         mWifiNative.clearBlacklist();
         mWifiNative.setBssidBlacklist(null);
@@ -1206,6 +1210,7 @@ public class WifiConfigStore {
         if (bssid == null) {
             return;
         }
+        if (VDBG) localLog("blackListBssid: " + bssid);
         mBssidBlacklist.add(bssid);
         // Blacklist at wpa_supplicant
         mWifiNative.addToBlacklist(bssid);
@@ -1330,7 +1335,7 @@ public class WifiConfigStore {
 
     private void localLog(String s) {
         if (mLocalLog != null) {
-            mLocalLog.log(s);
+            mLocalLog.log(TAG + ": " + s);
         }
     }
 
@@ -1405,7 +1410,6 @@ public class WifiConfigStore {
                     return true;
             }
         }
-
     }
 
     // TODO(rpius): Remove this.
