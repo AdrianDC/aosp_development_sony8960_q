@@ -1057,17 +1057,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     WifiScanListener mWifiScanListener = new WifiScanListener();
 
-
-    private class TetherStateChange {
-        ArrayList<String> available;
-        ArrayList<String> active;
-
-        TetherStateChange(ArrayList<String> av, ArrayList<String> ac) {
-            available = av;
-            active = ac;
-        }
-    }
-
     public static class SimAuthRequestData {
         int networkId;
         int protocol;
