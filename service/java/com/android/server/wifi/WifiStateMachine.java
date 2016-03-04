@@ -3420,24 +3420,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     }
 
-
-    private boolean configureSsidWhiteList() {
-
-        mWhiteListedSsids = mWifiConfigManager.getWhiteListedSsids(getCurrentWifiConfiguration());
-        if (mWhiteListedSsids == null || mWhiteListedSsids.length == 0) {
-            return true;
-        }
-
-       if (!mWifiNative.setSsidWhitelist(mWhiteListedSsids)) {
-            loge("configureSsidWhiteList couldnt program SSID list, size "
-                    + mWhiteListedSsids.length);
-            return false;
-        }
-
-        logd("configureSsidWhiteList success");
-        return true;
-    }
-
     // In associated more, lazy roam will be looking for 5GHz roam candidate
     //Fixme: This is for network selection offload , whole function need to be re-written according
     // to the new design
@@ -3507,9 +3489,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 mWifiNative.restartScan();
             }
             return false;
-        }
-        if (mWifiConfigManager.getLastSelectedConfiguration() == null) {
-            configureSsidWhiteList();
         }
         if (!startConnectedGScan(reason)) {
             if (USE_PAUSE_SCANS) {

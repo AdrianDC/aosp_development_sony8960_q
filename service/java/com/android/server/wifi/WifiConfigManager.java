@@ -1266,65 +1266,6 @@ public class WifiConfigManager {
         return pnoList;
     }
 
-    String[] getWhiteListedSsids(WifiConfiguration config) {
-        int num_ssids = 0;
-        String nonQuoteSSID;
-        int length;
-        if (enableSsidWhitelist.get() == false)
-            return null;
-        List<String> list = new ArrayList<String>();
-        if (config == null)
-            return null;
-        if (config.linkedConfigurations == null) {
-            return null;
-        }
-        if (config.SSID == null || TextUtils.isEmpty(config.SSID)) {
-            return null;
-        }
-        for (String configKey : config.linkedConfigurations.keySet()) {
-            // Sanity check that the linked configuration is still valid
-            WifiConfiguration link = getWifiConfiguration(configKey);
-            if (link == null) {
-                continue;
-            }
-
-            if (!link.getNetworkSelectionStatus().isNetworkEnabled()) {
-                continue;
-            }
-
-            if (link.hiddenSSID == true) {
-                continue;
-            }
-
-            if (link.SSID == null || TextUtils.isEmpty(link.SSID)) {
-                continue;
-            }
-
-            length = link.SSID.length();
-            if (length > 2 && (link.SSID.charAt(0) == '"') && link.SSID.charAt(length - 1) == '"') {
-                nonQuoteSSID = link.SSID.substring(1, length - 1);
-            } else {
-                nonQuoteSSID = link.SSID;
-            }
-
-            list.add(nonQuoteSSID);
-        }
-
-        if (list.size() != 0) {
-            length = config.SSID.length();
-            if (length > 2 && (config.SSID.charAt(0) == '"')
-                    && config.SSID.charAt(length - 1) == '"') {
-                nonQuoteSSID = config.SSID.substring(1, length - 1);
-            } else {
-                nonQuoteSSID = config.SSID;
-            }
-
-            list.add(nonQuoteSSID);
-        }
-
-        return (String[])list.toArray(new String[0]);
-    }
-
     /**
      * Remove a network. Note that there is no saveConfig operation.
      * This function is retained for compatibility with the public
