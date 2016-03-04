@@ -2829,11 +2829,6 @@ public class WifiNative {
         }
     }
 
-    // TODO remove
-    public boolean setSsidWhitelist(String list[]) {
-        return false;
-    }
-
     private native static int startSendingOffloadedPacketNative(int iface, int idx,
                                     byte[] srcMac, byte[] dstMac, byte[] pktData, int period);
 
