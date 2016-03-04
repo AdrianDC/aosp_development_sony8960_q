@@ -9282,7 +9282,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
         if (good_response) {
             String response = sb.toString();
-            if (VDBG) logv("Supplicant Response -" + response);
+            logv("Supplicant Response -" + response);
             mWifiNative.simAuthResponse(requestData.networkId, res_type, response);
         } else {
             mWifiNative.umtsAuthFailedResponse(requestData.networkId);
