@@ -9148,7 +9148,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         if (response == null) {
             mWifiNative.simAuthFailedResponse(requestData.networkId);
         } else {
-            if (DBG) logv("Supplicant Response -" + response);
+            logv("Supplicant Response -" + response);
             mWifiNative.simAuthResponse(requestData.networkId, "GSM-AUTH", response);
         }
     }
