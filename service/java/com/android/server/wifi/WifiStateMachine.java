@@ -155,19 +155,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
     private static final String NETWORKTYPE = "WIFI";
     private static final String NETWORKTYPE_UNTRUSTED = "WIFI_UT";
     private static boolean DBG = false;
-    private static boolean VDBG = false;
-    private static boolean VVDBG = false;
     private static boolean USE_PAUSE_SCANS = false;
-    private static boolean mLogMessages = false;
     private static final String TAG = "WifiStateMachine";
 
     private static final int ONE_HOUR_MILLI = 1000 * 60 * 60;
 
     private static final String GOOGLE_OUI = "DA-A1-19";
 
-    /* temporary debug flag - best network selection development */
-    private static boolean PDBG = false;
-
+    private int mVerboseLoggingLevel = 0;
     /* debug flag, indicating if handling of ASSOCIATION_REJECT ended up blacklisting
      * the corresponding BSSID.
      */
@@ -490,7 +485,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             }
         }
 
-        if (VDBG) {
+        if (DBG) {
             logd("autoRoamSetBSSID " + bssid + " key=" + config.configKey());
         }
         mTargetRoamBSSID = bssid;
@@ -1248,7 +1243,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     public void onReceive(Context context, Intent intent) {
                         sScanAlarmIntentCount++; // Used for debug only
                         startScan(SCAN_ALARM_SOURCE, mDelayedScanCounter.incrementAndGet(), null, null);
-                        if (VDBG)
+                        if (DBG)
                             logd("SCAN ALARM -> " + mDelayedScanCounter.get());
                     }
                 },
@@ -1339,7 +1334,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
         setLogRecSize(ActivityManager.isLowRamDeviceStatic() ? 100 : 3000);
         setLogOnlyTransitions(false);
-        if (VDBG) setDbg(true);
 
         //start the state machine
         start();
@@ -1445,28 +1439,20 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         return mFacade.getBroadcast(mContext, requestCode, intent, 0);
     }
 
-    private int mVerboseLoggingLevel = 0;
-
     int getVerboseLoggingLevel() {
         return mVerboseLoggingLevel;
     }
 
     void enableVerboseLogging(int verbose) {
         mVerboseLoggingLevel = verbose;
-        if (verbose > 0) {
+        if (mVerboseLoggingLevel > 0) {
             DBG = true;
-            VDBG = true;
-            PDBG = true;
-            mLogMessages = true;
             mWifiNative.setSupplicantLogLevel("DEBUG");
         } else {
             DBG = false;
-            VDBG = false;
-            PDBG = false;
-            mLogMessages = false;
             mWifiNative.setSupplicantLogLevel("INFO");
         }
-        mWifiLogger.startLogging(mVerboseLoggingLevel > 0);
+        mWifiLogger.startLogging(DBG);
         mWifiMonitor.enableVerboseLogging(verbose);
         mWifiNative.enableVerboseLogging(verbose);
         mWifiConfigManager.enableVerboseLogging(verbose);
@@ -1612,7 +1598,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
     private AtomicInteger mDelayedScanCounter = new AtomicInteger();
 
     private void setScanAlarm(boolean enabled) {
-        if (PDBG) {
+        if (DBG) {
             String state;
             if (enabled) state = "enabled"; else state = "disabled";
             logd("setScanAlarm " + state
@@ -2801,7 +2787,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     private void logStateAndMessage(Message message, State state) {
         messageHandlingStatus = 0;
-        if (mLogMessages) {
+        if (DBG) {
             logd(" " + state.getClass().getSimpleName() + " " + getLogRecString(message));
         }
     }
@@ -3670,7 +3656,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
     private void handleScreenStateChanged(boolean screenOn) {
         mScreenOn = screenOn;
-        if (PDBG) {
+        if (DBG) {
             logd(" handleScreenStateChanged Enter: screenOn=" + screenOn
                     + " mUserWantsSuspendOpt=" + mUserWantsSuspendOpt
                     + " state " + getCurrentState().getName()
@@ -3776,7 +3762,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
         if (mWifiNative.setBand(band)) {
             mFrequencyBand.set(band);
-            if (PDBG) {
+            if (DBG) {
                 logd("done set frequency band " + band);
                 mWifiQualifiedNetworkSelector.setUserPreferredBand(band);
             }
@@ -4002,7 +3988,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             }
         }
 
-        if (PDBG) {
+        if (DBG) {
             logd("fetchRssiLinkSpeedAndFrequencyNative rssi=" + newRssi +
                  " linkspeed=" + newLinkSpeed + " freq=" + newFrequency);
         }
@@ -4198,7 +4184,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             if (route.isDefaultRoute() && route.hasGateway()) {
                 InetAddress gateway = route.getGateway();
                 if (gateway instanceof Inet4Address) {
-                    if (PDBG) {
+                    if (DBG) {
                         logd("updateDefaultRouteMacAddress found Ipv4 default :"
                                 + gateway.getHostAddress());
                     }
@@ -4216,7 +4202,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                             if (reachable == true) {
 
                                 address = macAddressFromRoute(gateway.getHostAddress());
-                                if (PDBG) {
+                                if (DBG) {
                                     logd("updateDefaultRouteMacAddress reachable (tried again) :"
                                             + gateway.getHostAddress() + " found " + address);
                                 }
@@ -4547,7 +4533,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
     }
 
     private void handleIPv4Success(DhcpResults dhcpResults) {
-        if (PDBG) {
+        if (DBG) {
             logd("handleIPv4Success <" + dhcpResults.toString() + ">");
             logd("link address " + dhcpResults.ipAddress);
         }
@@ -4620,7 +4606,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                  mDhcpResults.clear();
              }
         }
-        if (PDBG) {
+        if (DBG) {
             logd("handleIPv4Failure");
         }
     }
@@ -4669,7 +4655,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     mWifiApConfigStore.getAllowed2GChannel();
             if (allowed2GChannel == null || allowed2GChannel.size() == 0) {
                 //most safe channel to use
-                if(DBG) {
+                if (DBG) {
                     Log.d(TAG, "No specified 2G allowed channel list");
                 }
                 apChannel = 6;
@@ -4689,7 +4675,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             }
         }
 
-        if(DBG) {
+        if (DBG) {
             Log.d(TAG, "SoftAp set on channel " + apChannel);
         }
 
@@ -5611,11 +5597,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         @Override
         public void enter() {
 
-            if (PDBG) {
+            if (DBG) {
                 logd("DriverStartedState enter");
             }
 
-            mWifiLogger.startLogging(mVerboseLoggingLevel > 0);
+            mWifiLogger.startLogging(DBG);
             mIsRunning = true;
             updateBatteryWorkSource(null);
             /**
@@ -5693,7 +5679,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             // Enable link layer stats gathering
             mWifiNative.setWifiLinkLayerStats("wlan0", 1);
 
-            if (PDBG) {
+            if (DBG) {
                 logd("Driverstarted State enter done, epno=" + mHalBasedPnoDriverSupported
                      + " feature=" + mHalFeatureSet);
             }
@@ -5712,13 +5698,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     if (DBG) log("set frequency band " + band);
                     if (mWifiNative.setBand(band)) {
 
-                        if (PDBG)  logd("did set frequency band " + band);
+                        if (DBG)  logd("did set frequency band " + band);
 
                         mFrequencyBand.set(band);
                         // Flush old data - like scan results
                         mWifiNative.bssFlush();
 
-                        if (PDBG)  logd("done set frequency band " + band);
+                        if (DBG)  logd("done set frequency band " + band);
 
                     } else {
                         loge("Failed to set frequency band " + band);
@@ -5993,7 +5979,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                     break;
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                     SupplicantState state = handleSupplicantStateChange(message);
-                    if(DBG) log("SupplicantState= " + state);
+                    if (DBG) log("SupplicantState= " + state);
                     break;
                 default:
                     return NOT_HANDLED;
@@ -6739,7 +6725,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                             /* Already in disconnected state, nothing to change */
                             if (!mScreenOn && mLegacyPnoEnabled && mBackgroundScanSupported) {
                                 int delay = 60 * 1000;
-                                if (VDBG) {
+                                if (DBG) {
                                     logd("Starting PNO alarm: " + delay);
                                 }
                                 mAlarmManager.set(AlarmManager.RTC_WAKEUP,
@@ -6979,7 +6965,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                         replyToMessage(message, WifiManager.SAVE_NETWORK_SUCCEEDED);
                         broadcastWifiCredentialChanged(WifiManager.WIFI_CREDENTIAL_SAVED, config);
 
-                        if (VDBG) {
+                        if (DBG) {
                            logd("Success save network nid="
                                     + Integer.toString(result.getNetworkId()));
                         }
@@ -7671,8 +7657,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 case CMD_RSSI_POLL:
                     if (message.arg1 == mRssiPollToken) {
                         if (mWifiConfigManager.enableChipWakeUpWhenAssociated.get()) {
-                            if (VVDBG) log(" get link layer stats " + mWifiLinkLayerStatsSupported);
-                            WifiLinkLayerStats stats = getWifiLinkLayerStats(VDBG);
+                            if (DBG) log(" get link layer stats " + mWifiLinkLayerStatsSupported);
+                            WifiLinkLayerStats stats = getWifiLinkLayerStats(DBG);
                             if (stats != null) {
                                 // Sanity check the results provided by driver
                                 if (mWifiInfo.getRssi() != WifiInfo.INVALID_RSSI
@@ -8422,7 +8408,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         @Override
         public void enter() {
 
-            if (PDBG) {
+            if (DBG) {
                 logd(" Enter DisconnectingState State scan interval "
                         + mWifiConfigManager.wifiDisconnectedShortScanIntervalMilli.get()
                         + " mLegacyPnoEnabled= " + mLegacyPnoEnabled
@@ -8487,7 +8473,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                 return;
             }
 
-            if (PDBG) {
+            if (DBG) {
                 logd(" Enter DisconnectedState scan interval "
                         + mWifiConfigManager.wifiDisconnectedShortScanIntervalMilli.get()
                         + " mLegacyPnoEnabled= " + mLegacyPnoEnabled
@@ -8706,7 +8692,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
                             delay = 360 * 1000;
                         }
                         mDisconnectedPnoAlarmCount++;
-                        if (VDBG) {
+                        if (DBG) {
                             logd("Starting PNO alarm " + delay);
                         }
                         mAlarmManager.set(AlarmManager.RTC_WAKEUP,
