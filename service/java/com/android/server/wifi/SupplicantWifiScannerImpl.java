@@ -345,7 +345,8 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
 
             if (!allFreqs.isEmpty()) {
                 Set<Integer> freqs = allFreqs.getSupplicantScanFreqs();
-                boolean success = mWifiNative.scan(freqs);
+                // TODO(rpius): Need to plumb in the hidden ssid network list via Scanner.
+                boolean success = mWifiNative.scan(freqs, null);
                 if (success) {
                     // TODO handle scan timeout
                     Log.d(TAG, "Starting wifi scan for freqs=" + freqs

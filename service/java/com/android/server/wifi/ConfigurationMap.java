@@ -8,9 +8,11 @@ import android.os.UserManager;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class ConfigurationMap {
     private final Map<Integer, WifiConfiguration> mPerID = new HashMap<>();
@@ -18,6 +20,11 @@ public class ConfigurationMap {
 
     private final Map<Integer, WifiConfiguration> mPerIDForCurrentUser = new HashMap<>();
     private final Map<String, WifiConfiguration> mPerFQDNForCurrentUser = new HashMap<>();
+    /**
+     * List of all hidden networks in the current user's configuration.
+     * Use this list as a param for directed scanning .
+     */
+    private final Set<Integer> mHiddenNetworkIdsForCurrentUser = new HashSet<>();
 
     private final UserManager mUserManager;
 
@@ -36,6 +43,9 @@ public class ConfigurationMap {
             mPerIDForCurrentUser.put(config.networkId, config);
             if (config.FQDN != null && config.FQDN.length() > 0) {
                 mPerFQDNForCurrentUser.put(config.FQDN, config);
+            }
+            if (config.hiddenSSID) {
+                mHiddenNetworkIdsForCurrentUser.add(config.networkId);
             }
         }
         return current;
@@ -57,6 +67,7 @@ public class ConfigurationMap {
                 break;
             }
         }
+        mHiddenNetworkIdsForCurrentUser.remove(netID);
         return config;
     }
 
@@ -65,6 +76,7 @@ public class ConfigurationMap {
         mPerConfigKey.clear();
         mPerIDForCurrentUser.clear();
         mPerFQDNForCurrentUser.clear();
+        mHiddenNetworkIdsForCurrentUser.clear();
     }
 
     /**
@@ -78,6 +90,7 @@ public class ConfigurationMap {
     public List<WifiConfiguration> handleUserSwitch(int userId) {
         mPerIDForCurrentUser.clear();
         mPerFQDNForCurrentUser.clear();
+        mHiddenNetworkIdsForCurrentUser.clear();
 
         final List<UserInfo> previousUserProfiles = mUserManager.getProfiles(mCurrentUserId);
         mCurrentUserId = userId;
@@ -90,6 +103,9 @@ public class ConfigurationMap {
                 mPerIDForCurrentUser.put(entry.getKey(), config);
                 if (config.FQDN != null && config.FQDN.length() > 0) {
                     mPerFQDNForCurrentUser.put(config.FQDN, config);
+                }
+                if (config.hiddenSSID) {
+                    mHiddenNetworkIdsForCurrentUser.add(config.networkId);
                 }
             } else if (WifiConfigurationUtil.isVisibleToAnyProfile(config, previousUserProfiles)) {
                 hiddenConfigurations.add(config);
@@ -161,5 +177,9 @@ public class ConfigurationMap {
 
     public Collection<WifiConfiguration> valuesForCurrentUser() {
         return mPerIDForCurrentUser.values();
+    }
+
+    public Set<Integer> getHiddenNetworkIdsForCurrentUser() {
+        return mHiddenNetworkIdsForCurrentUser;
     }
 }

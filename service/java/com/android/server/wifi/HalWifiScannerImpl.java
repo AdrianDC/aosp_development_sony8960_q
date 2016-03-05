@@ -113,7 +113,8 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
 
         mSingleScanEventHandler = eventHandler;
         Set<Integer> freqs = scanChannels.getSupplicantScanFreqs();
-        if (!mWifiNative.scan(freqs)) {
+        // TODO(rpius): Need to plumb in the hiddessid network list via Scanner.
+        if (!mWifiNative.scan(freqs, null)) {
             Log.e(TAG, "Failed to start scan, freqs=" + freqs);
             // indicate scan failure async
             mEventHandler.post(new Runnable() {

@@ -326,36 +326,51 @@ public class WifiNative {
         return doStringCommand("GET_CAPABILITY freq");
     }
 
+    /**
+     * Create a comma separate string from integer set.
+     * @param values List of integers.
+     * @return comma separated string.
+     */
+    private static String createCSVStringFromIntegerSet(Set<Integer> values) {
+        StringBuilder list = new StringBuilder();
+        boolean first = true;
+        for (Integer value : values) {
+            if (!first) {
+                list.append(",");
+            }
+            list.append(value);
+            first = false;
+        }
+        return list.toString();
+    }
 
     /**
      * Start a scan using wpa_supplicant for the given frequencies.
-     * If freqs is null then all supported channels are scanned.
+     * @param freqs list of frequencies to scan for, if null scan all supported channels.
+     * @param hiddenNetworkIds List of hidden networks to be scanned for.
      */
-    public boolean scan(Set<Integer> freqs) {
-        if (freqs == null) {
-            return scanFrequencyList(null);
-        } else if (freqs.size() != 0) {
-            StringBuilder freqList = new StringBuilder();
-            boolean first = true;
-            for (Integer freq : freqs) {
-                if (!first) {
-                    freqList.append(",");
-                }
-                freqList.append(freq.toString());
-                first = false;
-            }
-            return scanFrequencyList(freqList.toString());
-        } else {
-            return false;
+    public boolean scan(Set<Integer> freqs, Set<Integer> hiddenNetworkIds) {
+        String freqList = null;
+        String hiddenNetworkIdList = null;
+        if (freqs != null && freqs.size() != 0) {
+            freqList = createCSVStringFromIntegerSet(freqs);
         }
+        if (hiddenNetworkIds != null && hiddenNetworkIds.size() != 0) {
+            hiddenNetworkIdList = createCSVStringFromIntegerSet(hiddenNetworkIds);
+        }
+        return scanWithParams(freqList, hiddenNetworkIdList);
     }
 
-    private boolean scanFrequencyList(String freqList) {
-        if (freqList == null) {
-            return doBooleanCommand("SCAN TYPE=ONLY");
-        } else {
-            return doBooleanCommand("SCAN TYPE=ONLY freq=" + freqList);
+    private boolean scanWithParams(String freqList, String hiddenNetworkIdList) {
+        StringBuilder scanCommand = new StringBuilder();
+        scanCommand.append("SCAN TYPE=ONLY");
+        if (freqList != null) {
+            scanCommand.append(" freq=" + freqList);
         }
+        if (hiddenNetworkIdList != null) {
+            scanCommand.append(" scan_id=" + hiddenNetworkIdList);
+        }
+        return doBooleanCommand(scanCommand.toString());
     }
 
     /* Does a graceful shutdown of supplicant. Is a common stop function for both p2p and sta.

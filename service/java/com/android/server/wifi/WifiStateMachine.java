@@ -2017,8 +2017,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             }
         }
 
+        // Retrieve the list of hidden networkId's to scan for.
+        Set<Integer> hiddenNetworkIds = mWifiConfigManager.getHiddenConfiguredNetworkIds();
+
         // call wifi native to start the scan
-        if (startScanNative(freqs)) {
+        if (startScanNative(freqs, hiddenNetworkIds)) {
             // only count battery consumption if scan request is accepted
             noteScanStart(message.arg1, workSource);
             // a full scan covers everything, clearing scan request buffer
@@ -2072,8 +2075,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
     /**
      * return true iff scan request is accepted
      */
-    private boolean startScanNative(Set<Integer> freqs) {
-        if (mWifiNative.scan(freqs)) {
+    private boolean startScanNative(Set<Integer> freqs, Set<Integer> hiddenNetworkIds) {
+        if (mWifiNative.scan(freqs, hiddenNetworkIds)) {
             mIsScanOngoing = true;
             mIsFullScanOngoing = (freqs == null);
             lastScanFreqs = freqs;
@@ -7267,8 +7270,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             //if (DBG) {
             logd("starting scan for " + config.configKey() + " with " + freqs);
             //}
+            Set<Integer> hiddenNetworkIds = new HashSet<>();
+            if (config.hiddenSSID) {
+                hiddenNetworkIds.add(config.networkId);
+            }
             // Call wifi native to start the scan
-            if (startScanNative(freqs)) {
+            if (startScanNative(freqs, hiddenNetworkIds)) {
                 // Only count battery consumption if scan request is accepted
                 noteScanStart(SCAN_ALARM_SOURCE, null);
                 messageHandlingStatus = MESSAGE_HANDLING_STATUS_OK;
