@@ -106,7 +106,7 @@ LOCAL_SRC_FILES := \
 	jni/com_android_server_wifi_WifiNative.cpp \
 	jni/jni_helper.cpp
 
-ifdef INCLUDE_NAN_FEATURE
+ifeq ($(BOARD_HAS_NAN), true)
 LOCAL_SRC_FILES += \
 	jni/com_android_server_wifi_nan_WifiNanNative.cpp
 endif
@@ -126,7 +126,7 @@ LOCAL_SRC_FILES := $(call all-java-files-under, java) \
 	$(call all-logtags-files-under, java) \
 	$(call all-proto-files-under, proto)
 
-ifndef INCLUDE_NAN_FEATURE
+ifneq ($(BOARD_HAS_NAN), true)
 LOCAL_SRC_FILES := $(filter-out $(call all-java-files-under, \
           java/com/android/server/wifi/nan),$(LOCAL_SRC_FILES))
 endif
