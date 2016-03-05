@@ -82,7 +82,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import java.io.ByteArrayOutputStream;
@@ -466,6 +465,10 @@ public class WifiStateMachineTest {
     }
 
     private void addNetworkAndVerifySuccess() throws Exception {
+        addNetworkAndVerifySuccess(false);
+    }
+
+    private void addNetworkAndVerifySuccess(boolean isHidden) throws Exception {
         loadComponents();
 
         final HashMap<String, String> nameToValue = new HashMap<String, String>();
@@ -518,12 +521,16 @@ public class WifiStateMachineTest {
         WifiConfiguration config = new WifiConfiguration();
         config.SSID = sSSID;
         config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+        config.hiddenSSID = isHidden;
         mLooper.startAutoDispatch();
         mWsm.syncAddOrUpdateNetwork(mWsmAsyncChannel, config);
         mLooper.stopAutoDispatch();
 
         verify(mWifiNative).addNetwork();
         verify(mWifiNative).setNetworkVariable(0, "ssid", sHexSSID);
+        if (isHidden) {
+            verify(mWifiNative).setNetworkVariable(0, "scan_ssid", Integer.toString(1));
+        }
 
         mLooper.startAutoDispatch();
         List<WifiConfiguration> configs = mWsm.syncGetConfiguredNetworks(-1, mWsmAsyncChannel);
@@ -744,7 +751,25 @@ public class WifiStateMachineTest {
         mWsm.startScan(-1, 0, null, null);
         mLooper.dispatchAll();
 
-        verify(mWifiNative).scan(null);
+        verify(mWifiNative).scan(null, mWifiConfigManager.getHiddenConfiguredNetworkIds());
+
+        when(mWifiNative.getScanResults()).thenReturn(getMockScanResults());
+        mWsm.sendMessage(WifiMonitor.SCAN_RESULTS_EVENT);
+        mLooper.dispatchAll();
+
+        List<ScanResult> results = mWsm.syncGetScanResultsList();
+        assertEquals(8, results.size());
+    }
+
+    @Test
+    public void scanWithHiddenNetwork() throws Exception {
+        addNetworkAndVerifySuccess(true);
+
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mWsm.startScan(-1, 0, null, null);
+        mLooper.dispatchAll();
+
+        verify(mWifiNative).scan(null, mWifiConfigManager.getHiddenConfiguredNetworkIds());
 
         when(mWifiNative.getScanResults()).thenReturn(getMockScanResults());
         mWsm.sendMessage(WifiMonitor.SCAN_RESULTS_EVENT);

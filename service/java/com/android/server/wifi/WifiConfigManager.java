@@ -94,9 +94,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
@@ -628,6 +628,14 @@ public class WifiConfigManager {
             }
         }
         return configurations;
+    }
+
+    /**
+     * Fetch the list of networkId's which are hidden in current user's configuration.
+     * @return List of networkIds
+     */
+    public Set<Integer> getHiddenConfiguredNetworkIds() {
+        return mConfiguredNetworks.getHiddenNetworkIdsForCurrentUser();
     }
 
     /**
