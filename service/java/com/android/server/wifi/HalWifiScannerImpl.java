@@ -196,6 +196,22 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
     }
 
     @Override
+    public boolean setPnoList(WifiNative.PnoSettings settings,
+            WifiNative.PnoEventHandler eventHandler) {
+        return mWifiNative.setPnoList(settings, eventHandler);
+    }
+
+    @Override
+    public boolean resetPnoList(WifiNative.PnoSettings settings) {
+        return mWifiNative.resetPnoList();
+    }
+
+    @Override
+    public boolean shouldScheduleBackgroundScanForPno() {
+        return true;
+    }
+
+    @Override
     public WifiScanner.ScanData[] getLatestBatchedScanResults(boolean flush) {
         return mWifiNative.getScanResults(flush);
     }
