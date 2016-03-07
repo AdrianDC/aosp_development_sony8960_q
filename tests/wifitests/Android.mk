@@ -34,7 +34,7 @@ LOCAL_C_INCLUDES += \
 LOCAL_SRC_FILES := \
 	jni/wifi_hal_mock.cpp
 
-ifdef INCLUDE_NAN_FEATURE
+ifeq ($(BOARD_HAS_NAN), true)
 LOCAL_SRC_FILES += \
 	jni/wifi_nan_hal_mock.cpp
 endif
@@ -65,7 +65,7 @@ RESOURCE_FILES := $(call all-named-files-under, R.java, $(intermediates.COMMON))
 LOCAL_SRC_FILES := $(call all-subdir-java-files) \
 	$RESOURCE_FILES
 
-ifndef INCLUDE_NAN_FEATURE
+ifneq ($(BOARD_HAS_NAN), true)
 LOCAL_SRC_FILES := $(filter-out $(call all-java-files-under, \
           src/com/android/server/wifi/nan),$(LOCAL_SRC_FILES))
 endif
