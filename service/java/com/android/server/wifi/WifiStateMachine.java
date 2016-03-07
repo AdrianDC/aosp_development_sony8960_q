@@ -2782,6 +2782,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         } else {
             pw.println("mUntrustedNetworkFactory is not initialized");
         }
+        pw.println("Wlan Wake Reasons:" + mWifiNative.getWlanWakeReasonCount());
         pw.println();
         updateWifiMetrics();
         mWifiMetrics.dump(fd, pw, args);
