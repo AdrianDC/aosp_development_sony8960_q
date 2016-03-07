@@ -21,13 +21,15 @@ import android.net.wifi.WifiScanner;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.SystemClock;
 import android.util.Log;
 
 import com.android.server.wifi.scanner.ChannelHelper;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
 import com.android.server.wifi.scanner.HalChannelHelper;
 
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -44,6 +46,7 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
     private final Handler mEventHandler;
     private final ChannelHelper mChannelHelper;
     private boolean mReportSingleScanFullResults = false;
+    private long mSingleScanStartTime = 0;
     private WifiNative.ScanEventHandler mSingleScanEventHandler = null;
     private WifiScanner.ScanData mLatestSingleScanResult =
             new WifiScanner.ScanData(0, 0, new ScanResult[0]);
@@ -113,6 +116,7 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
 
         mSingleScanEventHandler = eventHandler;
         Set<Integer> freqs = scanChannels.getSupplicantScanFreqs();
+        mSingleScanStartTime = SystemClock.elapsedRealtime();
         // TODO(rpius): Need to plumb in the hiddessid network list via Scanner.
         if (!mWifiNative.scan(freqs, null)) {
             Log.e(TAG, "Failed to start scan, freqs=" + freqs);
@@ -138,21 +142,26 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
     private void pollLatestSingleScanData() {
         // convert ScanDetail from supplicant to ScanResults
         List<ScanDetail> nativeResults = mWifiNative.getScanResults();
-        ScanResult[] results = new ScanResult[nativeResults.size()];
-        for (int i = 0; i < results.length; ++i) {
-            results[i] = nativeResults.get(i).getScanResult();
+        List<ScanResult> results = new ArrayList<>();
+        for (int i = 0; i < nativeResults.size(); ++i) {
+            ScanResult result = nativeResults.get(i).getScanResult();
+            long timestamp_ms = result.timestamp / 1000; // convert us -> ms
+            if (timestamp_ms > mSingleScanStartTime) {
+                results.add(result);
+            }
         }
 
         // Dispatch full results
         if (mSingleScanEventHandler != null && mReportSingleScanFullResults) {
-            for (int i = 0; i < results.length; ++i) {
-                mSingleScanEventHandler.onFullScanResult(results[i]);
+            for (int i = 0; i < results.size(); ++i) {
+                mSingleScanEventHandler.onFullScanResult(results.get(i));
             }
         }
 
         // Sort final results and dispatch event
-        Arrays.sort(results, SCAN_RESULT_SORT_COMPARATOR);
-        mLatestSingleScanResult = new WifiScanner.ScanData(0, 0, results);
+        Collections.sort(results, SCAN_RESULT_SORT_COMPARATOR);
+        mLatestSingleScanResult = new WifiScanner.ScanData(0, 0,
+                results.toArray(new ScanResult[results.size()]));
         if (mSingleScanEventHandler != null) {
             mSingleScanEventHandler.onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
             mSingleScanEventHandler = null;

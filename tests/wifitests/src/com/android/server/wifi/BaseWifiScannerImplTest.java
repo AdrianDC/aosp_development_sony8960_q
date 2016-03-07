@@ -32,6 +32,9 @@ import static org.mockito.Mockito.when;
 import android.content.Context;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiScanner;
+import android.net.wifi.WifiScanner.ScanData;
+import android.net.wifi.WifiSsid;
+import android.os.SystemClock;
 
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
 
@@ -41,6 +44,9 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Set;
 
 /**
@@ -237,6 +243,79 @@ public abstract class BaseWifiScannerImplTest {
         expectSuccessfulSingleScan(order, eventHandler,
                 expectedBandScanFreqs(WifiScanner.WIFI_BAND_5_GHZ),
                 ScanResults.create(0, 5150, 5175), false);
+
+        verifyNoMoreInteractions(eventHandler);
+    }
+
+    /**
+     * Validate that scan results that are returned from supplicant, which are timestamped prior to
+     * the start of the scan, are ignored.
+     */
+    @Test
+    public void singleScanWhereSupplicantReturnsSomeOldResults() {
+        WifiNative.ScanSettings settings = new NativeScanSettingsBuilder()
+                .withBasePeriod(10000)
+                .withMaxApPerScan(2)
+                .addBucketWithBand(10000,
+                        WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
+                        | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT,
+                        WifiScanner.WIFI_BAND_24_GHZ)
+                .build();
+
+        long approxScanStartUs = SystemClock.elapsedRealtime() * 1000;
+        ArrayList<ScanDetail> rawResults = new ArrayList<>(Arrays.asList(
+                        new ScanDetail(WifiSsid.createFromAsciiEncoded("TEST AP 1"),
+                                "00:00:00:00:00:00", "", -70, 2450,
+                                approxScanStartUs + 2000 * 1000, 0),
+                        new ScanDetail(WifiSsid.createFromAsciiEncoded("TEST AP 2"),
+                                "AA:BB:CC:DD:EE:FF", "", -66, 2400,
+                                approxScanStartUs + 2500 * 1000, 0),
+                        new ScanDetail(WifiSsid.createFromAsciiEncoded("TEST AP 3"),
+                                "00:00:00:00:00:00", "", -80, 2450,
+                                approxScanStartUs - 2000 * 1000, 0), // old result will be filtered
+                        new ScanDetail(WifiSsid.createFromAsciiEncoded("TEST AP 4"),
+                                "AA:BB:CC:11:22:33", "", -65, 2450,
+                                approxScanStartUs + 4000 * 1000, 0)));
+
+        ArrayList<ScanResult> fullResults = new ArrayList<>();
+        for (ScanDetail detail : rawResults) {
+            if (detail.getScanResult().timestamp > approxScanStartUs) {
+                fullResults.add(detail.getScanResult());
+            }
+        }
+        ArrayList<ScanResult> scanDataResults = new ArrayList<>(fullResults);
+        Collections.sort(scanDataResults, ScanResults.SCAN_RESULT_RSSI_COMPARATOR);
+        ScanData scanData = new ScanData(0, 0,
+                scanDataResults.toArray(new ScanResult[scanDataResults.size()]));
+        Set<Integer> expectedScan = expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ);
+
+        // Actual test
+
+        WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
+
+        InOrder order = inOrder(eventHandler, mWifiNative);
+
+        // scan succeeds
+        when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(true);
+
+        // start scan
+        assertTrue(mScanner.startSingleScan(settings, eventHandler));
+
+        order.verify(mWifiNative).scan(eq(expectedScan), any(Set.class));
+
+        when(mWifiNative.getScanResults()).thenReturn(rawResults);
+
+        // Notify scan has finished
+        mWifiMonitor.sendMessage(mWifiNative.getInterfaceName(), WifiMonitor.SCAN_RESULTS_EVENT);
+
+        mLooper.dispatchAll();
+
+        for (ScanResult result : fullResults) {
+            order.verify(eventHandler).onFullScanResult(eq(result));
+        }
+
+        order.verify(eventHandler).onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
+        assertScanDataEquals(scanData, mScanner.getLatestSingleScanResults());
 
         verifyNoMoreInteractions(eventHandler);
     }
