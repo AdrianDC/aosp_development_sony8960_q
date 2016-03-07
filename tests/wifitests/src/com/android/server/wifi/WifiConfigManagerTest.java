@@ -42,6 +42,7 @@ import android.net.wifi.WifiConfiguration.KeyMgmt;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiEnterpriseConfig.Eap;
 import android.net.wifi.WifiEnterpriseConfig.Phase2;
+import android.net.wifi.WifiScanner;
 import android.os.Process;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -968,10 +969,10 @@ public class WifiConfigManagerTest {
      * network in expectedNetworkIDOrder list.
      */
     private static void verifyPnoNetworkListOrder(
-            ArrayList<WifiNative.PnoNetwork> pnoNetworkList,
+            ArrayList<WifiScanner.PnoSettings.PnoNetwork> pnoNetworkList,
             ArrayList<Integer> expectedNetworkIdOrder) throws Exception  {
         int i = 0;
-        for (WifiNative.PnoNetwork pnoNetwork : pnoNetworkList) {
+        for (WifiScanner.PnoSettings.PnoNetwork pnoNetwork : pnoNetworkList) {
             Log.i(TAG, "PNO Network List Index: " + i + ", networkID: " + pnoNetwork.networkId);
             assertEquals("Expected network ID: " + pnoNetwork.networkId,
                     pnoNetwork.networkId, expectedNetworkIdOrder.get(i++).intValue());
@@ -1007,7 +1008,7 @@ public class WifiConfigManagerTest {
                 Log.i(TAG, "networkID: " + config.networkId + ", numAssociation: "
                         + config.numAssociation);
             }
-            ArrayList<WifiNative.PnoNetwork> pnoNetworkList =
+            ArrayList<WifiScanner.PnoSettings.PnoNetwork> pnoNetworkList =
                     mWifiConfigManager.retrieveDisconnectedPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(numAssociationToNetworkIdMap.values()));
@@ -1030,7 +1031,7 @@ public class WifiConfigManagerTest {
                 priorityToNetworkIdMap.put(config.priority, config.networkId);
                 Log.i(TAG, "networkID: " + config.networkId + ", priority: " + config.priority);
             }
-            ArrayList<WifiNative.PnoNetwork> pnoNetworkList =
+            ArrayList<WifiScanner.PnoSettings.PnoNetwork> pnoNetworkList =
                     mWifiConfigManager.retrieveDisconnectedPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(priorityToNetworkIdMap.values()));
@@ -1057,7 +1058,7 @@ public class WifiConfigManagerTest {
                 Log.i(TAG, "networkID: " + config.networkId + ", NetworkSelectionStatus: "
                         + config.getNetworkSelectionStatus().getNetworkSelectionStatus());
             }
-            ArrayList<WifiNative.PnoNetwork> pnoNetworkList =
+            ArrayList<WifiScanner.PnoSettings.PnoNetwork> pnoNetworkList =
                     mWifiConfigManager.retrieveDisconnectedPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(networkSelectionStatusToNetworkIdMap.values()));
@@ -1094,7 +1095,7 @@ public class WifiConfigManagerTest {
                 lastSeenToNetworkIdMap.put(lastSeenValue, config.networkId);
                 Log.i(TAG, "networkID: " + config.networkId + ", lastSeen: " + lastSeenValue);
             }
-            ArrayList<WifiNative.PnoNetwork> pnoNetworkList =
+            ArrayList<WifiScanner.PnoSettings.PnoNetwork> pnoNetworkList =
                     mWifiConfigManager.retrieveConnectedPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(lastSeenToNetworkIdMap.values()));
@@ -1120,7 +1121,7 @@ public class WifiConfigManagerTest {
                 Log.i(TAG, "networkID: " + config.networkId + ", numAssociation: "
                         + config.numAssociation);
             }
-            ArrayList<WifiNative.PnoNetwork> pnoNetworkList =
+            ArrayList<WifiScanner.PnoSettings.PnoNetwork> pnoNetworkList =
                     mWifiConfigManager.retrieveConnectedPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(numAssociationToNetworkIdMap.values()));
@@ -1147,7 +1148,7 @@ public class WifiConfigManagerTest {
                 Log.i(TAG, "networkID: " + config.networkId + ", NetworkSelectionStatus: "
                         + config.getNetworkSelectionStatus().getNetworkSelectionStatus());
             }
-            ArrayList<WifiNative.PnoNetwork> pnoNetworkList =
+            ArrayList<WifiScanner.PnoSettings.PnoNetwork> pnoNetworkList =
                     mWifiConfigManager.retrieveConnectedPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(networkSelectionStatusToNetworkIdMap.values()));

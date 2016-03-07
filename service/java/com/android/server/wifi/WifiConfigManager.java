@@ -39,6 +39,7 @@ import android.net.wifi.WifiConfiguration.Status;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiScanner;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.WpsResult;
 import android.os.Environment;
@@ -1181,7 +1182,7 @@ public class WifiConfigManager {
      *
      * @return list of networks with updated priorities.
      */
-    public ArrayList<WifiNative.PnoNetwork> retrieveDisconnectedPnoNetworkList() {
+    public ArrayList<WifiScanner.PnoSettings.PnoNetwork> retrieveDisconnectedPnoNetworkList() {
         return retrievePnoNetworkList(true, sDisconnectedPnoListComparator);
     }
 
@@ -1197,7 +1198,7 @@ public class WifiConfigManager {
      * @param enablePno boolean indicating whether PNO is being enabled or disabled.
      * @return list of networks with updated priorities.
      */
-    public ArrayList<WifiNative.PnoNetwork> retrieveDisconnectedPnoNetworkList(
+    public ArrayList<WifiScanner.PnoSettings.PnoNetwork> retrieveDisconnectedPnoNetworkList(
             boolean enablePno) {
         return retrievePnoNetworkList(enablePno, sDisconnectedPnoListComparator);
     }
@@ -1230,8 +1231,35 @@ public class WifiConfigManager {
      *
      * @return list of networks with updated priorities.
      */
-    public ArrayList<WifiNative.PnoNetwork> retrieveConnectedPnoNetworkList() {
+    public ArrayList<WifiScanner.PnoSettings.PnoNetwork> retrieveConnectedPnoNetworkList() {
         return retrievePnoNetworkList(true, sConnectedPnoListComparator);
+    }
+
+    /**
+     * Create a PnoNetwork object from the provided WifiConfiguration.
+     * @param config Configuration corresponding to the network.
+     * @param newPriority New priority to be assigned to the network.
+     */
+    private static WifiScanner.PnoSettings.PnoNetwork createPnoNetworkFromWifiConfiguration(
+            WifiConfiguration config, int newPriority) {
+        WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
+                new WifiScanner.PnoSettings.PnoNetwork(config.SSID);
+        pnoNetwork.networkId = config.networkId;
+        pnoNetwork.priority = newPriority;
+        if (config.hiddenSSID) {
+            pnoNetwork.flags |= WifiScanner.PnoSettings.PnoNetwork.FLAG_DIRECTED_SCAN;
+        }
+        pnoNetwork.flags |= WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND;
+        pnoNetwork.flags |= WifiScanner.PnoSettings.PnoNetwork.FLAG_G_BAND;
+        if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
+            pnoNetwork.authBitField |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_PSK;
+        } else if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP)
+                || config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
+            pnoNetwork.authBitField |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_EAPOL;
+        } else {
+            pnoNetwork.authBitField |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_OPEN;
+        }
+        return pnoNetwork;
     }
 
     /**
@@ -1241,12 +1269,11 @@ public class WifiConfigManager {
      * @param enablePno boolean indicating whether PNO is being enabled or disabled.
      * @return list of networks with updated priorities.
      */
-    private ArrayList<WifiNative.PnoNetwork> retrievePnoNetworkList(
+    private ArrayList<WifiScanner.PnoSettings.PnoNetwork> retrievePnoNetworkList(
             boolean enablePno, PnoListComparator pnoListComparator) {
-        ArrayList<WifiNative.PnoNetwork> pnoList =
-                new ArrayList<WifiNative.PnoNetwork>();
+        ArrayList<WifiScanner.PnoSettings.PnoNetwork> pnoList = new ArrayList<>();
         ArrayList<WifiConfiguration> wifiConfigurations =
-                new ArrayList<WifiConfiguration>(mConfiguredNetworks.valuesForCurrentUser());
+                new ArrayList<>(mConfiguredNetworks.valuesForCurrentUser());
         if (enablePno) {
             Collections.sort(wifiConfigurations, pnoListComparator);
             // Let's use the network list size as the highest priority and then go down from there.
@@ -1256,14 +1283,14 @@ public class WifiConfigManager {
                 Log.d(TAG, "Retrieve network priorities before PNO. Max priority: " + priority);
             }
             for (WifiConfiguration config : wifiConfigurations) {
-                pnoList.add(new WifiNative.PnoNetwork(config, priority));
+                pnoList.add(createPnoNetworkFromWifiConfiguration(config, priority));
                 priority--;
             }
         } else {
             // Revert the priorities back to the saved config values after PNO.
             if (DBG) Log.d(TAG, "Retrieve network priorities after PNO.");
             for (WifiConfiguration config : wifiConfigurations) {
-                pnoList.add(new WifiNative.PnoNetwork(config, config.priority));
+                pnoList.add(createPnoNetworkFromWifiConfiguration(config, config.priority));
             }
         }
         return pnoList;
