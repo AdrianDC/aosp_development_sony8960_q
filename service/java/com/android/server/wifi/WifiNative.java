@@ -909,7 +909,16 @@ public class WifiNative {
             return doBooleanCommand("DRIVER COUNTRY");
     }
 
+    /**
+     * Start/Stop PNO scan.
+     * @param enable boolean indicating whether PNO is being enabled or disabled.
+     */
+    public boolean setPnoScan(boolean enable) {
+        String cmd = enable ? "SET pno 1" : "SET pno 0";
+        return doBooleanCommand(cmd);
+    }
 
+    // TODO(rpius): Move PnoMonitor to SupplicantWifiScannerImpl.
     //PNO Monitor
     private class PnoMonitor {
         private static final int MINIMUM_PNO_GAP = 5 * 1000;
@@ -955,8 +964,8 @@ public class WifiNative {
                 new IntentFilter(ACTION_TOGGLE_PNO));
         }
 
-        /*  Enable/Disable PNO with updated network priorities.
-         *
+        /**
+         * Enable/Disable PNO with updated network priorities.
          * @param enable boolean indicating whether PNO is being enabled or disabled.
          * @param pnoNetworkList list of networks with priorities to be set before PNO setting.
          */
@@ -976,8 +985,7 @@ public class WifiNative {
                     }
                 }
             }
-            String cmd = enable ? "SET pno 1" : "SET pno 0";
-            boolean ret = doBooleanCommand(cmd);
+            boolean ret = WifiNative.this.setPnoScan(enable);
             mLastPnoChangeTimeStamp = System.currentTimeMillis();
             if (ret) {
                 mCurrentPnoState = enable;
@@ -1799,8 +1807,15 @@ public class WifiNative {
         public String configKey; // kept for reference
 
         /**
+         * Default constructor needed in WifiScanningServiceImpl.
+         * TODO(rpius): Remove both the constructors.
+         */
+        PnoNetwork() {
+        }
+
+        /**
          * Constructor for the PnoNetwork object used by WifiStateMachine.
-         * TODO(rpius): Remove this interface when we remove the PNO usage out of StateMachine.
+         * TODO(rpius): Remove this constructor when we remove the PNO usage out of StateMachine.
          * @param config Corresponding configuration for the network
          * @param newPriority Priority to be set.
          */

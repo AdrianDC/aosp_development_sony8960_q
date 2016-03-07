@@ -108,6 +108,28 @@ public abstract class WifiScannerImpl {
     public abstract void restartBatchedScan();
 
     /**
+     * Set PNO list to start PNO background scan.
+     * @param settings PNO settings for this scan.
+     * @param eventHandler Event handler for notifying the scan results.
+     * @return true if success, false otherwise
+     */
+    public abstract boolean setPnoList(WifiNative.PnoSettings settings,
+            WifiNative.PnoEventHandler eventHandler);
+
+    /**
+     * Reset PNO list to terminate PNO background scan.
+     * @param settings PNO settings for this scan.
+     * @return true if success, false otherwise
+     */
+    public abstract boolean resetPnoList(WifiNative.PnoSettings settings);
+
+    /**
+     * This returns whether a background scan should be running for PNO scan or not.
+     * @return true if background scan needs to be started, false otherwise.
+     */
+    public abstract boolean shouldScheduleBackgroundScanForPno();
+
+    /**
      * Get the latest cached scan results from the last scan event. This should be called
      * immediately when the scan success callback is receieved.
      */
