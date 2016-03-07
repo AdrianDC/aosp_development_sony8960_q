@@ -44,7 +44,7 @@ public class ScanResults {
                 r.nextInt(256), r.nextInt(256), r.nextInt(256));
     }
 
-    private static final Comparator<ScanResult> SCAN_RESULT_RSSI_COMPARATOR =
+    public static final Comparator<ScanResult> SCAN_RESULT_RSSI_COMPARATOR =
             new Comparator<ScanResult>() {
         public int compare(ScanResult r1, ScanResult r2) {
             return r2.level - r1.level;
