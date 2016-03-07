@@ -149,7 +149,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @hide
  */
-public class WifiStateMachine extends StateMachine implements WifiNative.WifiPnoEventHandler,
+public class WifiStateMachine extends StateMachine implements WifiNative.PnoEventHandler,
     WifiNative.WifiRssiEventHandler {
 
     private static final String NETWORKTYPE = "WIFI";
@@ -2471,8 +2471,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             // disabled when we connect to a network after PNO.
             mWifiConfigManager.enableAllNetworksNative();
         }
-        List<WifiNative.WifiPnoNetwork> pnoList =
-                mWifiConfigManager.retrieveDisconnectedWifiPnoNetworkList(enable);
+        List<WifiNative.PnoNetwork> pnoList =
+                mWifiConfigManager.retrieveDisconnectedPnoNetworkList(enable);
         boolean ret = mWifiNative.enableBackgroundScan(enable, pnoList);
         if (ret) {
             mLegacyPnoEnabled = enable;
@@ -3391,7 +3391,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
     private void stopPnoOffload() {
 
         // clear the PNO list
-        if (!mWifiNative.setPnoList(null, WifiStateMachine.this)) {
+        if (!mWifiNative.resetPnoList()) {
             Log.e(TAG, "Failed to stop pno");
         }
 
@@ -3468,7 +3468,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
             return true;
         }
 
-        List<WifiNative.WifiPnoNetwork> llist = null;
+        List<WifiNative.PnoNetwork> llist = null;
         //TODO: add getPnoList in WifiQualifiedNetworkSelector
         //mWifiAutoJoinController.getPnoList(getCurrentWifiConfiguration());
         if (llist == null || llist.size() == 0) {
@@ -3481,8 +3481,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
         }
 
         // first program the network we want to look for thru the pno API
-        WifiNative.WifiPnoNetwork list[]
-                = (WifiNative.WifiPnoNetwork[]) llist.toArray(new WifiNative.WifiPnoNetwork[0]);
+        WifiNative.PnoNetwork[] list =
+                (WifiNative.PnoNetwork[]) llist.toArray(new WifiNative.PnoNetwork[0]);
 
         if (!mWifiNative.setPnoList(list, WifiStateMachine.this)) {
             Log.e(TAG, "Failed to set pno, length = " + list.length);
@@ -3491,10 +3491,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiPno
 
         if (true) {
             StringBuilder sb = new StringBuilder();
-            for (WifiNative.WifiPnoNetwork network : list) {
-                sb.append("[").append(network.SSID).append(" auth=").append(network.auth);
+            for (WifiNative.PnoNetwork network : list) {
+                sb.append("[").append(network.ssid).append(" auth=").append(network.auth);
                 sb.append(" flags=");
-                sb.append(network.flags).append(" rssi").append(network.rssi_threshold);
+                sb.append(network.flags);
                 sb.append("] ");
 
             }

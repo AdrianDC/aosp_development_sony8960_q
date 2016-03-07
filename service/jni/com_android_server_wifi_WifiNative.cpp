@@ -1893,7 +1893,7 @@ static void onPnoNetworkFound(wifi_request_id id,
 }
 
 static jboolean android_net_wifi_setPnoListNative(
-        JNIEnv *env, jclass cls, jint iface, jint id, jobject list)  {
+        JNIEnv *env, jclass cls, jint iface, jint id, jobject settings)  {
 
     JNIHelper helper(env);
     wifi_epno_handler handler;
@@ -1902,30 +1902,33 @@ static jboolean android_net_wifi_setPnoListNative(
     wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
     ALOGD("configure ePno list request [%d] = %p", id, handle);
 
+    if (settings == NULL) {
+        return false;
+    }
+
+    JNIObject<jobjectArray> list = helper.getArrayField(settings, "networkList",
+            "[Lcom/android/server/wifi/WifiNative$PnoNetwork");
     if (list == NULL) {
-        // stop pno
-        int result = hal_fn.wifi_reset_epno_list(id, handle);
-        ALOGD(" setPnoListNative: STOP result = %d", result);
-        return result >= 0;
+        return false;
+    }
+
+    size_t len = helper.getArrayLength(list);
+    if (len > (size_t)MAX_EPNO_NETWORKS) {
+        return false;
     }
 
     wifi_epno_params params;
     memset(&params, 0, sizeof(params));
 
-    size_t len = helper.getArrayLength((jobjectArray)list);
-    if (len > (size_t)MAX_EPNO_NETWORKS) {
-        return false;
-    }
-
     for (unsigned int i = 0; i < len; i++) {
 
-        JNIObject<jobject> pno_net = helper.getObjectArrayElement((jobjectArray)list, i);
+        JNIObject<jobject> pno_net = helper.getObjectArrayElement(list, i);
         if (pno_net == NULL) {
             ALOGE("setPnoListNative: could not get element %d", i);
             continue;
         }
 
-        JNIObject<jstring> sssid = helper.getStringField(pno_net, "SSID");
+        JNIObject<jstring> sssid = helper.getStringField(pno_net, "ssid");
         if (sssid == NULL) {
               ALOGE("Error setPnoListNative: getting ssid field");
               return false;
@@ -1963,11 +1966,32 @@ static jboolean android_net_wifi_setPnoListNative(
                 params.networks[i].auth_bit_field, a, params.networks[i].flags, f,
                 params.networks[i].ssid);
     }
+    params.min5GHz_rssi = helper.getIntField(settings, "min5GHzRssi");
+    params.min24GHz_rssi = helper.getIntField(settings, "min24GHzRssi");
+    params.initial_score_max = helper.getIntField(settings, "initialScoreMax");
+    params.current_connection_bonus = helper.getIntField(settings, "currentConnectionBonus");
+    params.same_network_bonus = helper.getIntField(settings, "sameNetworkBonus");
+    params.secure_bonus = helper.getIntField(settings, "secureBonus");
+    params.band5GHz_bonus = helper.getIntField(settings, "band5GHzBonus");
     params.num_networks = len;
 
     int result = hal_fn.wifi_set_epno_list(id, handle, &params, handler);
     ALOGD(" setPnoListNative: result %d", result);
 
+    return result >= 0;
+}
+
+static jboolean android_net_wifi_resetPnoListNative(
+        JNIEnv *env, jclass cls, jint iface, jint id)  {
+
+    JNIHelper helper(env);
+
+    wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
+    ALOGD("reset ePno list request [%d] = %p", id, handle);
+
+    // stop pno
+    int result = hal_fn.wifi_reset_epno_list(id, handle);
+    ALOGD(" ressetPnoListNative: result = %d", result);
     return result >= 0;
 }
 
@@ -2286,8 +2310,9 @@ static JNINativeMethod gWifiMethods[] = {
     { "installPacketFilterNative", "(I[B)Z", (void*) android_net_wifi_install_packet_filter},
     {"setCountryCodeHalNative", "(ILjava/lang/String;)Z",
             (void*) android_net_wifi_set_Country_Code_Hal},
-    { "setPnoListNative", "(II[Lcom/android/server/wifi/WifiNative$WifiPnoNetwork;)Z",
+    { "setPnoListNative", "(IILcom/android/server/wifi/WifiNative$PnoSettings;)Z",
             (void*) android_net_wifi_setPnoListNative},
+    { "resetPnoListNative", "(II)Z", (void*) android_net_wifi_resetPnoListNative},
     {"enableDisableTdlsNative", "(IZLjava/lang/String;)Z",
             (void*) android_net_wifi_enable_disable_tdls},
     {"getTdlsStatusNative", "(ILjava/lang/String;)Lcom/android/server/wifi/WifiNative$TdlsStatus;",
