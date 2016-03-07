@@ -3492,7 +3492,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         if (true) {
             StringBuilder sb = new StringBuilder();
             for (WifiNative.PnoNetwork network : list) {
-                sb.append("[").append(network.ssid).append(" auth=").append(network.auth);
+                sb.append("[").append(network.ssid).append(" auth=").append(network.auth_bit_field);
                 sb.append(" flags=");
                 sb.append(network.flags);
                 sb.append("] ");
