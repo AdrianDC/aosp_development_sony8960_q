@@ -263,8 +263,9 @@ static JNIObject<jobject> createScanResult(JNIHelper &helper, wifi_scan_result *
     }
 
     char bssid[32];
-    sprintf(bssid, "%02x:%02x:%02x:%02x:%02x:%02x", result->bssid[0], result->bssid[1],
-        result->bssid[2], result->bssid[3], result->bssid[4], result->bssid[5]);
+    snprintf(bssid, sizeof(bssid), "%02x:%02x:%02x:%02x:%02x:%02x",
+             result->bssid[0], result->bssid[1], result->bssid[2],
+             result->bssid[3], result->bssid[4], result->bssid[5]);
 
     helper.setStringField(scanResult, "BSSID", bssid);
 
@@ -839,8 +840,8 @@ static jboolean android_net_wifi_setHotlist(
         memcpy(addr, params.ap[i].bssid, sizeof(mac_addr));
 
         char bssidOut[32];
-        sprintf(bssidOut, "%0x:%0x:%0x:%0x:%0x:%0x", addr[0], addr[1],
-            addr[2], addr[3], addr[4], addr[5]);
+        snprintf(bssidOut, sizeof(bssidOut), "%0x:%0x:%0x:%0x:%0x:%0x", addr[0],
+                 addr[1], addr[2], addr[3], addr[4], addr[5]);
 
         ALOGD("Added bssid %s", bssidOut);
 
@@ -892,8 +893,9 @@ void onSignificantWifiChange(wifi_request_id id,
         // helper.setStringField(scanResult, "SSID", results[i].ssid);
 
         char bssid[32];
-        sprintf(bssid, "%02x:%02x:%02x:%02x:%02x:%02x", result.bssid[0], result.bssid[1],
-            result.bssid[2], result.bssid[3], result.bssid[4], result.bssid[5]);
+        snprintf(bssid, sizeof(bssid), "%02x:%02x:%02x:%02x:%02x:%02x",
+                 result.bssid[0], result.bssid[1], result.bssid[2],
+                 result.bssid[3], result.bssid[4], result.bssid[5]);
 
         helper.setStringField(scanResult, "BSSID", bssid);
 
@@ -957,8 +959,8 @@ static jboolean android_net_wifi_trackSignificantWifiChange(
         memcpy(params.ap[i].bssid, addr, sizeof(mac_addr));
 
         char bssidOut[32];
-        sprintf(bssidOut, "%02x:%02x:%02x:%02x:%02x:%02x", addr[0], addr[1],
-            addr[2], addr[3], addr[4], addr[5]);
+        snprintf(bssidOut, sizeof(bssidOut), "%02x:%02x:%02x:%02x:%02x:%02x",
+                 addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
 
         params.ap[i].low = helper.getIntField(objAp, "low");
         params.ap[i].high = helper.getIntField(objAp, "high");
@@ -1117,8 +1119,9 @@ static void onRttResults(wifi_request_id id, unsigned num_results, wifi_rtt_resu
         }
 
         char bssid[32];
-        sprintf(bssid, "%02x:%02x:%02x:%02x:%02x:%02x", result->addr[0], result->addr[1],
-            result->addr[2], result->addr[3], result->addr[4], result->addr[5]);
+        snprintf(bssid, sizeof(bssid), "%02x:%02x:%02x:%02x:%02x:%02x",
+                 result->addr[0], result->addr[1], result->addr[2],
+                 result->addr[3], result->addr[4], result->addr[5]);
 
         helper.setStringField(rttResult, "bssid", bssid);
         helper.setIntField( rttResult, "burstNumber",              result->burst_num);
@@ -1420,8 +1423,8 @@ static void on_tdls_state_changed(mac_addr addr, wifi_tdls_status status) {
     ALOGD("on_tdls_state_changed is called: vm = %p, obj = %p", mVM, mCls);
 
     char mac[32];
-    sprintf(mac, "%02x:%02x:%02x:%02x:%02x:%02x", addr[0], addr[1], addr[2], addr[3], addr[4],
-            addr[5]);
+    snprintf(mac, sizeof(mac), "%02x:%02x:%02x:%02x:%02x:%02x", addr[0],
+             addr[1], addr[2], addr[3], addr[4], addr[5]);
 
     JNIObject<jstring> mac_address = helper.newStringUTF(mac);
     helper.reportEvent(mCls, "onTdlsStatus", "(Ljava/lang/StringII;)V",
@@ -2010,8 +2013,8 @@ static jboolean android_net_wifi_setBssidBlacklist(
             memcpy(params.bssids[i], addr, sizeof(mac_addr));
 
             char bssidOut[32];
-            sprintf(bssidOut, "%0x:%0x:%0x:%0x:%0x:%0x", addr[0], addr[1],
-                addr[2], addr[3], addr[4], addr[5]);
+            snprintf(bssidOut, sizeof(bssidOut), "%0x:%0x:%0x:%0x:%0x:%0x",
+                     addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
 
             ALOGD("BSSID blacklist: added bssid %s", bssidOut);
 
@@ -2088,11 +2091,13 @@ static jint android_net_wifi_start_sending_offloaded_packet(JNIEnv *env, jclass 
     byte* dst_mac_addr = (byte*) dstMacBytes.get();
     int i;
     char macAddr[32];
-    sprintf(macAddr, "%0x:%0x:%0x:%0x:%0x:%0x", src_mac_addr[0], src_mac_addr[1],
-            src_mac_addr[2], src_mac_addr[3], src_mac_addr[4], src_mac_addr[5]);
+    snprintf(macAddr, sizeof(macAddr), "%0x:%0x:%0x:%0x:%0x:%0x",
+             src_mac_addr[0], src_mac_addr[1], src_mac_addr[2], src_mac_addr[3],
+             src_mac_addr[4], src_mac_addr[5]);
     ALOGD("src_mac_addr %s", macAddr);
-    sprintf(macAddr, "%0x:%0x:%0x:%0x:%0x:%0x", dst_mac_addr[0], dst_mac_addr[1],
-            dst_mac_addr[2], dst_mac_addr[3], dst_mac_addr[4], dst_mac_addr[5]);
+    snprintf(macAddr, sizeof(macAddr), "%0x:%0x:%0x:%0x:%0x:%0x",
+             dst_mac_addr[0], dst_mac_addr[1], dst_mac_addr[2], dst_mac_addr[3],
+             dst_mac_addr[4], dst_mac_addr[5]);
     ALOGD("dst_mac_addr %s", macAddr);
     ALOGD("pkt_len %d\n", pkt_len);
     ALOGD("Pkt data : ");
