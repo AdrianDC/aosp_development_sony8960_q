@@ -1034,7 +1034,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             nativePnoSetting.networkList[i].networkId = pnoSettings.networkList[i].networkId;
             nativePnoSetting.networkList[i].priority = pnoSettings.networkList[i].priority;
             nativePnoSetting.networkList[i].flags = pnoSettings.networkList[i].flags;
-            nativePnoSetting.networkList[i].auth = pnoSettings.networkList[i].authBitField;
+            nativePnoSetting.networkList[i].auth_bit_field =
+                    pnoSettings.networkList[i].authBitField;
         }
         return nativePnoSetting;
     }

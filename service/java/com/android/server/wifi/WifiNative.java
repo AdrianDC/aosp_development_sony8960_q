@@ -1803,7 +1803,7 @@ public class WifiNative {
         public int networkId;
         public int priority;
         public byte flags;
-        public byte auth;
+        public byte auth_bit_field;
         public String configKey; // kept for reference
 
         /**
@@ -1827,12 +1827,12 @@ public class WifiNative {
                 ssid = config.SSID;
             }
             if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
-                auth |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_PSK;
+                auth_bit_field |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_PSK;
             } else if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP)
                     || config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
-                auth |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_EAPOL;
+                auth_bit_field |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_EAPOL;
             } else {
-                auth |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_OPEN;
+                auth_bit_field |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_OPEN;
             }
             flags = WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND;
             flags |= WifiScanner.PnoSettings.PnoNetwork.FLAG_G_BAND;

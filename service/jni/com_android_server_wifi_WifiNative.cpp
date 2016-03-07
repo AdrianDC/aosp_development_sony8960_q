@@ -1907,7 +1907,7 @@ static jboolean android_net_wifi_setPnoListNative(
     }
 
     JNIObject<jobjectArray> list = helper.getArrayField(settings, "networkList",
-            "[Lcom/android/server/wifi/WifiNative$PnoNetwork");
+            "[Lcom/android/server/wifi/WifiNative$PnoNetwork;");
     if (list == NULL) {
         return false;
     }
@@ -1958,12 +1958,10 @@ static jboolean android_net_wifi_setPnoListNative(
         }
         memcpy(params.networks[i].ssid, ssid, ssid_len);
 
-        int a = helper.getIntField(pno_net, "auth");
-        params.networks[i].auth_bit_field = a;
-        int f = helper.getIntField(pno_net, "flags");
-        params.networks[i].flags = f;
-        ALOGD(" setPnoListNative: idx %u auth %x/%x flags %x/%x [%s]", i,
-                params.networks[i].auth_bit_field, a, params.networks[i].flags, f,
+        params.networks[i].auth_bit_field = helper.getByteField(pno_net, "auth_bit_field");
+        params.networks[i].flags = helper.getByteField(pno_net, "flags");
+        ALOGD(" setPnoListNative: idx %u auth %x flags %x [%s]", i,
+                params.networks[i].auth_bit_field, params.networks[i].flags,
                 params.networks[i].ssid);
     }
     params.min5GHz_rssi = helper.getIntField(settings, "min5GHzRssi");
