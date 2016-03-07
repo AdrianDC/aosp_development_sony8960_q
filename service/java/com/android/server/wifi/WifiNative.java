@@ -917,7 +917,7 @@ public class WifiNative {
             "com.android.server.Wifi.action.TOGGLE_PNO";
         long mLastPnoChangeTimeStamp = -1L;
         boolean mExpectedPnoState = false;
-        List<WifiPnoNetwork> mExpectedWifiPnoNetworkList = null;
+        List<PnoNetwork> mExpectedPnoNetworkList = null;
         boolean mCurrentPnoState = false;;
         boolean mWaitForTimer = false;
         final Object mPnoLock = new Object();
@@ -941,7 +941,7 @@ public class WifiNative {
                                 if (DBG) Log.d(mTAG, "change PNO from " + mCurrentPnoState + " to "
                                         + mExpectedPnoState);
                                 boolean ret = setPno(
-                                        mExpectedPnoState, mExpectedWifiPnoNetworkList);
+                                        mExpectedPnoState, mExpectedPnoNetworkList);
                                 if (!ret) {
                                     Log.e(mTAG, "set PNO failure");
                                 }
@@ -960,13 +960,13 @@ public class WifiNative {
          * @param enable boolean indicating whether PNO is being enabled or disabled.
          * @param pnoNetworkList list of networks with priorities to be set before PNO setting.
          */
-        private boolean setPno(boolean enable, List<WifiPnoNetwork> pnoNetworkList) {
+        private boolean setPno(boolean enable, List<PnoNetwork> pnoNetworkList) {
             // TODO: Couple of cases yet to be handled:
             // 1. What if the network priority update fails, should we bail out of PNO setting?
             // 2. If PNO setting fails below, should we go back and revert this priority change?
             if (pnoNetworkList != null) {
                 if (DBG) Log.i(mTAG, "Update priorities for PNO. Enable: " + enable);
-                for (WifiPnoNetwork pnoNetwork : pnoNetworkList) {
+                for (PnoNetwork pnoNetwork : pnoNetworkList) {
                     // What if this fails? Should we bail out?
                     boolean isSuccess = setNetworkVariable(pnoNetwork.networkId,
                             WifiConfiguration.priorityVarName,
@@ -987,12 +987,12 @@ public class WifiNative {
 
         public boolean enableBackgroundScan(
                 boolean enable,
-                List<WifiPnoNetwork> pnoNetworkList) {
+                List<PnoNetwork> pnoNetworkList) {
             synchronized(mPnoLock) {
                 if (mWaitForTimer) {
                     //already has a timer
                     mExpectedPnoState = enable;
-                    mExpectedWifiPnoNetworkList = pnoNetworkList;
+                    mExpectedPnoNetworkList = pnoNetworkList;
                     if (DBG) Log.d(mTAG, "update expected PNO to " +  mExpectedPnoState);
                 } else {
                     if (mCurrentPnoState == enable) {
@@ -1003,7 +1003,7 @@ public class WifiNative {
                         return setPno(enable, pnoNetworkList);
                     } else {
                         mExpectedPnoState = enable;
-                        mExpectedWifiPnoNetworkList = pnoNetworkList;
+                        mExpectedPnoNetworkList = pnoNetworkList;
                         mWaitForTimer = true;
                         if (DBG) Log.d(mTAG, "start PNO timer with delay:" + timeDifference);
                         mAlarmManager.set(AlarmManager.RTC_WAKEUP,
@@ -1017,7 +1017,7 @@ public class WifiNative {
 
     public boolean enableBackgroundScan(
             boolean enable,
-            List<WifiPnoNetwork> pnoNetworkList) {
+            List<PnoNetwork> pnoNetworkList) {
         if (mPnoMonitor != null) {
             return mPnoMonitor.enableBackgroundScan(enable, pnoNetworkList);
         } else {
@@ -1788,6 +1788,61 @@ public class WifiNative {
     }
 
     /**
+     * Network parameters to start PNO scan.
+     */
+    public static class PnoNetwork {
+        public String ssid;
+        public int networkId;
+        public int priority;
+        public byte flags;
+        public byte auth;
+        public String configKey; // kept for reference
+
+        /**
+         * Constructor for the PnoNetwork object used by WifiStateMachine.
+         * TODO(rpius): Remove this interface when we remove the PNO usage out of StateMachine.
+         * @param config Corresponding configuration for the network
+         * @param newPriority Priority to be set.
+         */
+        PnoNetwork(WifiConfiguration config, int newPriority) {
+            if (config.SSID == null) {
+                ssid = "";
+                flags = WifiScanner.PnoSettings.PnoNetwork.FLAG_DIRECTED_SCAN;
+            } else {
+                ssid = config.SSID;
+            }
+            if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
+                auth |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_PSK;
+            } else if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP)
+                    || config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
+                auth |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_EAPOL;
+            } else {
+                auth |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_OPEN;
+            }
+            flags = WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND;
+            flags |= WifiScanner.PnoSettings.PnoNetwork.FLAG_G_BAND;
+            configKey = config.configKey();
+            networkId = config.networkId;
+            priority = newPriority;
+        }
+    }
+
+    /**
+     * Parameters to start PNO scan. This holds the list of networks which are going to used for
+     * PNO scan.
+     */
+    public static class PnoSettings {
+        public int min5GHzRssi;
+        public int min24GHzRssi;
+        public int initialScoreMax;
+        public int currentConnectionBonus;
+        public int sameNetworkBonus;
+        public int secureBonus;
+        public int band5GHzBonus;
+        public PnoNetwork[] networkList;
+    }
+
+    /**
      * Wi-Fi channel information.
      */
     public static class WifiChannelInfo {
@@ -1817,6 +1872,17 @@ public class WifiNative {
          * Called with the current cached scan results when gscan is resumed.
          */
         void onScanRestarted();
+    }
+
+    /**
+     * Handler to notify the occurrence of various events during PNO scan.
+     */
+    public interface PnoEventHandler {
+        /**
+         * Callback to notify when one of the shortlisted networks is found during PNO scan.
+         * @param results List of Scan results received.
+         */
+        void onPnoNetworkFound(ScanResult[] results);
     }
 
     /* scan status, keep these values in sync with gscan.h */
@@ -2673,95 +2739,62 @@ public class WifiNative {
 
     //---------------------------------------------------------------------------------
     /* Configure ePNO/PNO */
-
-    /* pno flags, keep these values in sync with gscan.h */
-    private static int WIFI_PNO_AUTH_CODE_OPEN  = 1; // open
-    private static int WIFI_PNO_AUTH_CODE_PSK   = 2; // WPA_PSK or WPA2PSK
-    private static int WIFI_PNO_AUTH_CODE_EAPOL = 4; // any EAPOL
-
-    // Whether directed scan needs to be performed (for hidden SSIDs)
-    private static int WIFI_PNO_FLAG_DIRECTED_SCAN = 1;
-    // Whether PNO event shall be triggered if the network is found on A band
-    private static int WIFI_PNO_FLAG_A_BAND = 2;
-    // Whether PNO event shall be triggered if the network is found on G band
-    private static int WIFI_PNO_FLAG_G_BAND = 4;
-    // Whether strict matching is required (i.e. firmware shall not match on the entire SSID)
-    private static int WIFI_PNO_FLAG_STRICT_MATCH = 8;
-
-    /**
-     * Object holding the network ID and the corresponding priority to be set before enabling/
-     * disabling PNO.
-     */
-    public static class WifiPnoNetwork {
-        public String SSID;
-        public int rssi_threshold; // TODO remove
-        public int flags;
-        public int auth;
-        public String configKey; // kept for reference
-        public int networkId;
-        public int priority;
-
-        WifiPnoNetwork(WifiConfiguration config, int threshold, int newPriority) {
-            if (config.SSID == null) {
-                SSID = "";
-                flags = WIFI_PNO_FLAG_DIRECTED_SCAN;
-            } else {
-                SSID = config.SSID;
-            }
-            rssi_threshold = threshold;
-            if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
-                auth |= WIFI_PNO_AUTH_CODE_PSK;
-            } else if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP) ||
-                    config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
-                auth |= WIFI_PNO_AUTH_CODE_EAPOL;
-            } else {
-                auth |= WIFI_PNO_AUTH_CODE_OPEN;
-            }
-            flags |= WIFI_PNO_FLAG_A_BAND | WIFI_PNO_FLAG_G_BAND;
-            configKey = config.configKey();
-            networkId = config.networkId;
-            priority = newPriority;
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sbuf = new StringBuilder();
-            sbuf.append(this.SSID);
-            sbuf.append(" flags=").append(this.flags);
-            sbuf.append(" rssi=").append(this.rssi_threshold);
-            sbuf.append(" auth=").append(this.auth);
-            sbuf.append(" Network ID=").append(this.networkId);
-            sbuf.append(" Priority=").append(this.priority);
-            return sbuf.toString();
-        }
-    }
-
-    public static interface WifiPnoEventHandler {
-        void onPnoNetworkFound(ScanResult results[]);
-    }
-
-    private static WifiPnoEventHandler sWifiPnoEventHandler;
-
+    private static PnoEventHandler sPnoEventHandler;
     private static int sPnoCmdId = 0;
 
-    private native static boolean setPnoListNative(int iface, int id, WifiPnoNetwork list[]);
+    private static native boolean setPnoListNative(int iface, int id, PnoSettings settings);
 
-    public boolean setPnoList(WifiPnoNetwork list[],
-                                                  WifiPnoEventHandler eventHandler) {
+    /**
+     * Set the PNO settings & the network list in HAL to start PNO.
+     * @param settings PNO settings and network list.
+     * @param eventHandler Handler to receive notifications back during PNO scan.
+     * @return true if success, false otherwise
+     */
+    public boolean setPnoList(PnoSettings settings, PnoEventHandler eventHandler) {
         Log.e(TAG, "setPnoList cmd " + sPnoCmdId);
 
         synchronized (sLock) {
             if (isHalStarted()) {
-
                 sPnoCmdId = getNewCmdIdLocked();
-
-                sWifiPnoEventHandler = eventHandler;
-                if (setPnoListNative(sWlan0Index, sPnoCmdId, list)) {
+                sPnoEventHandler = eventHandler;
+                if (setPnoListNative(sWlan0Index, sPnoCmdId, settings)) {
                     return true;
                 }
             }
+            sPnoEventHandler = null;
+            return false;
+        }
+    }
 
-            sWifiPnoEventHandler = null;
+    /**
+     * Set the PNO network list in HAL to start PNO.
+     * @param list PNO network list.
+     * @param eventHandler Handler to receive notifications back during PNO scan.
+     * @return true if success, false otherwise
+     */
+    public boolean setPnoList(PnoNetwork[] list, PnoEventHandler eventHandler) {
+        PnoSettings settings = new PnoSettings();
+        settings.networkList = list;
+        return setPnoList(settings, eventHandler);
+    }
+
+    private static native boolean resetPnoListNative(int iface, int id);
+
+    /**
+     * Reset the PNO settings in HAL to stop PNO.
+     * @return true if success, false otherwise
+     */
+    public boolean resetPnoList() {
+        Log.e(TAG, "resetPnoList cmd " + sPnoCmdId);
+
+        synchronized (sLock) {
+            if (isHalStarted()) {
+                sPnoCmdId = getNewCmdIdLocked();
+                sPnoEventHandler = null;
+                if (resetPnoListNative(sWlan0Index, sPnoCmdId)) {
+                    return true;
+                }
+            }
             return false;
         }
     }
@@ -2775,7 +2808,7 @@ public class WifiNative {
         }
         Log.d(TAG, "WifiNative.onPnoNetworkFound result " + results.length);
 
-        WifiPnoEventHandler handler = sWifiPnoEventHandler;
+        PnoEventHandler handler = sPnoEventHandler;
         if (sPnoCmdId != 0 && handler != null) {
             for (int i=0; i<results.length; i++) {
                 Log.e(TAG, "onPnoNetworkFound SSID " + results[i].SSID

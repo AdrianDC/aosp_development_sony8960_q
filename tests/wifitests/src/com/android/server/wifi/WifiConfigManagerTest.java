@@ -968,10 +968,10 @@ public class WifiConfigManagerTest {
      * network in expectedNetworkIDOrder list.
      */
     private static void verifyPnoNetworkListOrder(
-            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList,
+            ArrayList<WifiNative.PnoNetwork> pnoNetworkList,
             ArrayList<Integer> expectedNetworkIdOrder) throws Exception  {
         int i = 0;
-        for (WifiNative.WifiPnoNetwork pnoNetwork : pnoNetworkList) {
+        for (WifiNative.PnoNetwork pnoNetwork : pnoNetworkList) {
             Log.i(TAG, "PNO Network List Index: " + i + ", networkID: " + pnoNetwork.networkId);
             assertEquals("Expected network ID: " + pnoNetwork.networkId,
                     pnoNetwork.networkId, expectedNetworkIdOrder.get(i++).intValue());
@@ -979,11 +979,11 @@ public class WifiConfigManagerTest {
     }
 
     /**
-     * Verifies the retrieveDisconnectedWifiPnoNetworkList API. The test verifies that the list
+     * Verifies the retrieveDisconnectedPnoNetworkList API. The test verifies that the list
      * returned from the API is sorted as expected.
      */
     @Test
-    public void testDisconnectedWifiPnoNetworkListCreation() throws Exception {
+    public void testDisconnectedPnoNetworkListCreation() throws Exception {
         addNetworks();
 
         Random rand = new Random(WifiTestUtil.getTestMethod().hashCode());
@@ -1007,8 +1007,8 @@ public class WifiConfigManagerTest {
                 Log.i(TAG, "networkID: " + config.networkId + ", numAssociation: "
                         + config.numAssociation);
             }
-            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList =
-                    mWifiConfigManager.retrieveDisconnectedWifiPnoNetworkList();
+            ArrayList<WifiNative.PnoNetwork> pnoNetworkList =
+                    mWifiConfigManager.retrieveDisconnectedPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(numAssociationToNetworkIdMap.values()));
         }
@@ -1030,8 +1030,8 @@ public class WifiConfigManagerTest {
                 priorityToNetworkIdMap.put(config.priority, config.networkId);
                 Log.i(TAG, "networkID: " + config.networkId + ", priority: " + config.priority);
             }
-            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList =
-                    mWifiConfigManager.retrieveDisconnectedWifiPnoNetworkList();
+            ArrayList<WifiNative.PnoNetwork> pnoNetworkList =
+                    mWifiConfigManager.retrieveDisconnectedPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(priorityToNetworkIdMap.values()));
         }
@@ -1057,19 +1057,19 @@ public class WifiConfigManagerTest {
                 Log.i(TAG, "networkID: " + config.networkId + ", NetworkSelectionStatus: "
                         + config.getNetworkSelectionStatus().getNetworkSelectionStatus());
             }
-            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList =
-                    mWifiConfigManager.retrieveDisconnectedWifiPnoNetworkList();
+            ArrayList<WifiNative.PnoNetwork> pnoNetworkList =
+                    mWifiConfigManager.retrieveDisconnectedPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(networkSelectionStatusToNetworkIdMap.values()));
         }
     }
 
     /**
-     * Verifies the retrieveConnectedWifiPnoNetworkList API. The test verifies that the list
+     * Verifies the retrieveConnectedPnoNetworkList API. The test verifies that the list
      * returned from the API is sorted as expected.
      */
     @Test
-    public void testConnectedWifiPnoNetworkListCreation() throws Exception {
+    public void testConnectedPnoNetworkListCreation() throws Exception {
         addNetworks();
 
         Random rand = new Random(WifiTestUtil.getTestMethod().hashCode());
@@ -1094,8 +1094,8 @@ public class WifiConfigManagerTest {
                 lastSeenToNetworkIdMap.put(lastSeenValue, config.networkId);
                 Log.i(TAG, "networkID: " + config.networkId + ", lastSeen: " + lastSeenValue);
             }
-            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList =
-                    mWifiConfigManager.retrieveConnectedWifiPnoNetworkList();
+            ArrayList<WifiNative.PnoNetwork> pnoNetworkList =
+                    mWifiConfigManager.retrieveConnectedPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(lastSeenToNetworkIdMap.values()));
         }
@@ -1120,8 +1120,8 @@ public class WifiConfigManagerTest {
                 Log.i(TAG, "networkID: " + config.networkId + ", numAssociation: "
                         + config.numAssociation);
             }
-            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList =
-                    mWifiConfigManager.retrieveConnectedWifiPnoNetworkList();
+            ArrayList<WifiNative.PnoNetwork> pnoNetworkList =
+                    mWifiConfigManager.retrieveConnectedPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(numAssociationToNetworkIdMap.values()));
         }
@@ -1147,8 +1147,8 @@ public class WifiConfigManagerTest {
                 Log.i(TAG, "networkID: " + config.networkId + ", NetworkSelectionStatus: "
                         + config.getNetworkSelectionStatus().getNetworkSelectionStatus());
             }
-            ArrayList<WifiNative.WifiPnoNetwork> pnoNetworkList =
-                    mWifiConfigManager.retrieveConnectedWifiPnoNetworkList();
+            ArrayList<WifiNative.PnoNetwork> pnoNetworkList =
+                    mWifiConfigManager.retrieveConnectedPnoNetworkList();
             verifyPnoNetworkListOrder(pnoNetworkList,
                     new ArrayList(networkSelectionStatusToNetworkIdMap.values()));
         }
