@@ -1804,42 +1804,6 @@ public class WifiNative {
         public int priority;
         public byte flags;
         public byte auth_bit_field;
-        public String configKey; // kept for reference
-
-        /**
-         * Default constructor needed in WifiScanningServiceImpl.
-         * TODO(rpius): Remove both the constructors.
-         */
-        PnoNetwork() {
-        }
-
-        /**
-         * Constructor for the PnoNetwork object used by WifiStateMachine.
-         * TODO(rpius): Remove this constructor when we remove the PNO usage out of StateMachine.
-         * @param config Corresponding configuration for the network
-         * @param newPriority Priority to be set.
-         */
-        PnoNetwork(WifiConfiguration config, int newPriority) {
-            if (config.SSID == null) {
-                ssid = "";
-                flags = WifiScanner.PnoSettings.PnoNetwork.FLAG_DIRECTED_SCAN;
-            } else {
-                ssid = config.SSID;
-            }
-            if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
-                auth_bit_field |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_PSK;
-            } else if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP)
-                    || config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
-                auth_bit_field |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_EAPOL;
-            } else {
-                auth_bit_field |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_OPEN;
-            }
-            flags = WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND;
-            flags |= WifiScanner.PnoSettings.PnoNetwork.FLAG_G_BAND;
-            configKey = config.configKey();
-            networkId = config.networkId;
-            priority = newPriority;
-        }
     }
 
     /**

@@ -2464,6 +2464,25 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         return mWifiNative.getNfcWpsConfigurationToken(netId);
     }
 
+    /**
+     * Convert WifiScanner.PnoNetwork List to WifiNative.PnoNetwork List
+     * TODO(rpius): Remove this once WifiScanner starts PNO scanning.
+     */
+    private List<WifiNative.PnoNetwork> convertPnoNetworkListToNative(
+            List<WifiScanner.PnoSettings.PnoNetwork> pnoNetworkList) {
+        List<WifiNative.PnoNetwork> nativePnoNetworkList = new ArrayList<>();
+        for (WifiScanner.PnoSettings.PnoNetwork pnoNetwork : pnoNetworkList) {
+            WifiNative.PnoNetwork nativePnoNetwork = new WifiNative.PnoNetwork();
+            nativePnoNetwork.ssid = pnoNetwork.ssid;
+            nativePnoNetwork.networkId = pnoNetwork.networkId;
+            nativePnoNetwork.priority = pnoNetwork.priority;
+            nativePnoNetwork.flags = pnoNetwork.flags;
+            nativePnoNetwork.auth_bit_field = pnoNetwork.authBitField;
+            nativePnoNetworkList.add(nativePnoNetwork);
+        }
+        return nativePnoNetworkList;
+    }
+
     void enableBackgroundScan(boolean enable) {
         if (enable) {
             mWifiConfigManager.enableAllNetworks();
@@ -2471,9 +2490,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             // disabled when we connect to a network after PNO.
             mWifiConfigManager.enableAllNetworksNative();
         }
-        List<WifiNative.PnoNetwork> pnoList =
+        List<WifiScanner.PnoSettings.PnoNetwork> pnoList =
                 mWifiConfigManager.retrieveDisconnectedPnoNetworkList(enable);
-        boolean ret = mWifiNative.enableBackgroundScan(enable, pnoList);
+        boolean ret =
+                mWifiNative.enableBackgroundScan(enable, convertPnoNetworkListToNative(pnoList));
         if (ret) {
             mLegacyPnoEnabled = enable;
         } else {
