@@ -92,20 +92,8 @@ public class WifiMetrics {
             if (config != null) {
                 /*<TODO>
                 mRouterFingerPrintProto.roamType
-                mRouterFingerPrintProto.routerTechnology
                 mRouterFingerPrintProto.supportsIpv6
                 */
-                if (config.allowedAuthAlgorithms != null
-                        && config.allowedAuthAlgorithms.get(WifiConfiguration.AuthAlgorithm.OPEN)) {
-                    mRouterFingerPrintProto.authentication =
-                            WifiMetricsProto.RouterFingerPrint.AUTH_OPEN;
-                } else if (config.isEnterprise()) {
-                    mRouterFingerPrintProto.authentication =
-                            WifiMetricsProto.RouterFingerPrint.AUTH_ENTERPRISE;
-                } else {
-                    mRouterFingerPrintProto.authentication =
-                            WifiMetricsProto.RouterFingerPrint.AUTH_PERSONAL;
-                }
                 mRouterFingerPrintProto.hidden = config.hiddenSSID;
                 mRouterFingerPrintProto.channelInfo = config.apChannel;
                 // Config may not have a valid dtimInterval set yet, in which case dtim will be zero
@@ -281,11 +269,9 @@ public class WifiMetrics {
             mCurrentConnectionEvent.mConnectionEvent.roamType = roamType;
             mCurrentConnectionEvent.mRouterFingerPrint.updateFromWifiConfiguration(config);
             if (config != null) {
-                //RSSI
                 ScanResult candidate = config.getNetworkSelectionStatus().getCandidate();
                 if (candidate != null) {
-                    mCurrentConnectionEvent.mConnectionEvent.signalStrength =
-                            candidate.level;
+                    updateMetricsFromScanResult(candidate);
                 }
                 mCurrentConnectionEvent.mConfigSsid = config.SSID;
                 mCurrentConnectionEvent.mConfigBssid = config.BSSID;
@@ -317,38 +303,8 @@ public class WifiMetrics {
                     && mCurrentConnectionEvent.mConfigSsid != null
                     && mCurrentConnectionEvent.mConfigSsid
                     .equals("\"" + networkDetail.getSSID() + "\"")) {
-                int dtimInterval = networkDetail.getDtimInterval();
-                if (dtimInterval > 0) {
-                    mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto.dtim =
-                            dtimInterval;
-                }
-                int connectionWifiMode;
-                switch (networkDetail.getWifiMode()) {
-                    case InformationElementUtil.WifiMode.MODE_UNDEFINED:
-                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_UNKNOWN;
-                        break;
-                    case InformationElementUtil.WifiMode.MODE_11A:
-                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_A;
-                        break;
-                    case InformationElementUtil.WifiMode.MODE_11B:
-                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_B;
-                        break;
-                    case InformationElementUtil.WifiMode.MODE_11G:
-                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_G;
-                        break;
-                    case InformationElementUtil.WifiMode.MODE_11N:
-                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_N;
-                        break;
-                    case InformationElementUtil.WifiMode.MODE_11AC  :
-                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_AC;
-                        break;
-                    default:
-                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_OTHER;
-                        break;
-                }
-                mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
-                        .routerTechnology = connectionWifiMode;
-                mCurrentConnectionEvent.mConnectionEvent.signalStrength = scanResult.level;
+                updateMetricsFromNetworkDetail(networkDetail);
+                updateMetricsFromScanResult(scanResult);
             }
         }
     }
@@ -376,6 +332,64 @@ public class WifiMetrics {
                         connectivityFailureCode;
                 // ConnectionEvent already added to ConnectionEvents List. Safe to null current here
                 mCurrentConnectionEvent = null;
+            }
+        }
+    }
+
+    /**
+     * Set ConnectionEvent DTIM Interval (if set), and 802.11 Connection mode, from NetworkDetail
+     */
+    private void updateMetricsFromNetworkDetail(NetworkDetail networkDetail) {
+        int dtimInterval = networkDetail.getDtimInterval();
+        if (dtimInterval > 0) {
+            mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto.dtim =
+                    dtimInterval;
+        }
+        int connectionWifiMode;
+        switch (networkDetail.getWifiMode()) {
+            case InformationElementUtil.WifiMode.MODE_UNDEFINED:
+                connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_UNKNOWN;
+                break;
+            case InformationElementUtil.WifiMode.MODE_11A:
+                connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_A;
+                break;
+            case InformationElementUtil.WifiMode.MODE_11B:
+                connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_B;
+                break;
+            case InformationElementUtil.WifiMode.MODE_11G:
+                connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_G;
+                break;
+            case InformationElementUtil.WifiMode.MODE_11N:
+                connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_N;
+                break;
+            case InformationElementUtil.WifiMode.MODE_11AC  :
+                connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_AC;
+                break;
+            default:
+                connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_OTHER;
+                break;
+        }
+        mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
+                .routerTechnology = connectionWifiMode;
+    }
+
+    /**
+     * Set ConnectionEvent RSSI and authentication type from ScanResult
+     */
+    private void updateMetricsFromScanResult(ScanResult scanResult) {
+        mCurrentConnectionEvent.mConnectionEvent.signalStrength = scanResult.level;
+        mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto.authentication =
+                WifiMetricsProto.RouterFingerPrint.AUTH_OPEN;
+        if (scanResult.capabilities != null) {
+            if (scanResult.capabilities.contains("WEP")) {
+                mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto.authentication =
+                        WifiMetricsProto.RouterFingerPrint.AUTH_PERSONAL;
+            } else if (scanResult.capabilities.contains("PSK")) {
+                mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto.authentication =
+                        WifiMetricsProto.RouterFingerPrint.AUTH_PERSONAL;
+            } else if (scanResult.capabilities.contains("EAP")) {
+                mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto.authentication =
+                        WifiMetricsProto.RouterFingerPrint.AUTH_ENTERPRISE;
             }
         }
     }
