@@ -22,6 +22,9 @@ import android.os.SystemClock;
 import android.util.Base64;
 import android.util.SparseArray;
 
+import com.android.server.wifi.hotspot2.NetworkDetail;
+import com.android.server.wifi.util.InformationElementUtil;
+
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -300,6 +303,56 @@ public class WifiMetrics {
             mCurrentConnectionEvent.mConnectionEvent.roamType = roamType;
         }
     }
+
+    /**
+     * Set AP related metrics from ScanDetail
+     */
+    public void setConnectionScanDetail(ScanDetail scanDetail) {
+        if (mCurrentConnectionEvent != null && scanDetail != null) {
+            NetworkDetail networkDetail = scanDetail.getNetworkDetail();
+            ScanResult scanResult = scanDetail.getScanResult();
+            //Ensure that we have a networkDetail, and that it corresponds to the currently
+            //tracked connection attempt
+            if (networkDetail != null && scanResult != null
+                    && mCurrentConnectionEvent.mConfigSsid != null
+                    && mCurrentConnectionEvent.mConfigSsid
+                    .equals("\"" + networkDetail.getSSID() + "\"")) {
+                int dtimInterval = networkDetail.getDtimInterval();
+                if (dtimInterval > 0) {
+                    mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto.dtim =
+                            dtimInterval;
+                }
+                int connectionWifiMode;
+                switch (networkDetail.getWifiMode()) {
+                    case InformationElementUtil.WifiMode.MODE_UNDEFINED:
+                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_UNKNOWN;
+                        break;
+                    case InformationElementUtil.WifiMode.MODE_11A:
+                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_A;
+                        break;
+                    case InformationElementUtil.WifiMode.MODE_11B:
+                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_B;
+                        break;
+                    case InformationElementUtil.WifiMode.MODE_11G:
+                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_G;
+                        break;
+                    case InformationElementUtil.WifiMode.MODE_11N:
+                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_N;
+                        break;
+                    case InformationElementUtil.WifiMode.MODE_11AC  :
+                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_AC;
+                        break;
+                    default:
+                        connectionWifiMode = WifiMetricsProto.RouterFingerPrint.ROUTER_TECH_OTHER;
+                        break;
+                }
+                mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
+                        .routerTechnology = connectionWifiMode;
+                mCurrentConnectionEvent.mConnectionEvent.signalStrength = scanResult.level;
+            }
+        }
+    }
+
     /**
      * End a Connection event record. Call when wifi connection attempt succeeds or fails.
      * If a Connection event has not been started and is active when .end is called, a new one is
@@ -321,7 +374,7 @@ public class WifiMetrics {
                 mCurrentConnectionEvent.mConnectionEvent.level2FailureCode = level2FailureCode;
                 mCurrentConnectionEvent.mConnectionEvent.connectivityLevelFailureCode =
                         connectivityFailureCode;
-                //ConnectionEvent already added to ConnectionEvents List
+                // ConnectionEvent already added to ConnectionEvents List. Safe to null current here
                 mCurrentConnectionEvent = null;
             }
         }

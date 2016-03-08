@@ -17,8 +17,14 @@ package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiConfiguration;
 import android.util.Base64;
+
+import com.android.server.wifi.hotspot2.NetworkDetail;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -28,7 +34,6 @@ import java.io.PrintWriter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-
 /**
  * Unit tests for {@link com.android.server.wifi.WifiMetrics}.
  */
@@ -36,6 +41,8 @@ public class WifiMetricsTest {
 
     WifiMetrics mWifiMetrics;
     WifiMetricsProto.WifiLog mDeserializedWifiMetrics;
+
+
     @Before
     public void setUp() throws Exception {
         mDeserializedWifiMetrics = null;
@@ -66,6 +73,28 @@ public class WifiMetricsTest {
     }
 
     /**
+     * Simulate how dumpsys gets the proto from mWifiMetrics, filter the proto bytes out and
+     * deserialize them into mDeserializedWifiMetrics
+     */
+    public void dumpProtoAndDeserialize() throws Exception {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(stream);
+        String[] args = new String[0];
+        //Test proto dump, by passing in proto arg option
+        args = new String[]{WifiMetrics.PROTO_DUMP_ARG};
+        mWifiMetrics.dump(null, writer, args);
+        writer.flush();
+        Pattern pattern = Pattern.compile(
+                "(?<=WifiMetrics:\\n)([\\s\\S]*)(?=EndWifiMetrics)");
+        Matcher matcher = pattern.matcher(stream.toString());
+        assertTrue("Proto Byte string found in WifiMetrics.dump():\n" + stream.toString(),
+                matcher.find());
+        String protoByteString = matcher.group(1);
+        byte[] protoBytes = Base64.decode(protoByteString, Base64.DEFAULT);
+        mDeserializedWifiMetrics = WifiMetricsProto.WifiLog.parseFrom(protoBytes);
+    }
+
+    /**
      * Test WifiMetrics can be serialized and de-serialized
      */
     public void serializeDeserialize() throws Exception {
@@ -86,23 +115,9 @@ public class WifiMetricsTest {
     }
 
     @Test
-    public void dumpProtoAndDeserialize() throws Exception {
+    public void testDumpProtoAndDeserialize() throws Exception {
         setAndIncrementMetrics();
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        PrintWriter writer = new PrintWriter(stream);
-        String[] args = new String[0];
-        //Test proto dump, by passing in proto arg option
-        args = new String[]{WifiMetrics.PROTO_DUMP_ARG};
-        mWifiMetrics.dump(null, writer, args);
-        writer.flush();
-        Pattern pattern = Pattern.compile(
-                "(?<=WifiMetrics:\\n)([\\s\\S]*)(?=EndWifiMetrics)");
-        Matcher matcher = pattern.matcher(stream.toString());
-        assertTrue("Proto Byte string found in WifiMetrics.dump():\n" + stream.toString(),
-                matcher.find());
-        String protoByteString = matcher.group(1);
-        byte[] protoBytes = Base64.decode(protoByteString, Base64.DEFAULT);
-        mDeserializedWifiMetrics = WifiMetricsProto.WifiLog.parseFrom(protoBytes);
+        dumpProtoAndDeserialize();
         assertDeserializedMetricsCorrect();
     }
 
@@ -220,5 +235,113 @@ public class WifiMetricsTest {
         //<TODO> test individual connectionEvents for correctness,
         // check scanReturnEntries & wifiSystemStateEntries counts and individual elements
         // pending their implementation</TODO>
+    }
+
+    private static final String SSID = "red";
+    private static final int CONFIG_DTIM = 3;
+    private static final int NETWORK_DETAIL_WIFIMODE = 5;
+    private static final int NETWORK_DETAIL_DTIM = 7;
+    private static final int SCAN_RESULT_LEVEL = -30;
+    /**
+     * Test that WifiMetrics is correctly getting data from ScanDetail and WifiConfiguration
+     */
+    @Test
+    public void testScanDetailAndWifiConfigurationUsage() throws Exception {
+        //Setup mock configs and scan details
+        NetworkDetail networkDetail = mock(NetworkDetail.class);
+        when(networkDetail.getWifiMode()).thenReturn(NETWORK_DETAIL_WIFIMODE);
+        when(networkDetail.getSSID()).thenReturn(SSID);
+        when(networkDetail.getDtimInterval()).thenReturn(NETWORK_DETAIL_DTIM);
+        ScanResult scanResult = mock(ScanResult.class);
+        scanResult.level = SCAN_RESULT_LEVEL;
+        WifiConfiguration config = mock(WifiConfiguration.class);
+        config.SSID = "\"" + SSID + "\"";
+        config.dtimInterval = CONFIG_DTIM;
+        WifiConfiguration.NetworkSelectionStatus networkSelectionStat =
+                mock(WifiConfiguration.NetworkSelectionStatus.class);
+        when(networkSelectionStat.getCandidate()).thenReturn(scanResult);
+        when(config.getNetworkSelectionStatus()).thenReturn(networkSelectionStat);
+        ScanDetail scanDetail = mock(ScanDetail.class);
+        when(scanDetail.getNetworkDetail()).thenReturn(networkDetail);
+        when(scanDetail.getScanResult()).thenReturn(scanResult);
+
+        //Create a connection event using only the config
+        mWifiMetrics.startConnectionEvent(config, WifiMetricsProto.ConnectionEvent.ROAM_NONE);
+        mWifiMetrics.endConnectionEvent(
+                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetricsProto.ConnectionEvent.HLF_NONE);
+
+        //Create a connection event using the config and a scan detail
+        mWifiMetrics.startConnectionEvent(config, WifiMetricsProto.ConnectionEvent.ROAM_NONE);
+        mWifiMetrics.setConnectionScanDetail(scanDetail);
+        mWifiMetrics.endConnectionEvent(
+                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetricsProto.ConnectionEvent.HLF_NONE);
+
+        //Dump proto from mWifiMetrics and deserialize it to mDeserializedWifiMetrics
+        dumpProtoAndDeserialize();
+
+        //Check that the correct values are being flowed through
+        assertEquals(mDeserializedWifiMetrics.connectionEvent.length, 2);
+        assertEquals(mDeserializedWifiMetrics.connectionEvent[0].routerFingerprint.dtim,
+                CONFIG_DTIM);
+        assertEquals(mDeserializedWifiMetrics.connectionEvent[0].signalStrength, SCAN_RESULT_LEVEL);
+        assertEquals(mDeserializedWifiMetrics.connectionEvent[1].routerFingerprint.dtim,
+                NETWORK_DETAIL_DTIM);
+        assertEquals(mDeserializedWifiMetrics.connectionEvent[1].signalStrength,
+                SCAN_RESULT_LEVEL);
+        assertEquals(mDeserializedWifiMetrics.connectionEvent[1].routerFingerprint.routerTechnology,
+                NETWORK_DETAIL_WIFIMODE);
+    }
+
+    /**
+     * Test that WifiMetrics is being cleared after dumping via proto
+     */
+    @Test
+    public void testMetricsClearedAfterProtoRequested() throws Exception {
+        // Create 3 ConnectionEvents
+        mWifiMetrics.startConnectionEvent(null,
+                WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
+        mWifiMetrics.endConnectionEvent(
+                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetricsProto.ConnectionEvent.HLF_NONE);
+        mWifiMetrics.startConnectionEvent(null,
+                WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
+        mWifiMetrics.endConnectionEvent(
+                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetricsProto.ConnectionEvent.HLF_NONE);
+        mWifiMetrics.startConnectionEvent(null,
+                WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
+        mWifiMetrics.endConnectionEvent(
+                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetricsProto.ConnectionEvent.HLF_NONE);
+        mWifiMetrics.startConnectionEvent(null,
+                WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
+        mWifiMetrics.endConnectionEvent(
+                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetricsProto.ConnectionEvent.HLF_NONE);
+
+        //Dump proto and deserialize
+        //This should clear all the metrics in mWifiMetrics,
+        dumpProtoAndDeserialize();
+        //Check there are only 3 connection events
+        assertEquals(mDeserializedWifiMetrics.connectionEvent.length, 4);
+
+        // Create 2 ConnectionEvents
+        mWifiMetrics.startConnectionEvent(null,
+                WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
+        mWifiMetrics.endConnectionEvent(
+                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetricsProto.ConnectionEvent.HLF_NONE);
+        mWifiMetrics.startConnectionEvent(null,
+                WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
+        mWifiMetrics.endConnectionEvent(
+                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetricsProto.ConnectionEvent.HLF_NONE);
+
+        //Dump proto and deserialize
+        dumpProtoAndDeserialize();
+        //Check there are only 2 connection events
+        assertEquals(mDeserializedWifiMetrics.connectionEvent.length, 2);
     }
 }
