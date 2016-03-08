@@ -37,6 +37,9 @@ EMMA_INSTRUMENT_STATIC=true make -j32 -C $ANDROID_BUILD_TOP -f build/core/main.m
 
 set -x # print commands
 
+adb root
+adb wait-for-device
+
 adb shell rm -f $REMOTE_COVERAGE_OUTPUT_FILE
 
 adb install -r -g "$OUT/data/app/FrameworksWifiTests/FrameworksWifiTests.apk"
