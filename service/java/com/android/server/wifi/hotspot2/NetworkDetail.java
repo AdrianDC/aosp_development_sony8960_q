@@ -18,6 +18,7 @@ import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -76,6 +77,19 @@ public class NetworkDetail {
     private final int mPrimaryFreq;
     private final int mCenterfreq0;
     private final int mCenterfreq1;
+
+    /*
+     * 802.11 Standard (calculated from Capabilities and Supported Rates)
+     * 0 -- Unknown
+     * 1 -- 802.11a
+     * 2 -- 802.11b
+     * 3 -- 802.11g
+     * 4 -- 802.11n
+     * 7 -- 802.11ac
+     */
+    private final int mWifiMode;
+    private final int mMaxRate;
+
     /*
      * From Interworking element:
      * mAnt non null indicates the presence of Interworking, i.e. 802.11u
@@ -138,9 +152,18 @@ public class NetworkDetail {
 
         InformationElementUtil.TrafficIndicationMap trafficIndicationMap =
                 new InformationElementUtil.TrafficIndicationMap();
+
+        InformationElementUtil.SupportedRates supportedRates =
+                new InformationElementUtil.SupportedRates();
+        InformationElementUtil.SupportedRates extendedSupportedRates =
+                new InformationElementUtil.SupportedRates();
+
         RuntimeException exception = null;
+
+        ArrayList<Integer> iesFound = new ArrayList<Integer>();
         try {
             for (ScanResult.InformationElement ie : infoElements) {
+                iesFound.add(ie.id);
                 switch (ie.id) {
                     case ScanResult.InformationElement.EID_SSID:
                         ssidOctets = ie.bytes;
@@ -168,6 +191,12 @@ public class NetworkDetail {
                         break;
                     case ScanResult.InformationElement.EID_TIM:
                         trafficIndicationMap.from(ie);
+                        break;
+                    case ScanResult.InformationElement.EID_SUPPORTED_RATES:
+                        supportedRates.from(ie);
+                        break;
+                    case ScanResult.InformationElement.EID_EXTENDED_SUPPORTED_RATES:
+                        extendedSupportedRates.from(ie);
                         break;
                     default:
                         break;
@@ -241,11 +270,42 @@ public class NetworkDetail {
         // If trafficIndicationMap is not valid, mDtimPeriod will be negative
         mDtimInterval = trafficIndicationMap.mDtimPeriod;
 
+        int maxRateA = 0;
+        int maxRateB = 0;
+        // If we got some Extended supported rates, consider them, if not default to 0
+        if (extendedSupportedRates.isValid()) {
+            // rates are sorted from smallest to largest in InformationElement
+            maxRateB = extendedSupportedRates.mRates.get(extendedSupportedRates.mRates.size() - 1);
+        }
+        // Only process the determination logic if we got a 'SupportedRates'
+        if (supportedRates.isValid()) {
+            maxRateA = supportedRates.mRates.get(supportedRates.mRates.size() - 1);
+            mMaxRate = maxRateA > maxRateB ? maxRateA : maxRateB;
+            mWifiMode = InformationElementUtil.WifiMode.determineMode(mPrimaryFreq, mMaxRate,
+                    vhtOperation.isValid(),
+                    iesFound.contains(ScanResult.InformationElement.EID_HT_OPERATION),
+                    iesFound.contains(ScanResult.InformationElement.EID_ERP));
+        } else {
+            mWifiMode = 0;
+            mMaxRate = 0;
+            Log.w("WifiMode", mSSID + ", Invalid SupportedRates!!!");
+        }
         if (VDBG) {
-            Log.d(TAG, mSSID + "ChannelWidth is: " + mChannelWidth + " PrimaryFreq: " + mPrimaryFreq +
-                    " mCenterfreq0: " + mCenterfreq0 + " mCenterfreq1: " + mCenterfreq1 +
-                    (extendedCapabilities.is80211McRTTResponder ? "Support RTT reponder" :
-                    "Do not support RTT responder"));
+            Log.d(TAG, mSSID + "ChannelWidth is: " + mChannelWidth + " PrimaryFreq: " + mPrimaryFreq
+                    + " mCenterfreq0: " + mCenterfreq0 + " mCenterfreq1: " + mCenterfreq1
+                    + (extendedCapabilities.is80211McRTTResponder ? "Support RTT reponder"
+                    : "Do not support RTT responder"));
+            Log.v("WifiMode", mSSID
+                    + ", WifiMode: " + InformationElementUtil.WifiMode.toString(mWifiMode)
+                    + ", Freq: " + mPrimaryFreq
+                    + ", mMaxRate: " + mMaxRate
+                    + ", VHT: " + String.valueOf(vhtOperation.isValid())
+                    + ", HT: " + String.valueOf(
+                    iesFound.contains(ScanResult.InformationElement.EID_HT_OPERATION))
+                    + ", ERP: " + String.valueOf(
+                    iesFound.contains(ScanResult.InformationElement.EID_ERP))
+                    + ", SupportedRates: " + supportedRates.toString()
+                    + " ExtendedSupportedRates: " + extendedSupportedRates.toString());
         }
     }
 
@@ -279,6 +339,8 @@ public class NetworkDetail {
         mCenterfreq0 = base.mCenterfreq0;
         mCenterfreq1 = base.mCenterfreq1;
         mDtimInterval = base.mDtimInterval;
+        mWifiMode = base.mWifiMode;
+        mMaxRate = base.mMaxRate;
     }
 
     public NetworkDetail complete(Map<Constants.ANQPElementType, ANQPElement> anqpElements) {
@@ -394,6 +456,10 @@ public class NetworkDetail {
 
     public int getCenterfreq1() {
         return mCenterfreq1;
+    }
+
+    public int getWifiMode() {
+        return mWifiMode;
     }
 
     public int getDtimInterval() {

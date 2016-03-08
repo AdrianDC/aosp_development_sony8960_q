@@ -598,4 +598,160 @@ public class InformationElementUtil {
             }
         }
     }
+
+    /**
+     * This util class determines the 802.11 standard (a/b/g/n/ac) being used
+     */
+    public static class WifiMode {
+        public static final int MODE_UNDEFINED = 0; // Unknown/undefined
+        public static final int MODE_11A = 1;       // 802.11a
+        public static final int MODE_11B = 2;       // 802.11b
+        public static final int MODE_11G = 3;       // 802.11g
+        public static final int MODE_11N = 4;       // 802.11n
+        public static final int MODE_11AC = 5;      // 802.11ac
+        //<TODO> add support for 802.11ad and be more selective instead of defaulting to 11A
+
+        /**
+         * Use frequency, max supported rate, and the existence of VHT, HT & ERP fields in scan
+         * scan result to determine the 802.11 Wifi standard being used.
+         */
+        public static int determineMode(int frequency, int maxRate, boolean foundVht,
+                boolean foundHt, boolean foundErp) {
+            if (foundVht) {
+                return MODE_11AC;
+            } else if (foundHt) {
+                return MODE_11N;
+            } else if (foundErp) {
+                return MODE_11G;
+            } else if (frequency < 3000) {
+                if (maxRate < 24000000) {
+                    return MODE_11B;
+                } else {
+                    return MODE_11G;
+                }
+            } else {
+                return MODE_11A;
+            }
+        }
+
+        /**
+         * Map the wifiMode integer to its type, and output as String MODE_11<A/B/G/N/AC>
+         */
+        public static String toString(int mode) {
+            switch(mode) {
+                case MODE_11A:
+                    return "MODE_11A";
+                case MODE_11B:
+                    return "MODE_11B";
+                case MODE_11G:
+                    return "MODE_11G";
+                case MODE_11N:
+                    return "MODE_11N";
+                case MODE_11AC:
+                    return "MODE_11AC";
+                default:
+                    return "MODE_UNDEFINED";
+            }
+        }
+    }
+
+    /**
+     * Parser for both the Supported Rates & Extended Supported Rates Information Elements
+     */
+    public static class SupportedRates {
+        public static final int MASK = 0x7F; // 0111 1111
+        public boolean mValid = false;
+        public ArrayList<Integer> mRates;
+
+        public SupportedRates() {
+            mRates = new ArrayList<Integer>();
+        }
+
+        /**
+         * Is this a valid Supported Rates information element.
+         */
+        public boolean isValid() {
+            return mValid;
+        }
+
+        /**
+         * get the Rate in bits/s from associated byteval
+         */
+        public static int getRateFromByte(int byteVal) {
+            byteVal &= MASK;
+            switch(byteVal) {
+                case 2:
+                    return 1000000;
+                case 4:
+                    return 2000000;
+                case 11:
+                    return 5500000;
+                case 12:
+                    return 6000000;
+                case 18:
+                    return 9000000;
+                case 22:
+                    return 11000000;
+                case 24:
+                    return 12000000;
+                case 36:
+                    return 18000000;
+                case 44:
+                    return 22000000;
+                case 48:
+                    return 24000000;
+                case 66:
+                    return 33000000;
+                case 72:
+                    return 36000000;
+                case 96:
+                    return 48000000;
+                case 108:
+                    return 54000000;
+                default:
+                    //ERROR UNKNOWN RATE
+                    return -1;
+            }
+        }
+
+        // Supported Rates format (size unit: byte)
+        //
+        //| ElementID | Length | Supported Rates  [7 Little Endian Info bits - 1 Flag bit]
+        //      1          1          1 - 8
+        //
+        // Note: InformationElement.bytes has 'Element ID' and 'Length'
+        //       stripped off already
+        //
+        public void from(InformationElement ie) {
+            if (ie == null || ie.bytes == null || ie.bytes.length > 8)  {
+                return;
+            }
+            ByteBuffer data = ByteBuffer.wrap(ie.bytes).order(ByteOrder.LITTLE_ENDIAN);
+            try {
+                for (int i = 0; i < ie.bytes.length; i++) {
+                    int rate = getRateFromByte(data.get());
+                    if (rate > 0) {
+                        mRates.add(rate);
+                    } else {
+                        return;
+                    }
+                }
+            } catch (BufferUnderflowException e) {
+                return;
+            }
+            mValid = true;
+            return;
+        }
+
+        /**
+         * Lists the rates in a human readable string
+         */
+        public String toString() {
+            StringBuilder sbuf = new StringBuilder();
+            for (Integer rate : mRates) {
+                sbuf.append(String.format("%.1f", (double) rate / 1000000) + ", ");
+            }
+            return sbuf.toString();
+        }
+    }
 }

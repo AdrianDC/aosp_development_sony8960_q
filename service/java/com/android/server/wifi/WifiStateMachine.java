@@ -3877,6 +3877,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 // Information Element (IE), into the associated WifiConfigurations. Most of the
                 // time there is no TIM IE in the scan result (Probe Response instead of Beacon
                 // Frame), these scanResult DTIM's are negative and ignored.
+                // <TODO> Cache these per BSSID, since dtim can change vary
                 NetworkDetail networkDetail = resultDetail.getNetworkDetail();
                 if (networkDetail != null && networkDetail.getDtimInterval() > 0) {
                     List<WifiConfiguration> associatedWifiConfigurations =
@@ -4421,15 +4422,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
         /* Cancel auto roam requests */
         autoRoamSetBSSID(mLastNetworkId, "any");
-        mTargetNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
         mLastBssid = null;
         registerDisconnected();
         mLastNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
-
-        /* End Current Connection Event */
-        mWifiMetrics.endConnectionEvent(
-                WifiMetrics.ConnectionEvent.LLF_NETWORK_DISCONNECTION,
-                WifiMetricsProto.ConnectionEvent.HLF_NONE);
     }
 
     private void handleSupplicantConnectionLoss(boolean killSupplicant) {
@@ -6782,7 +6777,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         netId = result.getNetworkId();
                     }
                     config = mWifiConfigManager.getWifiConfiguration(netId);
-
                     if (config == null) {
                         logd("CONNECT_NETWORK no config for id=" + Integer.toString(netId) + " "
                                 + mSupplicantStateTracker.getSupplicantStateName() + " my state "
@@ -6793,7 +6787,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     }
                     mTargetNetworkId = netId;
                     autoRoamSetBSSID(netId, "any");
-
                     if (message.sendingUid == Process.WIFI_UID
                         || message.sendingUid == Process.SYSTEM_UID) {
                         // As a sanity measure, clear the BSSID in the supplicant network block.
@@ -7043,6 +7036,23 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         replyToMessage(message, WifiManager.WPS_FAILED, WifiManager.ERROR);
                     }
                     break;
+                case CMD_ASSOCIATED_BSSID:
+                    // This is where we can confirm the connection BSSID. Use it to find the
+                    // right ScanDetail to populate metrics.
+                    String someBssid = (String) message.obj;
+                    if (someBssid != null) {
+                        //Get the config associated with this connection attempt
+                        WifiConfiguration someConf =
+                                mWifiConfigManager.getWifiConfiguration(mTargetNetworkId);
+                        // Get the ScanDetail associated with this BSSID
+                        ScanDetailCache scanDetailCache = mWifiConfigManager.getScanDetailCache(
+                                someConf);
+                        if (scanDetailCache != null) {
+                            mWifiMetrics.setConnectionScanDetail(scanDetailCache.getScanDetail(
+                                    someBssid));
+                        }
+                    }
+                    return NOT_HANDLED;
                 case WifiMonitor.NETWORK_CONNECTION_EVENT:
                     if (DBG) log("Network connection established");
                     mLastNetworkId = message.arg1;
@@ -7709,8 +7719,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         break;
                     }
                     mLastBssid = (String) message.obj;
-                    if (mLastBssid != null
-                            && (mWifiInfo.getBSSID() == null
+                    if (mLastBssid != null && (mWifiInfo.getBSSID() == null
                             || !mLastBssid.equals(mWifiInfo.getBSSID()))) {
                         mWifiInfo.setBSSID((String) message.obj);
                         sendNetworkStateChangeBroadcast(mLastBssid);
