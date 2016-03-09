@@ -148,6 +148,25 @@ public class WifiNanManagerTest {
      */
 
     @Test
+    public void testSubscribeConfigBuilderDefaults() {
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
+
+        collector.checkThat("mServiceName", subscribeConfig.mServiceName, equalTo(null));
+        collector.checkThat("mServiceSpecificInfoLength",
+                subscribeConfig.mServiceSpecificInfoLength, equalTo(0));
+        collector.checkThat("mServiceSpecificInfoLength", subscribeConfig.mTxFilterLength,
+                equalTo(0));
+        collector.checkThat("mServiceSpecificInfoLength", subscribeConfig.mRxFilterLength,
+                equalTo(0));
+        collector.checkThat("mSubscribeType", subscribeConfig.mSubscribeType,
+                equalTo(SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE));
+        collector.checkThat("mSubscribeCount", subscribeConfig.mSubscribeCount, equalTo(0));
+        collector.checkThat("mTtlSec", subscribeConfig.mTtlSec, equalTo(0));
+        collector.checkThat("mMatchStyle", subscribeConfig.mMatchStyle,
+                equalTo(SubscribeConfig.MATCH_STYLE_ALL));
+    }
+
+    @Test
     public void testSubscribeConfigBuilder() {
         final String serviceName = "some_service_or_other";
         final String serviceSpecificInfo = "long arbitrary string with some info";
@@ -158,11 +177,13 @@ public class WifiNanManagerTest {
         final int subscribeType = SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE;
         final int subscribeCount = 10;
         final int subscribeTtl = 15;
+        final int matchStyle = SubscribeConfig.MATCH_STYLE_FIRST_ONLY;
 
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
                 .setRxFilter(rxFilter, rxFilter.length).setSubscribeType(subscribeType)
-                .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).build();
+                .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
+                .build();
 
         collector.checkThat("mServiceName", serviceName, equalTo(subscribeConfig.mServiceName));
         collector.checkThat("mServiceSpecificInfo",
@@ -179,6 +200,7 @@ public class WifiNanManagerTest {
         collector.checkThat("mSubscribeCount", subscribeCount,
                 equalTo(subscribeConfig.mSubscribeCount));
         collector.checkThat("mTtlSec", subscribeTtl, equalTo(subscribeConfig.mTtlSec));
+        collector.checkThat("mMatchStyle", matchStyle, equalTo(subscribeConfig.mMatchStyle));
     }
 
     @Test
@@ -192,11 +214,13 @@ public class WifiNanManagerTest {
         final int subscribeType = SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE;
         final int subscribeCount = 10;
         final int subscribeTtl = 15;
+        final int matchStyle = SubscribeConfig.MATCH_STYLE_FIRST_ONLY;
 
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
                 .setTxFilter(rxFilter, rxFilter.length).setSubscribeType(subscribeType)
-                .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).build();
+                .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
+                .build();
 
         Parcel parcelW = Parcel.obtain();
         subscribeConfig.writeToParcel(parcelW, 0);
@@ -227,6 +251,15 @@ public class WifiNanManagerTest {
     public void testSubscribeConfigBuilderNegativeTtl() {
         thrown.expect(IllegalArgumentException.class);
         new SubscribeConfig.Builder().setTtlSec(-100);
+    }
+
+    /**
+     * Validate that a bad match style configuration throws an exception.
+     */
+    @Test
+    public void testSubscribeConfigBuilderBadMatchStyle() {
+        thrown.expect(IllegalArgumentException.class);
+        new SubscribeConfig.Builder().setMatchStyle(10);
     }
 
     /*

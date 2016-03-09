@@ -373,7 +373,6 @@ static jint android_net_wifi_nan_subscribe(JNIEnv *env, jclass cls,
     msg.serviceResponseInclude = NAN_SRF_INCLUDE_RESPOND;
     msg.useServiceResponseFilter = NAN_DO_NOT_USE_SRF;
     msg.ssiRequiredForMatchIndication = NAN_SSI_NOT_REQUIRED_IN_MATCH_IND;
-    msg.subscribe_match_indicator = NAN_MATCH_ALG_MATCH_ONCE;
     msg.rssi_threshold_flag = 0;
     msg.connmap = 0;
     msg.num_intf_addr_present = 0;
@@ -416,6 +415,8 @@ static jint android_net_wifi_nan_subscribe(JNIEnv *env, jclass cls,
     msg.subscribe_type = (NanSubscribeType)helper.getIntField(subscribe_config, "mSubscribeType");
     msg.subscribe_count = helper.getIntField(subscribe_config, "mSubscribeCount");
     msg.ttl = helper.getIntField(subscribe_config, "mTtlSec");
+    msg.subscribe_match_indicator = (NanMatchAlg) helper.getIntField(
+      subscribe_config, "mMatchStyle");
 
     return hal_fn.wifi_nan_subscribe_request(transaction_id, handle, &msg);
 }
