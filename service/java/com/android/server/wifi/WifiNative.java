@@ -487,6 +487,16 @@ public class WifiNative {
     }
 
     /**
+     * Enable a network in wpa_supplicant, do not connect.
+     * @param netId - Network ID of the network to be enabled.
+     * @return true if command succeeded, false otherwise.
+     */
+    public boolean enableNetworkWithoutConnect(int netId) {
+        if (DBG) logDbg("enableNetworkWithoutConnect nid=" + Integer.toString(netId));
+        return doBooleanCommand("ENABLE_NETWORK " + netId + " " + "no-connect");
+    }
+
+    /**
      * Disables a network in wpa_supplicant.
      * @param netId - Network ID of the network to be disabled.
      * @return true if command succeeded, false otherwise.
