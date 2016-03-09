@@ -910,7 +910,7 @@ public class WifiConfigStore {
             return false;
         }
         if (VDBG) localLog("enableNetwork: " + config.networkId);
-        if (!mWifiNative.enableNetwork(config.networkId)) {
+        if (!mWifiNative.enableNetworkWithoutConnect(config.networkId)) {
             loge("Enable network in wpa_supplicant failed on " + config.networkId);
             return false;
         }
