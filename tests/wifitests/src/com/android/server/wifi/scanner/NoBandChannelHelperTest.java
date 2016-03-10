@@ -44,7 +44,6 @@ import java.util.HashSet;
 /**
  * Unit tests for {@link com.android.server.wifi.scanner.NoBandChannelHelper}.
  */
-@SmallTest
 @RunWith(Enclosed.class) // WARNING: tests cannot be declared in the outer class
 public class NoBandChannelHelperTest {
     private static final int ALL_BANDS = WifiScanner.WIFI_BAND_BOTH_WITH_DFS;
@@ -53,6 +52,7 @@ public class NoBandChannelHelperTest {
      * Unit tests for
      * {@link com.android.server.wifi.scanner.NoBandChannelHelper.estimateScanDuration}.
      */
+    @SmallTest
     public static class EstimateScanDurationTest {
         NoBandChannelHelper mChannelHelper;
 
@@ -95,6 +95,7 @@ public class NoBandChannelHelperTest {
      * Unit tests for
      * {@link com.android.server.wifi.scanner.NoBandChannelHelper.getAvailableScanChannels}.
      */
+    @SmallTest
     public static class GetAvailableScanChannelsTest {
         NoBandChannelHelper mChannelHelper;
 
@@ -125,6 +126,7 @@ public class NoBandChannelHelperTest {
      * Unit tests for
      * {@link com.android.server.wifi.scanner.NoBandChannelHelper.settingsContainChannel}.
      */
+    @SmallTest
     public static class SettingsContainChannelTest {
         NoBandChannelHelper mChannelHelper;
 
@@ -196,6 +198,7 @@ public class NoBandChannelHelperTest {
      * Unit tests for
      * {@link com.android.server.wifi.scanner.NoBandChannelHelper.NoBandChannelCollection}.
      */
+    @SmallTest
     public static class KnownBandsChannelCollectionTest {
         ChannelHelper.ChannelCollection mChannelCollection;
 

@@ -39,7 +39,6 @@ import org.junit.runner.RunWith;
 /**
  * Unit tests for {@link com.android.server.wifi.scanner.ChannelHelper}.
  */
-@SmallTest
 @RunWith(Enclosed.class) // WARNING: tests cannot be declared in the outer class
 public class ChannelHelperTest {
 
@@ -47,6 +46,7 @@ public class ChannelHelperTest {
      * Unit tests for
      * {@link com.android.server.wifi.scanner.ChannelHelper#toString}.
      */
+    @SmallTest
     public static class ToStringTest {
         /**
          * Compute a string representing the channels in a ScanSettings with a band set.
@@ -94,6 +94,7 @@ public class ChannelHelperTest {
      * Unit tests for
      * {@link com.android.server.wifi.scanner.ChannelHelper.ChannelCollection}.
      */
+    @SmallTest
     public static class ChannelCollectionTest {
         ChannelHelper.ChannelCollection mChannelCollection;
 

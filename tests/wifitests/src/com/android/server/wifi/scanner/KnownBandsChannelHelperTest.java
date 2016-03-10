@@ -44,7 +44,6 @@ import java.util.HashSet;
 /**
  * Unit tests for {@link com.android.server.wifi.scanner.KnownBandsChannelHelper}.
  */
-@SmallTest
 @RunWith(Enclosed.class) // WARNING: tests cannot be declared in the outer class
 public class KnownBandsChannelHelperTest {
 
@@ -56,6 +55,7 @@ public class KnownBandsChannelHelperTest {
      * Unit tests for
      * {@link com.android.server.wifi.scanner.KnownBandsChannelHelper.estimateScanDuration}.
      */
+    @SmallTest
     public static class EstimateScanDurationTest {
         KnownBandsChannelHelper mChannelHelper;
 
@@ -100,6 +100,7 @@ public class KnownBandsChannelHelperTest {
      * Unit tests for
      * {@link com.android.server.wifi.scanner.KnownBandsChannelHelper.getAvailableScanChannels}.
      */
+    @SmallTest
     public static class GetAvailableScanChannelsTest {
         KnownBandsChannelHelper mChannelHelper;
 
@@ -182,6 +183,7 @@ public class KnownBandsChannelHelperTest {
      * Unit tests for
      * {@link com.android.server.wifi.scanner.KnownBandsChannelHelper.settingsContainChannel}.
      */
+    @SmallTest
     public static class SettingsContainChannelTest {
         KnownBandsChannelHelper mChannelHelper;
 
@@ -256,6 +258,7 @@ public class KnownBandsChannelHelperTest {
      * Unit tests for
      * {@link com.android.server.wifi.scanner.KnownBandsChannelHelper.KnownBandsChannelCollection}.
      */
+    @SmallTest
     public static class KnownBandsChannelCollectionTest {
         ChannelHelper.ChannelCollection mChannelCollection;
 
