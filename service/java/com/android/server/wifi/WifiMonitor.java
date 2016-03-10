@@ -29,6 +29,7 @@ import android.net.wifi.p2p.nsd.WifiP2pServiceResponse;
 import android.os.Handler;
 import android.os.Message;
 import android.text.TextUtils;
+import android.util.ArraySet;
 import android.util.Base64;
 import android.util.LocalLog;
 import android.util.Log;
@@ -46,6 +47,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -545,24 +547,20 @@ public class WifiMonitor {
 
     private boolean mConnected = false;
 
-    private final Map<String, SparseArray<Handler>> mHandlerMap = new HashMap<>();
+    // TODO(b/27569474) remove support for multiple handlers for the same event
+    private final Map<String, SparseArray<Set<Handler>>> mHandlerMap = new HashMap<>();
     public synchronized void registerHandler(String iface, int what, Handler handler) {
-        SparseArray<Handler> ifaceHandlers = mHandlerMap.get(iface);
+        SparseArray<Set<Handler>> ifaceHandlers = mHandlerMap.get(iface);
         if (ifaceHandlers == null) {
             ifaceHandlers = new SparseArray<>();
             mHandlerMap.put(iface, ifaceHandlers);
         }
-        if (ifaceHandlers.get(what) != null) {
-            Log.w(TAG, "Handler for iface=" + iface + ",what=" + what + " already exists");
+        Set<Handler> ifaceWhatHandlers = ifaceHandlers.get(what);
+        if (ifaceWhatHandlers == null) {
+            ifaceWhatHandlers = new ArraySet<>();
+            ifaceHandlers.put(what, ifaceWhatHandlers);
         }
-        ifaceHandlers.put(what, handler);
-    }
-
-    public synchronized void unregisterHandler(String iface, int what) {
-        SparseArray<Handler> ifaceHandlers = mHandlerMap.get(iface);
-        if (ifaceHandlers != null) {
-            ifaceHandlers.remove(what);
-        }
+        ifaceWhatHandlers.add(handler);
     }
 
     private final Map<String, Boolean> mMonitoringMap = new HashMap<>();
@@ -678,32 +676,44 @@ public class WifiMonitor {
     }
 
     private void sendMessage(String iface, Message message) {
-        SparseArray<Handler> ifaceHandlers = mHandlerMap.get(iface);
+        SparseArray<Set<Handler>> ifaceHandlers = mHandlerMap.get(iface);
         if (iface != null && ifaceHandlers != null) {
             if (isMonitoring(iface)) {
-                sendMessage(ifaceHandlers, message);
+                boolean firstHandler = true;
+                Set<Handler> ifaceWhatHandlers = ifaceHandlers.get(message.what);
+                for (Handler handler : ifaceWhatHandlers) {
+                    if (firstHandler) {
+                        firstHandler = false;
+                        sendMessage(handler, message);
+                    }
+                    else {
+                        sendMessage(handler, Message.obtain(message));
+                    }
+                }
             } else {
                 if (DBG) Log.d(TAG, "Dropping event because (" + iface + ") is stopped");
             }
         } else {
             if (DBG) Log.d(TAG, "Sending to all monitors because there's no matching iface");
             boolean firstHandler = true;
-            for (Map.Entry<String, SparseArray<Handler>> entry : mHandlerMap.entrySet()) {
+            for (Map.Entry<String, SparseArray<Set<Handler>>> entry : mHandlerMap.entrySet()) {
                 if (isMonitoring(entry.getKey())) {
-                    if (firstHandler) {
-                        firstHandler = false;
-                        sendMessage(entry.getValue(), message);
-                    }
-                    else {
-                        sendMessage(entry.getValue(), Message.obtain(message));
+                    Set<Handler> ifaceWhatHandlers = ifaceHandlers.get(message.what);
+                    for (Handler handler : ifaceWhatHandlers) {
+                        if (firstHandler) {
+                            firstHandler = false;
+                            sendMessage(handler, message);
+                        }
+                        else {
+                            sendMessage(handler, Message.obtain(message));
+                        }
                     }
                 }
             }
         }
     }
 
-    private void sendMessage(SparseArray<Handler> ifaceHandlers, Message message) {
-        Handler handler = ifaceHandlers.get(message.what);
+    private void sendMessage(Handler handler, Message message) {
         if (handler != null) {
             message.setTarget(handler);
             message.sendToTarget();

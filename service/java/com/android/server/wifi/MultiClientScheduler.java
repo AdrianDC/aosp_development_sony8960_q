@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -328,6 +329,7 @@ public class MultiClientScheduler extends WifiScanningScheduler {
         // update batching settings
         schedule.max_ap_per_scan = 0;
         schedule.report_threshold_num_scans = getMaxBatch();
+        HashSet<Integer> hiddenNetworkIdSet = new HashSet<>();
         for (ScanSettings settings : requests) {
             // set APs per scan
             if (settings.numBssidsPerScan > schedule.max_ap_per_scan) {
@@ -339,11 +341,23 @@ public class MultiClientScheduler extends WifiScanningScheduler {
                     && settings.maxScansToCache < schedule.report_threshold_num_scans) {
                 schedule.report_threshold_num_scans = settings.maxScansToCache;
             }
+
+            if (settings.hiddenNetworkIds != null) {
+                for (int i = 0; i < settings.hiddenNetworkIds.length; i++) {
+                    hiddenNetworkIdSet.add(settings.hiddenNetworkIds[i]);
+                }
+            }
         }
         if (schedule.max_ap_per_scan == 0 || schedule.max_ap_per_scan > getMaxApPerScan()) {
             schedule.max_ap_per_scan = getMaxApPerScan();
         }
-
+        if (hiddenNetworkIdSet.size() > 0) {
+            schedule.hiddenNetworkIds = new int[hiddenNetworkIdSet.size()];
+            int numHiddenNetworks = 0;
+            for (Integer hiddenNetworkId : hiddenNetworkIdSet) {
+                schedule.hiddenNetworkIds[numHiddenNetworks++] = hiddenNetworkId;
+            }
+        }
 
         // update base period as gcd of periods
         if (schedule.num_buckets > 0) {

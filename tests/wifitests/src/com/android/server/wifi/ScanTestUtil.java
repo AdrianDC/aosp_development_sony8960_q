@@ -118,6 +118,16 @@ public class ScanTestUtil {
             return this;
         }
 
+        /**
+         * Add the provided hidden network IDs to scan request.
+         * @param networkIds List of hidden network IDs
+         * @return builder object
+         */
+        public NativeScanSettingsBuilder withHiddenNetworkIds(int[] networkIds) {
+            mSettings.hiddenNetworkIds = networkIds;
+            return this;
+        }
+
         public NativeScanSettingsBuilder addBucketWithBand(
                 int period, int reportEvents, int band) {
             WifiNative.BucketSettings bucket = new WifiNative.BucketSettings();

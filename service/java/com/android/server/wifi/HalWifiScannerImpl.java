@@ -30,6 +30,7 @@ import com.android.server.wifi.scanner.HalChannelHelper;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -116,9 +117,15 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
 
         mSingleScanEventHandler = eventHandler;
         Set<Integer> freqs = scanChannels.getSupplicantScanFreqs();
+        Set<Integer> hiddenNetworkIdSet = new HashSet<>();
+        if (settings.hiddenNetworkIds != null) {
+            for (int i = 0; i < settings.hiddenNetworkIds.length; i++) {
+                hiddenNetworkIdSet.add(settings.hiddenNetworkIds[i]);
+            }
+        }
+
         mSingleScanStartTime = SystemClock.elapsedRealtime();
-        // TODO(rpius): Need to plumb in the hiddessid network list via Scanner.
-        if (!mWifiNative.scan(freqs, null)) {
+        if (!mWifiNative.scan(freqs, hiddenNetworkIdSet)) {
             Log.e(TAG, "Failed to start scan, freqs=" + freqs);
             // indicate scan failure async
             mEventHandler.post(new Runnable() {

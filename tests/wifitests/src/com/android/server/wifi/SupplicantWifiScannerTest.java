@@ -40,6 +40,7 @@ import org.mockito.InOrder;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -337,7 +338,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
 
         expectFailedScanStart(order, eventHandler,
-                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), null);
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>());
 
         // Fire alarm to start next scan
         dispatchOnlyAlarm();
@@ -345,7 +346,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
 
         expectFailedScanStart(order, eventHandler,
-                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), null);
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>());
 
         verifyNoMoreInteractions(eventHandler);
     }
@@ -372,7 +373,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
 
         expectFailedEventScan(order, eventHandler,
-                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), null);
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>());
 
         // Fire alarm to start next scan
         dispatchOnlyAlarm();
@@ -380,7 +381,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
 
         expectFailedEventScan(order, eventHandler,
-                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), null);
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>());
 
         verifyNoMoreInteractions(eventHandler);
     }
@@ -629,7 +630,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
             }
         }
         expectSuccessfulBackgroundScan(order, eventHandler, period.getScanFreqs(),
-                nativeResults, scanDatas, fullResults, periodId);
+                new HashSet<Integer>(), nativeResults, scanDatas, fullResults, periodId);
     }
 
     /**
@@ -638,10 +639,11 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
      */
     private void expectSuccessfulBackgroundScan(InOrder order,
             WifiNative.ScanEventHandler eventHandler, Set<Integer> scanFreqs,
-            ArrayList<ScanDetail> nativeResults, WifiScanner.ScanData[] expectedScanResults,
+            Set<Integer> networkIds, ArrayList<ScanDetail> nativeResults,
+            WifiScanner.ScanData[] expectedScanResults,
             ScanResult[] fullResults, int periodId) {
         // Verify scan started
-        order.verify(mWifiNative).scan(eq(scanFreqs), any(Set.class));
+        order.verify(mWifiNative).scan(eq(scanFreqs), eq(networkIds));
 
         // Setup scan results
         when(mWifiNative.getScanResults()).thenReturn(nativeResults);
