@@ -1375,16 +1375,20 @@ static jobject android_net_wifi_get_rtt_capabilities(JNIEnv *env, jclass cls, ji
                  rtt_capabilities.preamble_support);
          helper.setIntField(capabilities, "bwSupported",
                  rtt_capabilities.bw_support);
-         ALOGD("One side RTT is: %s", rtt_capabilities.rtt_one_sided_supported ==1 ? "support" :
-                 "not support");
-         ALOGD("Two side RTT is: %s", rtt_capabilities.rtt_ftm_supported == 1 ? "support" :
-                 "not support");
-         ALOGD("LCR is: %s", rtt_capabilities.lcr_support == 1 ? "support" : "not support");
-
-         ALOGD("LCI is: %s", rtt_capabilities.lci_support == 1 ? "support" : "not support");
-
-         ALOGD("Support Preamble is : %d support BW is %d", rtt_capabilities.preamble_support,
-                 rtt_capabilities.bw_support);
+         helper.setBooleanField(capabilities, "responderSupported",
+                 rtt_capabilities.responder_supported == 1);
+         if (DBG) {
+             ALOGD("One side RTT is %s", rtt_capabilities.rtt_one_sided_supported == 1 ?
+                "supported" : "not supported");
+             ALOGD("Two side RTT is %s", rtt_capabilities.rtt_ftm_supported == 1 ?
+                "supported" : "not supported");
+             ALOGD("LCR is %s", rtt_capabilities.lcr_support == 1 ? "supported" : "not supported");
+             ALOGD("LCI is %s", rtt_capabilities.lci_support == 1 ? "supported" : "not supported");
+             ALOGD("Supported preamble is %d", rtt_capabilities.preamble_support);
+             ALOGD("Supported bandwidth is %d", rtt_capabilities.bw_support);
+             ALOGD("Sta responder is %s",
+                 rtt_capabilities.responder_supported == 1 ? "supported" : "not supported");
+         }
          return capabilities.detach();
     } else {
         return NULL;
