@@ -698,7 +698,7 @@ public class WifiMonitor {
             boolean firstHandler = true;
             for (Map.Entry<String, SparseArray<Set<Handler>>> entry : mHandlerMap.entrySet()) {
                 if (isMonitoring(entry.getKey())) {
-                    Set<Handler> ifaceWhatHandlers = ifaceHandlers.get(message.what);
+                    Set<Handler> ifaceWhatHandlers = entry.getValue().get(message.what);
                     for (Handler handler : ifaceWhatHandlers) {
                         if (firstHandler) {
                             firstHandler = false;
