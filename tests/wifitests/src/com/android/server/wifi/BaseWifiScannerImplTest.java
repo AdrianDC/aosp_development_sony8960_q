@@ -47,6 +47,7 @@ import org.mockito.MockitoAnnotations;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -104,6 +105,7 @@ public abstract class BaseWifiScannerImplTest {
                 .build();
 
         doSuccessfulSingleScanTest(settings, expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ),
+                new HashSet<Integer>(),
                 ScanResults.create(0, 2400, 2450, 2450, 2400, 2450, 2450, 2400, 2450, 2450), false);
     }
 
@@ -116,6 +118,7 @@ public abstract class BaseWifiScannerImplTest {
                 .build();
 
         doSuccessfulSingleScanTest(settings, createFreqSet(5650),
+                new HashSet<Integer>(),
                 ScanResults.create(0, 5650, 5650, 5650, 5650, 5650, 5650, 5650, 5650), false);
     }
 
@@ -131,9 +134,32 @@ public abstract class BaseWifiScannerImplTest {
                 .build();
 
         doSuccessfulSingleScanTest(settings, expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ),
+                new HashSet<Integer>(),
                 ScanResults.create(0, 2400, 2450, 2450, 2400, 2450, 2450, 2400, 2450, 2450), true);
     }
 
+    /**
+     * Tests whether the provided hidden networkId's in scan settings is correctly passed along
+     * when invoking native scan.
+     */
+    @Test
+    public void singleScanSuccessWithHiddenNetworkIds() {
+        int[] hiddenNetworkIds = {0, 5};
+        WifiNative.ScanSettings settings = new NativeScanSettingsBuilder()
+                .withBasePeriod(10000)
+                .withMaxApPerScan(10)
+                .withHiddenNetworkIds(hiddenNetworkIds)
+                .addBucketWithChannels(20000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN, 5650)
+                .build();
+
+        Set<Integer> hiddenNetworkIdSet = new HashSet<Integer>();
+        for (int i = 0; i < hiddenNetworkIds.length; i++) {
+            hiddenNetworkIdSet.add(hiddenNetworkIds[i]);
+        }
+        doSuccessfulSingleScanTest(settings, createFreqSet(5650),
+                hiddenNetworkIdSet,
+                ScanResults.create(0, 5650, 5650, 5650, 5650, 5650, 5650, 5650, 5650), false);
+    }
 
     @Test
     public void overlappingSingleScanFails() {
@@ -235,6 +261,7 @@ public abstract class BaseWifiScannerImplTest {
 
         expectSuccessfulSingleScan(order, eventHandler,
                 expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ),
+                new HashSet<Integer>(),
                 ScanResults.create(0, 2400, 2450, 2450), false);
 
         // start second scan
@@ -242,6 +269,7 @@ public abstract class BaseWifiScannerImplTest {
 
         expectSuccessfulSingleScan(order, eventHandler,
                 expectedBandScanFreqs(WifiScanner.WIFI_BAND_5_GHZ),
+                new HashSet<Integer>(),
                 ScanResults.create(0, 5150, 5175), false);
 
         verifyNoMoreInteractions(eventHandler);
@@ -341,7 +369,8 @@ public abstract class BaseWifiScannerImplTest {
     }
 
     protected void doSuccessfulSingleScanTest(WifiNative.ScanSettings settings,
-            Set<Integer> expectedScan, ScanResults results, boolean expectFullResults) {
+            Set<Integer> expectedScan, Set<Integer> expectedHiddenNetIds, ScanResults results,
+            boolean expectFullResults) {
         WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
 
         InOrder order = inOrder(eventHandler, mWifiNative);
@@ -352,15 +381,16 @@ public abstract class BaseWifiScannerImplTest {
         // start scan
         assertTrue(mScanner.startSingleScan(settings, eventHandler));
 
-        expectSuccessfulSingleScan(order, eventHandler, expectedScan, results, expectFullResults);
+        expectSuccessfulSingleScan(order, eventHandler, expectedScan, expectedHiddenNetIds,
+                results, expectFullResults);
 
         verifyNoMoreInteractions(eventHandler);
     }
 
     protected void expectSuccessfulSingleScan(InOrder order,
             WifiNative.ScanEventHandler eventHandler, Set<Integer> expectedScan,
-            ScanResults results, boolean expectFullResults) {
-        order.verify(mWifiNative).scan(eq(expectedScan), any(Set.class));
+            Set<Integer> expectedHiddenNetIds, ScanResults results, boolean expectFullResults) {
+        order.verify(mWifiNative).scan(eq(expectedScan), eq(expectedHiddenNetIds));
 
         when(mWifiNative.getScanResults()).thenReturn(results.getScanDetailArrayList());
 

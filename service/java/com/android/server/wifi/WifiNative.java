@@ -1802,6 +1802,8 @@ public class WifiNative {
         public int report_threshold_percent;
         public int report_threshold_num_scans;
         public int num_buckets;
+        /* Not part of gscan HAL API. Used only for wpa_supplicant scanning */
+        public int[] hiddenNetworkIds;
         public BucketSettings[] buckets;
     }
 

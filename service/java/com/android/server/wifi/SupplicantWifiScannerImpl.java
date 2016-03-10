@@ -35,6 +35,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -332,6 +333,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
             }
 
             ChannelCollection allFreqs = mChannelHelper.createChannelCollection();
+            Set<Integer> hiddenNetworkIdSet = new HashSet<Integer>();
             final LastScanSettings newScanSettings =
                     new LastScanSettings(SystemClock.elapsedRealtime());
 
@@ -377,6 +379,12 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                                     mBackgroundScanSettings.report_threshold_num_scans,
                                     mBackgroundScanSettings.report_threshold_percent);
                         }
+                        int[] hiddenNetworkIds = mBackgroundScanSettings.hiddenNetworkIds;
+                        if (hiddenNetworkIds != null) {
+                            for (int i = 0; i < hiddenNetworkIds.length; i++) {
+                                hiddenNetworkIdSet.add(hiddenNetworkIds[i]);
+                            }
+                        }
                     }
 
                     mNextBackgroundScanPeriod++;
@@ -403,15 +411,19 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                 }
                 newScanSettings.setSingleScan(reportFullResults, singleScanFreqs,
                         mPendingSingleScanEventHandler);
-
+                int[] hiddenNetworkIds = mPendingSingleScanSettings.hiddenNetworkIds;
+                if (hiddenNetworkIds != null) {
+                    for (int i = 0; i < hiddenNetworkIds.length; i++) {
+                        hiddenNetworkIdSet.add(hiddenNetworkIds[i]);
+                    }
+                }
                 mPendingSingleScanSettings = null;
                 mPendingSingleScanEventHandler = null;
             }
 
             if (!allFreqs.isEmpty()) {
                 Set<Integer> freqs = allFreqs.getSupplicantScanFreqs();
-                // TODO(rpius): Need to plumb in the hidden ssid network list via Scanner.
-                boolean success = mWifiNative.scan(freqs, null);
+                boolean success = mWifiNative.scan(freqs, hiddenNetworkIdSet);
                 if (success) {
                     // TODO handle scan timeout
                     Log.d(TAG, "Starting wifi scan for freqs=" + freqs
