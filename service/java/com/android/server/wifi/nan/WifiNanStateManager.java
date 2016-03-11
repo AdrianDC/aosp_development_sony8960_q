@@ -74,7 +74,6 @@ public class WifiNanStateManager {
     private static final int MESSAGE_ON_NO_OP_TRANSACTION = 28;
 
     private static final String MESSAGE_BUNDLE_KEY_SESSION_ID = "session_id";
-    private static final String MESSAGE_BUNDLE_KEY_EVENTS = "events";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE = "message";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_PEER_ID = "message_peer_id";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_ID = "message_id";
@@ -180,13 +179,8 @@ public class WifiNanStateManager {
     /**
      * Place a request to create a new discovery session on the handler queue.
      */
-    public void createSession(int clientId, int sessionId, IWifiNanSessionCallback callback,
-            int events) {
-        Bundle data = new Bundle();
-        data.putInt(MESSAGE_BUNDLE_KEY_EVENTS, events);
-
+    public void createSession(int clientId, int sessionId, IWifiNanSessionCallback callback) {
         Message msg = mHandler.obtainMessage(MESSAGE_CREATE_SESSION);
-        msg.setData(data);
         msg.arg1 = clientId;
         msg.arg2 = sessionId;
         msg.obj = callback;
@@ -487,9 +481,7 @@ public class WifiNanStateManager {
                     if (VDBG) {
                         Log.d(TAG, "Create session");
                     }
-                    int events = msg.getData().getInt(MESSAGE_BUNDLE_KEY_EVENTS);
-                    createSessionLocal(msg.arg1, msg.arg2, (IWifiNanSessionCallback) msg.obj,
-                            events);
+                    createSessionLocal(msg.arg1, msg.arg2, (IWifiNanSessionCallback) msg.obj);
                     break;
                 }
                 case MESSAGE_DESTROY_SESSION: {
@@ -795,11 +787,10 @@ public class WifiNanStateManager {
                 .enableAndConfigure(createTransactionInfoConfig(merged).mTransactionId, merged);
     }
 
-    private void createSessionLocal(int clientId, int sessionId, IWifiNanSessionCallback callback,
-            int events) {
+    private void createSessionLocal(int clientId, int sessionId, IWifiNanSessionCallback callback) {
         if (VDBG) {
             Log.v(TAG, "createSession(): clientId=" + clientId + ", sessionId=" + sessionId
-                    + ", callback=" + callback + ", events=" + events);
+                    + ", callback=" + callback);
         }
 
         WifiNanClientState client = mClients.get(clientId);
@@ -808,7 +799,7 @@ public class WifiNanStateManager {
             return;
         }
 
-        client.createSession(sessionId, callback, events);
+        client.createSession(sessionId, callback);
     }
 
     private void destroySessionLocal(int clientId, int sessionId) {

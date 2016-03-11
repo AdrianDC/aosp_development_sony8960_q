@@ -350,6 +350,11 @@ static jint android_net_wifi_nan_publish(JNIEnv *env, jclass cls,
     if (msg.publish_type != NAN_PUBLISH_TYPE_UNSOLICITED)
       msg.tx_type = NAN_TX_TYPE_UNICAST;
 
+    msg.recv_indication_cfg = 0;
+    if (!helper.getBoolField(publish_config, "mEnableTerminateNotification")) {
+      msg.recv_indication_cfg |= 0x1;
+    }
+
     return hal_fn.wifi_nan_publish_request(transaction_id, handle, &msg);
 }
 
@@ -417,6 +422,11 @@ static jint android_net_wifi_nan_subscribe(JNIEnv *env, jclass cls,
     msg.ttl = helper.getIntField(subscribe_config, "mTtlSec");
     msg.subscribe_match_indicator = (NanMatchAlg) helper.getIntField(
       subscribe_config, "mMatchStyle");
+
+    msg.recv_indication_cfg;
+    if (!helper.getBoolField(subscribe_config, "mEnableTerminateNotification")) {
+      msg.recv_indication_cfg |= 0x1;
+    }
 
     return hal_fn.wifi_nan_subscribe_request(transaction_id, handle, &msg);
 }

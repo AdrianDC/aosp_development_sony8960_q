@@ -106,16 +106,14 @@ public class WifiNanClientState {
      *
      * @param sessionId Session ID of the new discovery session.
      * @param callback Singleton session callback.
-     * @param events List of events (non-overlapping flags) which the session is
-     *            registering to listen for.
      */
-    public void createSession(int sessionId, IWifiNanSessionCallback callback, int events) {
+    public void createSession(int sessionId, IWifiNanSessionCallback callback) {
         WifiNanSessionState session = mSessions.get(sessionId);
         if (session != null) {
             Log.e(TAG, "createSession: sessionId already exists (replaced) - " + sessionId);
         }
 
-        mSessions.put(sessionId, new WifiNanSessionState(sessionId, callback, events));
+        mSessions.put(sessionId, new WifiNanSessionState(sessionId, callback));
     }
 
     /**

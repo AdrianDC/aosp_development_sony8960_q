@@ -32,7 +32,6 @@ import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
 import android.net.wifi.nan.WifiNanEventCallback;
-import android.net.wifi.nan.WifiNanSessionCallback;
 import android.os.IBinder;
 import android.os.Looper;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -282,14 +281,13 @@ public class WifiNanServiceImplTest {
     @Test
     public void testCreateSession() {
         IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
-        int events = WifiNanSessionCallback.FLAG_LISTEN_MATCH;
         int clientId = doConnect();
 
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
-        int returnedSessionId = mDut.createSession(clientId, mockCallback, events);
+        int returnedSessionId = mDut.createSession(clientId, mockCallback);
 
         verify(mNanStateManagerMock).createSession(eq(clientId), sessionId.capture(),
-                eq(mockCallback), eq(events));
+                eq(mockCallback));
         assertEquals(returnedSessionId, (int) sessionId.getValue());
     }
 
