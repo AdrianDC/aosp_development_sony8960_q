@@ -45,6 +45,7 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
@@ -81,6 +82,7 @@ import com.android.server.wifi.p2p.WifiP2pServiceImpl;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -92,8 +94,10 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiStateMachine}.
@@ -234,6 +238,8 @@ public class WifiStateMachineTest {
         when(context.getSystemService(Context.CONNECTIVITY_SERVICE)).thenReturn(
                 mock(ConnectivityManager.class));
 
+        when(context.getSystemService(Context.WIFI_SCANNING_SERVICE)).thenReturn(mWifiScanner);
+
         return context;
     }
 
@@ -281,7 +287,7 @@ public class WifiStateMachineTest {
         ScanDetail detail = new ScanDetail(nd, sWifiSsid, sBSSID, "", rssi, sFreq,
                 Long.MAX_VALUE, /* needed so that scan results aren't rejected because
                                    there older than scan start */
-                null, null);
+                ie, new ArrayList<String>());
         return detail;
     }
 
@@ -312,6 +318,7 @@ public class WifiStateMachineTest {
     WifiConfigManager mWifiConfigManager;
 
     @Mock WifiNative mWifiNative;
+    @Mock WifiScanner mWifiScanner;
     @Mock SupplicantStateTracker mSupplicantStateTracker;
     @Mock WifiMetrics mWifiMetrics;
     @Mock UserManager mUserManager;
@@ -743,6 +750,36 @@ public class WifiStateMachineTest {
         forgetNetworkAndVerifyFailure();
     }
 
+    private void verifyScan(int band, int reportEvents, Set<Integer> configuredNetworkIds) {
+        ArgumentCaptor<WifiScanner.ScanSettings> scanSettingsCaptor =
+                ArgumentCaptor.forClass(WifiScanner.ScanSettings.class);
+        ArgumentCaptor<WifiScanner.ScanListener> scanListenerCaptor =
+                ArgumentCaptor.forClass(WifiScanner.ScanListener.class);
+        verify(mWifiScanner).startScan(scanSettingsCaptor.capture(), scanListenerCaptor.capture());
+        WifiScanner.ScanSettings actualSettings = scanSettingsCaptor.getValue();
+        assertEquals("band", band, actualSettings.band);
+        assertEquals("reportEvents", reportEvents, actualSettings.reportEvents);
+
+        if (configuredNetworkIds == null) {
+            configuredNetworkIds = new HashSet<>();
+        }
+        Set<Integer> actualConfiguredNetworkIds = new HashSet<>();
+        if (actualSettings.hiddenNetworkIds != null) {
+            for (int i = 0; i < actualSettings.hiddenNetworkIds.length; ++i) {
+                actualConfiguredNetworkIds.add(actualSettings.hiddenNetworkIds[i]);
+            }
+        }
+        assertEquals("configured networks", configuredNetworkIds, actualConfiguredNetworkIds);
+
+        when(mWifiNative.getScanResults()).thenReturn(getMockScanResults());
+        mWsm.sendMessage(WifiMonitor.SCAN_RESULTS_EVENT);
+
+        mLooper.dispatchAll();
+
+        List<ScanResult> reportedResults = mWsm.syncGetScanResultsList();
+        assertEquals(8, reportedResults.size());
+    }
+
     @Test
     public void scan() throws Exception {
         addNetworkAndVerifySuccess();
@@ -751,14 +788,9 @@ public class WifiStateMachineTest {
         mWsm.startScan(-1, 0, null, null);
         mLooper.dispatchAll();
 
-        verify(mWifiNative).scan(null, mWifiConfigManager.getHiddenConfiguredNetworkIds());
-
-        when(mWifiNative.getScanResults()).thenReturn(getMockScanResults());
-        mWsm.sendMessage(WifiMonitor.SCAN_RESULTS_EVENT);
-        mLooper.dispatchAll();
-
-        List<ScanResult> results = mWsm.syncGetScanResultsList();
-        assertEquals(8, results.size());
+        verifyScan(WifiScanner.WIFI_BAND_BOTH_WITH_DFS,
+                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
+                | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT, null);
     }
 
     @Test
@@ -769,14 +801,10 @@ public class WifiStateMachineTest {
         mWsm.startScan(-1, 0, null, null);
         mLooper.dispatchAll();
 
-        verify(mWifiNative).scan(null, mWifiConfigManager.getHiddenConfiguredNetworkIds());
-
-        when(mWifiNative.getScanResults()).thenReturn(getMockScanResults());
-        mWsm.sendMessage(WifiMonitor.SCAN_RESULTS_EVENT);
-        mLooper.dispatchAll();
-
-        List<ScanResult> results = mWsm.syncGetScanResultsList();
-        assertEquals(8, results.size());
+        verifyScan(WifiScanner.WIFI_BAND_BOTH_WITH_DFS,
+                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
+                | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT,
+                mWifiConfigManager.getHiddenConfiguredNetworkIds());
     }
 
     @Test

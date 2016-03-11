@@ -939,6 +939,7 @@ public class WifiNative {
         List<PnoNetwork> mExpectedPnoNetworkList = null;
         boolean mCurrentPnoState = false;;
         boolean mWaitForTimer = false;
+        private boolean mIsPaused = false;
         final Object mPnoLock = new Object();
         private final AlarmManager mAlarmManager =
                 (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
@@ -954,18 +955,13 @@ public class WifiNative {
                     @Override
                     public void onReceive(Context context, Intent intent) {
                         synchronized(mPnoLock) {
-                            if (DBG) Log.d(mTAG, "PNO timer expire, PNO should change to " +
-                                    mExpectedPnoState);
-                            if (mCurrentPnoState != mExpectedPnoState) {
-                                if (DBG) Log.d(mTAG, "change PNO from " + mCurrentPnoState + " to "
+                            if (DBG) {
+                                Log.d(mTAG, "PNO timer expire, PNO should change to "
                                         + mExpectedPnoState);
-                                boolean ret = setPno(
-                                        mExpectedPnoState, mExpectedPnoNetworkList);
-                                if (!ret) {
-                                    Log.e(mTAG, "set PNO failure");
-                                }
-                            } else {
-                                if (DBG) Log.d(mTAG, "Do not change PNO since current is expected");
+                            }
+                            boolean ret = setPno(mExpectedPnoState, mExpectedPnoNetworkList);
+                            if (!ret) {
+                                Log.e(mTAG, "set PNO failure");
                             }
                             mWaitForTimer = false;
                         }
@@ -980,18 +976,29 @@ public class WifiNative {
          * @param pnoNetworkList list of networks with priorities to be set before PNO setting.
          */
         private boolean setPno(boolean enable, List<PnoNetwork> pnoNetworkList) {
+            if (mIsPaused) {
+                if (DBG) Log.d(mTAG, "Do not change PNO state since it is paused");
+                return true;
+            }
+            if (mCurrentPnoState == enable) {
+                if (DBG) Log.d(mTAG, "Do not change PNO since current is expected");
+                return true;
+            }
+            if (DBG) {
+                Log.d(mTAG, "change PNO from " + mCurrentPnoState + " to " + enable);
+            }
             // TODO: Couple of cases yet to be handled:
             // 1. What if the network priority update fails, should we bail out of PNO setting?
             // 2. If PNO setting fails below, should we go back and revert this priority change?
             if (pnoNetworkList != null) {
-                if (DBG) Log.i(mTAG, "Update priorities for PNO. Enable: " + enable);
+                if (DBG) Log.i(mTAG, "update priorities for PNO. Enable: " + enable);
                 for (PnoNetwork pnoNetwork : pnoNetworkList) {
                     // What if this fails? Should we bail out?
                     boolean isSuccess = setNetworkVariable(pnoNetwork.networkId,
                             WifiConfiguration.priorityVarName,
                             Integer.toString(pnoNetwork.priority));
                     if (!isSuccess) {
-                        Log.e(mTAG, "Update priority failed for :" + pnoNetwork.networkId);
+                        Log.e(mTAG, "update priority failed for :" + pnoNetwork.networkId);
                     }
                 }
             }
@@ -1007,21 +1014,17 @@ public class WifiNative {
                 boolean enable,
                 List<PnoNetwork> pnoNetworkList) {
             synchronized(mPnoLock) {
+                Log.i(mTAG, "set expected PNO to " +  enable);
+                mExpectedPnoState = enable;
+                mExpectedPnoNetworkList = pnoNetworkList;
                 if (mWaitForTimer) {
                     //already has a timer
-                    mExpectedPnoState = enable;
-                    mExpectedPnoNetworkList = pnoNetworkList;
                     if (DBG) Log.d(mTAG, "update expected PNO to " +  mExpectedPnoState);
                 } else {
-                    if (mCurrentPnoState == enable) {
-                        return true;
-                    }
                     long timeDifference = System.currentTimeMillis() - mLastPnoChangeTimeStamp;
                     if (timeDifference >= MINIMUM_PNO_GAP) {
                         return setPno(enable, pnoNetworkList);
                     } else {
-                        mExpectedPnoState = enable;
-                        mExpectedPnoNetworkList = pnoNetworkList;
                         mWaitForTimer = true;
                         if (DBG) Log.d(mTAG, "start PNO timer with delay:" + timeDifference);
                         mAlarmManager.set(AlarmManager.RTC_WAKEUP,
@@ -1029,6 +1032,36 @@ public class WifiNative {
                     }
                 }
                 return true;
+            }
+        }
+
+        /**
+         * Pause PNO scanning.
+         */
+        public void pauseBackgroundScan() {
+            synchronized (mPnoLock) {
+                if (!mIsPaused) {
+                    Log.i(mTAG, "Pausing Pno scan. Current state: " + mCurrentPnoState);
+                    if (mCurrentPnoState) {
+                        setPno(false, null);
+                    }
+                    mIsPaused = true;
+                }
+            }
+        }
+
+        /**
+         * Resume PNO scanning.
+         */
+        public void resumeBackgroundScan() {
+            synchronized (mPnoLock) {
+                if (mIsPaused) {
+                    Log.i(mTAG, "Resuming Pno scan. Expected state: " + mExpectedPnoState);
+                    mIsPaused = false;
+                    if (mExpectedPnoState) {
+                        setPno(true, null);
+                    }
+                }
             }
         }
     }
@@ -1040,6 +1073,25 @@ public class WifiNative {
             return mPnoMonitor.enableBackgroundScan(enable, pnoNetworkList);
         } else {
             return false;
+        }
+    }
+
+    /**
+     * Pause PNO scanning.
+     * Note: If Pno is currently running, the stop might take a little while to take effect!
+     */
+    public void pauseBackgroundScan() {
+        if (mPnoMonitor != null) {
+            mPnoMonitor.pauseBackgroundScan();
+        }
+    }
+
+    /**
+     * Resume PNO scanning.
+     */
+    public void resumeBackgroundScan() {
+        if (mPnoMonitor != null) {
+            mPnoMonitor.resumeBackgroundScan();
         }
     }
 

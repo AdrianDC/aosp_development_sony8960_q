@@ -80,6 +80,7 @@ public class ScanDetail {
         mScanResult = scanResult;
         mNetworkDetail = networkDetail;
         mMatches = matches;
+        mSeen = mScanResult.seen;
     }
 
     /**

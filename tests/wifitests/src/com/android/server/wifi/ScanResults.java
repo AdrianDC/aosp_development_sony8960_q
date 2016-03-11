@@ -26,6 +26,7 @@ import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
@@ -37,6 +38,32 @@ public class ScanResults {
     private final ArrayList<ScanDetail> mScanDetails = new ArrayList<>();
     private final ScanData mScanData;
     private final ScanResult[] mScanResults;
+
+    private ScanResults(ArrayList<ScanDetail> scanDetails, ScanData scanData,
+            ScanResult[] scanResults) {
+        mScanDetails.addAll(scanDetails);
+        mScanData = scanData;
+        mScanResults = scanResults;
+    }
+
+    /**
+     * Merge the results contained in a number of ScanResults into a single ScanResults
+     */
+    public static ScanResults merge(ScanResults... others) {
+        ArrayList<ScanDetail> scanDetails = new ArrayList<>();
+        ArrayList<ScanResult> scanDataResults = new ArrayList<>();
+        ArrayList<ScanResult> rawScanResults = new ArrayList<>();
+        for (ScanResults other : others) {
+            scanDetails.addAll(other.getScanDetailArrayList());
+            scanDataResults.addAll(Arrays.asList(other.getScanData().getResults()));
+            rawScanResults.addAll(Arrays.asList(other.getRawScanResults()));
+        }
+        Collections.sort(scanDataResults, SCAN_RESULT_RSSI_COMPARATOR);
+        int id = others[0].getScanData().getId();
+        return new ScanResults(scanDetails, new ScanData(id, 0, scanDataResults
+                        .toArray(new ScanResult[scanDataResults.size()])),
+                rawScanResults.toArray(new ScanResult[rawScanResults.size()]));
+    }
 
     private static String generateBssid(Random r) {
         return String.format("%02X:%02X:%02X:%02X:%02X:%02X",

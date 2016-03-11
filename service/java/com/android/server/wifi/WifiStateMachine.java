@@ -111,6 +111,7 @@ import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
+import com.android.server.wifi.util.ScanDetailUtil;
 
 import java.io.BufferedReader;
 import java.io.FileDescriptor;
@@ -2072,17 +2073,52 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     }
 
 
+    // TODO this is a temporary measure to bridge between WifiScanner and WifiStateMachine until
+    // scan functionality is refactored out of WifiStateMachine.
     /**
      * return true iff scan request is accepted
      */
-    private boolean startScanNative(Set<Integer> freqs, Set<Integer> hiddenNetworkIds) {
-        if (mWifiNative.scan(freqs, hiddenNetworkIds)) {
-            mIsScanOngoing = true;
-            mIsFullScanOngoing = (freqs == null);
-            lastScanFreqs = freqs;
-            return true;
+    private boolean startScanNative(final Set<Integer> freqs, Set<Integer> hiddenNetworkIds) {
+        WifiScanner.ScanSettings settings = new WifiScanner.ScanSettings();
+        if (freqs == null) {
+            settings.band = WifiScanner.WIFI_BAND_BOTH_WITH_DFS;
+        } else {
+            settings.band = WifiScanner.WIFI_BAND_UNSPECIFIED;
+            int index = 0;
+            settings.channels = new WifiScanner.ChannelSpec[freqs.size()];
+            for (Integer freq : freqs) {
+                settings.channels[index++] = new WifiScanner.ChannelSpec(freq);
+            }
         }
-        return false;
+        settings.reportEvents = WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
+                | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT;
+        if (hiddenNetworkIds != null && hiddenNetworkIds.size() > 0) {
+            int i = 0;
+            settings.hiddenNetworkIds = new int[hiddenNetworkIds.size()];
+            for (Integer netId : hiddenNetworkIds) {
+                settings.hiddenNetworkIds[i++] = netId;
+            }
+        }
+        WifiScanner.ScanListener nativeScanListener = new WifiScanner.ScanListener() {
+                // ignore all events since WifiStateMachine is registered for the supplicant events
+                public void onSuccess() {
+                }
+                public void onFailure(int reason, String description) {
+                    mIsScanOngoing = false;
+                    mIsFullScanOngoing = false;
+                }
+                public void onResults(WifiScanner.ScanData[] results) {
+                }
+                public void onFullResult(ScanResult fullScanResult) {
+                }
+                public void onPeriodChanged(int periodInMs) {
+                }
+            };
+        mWifiScanner.startScan(settings, nativeScanListener);
+        mIsScanOngoing = true;
+        mIsFullScanOngoing = (freqs == null);
+        lastScanFreqs = freqs;
+        return true;
     }
 
     /**
@@ -4494,12 +4530,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 mWifiNative.BLUETOOTH_COEXISTENCE_MODE_SENSE);
     }
 
-    void connectScanningService() {
-        if (mWifiScanner == null) {
-            mWifiScanner = (WifiScanner) mContext.getSystemService(Context.WIFI_SCANNING_SERVICE);
-        }
-    }
-
     private void handleIPv4Success(DhcpResults dhcpResults) {
         if (DBG) {
             logd("handleIPv4Success <" + dhcpResults.toString() + ">");
@@ -5564,9 +5594,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     class DriverStartedState extends State {
         @Override
         public void enter() {
-
             if (DBG) {
                 logd("DriverStartedState enter");
+            }
+
+            // We can't do this in the constructor because WifiStateMachine is created before the
+            // wifi scanning service is initialized
+            if (mWifiScanner == null) {
+                mWifiScanner =
+                        (WifiScanner) mContext.getSystemService(Context.WIFI_SCANNING_SERVICE);
             }
 
             mWifiLogger.startLogging(DBG);
@@ -6192,11 +6228,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     }
 
     class ConnectModeState extends State {
-
-        @Override
-        public void enter() {
-            connectScanningService();
-        }
 
         @Override
         public boolean processMessage(Message message) {

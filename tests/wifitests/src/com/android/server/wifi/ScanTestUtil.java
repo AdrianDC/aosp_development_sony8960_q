@@ -171,6 +171,42 @@ public class ScanTestUtil {
         }
     }
 
+    /**
+     * Compute the expected native scan settings that are expected for the given
+     * WifiScanner.ScanSettings.
+     */
+    public static WifiNative.ScanSettings computeSingleScanNativeSettings(
+            WifiScanner.ScanSettings requestSettings) {
+        int reportEvents = requestSettings.reportEvents | WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN;
+        NativeScanSettingsBuilder builder = new NativeScanSettingsBuilder()
+                .withBasePeriod(0)
+                .withMaxApPerScan(0)
+                .withMaxPercentToCache(0)
+                .withMaxScansToCache(0);
+        if (requestSettings.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
+            builder.addBucketWithChannels(0, reportEvents, requestSettings.channels);
+        } else {
+            builder.addBucketWithBand(0, reportEvents, requestSettings.band);
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * Compute the expected native scan settings that are expected for the given channels.
+     */
+    public static WifiNative.ScanSettings createSingleScanNativeSettingsForChannels(
+            int reportEvents, WifiScanner.ChannelSpec... channels) {
+        int actualReportEvents = reportEvents | WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN;
+        return new NativeScanSettingsBuilder()
+                .withBasePeriod(0)
+                .withMaxApPerScan(0)
+                .withMaxPercentToCache(0)
+                .withMaxScansToCache(0)
+                .addBucketWithChannels(0, actualReportEvents, channels)
+                .build();
+    }
+
     public static Set<Integer> createFreqSet(int... elements) {
         Set<Integer> set = new HashSet<>();
         for (int e : elements) {

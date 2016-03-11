@@ -199,7 +199,6 @@ public abstract class BaseWifiScannerImplTest {
         WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
 
         ScanResults results = ScanResults.create(0, 2400, 2450, 2450);
-        Set<Integer> expectedScan = createFreqSet(2400, 2450);
 
         InOrder order = inOrder(eventHandler, mWifiNative);
 
