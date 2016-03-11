@@ -28,17 +28,17 @@ import java.util.Collection;
  */
 public abstract class WifiScanningScheduler {
 
-    private static final int DEFAULT_MAX_BUCKETS = 8;
-    private static final int DEFAULT_MAX_CHANNELS = 32;
+    static final int DEFAULT_MAX_BUCKETS = 8;
+    static final int DEFAULT_MAX_CHANNELS = 32;
     // anecdotally, some chipsets will fail without explanation with a higher batch size, and
     // there is apparently no way to retrieve the maximum batch size
-    private static final int DEFAULT_MAX_SCANS_TO_BATCH = 10;
-    private static final int DEFAULT_MAX_AP_PER_SCAN = 32;
+    static final int DEFAULT_MAX_SCANS_TO_BATCH = 10;
+    static final int DEFAULT_MAX_AP_PER_SCAN = 32;
 
-    private static int mMaxBuckets = DEFAULT_MAX_BUCKETS;
-    private static int mMaxChannels = DEFAULT_MAX_CHANNELS;
-    private static int mMaxBatch = DEFAULT_MAX_SCANS_TO_BATCH;
-    private static int mMaxApPerScan = DEFAULT_MAX_AP_PER_SCAN;
+    private int mMaxBuckets = DEFAULT_MAX_BUCKETS;
+    private int mMaxChannels = DEFAULT_MAX_CHANNELS;
+    private int mMaxBatch = DEFAULT_MAX_SCANS_TO_BATCH;
+    private int mMaxApPerScan = DEFAULT_MAX_AP_PER_SCAN;
 
     int getMaxBuckets() {
         return mMaxBuckets;

@@ -58,14 +58,10 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
 
         mChannelHelper = new HalChannelHelper(wifiNative);
 
-        // We can't enable these until WifiStateMachine switches to using WifiScanner because
-        //   WifiMonitor only supports sending results to one listener
-        // TODO Enable these
-        // Also need to fix tests again when this is enabled
-        // WifiMonitor.getInstance().registerHandler(mWifiNative.getInterfaceName(),
-        //         WifiMonitor.SCAN_FAILED_EVENT, mEventHandler);
-        // WifiMonitor.getInstance().registerHandler(mWifiNative.getInterfaceName(),
-        //         WifiMonitor.SCAN_RESULTS_EVENT, mEventHandler);
+        WifiMonitor.getInstance().registerHandler(mWifiNative.getInterfaceName(),
+                WifiMonitor.SCAN_FAILED_EVENT, mEventHandler);
+        WifiMonitor.getInstance().registerHandler(mWifiNative.getInterfaceName(),
+                WifiMonitor.SCAN_RESULTS_EVENT, mEventHandler);
     }
 
     @Override
@@ -82,6 +78,7 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
                 break;
             case WifiMonitor.SCAN_RESULTS_EVENT:
                 pollLatestSingleScanData();
+                mWifiNative.resumeBackgroundScan();
                 break;
             default:
                 Log.e(TAG, "Received unknown message: type=" + msg.what);
@@ -124,6 +121,7 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
             }
         }
 
+        mWifiNative.pauseBackgroundScan();
         mSingleScanStartTime = SystemClock.elapsedRealtime();
         if (!mWifiNative.scan(freqs, hiddenNetworkIdSet)) {
             Log.e(TAG, "Failed to start scan, freqs=" + freqs);
