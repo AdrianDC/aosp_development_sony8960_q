@@ -737,16 +737,17 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         // is sent to this state machine first.
                         if (mScannerImpl == null) {
                             mScannerImpl = mScannerImplFactory.create(mContext, mLooper);
+                            mChannelHelper = mScannerImpl.getChannelHelper();
                         }
+
+                        mScheduler = new MultiClientScheduler(mChannelHelper);
+
                         WifiNative.ScanCapabilities capabilities =
                                 new WifiNative.ScanCapabilities();
                         if (!mScannerImpl.getScanCapabilities(capabilities)) {
                             loge("could not get scan capabilities");
                             return HANDLED;
                         }
-
-                        mChannelHelper = mScannerImpl.getChannelHelper();
-                        mScheduler = new MultiClientScheduler(mChannelHelper);
                         mScheduler.setMaxBuckets(capabilities.max_scan_buckets);
                         mScheduler.setMaxApPerScan(capabilities.max_ap_cache_per_scan);
 
