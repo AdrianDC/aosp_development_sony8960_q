@@ -201,7 +201,7 @@ public class WifiNanSessionState {
         mPubSubIdValid = false;
         try {
             if (mCallback != null) {
-                mCallback.onPublishFail(status);
+                mCallback.onSessionConfigFail(status);
             }
         } catch (RemoteException e) {
             Log.w(TAG, "onPublishFail: RemoteException (FYI): " + e);
@@ -219,7 +219,7 @@ public class WifiNanSessionState {
         mPubSubIdValid = false;
         try {
             if (mCallback != null) {
-                mCallback.onPublishTerminated(status);
+                mCallback.onSessionTerminated(status);
             }
         } catch (RemoteException e) {
             Log.w(TAG, "onPublishTerminated: RemoteException (FYI): " + e);
@@ -247,7 +247,7 @@ public class WifiNanSessionState {
         mPubSubIdValid = false;
         try {
             if (mCallback != null) {
-                mCallback.onSubscribeFail(status);
+                mCallback.onSessionConfigFail(status);
             }
         } catch (RemoteException e) {
             Log.w(TAG, "onSubscribeFail: RemoteException (FYI): " + e);
@@ -265,7 +265,7 @@ public class WifiNanSessionState {
         mPubSubIdValid = false;
         try {
             if (mCallback != null) {
-                mCallback.onSubscribeTerminated(status);
+                mCallback.onSessionTerminated(status);
             }
         } catch (RemoteException e) {
             Log.w(TAG, "onSubscribeTerminated: RemoteException (FYI): " + e);
