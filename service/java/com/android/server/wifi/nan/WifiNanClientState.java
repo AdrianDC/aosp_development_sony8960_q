@@ -19,7 +19,6 @@ package com.android.server.wifi.nan;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanSessionCallback;
-import android.net.wifi.nan.WifiNanEventCallback;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.SparseArray;
@@ -45,16 +44,14 @@ public class WifiNanClientState {
     /* package */ static final int CLUSTER_CHANGE_EVENT_JOINED = 1;
 
     private IWifiNanEventCallback mCallback;
-    private int mEvents;
     private final SparseArray<WifiNanSessionState> mSessions = new SparseArray<>();
 
     private int mClientId;
     private ConfigRequest mConfigRequest;
 
-    public WifiNanClientState(int clientId, IWifiNanEventCallback callback, int events) {
+    public WifiNanClientState(int clientId, IWifiNanEventCallback callback) {
         mClientId = clientId;
         mCallback = callback;
-        mEvents = events;
     }
 
     /**
@@ -151,8 +148,7 @@ public class WifiNanClientState {
      * @param completedConfig The configuration which was completed.
      */
     public void onConfigCompleted(ConfigRequest completedConfig) {
-        if (mCallback != null
-                && (mEvents & WifiNanEventCallback.FLAG_LISTEN_CONFIG_COMPLETED) != 0) {
+        if (mCallback != null) {
             try {
                 mCallback.onConfigCompleted(completedConfig);
             } catch (RemoteException e) {
@@ -169,7 +165,7 @@ public class WifiNanClientState {
      * @param reason The failure reason.
      */
     public void onConfigFailed(ConfigRequest failedConfig, int reason) {
-        if (mCallback != null && (mEvents & WifiNanEventCallback.FLAG_LISTEN_CONFIG_FAILED) != 0) {
+        if (mCallback != null) {
             try {
                 mCallback.onConfigFailed(failedConfig, reason);
             } catch (RemoteException e) {
@@ -186,7 +182,7 @@ public class WifiNanClientState {
      * @return A 1 if registered to listen for event, 0 otherwise.
      */
     public int onNanDown(int reason) {
-        if (mCallback != null && (mEvents & WifiNanEventCallback.FLAG_LISTEN_NAN_DOWN) != 0) {
+        if (mCallback != null) {
             try {
                 mCallback.onNanDown(reason);
             } catch (RemoteException e) {
@@ -210,8 +206,7 @@ public class WifiNanClientState {
      * @return A 1 if registered to listen for event, 0 otherwise.
      */
     public int onInterfaceAddressChange(byte[] mac) {
-        if (mCallback != null
-                && (mEvents & WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED) != 0) {
+        if (mCallback != null && mConfigRequest.mEnableIdentityChangeCallback) {
             try {
                 mCallback.onIdentityChanged();
             } catch (RemoteException e) {
@@ -236,8 +231,7 @@ public class WifiNanClientState {
      * @return A 1 if registered to listen for event, 0 otherwise.
      */
     public int onClusterChange(int flag, byte[] mac) {
-        if (mCallback != null
-                && (mEvents & WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED) != 0) {
+        if (mCallback != null && mConfigRequest.mEnableIdentityChangeCallback) {
             try {
                 mCallback.onIdentityChanged();
             } catch (RemoteException e) {
@@ -258,7 +252,6 @@ public class WifiNanClientState {
         pw.println("  mClientId: " + mClientId);
         pw.println("  mConfigRequest: " + mConfigRequest);
         pw.println("  mCallback: " + mCallback);
-        pw.println("  mEvents: " + mEvents);
         pw.println("  mSessions: [" + mSessions + "]");
         for (int i = 0; i < mSessions.size(); ++i) {
             mSessions.valueAt(i).dump(fd, pw, args);

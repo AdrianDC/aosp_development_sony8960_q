@@ -89,7 +89,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
-    public int connect(final IBinder binder, IWifiNanEventCallback callback, int events) {
+    public int connect(final IBinder binder, IWifiNanEventCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
 
@@ -126,7 +126,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             Log.w(TAG, "Error on linkToDeath - " + e);
         }
 
-        mStateManager.connect(clientId, callback, events);
+        mStateManager.connect(clientId, callback);
 
         return clientId;
     }

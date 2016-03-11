@@ -128,10 +128,9 @@ public class WifiNanStateManager {
     /**
      * Place a request for a new client connection on the handler queue.
      */
-    public void connect(int clientId, IWifiNanEventCallback callback, int events) {
+    public void connect(int clientId, IWifiNanEventCallback callback) {
         Message msg = mHandler.obtainMessage(MESSAGE_CONNECT);
         msg.arg1 = clientId;
-        msg.arg2 = events;
         msg.obj = callback;
         mHandler.sendMessage(msg);
     }
@@ -460,7 +459,7 @@ public class WifiNanStateManager {
                     if (VDBG) {
                         Log.d(TAG, "NAN connection request received");
                     }
-                    connectLocal(msg.arg1, (IWifiNanEventCallback) msg.obj, msg.arg2);
+                    connectLocal(msg.arg1, (IWifiNanEventCallback) msg.obj);
                     break;
                 }
                 case MESSAGE_DISCONNECT: {
@@ -712,10 +711,9 @@ public class WifiNanStateManager {
     /*
      * Actions (calls from API to service)
      */
-    private void connectLocal(int clientId, IWifiNanEventCallback callback, int events) {
+    private void connectLocal(int clientId, IWifiNanEventCallback callback) {
         if (VDBG) {
-            Log.v(TAG, "connect(): clientId=" + clientId + ", callback=" + callback + ", events="
-                    + events);
+            Log.v(TAG, "connect(): clientId=" + clientId + ", callback=" + callback);
         }
 
         if (mClients.get(clientId) != null) {
@@ -723,7 +721,7 @@ public class WifiNanStateManager {
             return;
         }
 
-        WifiNanClientState client = new WifiNanClientState(clientId, callback, events);
+        WifiNanClientState client = new WifiNanClientState(clientId, callback);
         mClients.put(clientId, client);
     }
 

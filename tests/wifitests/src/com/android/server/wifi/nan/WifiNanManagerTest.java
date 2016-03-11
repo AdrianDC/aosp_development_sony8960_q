@@ -46,21 +46,40 @@ public class WifiNanManagerTest {
      */
 
     @Test
+    public void testConfigRequestBuilderDefaults() {
+        ConfigRequest configRequest = new ConfigRequest.Builder().build();
+
+        collector.checkThat("mClusterHigh", ConfigRequest.CLUSTER_ID_MAX,
+                equalTo(configRequest.mClusterHigh));
+        collector.checkThat("mClusterLow", ConfigRequest.CLUSTER_ID_MIN,
+                equalTo(configRequest.mClusterLow));
+        collector.checkThat("mMasterPreference", 0,
+                equalTo(configRequest.mMasterPreference));
+        collector.checkThat("mSupport5gBand", false, equalTo(configRequest.mSupport5gBand));
+        collector.checkThat("mEnableIdentityChangeCallback", false,
+                equalTo(configRequest.mEnableIdentityChangeCallback));
+    }
+
+    @Test
     public void testConfigRequestBuilder() {
         final int clusterHigh = 100;
         final int clusterLow = 5;
         final int masterPreference = 55;
         final boolean supportBand5g = true;
+        final boolean enableIdentityChangeCallback = true;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().setClusterHigh(clusterHigh)
                 .setClusterLow(clusterLow).setMasterPreference(masterPreference)
-                .setSupport5gBand(supportBand5g).build();
+                .setSupport5gBand(supportBand5g)
+                .setEnableIdentityChangeCallback(enableIdentityChangeCallback).build();
 
         collector.checkThat("mClusterHigh", clusterHigh, equalTo(configRequest.mClusterHigh));
         collector.checkThat("mClusterLow", clusterLow, equalTo(configRequest.mClusterLow));
         collector.checkThat("mMasterPreference", masterPreference,
                 equalTo(configRequest.mMasterPreference));
         collector.checkThat("mSupport5gBand", supportBand5g, equalTo(configRequest.mSupport5gBand));
+        collector.checkThat("mEnableIdentityChangeCallback", enableIdentityChangeCallback,
+                equalTo(configRequest.mEnableIdentityChangeCallback));
     }
 
     @Test
@@ -115,8 +134,7 @@ public class WifiNanManagerTest {
     @Test
     public void testConfigRequestBuilderClusterLowLargerThanHigh() {
         thrown.expect(IllegalArgumentException.class);
-        ConfigRequest configRequest = new ConfigRequest.Builder().setClusterLow(100)
-                .setClusterHigh(5).build();
+        new ConfigRequest.Builder().setClusterLow(100).setClusterHigh(5).build();
     }
 
     @Test
@@ -125,10 +143,12 @@ public class WifiNanManagerTest {
         final int clusterLow = 25;
         final int masterPreference = 177;
         final boolean supportBand5g = true;
+        final boolean enableIdentityChangeCallback = true;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().setClusterHigh(clusterHigh)
                 .setClusterLow(clusterLow).setMasterPreference(masterPreference)
-                .setSupport5gBand(supportBand5g).build();
+                .setSupport5gBand(supportBand5g)
+                .setEnableIdentityChangeCallback(enableIdentityChangeCallback).build();
 
         Parcel parcelW = Parcel.obtain();
         configRequest.writeToParcel(parcelW, 0);
@@ -154,10 +174,8 @@ public class WifiNanManagerTest {
         collector.checkThat("mServiceName", subscribeConfig.mServiceName, equalTo(null));
         collector.checkThat("mServiceSpecificInfoLength",
                 subscribeConfig.mServiceSpecificInfoLength, equalTo(0));
-        collector.checkThat("mTxFilterLength", subscribeConfig.mTxFilterLength,
-                equalTo(0));
-        collector.checkThat("mRxFilterLength", subscribeConfig.mRxFilterLength,
-                equalTo(0));
+        collector.checkThat("mTxFilterLength", subscribeConfig.mTxFilterLength, equalTo(0));
+        collector.checkThat("mRxFilterLength", subscribeConfig.mRxFilterLength, equalTo(0));
         collector.checkThat("mSubscribeType", subscribeConfig.mSubscribeType,
                 equalTo(SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE));
         collector.checkThat("mSubscribeCount", subscribeConfig.mSubscribeCount, equalTo(0));
