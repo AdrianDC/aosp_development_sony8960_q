@@ -343,6 +343,8 @@ public class WifiStateMachineTest {
         TestUtil.installWlanWifiNative(mWifiNative);
         mWifiMonitor = new MockWifiMonitor();
         mWifiMetrics = mock(WifiMetrics.class);
+        WifiInjector wifiInjector = mock(WifiInjector.class);
+        when(wifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
         FrameworkFacade factory = getFrameworkFacade();
         Context context = getContext();
 
@@ -368,7 +370,7 @@ public class WifiStateMachineTest {
                 new UserInfo(11, "managed profile", 0)));
 
         mWsm = new WifiStateMachine(context, factory, mLooper.getLooper(),
-            mUserManager, mWifiMetrics, mBackupManagerProxy);
+            mUserManager, wifiInjector, mBackupManagerProxy);
         mWsmThread = getWsmHandlerThread(mWsm);
 
         final AsyncChannel channel = new AsyncChannel();
