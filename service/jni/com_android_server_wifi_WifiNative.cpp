@@ -627,7 +627,13 @@ static jboolean android_net_wifi_getScanCapabilities(
     helper.setIntField(capabilities, "max_scan_reporting_threshold", c.max_scan_reporting_threshold);
     helper.setIntField(capabilities, "max_hotlist_bssids", c.max_hotlist_bssids);
     helper.setIntField(capabilities, "max_significant_wifi_change_aps",
-                c.max_significant_wifi_change_aps);
+            c.max_significant_wifi_change_aps);
+    helper.setIntField(capabilities, "max_bssid_history_entries", c.max_bssid_history_entries);
+    helper.setIntField(capabilities, "max_number_epno_networks", c.max_number_epno_networks);
+    helper.setIntField(capabilities, "max_number_epno_networks_by_ssid",
+            c.max_number_epno_networks_by_ssid);
+    helper.setIntField(capabilities, "max_number_of_white_listed_ssid",
+            c.max_number_of_white_listed_ssid);
 
     return JNI_TRUE;
 }
