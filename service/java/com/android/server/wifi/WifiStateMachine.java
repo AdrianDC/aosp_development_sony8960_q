@@ -5546,7 +5546,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     if (message.arg1 == mDriverStartToken) {
                         if (mTries >= 2) {
                             loge("Failed to start driver after " + mTries);
-                            transitionTo(mDriverStoppedState);
+                            setSupplicantRunning(false);
+                            setSupplicantRunning(true);
                         } else {
                             loge("Driver start failed, retrying");
                             mWakeLock.acquire();
