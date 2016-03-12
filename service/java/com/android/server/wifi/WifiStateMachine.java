@@ -1126,11 +1126,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     private final BackupManagerProxy mBackupManagerProxy;
 
     public WifiStateMachine(Context context, FrameworkFacade facade, Looper looper,
-                            UserManager userManager, WifiMetrics wifiMetrics,
+                            UserManager userManager, WifiInjector wifiInjector,
                             BackupManagerProxy backupManagerProxy) {
         super("WifiStateMachine", looper);
 
-        mWifiMetrics = wifiMetrics;
+        mWifiMetrics = wifiInjector.getWifiMetrics();
         mContext = context;
         mFacade = facade;
         mUserManager = userManager;
