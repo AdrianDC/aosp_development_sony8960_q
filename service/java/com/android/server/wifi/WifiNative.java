@@ -1814,6 +1814,10 @@ public class WifiNative {
         public int  max_scan_reporting_threshold;
         public int  max_hotlist_bssids;
         public int  max_significant_wifi_change_aps;
+        public int  max_bssid_history_entries;
+        public int  max_number_epno_networks;
+        public int  max_number_epno_networks_by_ssid;
+        public int  max_number_of_white_listed_ssid;
     }
 
     public boolean getScanCapabilities(ScanCapabilities capabilities) {
