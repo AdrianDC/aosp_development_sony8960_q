@@ -33,8 +33,6 @@
 
 namespace android {
 
-static jint DBG = true;
-
 static jclass mCls;                             /* saved WifiNanNative object */
 static JavaVM *mVM = NULL;                      /* saved JVM pointer */
 

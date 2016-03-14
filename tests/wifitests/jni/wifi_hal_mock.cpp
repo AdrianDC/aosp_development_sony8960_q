@@ -170,8 +170,8 @@ void HalMockJsonReader::get_byte_array(const char* key, bool* error, u8* array,
 }
 
 
-int init_wifi_hal_func_table_mock(wifi_hal_fn *hal_fn) {
-  if (hal_fn == NULL) {
+int init_wifi_hal_func_table_mock(wifi_hal_fn *fn) {
+  if (fn == NULL) {
     return -1;
   }
 
