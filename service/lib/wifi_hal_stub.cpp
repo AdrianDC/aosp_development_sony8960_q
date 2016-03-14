@@ -42,7 +42,7 @@ wifi_error wifi_get_concurrency_matrix_stub(wifi_interface_handle handle, int ma
     return WIFI_ERROR_UNINITIALIZED;
 }
 
-wifi_error wifi_set_scanning_mac_oui_stub(wifi_interface_handle handle, unsigned char *oui) {
+wifi_error wifi_set_scanning_mac_oui_stub(wifi_interface_handle handle, unsigned char *oui_data) {
     return WIFI_ERROR_UNINITIALIZED;
 }
 

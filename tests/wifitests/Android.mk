@@ -21,7 +21,8 @@ include $(CLEAR_VARS)
 
 LOCAL_REQUIRED_MODULES :=
 
-LOCAL_CFLAGS += -Wno-unused-parameter -Wall -Werror
+LOCAL_CFLAGS += -Wall -Werror -Wextra -Wno-unused-parameter -Wno-unused-function \
+                -Wunused-variable -Winit-self -Wwrite-strings -Wshadow
 
 LOCAL_C_INCLUDES += \
 	$(JNI_H_INCLUDE) \

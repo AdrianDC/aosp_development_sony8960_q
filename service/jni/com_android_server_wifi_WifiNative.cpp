@@ -166,7 +166,6 @@ static JavaVM *mVM;                             /* saved JVM pointer */
 
 static const char *WifiHandleVarName = "sWifiHalHandle";
 static const char *WifiIfaceHandleVarName = "sWifiIfaceHandles";
-static jmethodID OnScanResultsMethodID;
 
 wifi_handle getWifiHandle(JNIHelper &helper, jclass cls) {
     return (wifi_handle) helper.getStaticLongField(cls, WifiHandleVarName);
@@ -1547,8 +1546,6 @@ static jobject android_net_wifi_get_tdls_capabilities(JNIEnv *env, jclass cls, j
 // ----------------------------------------------------------------------------
 static jint android_net_wifi_get_supported_logger_feature(JNIEnv *env, jclass cls, jint iface){
     //Not implemented yet
-    JNIHelper helper(env);
-    wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
     return -1;
 }
 
