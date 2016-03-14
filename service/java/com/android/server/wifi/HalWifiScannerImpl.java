@@ -75,6 +75,7 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
                 } else {
                     Log.w(TAG, "Got single scan failed event without an active scan request");
                 }
+                mWifiNative.resumeBackgroundScan();
                 break;
             case WifiMonitor.SCAN_RESULTS_EVENT:
                 pollLatestSingleScanData();
@@ -171,6 +172,12 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
             mSingleScanEventHandler.onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
             mSingleScanEventHandler = null;
         }
+    }
+
+    @Override
+    public void cleanup() {
+        mSingleScanEventHandler = null;
+        mWifiNative.resumeBackgroundScan();
     }
 
     @Override

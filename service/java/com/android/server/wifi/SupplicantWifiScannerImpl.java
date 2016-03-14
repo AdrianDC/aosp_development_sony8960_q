@@ -115,6 +115,19 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
     }
 
     @Override
+    public void cleanup() {
+        synchronized (mSettingsLock) {
+            mPendingSingleScanSettings = null;
+            mPendingSingleScanEventHandler = null;
+            stopPnoScan();
+            stopBatchedScan();
+            resetHotlist();
+            untrackSignificantWifiChange();
+            mLastScanSettings = null; // finally clear any active scan
+        }
+    }
+
+    @Override
     public boolean getScanCapabilities(WifiNative.ScanCapabilities capabilities) {
         capabilities.max_scan_cache_size = Integer.MAX_VALUE;
         capabilities.max_scan_buckets = MAX_SCAN_BUCKETS;
@@ -213,6 +226,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
             mBackgroundScanPeriodPending = false;
             unscheduleScansLocked();
         }
+        processPendingScans();
     }
 
     @Override
@@ -236,6 +250,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                 mPendingBackgroundScanEventHandler.onScanPaused(results);
             }
         }
+        processPendingScans();
     }
 
     @Override
@@ -312,7 +327,9 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
 
     private void unscheduleScansLocked() {
         mAlarmManager.cancel(mScanPeriodListener);
-        mLastScanSettings = null; // make sure that a running scan is marked as ended
+        if (mLastScanSettings != null) {
+            mLastScanSettings.backgroundScanActive = false;
+        }
     }
 
     private void handleScanPeriod() {

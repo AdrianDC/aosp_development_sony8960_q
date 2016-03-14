@@ -802,6 +802,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             public void exit() {
                 sendPnoScanFailedToAllAndClear(
                         WifiScanner.REASON_UNSPECIFIED, "Scan was interrupted");
+                mScannerImpl.cleanup();
             }
 
             @Override

@@ -63,6 +63,12 @@ public abstract class WifiScannerImpl {
     };
 
     /**
+     * Cleanup any ongoing operations. This may be called when the driver is unloaded.
+     * There is no expectation that failure events are returned for ongoing operations.
+     */
+    public abstract void cleanup();
+
+    /**
      * Get the supported scan capabilities.
      *
      * @param capabilities Object that will be filled with the supported capabilities if successful
