@@ -332,7 +332,8 @@ public final class RttService extends SystemService {
 
                             RttManager.ParcelableRttParams params =
                                     (RttManager.ParcelableRttParams)msg.obj;
-                            if (params == null) {
+                            if (params == null || params.mParams == null
+                                    || params.mParams.length == 0) {
                                 replyFailed(msg,
                                         RttManager.REASON_INVALID_REQUEST, "No params");
                             } else if (ci.addRttRequest(msg.arg2, params) == false) {
