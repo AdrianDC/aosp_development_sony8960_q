@@ -1147,6 +1147,10 @@ static jboolean android_net_wifi_requestRange(
 
     wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
     ALOGD("sending rtt request [%d] = %p", id, handle);
+    if (params == NULL) {
+        ALOGE("ranging params are empty");
+        return false;
+    }
 
     wifi_rtt_config configs[MaxRttConfigs];
     memset(&configs, 0, sizeof(configs));
@@ -1211,6 +1215,11 @@ static jboolean android_net_wifi_cancelRange(
     JNIHelper helper(env);
     wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
     ALOGD("cancelling rtt request [%d] = %p", id, handle);
+
+    if (params == NULL) {
+        ALOGE("ranging params are empty");
+        return false;
+    }
 
     mac_addr addrs[MaxRttConfigs];
     memset(&addrs, 0, sizeof(addrs));

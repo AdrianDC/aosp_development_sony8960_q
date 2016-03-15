@@ -31,6 +31,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
 import android.net.wifi.RttManager;
+import android.net.wifi.RttManager.ParcelableRttParams;
 import android.net.wifi.RttManager.ResponderConfig;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
@@ -96,6 +97,28 @@ public class RttServiceTest {
         return channel;
     }
 
+    private void sendRangingRequestFailed(BidirectionalAsyncChannel channel, Handler handler,
+            int clientKey, ParcelableRttParams params) {
+        Message message = sendRangingRequest(channel, handler, clientKey, params);
+        assertEquals("ranging request did not fail",
+                RttManager.CMD_OP_FAILED, message.what);
+        verifyNoMoreInteractions(mWifiNative);
+    }
+
+    // Send rtt ranging request message and verify failure.
+    private Message sendRangingRequest(BidirectionalAsyncChannel channel, Handler handler,
+            int clientKey, ParcelableRttParams params) {
+        Message message = new Message();
+        message.what = RttManager.CMD_OP_START_RANGING;
+        message.arg2 = clientKey;
+        message.obj = params;
+        channel.sendMessage(message);
+        mLooper.dispatchAll();
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(handler, atLeastOnce()).handleMessage(messageCaptor.capture());
+        return messageCaptor.getValue();
+    }
+
     // Send enable responder message and verify success.
     private void sendEnableResponderSucceed(BidirectionalAsyncChannel channel,
             Handler handler, int clientKey) {
@@ -107,7 +130,7 @@ public class RttServiceTest {
         assertEquals("mac address mismatch", MAC, actualMac);
     }
 
-    // Send enable responder message and veify failure.
+    // Send enable responder message and verify failure.
     private void sendEnableResponderFailed(BidirectionalAsyncChannel channel,
             Handler handler, int clientKey) {
         Message message = sendEnableResponder(channel, handler, clientKey, null);
@@ -218,5 +241,16 @@ public class RttServiceTest {
         sendDisableResponder(channel, CLIENT_KEY1, true);
         verify(mWifiNative, times(1)).getMacAddress();
         verifyNoMoreInteractions(mWifiNative);
+    }
+
+    /**
+     * Test RTT ranging with empty RttParams.
+     */
+    @Test
+    public void testInitiatorEmptyParams() throws Exception {
+        startWifi();
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel channel = connectChannel(handler);
+        sendRangingRequestFailed(channel, handler, CLIENT_KEY1, new ParcelableRttParams(null));
     }
 }
