@@ -581,6 +581,7 @@ public class InformationElementUtil {
         //       stripped off already
         //
         public void from(InformationElement ie) {
+            mValid = false;
             if (ie == null || ie.bytes == null) return;
             mLength = ie.bytes.length;
             ByteBuffer data = ByteBuffer.wrap(ie.bytes).order(ByteOrder.LITTLE_ENDIAN);
@@ -723,7 +724,8 @@ public class InformationElementUtil {
         //       stripped off already
         //
         public void from(InformationElement ie) {
-            if (ie == null || ie.bytes == null || ie.bytes.length > 8)  {
+            mValid = false;
+            if (ie == null || ie.bytes == null || ie.bytes.length > 8 || ie.bytes.length < 1)  {
                 return;
             }
             ByteBuffer data = ByteBuffer.wrap(ie.bytes).order(ByteOrder.LITTLE_ENDIAN);
