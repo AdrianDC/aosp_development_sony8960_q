@@ -546,29 +546,29 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDisabled(
 //void (*EventTca) (NanTCAInd* event);
 //void (*EventBeaconSdfPayload) (NanBeaconSdfPayloadInd* event);
 
-int init_wifi_nan_hal_func_table_mock(wifi_hal_fn *hal_fn) {
-  if (hal_fn == NULL) {
+int init_wifi_nan_hal_func_table_mock(wifi_hal_fn *fn) {
+  if (fn == NULL) {
     return -1;
   }
 
-  hal_fn->wifi_nan_enable_request = wifi_nan_enable_request_mock;
-  hal_fn->wifi_nan_disable_request = wifi_nan_disable_request_mock;
-  hal_fn->wifi_nan_publish_request = wifi_nan_publish_request_mock;
-  hal_fn->wifi_nan_publish_cancel_request =
+  fn->wifi_nan_enable_request = wifi_nan_enable_request_mock;
+  fn->wifi_nan_disable_request = wifi_nan_disable_request_mock;
+  fn->wifi_nan_publish_request = wifi_nan_publish_request_mock;
+  fn->wifi_nan_publish_cancel_request =
       wifi_nan_publish_cancel_request_mock;
-  hal_fn->wifi_nan_subscribe_request = wifi_nan_subscribe_request_mock;
-  hal_fn->wifi_nan_subscribe_cancel_request =
+  fn->wifi_nan_subscribe_request = wifi_nan_subscribe_request_mock;
+  fn->wifi_nan_subscribe_cancel_request =
       wifi_nan_subscribe_cancel_request_mock;
-  hal_fn->wifi_nan_transmit_followup_request =
+  fn->wifi_nan_transmit_followup_request =
       wifi_nan_transmit_followup_request_mock;
-  hal_fn->wifi_nan_stats_request = wifi_nan_stats_request_mock;
-  hal_fn->wifi_nan_config_request = wifi_nan_config_request_mock;
-  hal_fn->wifi_nan_tca_request = wifi_nan_tca_request_mock;
-  hal_fn->wifi_nan_beacon_sdf_payload_request =
+  fn->wifi_nan_stats_request = wifi_nan_stats_request_mock;
+  fn->wifi_nan_config_request = wifi_nan_config_request_mock;
+  fn->wifi_nan_tca_request = wifi_nan_tca_request_mock;
+  fn->wifi_nan_beacon_sdf_payload_request =
       wifi_nan_beacon_sdf_payload_request_mock;
-  hal_fn->wifi_nan_register_handler = wifi_nan_register_handler_mock;
-  hal_fn->wifi_nan_get_version = wifi_nan_get_version_mock;
-  hal_fn->wifi_nan_get_capabilities = wifi_nan_get_capabilities_mock;
+  fn->wifi_nan_register_handler = wifi_nan_register_handler_mock;
+  fn->wifi_nan_get_version = wifi_nan_get_version_mock;
+  fn->wifi_nan_get_capabilities = wifi_nan_get_capabilities_mock;
 
   return 0;
 }
