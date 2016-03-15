@@ -5106,6 +5106,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                      */
                     replyToMessage(message, message.what);
                     break;
+                case CMD_RESET_SIM_NETWORKS:
+                    /* Defer this message until supplicant is started. */
+                    messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
+                    deferMessage(message);
+                    break;
                 default:
                     loge("Error! unhandled message" + message);
                     break;
