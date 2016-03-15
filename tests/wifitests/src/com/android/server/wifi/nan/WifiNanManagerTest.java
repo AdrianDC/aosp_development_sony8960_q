@@ -18,28 +18,314 @@ package com.android.server.wifi.nan;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.when;
 
 import android.net.wifi.nan.ConfigRequest;
+import android.net.wifi.nan.IWifiNanEventCallback;
+import android.net.wifi.nan.IWifiNanManager;
+import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanEventCallback;
+import android.net.wifi.nan.WifiNanManager;
+import android.net.wifi.nan.WifiNanPublishSession;
+import android.net.wifi.nan.WifiNanSessionCallback;
+import android.net.wifi.nan.WifiNanSubscribeSession;
+import android.os.IBinder;
 import android.os.Parcel;
 import android.test.suitebuilder.annotation.SmallTest;
 
+import com.android.server.wifi.MockLooper;
+
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ErrorCollector;
-import org.junit.rules.ExpectedException;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 /**
  * Unit test harness for WifiNanManager class.
  */
 @SmallTest
 public class WifiNanManagerTest {
+    private WifiNanManager mDut;
+    private MockLooper mMockLooper;
+
     @Rule
     public ErrorCollector collector = new ErrorCollector();
 
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
+    @Mock
+    public WifiNanEventCallback mockCallback;
+
+    @Mock
+    public WifiNanSessionCallback mockSessionCallback;
+
+    @Mock
+    public IWifiNanManager mockNanService;
+
+    @Mock
+    public WifiNanPublishSession mockPublishSession;
+
+    @Mock
+    public WifiNanSubscribeSession mockSubscribeSession;
+
+    @Before
+    public void setUp() throws Exception {
+        MockitoAnnotations.initMocks(this);
+
+        mDut = new WifiNanManager(mockNanService);
+        mMockLooper = new MockLooper();
+    }
+
+    /*
+     * WifiNanSessionCallbackProxy Tests
+     */
+
+    /**
+     * Validate the publish flow: (1) publish, (2) success creates session, (3)
+     * pass through everything, (4) update publish through session, (5)
+     * terminate locally, (6) try another command for local failure feedback.
+     */
+    @Test
+    public void testPublishFlow() throws Exception {
+        final int clientId = 4565;
+        final int sessionId = 123;
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        final PublishConfig publishConfig = new PublishConfig.Builder().build();
+        final int peerId = 873;
+        final String string1 = "hey from here...";
+        final String string2 = "some other arbitrary string...";
+        final int messageId = 2123;
+        final int reason = WifiNanSessionCallback.FAIL_REASON_OTHER;
+
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class)))
+                .thenReturn(clientId);
+
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
+                mockPublishSession);
+        ArgumentCaptor<IWifiNanSessionCallback> sessionProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanSessionCallback.class);
+        ArgumentCaptor<WifiNanPublishSession> publishSession = ArgumentCaptor
+                .forClass(WifiNanPublishSession.class);
+
+        mDut.connect(mMockLooper.getLooper(), mockCallback);
+        mDut.requestConfig(configRequest);
+        mDut.publish(publishConfig, mockSessionCallback);
+
+        inOrder.verify(mockNanService).connect(any(IBinder.class),
+                any(IWifiNanEventCallback.class));
+        inOrder.verify(mockNanService).requestConfig(eq(clientId), eq(configRequest));
+        inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
+                sessionProxyCallback.capture());
+
+        sessionProxyCallback.getValue().onSessionStarted(sessionId);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mockSessionCallback).onPublishStarted(publishSession.capture());
+
+        publishSession.getValue().sendMessage(peerId, string1.getBytes(), string1.length(),
+                messageId);
+        publishSession.getValue().updatePublish(publishConfig);
+        sessionProxyCallback.getValue().onMatch(peerId, string1.getBytes(),
+                string1.length(), string2.getBytes(), string2.length());
+        sessionProxyCallback.getValue().onMessageReceived(peerId, string1.getBytes(),
+                string1.length());
+        sessionProxyCallback.getValue().onMessageSendFail(messageId, reason);
+        sessionProxyCallback.getValue().onMessageSendSuccess(messageId);
+        sessionProxyCallback.getValue().onSessionConfigFail(reason);
+        sessionProxyCallback.getValue().onSessionTerminated(reason);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mockNanService).sendMessage(eq(clientId), eq(sessionId), eq(peerId),
+                eq(string1.getBytes()), eq(string1.length()), eq(messageId));
+        inOrder.verify(mockNanService).updatePublish(eq(clientId), eq(sessionId),
+                eq(publishConfig));
+        inOrder.verify(mockSessionCallback).onMatch(eq(peerId), eq(string1.getBytes()),
+                eq(string1.length()), eq(string2.getBytes()), eq(string2.length()));
+        inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()),
+                eq(string1.length()));
+        inOrder.verify(mockSessionCallback).onMessageSendFail(eq(messageId), eq(reason));
+        inOrder.verify(mockSessionCallback).onMessageSendSuccess(eq(messageId));
+        inOrder.verify(mockSessionCallback).onSessionConfigFail(eq(reason));
+        inOrder.verify(mockSessionCallback).onSessionTerminated(eq(reason));
+        inOrder.verify(mockNanService).terminateSession(eq(clientId), eq(sessionId));
+
+        inOrder.verifyNoMoreInteractions();
+    }
+
+    /**
+     * Validate that if an active publish receives a termination (error or done)
+     * then it feeds back to the service an actual termination to free service
+     * data.
+     */
+    @Test
+    public void testPublishRemoteTerminate() throws Exception {
+        final int clientId = 4565;
+        final int sessionId = 123;
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        final PublishConfig publishConfig = new PublishConfig.Builder().build();
+        final int reason = WifiNanSessionCallback.TERMINATE_REASON_DONE;
+
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class)))
+                .thenReturn(clientId);
+
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
+                mockPublishSession);
+        ArgumentCaptor<IWifiNanSessionCallback> sessionProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanSessionCallback.class);
+        ArgumentCaptor<WifiNanPublishSession> publishSession = ArgumentCaptor
+                .forClass(WifiNanPublishSession.class);
+
+        mDut.connect(mMockLooper.getLooper(), mockCallback);
+        mDut.requestConfig(configRequest);
+        mDut.publish(publishConfig, mockSessionCallback);
+
+        inOrder.verify(mockNanService).connect(any(IBinder.class),
+                any(IWifiNanEventCallback.class));
+        inOrder.verify(mockNanService).requestConfig(eq(clientId), eq(configRequest));
+        inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
+                sessionProxyCallback.capture());
+
+        sessionProxyCallback.getValue().onSessionStarted(sessionId);
+        sessionProxyCallback.getValue().onSessionTerminated(reason);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mockSessionCallback).onPublishStarted(publishSession.capture());
+        inOrder.verify(mockSessionCallback).onSessionTerminated(reason);
+        inOrder.verify(mockNanService).terminateSession(clientId, sessionId);
+
+        publishSession.getValue().updatePublish(publishConfig);
+        inOrder.verify(mockSessionCallback)
+                .onSessionConfigFail(WifiNanSessionCallback.FAIL_REASON_SESSION_TERMINATED);
+
+        inOrder.verifyNoMoreInteractions();
+    }
+
+    /**
+     * Validate the subscribe flow: (1) subscribe, (2) success creates session,
+     * (3) pass through everything, (4) update subscribe through session, (5)
+     * terminate locally, (6) try another command for local failure feedback.
+     */
+    @Test
+    public void testSubscribeFlow() throws Exception {
+        final int clientId = 4565;
+        final int sessionId = 123;
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        final SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
+        final int peerId = 873;
+        final String string1 = "hey from here...";
+        final String string2 = "some other arbitrary string...";
+        final int messageId = 2123;
+        final int reason = WifiNanSessionCallback.FAIL_REASON_OTHER;
+
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class)))
+                .thenReturn(clientId);
+
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
+                mockSubscribeSession);
+        ArgumentCaptor<IWifiNanSessionCallback> sessionProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanSessionCallback.class);
+        ArgumentCaptor<WifiNanSubscribeSession> subscribeSession = ArgumentCaptor
+                .forClass(WifiNanSubscribeSession.class);
+
+        mDut.connect(mMockLooper.getLooper(), mockCallback);
+        mDut.requestConfig(configRequest);
+        mDut.subscribe(subscribeConfig, mockSessionCallback);
+
+        inOrder.verify(mockNanService).connect(any(IBinder.class),
+                any(IWifiNanEventCallback.class));
+        inOrder.verify(mockNanService).requestConfig(eq(clientId), eq(configRequest));
+        inOrder.verify(mockNanService).subscribe(eq(clientId), eq(subscribeConfig),
+                sessionProxyCallback.capture());
+
+        sessionProxyCallback.getValue().onSessionStarted(sessionId);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mockSessionCallback).onSubscribeStarted(subscribeSession.capture());
+
+        subscribeSession.getValue().sendMessage(peerId, string1.getBytes(), string1.length(),
+                messageId);
+        subscribeSession.getValue().updateSubscribe(subscribeConfig);
+        sessionProxyCallback.getValue().onMatch(peerId, string1.getBytes(), string1.length(),
+                string2.getBytes(), string2.length());
+        sessionProxyCallback.getValue().onMessageReceived(peerId, string1.getBytes(),
+                string1.length());
+        sessionProxyCallback.getValue().onMessageSendFail(messageId, reason);
+        sessionProxyCallback.getValue().onMessageSendSuccess(messageId);
+        sessionProxyCallback.getValue().onSessionConfigFail(reason);
+        sessionProxyCallback.getValue().onSessionTerminated(reason);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mockNanService).sendMessage(eq(clientId), eq(sessionId), eq(peerId),
+                eq(string1.getBytes()), eq(string1.length()), eq(messageId));
+        inOrder.verify(mockNanService).updateSubscribe(eq(clientId), eq(sessionId),
+                eq(subscribeConfig));
+        inOrder.verify(mockSessionCallback).onMatch(eq(peerId), eq(string1.getBytes()),
+                eq(string1.length()), eq(string2.getBytes()), eq(string2.length()));
+        inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()),
+                eq(string1.length()));
+        inOrder.verify(mockSessionCallback).onMessageSendFail(eq(messageId), eq(reason));
+        inOrder.verify(mockSessionCallback).onMessageSendSuccess(eq(messageId));
+        inOrder.verify(mockSessionCallback).onSessionConfigFail(eq(reason));
+        inOrder.verify(mockSessionCallback).onSessionTerminated(eq(reason));
+        inOrder.verify(mockNanService).terminateSession(eq(clientId), eq(sessionId));
+
+        inOrder.verifyNoMoreInteractions();
+    }
+
+    /**
+     * Validate that if an active subscribe receives a termination (error or
+     * done) then it feeds back to the service an actual termination to free
+     * service data.
+     */
+    @Test
+    public void testSubscribeRemoteTerminate() throws Exception {
+        final int clientId = 4565;
+        final int sessionId = 123;
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        final SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
+        final int reason = WifiNanSessionCallback.TERMINATE_REASON_DONE;
+
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class)))
+                .thenReturn(clientId);
+
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
+                mockSubscribeSession);
+        ArgumentCaptor<IWifiNanSessionCallback> sessionProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanSessionCallback.class);
+        ArgumentCaptor<WifiNanSubscribeSession> subscribeSession = ArgumentCaptor
+                .forClass(WifiNanSubscribeSession.class);
+
+        mDut.connect(mMockLooper.getLooper(), mockCallback);
+        mDut.requestConfig(configRequest);
+        mDut.subscribe(subscribeConfig, mockSessionCallback);
+
+        inOrder.verify(mockNanService).connect(any(IBinder.class),
+                any(IWifiNanEventCallback.class));
+        inOrder.verify(mockNanService).requestConfig(eq(clientId), eq(configRequest));
+        inOrder.verify(mockNanService).subscribe(eq(clientId), eq(subscribeConfig),
+                sessionProxyCallback.capture());
+
+        sessionProxyCallback.getValue().onSessionStarted(sessionId);
+        sessionProxyCallback.getValue().onSessionTerminated(reason);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mockSessionCallback).onSubscribeStarted(subscribeSession.capture());
+        inOrder.verify(mockSessionCallback).onSessionTerminated(reason);
+        inOrder.verify(mockNanService).terminateSession(clientId, sessionId);
+
+        subscribeSession.getValue().updateSubscribe(subscribeConfig);
+        inOrder.verify(mockSessionCallback)
+                .onSessionConfigFail(WifiNanSessionCallback.FAIL_REASON_SESSION_TERMINATED);
+
+        inOrder.verifyNoMoreInteractions();
+    }
 
     /*
      * ConfigRequest Tests
@@ -82,58 +368,49 @@ public class WifiNanManagerTest {
                 equalTo(configRequest.mEnableIdentityChangeCallback));
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testConfigRequestBuilderMasterPrefNegative() {
-        thrown.expect(IllegalArgumentException.class);
         ConfigRequest.Builder builder = new ConfigRequest.Builder();
         builder.setMasterPreference(-1);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testConfigRequestBuilderMasterPrefReserved1() {
-        thrown.expect(IllegalArgumentException.class);
         new ConfigRequest.Builder().setMasterPreference(1);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testConfigRequestBuilderMasterPrefReserved255() {
-        thrown.expect(IllegalArgumentException.class);
         new ConfigRequest.Builder().setMasterPreference(255);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testConfigRequestBuilderMasterPrefTooLarge() {
-        thrown.expect(IllegalArgumentException.class);
         new ConfigRequest.Builder().setMasterPreference(256);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testConfigRequestBuilderClusterLowNegative() {
-        thrown.expect(IllegalArgumentException.class);
         new ConfigRequest.Builder().setClusterLow(-1);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testConfigRequestBuilderClusterHighNegative() {
-        thrown.expect(IllegalArgumentException.class);
         new ConfigRequest.Builder().setClusterHigh(-1);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testConfigRequestBuilderClusterLowAboveMax() {
-        thrown.expect(IllegalArgumentException.class);
         new ConfigRequest.Builder().setClusterLow(ConfigRequest.CLUSTER_ID_MAX + 1);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testConfigRequestBuilderClusterHighAboveMax() {
-        thrown.expect(IllegalArgumentException.class);
         new ConfigRequest.Builder().setClusterHigh(ConfigRequest.CLUSTER_ID_MAX + 1);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testConfigRequestBuilderClusterLowLargerThanHigh() {
-        thrown.expect(IllegalArgumentException.class);
         new ConfigRequest.Builder().setClusterLow(100).setClusterHigh(5).build();
     }
 
@@ -259,30 +536,26 @@ public class WifiNanManagerTest {
         assertEquals(subscribeConfig, rereadSubscribeConfig);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testSubscribeConfigBuilderBadSubscribeType() {
-        thrown.expect(IllegalArgumentException.class);
         new SubscribeConfig.Builder().setSubscribeType(10);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testSubscribeConfigBuilderNegativeCount() {
-        thrown.expect(IllegalArgumentException.class);
         new SubscribeConfig.Builder().setSubscribeCount(-1);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testSubscribeConfigBuilderNegativeTtl() {
-        thrown.expect(IllegalArgumentException.class);
         new SubscribeConfig.Builder().setTtlSec(-100);
     }
 
     /**
      * Validate that a bad match style configuration throws an exception.
      */
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testSubscribeConfigBuilderBadMatchStyle() {
-        thrown.expect(IllegalArgumentException.class);
         new SubscribeConfig.Builder().setMatchStyle(10);
     }
 
@@ -375,21 +648,18 @@ public class WifiNanManagerTest {
         assertEquals(publishConfig, rereadPublishConfig);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testPublishConfigBuilderBadPublishType() {
-        thrown.expect(IllegalArgumentException.class);
         new PublishConfig.Builder().setPublishType(5);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testPublishConfigBuilderNegativeCount() {
-        thrown.expect(IllegalArgumentException.class);
         new PublishConfig.Builder().setPublishCount(-4);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testPublishConfigBuilderNegativeTtl() {
-        thrown.expect(IllegalArgumentException.class);
         new PublishConfig.Builder().setTtlSec(-10);
     }
 

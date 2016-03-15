@@ -47,33 +47,34 @@ public class WifiNanStateManager {
 
     private static final int MESSAGE_CONNECT = 0;
     private static final int MESSAGE_DISCONNECT = 1;
-    private static final int MESSAGE_REQUEST_CONFIG = 4;
-    private static final int MESSAGE_CREATE_SESSION = 5;
-    private static final int MESSAGE_DESTROY_SESSION = 6;
-    private static final int MESSAGE_PUBLISH = 7;
-    private static final int MESSAGE_SUBSCRIBE = 8;
-    private static final int MESSAGE_SEND_MESSAGE = 9;
-    private static final int MESSAGE_STOP_SESSION = 10;
-    private static final int MESSAGE_ON_CONFIG_COMPLETED = 11;
-    private static final int MESSAGE_ON_CONFIG_FAILED = 12;
-    private static final int MESSAGE_ON_NAN_DOWN = 13;
-    private static final int MESSAGE_ON_INTERFACE_CHANGE = 14;
-    private static final int MESSAGE_ON_CLUSTER_CHANGE = 15;
-    private static final int MESSAGE_ON_PUBLISH_SUCCESS = 16;
-    private static final int MESSAGE_ON_PUBLISH_FAIL = 17;
-    private static final int MESSAGE_ON_PUBLISH_TERMINATED = 18;
-    private static final int MESSAGE_ON_SUBSCRIBE_SUCCESS = 19;
-    private static final int MESSAGE_ON_SUBSCRIBE_FAIL = 20;
-    private static final int MESSAGE_ON_SUBSCRIBE_TERMINATED = 21;
-    private static final int MESSAGE_ON_MESSAGE_SEND_SUCCESS = 22;
-    private static final int MESSAGE_ON_MESSAGE_SEND_FAIL = 23;
-    private static final int MESSAGE_ON_UNKNOWN_TRANSACTION = 24;
-    private static final int MESSAGE_ON_MATCH = 25;
-    private static final int MESSAGE_ON_MESSAGE_RECEIVED = 26;
-    private static final int MESSAGE_ON_CAPABILITIES_UPDATED = 27;
-    private static final int MESSAGE_ON_NO_OP_TRANSACTION = 28;
+    private static final int MESSAGE_REQUEST_CONFIG = 2;
+    private static final int MESSAGE_TERMINATE_SESSION = 3;
+    private static final int MESSAGE_PUBLISH = 4;
+    private static final int MESSAGE_UPDATE_PUBLISH = 5;
+    private static final int MESSAGE_SUBSCRIBE = 6;
+    private static final int MESSAGE_UPDATE_SUBSCRIBE = 7;
+    private static final int MESSAGE_SEND_MESSAGE = 8;
+    private static final int MESSAGE_ON_CONFIG_COMPLETED = 9;
+    private static final int MESSAGE_ON_CONFIG_FAILED = 10;
+    private static final int MESSAGE_ON_NAN_DOWN = 11;
+    private static final int MESSAGE_ON_INTERFACE_CHANGE = 12;
+    private static final int MESSAGE_ON_CLUSTER_CHANGE = 13;
+    private static final int MESSAGE_ON_PUBLISH_SUCCESS = 14;
+    private static final int MESSAGE_ON_PUBLISH_FAIL = 15;
+    private static final int MESSAGE_ON_PUBLISH_TERMINATED = 16;
+    private static final int MESSAGE_ON_SUBSCRIBE_SUCCESS = 17;
+    private static final int MESSAGE_ON_SUBSCRIBE_FAIL = 18;
+    private static final int MESSAGE_ON_SUBSCRIBE_TERMINATED = 19;
+    private static final int MESSAGE_ON_MESSAGE_SEND_SUCCESS = 20;
+    private static final int MESSAGE_ON_MESSAGE_SEND_FAIL = 21;
+    private static final int MESSAGE_ON_UNKNOWN_TRANSACTION = 22;
+    private static final int MESSAGE_ON_MATCH = 23;
+    private static final int MESSAGE_ON_MESSAGE_RECEIVED = 24;
+    private static final int MESSAGE_ON_CAPABILITIES_UPDATED = 25;
+    private static final int MESSAGE_ON_NO_OP_TRANSACTION = 26;
 
     private static final String MESSAGE_BUNDLE_KEY_SESSION_ID = "session_id";
+    private static final String MESSAGE_BUNDLE_KEY_CONFIG = "config";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE = "message";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_PEER_ID = "message_peer_id";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_ID = "message_id";
@@ -94,6 +95,7 @@ public class WifiNanStateManager {
     private final SparseArray<WifiNanClientState> mClients = new SparseArray<>();
     private final SparseArray<TransactionInfoBase> mPendingResponses = new SparseArray<>();
     private short mNextTransactionId = 1;
+    private int mNextSessionId = 1;
 
     private WifiNanStateManager() {
         // EMPTY: singleton pattern
@@ -158,40 +160,35 @@ public class WifiNanStateManager {
     /**
      * Place a request to stop a discovery session on the handler queue.
      */
-    public void stopSession(int clientId, int sessionId) {
-        Message msg = mHandler.obtainMessage(MESSAGE_STOP_SESSION);
+    public void terminateSession(int clientId, int sessionId) {
+        Message msg = mHandler.obtainMessage(MESSAGE_TERMINATE_SESSION);
         msg.arg1 = clientId;
         msg.arg2 = sessionId;
         mHandler.sendMessage(msg);
     }
 
     /**
-     * Place a request to destroy a discovery session on the handler queue.
+     * Place a request to start a new publish discovery session on the handler
+     * queue.
      */
-    public void destroySession(int clientId, int sessionId) {
-        Message msg = mHandler.obtainMessage(MESSAGE_DESTROY_SESSION);
-        msg.arg1 = clientId;
-        msg.arg2 = sessionId;
-        mHandler.sendMessage(msg);
-    }
+    public void publish(int clientId, PublishConfig publishConfig,
+            IWifiNanSessionCallback callback) {
+        Bundle data = new Bundle();
+        data.putParcelable(MESSAGE_BUNDLE_KEY_CONFIG, publishConfig);
 
-    /**
-     * Place a request to create a new discovery session on the handler queue.
-     */
-    public void createSession(int clientId, int sessionId, IWifiNanSessionCallback callback) {
-        Message msg = mHandler.obtainMessage(MESSAGE_CREATE_SESSION);
+        Message msg = mHandler.obtainMessage(MESSAGE_PUBLISH);
         msg.arg1 = clientId;
-        msg.arg2 = sessionId;
         msg.obj = callback;
+        msg.setData(data);
         mHandler.sendMessage(msg);
     }
 
     /**
-     * Place a request to start a new publish discovery on a session on the
+     * Place a request to modify an existing publish discovery session on the
      * handler queue.
      */
-    public void publish(int clientId, int sessionId, PublishConfig publishConfig) {
-        Message msg = mHandler.obtainMessage(MESSAGE_PUBLISH);
+    public void updatePublish(int clientId, int sessionId, PublishConfig publishConfig) {
+        Message msg = mHandler.obtainMessage(MESSAGE_UPDATE_PUBLISH);
         msg.arg1 = clientId;
         msg.arg2 = sessionId;
         msg.obj = publishConfig;
@@ -199,11 +196,27 @@ public class WifiNanStateManager {
     }
 
     /**
-     * Place a request to start a new subscribe discovery on a session on the
+     * Place a request to start a new subscribe discovery session on the handler
+     * queue.
+     */
+    public void subscribe(int clientId, SubscribeConfig subscribeConfig,
+            IWifiNanSessionCallback callback) {
+        Bundle data = new Bundle();
+        data.putParcelable(MESSAGE_BUNDLE_KEY_CONFIG, subscribeConfig);
+
+        Message msg = mHandler.obtainMessage(MESSAGE_SUBSCRIBE);
+        msg.arg1 = clientId;
+        msg.obj = callback;
+        msg.setData(data);
+        mHandler.sendMessage(msg);
+    }
+
+    /**
+     * Place a request to modify an existing subscribe discovery session on the
      * handler queue.
      */
-    public void subscribe(int clientId, int sessionId, SubscribeConfig subscribeConfig) {
-        Message msg = mHandler.obtainMessage(MESSAGE_SUBSCRIBE);
+    public void updateSubscribe(int clientId, int sessionId, SubscribeConfig subscribeConfig) {
+        Message msg = mHandler.obtainMessage(MESSAGE_UPDATE_SUBSCRIBE);
         msg.arg1 = clientId;
         msg.arg2 = sessionId;
         msg.obj = subscribeConfig;
@@ -476,26 +489,33 @@ public class WifiNanStateManager {
                     requestConfigLocal(msg.arg1, (ConfigRequest) msg.obj);
                     break;
                 }
-                case MESSAGE_CREATE_SESSION: {
+                case MESSAGE_TERMINATE_SESSION: {
                     if (VDBG) {
-                        Log.d(TAG, "Create session");
+                        Log.d(TAG, "Terminate session");
                     }
-                    createSessionLocal(msg.arg1, msg.arg2, (IWifiNanSessionCallback) msg.obj);
-                    break;
-                }
-                case MESSAGE_DESTROY_SESSION: {
-                    if (VDBG) {
-                        Log.d(TAG, "Destroy session");
-                    }
-                    destroySessionLocal(msg.arg1, msg.arg2);
+                    terminateSessionLocal(msg.arg1, msg.arg2);
                     break;
                 }
                 case MESSAGE_PUBLISH: {
-                    publishLocal(msg.arg1, msg.arg2, (PublishConfig) msg.obj);
+                    Bundle data = msg.getData();
+                    publishLocal(msg.arg1,
+                            (PublishConfig) data.getParcelable(MESSAGE_BUNDLE_KEY_CONFIG),
+                            (IWifiNanSessionCallback) msg.obj);
+                    break;
+                }
+                case MESSAGE_UPDATE_PUBLISH: {
+                    updatePublishLocal(msg.arg1, msg.arg2, (PublishConfig) msg.obj);
                     break;
                 }
                 case MESSAGE_SUBSCRIBE: {
-                    subscribeLocal(msg.arg1, msg.arg2, (SubscribeConfig) msg.obj);
+                    Bundle data = msg.getData();
+                    subscribeLocal(msg.arg1,
+                            (SubscribeConfig) data.getParcelable(MESSAGE_BUNDLE_KEY_CONFIG),
+                            (IWifiNanSessionCallback) msg.obj);
+                    break;
+                }
+                case MESSAGE_UPDATE_SUBSCRIBE: {
+                    updateSubscribeLocal(msg.arg1, msg.arg2, (SubscribeConfig) msg.obj);
                     break;
                 }
                 case MESSAGE_SEND_MESSAGE: {
@@ -512,13 +532,6 @@ public class WifiNanStateManager {
 
                     sendFollowonMessageLocal(msg.arg1, sessionId, peerId, message, msg.arg2,
                             messageId);
-                    break;
-                }
-                case MESSAGE_STOP_SESSION: {
-                    if (VDBG) {
-                        Log.d(TAG, "Stop session");
-                    }
-                    stopSessionLocal(msg.arg1, msg.arg2);
                     break;
                 }
                 case MESSAGE_ON_CAPABILITIES_UPDATED:
@@ -785,29 +798,15 @@ public class WifiNanStateManager {
                 .enableAndConfigure(createTransactionInfoConfig(merged).mTransactionId, merged);
     }
 
-    private void createSessionLocal(int clientId, int sessionId, IWifiNanSessionCallback callback) {
+    private void terminateSessionLocal(int clientId, int sessionId) {
         if (VDBG) {
-            Log.v(TAG, "createSession(): clientId=" + clientId + ", sessionId=" + sessionId
-                    + ", callback=" + callback);
+            Log.v(TAG,
+                    "terminateSessionLocal(): clientId=" + clientId + ", sessionId=" + sessionId);
         }
 
         WifiNanClientState client = mClients.get(clientId);
         if (client == null) {
-            Log.e(TAG, "createSession: no client exists for clientId=" + clientId);
-            return;
-        }
-
-        client.createSession(sessionId, callback);
-    }
-
-    private void destroySessionLocal(int clientId, int sessionId) {
-        if (VDBG) {
-            Log.v(TAG, "destroySession(): clientId=" + clientId + ", sessionId=" + sessionId);
-        }
-
-        WifiNanClientState client = mClients.get(clientId);
-        if (client == null) {
-            Log.e(TAG, "destroySession: no client exists for clientId=" + clientId);
+            Log.e(TAG, "terminateSession: no client exists for clientId=" + clientId);
             return;
         }
 
@@ -827,14 +826,23 @@ public class WifiNanStateManager {
             mPendingResponses.removeAt(id);
         }
 
-        client.destroySession(sessionId);
+        client.terminateSession(sessionId);
     }
 
-    private void publishLocal(int clientId, int sessionId, PublishConfig publishConfig) {
+    private void publishLocal(int clientId, PublishConfig publishConfig,
+            IWifiNanSessionCallback callback) {
         if (VDBG) {
-            Log.v(TAG, "publish(): clientId=" + clientId + ", sessionId=" + sessionId + ", config="
-                    + publishConfig);
+            Log.v(TAG, "publishLocal(): clientId=" + clientId + ", config=" + publishConfig
+                    + ", callback=" + callback);
         }
+
+        WifiNanClientState client = mClients.get(clientId);
+        if (client == null) {
+            Log.e(TAG, "publishLocal: no client exists for clientId=" + clientId);
+            return;
+        }
+        int sessionId = mNextSessionId++;
+        client.createSession(sessionId, callback, true);
 
         TransactionInfoSession info = createTransactionInfoSession(clientId, sessionId);
         if (info == null) {
@@ -844,9 +852,47 @@ public class WifiNanStateManager {
         info.mSession.publish(info.mTransactionId, publishConfig);
     }
 
-    private void subscribeLocal(int clientId, int sessionId, SubscribeConfig subscribeConfig) {
+    private void updatePublishLocal(int clientId, int sessionId, PublishConfig publishConfig) {
         if (VDBG) {
-            Log.v(TAG, "subscribe(): clientId=" + clientId + ", sessionId=" + sessionId
+            Log.v(TAG, "updatePublishLocal(): clientId=" + clientId + ", sessionId=" + sessionId
+                    + ", config=" + publishConfig);
+        }
+
+        TransactionInfoSession info = createTransactionInfoSession(clientId, sessionId);
+        if (info == null) {
+            return;
+        }
+
+        info.mSession.updatePublish(info.mTransactionId, publishConfig);
+    }
+
+    private void subscribeLocal(int clientId, SubscribeConfig subscribeConfig,
+            IWifiNanSessionCallback callback) {
+        if (VDBG) {
+            Log.v(TAG, "subscribe(): clientId=" + clientId + ", config=" + subscribeConfig
+                    + ", callback=" + callback);
+        }
+
+        WifiNanClientState client = mClients.get(clientId);
+        if (client == null) {
+            Log.e(TAG, "subscribeLocal: no client exists for clientId=" + clientId);
+            return;
+        }
+        int sessionId = mNextSessionId++;
+        client.createSession(sessionId, callback, false);
+
+        TransactionInfoSession info = createTransactionInfoSession(clientId, sessionId);
+        if (info == null) {
+            return;
+        }
+
+        info.mSession.subscribe(info.mTransactionId, subscribeConfig);
+    }
+
+    private void updateSubscribeLocal(int clientId, int sessionId,
+            SubscribeConfig subscribeConfig) {
+        if (VDBG) {
+            Log.v(TAG, "updateSubscribeLocal(): clientId=" + clientId + ", sessionId=" + sessionId
                     + ", config=" + subscribeConfig);
         }
 
@@ -855,7 +901,7 @@ public class WifiNanStateManager {
             return;
         }
 
-        info.mSession.subscribe(info.mTransactionId, subscribeConfig);
+        info.mSession.updateSubscribe(info.mTransactionId, subscribeConfig);
     }
 
     private void sendFollowonMessageLocal(int clientId, int sessionId, int peerId, byte[] message,
@@ -873,19 +919,6 @@ public class WifiNanStateManager {
         }
 
         info.mSession.sendMessage(info.mTransactionId, peerId, message, messageLength, messageId);
-    }
-
-    private void stopSessionLocal(int clientId, int sessionId) {
-        if (VDBG) {
-            Log.v(TAG, "stopSession(): clientId=" + clientId + ", sessionId=" + sessionId);
-        }
-
-        TransactionInfoSession info = createTransactionInfoSession(clientId, sessionId);
-        if (info == null) {
-            return;
-        }
-
-        info.mSession.stop(info.mTransactionId);
     }
 
     /*
@@ -1016,7 +1049,8 @@ public class WifiNanStateManager {
 
         TransactionInfoBase info = getAndRemovePendingResponseTransactionInfo(transactionId);
         if (info == null) {
-            Log.e(TAG, "onPublishSuccess(): no info registered for transactionId=" + transactionId);
+            Log.w(TAG, "onPublishSuccess(): no info registered for transactionId=" + transactionId);
+            WifiNanNative.getInstance().stopPublish(createNextTransactionId(), publishId);
             return;
         }
         if (!(info instanceof TransactionInfoSession)) {
@@ -1024,6 +1058,7 @@ public class WifiNanStateManager {
                     + transactionId);
             return;
         }
+
         TransactionInfoSession infoSession = (TransactionInfoSession) info;
 
         infoSession.mSession.onPublishSuccess(publishId);
@@ -1071,8 +1106,9 @@ public class WifiNanStateManager {
 
         TransactionInfoBase info = getAndRemovePendingResponseTransactionInfo(transactionId);
         if (info == null) {
-            Log.e(TAG,
+            Log.w(TAG,
                     "onSubscribeSuccess(): no info registered for transactionId=" + transactionId);
+            WifiNanNative.getInstance().stopSubscribe(createNextTransactionId(), subscribeId);
             return;
         }
         if (!(info instanceof TransactionInfoSession)) {
@@ -1284,6 +1320,7 @@ public class WifiNanStateManager {
         pw.println("  mPendingResponses: [" + mPendingResponses + "]");
         pw.println("  mCapabilities: [" + mCapabilities + "]");
         pw.println("  mNextTransactionId: " + mNextTransactionId);
+        pw.println("  mNextSessionId: " + mNextSessionId);
         for (int i = 0; i < mClients.size(); ++i) {
             mClients.valueAt(i).dump(fd, pw, args);
         }

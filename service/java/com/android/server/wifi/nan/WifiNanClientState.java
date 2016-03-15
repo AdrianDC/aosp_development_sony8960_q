@@ -61,7 +61,7 @@ public class WifiNanClientState {
     public void destroy() {
         mCallback = null;
         for (int i = 0; i < mSessions.size(); ++i) {
-            mSessions.valueAt(i).destroy();
+            mSessions.valueAt(i).terminate();
         }
         mSessions.clear();
         mConfigRequest = null;
@@ -104,13 +104,14 @@ public class WifiNanClientState {
      * @param sessionId Session ID of the new discovery session.
      * @param callback Singleton session callback.
      */
-    public void createSession(int sessionId, IWifiNanSessionCallback callback) {
+    public void createSession(int sessionId, IWifiNanSessionCallback callback,
+            boolean isPublishSession) {
         WifiNanSessionState session = mSessions.get(sessionId);
         if (session != null) {
             Log.e(TAG, "createSession: sessionId already exists (replaced) - " + sessionId);
         }
 
-        mSessions.put(sessionId, new WifiNanSessionState(sessionId, callback));
+        mSessions.put(sessionId, new WifiNanSessionState(sessionId, callback, isPublishSession));
     }
 
     /**
@@ -119,15 +120,15 @@ public class WifiNanClientState {
      *
      * @param sessionId The session ID of the session to be destroyed.
      */
-    public void destroySession(int sessionId) {
+    public void terminateSession(int sessionId) {
         WifiNanSessionState session = mSessions.get(sessionId);
         if (session == null) {
-            Log.e(TAG, "destroySession: sessionId doesn't exist - " + sessionId);
+            Log.e(TAG, "terminateSession: sessionId doesn't exist - " + sessionId);
             return;
         }
 
         mSessions.delete(sessionId);
-        session.destroy();
+        session.terminate();
     }
 
     /**

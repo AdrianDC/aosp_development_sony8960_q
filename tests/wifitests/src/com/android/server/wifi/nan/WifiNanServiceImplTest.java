@@ -37,9 +37,7 @@ import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -64,9 +62,6 @@ public class WifiNanServiceImplTest {
     private IBinder mBinderMock;
     @Mock
     IWifiNanEventCallback mCallbackMock;
-
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
 
     /**
      * Using instead of spy to avoid native crash failures - possibly due to
@@ -144,10 +139,8 @@ public class WifiNanServiceImplTest {
      * Validate that security exception thrown when attempting operation using
      * an invalid client ID.
      */
-    @Test
+    @Test(expected = SecurityException.class)
     public void testFailOnInvalidClientId() {
-        thrown.expect(SecurityException.class);
-
         mDut.disconnect(-1, mBinderMock);
     }
 
@@ -155,10 +148,8 @@ public class WifiNanServiceImplTest {
      * Validate that security exception thrown when attempting operation using
      * an a client ID which was already cleared-up.
      */
-    @Test
+    @Test(expected = SecurityException.class)
     public void testFailOnClearedUpClientId() throws Exception {
-        thrown.expect(SecurityException.class);
-
         int clientId = doConnect();
 
         mDut.disconnect(clientId, mBinderMock);
@@ -248,45 +239,16 @@ public class WifiNanServiceImplTest {
     }
 
     /**
-     * Validate stopSession() - correct pass-through args.
+     * Validate terminateSession() - correct pass-through args.
      */
     @Test
     public void testStopSession() {
         int sessionId = 1024;
         int clientId = doConnect();
 
-        mDut.stopSession(clientId, sessionId);
+        mDut.terminateSession(clientId, sessionId);
 
-        verify(mNanStateManagerMock).stopSession(clientId, sessionId);
-    }
-
-    /**
-     * Validate destroySession() - correct pass-through args.
-     */
-    @Test
-    public void testDestroySession() {
-        int sessionId = 1024;
-        int clientId = doConnect();
-
-        mDut.destroySession(clientId, sessionId);
-
-        verify(mNanStateManagerMock).destroySession(clientId, sessionId);
-    }
-
-    /**
-     * Validate createSession() - correct pass-through args.
-     */
-    @Test
-    public void testCreateSession() {
-        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
-        int clientId = doConnect();
-
-        ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
-        int returnedSessionId = mDut.createSession(clientId, mockCallback);
-
-        verify(mNanStateManagerMock).createSession(eq(clientId), sessionId.capture(),
-                eq(mockCallback));
-        assertEquals(returnedSessionId, (int) sessionId.getValue());
+        verify(mNanStateManagerMock).terminateSession(clientId, sessionId);
     }
 
     /**
@@ -294,13 +256,13 @@ public class WifiNanServiceImplTest {
      */
     @Test
     public void testPublish() {
-        int sessionId = 1024;
         PublishConfig publishConfig = new PublishConfig.Builder().build();
         int clientId = doConnect();
+        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
 
-        mDut.publish(clientId, sessionId, publishConfig);
+        mDut.publish(clientId, publishConfig, mockCallback);
 
-        verify(mNanStateManagerMock).publish(clientId, sessionId, publishConfig);
+        verify(mNanStateManagerMock).publish(clientId, publishConfig, mockCallback);
     }
 
     /**
@@ -308,13 +270,13 @@ public class WifiNanServiceImplTest {
      */
     @Test
     public void testSubscribe() {
-        int sessionId = 2678;
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
         int clientId = doConnect();
+        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
 
-        mDut.subscribe(clientId, sessionId, subscribeConfig);
+        mDut.subscribe(clientId, subscribeConfig, mockCallback);
 
-        verify(mNanStateManagerMock).subscribe(clientId, sessionId, subscribeConfig);
+        verify(mNanStateManagerMock).subscribe(clientId, subscribeConfig, mockCallback);
     }
 
     /**
