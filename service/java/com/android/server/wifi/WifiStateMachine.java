@@ -4369,6 +4369,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         // [8 - 0] Supplicant state (as defined in SupplicantState.java)
         // 50023 supplicant_state_changed (custom|1|5)
         mWifiInfo.setSupplicantState(state);
+        // If we receive a supplicant state change with an empty SSID,
+        // this implies that wpa_supplicant is already disconnected.
+        // We should pretend we are still connected when linkDebouncing is on.
+        if ((stateChangeResult.wifiSsid == null
+                || stateChangeResult.wifiSsid.toString().isEmpty()) && linkDebouncing) {
+            return state;
+        }
         // Network id is only valid when we start connecting
         if (SupplicantState.isConnecting(state)) {
             mWifiInfo.setNetworkId(stateChangeResult.networkId);
