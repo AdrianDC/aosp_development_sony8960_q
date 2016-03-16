@@ -454,7 +454,7 @@ class NinjaGenerator {
       }
 
       if (needs_subshell)
-        *cmd_buf += ')';
+        *cmd_buf += " )";
     }
     return (was_gomacc_found || g_flags.remote_num_jobs ||
             g_flags.goma_dir) && !use_gomacc;
