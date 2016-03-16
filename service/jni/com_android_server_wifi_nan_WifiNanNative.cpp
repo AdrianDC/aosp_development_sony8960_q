@@ -423,7 +423,7 @@ static jint android_net_wifi_nan_subscribe(JNIEnv *env, jclass cls,
     msg.subscribe_match_indicator = (NanMatchAlg) helper.getIntField(
       subscribe_config, "mMatchStyle");
 
-    msg.recv_indication_cfg;
+    msg.recv_indication_cfg = 0;
     if (!helper.getBoolField(subscribe_config, "mEnableTerminateNotification")) {
       msg.recv_indication_cfg |= 0x1;
     }
