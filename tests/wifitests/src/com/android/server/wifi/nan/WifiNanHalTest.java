@@ -166,6 +166,7 @@ public class WifiNanHalTest {
         final String ssi = "some much longer arbitrary data";
         final int subscribeCount = 32;
         final int subscribeTtl = 33;
+        final int matchStyle = SubscribeConfig.MATCH_STYLE_ALL;
 
         TlvBufferUtils.TlvConstructor tlvTx = new TlvBufferUtils.TlvConstructor(0, 1);
         tlvTx.allocate(150).putByte(0, (byte) 10).putInt(0, 100).putString(0, "some string")
@@ -176,7 +177,7 @@ public class WifiNanHalTest {
                 .putZeroLengthElement(0).putByteArray(0, serviceName.getBytes());
 
         testSubscribe(transactionId, subscribeId, SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE,
-                serviceName, ssi, tlvTx, tlvRx, subscribeCount, subscribeTtl);
+                serviceName, ssi, tlvTx, tlvRx, subscribeCount, subscribeTtl, matchStyle);
     }
 
     @Test
@@ -187,6 +188,7 @@ public class WifiNanHalTest {
         final String ssi = "some much longer arbitrary data";
         final int subscribeCount = 32;
         final int subscribeTtl = 33;
+        final int matchStyle = SubscribeConfig.MATCH_STYLE_FIRST_ONLY;
 
         TlvBufferUtils.TlvConstructor tlvTx = new TlvBufferUtils.TlvConstructor(0, 1);
         tlvTx.allocate(150).putByte(0, (byte) 10).putInt(0, 100).putString(0, "some string")
@@ -197,7 +199,7 @@ public class WifiNanHalTest {
                 .putZeroLengthElement(0).putByteArray(0, serviceName.getBytes());
 
         testSubscribe(transactionId, subscribeId, SubscribeConfig.SUBSCRIBE_TYPE_ACTIVE,
-                serviceName, ssi, tlvTx, tlvRx, subscribeCount, subscribeTtl);
+                serviceName, ssi, tlvTx, tlvRx, subscribeCount, subscribeTtl, matchStyle);
     }
 
     @Test
@@ -720,14 +722,14 @@ public class WifiNanHalTest {
 
     private void testSubscribe(short transactionId, int subscribeId, int subscribeType,
             String serviceName, String ssi, TlvBufferUtils.TlvConstructor tlvTx,
-            TlvBufferUtils.TlvConstructor tlvRx, int subscribeCount, int subscribeTtl)
-                    throws JSONException {
+            TlvBufferUtils.TlvConstructor tlvRx, int subscribeCount, int subscribeTtl,
+            int matchStyle) throws JSONException {
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(ssi)
                 .setTxFilter(tlvTx.getArray(), tlvTx.getActualLength())
                 .setRxFilter(tlvRx.getArray(), tlvRx.getActualLength())
                 .setSubscribeType(subscribeType).setSubscribeCount(subscribeCount)
-                .setTtlSec(subscribeTtl).build();
+                .setTtlSec(subscribeTtl).setMatchStyle(matchStyle).build();
 
         mDut.subscribe(transactionId, subscribeId, subscribeConfig);
 
@@ -749,7 +751,7 @@ public class WifiNanHalTest {
         collector.checkThat("ssiRequiredForMatchIndication",
                 argsData.getInt("ssiRequiredForMatchIndication"), equalTo(0));
         collector.checkThat("subscribe_match_indicator",
-                argsData.getInt("subscribe_match_indicator"), equalTo(0));
+                argsData.getInt("subscribe_match_indicator"), equalTo(matchStyle));
         collector.checkThat("subscribe_count", argsData.getInt("subscribe_count"),
                 equalTo(subscribeCount));
         collector.checkThat("service_name_len", argsData.getInt("service_name_len"),
