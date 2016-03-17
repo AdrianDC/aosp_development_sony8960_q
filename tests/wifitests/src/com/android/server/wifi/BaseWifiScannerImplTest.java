@@ -60,6 +60,7 @@ public abstract class BaseWifiScannerImplTest {
     MockWifiMonitor mWifiMonitor;
     MockLooper mLooper;
     @Mock WifiNative mWifiNative;
+    MockResources mResources;
 
     /**
      * mScanner implementation should be filled in by derived test class
@@ -73,11 +74,14 @@ public abstract class BaseWifiScannerImplTest {
         mLooper = new MockLooper();
         mAlarmManager = new MockAlarmManager();
         mWifiMonitor = new MockWifiMonitor();
+        mResources = new MockResources();
 
         when(mWifiNative.getInterfaceName()).thenReturn("a_test_interface_name");
 
         when(mContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
+
+        when(mContext.getResources()).thenReturn(mResources);
     }
 
     protected Set<Integer> expectedBandScanFreqs(int band) {

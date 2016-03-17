@@ -228,6 +228,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private static final int CMD_SCAN_FAILED                         = BASE + 10;
     private static final int CMD_SCAN_TIMEOUT                        = BASE + 11;
     private static final int CMD_PNO_NETWORK_FOUND                   = BASE + 12;
+    private static final int CMD_PNO_SCAN_FAILED                     = BASE + 13;
 
     private final Context mContext;
     private final Looper mLooper;
@@ -722,6 +723,12 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             sendMessage(CMD_PNO_NETWORK_FOUND, 0, 0, results);
         }
 
+        @Override
+        public void onPnoScanFailed() {
+            if (DBG) localLog("onWifiPnoScanFailed event received");
+            sendMessage(CMD_PNO_SCAN_FAILED, 0, 0, null);
+        }
+
         class DefaultState extends State {
             @Override
             public void enter() {
@@ -906,11 +913,14 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         // report this)
                         Log.e(TAG, "WifiScanner background scan gave CMD_SCAN_FAILED");
                         break;
-                    case CMD_PNO_NETWORK_FOUND: {
+                    case CMD_PNO_NETWORK_FOUND:
                         ScanResult[] results = (ScanResult[]) msg.obj;
                         reportPnoNetworkFound(results);
-                    }
-                    break;
+                        break;
+                    case CMD_PNO_SCAN_FAILED:
+                        sendPnoScanFailedToAllAndClear(
+                                WifiScanner.REASON_UNSPECIFIED, "Pno Scan start failed");
+                        break;
                     default:
                         return NOT_HANDLED;
                 }

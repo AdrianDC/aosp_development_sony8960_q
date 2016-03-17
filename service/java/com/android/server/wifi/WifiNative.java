@@ -1930,6 +1930,11 @@ public class WifiNative {
          * @param results List of Scan results received.
          */
         void onPnoNetworkFound(ScanResult[] results);
+
+        /**
+         * Callback to notify when the PNO scan schedule fails.
+         */
+        void onPnoScanFailed();
     }
 
     /* scan status, keep these values in sync with gscan.h */
