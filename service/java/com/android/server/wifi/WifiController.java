@@ -120,6 +120,7 @@ class WifiController extends StateMachine {
     static final int CMD_AP_START_FAILURE             = BASE + 13;
     static final int CMD_EMERGENCY_CALL_STATE_CHANGED = BASE + 14;
     static final int CMD_AP_STOPPED                   = BASE + 15;
+    static final int CMD_STA_START_FAILURE            = BASE + 16;
 
     private static final int WIFI_DISABLED = 0;
     private static final int WIFI_ENABLED = 1;
@@ -184,6 +185,7 @@ class WifiController extends StateMachine {
         filter.addAction(ACTION_DEVICE_IDLE);
         filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         filter.addAction(WifiManager.WIFI_AP_STATE_CHANGED_ACTION);
+        filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
         mContext.registerReceiver(
                 new BroadcastReceiver() {
                     @Override
@@ -203,6 +205,14 @@ class WifiController extends StateMachine {
                                 sendMessage(CMD_AP_START_FAILURE);
                             } else if (state == WifiManager.WIFI_AP_STATE_DISABLED) {
                                 sendMessage(CMD_AP_STOPPED);
+                            }
+                        } else if (action.equals(WifiManager.WIFI_STATE_CHANGED_ACTION)) {
+                            int state = intent.getIntExtra(
+                                    WifiManager.EXTRA_WIFI_STATE,
+                                    WifiManager.WIFI_STATE_UNKNOWN);
+                            if (state == WifiManager.WIFI_STATE_UNKNOWN) {
+                                loge(TAG + "Wifi turn on failed");
+                                sendMessage(CMD_STA_START_FAILURE);
                             }
                         }
                     }
@@ -396,6 +406,7 @@ class WifiController extends StateMachine {
                 case CMD_EMERGENCY_CALL_STATE_CHANGED:
                 case CMD_AP_START_FAILURE:
                 case CMD_AP_STOPPED:
+                case CMD_STA_START_FAILURE:
                     break;
                 case CMD_USER_PRESENT:
                     mFirstUserSignOnSeen = true;
@@ -523,6 +534,13 @@ class WifiController extends StateMachine {
                     }
                     break;
                 case CMD_EMERGENCY_CALL_STATE_CHANGED:
+                case CMD_STA_START_FAILURE:
+                    if (!mSettingsStore.isScanAlwaysAvailable()) {
+                        transitionTo(mApStaDisabledState);
+                    } else {
+                        transitionTo(mStaDisabledWithScanState);
+                    }
+                    break;
                 case CMD_EMERGENCY_MODE_CHANGED:
                     if (msg.arg1 == 1) {
                         transitionTo(mEcmState);
