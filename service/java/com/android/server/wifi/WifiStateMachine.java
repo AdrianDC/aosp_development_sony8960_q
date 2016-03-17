@@ -111,7 +111,6 @@ import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
-import com.android.server.wifi.util.ScanDetailUtil;
 
 import java.io.BufferedReader;
 import java.io.FileDescriptor;
@@ -127,7 +126,6 @@ import java.util.Calendar;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
@@ -199,6 +197,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     private final String mPrimaryDeviceType;
     private final UserManager mUserManager;
     private final Clock mClock = new Clock();
+    private final WifiCountryCode mCountryCode;
 
     /* Scan results handling */
     private List<ScanDetail> mScanResults = new ArrayList<>();
@@ -423,9 +422,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     private SupplicantStateTracker mSupplicantStateTracker;
 
     private int mWifiLinkLayerStatsSupported = 4; // Temporary disable
-
-    private final AtomicBoolean mHasSetCountryCode = new AtomicBoolean(false);
-    private final AtomicInteger mCountryCodeSequence = new AtomicInteger();
 
     // Whether the state machine goes thru the Disconnecting->Disconnected->ObtainingIpAddress
     private boolean mAutoRoaming = false;
@@ -710,8 +706,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
      * - DTIM wake up settings
      */
     static final int CMD_SET_HIGH_PERF_MODE                             = BASE + 77;
-    /* Set the country code */
-    static final int CMD_SET_COUNTRY_CODE                               = BASE + 80;
     /* Enables RSSI poll */
     static final int CMD_ENABLE_RSSI_POLL                               = BASE + 82;
     /* RSSI poll */
@@ -968,20 +962,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
     int mRunningBeaconCount = 0;
 
-
-    // config option that indicate whether or not to reset country code to default when
-    // cellular radio indicates country code loss
-    private boolean mRevertCountryCodeOnCellularLoss = false;
-
-    private String mDefaultCountryCode;
-
-    private static final String BOOT_DEFAULT_WIFI_COUNTRY_CODE = "ro.boot.wificountrycode";
-
-    // Supplicant doesn't like setting the same country code multiple times (it may drop
-    // currently connected network), so we save the current device set country code here to avoid
-    // redundency
-    private String mDriverSetCountryCode = null;
-
     /* Default parent state */
     private State mDefaultState = new DefaultState();
     /* Temporary initial state */
@@ -1127,7 +1107,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
     public WifiStateMachine(Context context, FrameworkFacade facade, Looper looper,
                             UserManager userManager, WifiInjector wifiInjector,
-                            BackupManagerProxy backupManagerProxy) {
+                            BackupManagerProxy backupManagerProxy,
+                            WifiCountryCode countryCode) {
         super("WifiStateMachine", looper);
 
         mWifiMetrics = wifiInjector.getWifiMetrics();
@@ -1205,26 +1186,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         mPrimaryDeviceType = mContext.getResources().getString(
                 R.string.config_wifi_p2p_device_type);
 
-        mRevertCountryCodeOnCellularLoss = mContext.getResources().getBoolean(
-                R.bool.config_wifi_revert_country_code_on_cellular_loss);
-
-        mDefaultCountryCode = SystemProperties.get(BOOT_DEFAULT_WIFI_COUNTRY_CODE);
-        if (TextUtils.isEmpty(mDefaultCountryCode) == false) {
-            mDefaultCountryCode = mDefaultCountryCode.toUpperCase(Locale.ROOT);
-        }
-
-        if (mRevertCountryCodeOnCellularLoss && TextUtils.isEmpty(mDefaultCountryCode)) {
-            logw("config_wifi_revert_country_code_on_cellular_loss is set, " +
-                    "but there is no default country code!! Resetting ...");
-            mRevertCountryCodeOnCellularLoss = false;
-        } else if (mRevertCountryCodeOnCellularLoss) {
-            logd("initializing with and will revert to " + mDefaultCountryCode + " on MCC loss");
-        }
-
-        if (mRevertCountryCodeOnCellularLoss) {
-            Settings.Global.putString(mContext.getContentResolver(),
-                    Settings.Global.WIFI_COUNTRY_CODE, mDefaultCountryCode);
-        }
+        mCountryCode = countryCode;
 
         mUserWantsSuspendOpt.set(mFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_SUSPEND_OPTIMIZATIONS_ENABLED, 1) == 1);
@@ -1452,6 +1414,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             DBG = false;
             mWifiNative.setSupplicantLogLevel("INFO");
         }
+        mCountryCode.enableVerboseLogging(verbose);
         mWifiLogger.startLogging(DBG);
         mWifiMonitor.enableVerboseLogging(verbose);
         mWifiNative.enableVerboseLogging(verbose);
@@ -2603,44 +2566,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         sendMessage(CMD_SET_HIGH_PERF_MODE, enable ? 1 : 0, 0);
     }
 
-    /**
-     * Set the country code
-     *
-     * @param countryCode following ISO 3166 format
-     * @param persist     {@code true} if the setting should be remembered.
-     */
-    public synchronized void setCountryCode(String countryCode, boolean persist) {
-        // If it's a good country code, apply after the current
-        // wifi connection is terminated; ignore resetting of code
-        // for now (it is unclear what the chipset should do when
-        // country code is reset)
-
-        // Set country code if it has never been set before or if the new country code is different
-        // from the previous one.
-
-        if (TextUtils.isEmpty(countryCode)) {
-            if (DBG) log("Ignoring resetting of country code");
-        } else {
-            String currentCountryCode = getCurrentCountryCode();
-            if (!mHasSetCountryCode.get()
-                    || TextUtils.equals(countryCode, currentCountryCode) == false) {
-
-                int countryCodeSequence = mCountryCodeSequence.incrementAndGet();
-                sendMessage(CMD_SET_COUNTRY_CODE, countryCodeSequence, persist ? 1 : 0,
-                        countryCode);
-            }
-        }
-    }
-
-    /**
-     * reset the country code to default
-     */
-    public synchronized void resetCountryCode() {
-        if (mRevertCountryCodeOnCellularLoss && TextUtils.isEmpty(mDefaultCountryCode) == false) {
-            logd("resetting country code to " + mDefaultCountryCode);
-            setCountryCode(mDefaultCountryCode, /* persist = */ true);
-        }
-    }
 
     /**
      * reset cached SIM credential data
@@ -2648,7 +2573,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     public synchronized void resetSimAuthNetworks() {
         sendMessage(CMD_RESET_SIM_NETWORKS);
     }
-
 
     /**
      * Get Network object of current wifi network
@@ -2662,14 +2586,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         }
     }
 
-    /**
-     * Get the country code
-     *
-     * @return countryCode following ISO 3166 format
-     */
-    public String getCurrentCountryCode() {
-        return mFacade.getStringSetting(mContext, Settings.Global.WIFI_COUNTRY_CODE);
-    }
 
     /**
      * Set the operational frequency band
@@ -2798,7 +2714,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         pw.println("mSuspendOptNeedsDisabled " + mSuspendOptNeedsDisabled);
         pw.println("Supplicant status " + mWifiNative.status(true));
         pw.println("mLegacyPnoEnabled " + mLegacyPnoEnabled);
-        pw.println("mDriverSetCountryCode " + mDriverSetCountryCode);
+        if (mCountryCode.getCurrentCountryCode() != null) {
+            pw.println("CurrentCountryCode " + mCountryCode.getCurrentCountryCode());
+        } else {
+            pw.println("CurrentCountryCode is not initialized");
+        }
         pw.println("mConnectedModeGScanOffloadStarted " + mConnectedModeGScanOffloadStarted);
         pw.println("mGScanPeriodMilli " + mGScanPeriodMilli);
         if (mWhiteListedSsids != null && mWhiteListedSsids.length > 0) {
@@ -3379,15 +3299,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     sb.append(" ").append((String) msg.obj);
                 }
                 break;
-            case CMD_SET_COUNTRY_CODE:
-                sb.append(" ");
-                sb.append(Integer.toString(msg.arg1));
-                sb.append(" ");
-                sb.append(Integer.toString(msg.arg2));
-                if (msg.obj != null) {
-                    sb.append(" ").append((String) msg.obj);
-                }
-                break;
             case CMD_ROAM_WATCHDOG_TIMER:
                 sb.append(" ");
                 sb.append(Integer.toString(msg.arg1));
@@ -3750,17 +3661,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         }
     }
 
-    /**
-     * Set the country code from the system setting value, if any.
-     */
-    private void initializeCountryCode() {
-        String countryCode = getCurrentCountryCode();
-        if (countryCode != null && !countryCode.isEmpty()) {
-            setCountryCode(countryCode, false);
-        } else {
-            //use driver default
-        }
-    }
 
     /**
      * Set the frequency band from the system setting value, if any.
@@ -4982,24 +4882,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 case CMD_UPDATE_ASSOCIATED_SCAN_PERMISSION:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
-                case CMD_SET_COUNTRY_CODE:
-                    String country = (String) message.obj;
-                    final boolean persist = (message.arg2 == 1);
-                    final int sequence = message.arg1;
-                    if (sequence != mCountryCodeSequence.get()) {
-                        if (DBG) log("set country code ignored due to sequnce num");
-                        break;
-                    }
-
-                    if (persist) {
-                        country = country.toUpperCase(Locale.ROOT);
-                        if (DBG) log("set country code " + (country == null ? "(null)" : country));
-                        Settings.Global.putString(mContext.getContentResolver(),
-                                Settings.Global.WIFI_COUNTRY_CODE,
-                                country == null ? "" : country);
-                    }
-
-                    break;
                 case CMD_SET_SUSPEND_OPT_ENABLED:
                     if (message.arg1 == 1) {
                         mSuspendWakeLock.release();
@@ -5308,7 +5190,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 case CMD_START_DRIVER:
                 case CMD_STOP_DRIVER:
                 case CMD_SET_OPERATIONAL_MODE:
-                case CMD_SET_COUNTRY_CODE:
                 case CMD_SET_FREQUENCY_BAND:
                 case CMD_START_PACKET_FILTERING:
                 case CMD_STOP_PACKET_FILTERING:
@@ -5342,11 +5223,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             /* turn on use of DFS channels */
             mWifiNative.setDfsFlag(true);
 
-            /* set country code */
-            initializeCountryCode();
-
             setRandomMacOui();
             mWifiNative.enableAutoConnect(false);
+            mCountryCode.setReadyForChange(true);
         }
 
         @Override
@@ -5422,35 +5301,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     }
                     replyToMessage(message, message.what, stats);
                     break;
-                case CMD_SET_COUNTRY_CODE:
-                    String country = (String) message.obj;
-                    final boolean persist = (message.arg2 == 1);
-                    final int sequence = message.arg1;
-                    if (sequence != mCountryCodeSequence.get()) {
-                        if (DBG) log("set country code ignored due to sequnce num");
-                        break;
-                    }
-
-                    country = country.toUpperCase(Locale.ROOT);
-
-                    if (DBG) log("set country code " + (country == null ? "(null)" : country));
-
-                    if (!TextUtils.equals(mDriverSetCountryCode, country)) {
-                        if (mWifiNative.setCountryCode(country)) {
-                            mDriverSetCountryCode = country;
-                            mHasSetCountryCode.set(true);
-                            if (persist) {
-                                Settings.Global.putString(mContext.getContentResolver(),
-                                        Settings.Global.WIFI_COUNTRY_CODE,
-                                        country == null ? "" : country);
-                            }
-                        } else {
-                            loge("Failed to set country code " + country);
-                        }
-                    }
-
-                    mWifiP2pChannel.sendMessage(WifiP2pServiceImpl.SET_COUNTRY_CODE, country);
-                    break;
                 case CMD_RESET_SIM_NETWORKS:
                     log("resetting EAP-SIM/AKA/AKA' networks since SIM was removed");
                     mWifiConfigManager.resetSimNetworks();
@@ -5465,6 +5315,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         public void exit() {
             mNetworkInfo.setIsAvailable(false);
             if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
+            mCountryCode.setReadyForChange(false);
         }
     }
 
@@ -5517,7 +5368,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 case CMD_START_DRIVER:
                 case CMD_STOP_DRIVER:
                 case CMD_SET_OPERATIONAL_MODE:
-                case CMD_SET_COUNTRY_CODE:
                 case CMD_SET_FREQUENCY_BAND:
                 case CMD_START_PACKET_FILTERING:
                 case CMD_STOP_PACKET_FILTERING:
@@ -5581,7 +5431,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                 case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
                 case WifiMonitor.WPS_OVERLAP_EVENT:
-                case CMD_SET_COUNTRY_CODE:
                 case CMD_SET_FREQUENCY_BAND:
                 case CMD_START_PACKET_FILTERING:
                 case CMD_STOP_PACKET_FILTERING:
@@ -5873,7 +5722,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 case CMD_START_DRIVER:
                 case CMD_STOP_DRIVER:
                 case CMD_SET_OPERATIONAL_MODE:
-                case CMD_SET_COUNTRY_CODE:
                 case CMD_SET_FREQUENCY_BAND:
                 case CMD_START_PACKET_FILTERING:
                 case CMD_STOP_PACKET_FILTERING:
@@ -5906,7 +5754,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     /* Queue driver commands */
                 case CMD_START_DRIVER:
                 case CMD_STOP_DRIVER:
-                case CMD_SET_COUNTRY_CODE:
                 case CMD_SET_FREQUENCY_BAND:
                 case CMD_START_PACKET_FILTERING:
                 case CMD_STOP_PACKET_FILTERING:
@@ -6111,9 +5958,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 break;
             case WifiP2pServiceImpl.BLOCK_DISCOVERY:
                 s = "P2P.BLOCK_DISCOVERY";
-                break;
-            case WifiP2pServiceImpl.SET_COUNTRY_CODE:
-                s = "P2P.SET_COUNTRY_CODE";
                 break;
             case WifiManager.CANCEL_WPS:
                 s = "CANCEL_WPS";
@@ -7418,6 +7262,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             // from this point on and having the BSSID specified in the network block would
             // cause the roam to faile and the device to disconnect
             clearCurrentConfigBSSID("L2ConnectedState");
+            mCountryCode.setReadyForChange(false);
         }
 
         @Override
@@ -7439,6 +7284,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             if (mLastBssid != null || mLastNetworkId != WifiConfiguration.INVALID_NETWORK_ID) {
                 handleNetworkDisconnect();
             }
+            mCountryCode.setReadyForChange(true);
         }
 
         @Override
@@ -7511,10 +7357,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     mWifiConfigManager.
                                 setAndEnableLastSelectedConfiguration(
                                         WifiConfiguration.INVALID_NETWORK_ID);
-                    break;
-                case CMD_SET_COUNTRY_CODE:
-                    messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
-                    deferMessage(message);
                     break;
                 case CMD_START_SCAN:
                     if (DBG) {
@@ -8932,7 +8774,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 checkAndSetConnectivityInstance();
                 mSoftApManager = mFacade.makeSoftApManager(
                         mContext, getHandler().getLooper(), mWifiNative, mNwService,
-                        mCm, getCurrentCountryCode(),
+                        mCm, mCountryCode.getCurrentCountryCode(),
                         mWifiApConfigStore.getAllowed2GChannel(),
                         new SoftApListener());
                 mSoftApManager.start(config);
