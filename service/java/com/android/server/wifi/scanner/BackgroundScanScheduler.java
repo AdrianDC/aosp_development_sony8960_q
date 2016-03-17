@@ -11,10 +11,10 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.scanner;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -25,7 +25,7 @@ import android.net.wifi.WifiScanner.ScanSettings;
 import android.util.Rational;
 import android.util.Slog;
 
-import com.android.server.wifi.scanner.ChannelHelper;
+import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
 
 import java.util.ArrayList;
@@ -50,10 +50,17 @@ import java.util.List;
  *
  * <p>This class is not thread safe.</p>
  */
-public class MultiClientScheduler extends WifiScanningScheduler {
+public class BackgroundScanScheduler {
 
-    private static final String TAG = WifiScanningService.TAG;
+    private static final String TAG = "BackgroundScanScheduler";
     private static final boolean DBG = false;
+
+    public static final int DEFAULT_MAX_BUCKETS = 8;
+    public static final int DEFAULT_MAX_CHANNELS = 32;
+    // anecdotally, some chipsets will fail without explanation with a higher batch size, and
+    // there is apparently no way to retrieve the maximum batch size
+    public static final int DEFAULT_MAX_SCANS_TO_BATCH = 10;
+    public static final int DEFAULT_MAX_AP_PER_SCAN = 32;
 
     /**
      * Value that all scan periods must be an integer multiple of
@@ -113,7 +120,7 @@ public class MultiClientScheduler extends WifiScanningScheduler {
         public int period;
         public final List<ScanSettings> settings = new ArrayList<>();
 
-        public Bucket(int period) {
+        Bucket(int period) {
             this.period = period;
         }
 
@@ -191,7 +198,7 @@ public class MultiClientScheduler extends WifiScanningScheduler {
         private final Bucket[] mBuckets;
         private int mActiveBucketCount = 0;
 
-        public BucketList() {
+        BucketList() {
             mBuckets = new Bucket[PREDEFINED_BUCKET_PERIODS.length];
         }
 
@@ -241,18 +248,59 @@ public class MultiClientScheduler extends WifiScanningScheduler {
         }
     }
 
+    private int mMaxBuckets = DEFAULT_MAX_BUCKETS;
+    private int mMaxChannels = DEFAULT_MAX_CHANNELS;
+    private int mMaxBatch = DEFAULT_MAX_SCANS_TO_BATCH;
+    private int mMaxApPerScan = DEFAULT_MAX_AP_PER_SCAN;
+
+    public int getMaxBuckets() {
+        return mMaxBuckets;
+    }
+
+    public void setMaxBuckets(int maxBuckets) {
+        mMaxBuckets = maxBuckets;
+    }
+
+    public int getMaxChannels() {
+        return mMaxChannels;
+    }
+
+    // TODO: find a way to get max channels
+    public void setMaxChannels(int maxChannels) {
+        mMaxChannels = maxChannels;
+    }
+
+    public int getMaxBatch() {
+        return mMaxBatch;
+    }
+
+    // TODO: find a way to get max batch size
+    public void setMaxBatch(int maxBatch) {
+        mMaxBatch = maxBatch;
+    }
+
+    public int getMaxApPerScan() {
+        return mMaxApPerScan;
+    }
+
+    public void setMaxApPerScan(int maxApPerScan) {
+        mMaxApPerScan = maxApPerScan;
+    }
+
     private final BucketList mBuckets = new BucketList();
     private final ChannelHelper mChannelHelper;
     private final ChannelCollection mChannelCollection;
     private WifiNative.ScanSettings mSchedule;
 
-    public MultiClientScheduler(ChannelHelper channelHelper) {
+    public BackgroundScanScheduler(ChannelHelper channelHelper) {
         mChannelHelper = channelHelper;
         mChannelCollection = mChannelHelper.createChannelCollection();
         mSchedule = createSchedule(Collections.<ScanSettings>emptyList());
     }
 
-    @Override
+    /**
+     * Updates the schedule from the given set of requests.
+     */
     public void updateSchedule(@NonNull Collection<ScanSettings> requests) {
         // create initial schedule
         mBuckets.clearAll();
@@ -265,18 +313,26 @@ public class MultiClientScheduler extends WifiScanningScheduler {
         mSchedule = createSchedule(requests);
     }
 
-    @Override
+    /**
+     * Retrieves the current scanning schedule.
+     */
     public @NonNull WifiNative.ScanSettings getSchedule() {
         return mSchedule;
     }
 
-    @Override
+    /**
+     * Returns true if the given scan result should be reported to a listener with the given
+     * settings.
+     */
     public boolean shouldReportFullScanResultForSettings(@NonNull ScanResult result,
             @NonNull ScanSettings settings) {
         return mChannelHelper.settingsContainChannel(settings, result.frequency);
     }
 
-    @Override
+    /**
+     * Returns a filtered version of the scan results from the chip that represents only the data
+     * requested in the settings. Will return null if the result should not be reported.
+     */
     public @Nullable ScanData[] filterResultsForSettings(@NonNull ScanData[] scanDatas,
             @NonNull ScanSettings settings) {
         ArrayList<ScanData> filteredScanDatas = new ArrayList<>(scanDatas.length);
@@ -379,7 +435,10 @@ public class MultiClientScheduler extends WifiScanningScheduler {
         return schedule;
     }
 
-    public void addScanToBuckets(ScanSettings settings) {
+    /**
+     * Add a scan to the most appropriate bucket, creating the bucket if necessary.
+     */
+    private void addScanToBuckets(ScanSettings settings) {
         int bucketIndex;
 
         if (settings.maxPeriodInMs != 0

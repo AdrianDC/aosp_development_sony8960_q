@@ -50,6 +50,7 @@ import android.test.suitebuilder.annotation.SmallTest;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.Protocol;
 import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
+import com.android.server.wifi.scanner.BackgroundScanScheduler;
 import com.android.server.wifi.scanner.ChannelHelper;
 import com.android.server.wifi.scanner.PresetKnownBandsChannelHelper;
 
@@ -685,7 +686,7 @@ public class WifiScanningServiceTest {
         WifiNative.ScanSettings nativeSettings = new NativeScanSettingsBuilder()
                 .withBasePeriod(20000)
                 .withMaxApPerScan(MAX_AP_PER_SCAN)
-                .withMaxScansToCache(WifiScanningScheduler.DEFAULT_MAX_SCANS_TO_BATCH)
+                .withMaxScansToCache(BackgroundScanScheduler.DEFAULT_MAX_SCANS_TO_BATCH)
                 .addBucketWithBand(20000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN,
                         WifiScanner.WIFI_BAND_BOTH)
                 .build();
@@ -702,7 +703,7 @@ public class WifiScanningServiceTest {
         WifiNative.ScanSettings nativeSettings = new NativeScanSettingsBuilder()
                 .withBasePeriod(20000)
                 .withMaxApPerScan(MAX_AP_PER_SCAN)
-                .withMaxScansToCache(WifiScanningScheduler.DEFAULT_MAX_SCANS_TO_BATCH)
+                .withMaxScansToCache(BackgroundScanScheduler.DEFAULT_MAX_SCANS_TO_BATCH)
                 .addBucketWithChannels(20000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN, 5150)
                 .build();
         doSuccessfulBackgroundScan(requestSettings, nativeSettings);

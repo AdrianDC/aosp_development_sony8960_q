@@ -11,10 +11,10 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.scanner;
 
 import static com.android.server.wifi.ScanTestUtil.channelsToSpec;
 import static com.android.server.wifi.ScanTestUtil.createRequest;
@@ -33,8 +33,7 @@ import android.net.wifi.WifiScanner.ScanData;
 import android.net.wifi.WifiScanner.ScanSettings;
 import android.test.suitebuilder.annotation.SmallTest;
 
-import com.android.server.wifi.scanner.ChannelHelper;
-import com.android.server.wifi.scanner.PresetKnownBandsChannelHelper;
+import com.android.server.wifi.WifiNative;
 
 import org.junit.After;
 import org.junit.Before;
@@ -44,17 +43,18 @@ import java.util.Collection;
 import java.util.Collections;
 
 /**
- * Unit tests for filtering of scan results in {@link com.android.server.wifi.MultiClientScheduler}.
+ * Unit tests for filtering of scan results in
+ * {@link com.android.server.wifi.scanner.BackgroundScanScheduler}.
  */
 @SmallTest
-public class MultiClientSchedulerFilterTest {
+public class BackgroundScanSchedulerFilterTest {
 
     private static final int DEFAULT_MAX_BUCKETS = 8;
     private static final int DEFAULT_MAX_CHANNELS = 8;
     private static final int DEFAULT_MAX_BATCH = 10;
 
     private WifiNative mWifiNative;
-    private MultiClientScheduler mScheduler;
+    private BackgroundScanScheduler mScheduler;
 
     @Before
     public void setUp() throws Exception {
@@ -62,7 +62,7 @@ public class MultiClientSchedulerFilterTest {
                 new int[]{2400, 2450},
                 new int[]{5150, 5175},
                 new int[]{5600, 5650});
-        mScheduler = new MultiClientScheduler(channelHelper);
+        mScheduler = new BackgroundScanScheduler(channelHelper);
         mScheduler.setMaxBuckets(DEFAULT_MAX_BUCKETS);
         mScheduler.setMaxChannels(DEFAULT_MAX_CHANNELS);
         mScheduler.setMaxBatch(DEFAULT_MAX_BATCH);

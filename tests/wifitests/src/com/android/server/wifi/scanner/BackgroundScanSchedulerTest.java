@@ -11,10 +11,10 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.scanner;
 
 import static com.android.server.wifi.ScanTestUtil.NativeScanSettingsBuilder;
 import static com.android.server.wifi.ScanTestUtil.assertNativeScanSettingsEquals;
@@ -30,10 +30,9 @@ import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiScanner.ScanSettings;
 import android.test.suitebuilder.annotation.SmallTest;
 
+import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.WifiNative.BucketSettings;
-import com.android.server.wifi.scanner.KnownBandsChannelHelper;
 import com.android.server.wifi.scanner.KnownBandsChannelHelper.KnownBandsChannelCollection;
-import com.android.server.wifi.scanner.PresetKnownBandsChannelHelper;
 
 import org.junit.After;
 import org.junit.Before;
@@ -46,10 +45,10 @@ import java.util.Collections;
 import java.util.Set;
 
 /**
- * Unit tests for {@link com.android.server.wifi.MultiClientScheduler}.
+ * Unit tests for {@link com.android.server.wifi.scanner.BackgroundScanScheduler}.
  */
 @SmallTest
-public class MultiClientSchedulerTest {
+public class BackgroundScanSchedulerTest {
 
     private static final int DEFAULT_MAX_BUCKETS = 9;
     private static final int DEFAULT_MAX_CHANNELS = 23;
@@ -57,7 +56,7 @@ public class MultiClientSchedulerTest {
     private static final int DEFAULT_MAX_AP_PER_SCAN = 33;
 
     private KnownBandsChannelHelper mChannelHelper;
-    private MultiClientScheduler mScheduler;
+    private BackgroundScanScheduler mScheduler;
 
     @Before
     public void setUp() throws Exception {
@@ -65,7 +64,7 @@ public class MultiClientSchedulerTest {
                 new int[]{2400, 2450},
                 new int[]{5150, 5175},
                 new int[]{5600, 5650, 5660});
-        mScheduler = new MultiClientScheduler(mChannelHelper);
+        mScheduler = new BackgroundScanScheduler(mChannelHelper);
         mScheduler.setMaxBuckets(DEFAULT_MAX_BUCKETS);
         mScheduler.setMaxChannels(DEFAULT_MAX_CHANNELS);
         mScheduler.setMaxBatch(DEFAULT_MAX_BATCH);
@@ -613,7 +612,7 @@ public class MultiClientSchedulerTest {
 
     private static int[] getPredefinedBuckets() {
         try {
-            Field f = MultiClientScheduler.class.getDeclaredField("PREDEFINED_BUCKET_PERIODS");
+            Field f = BackgroundScanScheduler.class.getDeclaredField("PREDEFINED_BUCKET_PERIODS");
             f.setAccessible(true);
             return (int[]) f.get(null);
         } catch (Exception e) {
