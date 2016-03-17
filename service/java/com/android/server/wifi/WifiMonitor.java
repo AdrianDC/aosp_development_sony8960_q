@@ -681,13 +681,15 @@ public class WifiMonitor {
             if (isMonitoring(iface)) {
                 boolean firstHandler = true;
                 Set<Handler> ifaceWhatHandlers = ifaceHandlers.get(message.what);
-                for (Handler handler : ifaceWhatHandlers) {
-                    if (firstHandler) {
-                        firstHandler = false;
-                        sendMessage(handler, message);
-                    }
-                    else {
-                        sendMessage(handler, Message.obtain(message));
+                if (ifaceWhatHandlers != null) {
+                    for (Handler handler : ifaceWhatHandlers) {
+                        if (firstHandler) {
+                            firstHandler = false;
+                            sendMessage(handler, message);
+                        }
+                        else {
+                            sendMessage(handler, Message.obtain(message));
+                        }
                     }
                 }
             } else {
