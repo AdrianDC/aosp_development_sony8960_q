@@ -31,7 +31,6 @@ import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanEventCallback;
 import android.os.IBinder;
 import android.os.Looper;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -227,8 +226,7 @@ public class WifiNanServiceImplTest {
 
         int prevId = 0;
         for (int i = 0; i < loopCount; ++i) {
-            int id = mDut.connect(mBinderMock, mCallbackMock,
-                    WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED);
+            int id = mDut.connect(mBinderMock, mCallbackMock);
             if (i != 0) {
                 assertTrue("Client ID incrementing", id > prevId);
             }
@@ -356,12 +354,10 @@ public class WifiNanServiceImplTest {
      */
 
     private int doConnect() {
-        int events = WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED;
-
-        int returnedClientId = mDut.connect(mBinderMock, mCallbackMock, events);
+        int returnedClientId = mDut.connect(mBinderMock, mCallbackMock);
 
         ArgumentCaptor<Integer> clientId = ArgumentCaptor.forClass(Integer.class);
-        verify(mNanStateManagerMock).connect(clientId.capture(), eq(mCallbackMock), eq(events));
+        verify(mNanStateManagerMock).connect(clientId.capture(), eq(mCallbackMock));
         assertEquals(returnedClientId, (int) clientId.getValue());
 
         return returnedClientId;

@@ -31,7 +31,6 @@ import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanEventCallback;
 import android.net.wifi.nan.WifiNanSessionCallback;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
@@ -64,11 +63,6 @@ public class WifiNanStateManagerTest {
     @Rule
     public ErrorCollector collector = new ErrorCollector();
 
-    private int mAllNanEventFlags = WifiNanEventCallback.FLAG_LISTEN_CONFIG_COMPLETED
-            | WifiNanEventCallback.FLAG_LISTEN_CONFIG_FAILED
-            | WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED
-            | WifiNanEventCallback.FLAG_LISTEN_NAN_DOWN;
-
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
@@ -97,13 +91,14 @@ public class WifiNanStateManagerTest {
                 .setClusterHigh(clusterHigh1).setMasterPreference(masterPref1).build();
 
         ConfigRequest configRequest2 = new ConfigRequest.Builder().setClusterLow(clusterLow2)
-                .setClusterHigh(clusterHigh2).setMasterPreference(masterPref2).build();
+                .setClusterHigh(clusterHigh2).setMasterPreference(masterPref2)
+                .setEnableIdentityChangeCallback(true).build();
 
         IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mMockNative);
 
-        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.connect(clientId, mockCallback);
         mDut.requestConfig(clientId, configRequest1);
         mMockLooper.dispatchAll();
 
@@ -137,26 +132,25 @@ public class WifiNanStateManagerTest {
     @Test
     public void testNanEventsNotDelivered() throws Exception {
         final int clientId = 1005;
-        final int clusterLow1 = 5;
-        final int clusterHigh1 = 100;
-        final int masterPref1 = 111;
-        final int clusterLow2 = 7;
-        final int clusterHigh2 = 155;
-        final int masterPref2 = 0;
+        final int clusterLow = 5;
+        final int clusterHigh = 100;
+        final int masterPref = 111;
         final int reason = WifiNanSessionCallback.FAIL_REASON_NO_RESOURCES;
         final byte[] someMac = HexEncoding.decode("000102030405".toCharArray(), false);
 
-        ConfigRequest configRequest1 = new ConfigRequest.Builder().setClusterLow(clusterLow1)
-                .setClusterHigh(clusterHigh1).setMasterPreference(masterPref1).build();
+        ConfigRequest configRequest1 = new ConfigRequest.Builder().setClusterLow(clusterLow)
+                .setClusterHigh(clusterHigh).setMasterPreference(masterPref)
+                .setEnableIdentityChangeCallback(true).build();
 
-        ConfigRequest configRequest2 = new ConfigRequest.Builder().setClusterLow(clusterLow2)
-                .setClusterHigh(clusterHigh2).setMasterPreference(masterPref2).build();
+        ConfigRequest configRequest2 = new ConfigRequest.Builder().setClusterLow(clusterLow)
+                .setClusterHigh(clusterHigh).setMasterPreference(masterPref)
+                .setEnableIdentityChangeCallback(false).build();
 
         IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mMockNative);
 
-        mDut.connect(clientId, mockCallback, 0);
+        mDut.connect(clientId, mockCallback);
         mDut.requestConfig(clientId, configRequest1);
         mMockLooper.dispatchAll();
 
@@ -171,12 +165,15 @@ public class WifiNanStateManagerTest {
 
         mDut.onClusterChange(WifiNanClientState.CLUSTER_CHANGE_EVENT_JOINED, someMac);
         mDut.onConfigCompleted(transactionId1);
-        mDut.onConfigFailed(transactionId2, reason);
+        mDut.onConfigCompleted(transactionId2);
         mDut.onInterfaceAddressChange(someMac);
         mDut.onNanDown(reason);
         mMockLooper.dispatchAll();
 
-        verifyZeroInteractions(mockCallback);
+        inOrder.verify(mockCallback).onConfigCompleted(configRequest1);
+        inOrder.verify(mockCallback).onConfigCompleted(configRequest2);
+        inOrder.verify(mockCallback).onNanDown(reason);
+        verifyNoMoreInteractions(mockCallback);
 
         validateInternalTransactionInfoCleanedUp(transactionId1);
         validateInternalTransactionInfoCleanedUp(transactionId2);
@@ -202,7 +199,7 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mMockNative);
 
-        mDut.connect(clientId, null, 0);
+        mDut.connect(clientId, null);
         mDut.createSession(clientId, sessionId, mockCallback);
 
         // publish - fail
@@ -269,7 +266,7 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mMockNative);
 
-        mDut.connect(clientId, null, 0);
+        mDut.connect(clientId, null);
         mDut.createSession(clientId, sessionId, mockCallback);
 
         // subscribe - fail
@@ -340,7 +337,7 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mMockNative);
 
-        mDut.connect(clientId, null, 0);
+        mDut.connect(clientId, null);
         mDut.createSession(clientId, sessionId, mockCallback);
         mDut.subscribe(clientId, sessionId, subscribeConfig);
         mMockLooper.dispatchAll();
@@ -423,7 +420,7 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
-        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.connect(clientId, mockCallback);
         mDut.requestConfig(clientId, configRequest);
         mDut.createSession(clientId, sessionId, mockSessionCallback);
         mDut.publish(clientId, sessionId, publishConfig);
@@ -505,7 +502,7 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
-        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.connect(clientId, mockCallback);
         mDut.requestConfig(clientId, configRequest);
         mDut.createSession(clientId, sessionId, mockSessionCallback);
         mDut.publish(clientId, sessionId, publishConfig);
@@ -576,7 +573,7 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mMockNative);
 
-        mDut.connect(clientId, null, 0);
+        mDut.connect(clientId, null);
         mDut.createSession(clientId, sessionId, mockCallback);
         mDut.subscribe(clientId, sessionId, subscribeConfig);
         mMockLooper.dispatchAll();
@@ -634,7 +631,7 @@ public class WifiNanStateManagerTest {
 
         InOrder inOrder = inOrder(mMockNative, mockCallback1, mockCallback2, mockCallback3);
 
-        mDut.connect(clientId1, mockCallback1, WifiNanEventCallback.FLAG_LISTEN_CONFIG_COMPLETED);
+        mDut.connect(clientId1, mockCallback1);
         mDut.requestConfig(clientId1, configRequest1);
         mMockLooper.dispatchAll();
 
@@ -648,7 +645,7 @@ public class WifiNanStateManagerTest {
         validateInternalTransactionInfoCleanedUp(transactionId.getValue());
         inOrder.verify(mockCallback1).onConfigCompleted(configRequest1);
 
-        mDut.connect(clientId2, mockCallback2, WifiNanEventCallback.FLAG_LISTEN_CONFIG_COMPLETED);
+        mDut.connect(clientId2, mockCallback2);
         mDut.requestConfig(clientId2, configRequest2);
         mMockLooper.dispatchAll();
 
@@ -669,7 +666,7 @@ public class WifiNanStateManagerTest {
         validateInternalTransactionInfoCleanedUp(transactionId.getValue());
         inOrder.verify(mockCallback1).onConfigCompleted(crCapture.getValue());
 
-        mDut.connect(clientId3, mockCallback3, WifiNanEventCallback.FLAG_LISTEN_CONFIG_COMPLETED);
+        mDut.connect(clientId3, mockCallback3);
         mDut.requestConfig(clientId3, configRequest3);
         mMockLooper.dispatchAll();
 
@@ -757,7 +754,7 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
-        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.connect(clientId, mockCallback);
         mDut.createSession(clientId, sessionId, mockSessionCallback);
         mDut.requestConfig(clientId, configRequest);
         mDut.publish(clientId, sessionId, publishConfig);
@@ -824,7 +821,7 @@ public class WifiNanStateManagerTest {
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockPublishSessionCallback,
                 mockSubscribeSessionCallback);
 
-        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.connect(clientId, mockCallback);
         mDut.requestConfig(clientId, configRequest);
         mDut.createSession(clientId, publishSessionId, mockPublishSessionCallback);
         mDut.publish(clientId, publishSessionId, publishConfig);
@@ -902,7 +899,7 @@ public class WifiNanStateManagerTest {
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockPublishSessionCallback,
                 mockSubscribeSessionCallback);
 
-        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.connect(clientId, mockCallback);
         mDut.requestConfig(clientId, configRequest);
         mDut.createSession(clientId, publishSessionId, mockPublishSessionCallback);
         mDut.publish(clientId, publishSessionId, publishConfig);
@@ -969,7 +966,7 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockPublishSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockPublishSessionCallback);
 
-        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.connect(clientId, mockCallback);
         mDut.requestConfig(clientId, configRequest);
         mDut.createSession(clientId, publishSessionId, mockPublishSessionCallback);
         mDut.publish(clientId, publishSessionId, publishConfig);
@@ -1008,7 +1005,7 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
-        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.connect(clientId, mockCallback);
         mDut.createSession(clientId, sessionId, mockSessionCallback);
         mDut.publish(clientId, sessionId, publishConfig);
         mMockLooper.dispatchAll();
@@ -1038,7 +1035,7 @@ public class WifiNanStateManagerTest {
         IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback);
 
-        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.connect(clientId, mockCallback);
         mDut.requestConfig(clientId, configRequest);
         mMockLooper.dispatchAll();
 
@@ -1087,7 +1084,7 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
-        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.connect(clientId, mockCallback);
         mDut.createSession(clientId, sessionId, mockSessionCallback);
         mDut.publish(clientId, sessionId, publishConfig);
         mMockLooper.dispatchAll();
@@ -1124,7 +1121,7 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
-        mDut.connect(clientId, mockCallback, mAllNanEventFlags);
+        mDut.connect(clientId, mockCallback);
         mDut.createSession(clientId, sessionId, mockSessionCallback);
         mDut.subscribe(clientId, sessionId, subscribeConfig);
         mMockLooper.dispatchAll();
