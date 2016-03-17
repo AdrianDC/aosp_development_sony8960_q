@@ -37,3 +37,15 @@ be written by simply annotating test methods with `org.junit.Test`.
 If you are trying to debug why tests are not doing what you expected, you can add android log
 statements and use logcat to view them. The beginning and end of every tests is automatically logged
 with the tag `TestRunner`.
+
+## Code Coverage
+If you would like to collect code coverage information you can run the `coverage.sh` script located
+in this directory. It will rebuild parts of your tree with coverage enabled and then run the tests,
+similar to runtest. If you have multiple devices connected to your machine make sure to set the
+`ANDROID_SERIAL` environment variable before running the script. You must supply an output directory
+for results. By default the results are generated as a set of HTML pages. For example, you can use
+the following from the root out your source tree to generate results in the wifi_coverage directory
+
+```
+frameworks/opt/net/wifi/tests/wifitests/coverage.sh wifi_coverage
+```
