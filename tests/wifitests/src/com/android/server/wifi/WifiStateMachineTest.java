@@ -324,6 +324,7 @@ public class WifiStateMachineTest {
     @Mock UserManager mUserManager;
     @Mock WifiApConfigStore mApConfigStore;
     @Mock BackupManagerProxy mBackupManagerProxy;
+    @Mock WifiCountryCode mCountryCode;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -370,7 +371,7 @@ public class WifiStateMachineTest {
                 new UserInfo(11, "managed profile", 0)));
 
         mWsm = new WifiStateMachine(context, factory, mLooper.getLooper(),
-            mUserManager, wifiInjector, mBackupManagerProxy);
+            mUserManager, wifiInjector, mBackupManagerProxy, mCountryCode);
         mWsmThread = getWsmHandlerThread(mWsm);
 
         final AsyncChannel channel = new AsyncChannel();

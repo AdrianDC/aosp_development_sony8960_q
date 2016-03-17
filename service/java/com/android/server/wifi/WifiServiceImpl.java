@@ -68,6 +68,7 @@ import android.os.Messenger;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.WorkSource;
@@ -76,6 +77,7 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.Slog;
 
+import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.PhoneConstants;
@@ -116,6 +118,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private static final String TAG = "WifiService";
     private static final boolean DBG = true;
     private static final boolean VDBG = false;
+    private static final String BOOT_DEFAULT_WIFI_COUNTRY_CODE = "ro.boot.wificountrycode";
 
     final WifiStateMachine mWifiStateMachine;
 
@@ -139,7 +142,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private final PowerManager mPowerManager;
     private final AppOpsManager mAppOps;
     private final UserManager mUserManager;
-
+    private final WifiCountryCode mCountryCode;
     // Debug counter tracking scan requests sent by WifiManager
     private int scanRequestCounter = 0;
 
@@ -321,9 +324,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mUserManager = UserManager.get(mContext);
         HandlerThread wifiStateMachineThread = new HandlerThread("WifiStateMachine");
         wifiStateMachineThread.start();
+        mCountryCode = new WifiCountryCode(WifiNative.getWlanNativeInterface(),
+                SystemProperties.get(BOOT_DEFAULT_WIFI_COUNTRY_CODE),
+                mContext.getResources().getBoolean(
+                        R.bool.config_wifi_revert_country_code_on_cellular_loss));
         mWifiStateMachine = new WifiStateMachine(mContext, facade,
             wifiStateMachineThread.getLooper(), mUserManager, mWifiInjector,
-            new BackupManagerProxy());
+            new BackupManagerProxy(), mCountryCode);
         mSettingsStore = new WifiSettingsStore(mContext);
         mWifiStateMachine.enableRssiPolling(true);
         mBatteryStats = BatteryStatsService.getService();
@@ -363,7 +370,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                         }
                         if (mSettingsStore.isAirplaneModeOn()) {
                             Log.d(TAG, "resetting country code because Airplane mode is ON");
-                            mWifiStateMachine.resetCountryCode();
+                            mCountryCode.airplaneModeEnabled();
                         }
                     }
                 },
@@ -378,7 +385,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                             Log.d(TAG, "resetting networks because SIM was removed");
                             mWifiStateMachine.resetSimAuthNetworks();
                             Log.d(TAG, "resetting country code because SIM is removed");
-                            mWifiStateMachine.resetCountryCode();
+                            mCountryCode.simCardRemoved();
                         }
                     }
                 },
@@ -1079,7 +1086,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         enforceConnectivityInternalPermission();
         final long token = Binder.clearCallingIdentity();
         try {
-            mWifiStateMachine.setCountryCode(countryCode, persist);
+            mCountryCode.setCountryCode(countryCode);
         } finally {
             Binder.restoreCallingIdentity(token);
         }
@@ -1091,7 +1098,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     public String getCountryCode() {
         enforceConnectivityInternalPermission();
-        String country = mWifiStateMachine.getCurrentCountryCode();
+        String country = mCountryCode.getCurrentCountryCode();
         return country;
     }
     /**

@@ -86,7 +86,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 
 
 /**
@@ -175,9 +174,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
     //   msg.obj  = StateMachine to send to when blocked
     public static final int BLOCK_DISCOVERY                 =   BASE + 15;
 
-    // set country code
-    public static final int SET_COUNTRY_CODE                =   BASE + 16;
-
     public static final int ENABLED                         = 1;
     public static final int DISABLED                        = 0;
 
@@ -201,10 +197,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
      * (notably dhcp)
      */
     private boolean mDiscoveryBlocked;
-
-    // Supplicant doesn't like setting the same country code multiple times (it may drop
-    // current connected network), so we save the country code here to avoid redundency
-    private String mLastSetCountryCode;
 
     /*
      * remember if we were in a scan when it had to be stopped
@@ -785,8 +777,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                 case WifiP2pManager.START_LISTEN:
                 case WifiP2pManager.STOP_LISTEN:
                 case WifiP2pManager.SET_CHANNEL:
-                case SET_COUNTRY_CODE:
-                    break;
                 case WifiStateMachine.CMD_ENABLE_P2P:
                     // Enable is lazy and has no response
                     break;
@@ -1218,16 +1208,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         replyToMessage(message, WifiP2pManager.SET_CHANNEL_FAILED);
                     }
                     break;
-                case SET_COUNTRY_CODE:
-                    String countryCode = (String) message.obj;
-                    countryCode = countryCode.toUpperCase(Locale.ROOT);
-                    if (mLastSetCountryCode == null ||
-                            countryCode.equals(mLastSetCountryCode) == false) {
-                        if (mWifiNative.setCountryCode(countryCode)) {
-                            mLastSetCountryCode = countryCode;
-                        }
-                    }
-                    break;
                 case WifiP2pManager.GET_HANDOVER_REQUEST:
                     Bundle requestBundle = new Bundle();
                     requestBundle.putString(WifiP2pManager.EXTRA_HANDOVER_MESSAGE,
@@ -1253,8 +1233,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             sendP2pDiscoveryChangedBroadcast(false);
             sendP2pStateChangedBroadcast(false);
             mNetworkInfo.setIsAvailable(false);
-
-            mLastSetCountryCode = null;
         }
     }
 
@@ -2788,12 +2766,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
         mWifiNative.p2pServiceFlush();
         mServiceTransactionId = 0;
         mServiceDiscReqId = null;
-
-        String countryCode = Settings.Global.getString(mContext.getContentResolver(),
-                Settings.Global.WIFI_COUNTRY_CODE);
-        if (countryCode != null && !countryCode.isEmpty()) {
-            mP2pStateMachine.sendMessage(SET_COUNTRY_CODE, countryCode);
-        }
 
         updatePersistentNetworks(RELOAD);
     }
