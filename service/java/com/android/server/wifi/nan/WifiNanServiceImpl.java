@@ -54,7 +54,6 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             new SparseArray<>();
     private int mNextClientId = 1;
     private final SparseArray<Integer> mUidByClientId = new SparseArray<>();
-    private int mNextSessionId = 1;
 
     public WifiNanServiceImpl(Context context) {
         mContext = context.getApplicationContext();
@@ -92,6 +91,9 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     public int connect(final IBinder binder, IWifiNanEventCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
+        if (callback == null) {
+            throw new IllegalArgumentException("Callback must not be null");
+        }
 
         final int uid = getMockableCallingUid();
 
@@ -168,82 +170,86 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
-    public void stopSession(int clientId, int sessionId) {
+    public void terminateSession(int clientId, int sessionId) {
         enforceAccessPermission();
         enforceChangePermission();
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
-            Log.v(TAG, "stopSession: sessionId=" + sessionId + ", uid=" + uid + ", clientId="
+            Log.v(TAG, "terminateSession: sessionId=" + sessionId + ", uid=" + uid + ", clientId="
                     + clientId);
         }
 
-        mStateManager.stopSession(clientId, sessionId);
+        mStateManager.terminateSession(clientId, sessionId);
     }
 
     @Override
-    public void destroySession(int clientId, int sessionId) {
+    public void publish(int clientId, PublishConfig publishConfig,
+            IWifiNanSessionCallback callback) {
+        enforceAccessPermission();
+        enforceChangePermission();
+        if (callback == null) {
+            throw new IllegalArgumentException("Callback must not be null");
+        }
+
+        int uid = getMockableCallingUid();
+        enforceClientValidity(uid, clientId);
+        if (VDBG) {
+            Log.v(TAG, "publish: uid=" + uid + ", clientId=" + clientId + ", publishConfig="
+                    + publishConfig + ", callback=" + callback);
+        }
+
+        mStateManager.publish(clientId, publishConfig, callback);
+    }
+
+    @Override
+    public void updatePublish(int clientId, int sessionId, PublishConfig publishConfig) {
         enforceAccessPermission();
         enforceChangePermission();
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
-            Log.v(TAG, "destroySession: sessionId=" + sessionId + ", uid=" + uid + ", clientId="
-                    + clientId);
+            Log.v(TAG, "updatePublish: uid=" + uid + ", clientId=" + clientId + ", sessionId="
+                    + sessionId + ", config=" + publishConfig);
         }
 
-        mStateManager.destroySession(clientId, sessionId);
+        mStateManager.updatePublish(clientId, sessionId, publishConfig);
     }
 
     @Override
-    public int createSession(int clientId, IWifiNanSessionCallback callback) {
+    public void subscribe(int clientId, SubscribeConfig subscribeConfig,
+            IWifiNanSessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
+        if (callback == null) {
+            throw new IllegalArgumentException("Callback must not be null");
+        }
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
-        if (VDBG) Log.v(TAG, "createSession: uid=" + uid + ", clientId=" + clientId);
-
-        int sessionId;
-        synchronized (mLock) {
-            sessionId = mNextSessionId++;
+        if (VDBG) {
+            Log.v(TAG, "subscribe: uid=" + uid + ", clientId=" + clientId + ", config="
+                    + subscribeConfig + ", callback=" + callback);
         }
 
-        mStateManager.createSession(clientId, sessionId, callback);
-
-        return sessionId;
+        mStateManager.subscribe(clientId, subscribeConfig, callback);
     }
 
     @Override
-    public void publish(int clientId, int sessionId, PublishConfig publishConfig) {
+    public void updateSubscribe(int clientId, int sessionId, SubscribeConfig subscribeConfig) {
         enforceAccessPermission();
         enforceChangePermission();
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
-            Log.v(TAG, "publish: uid=" + uid + ", clientId=" + clientId + ", sessionId=" + sessionId
-                    + ", config=" + publishConfig);
-        }
-
-        mStateManager.publish(clientId, sessionId, publishConfig);
-    }
-
-    @Override
-    public void subscribe(int clientId, int sessionId, SubscribeConfig subscribeConfig) {
-        enforceAccessPermission();
-        enforceChangePermission();
-
-        int uid = getMockableCallingUid();
-        enforceClientValidity(uid, clientId);
-        if (VDBG) {
-            Log.v(TAG, "subscribe: uid=" + uid + ", clientId=" + clientId + ", sessionId="
+            Log.v(TAG, "updateSubscribe: uid=" + uid + ", clientId=" + clientId + ", sessionId="
                     + sessionId + ", config=" + subscribeConfig);
         }
 
-        mStateManager.subscribe(clientId, sessionId, subscribeConfig);
+        mStateManager.updateSubscribe(clientId, sessionId, subscribeConfig);
     }
 
     @Override
@@ -275,7 +281,6 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         pw.println("Wi-Fi NAN Service");
         pw.println("  mNanSupported: " + mNanSupported);
         pw.println("  mNextClientId: " + mNextClientId);
-        pw.println("  mNextSessionId: " + mNextSessionId);
         pw.println("  mDeathRecipientsByClientId: " + mDeathRecipientsByClientId);
         pw.println("  mUidByClientId: " + mUidByClientId);
         mStateManager.dump(fd, pw, args);

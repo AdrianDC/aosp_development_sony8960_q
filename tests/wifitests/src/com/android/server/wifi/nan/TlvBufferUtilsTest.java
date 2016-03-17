@@ -24,7 +24,6 @@ import android.test.suitebuilder.annotation.SmallTest;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ErrorCollector;
-import org.junit.rules.ExpectedException;
 
 /**
  * Unit test harness for WifiNanManager class.
@@ -33,9 +32,6 @@ import org.junit.rules.ExpectedException;
 public class TlvBufferUtilsTest {
     @Rule
     public ErrorCollector collector = new ErrorCollector();
-
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
 
     /*
      * TlvBufferUtils Tests
@@ -130,82 +126,72 @@ public class TlvBufferUtilsTest {
         }
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testTlvInvalidSizeT1L0() {
-        thrown.expect(IllegalArgumentException.class);
         TlvBufferUtils.TlvConstructor tlv10 = new TlvBufferUtils.TlvConstructor(1, 0);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testTlvInvalidSizeTm3L2() {
-        thrown.expect(IllegalArgumentException.class);
         TlvBufferUtils.TlvConstructor tlv10 = new TlvBufferUtils.TlvConstructor(-3, 2);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testTlvInvalidSizeT1Lm2() {
-        thrown.expect(IllegalArgumentException.class);
         TlvBufferUtils.TlvConstructor tlv10 = new TlvBufferUtils.TlvConstructor(1, -2);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testTlvInvalidSizeT1L3() {
-        thrown.expect(IllegalArgumentException.class);
         TlvBufferUtils.TlvConstructor tlv10 = new TlvBufferUtils.TlvConstructor(1, 3);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testTlvInvalidSizeT3L1() {
-        thrown.expect(IllegalArgumentException.class);
         TlvBufferUtils.TlvConstructor tlv10 = new TlvBufferUtils.TlvConstructor(3, 1);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testTlvItInvalidSizeT1L0() {
         final byte[] dummy = {
                 0, 1, 2 };
         final int dummyLength = 3;
-        thrown.expect(IllegalArgumentException.class);
         TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(1, 0, dummy,
                 dummyLength);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testTlvItInvalidSizeTm3L2() {
         final byte[] dummy = {
                 0, 1, 2 };
         final int dummyLength = 3;
-        thrown.expect(IllegalArgumentException.class);
         TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(-3, 2, dummy,
                 dummyLength);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testTlvItInvalidSizeT1Lm2() {
         final byte[] dummy = {
                 0, 1, 2 };
         final int dummyLength = 3;
-        thrown.expect(IllegalArgumentException.class);
         TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(1, -2, dummy,
                 dummyLength);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testTlvItInvalidSizeT1L3() {
         final byte[] dummy = {
                 0, 1, 2 };
         final int dummyLength = 3;
-        thrown.expect(IllegalArgumentException.class);
         TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(1, 3, dummy,
                 dummyLength);
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testTlvItInvalidSizeT3L1() {
         final byte[] dummy = {
                 0, 1, 2 };
         final int dummyLength = 3;
-        thrown.expect(IllegalArgumentException.class);
         TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(3, 1, dummy,
                 dummyLength);
     }
