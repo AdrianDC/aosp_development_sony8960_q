@@ -55,8 +55,10 @@ import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.internal.util.WakeupMessage;
 
+import com.android.server.wifi.scanner.BackgroundScanScheduler;
 import com.android.server.wifi.scanner.ChannelHelper;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
+import com.android.server.wifi.scanner.ScanScheduleUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -236,7 +238,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private final ArrayMap<Messenger, ClientInfo> mClients;
 
     private ChannelHelper mChannelHelper;
-    private WifiScanningScheduler mScheduler;
+    private BackgroundScanScheduler mScheduler;
     private WifiNative.ScanSettings mPreviousSchedule;
 
     private WifiBackgroundScanStateMachine mBackgroundScanStateMachine;
@@ -747,7 +749,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                             mChannelHelper = mScannerImpl.getChannelHelper();
                         }
 
-                        mScheduler = new MultiClientScheduler(mChannelHelper);
+                        mScheduler = new BackgroundScanScheduler(mChannelHelper);
 
                         WifiNative.ScanCapabilities capabilities =
                                 new WifiNative.ScanCapabilities();
@@ -1297,7 +1299,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         mScheduler.updateSchedule(settings);
         WifiNative.ScanSettings schedule = mScheduler.getSchedule();
 
-        if (WifiScanningScheduler.scheduleEquals(mPreviousSchedule, schedule)) {
+        if (ScanScheduleUtil.scheduleEquals(mPreviousSchedule, schedule)) {
             if (DBG) Log.d(TAG, "schedule updated with no change");
             return true;
         }
