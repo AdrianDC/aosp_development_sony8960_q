@@ -711,7 +711,7 @@ public class WifiNative {
                             }
 
                             if (networkDetail.hasInterworking()) {
-                                Log.d(TAG, "HSNwk: '" + networkDetail);
+                                if (DBG) Log.d(TAG, "HSNwk: '" + networkDetail);
                             }
                             ScanDetail scan = new ScanDetail(networkDetail, wifiSsid, bssid, flags,
                                     level, freq, tsf, infoElements, anqpLines);
