@@ -1710,6 +1710,7 @@ public class WifiNative {
     private static long sWifiHalHandle = 0;             /* used by JNI to save wifi_handle */
     private static long[] sWifiIfaceHandles = null;     /* used by JNI to save interface handles */
     public static int sWlan0Index = -1;
+    private static int sP2p0Index = -1;
     private static MonitorThread sThread;
     private static final int STOP_HAL_TIMEOUT_MS = 1000;
 
@@ -1734,13 +1735,7 @@ public class WifiNative {
         sLocalLog.log(debugLog);
 
         synchronized (sLock) {
-            if (startHalNative()) {
-                int wlan0Index = queryInterfaceIndex(mInterfaceName);
-                if (wlan0Index == -1) {
-                  if (DBG) sLocalLog.log("Could not find interface with name: " + mInterfaceName);
-                  return false;
-                }
-                sWlan0Index = wlan0Index;
+            if (startHalNative() && (getInterfaces() != 0) && (sWlan0Index != -1)) {
                 sThread = new MonitorThread();
                 sThread.start();
                 return true;
@@ -1766,6 +1761,7 @@ public class WifiNative {
                 sWifiHalHandle = 0;
                 sWifiIfaceHandles = null;
                 sWlan0Index = -1;
+                sP2p0Index = -1;
             }
         }
     }
@@ -1775,19 +1771,31 @@ public class WifiNative {
     }
     private static native int getInterfacesNative();
 
-    private int queryInterfaceIndex(String if_name) {
+    public int getInterfaces() {
         synchronized (sLock) {
             if (isHalStarted()) {
-                int num = getInterfacesNative();
-                for (int i = 0; i < num; i++) {
-                    String name = getInterfaceNameNative(i);
-                    if (name.equals(if_name)) {
-                        return i;
+                if (sWifiIfaceHandles == null) {
+                    int num = getInterfacesNative();
+                    int wifi_num = 0;
+                    for (int i = 0; i < num; i++) {
+                        String name = getInterfaceNameNative(i);
+                        Log.i(TAG, "interface[" + i + "] = " + name);
+                        if (name.equals("wlan0")) {
+                            sWlan0Index = i;
+                            wifi_num++;
+                        } else if (name.equals("p2p0")) {
+                            sP2p0Index = i;
+                            wifi_num++;
+                        }
                     }
+                    return wifi_num;
+                } else {
+                    return sWifiIfaceHandles.length;
                 }
+            } else {
+                return 0;
             }
         }
-        return -1;
     }
 
     private static native String getInterfaceNameNative(int index);

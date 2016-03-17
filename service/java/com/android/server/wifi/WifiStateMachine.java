@@ -4602,9 +4602,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             Log.e(TAG, "Failed to load driver for softap");
             return false;
         }
-        if (!mWifiNative.toggleInterface(0)) {
-            Log.e(TAG, "toggleInterface failed");
-            return false;
+
+        if (mWifiNative.getInterfaces() != 0) {
+            if (!mWifiNative.toggleInterface(0)) {
+                Log.e(TAG, "toggleInterface failed");
+                return false;
+            }
+        } else {
+            if (DBG) Log.d(TAG, "No interfaces to toggle");
         }
 
         try {
