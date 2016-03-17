@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 
 public class AnqpCache {
+    private static final boolean DBG = false;
+
     private static final long CACHE_RECHECK = 60000L;
     private static final boolean STANDARD_ESS = true;  // Regular AP keying; see CacheKey below.
     private long mLastSweep;
@@ -169,7 +171,7 @@ public class AnqpCache {
     }
 
     public void clear(boolean all, boolean debug) {
-        Log.d(Utils.hs2LogTag(getClass()), "Clearing ANQP cache: all: " + all);
+        if (DBG) Log.d(Utils.hs2LogTag(getClass()), "Clearing ANQP cache: all: " + all);
         long now = mClock.currentTimeMillis();
         synchronized (mANQPCache) {
             if (all) {
