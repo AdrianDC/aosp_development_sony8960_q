@@ -214,7 +214,7 @@ public class WifiNanStateManagerTest {
         mDut.onPublishFail(transactionId.getValue(), reasonFail);
         mMockLooper.dispatchAll();
 
-        inOrder.verify(mockCallback).onPublishFail(reasonFail);
+        inOrder.verify(mockCallback).onSessionConfigFail(reasonFail);
         validateInternalTransactionInfoCleanedUp(transactionId.getValue());
 
         // publish - success/terminate
@@ -229,7 +229,7 @@ public class WifiNanStateManagerTest {
         mDut.onPublishTerminated(publishId1, reasonTerminate);
         mMockLooper.dispatchAll();
 
-        inOrder.verify(mockCallback).onPublishTerminated(reasonTerminate);
+        inOrder.verify(mockCallback).onSessionTerminated(reasonTerminate);
         validateInternalTransactionInfoCleanedUp(transactionId.getValue());
 
         // re-publish
@@ -282,7 +282,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
 
         validateInternalTransactionInfoCleanedUp(transactionId.getValue());
-        inOrder.verify(mockCallback).onSubscribeFail(reasonFail);
+        inOrder.verify(mockCallback).onSessionConfigFail(reasonFail);
 
         // subscribe - success/terminate
         mDut.subscribe(clientId, sessionId, subscribeConfig);
@@ -297,7 +297,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
 
         validateInternalTransactionInfoCleanedUp(transactionId.getValue());
-        inOrder.verify(mockCallback).onSubscribeTerminated(reasonTerminate);
+        inOrder.verify(mockCallback).onSessionTerminated(reasonTerminate);
 
         // re-subscribe
         mDut.subscribe(clientId, sessionId, subscribeConfig);
@@ -931,8 +931,8 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mockCallback).onConfigCompleted(configRequest);
         inOrder.verify(mMockNative).stopPublish(anyShort(), eq(publishId));
         inOrder.verify(mMockNative).stopSubscribe(anyShort(), eq(subscribeId));
-        inOrder.verify(mockPublishSessionCallback).onPublishTerminated(reason);
-        inOrder.verify(mockSubscribeSessionCallback).onSubscribeTerminated(reason);
+        inOrder.verify(mockPublishSessionCallback).onSessionTerminated(reason);
+        inOrder.verify(mockSubscribeSessionCallback).onSessionTerminated(reason);
         verifyNoMoreInteractions(mockPublishSessionCallback);
         verifyNoMoreInteractions(mockSubscribeSessionCallback);
         validateInternalTransactionInfoCleanedUp(transactionIdConfig);
@@ -1098,9 +1098,9 @@ public class WifiNanStateManagerTest {
         mDut.subscribe(clientId, sessionId, subscribeConfig);
         mMockLooper.dispatchAll();
 
-        inOrder.verify(mockSessionCallback).onPublishFail(status);
+        inOrder.verify(mockSessionCallback).onSessionConfigFail(status);
         inOrder.verify(mockSessionCallback)
-                .onSubscribeFail(WifiNanSessionCallback.FAIL_REASON_OTHER);
+                .onSessionConfigFail(WifiNanSessionCallback.FAIL_REASON_OTHER);
         verifyNoMoreInteractions(mockCallback);
         verifyNoMoreInteractions(mockSessionCallback);
         validateInternalTransactionInfoCleanedUp(transactionId.getValue());
@@ -1135,8 +1135,9 @@ public class WifiNanStateManagerTest {
         mDut.publish(clientId, sessionId, publishConfig);
         mMockLooper.dispatchAll();
 
-        inOrder.verify(mockSessionCallback).onSubscribeFail(status);
-        inOrder.verify(mockSessionCallback).onPublishFail(WifiNanSessionCallback.FAIL_REASON_OTHER);
+        inOrder.verify(mockSessionCallback).onSessionConfigFail(status);
+        inOrder.verify(mockSessionCallback)
+                .onSessionConfigFail(WifiNanSessionCallback.FAIL_REASON_OTHER);
         verifyNoMoreInteractions(mockCallback);
         verifyNoMoreInteractions(mockSessionCallback);
         validateInternalTransactionInfoCleanedUp(transactionId.getValue());
