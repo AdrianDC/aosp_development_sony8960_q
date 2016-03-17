@@ -161,6 +161,7 @@ wifi_error wifi_nan_publish_request_mock(transaction_id id,
                        msg->tx_match_filter_len);
   jsonW.put_int("rssi_threshold_flag", msg->rssi_threshold_flag);
   jsonW.put_int("connmap", msg->connmap);
+  jsonW.put_int("recv_indication_cfg", msg->recv_indication_cfg);
   std::string str = jsonW.to_string();
 
   JNIObject < jstring > json_write_string = helper.newStringUTF(str.c_str());
@@ -222,6 +223,7 @@ wifi_error wifi_nan_subscribe_request_mock(transaction_id id,
   jsonW.put_int("connmap", msg->connmap);
   jsonW.put_int("num_intf_addr_present", msg->num_intf_addr_present);
   // TODO: jsonW.put_byte_array("intf_addr", msg->intf_addr, NAN_MAX_SUBSCRIBE_MAX_ADDRESS * NAN_MAC_ADDR_LEN);
+  jsonW.put_int("recv_indication_cfg", msg->recv_indication_cfg);
   std::string str = jsonW.to_string();
 
   JNIObject < jstring > json_write_string = helper.newStringUTF(str.c_str());

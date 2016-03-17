@@ -154,9 +154,9 @@ public class WifiNanManagerTest {
         collector.checkThat("mServiceName", subscribeConfig.mServiceName, equalTo(null));
         collector.checkThat("mServiceSpecificInfoLength",
                 subscribeConfig.mServiceSpecificInfoLength, equalTo(0));
-        collector.checkThat("mServiceSpecificInfoLength", subscribeConfig.mTxFilterLength,
+        collector.checkThat("mTxFilterLength", subscribeConfig.mTxFilterLength,
                 equalTo(0));
-        collector.checkThat("mServiceSpecificInfoLength", subscribeConfig.mRxFilterLength,
+        collector.checkThat("mRxFilterLength", subscribeConfig.mRxFilterLength,
                 equalTo(0));
         collector.checkThat("mSubscribeType", subscribeConfig.mSubscribeType,
                 equalTo(SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE));
@@ -164,6 +164,8 @@ public class WifiNanManagerTest {
         collector.checkThat("mTtlSec", subscribeConfig.mTtlSec, equalTo(0));
         collector.checkThat("mMatchStyle", subscribeConfig.mMatchStyle,
                 equalTo(SubscribeConfig.MATCH_STYLE_ALL));
+        collector.checkThat("mEnableTerminateNotification",
+                subscribeConfig.mEnableTerminateNotification, equalTo(true));
     }
 
     @Test
@@ -178,12 +180,13 @@ public class WifiNanManagerTest {
         final int subscribeCount = 10;
         final int subscribeTtl = 15;
         final int matchStyle = SubscribeConfig.MATCH_STYLE_FIRST_ONLY;
+        final boolean enableTerminateNotification = false;
 
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
                 .setRxFilter(rxFilter, rxFilter.length).setSubscribeType(subscribeType)
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
-                .build();
+                .setEnableTerminateNotification(enableTerminateNotification).build();
 
         collector.checkThat("mServiceName", serviceName, equalTo(subscribeConfig.mServiceName));
         collector.checkThat("mServiceSpecificInfo",
@@ -201,6 +204,8 @@ public class WifiNanManagerTest {
                 equalTo(subscribeConfig.mSubscribeCount));
         collector.checkThat("mTtlSec", subscribeTtl, equalTo(subscribeConfig.mTtlSec));
         collector.checkThat("mMatchStyle", matchStyle, equalTo(subscribeConfig.mMatchStyle));
+        collector.checkThat("mEnableTerminateNotification", enableTerminateNotification,
+                equalTo(subscribeConfig.mEnableTerminateNotification));
     }
 
     @Test
@@ -215,12 +220,13 @@ public class WifiNanManagerTest {
         final int subscribeCount = 10;
         final int subscribeTtl = 15;
         final int matchStyle = SubscribeConfig.MATCH_STYLE_FIRST_ONLY;
+        final boolean enableTerminateNotification = true;
 
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
                 .setTxFilter(rxFilter, rxFilter.length).setSubscribeType(subscribeType)
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
-                .build();
+                .setEnableTerminateNotification(enableTerminateNotification).build();
 
         Parcel parcelW = Parcel.obtain();
         subscribeConfig.writeToParcel(parcelW, 0);
@@ -267,6 +273,23 @@ public class WifiNanManagerTest {
      */
 
     @Test
+    public void testPublishConfigBuilderDefaults() {
+        PublishConfig publishConfig = new PublishConfig.Builder().build();
+
+        collector.checkThat("mServiceName", publishConfig.mServiceName, equalTo(null));
+        collector.checkThat("mServiceSpecificInfoLength", publishConfig.mServiceSpecificInfoLength,
+                equalTo(0));
+        collector.checkThat("mTxFilterLength", publishConfig.mTxFilterLength, equalTo(0));
+        collector.checkThat("mRxFilterLength", publishConfig.mRxFilterLength, equalTo(0));
+        collector.checkThat("mPublishType", publishConfig.mPublishType,
+                equalTo(PublishConfig.PUBLISH_TYPE_UNSOLICITED));
+        collector.checkThat("mPublishCount", publishConfig.mPublishCount, equalTo(0));
+        collector.checkThat("mTtlSec", publishConfig.mTtlSec, equalTo(0));
+        collector.checkThat("mEnableTerminateNotification",
+                publishConfig.mEnableTerminateNotification, equalTo(true));
+    }
+
+    @Test
     public void testPublishConfigBuilder() {
         final String serviceName = "some_service_or_other";
         final String serviceSpecificInfo = "long arbitrary string with some info";
@@ -277,11 +300,13 @@ public class WifiNanManagerTest {
         final int publishType = PublishConfig.PUBLISH_TYPE_SOLICITED;
         final int publishCount = 10;
         final int publishTtl = 15;
+        final boolean enableTerminateNotification = false;
 
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
                 .setRxFilter(rxFilter, rxFilter.length).setPublishType(publishType)
-                .setPublishCount(publishCount).setTtlSec(publishTtl).build();
+                .setPublishCount(publishCount).setTtlSec(publishTtl)
+                .setEnableTerminateNotification(enableTerminateNotification).build();
 
         collector.checkThat("mServiceName", serviceName, equalTo(publishConfig.mServiceName));
         collector.checkThat("mServiceSpecificInfo",
@@ -296,6 +321,8 @@ public class WifiNanManagerTest {
         collector.checkThat("mPublishType", publishType, equalTo(publishConfig.mPublishType));
         collector.checkThat("mPublishCount", publishCount, equalTo(publishConfig.mPublishCount));
         collector.checkThat("mTtlSec", publishTtl, equalTo(publishConfig.mTtlSec));
+        collector.checkThat("mEnableTerminateNotification", enableTerminateNotification,
+                equalTo(publishConfig.mEnableTerminateNotification));
     }
 
     @Test
@@ -309,11 +336,13 @@ public class WifiNanManagerTest {
         final int publishType = PublishConfig.PUBLISH_TYPE_SOLICITED;
         final int publishCount = 10;
         final int publishTtl = 15;
+        final boolean enableTerminateNotification = false;
 
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
                 .setTxFilter(rxFilter, rxFilter.length).setPublishType(publishType)
-                .setPublishCount(publishCount).setTtlSec(publishTtl).build();
+                .setPublishCount(publishCount).setTtlSec(publishTtl)
+                .setEnableTerminateNotification(enableTerminateNotification).build();
 
         Parcel parcelW = Parcel.obtain();
         publishConfig.writeToParcel(parcelW, 0);

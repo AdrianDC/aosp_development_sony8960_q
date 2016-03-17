@@ -198,7 +198,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
-    public int createSession(int clientId, IWifiNanSessionCallback callback, int events) {
+    public int createSession(int clientId, IWifiNanSessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
 
@@ -211,7 +211,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             sessionId = mNextSessionId++;
         }
 
-        mStateManager.createSession(clientId, sessionId, callback, events);
+        mStateManager.createSession(clientId, sessionId, callback);
 
         return sessionId;
     }
