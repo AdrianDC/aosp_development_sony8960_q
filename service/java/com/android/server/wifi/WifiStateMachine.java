@@ -245,6 +245,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         sendMessage(CMD_PNO_NETWORK_FOUND, results.length, 0, results);
     }
 
+    /**
+     * Ignore Pno scan failed events. This is needed for WifiScanner
+     * TODO(rpius): Remove this once PNO scan logic is removed from WifiStateMachine.
+     */
+    @Override
+    public void onPnoScanFailed() {
+        return;
+    }
+
     public void processPnoNetworkFound(ScanResult results[]) {
         ScanSettings settings = new ScanSettings();
         settings.channelSet = new ArrayList<WifiChannel>();

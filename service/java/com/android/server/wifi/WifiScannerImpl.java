@@ -45,7 +45,7 @@ public abstract class WifiScannerImpl {
             public WifiScannerImpl create(Context context, Looper looper) {
                 WifiNative wifiNative = WifiNative.getWlanNativeInterface();
                 if (wifiNative.getScanCapabilities(new WifiNative.ScanCapabilities())) {
-                    return new HalWifiScannerImpl(wifiNative, looper);
+                    return new HalWifiScannerImpl(context, wifiNative, looper);
                 } else {
                     return new SupplicantWifiScannerImpl(context, wifiNative, looper);
                 }
@@ -110,8 +110,21 @@ public abstract class WifiScannerImpl {
      */
     public abstract void stopBatchedScan();
 
+    /**
+     * Pause the currently active background scan
+     */
     public abstract void pauseBatchedScan();
+
+    /**
+     * Restart the currently paused background scan
+     */
     public abstract void restartBatchedScan();
+
+    /**
+     * Get the latest cached scan results from the last scan event. This should be called
+     * immediately when the scan success callback is receieved.
+     */
+    public abstract WifiScanner.ScanData[] getLatestBatchedScanResults(boolean flush);
 
     /**
      * Set PNO list to start PNO background scan.
@@ -136,16 +149,24 @@ public abstract class WifiScannerImpl {
     public abstract boolean shouldScheduleBackgroundScanForPno();
 
     /**
-     * Get the latest cached scan results from the last scan event. This should be called
-     * immediately when the scan success callback is receieved.
+     * Set a new hotlist
      */
-    public abstract WifiScanner.ScanData[] getLatestBatchedScanResults(boolean flush);
-
     public abstract boolean setHotlist(WifiScanner.HotlistSettings settings,
             WifiNative.HotlistEventHandler eventHandler);
+
+    /**
+     * Reset any active hotlist
+     */
     public abstract void resetHotlist();
 
+    /**
+     * Start tracking significant wifi changes
+     */
     public abstract boolean trackSignificantWifiChange(WifiScanner.WifiChangeSettings settings,
             WifiNative.SignificantWifiChangeEventHandler handler);
+
+    /**
+     * Stop tracking significant wifi changes
+     */
     public abstract void untrackSignificantWifiChange();
 }
