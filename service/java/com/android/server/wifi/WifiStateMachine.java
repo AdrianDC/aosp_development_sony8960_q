@@ -4513,7 +4513,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             log("DHCP failure count=" + count);
         }
         mWifiMetrics.endConnectionEvent(
-                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetrics.ConnectionEvent.FAILURE_DHCP,
                 WifiMetricsProto.ConnectionEvent.HLF_DHCP);
         synchronized(mDhcpResultsLock) {
              if (mDhcpResults != null) {
@@ -6123,7 +6123,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     mSupplicantStateTracker.sendMessage(WifiMonitor.ASSOCIATION_REJECTION_EVENT);
                     //If rejection occurred while Metrics is tracking a ConnnectionEvent, end it.
                     mWifiMetrics.endConnectionEvent(
-                            WifiMetrics.ConnectionEvent.LLF_ASSOCIATION_REJECTION,
+                            WifiMetrics.ConnectionEvent.FAILURE_ASSOCIATION_REJECTION,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     break;
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
@@ -6136,7 +6136,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     }
                     //If failure occurred while Metrics is tracking a ConnnectionEvent, end it.
                     mWifiMetrics.endConnectionEvent(
-                            WifiMetrics.ConnectionEvent.LLF_AUTHENTICATION_FAILURE,
+                            WifiMetrics.ConnectionEvent.FAILURE_AUTHENTICATION_FAILURE,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     break;
                 case WifiMonitor.SSID_TEMP_DISABLED:
@@ -6147,7 +6147,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                             WifiConfiguration.NetworkSelectionStatus
                             .DISABLED_AUTHENTICATION_FAILURE);
                     mWifiMetrics.endConnectionEvent(
-                            WifiMetrics.ConnectionEvent.LLF_SSID_TEMP_DISABLED,
+                            WifiMetrics.ConnectionEvent.FAILURE_SSID_TEMP_DISABLED,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     break;
                 case WifiMonitor.SSID_REENABLED:
@@ -6539,7 +6539,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
                     //Start a new ConnectionEvent due to auto_connect, assume we are connecting
                     //between different networks due to QNS, setting ROAM_UNRELATED
-                    mWifiMetrics.startConnectionEvent(config,
+                    mWifiMetrics.startConnectionEvent(config, mTargetRoamBSSID,
                             WifiMetricsProto.ConnectionEvent.ROAM_UNRELATED);
                     if (!didDisconnect) {
                         //If we were originally disconnected, then this was not any kind of ROAM
@@ -6599,7 +6599,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         replyToMessage(message, WifiManager.CONNECT_NETWORK_FAILED,
                                 WifiManager.ERROR);
                         mWifiMetrics.endConnectionEvent(
-                                WifiMetrics.ConnectionEvent.LLF_CONNECT_NETWORK_FAILED,
+                                WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         break;
                     }
@@ -6721,7 +6721,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
                     //Start a new ConnectionEvent due to connect_network, this is always user
                     //selected
-                    mWifiMetrics.startConnectionEvent(config,
+                    mWifiMetrics.startConnectionEvent(config, mTargetRoamBSSID,
                             WifiMetricsProto.ConnectionEvent.ROAM_USER_SELECTED);
                     if (mWifiConfigManager.selectNetwork(config, /* updatePriorities = */ true,
                             message.sendingUid) && mWifiNative.reconnect()) {
@@ -6751,7 +6751,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         replyToMessage(message, WifiManager.CONNECT_NETWORK_FAILED,
                                 WifiManager.ERROR);
                         mWifiMetrics.endConnectionEvent(
-                                WifiMetrics.ConnectionEvent.LLF_CONNECT_NETWORK_FAILED,
+                                WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         break;
                     }
@@ -7323,7 +7323,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 case CMD_IP_CONFIGURATION_SUCCESSFUL:
                     handleSuccessfulIpConfiguration();
                     mWifiMetrics.endConnectionEvent(
-                            WifiMetrics.ConnectionEvent.LLF_NONE,
+                            WifiMetrics.ConnectionEvent.FAILURE_NONE,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     sendConnectedState();
                     transitionTo(mConnectedState);
@@ -7732,7 +7732,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
                     mWifiMetrics.endConnectionEvent(
-                            WifiMetrics.ConnectionEvent.LLF_NETWORK_DISCONNECTION,
+                            WifiMetrics.ConnectionEvent.FAILURE_NETWORK_DISCONNECTION,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     return NOT_HANDLED;
                 case CMD_SET_HIGH_PERF_MODE:
@@ -7858,6 +7858,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 case CMD_ROAM_WATCHDOG_TIMER:
                     if (roamWatchdogCount == message.arg1) {
                         if (DBG) log("roaming watchdog! -> disconnect");
+                        mWifiMetrics.endConnectionEvent(
+                                WifiMetrics.ConnectionEvent.FAILURE_ROAM_TIMEOUT,
+                                WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         mRoamFailCount++;
                         handleNetworkDisconnect();
                         mWifiNative.disconnect();
@@ -7877,7 +7880,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
                         // Successful framework roam! (probably)
                         mWifiMetrics.endConnectionEvent(
-                                WifiMetrics.ConnectionEvent.LLF_NONE,
+                                WifiMetrics.ConnectionEvent.FAILURE_NONE,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         // We used to transition to ObtainingIpState in an
                         // attempt to do DHCPv4 RENEWs on framework roams.
@@ -8089,7 +8092,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
                     long lastRoam = 0;
                     mWifiMetrics.endConnectionEvent(
-                            WifiMetrics.ConnectionEvent.LLF_NETWORK_DISCONNECTION,
+                            WifiMetrics.ConnectionEvent.FAILURE_NETWORK_DISCONNECTION,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     if (mLastDriverRoamAttempt != 0) {
                         // Calculate time since last driver roam attempt
@@ -8185,7 +8188,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
                     setTargetBssid(config, bssid);
                     mTargetNetworkId = netId;
-                    mWifiMetrics.startConnectionEvent(config,
+                    mWifiMetrics.startConnectionEvent(config, mTargetRoamBSSID,
                             WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
                     /* <TODO> 2016-02-24
                         Detect DBDC (2.4 <-> 5Ghz, same AP) roaming events, once CMD_AUTO_ROAM
@@ -8198,7 +8201,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     */
                     if (deferForUserInput(message, netId, false)) {
                         mWifiMetrics.endConnectionEvent(
-                                WifiMetrics.ConnectionEvent.LLF_CONNECT_NETWORK_FAILED,
+                                WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         break;
                     } else if (mWifiConfigManager.getWifiConfiguration(netId).userApproved ==
@@ -8206,7 +8209,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         replyToMessage(message, WifiManager.CONNECT_NETWORK_FAILED,
                                 WifiManager.NOT_AUTHORIZED);
                         mWifiMetrics.endConnectionEvent(
-                                WifiMetrics.ConnectionEvent.LLF_CONNECT_NETWORK_FAILED,
+                                WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         break;
                     }
@@ -8234,7 +8237,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                                 WifiManager.ERROR);
                         messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
                         mWifiMetrics.endConnectionEvent(
-                                WifiMetrics.ConnectionEvent.LLF_CONNECT_NETWORK_FAILED,
+                                WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         break;
                     }
@@ -9207,7 +9210,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         int numNetworksAddedByUser = 0;
         int numNetworksAddedByApps = 0;
         for (WifiConfiguration config : mWifiConfigManager.getConfiguredNetworks()) {
-            if (config.allowedAuthAlgorithms.get(WifiConfiguration.AuthAlgorithm.OPEN)) {
+            if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)) {
                 numOpenNetworks++;
             } else if (config.isEnterprise()) {
                 numEnterpriseNetworks++;

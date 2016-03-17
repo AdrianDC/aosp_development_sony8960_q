@@ -90,17 +90,33 @@ public class WifiMetrics {
         }
         public void updateFromWifiConfiguration(WifiConfiguration config) {
             if (config != null) {
-                /*<TODO>
-                mRouterFingerPrintProto.roamType
-                mRouterFingerPrintProto.supportsIpv6
-                */
+                // Is this a hidden network
                 mRouterFingerPrintProto.hidden = config.hiddenSSID;
-                mRouterFingerPrintProto.channelInfo = config.apChannel;
                 // Config may not have a valid dtimInterval set yet, in which case dtim will be zero
                 // (These are only populated from beacon frame scan results, which are returned as
                 // scan results from the chip far less frequently than Probe-responses)
                 if (config.dtimInterval > 0) {
                     mRouterFingerPrintProto.dtim = config.dtimInterval;
+                }
+                mCurrentConnectionEvent.mConfigSsid = config.SSID;
+                // Get AuthType information from config (We do this again from ScanResult after
+                // associating with BSSID)
+                if (config.allowedKeyManagement != null
+                        && config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)) {
+                    mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
+                            .authentication = WifiMetricsProto.RouterFingerPrint.AUTH_OPEN;
+                } else if (config.isEnterprise()) {
+                    mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
+                            .authentication = WifiMetricsProto.RouterFingerPrint.AUTH_ENTERPRISE;
+                } else {
+                    mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
+                            .authentication = WifiMetricsProto.RouterFingerPrint.AUTH_PERSONAL;
+                }
+                // If there's a ScanResult candidate associated with this config already, get it and
+                // log (more accurate) metrics from it
+                ScanResult candidate = config.getNetworkSelectionStatus().getCandidate();
+                if (candidate != null) {
+                    updateMetricsFromScanResult(candidate);
                 }
             }
         }
@@ -111,24 +127,36 @@ public class WifiMetrics {
      */
     class ConnectionEvent {
         WifiMetricsProto.ConnectionEvent mConnectionEvent;
-        //<TODO> Move these constants into a wifi.proto Enum
-        // Level 2 Failure Codes
+        //<TODO> Move these constants into a wifi.proto Enum, and create a new Failure Type field
+        //covering more than just l2 failures. see b/27652362
+        /**
+         * Failure codes, used for the 'level_2_failure_code' Connection event field (covers a lot
+         * more failures than just l2 though, since the proto does not have a place to log
+         * framework failures)
+         */
         // Failure is unknown
-        public static final int LLF_UNKNOWN = 0;
+        public static final int FAILURE_UNKNOWN = 0;
         // NONE
-        public static final int LLF_NONE = 1;
+        public static final int FAILURE_NONE = 1;
         // ASSOCIATION_REJECTION_EVENT
-        public static final int LLF_ASSOCIATION_REJECTION = 2;
+        public static final int FAILURE_ASSOCIATION_REJECTION = 2;
         // AUTHENTICATION_FAILURE_EVENT
-        public static final int LLF_AUTHENTICATION_FAILURE = 3;
+        public static final int FAILURE_AUTHENTICATION_FAILURE = 3;
         // SSID_TEMP_DISABLED (Also Auth failure)
-        public static final int LLF_SSID_TEMP_DISABLED = 4;
+        public static final int FAILURE_SSID_TEMP_DISABLED = 4;
         // reconnect() or reassociate() call to WifiNative failed
-        public static final int LLF_CONNECT_NETWORK_FAILED = 5;
+        public static final int FAILURE_CONNECT_NETWORK_FAILED = 5;
         // NETWORK_DISCONNECTION_EVENT
-        public static final int LLF_NETWORK_DISCONNECTION = 6;
+        public static final int FAILURE_NETWORK_DISCONNECTION = 6;
         // NEW_CONNECTION_ATTEMPT before previous finished
-        public static final int LLF_NEW_CONNECTION_ATTEMPT = 7;
+        public static final int FAILURE_NEW_CONNECTION_ATTEMPT = 7;
+        // New connection attempt to the same network & bssid
+        public static final int FAILURE_REDUNDANT_CONNECTION_ATTEMPT = 8;
+        // Roam Watchdog timer triggered (Roaming timed out)
+        public static final int FAILURE_ROAM_TIMEOUT = 9;
+        // DHCP failure
+        public static final int FAILURE_DHCP = 10;
+
         RouterFingerPrint mRouterFingerPrint;
         private long mRealStartTime;
         private long mRealEndTime;
@@ -183,27 +211,35 @@ public class WifiMetrics {
                 sb.append(mConnectionEvent.connectionResult);
                 sb.append(", level2FailureCode=");
                 switch(mConnectionEvent.level2FailureCode) {
-                    case LLF_NONE:
+                    case FAILURE_NONE:
                         sb.append("NONE");
                         break;
-                    case LLF_ASSOCIATION_REJECTION:
+                    case FAILURE_ASSOCIATION_REJECTION:
                         sb.append("ASSOCIATION_REJECTION");
                         break;
-                    case LLF_AUTHENTICATION_FAILURE:
+                    case FAILURE_AUTHENTICATION_FAILURE:
                         sb.append("AUTHENTICATION_FAILURE");
                         break;
-                    case LLF_SSID_TEMP_DISABLED:
+                    case FAILURE_SSID_TEMP_DISABLED:
                         sb.append("SSID_TEMP_DISABLED");
                         break;
-                    case LLF_CONNECT_NETWORK_FAILED:
+                    case FAILURE_CONNECT_NETWORK_FAILED:
                         sb.append("CONNECT_NETWORK_FAILED");
                         break;
-                    case LLF_NETWORK_DISCONNECTION:
+                    case FAILURE_NETWORK_DISCONNECTION:
                         sb.append("NETWORK_DISCONNECTION");
                         break;
-                    case LLF_NEW_CONNECTION_ATTEMPT:
+                    case FAILURE_NEW_CONNECTION_ATTEMPT:
                         sb.append("NEW_CONNECTION_ATTEMPT");
                         break;
+                    case FAILURE_REDUNDANT_CONNECTION_ATTEMPT:
+                        sb.append("REDUNDANT_CONNECTION_ATTEMPT");
+                        break;
+                    case FAILURE_ROAM_TIMEOUT:
+                        sb.append("ROAM_TIMEOUT");
+                        break;
+                    case FAILURE_DHCP:
+                        sb.append("DHCP");
                     default:
                         sb.append("UNKNOWN");
                         break;
@@ -253,29 +289,38 @@ public class WifiMetrics {
      * @param config WifiConfiguration of the config used for the current connection attempt
      * @param roamType Roam type that caused connection attempt, see WifiMetricsProto.WifiLog.ROAM_X
      */
-    public void startConnectionEvent(WifiConfiguration config, int roamType) {
-        if (mCurrentConnectionEvent != null) {
-            endConnectionEvent(ConnectionEvent.LLF_NEW_CONNECTION_ATTEMPT,
-                    WifiMetricsProto.ConnectionEvent.HLF_NONE);
-        }
+    public void startConnectionEvent(WifiConfiguration config, String targetBSSID, int roamType) {
         synchronized (mLock) {
-            //If at maximum connection events, start removing the oldest
+            // Check if this is overlapping another current connection event
+            if (mCurrentConnectionEvent != null) {
+                //Is this new Connection Event the same as the current one
+                if (mCurrentConnectionEvent.mConfigSsid != null
+                        && mCurrentConnectionEvent.mConfigBssid != null
+                        && config != null
+                        && mCurrentConnectionEvent.mConfigSsid.equals(config.SSID)
+                        && (mCurrentConnectionEvent.mConfigBssid.equals("any")
+                        || mCurrentConnectionEvent.mConfigBssid.equals(targetBSSID))) {
+                    mCurrentConnectionEvent.mConfigBssid = targetBSSID;
+                    // End Connection Event due to new connection attempt to the same network
+                    endConnectionEvent(ConnectionEvent.FAILURE_REDUNDANT_CONNECTION_ATTEMPT,
+                            WifiMetricsProto.ConnectionEvent.HLF_NONE);
+                } else {
+                    // End Connection Event due to new connection attempt to different network
+                    endConnectionEvent(ConnectionEvent.FAILURE_NEW_CONNECTION_ATTEMPT,
+                            WifiMetricsProto.ConnectionEvent.HLF_NONE);
+                }
+            }
+            //If past maximum connection events, start removing the oldest
             while(mConnectionEventList.size() >= MAX_CONNECTION_EVENTS) {
                 mConnectionEventList.remove(0);
             }
             mCurrentConnectionEvent = new ConnectionEvent();
             mCurrentConnectionEvent.mConnectionEvent.startTimeMillis =
                     System.currentTimeMillis();
+            mCurrentConnectionEvent.mConfigBssid = targetBSSID;
             mCurrentConnectionEvent.mConnectionEvent.roamType = roamType;
             mCurrentConnectionEvent.mRouterFingerPrint.updateFromWifiConfiguration(config);
-            if (config != null) {
-                ScanResult candidate = config.getNetworkSelectionStatus().getCandidate();
-                if (candidate != null) {
-                    updateMetricsFromScanResult(candidate);
-                }
-                mCurrentConnectionEvent.mConfigSsid = config.SSID;
-                mCurrentConnectionEvent.mConfigBssid = config.BSSID;
-            }
+            mCurrentConnectionEvent.mConfigBssid = "any";
             mCurrentConnectionEvent.mRealStartTime = SystemClock.elapsedRealtime();
             mConnectionEventList.add(mCurrentConnectionEvent);
         }
@@ -380,6 +425,7 @@ public class WifiMetrics {
         mCurrentConnectionEvent.mConnectionEvent.signalStrength = scanResult.level;
         mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto.authentication =
                 WifiMetricsProto.RouterFingerPrint.AUTH_OPEN;
+        mCurrentConnectionEvent.mConfigBssid = scanResult.BSSID;
         if (scanResult.capabilities != null) {
             if (scanResult.capabilities.contains("WEP")) {
                 mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto.authentication =
@@ -392,6 +438,8 @@ public class WifiMetrics {
                         WifiMetricsProto.RouterFingerPrint.AUTH_ENTERPRISE;
             }
         }
+        mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto.channelInfo =
+                scanResult.frequency;
     }
 
     void setNumSavedNetworks(int num) {
@@ -439,24 +487,6 @@ public class WifiMetrics {
     void setIsScanningAlwaysEnabled(boolean enabled) {
         synchronized (mLock) {
             mWifiLogProto.isScanningAlwaysEnabled = enabled;
-        }
-    }
-
-    /**
-     * Increment Airplane mode toggle count
-     */
-    public void incrementAirplaneToggleCount() {
-        synchronized (mLock) {
-            mWifiLogProto.numWifiToggledViaAirplane++;
-        }
-    }
-
-    /**
-     * Increment Wifi Toggle count
-     */
-    public void incrementWifiToggleCount() {
-        synchronized (mLock) {
-            mWifiLogProto.numWifiToggledViaSettings++;
         }
     }
 
@@ -565,10 +595,6 @@ public class WifiMetrics {
                         + mWifiLogProto.isScanningAlwaysEnabled);
                 pw.println("mWifiLogProto.numWifiToggledViaSettings="
                         + mWifiLogProto.numWifiToggledViaSettings);
-                pw.println("mWifiLogProto.numWifiToggledViaAirplane="
-                        + mWifiLogProto.numWifiToggledViaAirplane);
-                pw.println("mWifiLogProto.numNetworksAddedByUser="
-                        + mWifiLogProto.numNetworksAddedByUser);
                 //TODO - Pending scanning refactor
                 pw.println("mWifiLogProto.numNetworksAddedByApps=" + "<TODO>");
                 pw.println("mWifiLogProto.numNonEmptyScanResults=" + "<TODO>");

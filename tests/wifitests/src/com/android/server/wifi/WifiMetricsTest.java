@@ -58,19 +58,19 @@ public class WifiMetricsTest {
     @Test
     public void startAndEndConnectionEventSucceeds() throws Exception {
         //Start and end Connection event
-        mWifiMetrics.startConnectionEvent(null,
+        mWifiMetrics.startConnectionEvent(null, "RED",
                 WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
         mWifiMetrics.endConnectionEvent(
-                WifiMetrics.ConnectionEvent.LLF_AUTHENTICATION_FAILURE,
+                WifiMetrics.ConnectionEvent.FAILURE_AUTHENTICATION_FAILURE,
                 WifiMetricsProto.ConnectionEvent.HLF_DHCP);
         //end Connection event without starting one
         mWifiMetrics.endConnectionEvent(
-                WifiMetrics.ConnectionEvent.LLF_AUTHENTICATION_FAILURE,
+                WifiMetrics.ConnectionEvent.FAILURE_AUTHENTICATION_FAILURE,
                 WifiMetricsProto.ConnectionEvent.HLF_DHCP);
         //start two ConnectionEvents in a row
-        mWifiMetrics.startConnectionEvent(null,
+        mWifiMetrics.startConnectionEvent(null, "BLUE",
                 WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
-        mWifiMetrics.startConnectionEvent(null,
+        mWifiMetrics.startConnectionEvent(null, "GREEN",
                 WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
     }
 
@@ -129,8 +129,6 @@ public class WifiMetricsTest {
     private static final int NUM_ENTERPRISE_NETWORKS = 5;
     private static final boolean TEST_VAL_IS_LOCATION_ENABLED = true;
     private static final boolean IS_SCANNING_ALWAYS_ENABLED = true;
-    private static final int NUM_WIFI_TOGGLED_VIA_SETTINGS = 7;
-    private static final int NUM_WIFI_TOGGLED_VIA_AIRPLANE = 11;
     private static final int NUM_NEWTORKS_ADDED_BY_USER = 13;
     private static final int NUM_NEWTORKS_ADDED_BY_APPS = 17;
     private static final int NUM_EMPTY_SCAN_RESULTS = 19;
@@ -150,12 +148,6 @@ public class WifiMetricsTest {
         mWifiMetrics.setIsLocationEnabled(TEST_VAL_IS_LOCATION_ENABLED);
         mWifiMetrics.setIsScanningAlwaysEnabled(IS_SCANNING_ALWAYS_ENABLED);
 
-        for (int i = 0; i < NUM_WIFI_TOGGLED_VIA_AIRPLANE; i++) {
-            mWifiMetrics.incrementAirplaneToggleCount();
-        }
-        for (int i = 0; i < NUM_WIFI_TOGGLED_VIA_SETTINGS; i++) {
-            mWifiMetrics.incrementWifiToggleCount();
-        }
         for (int i = 0; i < NUM_EMPTY_SCAN_RESULTS; i++) {
             mWifiMetrics.incrementEmptyScanResultCount();
         }
@@ -207,14 +199,6 @@ public class WifiMetricsTest {
         assertEquals("mDeserializedWifiMetrics.isScanningAlwaysEnabled "
                         + "== IS_SCANNING_ALWAYS_ENABLED",
                 mDeserializedWifiMetrics.isScanningAlwaysEnabled, IS_SCANNING_ALWAYS_ENABLED);
-        assertEquals("mDeserializedWifiMetrics.numWifiToggledViaSettings == "
-                        + "NUM_WIFI_TOGGLED_VIA_SETTINGS",
-                mDeserializedWifiMetrics.numWifiToggledViaSettings,
-                NUM_WIFI_TOGGLED_VIA_SETTINGS);
-        assertEquals("mDeserializedWifiMetrics.numWifiToggledViaAirplane == "
-                        + "NUM_WIFI_TOGGLED_VIA_AIRPLANE",
-                mDeserializedWifiMetrics.numWifiToggledViaAirplane,
-                NUM_WIFI_TOGGLED_VIA_AIRPLANE);
         assertEquals("mDeserializedWifiMetrics.numEmptyScanResults == NUM_EMPTY_SCAN_RESULTS",
                 mDeserializedWifiMetrics.numEmptyScanResults, NUM_EMPTY_SCAN_RESULTS);
         assertEquals("mDeserializedWifiMetrics.numNonEmptyScanResults == "
@@ -268,16 +252,18 @@ public class WifiMetricsTest {
         when(scanDetail.getScanResult()).thenReturn(scanResult);
 
         //Create a connection event using only the config
-        mWifiMetrics.startConnectionEvent(config, WifiMetricsProto.ConnectionEvent.ROAM_NONE);
+        mWifiMetrics.startConnectionEvent(config, "Red",
+                WifiMetricsProto.ConnectionEvent.ROAM_NONE);
         mWifiMetrics.endConnectionEvent(
-                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetrics.ConnectionEvent.FAILURE_NONE,
                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
 
         //Create a connection event using the config and a scan detail
-        mWifiMetrics.startConnectionEvent(config, WifiMetricsProto.ConnectionEvent.ROAM_NONE);
+        mWifiMetrics.startConnectionEvent(config, "Green",
+                WifiMetricsProto.ConnectionEvent.ROAM_NONE);
         mWifiMetrics.setConnectionScanDetail(scanDetail);
         mWifiMetrics.endConnectionEvent(
-                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetrics.ConnectionEvent.FAILURE_NONE,
                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
 
         //Dump proto from mWifiMetrics and deserialize it to mDeserializedWifiMetrics
@@ -302,25 +288,25 @@ public class WifiMetricsTest {
     @Test
     public void testMetricsClearedAfterProtoRequested() throws Exception {
         // Create 3 ConnectionEvents
-        mWifiMetrics.startConnectionEvent(null,
+        mWifiMetrics.startConnectionEvent(null, "RED",
                 WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
         mWifiMetrics.endConnectionEvent(
-                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetrics.ConnectionEvent.FAILURE_NONE,
                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
-        mWifiMetrics.startConnectionEvent(null,
+        mWifiMetrics.startConnectionEvent(null, "YELLOW",
                 WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
         mWifiMetrics.endConnectionEvent(
-                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetrics.ConnectionEvent.FAILURE_NONE,
                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
-        mWifiMetrics.startConnectionEvent(null,
+        mWifiMetrics.startConnectionEvent(null, "GREEN",
                 WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
         mWifiMetrics.endConnectionEvent(
-                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetrics.ConnectionEvent.FAILURE_NONE,
                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
-        mWifiMetrics.startConnectionEvent(null,
+        mWifiMetrics.startConnectionEvent(null, "ORANGE",
                 WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
         mWifiMetrics.endConnectionEvent(
-                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetrics.ConnectionEvent.FAILURE_NONE,
                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
 
         //Dump proto and deserialize
@@ -330,15 +316,15 @@ public class WifiMetricsTest {
         assertEquals(mDeserializedWifiMetrics.connectionEvent.length, 4);
 
         // Create 2 ConnectionEvents
-        mWifiMetrics.startConnectionEvent(null,
+        mWifiMetrics.startConnectionEvent(null,  "BLUE",
                 WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
         mWifiMetrics.endConnectionEvent(
-                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetrics.ConnectionEvent.FAILURE_NONE,
                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
-        mWifiMetrics.startConnectionEvent(null,
+        mWifiMetrics.startConnectionEvent(null, "RED",
                 WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
         mWifiMetrics.endConnectionEvent(
-                WifiMetrics.ConnectionEvent.LLF_NONE,
+                WifiMetrics.ConnectionEvent.FAILURE_NONE,
                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
 
         //Dump proto and deserialize
