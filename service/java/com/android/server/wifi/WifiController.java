@@ -533,7 +533,6 @@ class WifiController extends StateMachine {
                         transitionTo(mApStaDisabledState);
                     }
                     break;
-                case CMD_EMERGENCY_CALL_STATE_CHANGED:
                 case CMD_STA_START_FAILURE:
                     if (!mSettingsStore.isScanAlwaysAvailable()) {
                         transitionTo(mApStaDisabledState);
@@ -541,6 +540,7 @@ class WifiController extends StateMachine {
                         transitionTo(mStaDisabledWithScanState);
                     }
                     break;
+                case CMD_EMERGENCY_CALL_STATE_CHANGED:
                 case CMD_EMERGENCY_MODE_CHANGED:
                     if (msg.arg1 == 1) {
                         transitionTo(mEcmState);
