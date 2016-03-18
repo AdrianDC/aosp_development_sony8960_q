@@ -2467,11 +2467,11 @@ public class WifiNative {
         }
     }
 
-    private static native boolean toggleInterfaceNative(int on);
-    public boolean toggleInterface(int on) {
+    private static native boolean setInterfaceUpNative(boolean up);
+    public boolean setInterfaceUp(boolean up) {
         synchronized (sLock) {
             if (isHalStarted()) {
-                return toggleInterfaceNative(on);
+                return setInterfaceUpNative(up);
             } else {
                 return false;
             }
