@@ -48,8 +48,6 @@ public class SupplicantStateTracker extends StateMachine {
 
     private static final String TAG = "SupplicantStateTracker";
     private static boolean DBG = false;
-
-    private final WifiStateMachine mWifiStateMachine;
     private final WifiConfigManager mWifiConfigManager;
     private final IBatteryStats mBatteryStats;
     /* Indicates authentication failure in supplicant broadcast.
@@ -89,12 +87,10 @@ public class SupplicantStateTracker extends StateMachine {
         return getCurrentState().getName();
     }
 
-    public SupplicantStateTracker(Context c, WifiStateMachine wsm, WifiConfigManager wcs,
-            Handler t) {
+    public SupplicantStateTracker(Context c, WifiConfigManager wcs, Handler t) {
         super(TAG, t.getLooper());
 
         mContext = c;
-        mWifiStateMachine = wsm;
         mWifiConfigManager = wcs;
         mBatteryStats = (IBatteryStats)ServiceManager.getService(BatteryStats.SERVICE_NAME);
         addState(mDefaultState);
