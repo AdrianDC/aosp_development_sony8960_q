@@ -369,7 +369,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
      * Interval in milliseconds between receiving a disconnect event
      * while connected to a good AP, and handling the disconnect proper
      */
-    private static final int LINK_FLAPPING_DEBOUNCE_MSEC = 7000;
+    private static final int LINK_FLAPPING_DEBOUNCE_MSEC = 4000;
 
     /**
      * Delay between supplicant restarts upon failure to establish connection
@@ -8128,7 +8128,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                                     mWifiConfigManager.thresholdQualifiedRssi5.get()))) {
                         // Start de-bouncing the L2 disconnection:
                         // this L2 disconnection might be spurious.
-                        // Hence we allow 7 seconds for the state machine to try
+                        // Hence we allow 4 seconds for the state machine to try
                         // to reconnect, go thru the
                         // roaming cycle and enter Obtaining IP address
                         // before signalling the disconnect to ConnectivityService and L3
