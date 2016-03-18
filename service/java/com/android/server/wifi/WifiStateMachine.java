@@ -4603,7 +4603,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             return false;
         }
 
-        if (mWifiNative.getInterfaces() != 0) {
+        int index = mWifiNative.queryInterfaceIndex(mInterfaceName);
+        if (index != -1) {
             if (!mWifiNative.toggleInterface(0)) {
                 Log.e(TAG, "toggleInterface failed");
                 return false;
