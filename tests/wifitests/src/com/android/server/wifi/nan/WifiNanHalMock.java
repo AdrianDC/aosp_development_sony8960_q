@@ -39,6 +39,10 @@ public class WifiNanHalMock {
         throw new IllegalStateException("Please mock this class!");
     }
 
+    public void configHalMockNative(short transactionId, String jsonArgs) {
+        throw new IllegalStateException("Please mock this class!");
+    }
+
     public void disableHalMockNative(short transactionId) {
         throw new IllegalStateException("Please mock this class!");
     }

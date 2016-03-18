@@ -19,11 +19,13 @@ package com.android.server.wifi.nan;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
 import android.net.wifi.nan.TlvBufferUtils;
+import android.net.wifi.nan.WifiNanEventCallback;
 import android.net.wifi.nan.WifiNanSessionCallback;
 import android.os.Bundle;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -91,6 +93,14 @@ public class WifiNanHalTest {
         final boolean enable5g = false;
 
         testEnable(transactionId, clusterLow, clusterHigh, masterPref, enable5g);
+    }
+
+    @Test
+    public void testConfigCall() throws JSONException {
+        final short transactionId = 31235;
+        final short masterPref = 157;
+
+        testConfig(transactionId, masterPref);
     }
 
     @Test
@@ -292,8 +302,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onCapabilitiesUpdate(eq(transactionId),
-                capabilitiesCapture.capture());
+        verify(mNanStateManager).onCapabilitiesUpdateNotification(capabilitiesCapture.capture());
         WifiNanNative.Capabilities capabilities = capabilitiesCapture.getValue();
         collector.checkThat("max_concurrent_nan_clusters", capabilities.maxConcurrentNanClusters,
                 equalTo(max_concurrent_nan_clusters));
@@ -317,6 +326,7 @@ public class WifiNanHalTest {
                 equalTo(max_ndp_sessions));
         collector.checkThat("max_app_info_len", capabilities.maxAppInfoLen,
                 equalTo(max_app_info_len));
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -331,7 +341,8 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onConfigCompleted(transactionId);
+        verify(mNanStateManager).onConfigSuccessResponse(transactionId);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -346,8 +357,9 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onConfigFailed(transactionId,
-                WifiNanSessionCallback.FAIL_REASON_INVALID_ARGS);
+        verify(mNanStateManager).onConfigFailedResponse(transactionId,
+                WifiNanEventCallback.REASON_INVALID_ARGS);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -364,7 +376,8 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onPublishSuccess(transactionId, publishId);
+        verify(mNanStateManager).onSessionConfigSuccessResponse(transactionId, true, publishId);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -381,8 +394,9 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onPublishFail(transactionId,
-                WifiNanSessionCallback.FAIL_REASON_NO_RESOURCES);
+        verify(mNanStateManager).onSessionConfigFailResponse(transactionId, true,
+                WifiNanSessionCallback.REASON_NO_RESOURCES);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -397,7 +411,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onNoOpTransaction(transactionId);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -414,7 +428,8 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onSubscribeSuccess(transactionId, subscribeId);
+        verify(mNanStateManager).onSessionConfigSuccessResponse(transactionId, false, subscribeId);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -431,8 +446,9 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onSubscribeFail(transactionId,
-                WifiNanSessionCallback.FAIL_REASON_OTHER);
+        verify(mNanStateManager).onSessionConfigFailResponse(transactionId, false,
+                WifiNanSessionCallback.REASON_OTHER);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -447,7 +463,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onNoOpTransaction(transactionId);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -462,7 +478,8 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onMessageSendSuccess(transactionId);
+        verify(mNanStateManager).onMessageSendSuccessResponse(transactionId);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -477,8 +494,9 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onMessageSendFail(transactionId,
-                WifiNanSessionCallback.FAIL_REASON_OTHER);
+        verify(mNanStateManager).onMessageSendFailResponse(transactionId,
+                WifiNanSessionCallback.REASON_OTHER);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -494,8 +512,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onUnknownTransaction(invalidTransactionId, transactionId,
-                WifiNanNative.NAN_STATUS_SUCCESS);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -508,8 +525,9 @@ public class WifiNanHalTest {
 
         WifiNanHalMock.callPublishTerminated(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onPublishTerminated(publishId,
-                WifiNanSessionCallback.TERMINATE_REASON_DONE);
+        verify(mNanStateManager).onSessionTerminatedNotification(publishId,
+                WifiNanSessionCallback.TERMINATE_REASON_DONE, true);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -522,8 +540,9 @@ public class WifiNanHalTest {
 
         WifiNanHalMock.callSubscribeTerminated(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onSubscribeTerminated(subscribeId,
-                WifiNanSessionCallback.TERMINATE_REASON_FAIL);
+        verify(mNanStateManager).onSessionTerminatedNotification(subscribeId,
+                WifiNanSessionCallback.TERMINATE_REASON_FAIL, false);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -543,8 +562,9 @@ public class WifiNanHalTest {
 
         WifiNanHalMock.callFollowup(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onMessageReceived(pubSubId, reqInstanceId, peer,
+        verify(mNanStateManager).onMessageReceivedNotification(pubSubId, reqInstanceId, peer,
                 message.getBytes(), message.length());
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -566,8 +586,9 @@ public class WifiNanHalTest {
 
         WifiNanHalMock.callMatch(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onMatch(pubSubId, reqInstanceId, peer, ssi.getBytes(),
+        verify(mNanStateManager).onMatchNotification(pubSubId, reqInstanceId, peer, ssi.getBytes(),
                 ssi.length(), filter.getBytes(), filter.length());
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -580,7 +601,8 @@ public class WifiNanHalTest {
 
         WifiNanHalMock.callDiscEngEvent(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onInterfaceAddressChange(mac);
+        verify(mNanStateManager).onInterfaceAddressChangeNotification(mac);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -593,8 +615,9 @@ public class WifiNanHalTest {
 
         WifiNanHalMock.callDiscEngEvent(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onClusterChange(WifiNanClientState.CLUSTER_CHANGE_EVENT_JOINED,
-                mac);
+        verify(mNanStateManager)
+                .onClusterChangeNotification(WifiNanClientState.CLUSTER_CHANGE_EVENT_JOINED, mac);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -607,8 +630,9 @@ public class WifiNanHalTest {
 
         WifiNanHalMock.callDiscEngEvent(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onClusterChange(WifiNanClientState.CLUSTER_CHANGE_EVENT_STARTED,
-                mac);
+        verify(mNanStateManager)
+                .onClusterChangeNotification(WifiNanClientState.CLUSTER_CHANGE_EVENT_STARTED, mac);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     @Test
@@ -618,7 +642,8 @@ public class WifiNanHalTest {
 
         WifiNanHalMock.callDisabled(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onNanDown(WifiNanSessionCallback.FAIL_REASON_OTHER);
+        verify(mNanStateManager).onNanDownNotification(WifiNanEventCallback.REASON_OTHER);
+        verifyNoMoreInteractions(mNanStateManager);
     }
 
     /*
@@ -631,7 +656,7 @@ public class WifiNanHalTest {
                 .setClusterHigh(clusterHigh).setMasterPreference(masterPref)
                 .setSupport5gBand(enable5g).build();
 
-        mDut.enableAndConfigure(transactionId, configRequest);
+        mDut.enableAndConfigure(transactionId, configRequest, true);
 
         verify(mNanHalMock).enableHalMockNative(eq(transactionId), mArgs.capture());
 
@@ -678,6 +703,52 @@ public class WifiNanHalTest {
                 argsData.getInt("config_random_factor_force"), equalTo(0));
         collector.checkThat("config_hop_count_force", argsData.getInt("config_hop_count_force"),
                 equalTo(0));
+    }
+
+    private void testConfig(short transactionId, int masterPref) throws JSONException {
+        ConfigRequest configRequest = new ConfigRequest.Builder().setMasterPreference(masterPref)
+                .build();
+
+        mDut.enableAndConfigure(transactionId, configRequest, false);
+
+        verify(mNanHalMock).configHalMockNative(eq(transactionId), mArgs.capture());
+
+        Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
+
+        collector.checkThat("config_master_pref", argsData.getInt("config_master_pref"),
+                equalTo(1));
+        collector.checkThat("master_pref", argsData.getInt("master_pref"), equalTo(masterPref));
+
+        collector.checkThat("config_sid_beacon", argsData.getInt("config_sid_beacon"), equalTo(0));
+        collector.checkThat("sid_beacon", argsData.getInt("sid_beacon"), equalTo(0));
+        collector.checkThat("config_rssi_proximity", argsData.getInt("config_rssi_proximity"),
+                equalTo(0));
+        collector.checkThat("rssi_proximity", argsData.getInt("rssi_proximity"), equalTo(0));
+        collector.checkThat("config_5g_rssi_close_proximity",
+                argsData.getInt("config_5g_rssi_close_proximity"), equalTo(0));
+        collector.checkThat("rssi_close_proximity_5g_val",
+                argsData.getInt("rssi_close_proximity_5g_val"), equalTo(0));
+        collector.checkThat("config_rssi_window_size", argsData.getInt("config_rssi_window_size"),
+                equalTo(0));
+        collector.checkThat("rssi_window_size_val", argsData.getInt("rssi_window_size_val"),
+                equalTo(0));
+        collector.checkThat("config_cluster_attribute_val",
+                argsData.getInt("config_cluster_attribute_val"), equalTo(0));
+        collector.checkThat("config_scan_params", argsData.getInt("config_scan_params"),
+                equalTo(0));
+        collector.checkThat("config_random_factor_force",
+                argsData.getInt("config_random_factor_force"), equalTo(0));
+        collector.checkThat("random_factor_force_val", argsData.getInt("random_factor_force_val"),
+                equalTo(0));
+        collector.checkThat("config_hop_count_force", argsData.getInt("config_hop_count_force"),
+                equalTo(0));
+        collector.checkThat("hop_count_force_val", argsData.getInt("hop_count_force_val"),
+                equalTo(0));
+        collector.checkThat("config_conn_capability", argsData.getInt("config_conn_capability"),
+                equalTo(0));
+        collector.checkThat("num_config_discovery_attr",
+                argsData.getInt("num_config_discovery_attr"), equalTo(0));
+        collector.checkThat("config_fam", argsData.getInt("config_fam"), equalTo(0));
     }
 
     private void testPublish(short transactionId, int publishId, int publishType,

@@ -40,20 +40,27 @@ public class WifiNanSessionState {
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
 
-    private final SparseArray<String> mMacByRequestorInstanceId = new SparseArray<>();
-
     private int mSessionId;
+    private int mPubSubId;
     private IWifiNanSessionCallback mCallback;
     private boolean mIsPublishSession;
 
-    private boolean mSessionValid = false;
-    private int mPubSubId;
+    private final SparseArray<String> mMacByRequestorInstanceId = new SparseArray<>();
 
-    public WifiNanSessionState(int sessionId, IWifiNanSessionCallback callback,
+    public WifiNanSessionState(int sessionId, int pubSubId, IWifiNanSessionCallback callback,
             boolean isPublishSession) {
         mSessionId = sessionId;
+        mPubSubId = pubSubId;
         mCallback = callback;
         mIsPublishSession = isPublishSession;
+    }
+
+    public int getSessionId() {
+        return mSessionId;
+    }
+
+    public IWifiNanSessionCallback getCallback() {
+        return mCallback;
     }
 
     /**
@@ -61,26 +68,13 @@ public class WifiNanSessionState {
      * if currently active.
      */
     public void terminate() {
-        if (!mSessionValid) {
-            if (DBG) {
-                Log.d(TAG, "terminate: attempting to terminate an already terminated session");
-            }
-            return;
-        }
-
-        short transactionId = WifiNanStateManager.getInstance().createNextTransactionId();
-        if (mIsPublishSession) {
-            WifiNanNative.getInstance().stopPublish(transactionId, mPubSubId);
-        } else {
-            WifiNanNative.getInstance().stopSubscribe(transactionId, mPubSubId);
-        }
-
-        mSessionValid = false;
         mCallback = null;
-    }
 
-    public int getSessionId() {
-        return mSessionId;
+        if (mIsPublishSession) {
+            WifiNanNative.getInstance().stopPublish((short) 0, mPubSubId);
+        } else {
+            WifiNanNative.getInstance().stopSubscribe((short) 0, mPubSubId);
+        }
     }
 
     /**
@@ -91,18 +85,7 @@ public class WifiNanSessionState {
      * @return true if corresponds to this session, false otherwise.
      */
     public boolean isPubSubIdSession(int pubSubId) {
-        return mSessionValid && mPubSubId == pubSubId;
-    }
-
-    /**
-     * Start a publish discovery session.
-     *
-     * @param transactionId Transaction ID for the transaction - used in the
-     *            async callback to match with the original request.
-     * @param config Configuration of the publish session.
-     */
-    public void publish(short transactionId, PublishConfig config) {
-        WifiNanNative.getInstance().publish(transactionId, 0, config);
+        return mPubSubId == pubSubId;
     }
 
     /**
@@ -112,31 +95,19 @@ public class WifiNanSessionState {
      *            async callback to match with the original request.
      * @param config Configuration of the publish session.
      */
-    public void updatePublish(short transactionId, PublishConfig config) {
+    public boolean updatePublish(short transactionId, PublishConfig config) {
         if (!mIsPublishSession) {
             Log.e(TAG, "A SUBSCRIBE session is being used to publish");
-            WifiNanStateManager.getInstance().onPublishFail(transactionId,
-                    WifiNanSessionCallback.FAIL_REASON_OTHER);
-            return;
-        }
-        if (!mSessionValid) {
-            Log.e(TAG, "Attempting a re-publish on a terminated session");
-            onPublishFail(WifiNanSessionCallback.FAIL_REASON_SESSION_TERMINATED);
-            return;
+            try {
+                mCallback.onSessionConfigFail(WifiNanSessionCallback.REASON_OTHER);
+            } catch (RemoteException e) {
+                Log.e(TAG, "updatePublish: RemoteException=" + e);
+            }
+            return false;
         }
 
         WifiNanNative.getInstance().publish(transactionId, mPubSubId, config);
-    }
-
-    /**
-     * Start a subscribe discovery session.
-     *
-     * @param transactionId Transaction ID for the transaction - used in the
-     *            async callback to match with the original request.
-     * @param config Configuration of the subscribe session.
-     */
-    public void subscribe(short transactionId, SubscribeConfig config) {
-        WifiNanNative.getInstance().subscribe(transactionId, 0, config);
+        return true;
     }
 
     /**
@@ -146,20 +117,19 @@ public class WifiNanSessionState {
      *            async callback to match with the original request.
      * @param config Configuration of the subscribe session.
      */
-    public void updateSubscribe(short transactionId, SubscribeConfig config) {
+    public boolean updateSubscribe(short transactionId, SubscribeConfig config) {
         if (mIsPublishSession) {
             Log.e(TAG, "A PUBLISH session is being used to subscribe");
-            WifiNanStateManager.getInstance().onSubscribeFail(transactionId,
-                    WifiNanSessionCallback.FAIL_REASON_OTHER);
-            return;
-        }
-        if (!mSessionValid) {
-            Log.e(TAG, "Attempting a re-subscribe on a terminated session");
-            onSubscribeFail(WifiNanSessionCallback.FAIL_REASON_SESSION_TERMINATED);
-            return;
+            try {
+                mCallback.onSessionConfigFail(WifiNanSessionCallback.REASON_OTHER);
+            } catch (RemoteException e) {
+                Log.e(TAG, "updateSubscribe: RemoteException=" + e);
+            }
+            return false;
         }
 
         WifiNanNative.getInstance().subscribe(transactionId, mPubSubId, config);
+        return true;
     }
 
     /**
@@ -174,173 +144,25 @@ public class WifiNanSessionState {
      * @param messageId A message ID provided by caller to be used in any
      *            callbacks related to the message (success/failure).
      */
-    public void sendMessage(short transactionId, int peerId, byte[] message, int messageLength,
+    public boolean sendMessage(short transactionId, int peerId, byte[] message, int messageLength,
             int messageId) {
-        if (!mSessionValid) {
-            Log.e(TAG, "sendMessage: attempting to send a message on a terminated session "
-                    + "(no successful publish or subscribe");
-            onMessageSendFail(messageId, WifiNanSessionCallback.FAIL_REASON_SESSION_TERMINATED);
-            return;
-        }
-
         String peerMacStr = mMacByRequestorInstanceId.get(peerId);
         if (peerMacStr == null) {
             Log.e(TAG, "sendMessage: attempting to send a message to an address which didn't "
                     + "match/contact us");
-            onMessageSendFail(messageId, WifiNanSessionCallback.FAIL_REASON_NO_MATCH_SESSION);
-            return;
+            try {
+                mCallback.onMessageSendFail(messageId,
+                        WifiNanSessionCallback.REASON_NO_MATCH_SESSION);
+            } catch (RemoteException e) {
+                Log.e(TAG, "sendMessage: RemoteException=" + e);
+            }
+            return false;
         }
         byte[] peerMac = HexEncoding.decode(peerMacStr.toCharArray(), false);
 
         WifiNanNative.getInstance().sendMessage(transactionId, mPubSubId, peerId, peerMac, message,
                 messageLength);
-    }
-
-    /**
-     * Callback from HAL updating session in case of publish session creation
-     * success (i.e. publish session configured correctly and is active).
-     *
-     * @param publishId The HAL id of the (now active) publish session.
-     */
-    public void onPublishSuccess(int publishId) {
-        if (mSessionValid) {
-            // indicates an update-publish: no need to inform client
-            return;
-        }
-        mPubSubId = publishId;
-        mSessionValid = true;
-        try {
-            if (mCallback != null) {
-                mCallback.onSessionStarted(mSessionId);
-            }
-        } catch (RemoteException e) {
-            Log.w(TAG, "onPublishSuccess: RemoteException (FYI): " + e);
-        }
-    }
-
-    /**
-     * Callback from HAL updating session in case of publish session creation
-     * fail. Propagates call to client if registered.
-     *
-     * @param status Reason code for failure.
-     */
-    public void onPublishFail(int status) {
-        try {
-            if (mCallback != null) {
-                mCallback.onSessionConfigFail(status);
-            }
-        } catch (RemoteException e) {
-            Log.w(TAG, "onPublishFail: RemoteException (FYI): " + e);
-        }
-    }
-
-    /**
-     * Callback from HAL updating session when the publish session has
-     * terminated (per plan or due to failure). Propagates call to client if
-     * registered.
-     *
-     * @param status Reason code for session termination.
-     */
-    public void onPublishTerminated(int status) {
-        mSessionValid = false;
-        try {
-            if (mCallback != null) {
-                mCallback.onSessionTerminated(status);
-            }
-        } catch (RemoteException e) {
-            Log.w(TAG, "onPublishTerminated: RemoteException (FYI): " + e);
-        }
-    }
-
-    /**
-     * Callback from HAL updating session in case of subscribe session creation
-     * success (i.e. subscribe session configured correctly and is active).
-     *
-     * @param subscribeId The HAL id of the (now active) subscribe session.
-     */
-    public void onSubscribeSuccess(int subscribeId) {
-        if (mSessionValid) {
-            // indicates an update-publish: no need to inform client
-            return;
-        }
-
-        mPubSubId = subscribeId;
-        mSessionValid = true;
-        try {
-            if (mCallback != null) {
-                mCallback.onSessionStarted(mSessionId);
-            }
-        } catch (RemoteException e) {
-            Log.w(TAG, "onSubscribeSuccess: RemoteException (FYI): " + e);
-        }
-    }
-
-    /**
-     * Callback from HAL updating session in case of subscribe session creation
-     * fail. Propagates call to client if registered.
-     *
-     * @param status Reason code for failure.
-     */
-    public void onSubscribeFail(int status) {
-        try {
-            if (mCallback != null) {
-                mCallback.onSessionConfigFail(status);
-            }
-        } catch (RemoteException e) {
-            Log.w(TAG, "onSubscribeFail: RemoteException (FYI): " + e);
-        }
-    }
-
-    /**
-     * Callback from HAL updating session when the subscribe session has
-     * terminated (per plan or due to failure). Propagates call to client if
-     * registered.
-     *
-     * @param status Reason code for session termination.
-     */
-    public void onSubscribeTerminated(int status) {
-        mSessionValid = false;
-        try {
-            if (mCallback != null) {
-                mCallback.onSessionTerminated(status);
-            }
-        } catch (RemoteException e) {
-            Log.w(TAG, "onSubscribeTerminated: RemoteException (FYI): " + e);
-        }
-    }
-
-    /**
-     * Callback from HAL when message is sent successfully (i.e. an ACK was
-     * received). Propagates call to client if registered.
-     *
-     * @param messageId ID provided by caller with the message.
-     */
-    public void onMessageSendSuccess(int messageId) {
-        try {
-            if (mCallback != null) {
-                mCallback.onMessageSendSuccess(messageId);
-            }
-        } catch (RemoteException e) {
-            Log.w(TAG, "onMessageSendSuccess: RemoteException (FYI): " + e);
-        }
-    }
-
-    /**
-     * Callback from HAL when message fails to be transmitted - including when
-     * transmitted but no ACK received from intended receiver. Propagates call
-     * to client if registered.
-     *
-     * @param messageId ID provided by caller with the message.
-     * @param status Reason code for transmit failure.
-     */
-    public void onMessageSendFail(int messageId, int status) {
-        try {
-            if (mCallback != null) {
-                mCallback.onMessageSendFail(messageId, status);
-            }
-        } catch (RemoteException e) {
-            Log.w(TAG, "onMessageSendFail: RemoteException (FYI): " + e);
-        }
+        return true;
     }
 
     /**
@@ -367,10 +189,8 @@ public class WifiNanSessionState {
         if (DBG) Log.d(TAG, "onMatch: previous peer MAC replaced - " + prevMac);
 
         try {
-            if (mCallback != null) {
-                mCallback.onMatch(requestorInstanceId, serviceSpecificInfo,
-                        serviceSpecificInfoLength, matchFilter, matchFilterLength);
-            }
+            mCallback.onMatch(requestorInstanceId, serviceSpecificInfo, serviceSpecificInfoLength,
+                    matchFilter, matchFilterLength);
         } catch (RemoteException e) {
             Log.w(TAG, "onMatch: RemoteException (FYI): " + e);
         }
@@ -397,9 +217,7 @@ public class WifiNanSessionState {
         }
 
         try {
-            if (mCallback != null) {
-                mCallback.onMessageReceived(requestorInstanceId, message, messageLength);
-            }
+            mCallback.onMessageReceived(requestorInstanceId, message, messageLength);
         } catch (RemoteException e) {
             Log.w(TAG, "onMessageReceived: RemoteException (FYI): " + e);
         }
@@ -412,7 +230,7 @@ public class WifiNanSessionState {
         pw.println("NanSessionState:");
         pw.println("  mSessionId: " + mSessionId);
         pw.println("  mIsPublishSession: " + mIsPublishSession);
-        pw.println("  mPubSubId: " + (mSessionValid ? Integer.toString(mPubSubId) : "not valid"));
+        pw.println("  mPubSubId: " + mPubSubId);
         pw.println("  mMacByRequestorInstanceId: [" + mMacByRequestorInstanceId + "]");
     }
 }

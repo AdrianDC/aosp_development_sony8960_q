@@ -262,6 +262,27 @@ static jint android_net_wifi_nan_enable_request(JNIEnv *env, jclass cls,
     return hal_fn.wifi_nan_enable_request(transaction_id, handle, &msg);
 }
 
+static jint android_net_wifi_nan_config_request(JNIEnv *env, jclass cls,
+                                                jshort transaction_id,
+                                                jclass wifi_native_cls,
+                                                jint iface,
+                                                jobject config_request) {
+    JNIHelper helper(env);
+    wifi_interface_handle handle = getIfaceHandle(helper, wifi_native_cls, iface);
+
+    ALOGD("android_net_wifi_nan_config_request handle=%p, id=%d",
+          handle, transaction_id);
+
+    NanConfigRequest msg;
+    memset(&msg, 0, sizeof(NanConfigRequest));
+
+    /* configurable settings */
+    msg.config_master_pref = 1;
+    msg.master_pref = helper.getIntField(config_request, "mMasterPreference");
+
+    return hal_fn.wifi_nan_config_request(transaction_id, handle, &msg);
+}
+
 static jint android_net_wifi_nan_get_capabilities(JNIEnv *env, jclass cls,
                                                   jshort transaction_id,
                                                   jclass wifi_native_cls,
@@ -512,16 +533,16 @@ static jint android_net_wifi_nan_stop_subscribe(JNIEnv *env, jclass cls,
 
 static JNINativeMethod gWifiNanMethods[] = {
     /* name, signature, funcPtr */
-
-    {"initNanHandlersNative", "(Ljava/lang/Object;I)I", (void*)android_net_wifi_nan_register_handler },
-    {"getCapabilitiesNative", "(SLjava/lang/Object;I)I", (void*)android_net_wifi_nan_get_capabilities },
-    {"enableAndConfigureNative", "(SLjava/lang/Object;ILandroid/net/wifi/nan/ConfigRequest;)I", (void*)android_net_wifi_nan_enable_request },
-    {"disableNative", "(SLjava/lang/Object;I)I", (void*)android_net_wifi_nan_disable_request },
-    {"publishNative", "(SILjava/lang/Object;ILandroid/net/wifi/nan/PublishConfig;)I", (void*)android_net_wifi_nan_publish },
-    {"subscribeNative", "(SILjava/lang/Object;ILandroid/net/wifi/nan/SubscribeConfig;)I", (void*)android_net_wifi_nan_subscribe },
-    {"sendMessageNative", "(SLjava/lang/Object;III[B[BI)I", (void*)android_net_wifi_nan_send_message },
-    {"stopPublishNative", "(SLjava/lang/Object;II)I", (void*)android_net_wifi_nan_stop_publish },
-    {"stopSubscribeNative", "(SLjava/lang/Object;II)I", (void*)android_net_wifi_nan_stop_subscribe },
+    {"initNanHandlersNative", "(Ljava/lang/Class;I)I", (void*)android_net_wifi_nan_register_handler },
+    {"getCapabilitiesNative", "(SLjava/lang/Class;I)I", (void*)android_net_wifi_nan_get_capabilities },
+    {"enableAndConfigureNative", "(SLjava/lang/Class;ILandroid/net/wifi/nan/ConfigRequest;)I", (void*)android_net_wifi_nan_enable_request },
+    {"updateConfigurationNative", "(SLjava/lang/Class;ILandroid/net/wifi/nan/ConfigRequest;)I", (void*)android_net_wifi_nan_config_request },
+    {"disableNative", "(SLjava/lang/Class;I)I", (void*)android_net_wifi_nan_disable_request },
+    {"publishNative", "(SILjava/lang/Class;ILandroid/net/wifi/nan/PublishConfig;)I", (void*)android_net_wifi_nan_publish },
+    {"subscribeNative", "(SILjava/lang/Class;ILandroid/net/wifi/nan/SubscribeConfig;)I", (void*)android_net_wifi_nan_subscribe },
+    {"sendMessageNative", "(SLjava/lang/Class;III[B[BI)I", (void*)android_net_wifi_nan_send_message },
+    {"stopPublishNative", "(SLjava/lang/Class;II)I", (void*)android_net_wifi_nan_stop_publish },
+    {"stopSubscribeNative", "(SLjava/lang/Class;II)I", (void*)android_net_wifi_nan_stop_subscribe },
 };
 
 /* User to register native functions */
