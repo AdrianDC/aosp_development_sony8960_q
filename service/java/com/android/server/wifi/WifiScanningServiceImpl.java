@@ -2077,6 +2077,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
           .append(" sameNetworkBonus:").append(pnoSettings.sameNetworkBonus)
           .append(" secureBonus:").append(pnoSettings.secureBonus)
           .append(" band5GhzBonus:").append(pnoSettings.band5GHzBonus)
+          .append(" isConnected:").append(pnoSettings.isConnected)
           .append(" networks:[ ");
         if (pnoSettings.networkList != null) {
             for (int i = 0; i < pnoSettings.networkList.length; i++) {
