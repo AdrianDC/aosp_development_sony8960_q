@@ -231,7 +231,7 @@ static JNIObject<jobject> createScanResult(JNIHelper &helper, wifi_scan_result *
     return scanResult;
 }
 
-int set_iface_flags(const char *ifname, int dev_up) {
+int set_iface_flags(const char *ifname, bool dev_up) {
     struct ifreq ifr;
     int ret;
     int sock = socket(PF_INET, SOCK_DGRAM, 0);
@@ -284,8 +284,8 @@ int set_iface_flags(const char *ifname, int dev_up) {
     return 0;
 }
 
-static jboolean android_net_wifi_toggle_interface(JNIEnv* env, jclass cls, int toggle) {
-    return(set_iface_flags("wlan0", toggle) == 0);
+static jboolean android_net_wifi_set_interface_up(JNIEnv* env, jclass cls, jboolean up) {
+    return (set_iface_flags("wlan0", (bool)up) == 0);
 }
 
 static jboolean android_net_wifi_startHal(JNIEnv* env, jclass cls) {
@@ -304,7 +304,7 @@ static jboolean android_net_wifi_startHal(JNIEnv* env, jclass cls) {
 	    return false;
         }
 
-        int ret = set_iface_flags("wlan0", 1);
+        int ret = set_iface_flags("wlan0", true);
         if(ret != 0) {
             return false;
         }
@@ -319,7 +319,7 @@ static jboolean android_net_wifi_startHal(JNIEnv* env, jclass cls) {
         ALOGD("halHandle = %p, mVM = %p, mCls = %p", halHandle, mVM, mCls);
         return res == WIFI_SUCCESS;
     } else {
-        return (set_iface_flags("wlan0", 1) == 0);
+        return (set_iface_flags("wlan0", true) == 0);
     }
 }
 
@@ -353,7 +353,7 @@ static void android_net_wifi_waitForHalEvents(JNIEnv* env, jclass cls) {
     JNIHelper helper(env);
     wifi_handle halHandle = getWifiHandle(helper, cls);
     hal_fn.wifi_event_loop(halHandle);
-    set_iface_flags("wlan0", 0);
+    set_iface_flags("wlan0", false);
 }
 
 static int android_net_wifi_getInterfaces(JNIEnv *env, jclass cls) {
@@ -2321,7 +2321,7 @@ static JNINativeMethod gWifiMethods[] = {
     { "setScanningMacOuiNative", "(I[B)Z",  (void*) android_net_wifi_setScanningMacOui},
     { "getChannelsForBandNative", "(II)[I", (void*) android_net_wifi_getValidChannels},
     { "setDfsFlagNative",         "(IZ)Z",  (void*) android_net_wifi_setDfsFlag},
-    { "toggleInterfaceNative",    "(I)Z",  (void*) android_net_wifi_toggle_interface},
+    { "setInterfaceUpNative", "(Z)Z",  (void*) android_net_wifi_set_interface_up},
     { "getRttCapabilitiesNative", "(I)Landroid/net/wifi/RttManager$RttCapabilities;",
             (void*) android_net_wifi_get_rtt_capabilities},
     { "getPacketFilterCapabilitiesNative", "(I)Lcom/android/server/wifi/WifiNative$PacketFilterCapabilities;",
