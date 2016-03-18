@@ -1886,6 +1886,7 @@ public class WifiNative {
         public int sameNetworkBonus;
         public int secureBonus;
         public int band5GHzBonus;
+        public boolean isConnected;
         public PnoNetwork[] networkList;
     }
 

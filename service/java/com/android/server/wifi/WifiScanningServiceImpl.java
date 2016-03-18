@@ -848,8 +848,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         }
                         break;
                     case WifiScanner.CMD_STOP_PNO_SCAN:
-                        removeScanRequestForPno(ci, msg.arg2, (PnoSettings) msg.obj);
-                        mActivePnoScans.remove(ci, msg.arg2);
+                        pnoSettings = mActivePnoScans.remove(ci, msg.arg2);
+                        removeScanRequestForPno(ci, msg.arg2, pnoSettings);
                         break;
                     case WifiScanner.CMD_GET_SCAN_RESULTS:
                         reportScanResults(mScannerImpl.getLatestBatchedScanResults(true));
@@ -1425,6 +1425,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         nativePnoSetting.sameNetworkBonus = pnoSettings.sameNetworkBonus;
         nativePnoSetting.secureBonus = pnoSettings.secureBonus;
         nativePnoSetting.band5GHzBonus = pnoSettings.band5GHzBonus;
+        nativePnoSetting.isConnected = pnoSettings.isConnected;
         nativePnoSetting.networkList = new WifiNative.PnoNetwork[pnoSettings.networkList.length];
         for (int i = 0; i < pnoSettings.networkList.length; i++) {
             nativePnoSetting.networkList[i] = new WifiNative.PnoNetwork();
@@ -1445,7 +1446,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         mBackgroundScanStateMachine)) {
             return false;
         }
-        if (!mScannerImpl.shouldScheduleBackgroundScanForPno()) {
+        if (!mScannerImpl.shouldScheduleBackgroundScanForPno(pnoSettings.isConnected)) {
             return true;
         }
         return addBackgroundScanRequest(ci, handler, settings);
@@ -1455,7 +1456,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         if (ci != null) {
             logScanRequest("removePnoScanRequest", ci, handler, null, null);
             mScannerImpl.resetPnoList(convertPnoSettingsToNative(pnoSettings));
-            if (!mScannerImpl.shouldScheduleBackgroundScanForPno()) {
+            if (!mScannerImpl.shouldScheduleBackgroundScanForPno(pnoSettings.isConnected)) {
                 return;
             }
             removeBackgroundScanRequest(ci, handler);
