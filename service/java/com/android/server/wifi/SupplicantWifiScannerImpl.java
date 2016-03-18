@@ -689,7 +689,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
             }
             mPnoEventHandler = eventHandler;
             mPnoSettings = settings;
-            if (mHwPnoScanSupported) {
+            if (isHwPnoScanRequired()) {
                 if (!setNetworkPriorities(settings.networkList)) return false;
                 // For supplicant based PNO, we start the scan immediately when we set pno list.
                 processPendingScans();
@@ -707,7 +707,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
             }
             mPnoEventHandler = null;
             mPnoSettings = null;
-            if (mHwPnoScanSupported) {
+            if (isHwPnoScanRequired()) {
                 // For supplicant based PNO, we stop the scan immediately when we reset pno list.
                 return stopHwPnoScan();
             } else {
