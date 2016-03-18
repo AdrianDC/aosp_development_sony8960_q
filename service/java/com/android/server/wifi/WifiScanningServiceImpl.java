@@ -54,7 +54,6 @@ import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.internal.util.WakeupMessage;
-
 import com.android.server.wifi.scanner.BackgroundScanScheduler;
 import com.android.server.wifi.scanner.ChannelHelper;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
@@ -62,6 +61,7 @@ import com.android.server.wifi.scanner.ScanScheduleUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.lang.StringBuilder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -528,14 +528,14 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     return false;
                 }
             }
-            logScanRequest("validateSingleScanAndAddToScanQueue", ci, handler, settings);
+            logScanRequest("addSingleScanRequest", ci, handler, settings, null);
             mPendingScans.put(ci, handler, settings);
             return true;
         }
 
         void removeSingleScanRequest(ClientInfo ci, int handler) {
             if (ci != null) {
-                logScanRequest("removeSingleScanRequest", ci, handler, null);
+                logScanRequest("removeSingleScanRequest", ci, handler, null, null);
                 mPendingScans.remove(ci, handler);
                 mActiveScans.remove(ci, handler);
             }
@@ -633,6 +633,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     mScheduler.filterResultsForSettings(resultsArray, settings);
                 WifiScanner.ParcelableScanData parcelableScanData =
                         new WifiScanner.ParcelableScanData(resultsToDeliver);
+                logCallback("singleScanResults",  ci, handler);
                 ci.sendMessage(WifiScanner.CMD_SCAN_RESULT, 0, handler, parcelableScanData);
                 // make sure the handler is removed
                 ci.sendMessage(WifiScanner.CMD_SINGLE_SCAN_COMPLETED, 0, handler);
@@ -969,6 +970,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     : mActivePnoScans.entrySet()) {
                 ClientInfo ci = entry.getKey().first;
                 int handler = entry.getKey().second;
+                logCallback("pnoNetworkFound", ci, handler);
                 ci.sendMessage(WifiScanner.CMD_PNO_NETWORK_FOUND, 0, handler,
                         parcelableScanResults);
             }
@@ -1070,7 +1072,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 sb.append("ScanId ").append(entry.getKey()).append("\n");
 
                 ScanSettings scanSettings = entry.getValue();
-                sb.append(describe(scanSettings));
+                describeTo(sb, scanSettings);
                 sb.append("\n");
             }
 
@@ -1118,6 +1120,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         void deliverScanResults(int handler, ScanData results[]) {
             WifiScanner.ParcelableScanData parcelableScanData =
                     new WifiScanner.ParcelableScanData(results);
+            logCallback("backgroundScanResults", this, handler);
             mChannel.sendMessage(WifiScanner.CMD_SCAN_RESULT, 0, handler, parcelableScanData);
         }
 
@@ -1134,6 +1137,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     else {
                         newResult.informationElements = null;
                     }
+                    logCallback("backgroundScanFullResult", this, handler);
                     mChannel.sendMessage(WifiScanner.CMD_FULL_SCAN_RESULT, 0, handler, newResult);
                 }
             }
@@ -1343,22 +1347,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
     }
 
-    void logScanRequest(String request, ClientInfo ci, int id, ScanSettings settings) {
-        StringBuffer sb = new StringBuffer();
-        sb.append(request);
-        sb.append("\nClient ");
-        sb.append(ci.toString());
-        sb.append("\nId ");
-        sb.append(id);
-        sb.append("\n");
-        if (settings != null) {
-            sb.append(describe(settings));
-            sb.append("\n");
-        }
-        sb.append("\n");
-        localLog(sb.toString());
-    }
-
     boolean addBackgroundScanRequest(ClientInfo ci, int handler, ScanSettings settings) {
         // sanity check the input
         if (ci == null) {
@@ -1408,7 +1396,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
         }
 
-        logScanRequest("addBackgroundScanRequest", ci, handler, settings);
+        logScanRequest("addBackgroundScanRequest", ci, handler, settings, null);
         ci.addBackgroundScanRequest(settings, handler);
 
         if (updateSchedule()) {
@@ -1417,6 +1405,14 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             ci.removeBackgroundScanRequest(handler);
             localLog("Failing scan request because failed to reset scan");
             return false;
+        }
+    }
+
+    void removeBackgroundScanRequest(ClientInfo ci, int handler) {
+        if (ci != null) {
+            logScanRequest("removeBackgroundScanRequest", ci, handler, null, null);
+            ci.removeBackgroundScanRequest(handler);
+            updateSchedule();
         }
     }
 
@@ -1444,6 +1440,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
     boolean addScanRequestForPno(ClientInfo ci, int handler, ScanSettings settings,
             PnoSettings pnoSettings) {
+        logScanRequest("addPnoScanRequest", ci, handler, settings, pnoSettings);
         if (!mScannerImpl.setPnoList(convertPnoSettingsToNative(pnoSettings),
                         mBackgroundScanStateMachine)) {
             return false;
@@ -1455,18 +1452,13 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     }
 
     void removeScanRequestForPno(ClientInfo ci, int handler, PnoSettings pnoSettings) {
-        mScannerImpl.resetPnoList(convertPnoSettingsToNative(pnoSettings));
-        if (!mScannerImpl.shouldScheduleBackgroundScanForPno()) {
-            return;
-        }
-        removeBackgroundScanRequest(ci, handler);
-    }
-
-    void removeBackgroundScanRequest(ClientInfo ci, int handler) {
         if (ci != null) {
-            logScanRequest("removeBackgroundScanRequest", ci, handler, null);
-            ci.removeBackgroundScanRequest(handler);
-            updateSchedule();
+            logScanRequest("removePnoScanRequest", ci, handler, null, null);
+            mScannerImpl.resetPnoList(convertPnoSettingsToNative(pnoSettings));
+            if (!mScannerImpl.shouldScheduleBackgroundScanForPno()) {
+                return;
+            }
+            removeBackgroundScanRequest(ci, handler);
         }
     }
 
@@ -2027,24 +2019,74 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
     }
 
-    static String describe(ScanSettings scanSettings) {
+    void logScanRequest(String request, ClientInfo ci, int id, ScanSettings settings,
+            PnoSettings pnoSettings) {
         StringBuilder sb = new StringBuilder();
-        sb.append("  band:").append(scanSettings.band);
-        sb.append("  period:").append(scanSettings.periodInMs);
-        sb.append("  reportEvents:").append(scanSettings.reportEvents);
-        sb.append("  numBssidsPerScan:").append(scanSettings.numBssidsPerScan);
-        sb.append("  maxScansToCache:").append(scanSettings.maxScansToCache).append("\n");
+        sb.append(request)
+                .append("= Client ")
+                .append(ci.toString())
+                .append(" Id ")
+                .append(id)
+                .append(" ");
+        if (settings != null) {
+            describeTo(sb, settings);
+        }
+        if (pnoSettings != null) {
+            describeTo(sb, pnoSettings);
+        }
+        localLog(sb.toString());
+    }
 
-        sb.append("  channels: ");
+    void logCallback(String callback, ClientInfo ci, int id) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(callback)
+                .append("= Client ")
+                .append(ci.toString())
+                .append(" Id ")
+                .append(id)
+                .append(" ");
+        localLog(sb.toString());
+    }
 
+    static String describeTo(StringBuilder sb, ScanSettings scanSettings) {
+        sb.append(" ScanSettings { ")
+          .append(" band:").append(scanSettings.band)
+          .append(" period:").append(scanSettings.periodInMs)
+          .append(" reportEvents:").append(scanSettings.reportEvents)
+          .append(" numBssidsPerScan:").append(scanSettings.numBssidsPerScan)
+          .append(" maxScansToCache:").append(scanSettings.maxScansToCache)
+          .append(" channels:[ ");
         if (scanSettings.channels != null) {
             for (int i = 0; i < scanSettings.channels.length; i++) {
-                sb.append(scanSettings.channels[i].frequency);
-                sb.append(" ");
+                sb.append(scanSettings.channels[i].frequency)
+                  .append(" ");
             }
         }
-        sb.append("\n");
+        sb.append(" ] ")
+          .append(" } ");
         return sb.toString();
     }
 
+    static String describeTo(StringBuilder sb, PnoSettings pnoSettings) {
+        sb.append(" PnoSettings { ")
+          .append(" min5GhzRssi:").append(pnoSettings.min5GHzRssi)
+          .append(" min24GhzRssi:").append(pnoSettings.min24GHzRssi)
+          .append(" initialScoreMax:").append(pnoSettings.initialScoreMax)
+          .append(" currentConnectionBonus:").append(pnoSettings.currentConnectionBonus)
+          .append(" sameNetworkBonus:").append(pnoSettings.sameNetworkBonus)
+          .append(" secureBonus:").append(pnoSettings.secureBonus)
+          .append(" band5GhzBonus:").append(pnoSettings.band5GHzBonus)
+          .append(" networks:[ ");
+        if (pnoSettings.networkList != null) {
+            for (int i = 0; i < pnoSettings.networkList.length; i++) {
+                sb.append(pnoSettings.networkList[i].ssid)
+                  .append(",")
+                  .append(pnoSettings.networkList[i].networkId)
+                  .append(" ");
+            }
+        }
+        sb.append(" ] ")
+          .append(" } ");
+        return sb.toString();
+    }
 }
