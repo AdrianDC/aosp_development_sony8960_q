@@ -361,7 +361,7 @@ public class WifiStateMachineTest {
                 .thenReturn(mApConfigStore);
 
         when(factory.makeSupplicantStateTracker(
-                any(Context.class), any(WifiStateMachine.class), any(WifiConfigManager.class),
+                any(Context.class), any(WifiConfigManager.class),
                 any(Handler.class))).thenReturn(mSupplicantStateTracker);
 
         when(mUserManager.getProfileParent(11))

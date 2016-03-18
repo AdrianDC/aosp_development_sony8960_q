@@ -1160,7 +1160,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         mWifiQualifiedNetworkSelector = new WifiQualifiedNetworkSelector(mWifiConfigManager,
                 mContext, mWifiInfo, mClock);
         mSupplicantStateTracker = mFacade.makeSupplicantStateTracker(
-                context, this, mWifiConfigManager, getHandler());
+                context, mWifiConfigManager, getHandler());
 
         mLinkProperties = new LinkProperties();
 
