@@ -349,7 +349,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                                     mBackgroundScanSettings.report_threshold_percent);
                             // When PNO scan is enabled and HW does not support PNO scans,
                             // tag SwPno as enabled for each background scan
-                            if (mPnoSettings != null && !mHwPnoScanSupported) {
+                            if (isSwPnoScanRequired()) {
                                 newScanSettings.setSwPnoScan(mPnoEventHandler);
                             }
                         }
@@ -423,7 +423,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                         });
                     // TODO if scans fail enough background scans should be failed as well
                 }
-            } else if (mPnoSettings != null && mHwPnoScanSupported) {
+            } else if (isHwPnoScanRequired()) {
                 newScanSettings.setHwPnoScan(mPnoEventHandler);
                 boolean success = resumeHwPnoScan();
                 if (success) {
@@ -650,6 +650,35 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
         return true;
     }
 
+    /**
+     * Hw Pno Scan is required only for disconnected PNO when the device supports it.
+     * @param isConnectedPno Whether this is connected PNO vs disconnected PNO.
+     * @return true if HW PNO scan is required, false otherwise.
+     */
+    private boolean isHwPnoScanRequired(boolean isConnectedPno) {
+        return (!isConnectedPno & mHwPnoScanSupported);
+    }
+
+    private boolean isHwPnoScanRequired() {
+        if (mPnoSettings == null) return false;
+        return isHwPnoScanRequired(mPnoSettings.isConnected);
+    }
+
+    /**
+     * Sw Pno Scan is required for all connected PNO and for devices those don't support
+     * HW disconnected PNOscans.
+     * @param isConnectedPno Whether this is connected PNO vs disconnected PNO.
+     * @return true if SW PNO scan is required, false otherwise.
+     */
+    private boolean isSwPnoScanRequired(boolean isConnectedPno) {
+        return (isConnectedPno || !mHwPnoScanSupported);
+    }
+
+    private boolean isSwPnoScanRequired() {
+        if (mPnoSettings == null) return false;
+        return isSwPnoScanRequired(mPnoSettings.isConnected);
+    }
+
     @Override
     public boolean setPnoList(WifiNative.PnoSettings settings,
             WifiNative.PnoEventHandler eventHandler) {
@@ -688,10 +717,10 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
     }
 
     @Override
-    public boolean shouldScheduleBackgroundScanForPno() {
-        // If PNO scan is not supported by the HW, revert to using a normal periodic background
-        // scan.
-        return !mHwPnoScanSupported;
+    public boolean shouldScheduleBackgroundScanForPno(boolean isConnectedPno) {
+        // If PNO scan is not supported by the HW or if this is a connected PNO request, revert to
+        // using a normal periodic background scan.
+        return !isHwPnoScanRequired(isConnectedPno);
     }
 
     @Override

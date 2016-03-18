@@ -144,9 +144,10 @@ public abstract class WifiScannerImpl {
 
     /**
      * This returns whether a background scan should be running for PNO scan or not.
+     * @param isConnectedPno Whether this is connected PNO vs disconnected PNO.
      * @return true if background scan needs to be started, false otherwise.
      */
-    public abstract boolean shouldScheduleBackgroundScanForPno();
+    public abstract boolean shouldScheduleBackgroundScanForPno(boolean isConnectedPno);
 
     /**
      * Set a new hotlist

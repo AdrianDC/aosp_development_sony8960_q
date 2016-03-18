@@ -136,11 +136,11 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
     }
 
     @Override
-    public boolean shouldScheduleBackgroundScanForPno() {
+    public boolean shouldScheduleBackgroundScanForPno(boolean isConnectedPno) {
         if (mHalBasedPnoSupported) {
             return true;
         } else {
-            return mSupplicantScannerDelegate.shouldScheduleBackgroundScanForPno();
+            return mSupplicantScannerDelegate.shouldScheduleBackgroundScanForPno(isConnectedPno);
         }
     }
 
