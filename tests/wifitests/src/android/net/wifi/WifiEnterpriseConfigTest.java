@@ -17,6 +17,7 @@
 package android.net.wifi;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import android.net.wifi.WifiEnterpriseConfig.Eap;
@@ -252,5 +253,13 @@ public class WifiEnterpriseConfigTest {
         mEnterpriseConfig.setEapMethod(Eap.PEAP);
         mEnterpriseConfig.setPhase2Method(Phase2.MSCHAPV2);
         assertEquals("PEAP_MSCHAPV2", mEnterpriseConfig.getKeyId(enterpriseConfig));
+    }
+
+    /** Verifies that passwords are not displayed in toString. */
+    @Test
+    public void passwordNotInToString() {
+        String password = "supersecret";
+        mEnterpriseConfig.setPassword(password);
+        assertFalse(mEnterpriseConfig.toString().contains(password));
     }
 }
