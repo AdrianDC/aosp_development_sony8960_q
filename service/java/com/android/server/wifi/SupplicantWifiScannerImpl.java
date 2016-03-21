@@ -149,8 +149,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
         capabilities.max_scan_reporting_threshold = SCAN_BUFFER_CAPACITY;
         capabilities.max_hotlist_bssids = 0;
         capabilities.max_significant_wifi_change_aps = 0;
-        // TODO reenable once scan results handlers are enabled again
-        return false;
+        return true;
     }
 
     @Override
