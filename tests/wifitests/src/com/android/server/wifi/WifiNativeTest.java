@@ -53,9 +53,9 @@ public class WifiNativeTest {
     @Before
     public void setUp() throws Exception {
         final Constructor<WifiNative> wifiNativeConstructor =
-                WifiNative.class.getDeclaredConstructor(String.class);
+                WifiNative.class.getDeclaredConstructor(String.class, Boolean.TYPE);
         wifiNativeConstructor.setAccessible(true);
-        mWifiNative = spy(wifiNativeConstructor.newInstance("test"));
+        mWifiNative = spy(wifiNativeConstructor.newInstance("test", true));
     }
 
     /**
