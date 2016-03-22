@@ -84,8 +84,8 @@ public class SupplicantPnoScannerTest {
     }
 
     /**
-     * Verify that the HW PNO scan triggers a supplicant PNO scan and invokes the OnPnoNetworkFound
-     * callback when the scan results are received.
+     * Verify that the HW disconnected PNO scan triggers a supplicant PNO scan and invokes the
+     * OnPnoNetworkFound callback when the scan results are received.
      */
     @Test
     public void startHwDisconnectedPnoScan() {
@@ -106,7 +106,8 @@ public class SupplicantPnoScannerTest {
     }
 
     /**
-     * Verify that we pause & resume HW PNO scan when a single scan is scheduled.
+     * Verify that we pause & resume HW PNO scan when a single scan is scheduled and invokes the
+     * OnPnoNetworkFound callback when the scan results are received.
      */
     @Test
     public void pauseResumeHwDisconnectedPnoScanForSingleScan() {
@@ -139,73 +140,48 @@ public class SupplicantPnoScannerTest {
     }
 
     /**
-     * Verify that the SW PNO scan triggers a background scan and invokes the OnPnoNetworkFound
-     * callback when the scan results are received.
+     * Verify that the SW disconnected PNO scan triggers a background scan and invokes the
+     * background scan callbacks when scan results are received.
      */
     @Test
     public void startSwDisconnectedPnoScan() {
         createScannerWithSwPnoScanSupport();
-
-        WifiNative.PnoEventHandler pnoEventHandler = mock(WifiNative.PnoEventHandler.class);
-        WifiNative.PnoSettings pnoSettings = createDummyPnoSettings(false);
-        WifiNative.ScanEventHandler scanEventHandler = mock(WifiNative.ScanEventHandler.class);
-        WifiNative.ScanSettings scanSettings = createDummyScanSettings();
-        ScanResults scanResults = createDummyScanResults();
-
-        InOrder order = inOrder(pnoEventHandler, mWifiNative);
-
-        // Start PNO scan
-        startSuccessfulPnoScan(scanSettings, pnoSettings, scanEventHandler, pnoEventHandler);
-
-        expectSuccessfulSwPnoScan(order, pnoEventHandler, scanResults);
-
-        verifyNoMoreInteractions(pnoEventHandler);
+        doSuccessfulSwPnoScanTest(false);
     }
 
     /**
-     * Verify that the connected PNO scan triggers a background scan and invokes the
-     * OnPnoNetworkFound callback when the scan results are received.
+     * Verify that the HW connected PNO scan triggers a background scan and invokes the
+     * background scan callbacks when scan results are received.
      */
     @Test
     public void startHwConnectedPnoScan() {
         createScannerWithHwPnoScanSupport();
-
-        WifiNative.PnoEventHandler pnoEventHandler = mock(WifiNative.PnoEventHandler.class);
-        WifiNative.PnoSettings pnoSettings = createDummyPnoSettings(true);
-        WifiNative.ScanEventHandler scanEventHandler = mock(WifiNative.ScanEventHandler.class);
-        WifiNative.ScanSettings scanSettings = createDummyScanSettings();
-        ScanResults scanResults = createDummyScanResults();
-
-        InOrder order = inOrder(pnoEventHandler, mWifiNative);
-
-        // Start PNO scan
-        startSuccessfulPnoScan(scanSettings, pnoSettings, scanEventHandler, pnoEventHandler);
-
-        expectSuccessfulSwPnoScan(order, pnoEventHandler, scanResults);
-
-        verifyNoMoreInteractions(pnoEventHandler);
+        doSuccessfulSwPnoScanTest(true);
     }
 
     /**
-     * Verify that the connected PNO scan triggers a background scan and invokes the
-     * OnPnoNetworkFound callback when the scan results are received.
+     * Verify that the SW connected PNO scan triggers a background scan and invokes the
+     * background scan callbacks when scan results are received.
      */
     @Test
     public void startSwConnectedPnoScan() {
         createScannerWithSwPnoScanSupport();
+        doSuccessfulSwPnoScanTest(true);
+    }
 
+    private void doSuccessfulSwPnoScanTest(boolean isConnectedPno) {
         WifiNative.PnoEventHandler pnoEventHandler = mock(WifiNative.PnoEventHandler.class);
-        WifiNative.PnoSettings pnoSettings = createDummyPnoSettings(true);
+        WifiNative.PnoSettings pnoSettings = createDummyPnoSettings(isConnectedPno);
         WifiNative.ScanEventHandler scanEventHandler = mock(WifiNative.ScanEventHandler.class);
         WifiNative.ScanSettings scanSettings = createDummyScanSettings();
         ScanResults scanResults = createDummyScanResults();
 
-        InOrder order = inOrder(pnoEventHandler, mWifiNative);
+        InOrder order = inOrder(scanEventHandler, mWifiNative);
 
         // Start PNO scan
         startSuccessfulPnoScan(scanSettings, pnoSettings, scanEventHandler, pnoEventHandler);
 
-        expectSuccessfulSwPnoScan(order, pnoEventHandler, scanResults);
+        expectSuccessfulSwPnoScan(order, scanEventHandler, scanResults);
 
         verifyNoMoreInteractions(pnoEventHandler);
     }
@@ -258,9 +234,10 @@ public class SupplicantPnoScannerTest {
         when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(true);
         when(mWifiNative.enableBackgroundScan(anyBoolean(), anyObject())).thenReturn(true);
 
-        assertTrue(mScanner.setPnoList(pnoSettings, pnoEventHandler));
+        assertTrue(mScanner.setHwPnoList(pnoSettings, pnoEventHandler));
+
         // This should happen only for SW PNO scan
-        if (mScanner.shouldScheduleBackgroundScanForPno(pnoSettings.isConnected)) {
+        if (!mScanner.isHwPnoSupported(pnoSettings.isConnected)) {
             assertTrue(mScanner.startBatchedScan(scanSettings, scanEventHandler));
         }
     }
@@ -324,11 +301,11 @@ public class SupplicantPnoScannerTest {
     /**
      * Verify that the SW PNO scan was successfully started. This could either be disconnected
      * or connected PNO.
-     * This is basically ensuring that the background scan runs successfully and invokes the
-     * onPnoNetworkFound callback.
+     * This is basically ensuring that the background scan runs successfully and returns the
+     * expected result.
      */
     private void expectSuccessfulSwPnoScan(InOrder order,
-            WifiNative.PnoEventHandler pnoEventHandler, ScanResults scanResults) {
+            WifiNative.ScanEventHandler eventHandler, ScanResults scanResults) {
 
         // Verify scan started
         order.verify(mWifiNative).scan(any(Set.class), any(Set.class));
@@ -343,12 +320,10 @@ public class SupplicantPnoScannerTest {
         mWifiMonitor.sendMessage(mWifiNative.getInterfaceName(), WifiMonitor.SCAN_RESULTS_EVENT);
         assertEquals("dispatch message after results event", 1, mLooper.dispatchAll());
 
-        // Scan results are sorted when using background scan
-        List<ScanResult> scanResultList = Arrays.asList(scanResults.getRawScanResults());
-        Collections.sort(scanResultList, WifiScannerImpl.SCAN_RESULT_SORT_COMPARATOR);
-        ScanResult[] scanResultArray = new ScanResult[scanResultList.size()];
-        scanResultList.toArray(scanResultArray);
-
-        order.verify(pnoEventHandler).onPnoNetworkFound(scanResultArray);
+        // Verify background scan results delivered
+        order.verify(eventHandler).onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
+        WifiScanner.ScanData[] scanData = mScanner.getLatestBatchedScanResults(true);
+        WifiScanner.ScanData lastScanData = scanData[scanData.length -1];
+        assertScanDataEquals(scanResults.getScanData(), lastScanData);
     }
 }
