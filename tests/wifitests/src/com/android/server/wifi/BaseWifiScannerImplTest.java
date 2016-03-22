@@ -218,6 +218,74 @@ public abstract class BaseWifiScannerImplTest {
         verifyNoMoreInteractions(eventHandler);
     }
 
+    /**
+     * Test that a scan failure is reported if a scan times out
+     */
+    @Test
+    public void singleScanFailOnTimeout() {
+        WifiNative.ScanSettings settings = new NativeScanSettingsBuilder()
+                .withBasePeriod(10000)
+                .withMaxApPerScan(10)
+                .addBucketWithBand(10000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN,
+                        WifiScanner.WIFI_BAND_24_GHZ)
+                .build();
+
+        WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
+
+        ScanResults results = ScanResults.create(0, 2400, 2450, 2450);
+
+        InOrder order = inOrder(eventHandler, mWifiNative);
+
+        // scan succeeds
+        when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(true);
+
+        // start scan
+        assertTrue(mScanner.startSingleScan(settings, eventHandler));
+        mLooper.dispatchAll();
+
+        // Fire timeout
+        mAlarmManager.dispatch(SupplicantWifiScannerImpl.TIMEOUT_ALARM_TAG);
+        mLooper.dispatchAll();
+
+        order.verify(eventHandler).onScanStatus(WifiNative.WIFI_SCAN_FAILED);
+
+        verifyNoMoreInteractions(eventHandler);
+    }
+
+    /**
+     * Test that a scan failure is reported if supplicant sends a scan failed event
+     */
+    @Test
+    public void singleScanFailOnFailedEvent() {
+        WifiNative.ScanSettings settings = new NativeScanSettingsBuilder()
+                .withBasePeriod(10000)
+                .withMaxApPerScan(10)
+                .addBucketWithBand(10000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN,
+                        WifiScanner.WIFI_BAND_24_GHZ)
+                .build();
+
+        WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
+
+        ScanResults results = ScanResults.create(0, 2400, 2450, 2450);
+
+        InOrder order = inOrder(eventHandler, mWifiNative);
+
+        // scan succeeds
+        when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(true);
+
+        // start scan
+        assertTrue(mScanner.startSingleScan(settings, eventHandler));
+        mLooper.dispatchAll();
+
+        // Fire failed event
+        mWifiMonitor.sendMessage(mWifiNative.getInterfaceName(), WifiMonitor.SCAN_FAILED_EVENT);
+        mLooper.dispatchAll();
+
+        order.verify(eventHandler).onScanStatus(WifiNative.WIFI_SCAN_FAILED);
+
+        verifyNoMoreInteractions(eventHandler);
+    }
+
     @Test
     public void singleScanNullEventHandler() {
         WifiNative.ScanSettings settings = new NativeScanSettingsBuilder()

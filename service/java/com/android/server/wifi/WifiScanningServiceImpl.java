@@ -40,7 +40,6 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
-import android.os.SystemClock;
 import android.os.WorkSource;
 import android.util.ArrayMap;
 import android.util.LocalLog;
@@ -53,7 +52,6 @@ import com.android.internal.util.AsyncChannel;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
-import com.android.internal.util.WakeupMessage;
 import com.android.server.wifi.scanner.BackgroundScanScheduler;
 import com.android.server.wifi.scanner.ChannelHelper;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
@@ -228,9 +226,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private static final int CMD_SCAN_PAUSED                         = BASE + 8;
     private static final int CMD_SCAN_RESTARTED                      = BASE + 9;
     private static final int CMD_SCAN_FAILED                         = BASE + 10;
-    private static final int CMD_SCAN_TIMEOUT                        = BASE + 11;
-    private static final int CMD_PNO_NETWORK_FOUND                   = BASE + 12;
-    private static final int CMD_PNO_SCAN_FAILED                     = BASE + 13;
+    private static final int CMD_PNO_NETWORK_FOUND                   = BASE + 11;
+    private static final int CMD_PNO_SCAN_FAILED                     = BASE + 12;
 
     private final Context mContext;
     private final Looper mLooper;
@@ -462,27 +459,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
 
         class ScanningState extends State {
-            /**
-             * Duration to wait before timing out a scan.
-             *
-             * The expected behavior is that the hardware will return a failed scan if it does not
-             * complete, but timeout just in case it does not.
-             * It is possible that there may already be a scan in progress when the scan is
-             * scheduled, so make sure that there is time for two scans to complete.
-             */
-            private static final long SINGLE_SCAN_TIMEOUT_MS = 20000;
-            private WakeupMessage mTimeoutMessage = new WakeupMessage(mContext, getHandler(),
-                    "WifiScanner Single Scan Timeout", CMD_SCAN_TIMEOUT);
-
-            @Override
-            public void enter() {
-                mTimeoutMessage.schedule(
-                        SystemClock.elapsedRealtime() + SINGLE_SCAN_TIMEOUT_MS);
-            }
-
             @Override
             public void exit() {
-                mTimeoutMessage.cancel();
                 // if any scans are still active (never got results available then indicate failure)
                 sendOpFailedToAllAndClear(mActiveScans, WifiScanner.REASON_UNSPECIFIED,
                         "Scan was interrupted");
@@ -503,12 +481,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     case CMD_SCAN_FAILED:
                         sendOpFailedToAllAndClear(mActiveScans, WifiScanner.REASON_UNSPECIFIED,
                                 "Scan failed");
-                        transitionTo(mIdleState);
-                        return HANDLED;
-                    case CMD_SCAN_TIMEOUT:
-                        sendOpFailedToAllAndClear(mActiveScans, WifiScanner.REASON_UNSPECIFIED,
-                                "Timed out waiting for a scan result");
-                        loge("Timed out waiting for single scan result/failure");
                         transitionTo(mIdleState);
                         return HANDLED;
                     default:
