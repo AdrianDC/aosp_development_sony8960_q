@@ -2816,7 +2816,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
         } catch (Exception e) {
             loge("Failed to clear addresses " + e);
         }
-        NetworkUtils.resetConnections(mGroup.getInterface(), NetworkUtils.RESET_ALL_ADDRESSES);
 
         // Clear any timeout that was set. This is essential for devices
         // that reuse the main p2p interface for a created group.
