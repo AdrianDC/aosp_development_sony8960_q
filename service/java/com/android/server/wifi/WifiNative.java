@@ -109,13 +109,14 @@ public class WifiNative {
      * Singleton WifiNative instances
      */
     private static WifiNative wlanNativeInterface =
-            new WifiNative(SystemProperties.get("wifi.interface", "wlan0"));
+            new WifiNative(SystemProperties.get("wifi.interface", "wlan0"), true);
     public static WifiNative getWlanNativeInterface() {
         return wlanNativeInterface;
     }
 
-    //STOPSHIP: get interface name from native side
-    private static WifiNative p2pNativeInterface = new WifiNative("p2p0");
+    private static WifiNative p2pNativeInterface =
+            // commands for p2p0 interface don't need prefix
+            new WifiNative(SystemProperties.get("wifi.direct.interface", "p2p0"), false);
     public static WifiNative getP2pNativeInterface() {
         return p2pNativeInterface;
     }
@@ -134,14 +135,14 @@ public class WifiNative {
         }
     }
 
-    private WifiNative(String interfaceName) {
+    private WifiNative(String interfaceName,
+                       boolean requiresPrefix) {
         mInterfaceName = interfaceName;
         mTAG = "WifiNative-" + interfaceName;
 
-        if (!interfaceName.equals("p2p0")) {
+        if (requiresPrefix) {
             mInterfacePrefix = "IFNAME=" + interfaceName + " ";
         } else {
-            // commands for p2p0 interface don't need prefix
             mInterfacePrefix = "";
         }
     }
