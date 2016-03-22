@@ -2121,6 +2121,7 @@ public class WifiConfigManager {
             return new NetworkUpdateResult(INVALID_NETWORK_ID);
         }
         int netId = config.networkId;
+        String savedConfigKey = config.configKey();
 
         /* An update of the network variables requires reading them
          * back from the supplicant to update mConfiguredNetworks.
@@ -2230,6 +2231,15 @@ public class WifiConfigManager {
         if (VDBG) log("will read network variables netId=" + Integer.toString(netId));
 
         readNetworkVariables(currentConfig);
+        // When we read back the config from wpa_supplicant, some of the default values are set
+        // which could change the configKey.
+        if (!savedConfigKey.equals(currentConfig.configKey())) {
+            if(!mWifiConfigStore.saveNetworkMetadata(currentConfig)) {
+                loge("Failed to set network metadata. Removing config " + config.networkId);
+                mWifiConfigStore.removeNetwork(config);
+                return new NetworkUpdateResult(INVALID_NETWORK_ID);
+            }
+        }
 
         // Persist configuration paramaters that are not saved by supplicant.
         if (config.lastUpdateName != null) {

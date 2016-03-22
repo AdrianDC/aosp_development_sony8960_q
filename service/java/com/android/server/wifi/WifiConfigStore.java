@@ -648,6 +648,25 @@ public class WifiConfigStore {
     }
 
     /**
+     * Update the network metadata info stored in wpa_supplicant network extra field.
+     * @param config Config corresponding to the network.
+     * @return true if successful, false otherwise.
+     */
+    public boolean saveNetworkMetadata(WifiConfiguration config) {
+        final Map<String, String> metadata = new HashMap<String, String>();
+        if (config.isPasspoint()) {
+            metadata.put(ID_STRING_KEY_FQDN, config.FQDN);
+        }
+        metadata.put(ID_STRING_KEY_CONFIG_KEY, config.configKey());
+        metadata.put(ID_STRING_KEY_CREATOR_UID, Integer.toString(config.creatorUid));
+        if (!mWifiNative.setNetworkExtra(config.networkId, ID_STRING_VAR_NAME, metadata)) {
+            loge("failed to set id_str: " + metadata.toString());
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Save an entire network configuration to wpa_supplicant.
      *
      * @param config Config corresponding to the network.
@@ -666,14 +685,7 @@ public class WifiConfigStore {
             loge("failed to set SSID: " + config.SSID);
             return false;
         }
-        final Map<String, String> metadata = new HashMap<String, String>();
-        if (config.isPasspoint()) {
-            metadata.put(ID_STRING_KEY_FQDN, config.FQDN);
-        }
-        metadata.put(ID_STRING_KEY_CONFIG_KEY, config.configKey());
-        metadata.put(ID_STRING_KEY_CREATOR_UID, Integer.toString(config.creatorUid));
-        if (!mWifiNative.setNetworkExtra(netId, ID_STRING_VAR_NAME, metadata)) {
-            loge("failed to set id_str: " + metadata.toString());
+        if (!saveNetworkMetadata(config)) {
             return false;
         }
         //set selected BSSID to supplicant
