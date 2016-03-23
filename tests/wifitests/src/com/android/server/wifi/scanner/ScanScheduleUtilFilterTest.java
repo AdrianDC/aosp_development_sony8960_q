@@ -26,51 +26,30 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.validateMockitoUsage;
 
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiScanner.ScanData;
 import android.net.wifi.WifiScanner.ScanSettings;
 import android.test.suitebuilder.annotation.SmallTest;
 
-import com.android.server.wifi.WifiNative;
-
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Collection;
-import java.util.Collections;
-
 /**
  * Unit tests for filtering of scan results in
- * {@link com.android.server.wifi.scanner.BackgroundScanScheduler}.
+ * {@link com.android.server.wifi.scanner.ScanScheduleUtil}.
  */
 @SmallTest
-public class BackgroundScanSchedulerFilterTest {
+public class ScanScheduleUtilFilterTest {
 
-    private static final int DEFAULT_MAX_BUCKETS = 8;
-    private static final int DEFAULT_MAX_CHANNELS = 8;
-    private static final int DEFAULT_MAX_BATCH = 10;
-
-    private WifiNative mWifiNative;
-    private BackgroundScanScheduler mScheduler;
+    private ChannelHelper mChannelHelper;
 
     @Before
     public void setUp() throws Exception {
-        ChannelHelper channelHelper = new PresetKnownBandsChannelHelper(
+        mChannelHelper = new PresetKnownBandsChannelHelper(
                 new int[]{2400, 2450},
                 new int[]{5150, 5175},
                 new int[]{5600, 5650});
-        mScheduler = new BackgroundScanScheduler(channelHelper);
-        mScheduler.setMaxBuckets(DEFAULT_MAX_BUCKETS);
-        mScheduler.setMaxChannels(DEFAULT_MAX_CHANNELS);
-        mScheduler.setMaxBatch(DEFAULT_MAX_BATCH);
-    }
-
-    @After
-    public void cleanup() {
-        validateMockitoUsage();
     }
 
     @Test
@@ -79,11 +58,9 @@ public class BackgroundScanSchedulerFilterTest {
                 WifiScanner.WIFI_BAND_24_GHZ, 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        assertTrue(mScheduler.shouldReportFullScanResultForSettings(
-                createScanResult(2400), settings));
+        assertTrue(ScanScheduleUtil.shouldReportFullScanResultForSettings(mChannelHelper,
+                        createScanResult(2400), settings));
     }
 
     @Test
@@ -92,10 +69,8 @@ public class BackgroundScanSchedulerFilterTest {
                 WifiScanner.WIFI_BAND_24_GHZ, 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        assertFalse(mScheduler.shouldReportFullScanResultForSettings(
+        assertFalse(ScanScheduleUtil.shouldReportFullScanResultForSettings(mChannelHelper,
                 createScanResult(5150), settings));
     }
 
@@ -105,10 +80,8 @@ public class BackgroundScanSchedulerFilterTest {
                 channelsToSpec(2400, 5150), 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        assertTrue(mScheduler.shouldReportFullScanResultForSettings(
+        assertTrue(ScanScheduleUtil.shouldReportFullScanResultForSettings(mChannelHelper,
                 createScanResult(2400), settings));
     }
 
@@ -118,10 +91,8 @@ public class BackgroundScanSchedulerFilterTest {
                 channelsToSpec(2400, 5150), 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        assertFalse(mScheduler.shouldReportFullScanResultForSettings(
+        assertFalse(ScanScheduleUtil.shouldReportFullScanResultForSettings(mChannelHelper,
                 createScanResult(5175), settings));
     }
 
@@ -131,10 +102,9 @@ public class BackgroundScanSchedulerFilterTest {
                 channelsToSpec(2400, 5150), 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        ScanData[] results = mScheduler.filterResultsForSettings(new ScanData[0], settings);
+        ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
+                new ScanData[0], settings);
         assertScanDataFreqsEquals(null, results);
     }
 
@@ -144,10 +114,8 @@ public class BackgroundScanSchedulerFilterTest {
                 channelsToSpec(2400, 5150), 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        ScanData[] results = mScheduler.filterResultsForSettings(
+        ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
                 createScanDatas(new int[][]{ { 2450 } }), settings);
         assertScanDataFreqsEquals(null, results);
     }
@@ -158,10 +126,8 @@ public class BackgroundScanSchedulerFilterTest {
                 channelsToSpec(2400, 5150), 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        ScanData[] results = mScheduler.filterResultsForSettings(
+        ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
                 createScanDatas(new int[][]{ { 2400 } }), settings);
 
         assertScanDataFreqsEquals(new int[][]{ { 2400 } }, results);
@@ -173,10 +139,8 @@ public class BackgroundScanSchedulerFilterTest {
                 channelsToSpec(2400, 5150), 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        ScanData[] results = mScheduler.filterResultsForSettings(
+        ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
                 createScanDatas(new int[][]{ { 2400, 2450, 5150, 5175 } }), settings);
 
         assertScanDataFreqsEquals(new int[][]{ { 2400, 5150 } }, results);
@@ -188,10 +152,8 @@ public class BackgroundScanSchedulerFilterTest {
                 channelsToSpec(2400, 5150), 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        ScanData[] results = mScheduler.filterResultsForSettings(
+        ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
                 createScanDatas(new int[][]{ { 2450 }, { 2450, 5175 } }), settings);
         assertScanDataFreqsEquals(null, results);
     }
@@ -202,10 +164,8 @@ public class BackgroundScanSchedulerFilterTest {
                 channelsToSpec(2400, 5150), 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        ScanData[] results = mScheduler.filterResultsForSettings(
+        ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
                 createScanDatas(new int[][]{ { 2400 }, {2400, 5150} }), settings);
 
         assertScanDataFreqsEquals(new int[][]{ { 2400 }, {2400, 5150} }, results);
@@ -217,11 +177,10 @@ public class BackgroundScanSchedulerFilterTest {
                 channelsToSpec(2400, 5150), 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        ScanData[] results = mScheduler.filterResultsForSettings(createScanDatas(
-                new int[][]{ { 2400, 2450, 5150, 5175 }, { 2400, 2450, 5175 } }), settings);
+        ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
+                createScanDatas(new int[][]{ { 2400, 2450, 5150, 5175 }, { 2400, 2450, 5175 } }),
+                settings);
 
         assertScanDataFreqsEquals(new int[][]{ { 2400, 5150 }, { 2400 } }, results);
     }
@@ -232,13 +191,12 @@ public class BackgroundScanSchedulerFilterTest {
                 channelsToSpec(2400, 5150), 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        ScanData[] results = mScheduler.filterResultsForSettings(createScanDatas(
-                new int[][]{ { 2400, 2450, 5150, 5175, 2400 },
-                             { 2400, 2450, 5175 },
-                             { 5175, 5175, 5150 } }), settings);
+        ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
+                createScanDatas(new int[][]{
+                        { 2400, 2450, 5150, 5175, 2400 },
+                        { 2400, 2450, 5175 },
+                        { 5175, 5175, 5150 } }), settings);
 
         assertScanDataFreqsEquals(new int[][]{ { 2400, 5150, 2400 }, { 2400 }, { 5150 } }, results);
     }
@@ -249,13 +207,12 @@ public class BackgroundScanSchedulerFilterTest {
                 channelsToSpec(2400, 5150), 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        ScanData[] results = mScheduler.filterResultsForSettings(createScanDatas(
-                new int[][]{ { 2400, 2450, 5150, 5175, 2400 },
-                             { 5175 },
-                             { 5175, 5175, 5150 } }), settings);
+        ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
+                createScanDatas(new int[][]{
+                        { 2400, 2450, 5150, 5175, 2400 },
+                        { 5175 },
+                        { 5175, 5175, 5150 } }), settings);
 
         assertScanDataFreqsEquals(new int[][]{ { 2400, 5150, 2400 }, { 5150 } }, results);
     }
@@ -266,20 +223,19 @@ public class BackgroundScanSchedulerFilterTest {
                 channelsToSpec(2400, 5150), 30000, 0, 3,
                 WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
         );
-        Collection<ScanSettings> requests = Collections.singleton(settings);
-        mScheduler.updateSchedule(requests);
 
-        ScanData[] results = mScheduler.filterResultsForSettings(createScanDatas(
-                        new int[][]{ { 2400, 2450, 5150, 5175, 2400, 2400},
-                                     { 5175 },
-                                     { 5175, 5175, 5150, 2400, 2400, 5150 } }), settings);
+        ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
+                createScanDatas(new int[][]{
+                        { 2400, 2450, 5150, 5175, 2400, 2400},
+                        { 5175 },
+                        { 5175, 5175, 5150, 2400, 2400, 5150 } }), settings);
 
         assertScanDataFreqsEquals(new int[][]{ { 2400, 5150, 2400 }, { 5150, 2400, 2400 } },
                 results);
     }
 
 
-    public static void assertScanDataFreqsEquals(int[][] expected, ScanData[] results) {
+    private static void assertScanDataFreqsEquals(int[][] expected, ScanData[] results) {
         if (expected == null) {
             assertNull(results);
         } else {
