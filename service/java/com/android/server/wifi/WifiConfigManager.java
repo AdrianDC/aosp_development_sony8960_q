@@ -2251,7 +2251,8 @@ public class WifiConfigManager {
 
         mConfiguredNetworks.put(currentConfig);
 
-        NetworkUpdateResult result = writeIpAndProxyConfigurationsOnChange(currentConfig, config);
+        NetworkUpdateResult result =
+                writeIpAndProxyConfigurationsOnChange(currentConfig, config, newNetwork);
         result.setIsNewNetwork(newNetwork);
         result.setNetworkId(netId);
 
@@ -2850,15 +2851,10 @@ public class WifiConfigManager {
     /* Compare current and new configuration and write to file on change */
     private NetworkUpdateResult writeIpAndProxyConfigurationsOnChange(
             WifiConfiguration currentConfig,
-            WifiConfiguration newConfig) {
+            WifiConfiguration newConfig,
+            boolean isNewNetwork) {
         boolean ipChanged = false;
         boolean proxyChanged = false;
-
-        if (VDBG) {
-            loge("writeIpAndProxyConfigurationsOnChange: " + currentConfig.SSID + " -> " +
-                    newConfig.SSID + " path: " + ipConfigFile);
-        }
-
 
         switch (newConfig.getIpAssignment()) {
             case STATIC:
@@ -2927,10 +2923,12 @@ public class WifiConfigManager {
             }
         }
 
-        if (ipChanged || proxyChanged) {
+        if (ipChanged || proxyChanged || isNewNetwork) {
+            if (VDBG) {
+                logd("writeIpAndProxyConfigurationsOnChange: " + currentConfig.SSID + " -> " +
+                        newConfig.SSID + " path: " + ipConfigFile);
+            }
             writeIpAndProxyConfigurations();
-            sendConfiguredNetworksChangedBroadcast(currentConfig,
-                    WifiManager.CHANGE_REASON_CONFIG_CHANGE);
         }
         return new NetworkUpdateResult(ipChanged, proxyChanged);
     }
