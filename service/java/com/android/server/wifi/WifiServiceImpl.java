@@ -63,6 +63,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
@@ -168,7 +169,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     private class ClientHandler extends Handler {
 
-        ClientHandler(android.os.Looper looper) {
+        ClientHandler(Looper looper) {
             super(looper);
         }
 
@@ -275,7 +276,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private class WifiStateMachineHandler extends Handler {
         private AsyncChannel mWsmChannel;
 
-        WifiStateMachineHandler(android.os.Looper looper) {
+        WifiStateMachineHandler(Looper looper) {
             super(looper);
             mWsmChannel = new AsyncChannel();
             mWsmChannel.connect(mContext, this, mWifiStateMachine.getHandler());
@@ -339,7 +340,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mCertManager = new WifiCertManager(mContext);
 
         mNotificationController = new WifiNotificationController(mContext,
-                mWifiStateMachine, facade, null);
+                wifiThread.getLooper(), mWifiStateMachine, facade, null);
 
         mClientHandler = new ClientHandler(wifiThread.getLooper());
         mWifiStateMachineHandler = new WifiStateMachineHandler(wifiThread.getLooper());
