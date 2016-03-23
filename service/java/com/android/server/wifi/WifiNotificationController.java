@@ -29,6 +29,7 @@ import android.net.NetworkInfo;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.os.UserHandle;
 import android.provider.Settings;
@@ -94,8 +95,8 @@ final class WifiNotificationController {
     private volatile int mWifiState;
     private FrameworkFacade mFrameworkFacade;
 
-    WifiNotificationController(Context context, WifiStateMachine wsm, FrameworkFacade framework,
-            Notification.Builder builder) {
+    WifiNotificationController(Context context, Looper looper, WifiStateMachine wsm,
+            FrameworkFacade framework, Notification.Builder builder) {
         mContext = context;
         mWifiStateMachine = wsm;
         mFrameworkFacade = framework;
@@ -145,7 +146,8 @@ final class WifiNotificationController {
         // Setting is in seconds
         NOTIFICATION_REPEAT_DELAY_MS = mFrameworkFacade.getIntegerSetting(context,
                 Settings.Global.WIFI_NETWORKS_AVAILABLE_REPEAT_DELAY, 900) * 1000l;
-        mNotificationEnabledSettingObserver = new NotificationEnabledSettingObserver(new Handler());
+        mNotificationEnabledSettingObserver = new NotificationEnabledSettingObserver(
+                new Handler(looper));
         mNotificationEnabledSettingObserver.register();
     }
 

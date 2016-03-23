@@ -79,8 +79,10 @@ public class WifiNotificationControllerTest {
         when(mFrameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON, 1)).thenReturn(1);
 
+        MockLooper mock_looper = new MockLooper();
         mWifiNotificationController = new WifiNotificationController(
-                mContext, mWifiStateMachine, mFrameworkFacade, mock(Notification.Builder.class));
+                mContext, mock_looper.getLooper(), mWifiStateMachine, mFrameworkFacade,
+                mock(Notification.Builder.class));
         ArgumentCaptor<BroadcastReceiver> broadcastReceiverCaptor =
                 ArgumentCaptor.forClass(BroadcastReceiver.class);
 
