@@ -607,16 +607,14 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             clientHandlers.clear();
         }
 
-        // TODO fix shouldReport checks
-        // currently these checks work because the shouldReport methods don't yet rely on the
-        // internal state of the scheduler.
         void reportFullScanResult(ScanResult result) {
             for (Map.Entry<Pair<ClientInfo, Integer>, ScanSettings> entry
                          : mActiveScans.entrySet()) {
                 ClientInfo ci = entry.getKey().first;
                 int handler = entry.getKey().second;
                 ScanSettings settings = entry.getValue();
-                if (mScheduler.shouldReportFullScanResultForSettings(result, settings)) {
+                if (ScanScheduleUtil.shouldReportFullScanResultForSettings(mChannelHelper,
+                                result, settings)) {
                     ci.sendMessage(WifiScanner.CMD_FULL_SCAN_RESULT, 0, handler, result);
                 }
             }
@@ -629,8 +627,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 int handler = entry.getKey().second;
                 ScanSettings settings = entry.getValue();
                 ScanData[] resultsArray = new ScanData[] {results};
-                ScanData[] resultsToDeliver =
-                    mScheduler.filterResultsForSettings(resultsArray, settings);
+                ScanData[] resultsToDeliver = ScanScheduleUtil.filterResultsForSettings(
+                        mChannelHelper, resultsArray, settings);
                 WifiScanner.ParcelableScanData parcelableScanData =
                         new WifiScanner.ParcelableScanData(resultsToDeliver);
                 logCallback("singleScanResults",  ci, handler);

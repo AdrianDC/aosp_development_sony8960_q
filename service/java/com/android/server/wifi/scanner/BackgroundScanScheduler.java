@@ -326,7 +326,8 @@ public class BackgroundScanScheduler {
      */
     public boolean shouldReportFullScanResultForSettings(@NonNull ScanResult result,
             @NonNull ScanSettings settings) {
-        return mChannelHelper.settingsContainChannel(settings, result.frequency);
+        return ScanScheduleUtil.shouldReportFullScanResultForSettings(mChannelHelper,
+                result, settings);
     }
 
     /**
@@ -335,34 +336,7 @@ public class BackgroundScanScheduler {
      */
     public @Nullable ScanData[] filterResultsForSettings(@NonNull ScanData[] scanDatas,
             @NonNull ScanSettings settings) {
-        ArrayList<ScanData> filteredScanDatas = new ArrayList<>(scanDatas.length);
-        ArrayList<ScanResult> filteredResults = new ArrayList<>();
-        for (ScanData scanData : scanDatas) {
-            filteredResults.clear();
-            for (ScanResult scanResult : scanData.getResults()) {
-                if (mChannelHelper.settingsContainChannel(settings, scanResult.frequency)) {
-                    filteredResults.add(scanResult);
-                }
-                if (settings.numBssidsPerScan > 0
-                        && filteredResults.size() >= settings.numBssidsPerScan) {
-                    break;
-                }
-            }
-            // TODO correctly note if scan results may be incomplete
-            if (filteredResults.size() == scanData.getResults().length) {
-                filteredScanDatas.add(scanData);
-            } else if (filteredResults.size() > 0) {
-                filteredScanDatas.add(new WifiScanner.ScanData(scanData.getId(),
-                                scanData.getFlags(),
-                                filteredResults.toArray(
-                                        new ScanResult[filteredResults.size()])));
-            }
-        }
-        if (filteredScanDatas.size() == 0) {
-            return null;
-        } else {
-            return filteredScanDatas.toArray(new ScanData[filteredScanDatas.size()]);
-        }
+        return ScanScheduleUtil.filterResultsForSettings(mChannelHelper, scanDatas, settings);
     }
 
     // creates a schedule for the given buckets and requests

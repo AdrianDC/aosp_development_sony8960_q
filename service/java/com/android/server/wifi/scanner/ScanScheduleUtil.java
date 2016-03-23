@@ -17,8 +17,14 @@
 package com.android.server.wifi.scanner;
 
 import android.annotation.Nullable;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiScanner.ScanData;
+import android.net.wifi.WifiScanner.ScanSettings;
 
 import com.android.server.wifi.WifiNative;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A class with utilities for dealing with scan schedules.
@@ -82,5 +88,49 @@ public class ScanScheduleUtil {
         }
 
         return true;
+    }
+
+    /**
+     * Returns true if the given scan result should be reported to a listener with the given
+     * settings.
+     */
+    public static boolean shouldReportFullScanResultForSettings(ChannelHelper channelHelper,
+            ScanResult result, ScanSettings settings) {
+        return channelHelper.settingsContainChannel(settings, result.frequency);
+    }
+
+    /**
+     * Returns a filtered version of the scan results from the chip that represents only the data
+     * requested in the settings. Will return null if the result should not be reported.
+     */
+    public static ScanData[] filterResultsForSettings(ChannelHelper channelHelper,
+            ScanData[] scanDatas, ScanSettings settings) {
+        List<ScanData> filteredScanDatas = new ArrayList<>(scanDatas.length);
+        List<ScanResult> filteredResults = new ArrayList<>();
+        for (ScanData scanData : scanDatas) {
+            filteredResults.clear();
+            for (ScanResult scanResult : scanData.getResults()) {
+                if (channelHelper.settingsContainChannel(settings, scanResult.frequency)) {
+                    filteredResults.add(scanResult);
+                }
+                if (settings.numBssidsPerScan > 0
+                        && filteredResults.size() >= settings.numBssidsPerScan) {
+                    break;
+                }
+            }
+            if (filteredResults.size() == scanData.getResults().length) {
+                filteredScanDatas.add(scanData);
+            } else if (filteredResults.size() > 0) {
+                filteredScanDatas.add(new ScanData(scanData.getId(),
+                                scanData.getFlags(),
+                                filteredResults.toArray(
+                                        new ScanResult[filteredResults.size()])));
+            }
+        }
+        if (filteredScanDatas.size() == 0) {
+            return null;
+        } else {
+            return filteredScanDatas.toArray(new ScanData[filteredScanDatas.size()]);
+        }
     }
 }
