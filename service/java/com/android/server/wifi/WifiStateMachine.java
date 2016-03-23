@@ -8177,13 +8177,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     if (candidate != null) {
                         bssid = candidate.BSSID;
                     }
-                    int netId = mLastNetworkId;
-                    config = getCurrentWifiConfiguration();
-
-
-                    if (config == null) {
+                    int netId = message.arg1;
+                    if (netId == WifiConfiguration.INVALID_NETWORK_ID) {
                         loge("AUTO_ROAM and no config, bail out...");
                         break;
+                    } else {
+                        config = mWifiConfigManager.getWifiConfiguration(netId);
                     }
 
                     logd("CMD_AUTO_ROAM sup state "
@@ -8197,17 +8196,22 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
                     setTargetBssid(config, bssid);
                     mTargetNetworkId = netId;
-                    mWifiMetrics.startConnectionEvent(config, mTargetRoamBSSID,
-                            WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
-                    /* <TODO> 2016-02-24
-                        Detect DBDC (2.4 <-> 5Ghz, same AP) roaming events, once CMD_AUTO_ROAM
-                        has been fixed to handle them correctly:
-                            mWifiMetrics.setConnectionEventRoamType(
-                                  WifiMetricsProto.ConnectionEvent.ROAM_DBDC);
-                            Handy statements:
-                                ABSSID.regionMatches(true, 0, BBSSID, 0, 16) //BSSID matching
-                                currentConfig.isLinked(config) //check the configs are linked
-                    */
+
+                    /* Determine if this is a regular roam (between BSSIDs sharing the same SSID),
+                       or a DBDC roam (between 2.4 & 5GHz networks on different SSID's, but with
+                       matching 16 byte BSSID prefixes):
+                     */
+                    WifiConfiguration currentConfig = getCurrentWifiConfiguration();
+                    if (currentConfig != null && currentConfig.isLinked(config)) {
+                        // This is dual band roaming
+                        mWifiMetrics.startConnectionEvent(config, mTargetRoamBSSID,
+                                WifiMetricsProto.ConnectionEvent.ROAM_DBDC);
+                    } else {
+                        // This is regular roaming
+                        mWifiMetrics.startConnectionEvent(config, mTargetRoamBSSID,
+                                WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
+                    }
+
                     if (deferForUserInput(message, netId, false)) {
                         mWifiMetrics.endConnectionEvent(
                                 WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED,
