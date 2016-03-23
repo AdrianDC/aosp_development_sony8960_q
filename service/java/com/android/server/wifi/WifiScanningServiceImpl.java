@@ -45,7 +45,6 @@ import android.util.ArrayMap;
 import android.util.LocalLog;
 import android.util.Log;
 import android.util.Pair;
-import android.util.SparseIntArray;
 
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.AsyncChannel;
@@ -59,7 +58,6 @@ import com.android.server.wifi.scanner.ScanScheduleUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
-import java.lang.StringBuilder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -298,6 +296,36 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
         public T remove(ClientInfo ci, int handler) {
             return remove(Pair.create(ci, handler));
+        }
+
+        public Collection<T> getAllValues(ClientInfo ci) {
+            ArrayList<T> list = new ArrayList<>();
+            for (Map.Entry<Pair<ClientInfo, Integer>, T> entry : entrySet()) {
+                if (entry.getKey().first == ci) {
+                    list.add(entry.getValue());
+                }
+            }
+            return list;
+        }
+
+        public void removeAll(ClientInfo ci) {
+            Iterator<Map.Entry<Pair<ClientInfo, Integer>, T>> iter = entrySet().iterator();
+            while (iter.hasNext()) {
+                Map.Entry<Pair<ClientInfo, Integer>, T> entry = iter.next();
+                if (entry.getKey().first == ci) {
+                    iter.remove();
+                }
+            }
+        }
+
+        public Map<Integer, T> getHandlerToValueMap(ClientInfo ci) {
+            Map<Integer, T> handlerToValueMap = new HashMap<>();
+            for (Map.Entry<Pair<ClientInfo, Integer>, T> entry : entrySet()) {
+                if (entry.getKey().first == ci) {
+                    handlerToValueMap.put(entry.getKey().second, entry.getValue());
+                }
+            }
+            return handlerToValueMap;
         }
     }
 
@@ -621,7 +649,24 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         private final StartedState mStartedState = new StartedState();
         private final PausedState  mPausedState  = new PausedState();
 
-        private final ClientHandlerMap<PnoSettings> mActivePnoScans = new ClientHandlerMap<>();
+        private final ClientHandlerMap<PnoSettings> mActivePnoScans =
+                new ClientHandlerMap<>();
+        private final ClientHandlerMap<ScanSettings> mActiveBackgroundScans =
+                new ClientHandlerMap<ScanSettings>() {
+                    @Override
+                    public ScanSettings put(ClientInfo ci, int handler, ScanSettings value) {
+                        ScanSettings settings = put(Pair.create(ci, handler), value);
+                        ci.reportScanWorkUpdate();
+                        return settings;
+                    }
+
+                    @Override
+                    public ScanSettings remove(ClientInfo ci, int handler) {
+                        ScanSettings settings = remove(Pair.create(ci, handler));
+                        ci.reportScanWorkUpdate();
+                        return settings;
+                    }
+                };
 
         WifiBackgroundScanStateMachine(Looper looper) {
             super(TAG, looper);
@@ -636,6 +681,26 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             // CHECKSTYLE:ON IndentationCheck
 
             setInitialState(mDefaultState);
+        }
+
+        public ArrayList<ScanSettings> getBackgroundScanSettings() {
+            return new ArrayList<>(mActiveBackgroundScans.values());
+        }
+
+        public ArrayList<ScanSettings> getBackgroundScanSettings(ClientInfo ci) {
+            return new ArrayList<>(mActiveBackgroundScans.getAllValues(ci));
+        }
+
+        public Map<Integer, ScanSettings> getBackgroundScanSettingsHandlerMap(ClientInfo ci) {
+            return mActiveBackgroundScans.getHandlerToValueMap(ci);
+        }
+
+        public void removeActiveBackgroundScanSettings(ClientInfo ci) {
+            mActiveBackgroundScans.removeAll(ci);
+        }
+
+        public ArrayList<PnoSettings> getActivePnoScanSettings() {
+            return new ArrayList<>(mActivePnoScans.values());
         }
 
         @Override
@@ -709,6 +774,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             public void enter() {
                 if (DBG) localLog("DefaultState");
                 mActivePnoScans.clear();
+                mActiveBackgroundScans.clear();
             }
             @Override
             public boolean processMessage(Message msg) {
@@ -784,6 +850,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             public void exit() {
                 sendPnoScanFailedToAllAndClear(
                         WifiScanner.REASON_UNSPECIFIED, "Scan was interrupted");
+                sendBackgroundScanFailedToAllAndClear(
+                        WifiScanner.REASON_UNSPECIFIED, "Scan was interrupted");
                 mScannerImpl.cleanup();
             }
 
@@ -813,15 +881,13 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         ScanSettings scanSettings =
                                 pnoParams.getParcelable(WifiScanner.PNO_PARAMS_SCAN_SETTINGS_KEY);
                         if (addScanRequestForPno(ci, msg.arg2, scanSettings, pnoSettings)) {
-                            mActivePnoScans.put(ci, msg.arg2, pnoSettings);
                             replySucceeded(msg);
                         } else {
                             replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "bad request");
                         }
                         break;
                     case WifiScanner.CMD_STOP_PNO_SCAN:
-                        pnoSettings = mActivePnoScans.remove(ci, msg.arg2);
-                        removeScanRequestForPno(ci, msg.arg2, pnoSettings);
+                        removeScanRequestForPno(ci, msg.arg2);
                         break;
                     case WifiScanner.CMD_GET_SCAN_RESULTS:
                         reportScanResults(mScannerImpl.getLatestBatchedScanResults(true));
@@ -884,9 +950,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         transitionTo(mPausedState);
                         break;
                     case CMD_SCAN_FAILED:
-                        // TODO handle this gracefully (currently no implementations are know to
-                        // report this)
                         Log.e(TAG, "WifiScanner background scan gave CMD_SCAN_FAILED");
+                        sendBackgroundScanFailedToAllAndClear(
+                                WifiScanner.REASON_UNSPECIFIED, "Background Scan failed");
                         break;
                     case CMD_PNO_NETWORK_FOUND:
                         ScanResult[] results = (ScanResult[]) msg.obj;
@@ -925,17 +991,209 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
         }
 
-        void sendPnoScanFailedToAllAndClear(int reason, String description) {
-            for (Pair<ClientInfo, Integer> key : mActivePnoScans.keySet()) {
+        private boolean addBackgroundScanRequest(ClientInfo ci, int handler,
+                ScanSettings settings) {
+            // sanity check the input
+            if (ci == null) {
+                Log.d(TAG, "Failing scan request ClientInfo not found " + handler);
+                return false;
+            }
+            if (settings.periodInMs < WifiScanner.MIN_SCAN_PERIOD_MS) {
+                loge("Failing scan request because periodInMs is " + settings.periodInMs
+                        + ", min scan period is: " + WifiScanner.MIN_SCAN_PERIOD_MS);
+                return false;
+            }
+
+            if (settings.band == WifiScanner.WIFI_BAND_UNSPECIFIED && settings.channels == null) {
+                loge("Channels was null with unspecified band");
+                return false;
+            }
+
+            if (settings.band == WifiScanner.WIFI_BAND_UNSPECIFIED
+                    && settings.channels.length == 0) {
+                loge("No channels specified");
+                return false;
+            }
+
+            int minSupportedPeriodMs = mChannelHelper.estimateScanDuration(settings);
+            if (settings.periodInMs < minSupportedPeriodMs) {
+                loge("Failing scan request because minSupportedPeriodMs is "
+                        + minSupportedPeriodMs + " but the request wants " + settings.periodInMs);
+                return false;
+            }
+
+            // check truncated binary exponential back off scan settings
+            if (settings.maxPeriodInMs != 0 && settings.maxPeriodInMs != settings.periodInMs) {
+                if (settings.maxPeriodInMs < settings.periodInMs) {
+                    loge("Failing scan request because maxPeriodInMs is " + settings.maxPeriodInMs
+                            + " but less than periodInMs " + settings.periodInMs);
+                    return false;
+                }
+                if (settings.maxPeriodInMs > WifiScanner.MAX_SCAN_PERIOD_MS) {
+                    loge("Failing scan request because maxSupportedPeriodMs is "
+                            + WifiScanner.MAX_SCAN_PERIOD_MS + " but the request wants "
+                            + settings.maxPeriodInMs);
+                    return false;
+                }
+                if (settings.stepCount < 1) {
+                    loge("Failing scan request because stepCount is " + settings.stepCount
+                            + " which is less than 1");
+                    return false;
+                }
+            }
+
+            logScanRequest("addBackgroundScanRequest", ci, handler, settings, null);
+            mActiveBackgroundScans.put(ci, handler, settings);
+
+            if (updateSchedule()) {
+                return true;
+            } else {
+                mActiveBackgroundScans.remove(ci, handler);
+                localLog("Failing scan request because failed to reset scan");
+                return false;
+            }
+        }
+
+        private void removeBackgroundScanRequest(ClientInfo ci, int handler) {
+            if (ci != null) {
+                ScanSettings settings = mActiveBackgroundScans.remove(ci, handler);
+                logScanRequest("removeBackgroundScanRequest", ci, handler, settings, null);
+                updateSchedule();
+            }
+        }
+
+        private void reportFullScanResult(ScanResult result) {
+            for (Map.Entry<Pair<ClientInfo, Integer>, ScanSettings> entry
+                    : mActiveBackgroundScans.entrySet()) {
+                ClientInfo ci = entry.getKey().first;
+                int handler = entry.getKey().second;
+                ScanSettings settings = entry.getValue();
+                if (mScheduler.shouldReportFullScanResultForSettings(result, settings)) {
+                    ScanResult newResult = new ScanResult(result);
+                    if (result.informationElements != null) {
+                        newResult.informationElements = result.informationElements.clone();
+                    }
+                    else {
+                        newResult.informationElements = null;
+                    }
+                    ci.sendMessage(WifiScanner.CMD_FULL_SCAN_RESULT, 0, handler, newResult);
+                }
+            }
+        }
+
+        private void reportScanResults(ScanData[] results) {
+            for (Map.Entry<Pair<ClientInfo, Integer>, ScanSettings> entry
+                    : mActiveBackgroundScans.entrySet()) {
+                ClientInfo ci = entry.getKey().first;
+                int handler = entry.getKey().second;
+                ScanSettings settings = entry.getValue();
+                ScanData[] resultsToDeliver =
+                        mScheduler.filterResultsForSettings(results, settings);
+                if (resultsToDeliver != null) {
+                    // If this background scan was started for PNO scan, the last scan data should
+                    // be reported as a PNO network found event.
+                    if (settings.isPnoScan) {
+                        ScanData lastScanData = resultsToDeliver[resultsToDeliver.length - 1];
+                        reportPnoNetworkFound(lastScanData.getResults());
+                    } else {
+                        logCallback("backgroundScanResults", ci, handler);
+                        // TODO(b/27727025) This indirection is needed for WifiChangeStateMachine
+                        ci.deliverScanResults(handler, resultsToDeliver);
+                    }
+                }
+            }
+        }
+
+        private void sendBackgroundScanFailedToAllAndClear(int reason, String description) {
+            for (Pair<ClientInfo, Integer> key : mActiveBackgroundScans.keySet()) {
                 ClientInfo ci = key.first;
                 int handler = key.second;
                 ci.sendMessage(WifiScanner.CMD_OP_FAILED, 0, handler,
                         new WifiScanner.OperationResult(reason, description));
             }
-            mActivePnoScans.clear();
+            mActiveBackgroundScans.clear();
         }
 
-        void reportPnoNetworkFound(ScanResult[] results) {
+        private WifiNative.PnoSettings convertPnoSettingsToNative(PnoSettings pnoSettings) {
+            WifiNative.PnoSettings nativePnoSetting = new WifiNative.PnoSettings();
+            nativePnoSetting.min5GHzRssi = pnoSettings.min5GHzRssi;
+            nativePnoSetting.min24GHzRssi = pnoSettings.min24GHzRssi;
+            nativePnoSetting.initialScoreMax = pnoSettings.initialScoreMax;
+            nativePnoSetting.currentConnectionBonus = pnoSettings.currentConnectionBonus;
+            nativePnoSetting.sameNetworkBonus = pnoSettings.sameNetworkBonus;
+            nativePnoSetting.secureBonus = pnoSettings.secureBonus;
+            nativePnoSetting.band5GHzBonus = pnoSettings.band5GHzBonus;
+            nativePnoSetting.isConnected = pnoSettings.isConnected;
+            nativePnoSetting.networkList =
+                    new WifiNative.PnoNetwork[pnoSettings.networkList.length];
+            for (int i = 0; i < pnoSettings.networkList.length; i++) {
+                nativePnoSetting.networkList[i] = new WifiNative.PnoNetwork();
+                nativePnoSetting.networkList[i].ssid = pnoSettings.networkList[i].ssid;
+                nativePnoSetting.networkList[i].networkId = pnoSettings.networkList[i].networkId;
+                nativePnoSetting.networkList[i].priority = pnoSettings.networkList[i].priority;
+                nativePnoSetting.networkList[i].flags = pnoSettings.networkList[i].flags;
+                nativePnoSetting.networkList[i].auth_bit_field =
+                        pnoSettings.networkList[i].authBitField;
+            }
+            return nativePnoSetting;
+        }
+
+        private boolean addScanRequestForPno(ClientInfo ci, int handler, ScanSettings scanSettings,
+                PnoSettings pnoSettings) {
+            if (ci == null) {
+                Log.d(TAG, "Failing scan request ClientInfo not found " + handler);
+                return false;
+            }
+
+            boolean shouldScheduleBackgroundScan;
+            if (mScannerImpl.isHwPnoSupported(pnoSettings.isConnected)) {
+                WifiNative.PnoSettings nativePnoSettings = convertPnoSettingsToNative(pnoSettings);
+                if (!mScannerImpl.setHwPnoList(nativePnoSettings, mBackgroundScanStateMachine)) {
+                    return false;
+                }
+                // HW PNO is supported, check if we need a background scan running for this.
+                shouldScheduleBackgroundScan = mScannerImpl.shouldScheduleBackgroundScanForHwPno();
+
+            } else {
+                // HW PNO is not supported, we need to revert to normal background scans and
+                // report events after each scan.
+                scanSettings.reportEvents = WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN;
+                shouldScheduleBackgroundScan = true;
+            }
+            // We need to schedule a background scan either because HW PNO requires background
+            // scan or if there is no HW PNO scan support.
+            if (shouldScheduleBackgroundScan) {
+                if(!addBackgroundScanRequest(ci, handler, scanSettings)) {
+                    loge("Background scan request for PNO failed.");
+                    return false;
+                }
+            }
+
+            logScanRequest("addPnoScanRequest", ci, handler, scanSettings, pnoSettings);
+            mActivePnoScans.put(ci, handler, pnoSettings);
+            return true;
+        }
+
+        private void removeScanRequestForPno(ClientInfo ci, int handler) {
+            if (ci != null) {
+                PnoSettings pnoSettings = mActivePnoScans.remove(ci, handler);
+                logScanRequest("removePnoScanRequest", ci, handler, null, pnoSettings);
+
+                boolean wasBackgroundScanScheduled;
+                if (mScannerImpl.isHwPnoSupported(pnoSettings.isConnected)) {
+                    mScannerImpl.resetHwPnoList(convertPnoSettingsToNative(pnoSettings));
+                    wasBackgroundScanScheduled =
+                            mScannerImpl.shouldScheduleBackgroundScanForHwPno();
+                } else {
+                    wasBackgroundScanScheduled = true;
+                }
+                if (wasBackgroundScanScheduled) {
+                    removeBackgroundScanRequest(ci, handler);
+                }
+            }
+        }
+
+        private void reportPnoNetworkFound(ScanResult[] results) {
             WifiScanner.ParcelableScanResults parcelableScanResults =
                     new WifiScanner.ParcelableScanResults(results);
             for (Map.Entry<Pair<ClientInfo, Integer>, PnoSettings> entry
@@ -943,9 +1201,19 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 ClientInfo ci = entry.getKey().first;
                 int handler = entry.getKey().second;
                 logCallback("pnoNetworkFound", ci, handler);
-                ci.sendMessage(WifiScanner.CMD_PNO_NETWORK_FOUND, 0, handler,
-                        parcelableScanResults);
+                ci.sendMessage(
+                        WifiScanner.CMD_PNO_NETWORK_FOUND, 0, handler, parcelableScanResults);
             }
+        }
+
+        private void sendPnoScanFailedToAllAndClear(int reason, String description) {
+            for (Pair<ClientInfo, Integer> key : mActivePnoScans.keySet()) {
+                ClientInfo ci = key.first;
+                int handler = key.second;
+                ci.sendMessage(WifiScanner.CMD_OP_FAILED, 0, handler,
+                        new WifiScanner.OperationResult(reason, description));
+            }
+            mActivePnoScans.clear();
         }
     }
 
@@ -1007,7 +1275,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         // TODO migrate batterystats to accept scan duration per hour instead of csph
         int getCsph() {
             int totalScanDurationPerHour = 0;
-            for (ScanSettings settings : getBackgroundScanSettings()) {
+            Collection<ScanSettings> settingsList =
+                    mBackgroundScanStateMachine.getBackgroundScanSettings(this);
+            for (ScanSettings settings : settingsList) {
                 int scanDurationMs = mChannelHelper.estimateScanDuration(settings);
                 int scans_per_Hour = settings.periodInMs == 0 ? 1 : (3600 * 1000) /
                         settings.periodInMs;
@@ -1022,7 +1292,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 reportBatchedScanStop();
                 mScanWorkReported = false;
             }
-            if (mBackgroundScanSettings.isEmpty()) {
+            if (mBackgroundScanStateMachine.getBackgroundScanSettings(this).isEmpty()) {
                 reportBatchedScanStart();
                 mScanWorkReported = true;
             }
@@ -1037,8 +1307,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             StringBuilder sb = new StringBuilder();
             sb.append(toString());
 
-            Iterator<Map.Entry<Integer, ScanSettings>> it =
-                    mBackgroundScanSettings.entrySet().iterator();
+            Map<Integer, ScanSettings> settingsMap =
+                    mBackgroundScanStateMachine.getBackgroundScanSettingsHandlerMap(this);
+            Iterator<Map.Entry<Integer, ScanSettings>> it = settingsMap.entrySet().iterator();
             for (; it.hasNext(); ) {
                 Map.Entry<Integer, ScanSettings> entry = it.next();
                 sb.append("ScanId ").append(entry.getKey()).append("\n");
@@ -1051,80 +1322,10 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             pw.println(sb.toString());
         }
 
-        private final Map<Integer, ScanSettings> mBackgroundScanSettings =
-                new HashMap<Integer, ScanSettings>(4);
-        private final SparseIntArray mBackgroundScanPeriods = new SparseIntArray(4);
-
-        void addBackgroundScanRequest(ScanSettings settings, int id) {
-            mBackgroundScanSettings.put(id, settings);
-            reportScanWorkUpdate();
-        }
-
-        void removeBackgroundScanRequest(int id) {
-            mBackgroundScanSettings.remove(id);
-            reportScanWorkUpdate();
-        }
-
-        Collection<ScanSettings> getBackgroundScanSettings() {
-            return mBackgroundScanSettings.values();
-        }
-
-        void reportScanResults(ScanData[] results) {
-            Iterator<Integer> it = mBackgroundScanSettings.keySet().iterator();
-            while (it.hasNext()) {
-                int handler = it.next();
-                reportScanResults(results, handler);
-            }
-        }
-
-        void reportScanResults(ScanData[] results, int handler) {
-            ScanSettings settings = mBackgroundScanSettings.get(handler);
-
-            ScanData[] resultsToDeliver = mScheduler.filterResultsForSettings(results, settings);
-
-            if (resultsToDeliver != null) {
-                localLog("delivering results, num = " + resultsToDeliver.length);
-
-                deliverScanResults(handler, resultsToDeliver);
-            }
-        }
-
         void deliverScanResults(int handler, ScanData results[]) {
             WifiScanner.ParcelableScanData parcelableScanData =
                     new WifiScanner.ParcelableScanData(results);
-            logCallback("backgroundScanResults", this, handler);
             mChannel.sendMessage(WifiScanner.CMD_SCAN_RESULT, 0, handler, parcelableScanData);
-        }
-
-        void reportFullScanResult(ScanResult result) {
-            Iterator<Integer> it = mBackgroundScanSettings.keySet().iterator();
-            while (it.hasNext()) {
-                int handler = it.next();
-                ScanSettings settings = mBackgroundScanSettings.get(handler);
-                if (mScheduler.shouldReportFullScanResultForSettings(result, settings)) {
-                    ScanResult newResult = new ScanResult(result);
-                    if (result.informationElements != null) {
-                        newResult.informationElements = result.informationElements.clone();
-                    }
-                    else {
-                        newResult.informationElements = null;
-                    }
-                    logCallback("backgroundScanFullResult", this, handler);
-                    mChannel.sendMessage(WifiScanner.CMD_FULL_SCAN_RESULT, 0, handler, newResult);
-                }
-            }
-        }
-
-        void reportPeriodChanged(int handler, ScanSettings settings, int newPeriodInMs) {
-            int prevPeriodInMs = mBackgroundScanPeriods.get(handler, 0);
-            if (prevPeriodInMs == 0) {
-                prevPeriodInMs = settings.periodInMs;
-            }
-
-            if (prevPeriodInMs != newPeriodInMs) {
-                mBackgroundScanPeriods.put(handler, newPeriodInMs);
-                mChannel.sendMessage(WifiScanner.CMD_PERIOD_CHANGED, newPeriodInMs, handler);
-            }
         }
 
         private final Map<Integer, WifiScanner.HotlistSettings> mHotlistSettings =
@@ -1219,7 +1420,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
         void cleanup() {
             mDisconnected = true;
-            mBackgroundScanSettings.clear();
+            mBackgroundScanStateMachine.removeActiveBackgroundScanSettings(this);
             updateSchedule();
 
             mHotlistSettings.clear();
@@ -1267,10 +1468,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
     private boolean updateSchedule() {
         mChannelHelper.updateChannels();
-        ArrayList<ScanSettings> settings = new ArrayList<>();
-        for (ClientInfo client : mClients.values()) {
-            settings.addAll(client.getBackgroundScanSettings());
-        }
+        Collection<ScanSettings> settings = mBackgroundScanStateMachine.getBackgroundScanSettings();
 
         mScheduler.updateSchedule(settings);
         WifiNative.ScanSettings schedule = mScheduler.getSchedule();
@@ -1317,141 +1515,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 return false;
             }
         }
-    }
-
-    boolean addBackgroundScanRequest(ClientInfo ci, int handler, ScanSettings settings) {
-        // sanity check the input
-        if (ci == null) {
-            Log.d(TAG, "Failing scan request ClientInfo not found " + handler);
-            return false;
-        }
-        if (settings.periodInMs < WifiScanner.MIN_SCAN_PERIOD_MS) {
-            loge("Failing scan request because periodInMs is " + settings.periodInMs
-                    + ", min scan period is: " + WifiScanner.MIN_SCAN_PERIOD_MS);
-            return false;
-        }
-
-        if (settings.band == WifiScanner.WIFI_BAND_UNSPECIFIED && settings.channels == null) {
-            loge("Channels was null with unspecified band");
-            return false;
-        }
-
-        if (settings.band == WifiScanner.WIFI_BAND_UNSPECIFIED && settings.channels.length == 0) {
-            loge("No channels specified");
-            return false;
-        }
-
-        int minSupportedPeriodMs = mChannelHelper.estimateScanDuration(settings);
-        if (settings.periodInMs < minSupportedPeriodMs) {
-            loge("Failing scan request because minSupportedPeriodMs is "
-                    + minSupportedPeriodMs + " but the request wants " + settings.periodInMs);
-            return false;
-        }
-
-        // check truncated binary exponential back off scan settings
-        if (settings.maxPeriodInMs != 0 && settings.maxPeriodInMs != settings.periodInMs) {
-            if (settings.maxPeriodInMs < settings.periodInMs) {
-                loge("Failing scan request because maxPeriodInMs is " + settings.maxPeriodInMs
-                        + " but less than periodInMs " + settings.periodInMs);
-                return false;
-            }
-            if (settings.maxPeriodInMs > WifiScanner.MAX_SCAN_PERIOD_MS) {
-                loge("Failing scan request because maxSupportedPeriodMs is "
-                        + WifiScanner.MAX_SCAN_PERIOD_MS + " but the request wants "
-                        + settings.maxPeriodInMs);
-                return false;
-            }
-            if (settings.stepCount < 1) {
-                loge("Failing scan request because stepCount is " + settings.stepCount
-                        + " which is less than 1");
-                return false;
-            }
-        }
-
-        logScanRequest("addBackgroundScanRequest", ci, handler, settings, null);
-        ci.addBackgroundScanRequest(settings, handler);
-
-        if (updateSchedule()) {
-            return true;
-        } else {
-            ci.removeBackgroundScanRequest(handler);
-            localLog("Failing scan request because failed to reset scan");
-            return false;
-        }
-    }
-
-    void removeBackgroundScanRequest(ClientInfo ci, int handler) {
-        if (ci != null) {
-            logScanRequest("removeBackgroundScanRequest", ci, handler, null, null);
-            ci.removeBackgroundScanRequest(handler);
-            updateSchedule();
-        }
-    }
-
-    private WifiNative.PnoSettings convertPnoSettingsToNative(PnoSettings pnoSettings) {
-        WifiNative.PnoSettings nativePnoSetting = new WifiNative.PnoSettings();
-        nativePnoSetting.min5GHzRssi = pnoSettings.min5GHzRssi;
-        nativePnoSetting.min24GHzRssi = pnoSettings.min24GHzRssi;
-        nativePnoSetting.initialScoreMax = pnoSettings.initialScoreMax;
-        nativePnoSetting.currentConnectionBonus = pnoSettings.currentConnectionBonus;
-        nativePnoSetting.sameNetworkBonus = pnoSettings.sameNetworkBonus;
-        nativePnoSetting.secureBonus = pnoSettings.secureBonus;
-        nativePnoSetting.band5GHzBonus = pnoSettings.band5GHzBonus;
-        nativePnoSetting.isConnected = pnoSettings.isConnected;
-        nativePnoSetting.networkList = new WifiNative.PnoNetwork[pnoSettings.networkList.length];
-        for (int i = 0; i < pnoSettings.networkList.length; i++) {
-            nativePnoSetting.networkList[i] = new WifiNative.PnoNetwork();
-            nativePnoSetting.networkList[i].ssid = pnoSettings.networkList[i].ssid;
-            nativePnoSetting.networkList[i].networkId = pnoSettings.networkList[i].networkId;
-            nativePnoSetting.networkList[i].priority = pnoSettings.networkList[i].priority;
-            nativePnoSetting.networkList[i].flags = pnoSettings.networkList[i].flags;
-            nativePnoSetting.networkList[i].auth_bit_field =
-                    pnoSettings.networkList[i].authBitField;
-        }
-        return nativePnoSetting;
-    }
-
-    boolean addScanRequestForPno(ClientInfo ci, int handler, ScanSettings settings,
-            PnoSettings pnoSettings) {
-        logScanRequest("addPnoScanRequest", ci, handler, settings, pnoSettings);
-        if (!mScannerImpl.setPnoList(convertPnoSettingsToNative(pnoSettings),
-                        mBackgroundScanStateMachine)) {
-            return false;
-        }
-        if (!mScannerImpl.shouldScheduleBackgroundScanForPno(pnoSettings.isConnected)) {
-            return true;
-        }
-        return addBackgroundScanRequest(ci, handler, settings);
-    }
-
-    void removeScanRequestForPno(ClientInfo ci, int handler, PnoSettings pnoSettings) {
-        if (ci != null) {
-            logScanRequest("removePnoScanRequest", ci, handler, null, null);
-            mScannerImpl.resetPnoList(convertPnoSettingsToNative(pnoSettings));
-            if (!mScannerImpl.shouldScheduleBackgroundScanForPno(pnoSettings.isConnected)) {
-                return;
-            }
-            removeBackgroundScanRequest(ci, handler);
-        }
-    }
-
-    boolean reportScanResults(ScanData[] results) {
-        if (DBG) Log.d(TAG, "reporting " + results.length + " scan(s)");
-        Collection<ClientInfo> clients = mClients.values();
-        for (ClientInfo ci2 : clients) {
-            ci2.reportScanResults(results);
-        }
-
-        return true;
-    }
-
-    boolean reportFullScanResult(ScanResult result) {
-        Collection<ClientInfo> clients = mClients.values();
-        for (ClientInfo ci2 : clients) {
-            ci2.reportFullScanResult(result);
-        }
-
-        return true;
     }
 
     void resetHotlist() {
@@ -1892,10 +1955,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 if (DBG) localLog("Delivering messages directly");
                 sendMessage(WIFI_CHANGE_CMD_NEW_SCAN_RESULTS, 0, 0, results);
             }
-            @Override
-            void reportPeriodChanged(int handler, ScanSettings settings, int newPeriodInMs) {
-                // nothing to do; no one is listening for this
-            }
         }
 
         @Override
@@ -1972,7 +2031,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
         pw.println("listeners:");
         for (ClientInfo client : mClients.values()) {
-            for (ScanSettings settings : client.getBackgroundScanSettings()) {
+            Collection<ScanSettings> settingsList =
+                    mBackgroundScanStateMachine.getBackgroundScanSettings(client);
+            for (ScanSettings settings : settingsList) {
                 pw.println("  " + toString(client.mUid, settings));
             }
         }

@@ -132,7 +132,7 @@ public abstract class WifiScannerImpl {
      * @param eventHandler Event handler for notifying the scan results.
      * @return true if success, false otherwise
      */
-    public abstract boolean setPnoList(WifiNative.PnoSettings settings,
+    public abstract boolean setHwPnoList(WifiNative.PnoSettings settings,
             WifiNative.PnoEventHandler eventHandler);
 
     /**
@@ -140,14 +140,20 @@ public abstract class WifiScannerImpl {
      * @param settings PNO settings for this scan.
      * @return true if success, false otherwise
      */
-    public abstract boolean resetPnoList(WifiNative.PnoSettings settings);
+    public abstract boolean resetHwPnoList(WifiNative.PnoSettings settings);
 
     /**
-     * This returns whether a background scan should be running for PNO scan or not.
+     * This returns whether HW PNO is supported or not.
      * @param isConnectedPno Whether this is connected PNO vs disconnected PNO.
+     * @return true if HW PNO is supported, false otherwise.
+     */
+    public abstract boolean isHwPnoSupported(boolean isConnectedPno);
+
+    /**
+     * This returns whether a background scan should be running for HW PNO scan or not.
      * @return true if background scan needs to be started, false otherwise.
      */
-    public abstract boolean shouldScheduleBackgroundScanForPno(boolean isConnectedPno);
+    public abstract boolean shouldScheduleBackgroundScanForHwPno();
 
     /**
      * Set a new hotlist

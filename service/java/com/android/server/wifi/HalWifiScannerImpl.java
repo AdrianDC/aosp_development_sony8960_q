@@ -117,30 +117,39 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
     }
 
     @Override
-    public boolean setPnoList(WifiNative.PnoSettings settings,
+    public boolean setHwPnoList(WifiNative.PnoSettings settings,
             WifiNative.PnoEventHandler eventHandler) {
         if (mHalBasedPnoSupported) {
             return mWifiNative.setPnoList(settings, eventHandler);
         } else {
-            return mSupplicantScannerDelegate.setPnoList(settings, eventHandler);
+            return mSupplicantScannerDelegate.setHwPnoList(settings, eventHandler);
         }
     }
 
     @Override
-    public boolean resetPnoList(WifiNative.PnoSettings settings) {
+    public boolean resetHwPnoList(WifiNative.PnoSettings settings) {
         if (mHalBasedPnoSupported) {
             return mWifiNative.resetPnoList();
         } else {
-            return mSupplicantScannerDelegate.resetPnoList(settings);
+            return mSupplicantScannerDelegate.resetHwPnoList(settings);
         }
     }
 
     @Override
-    public boolean shouldScheduleBackgroundScanForPno(boolean isConnectedPno) {
+    public boolean isHwPnoSupported(boolean isConnectedPno) {
         if (mHalBasedPnoSupported) {
             return true;
         } else {
-            return mSupplicantScannerDelegate.shouldScheduleBackgroundScanForPno(isConnectedPno);
+            return mSupplicantScannerDelegate.isHwPnoSupported(isConnectedPno);
+        }
+    }
+
+    @Override
+    public boolean shouldScheduleBackgroundScanForHwPno() {
+        if (mHalBasedPnoSupported) {
+            return true;
+        } else {
+            return mSupplicantScannerDelegate.shouldScheduleBackgroundScanForHwPno();
         }
     }
 
