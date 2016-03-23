@@ -111,8 +111,41 @@ public class WifiNanServiceImplTest {
     public void testStart() {
         mDut.start();
 
-        verify(mNanStateManagerMock).start(any(Looper.class));
+        verify(mNanStateManagerMock).start(eq(mContextMock), any(Looper.class));
     }
+
+    /**
+     * Validate enableUsage() function
+     */
+    @Test
+    public void testEnableUsage() {
+        mDut.enableUsage();
+
+        verify(mNanStateManagerMock).enableUsage();
+    }
+
+    /**
+     * Validate disableUsage() function
+     */
+    @Test
+    public void testDisableUsage() throws Exception {
+        mDut.enableUsage();
+        int clientId = doConnect();
+        mDut.disableUsage();
+
+        verify(mNanStateManagerMock).disableUsage();
+    }
+
+    /**
+     * Validate isUsageEnabled() function
+     */
+    @Test
+    public void testIsUsageEnabled() {
+        mDut.isUsageEnabled();
+
+        verify(mNanStateManagerMock).isUsageEnabled();
+    }
+
 
     /**
      * Validate connect() - returns and uses a client ID.

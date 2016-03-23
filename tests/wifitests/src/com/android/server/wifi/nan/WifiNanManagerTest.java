@@ -22,6 +22,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.net.wifi.nan.ConfigRequest;
@@ -82,6 +83,40 @@ public class WifiNanManagerTest {
 
         mDut = new WifiNanManager(mockNanService);
         mMockLooper = new MockLooper();
+    }
+
+    /*
+     * Straight pass-through tests
+     */
+
+    /**
+     * Validate pass-through of enableUsage() API.
+     */
+    @Test
+    public void testEnableUsage() throws Exception {
+        mDut.enableUsage();
+
+        verify(mockNanService).enableUsage();
+    }
+
+    /**
+     * Validate pass-through of disableUsage() API.
+     */
+    @Test
+    public void testDisableUsage() throws Exception {
+        mDut.disableUsage();
+
+        verify(mockNanService).disableUsage();
+    }
+
+    /**
+     * Validate pass-through of isUsageEnabled() API.
+     */
+    @Test
+    public void testIsUsageEnable() throws Exception {
+        mDut.isUsageEnabled();
+
+        verify(mockNanService).isUsageEnabled();
     }
 
     /*

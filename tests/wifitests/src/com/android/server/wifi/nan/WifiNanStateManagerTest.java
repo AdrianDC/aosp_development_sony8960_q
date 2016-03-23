@@ -20,19 +20,28 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyShort;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
+import android.content.Context;
+import android.content.Intent;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
 import android.net.wifi.nan.WifiNanEventCallback;
+import android.net.wifi.nan.WifiNanManager;
 import android.net.wifi.nan.WifiNanSessionCallback;
+import android.os.UserHandle;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
 
@@ -60,6 +69,7 @@ public class WifiNanStateManagerTest {
     private MockLooper mMockLooper;
     private WifiNanStateManager mDut;
     @Mock private WifiNanNative mMockNative;
+    @Mock private Context mMockContext;
 
     @Rule
     public ErrorCollector collector = new ErrorCollector();
@@ -74,9 +84,117 @@ public class WifiNanStateManagerTest {
         mMockLooper = new MockLooper();
 
         mDut = installNewNanStateManagerAndResetState();
-        mDut.start(mMockLooper.getLooper());
+        mDut.start(mMockContext, mMockLooper.getLooper());
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+
+        when(mMockNative.enableAndConfigure(anyShort(), any(ConfigRequest.class), anyBoolean()))
+                .thenReturn(true);
+        when(mMockNative.disable(anyShort())).thenReturn(true);
+        when(mMockNative.publish(anyShort(), anyInt(), any(PublishConfig.class))).thenReturn(true);
+        when(mMockNative.subscribe(anyShort(), anyInt(), any(SubscribeConfig.class)))
+                .thenReturn(true);
+        when(mMockNative.sendMessage(anyShort(), anyInt(), anyInt(), any(byte[].class),
+                any(byte[].class), anyInt())).thenReturn(true);
+        when(mMockNative.stopPublish(anyShort(), anyInt())).thenReturn(true);
+        when(mMockNative.stopSubscribe(anyShort(), anyInt())).thenReturn(true);
 
         installMockWifiNanNative(mMockNative);
+    }
+
+    /**
+     * Validate that APIs aren't functional when usage is disabled.
+     */
+    @Test
+    public void testDisableUsageDisablesApis() throws Exception {
+        final int clientId = 12314;
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        InOrder inOrder = inOrder(mMockContext, mMockNative, mockCallback);
+
+        // (1) check initial state
+        validateCorrectNanStatusChangeBroadcast(inOrder, true);
+        collector.checkThat("usage enabled", mDut.isUsageEnabled(), equalTo(true));
+
+        // (2) disable usage and validate state
+        mDut.disableUsage();
+        mMockLooper.dispatchAll();
+        collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
+        inOrder.verify(mMockNative).disable((short) 0);
+        validateCorrectNanStatusChangeBroadcast(inOrder, false);
+
+        // (3) try connecting and validate that get (another) onNanDown
+        mDut.connect(clientId, mockCallback, configRequest);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onNanDown(WifiNanEventCallback.REASON_REQUESTED);
+
+        inOrder.verifyNoMoreInteractions();
+    }
+
+    /**
+     * Validate that when API usage is disabled while in the middle of a
+     * connection that internal state is cleaned-up and that correct callbacks
+     * (onNanDown) are dispatched, and that all subsequent operations are NOP.
+     * Then enable usage again and validate that operates correctly.
+     */
+    @Test
+    public void testDisableUsageFlow() throws Exception {
+        final int clientId = 12341;
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        InOrder inOrder = inOrder(mMockContext, mMockNative, mockCallback);
+
+        // (1) check initial state
+        validateCorrectNanStatusChangeBroadcast(inOrder, true);
+        collector.checkThat("usage enabled", mDut.isUsageEnabled(), equalTo(true));
+
+        // (2) connect (successfully)
+        mDut.connect(clientId, mockCallback, configRequest);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
+                eq(true));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
+
+        // (3) disable usage & verify callbacks
+        mDut.disableUsage();
+        mMockLooper.dispatchAll();
+        collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
+        inOrder.verify(mMockNative).disable((short) 0);
+        inOrder.verify(mockCallback).onNanDown(WifiNanEventCallback.REASON_REQUESTED);
+        validateCorrectNanStatusChangeBroadcast(inOrder, false);
+        validateInternalClientInfoCleanedUp(clientId);
+
+        // (4) try connecting again and validate that just get an onNanDown
+        mDut.connect(clientId, mockCallback, configRequest);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onNanDown(WifiNanEventCallback.REASON_REQUESTED);
+
+        // (5) disable usage again and validate that not much happens
+        mDut.disableUsage();
+        mMockLooper.dispatchAll();
+        collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
+
+        // (6) enable usage
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        collector.checkThat("usage enabled", mDut.isUsageEnabled(), equalTo(true));
+        validateCorrectNanStatusChangeBroadcast(inOrder, true);
+
+        // (7) connect (should be successful)
+        mDut.connect(clientId, mockCallback, configRequest);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
+                eq(true));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
+
+        inOrder.verifyNoMoreInteractions();
     }
 
     /**
@@ -1344,6 +1462,28 @@ public class WifiNanStateManagerTest {
 
         collector.checkThat("No sessions exist for clientId=" + clientId, sessions.size(),
                 equalTo(0));
+    }
+
+    /**
+     * Validates that the broadcast sent on NAN status change is correct.
+     *
+     * @param expectedEnabled The expected change status - i.e. are we expected
+     *            to announce that NAN is enabled (true) or disabled (false).
+     */
+    public void validateCorrectNanStatusChangeBroadcast(InOrder inOrder, boolean expectedEnabled) {
+        ArgumentCaptor<Intent> intent = ArgumentCaptor.forClass(Intent.class);
+
+        inOrder.verify(mMockContext).sendBroadcastAsUser(intent.capture(), eq(UserHandle.ALL));
+
+        collector.checkThat("intent action", intent.getValue().getAction(),
+                equalTo(WifiNanManager.WIFI_NAN_STATE_CHANGED_ACTION));
+        collector.checkThat("intent contains wifi status key",
+                intent.getValue().getExtras().containsKey(WifiNanManager.EXTRA_WIFI_STATE),
+                equalTo(true));
+        collector.checkThat("intnent wifi status key value",
+                intent.getValue().getExtras().getInt(WifiNanManager.EXTRA_WIFI_STATE),
+                equalTo(expectedEnabled ? WifiNanManager.WIFI_NAN_STATE_ENABLED
+                        : WifiNanManager.WIFI_NAN_STATE_DISABLED));
     }
 
     /*

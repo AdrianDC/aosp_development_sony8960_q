@@ -75,6 +75,7 @@ import android.net.wifi.WifiSsid;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.WpsResult;
 import android.net.wifi.WpsResult.Status;
+import android.net.wifi.nan.WifiNanManager;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
 import android.os.Binder;
@@ -195,6 +196,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     private WifiApConfigStore mWifiApConfigStore;
     private final boolean mP2pSupported;
     private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
+    private final boolean mNanSupported;
     private boolean mTemporarilyDisconnectWifi = false;
     private final String mPrimaryDeviceType;
     private final UserManager mUserManager;
@@ -601,6 +603,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     private AsyncChannel mReplyChannel = new AsyncChannel();
 
     private WifiP2pServiceImpl mWifiP2pServiceImpl;
+    private WifiNanManager mWifiNanManager;
 
     // Used to initiate a connection with WifiP2pService
     private AsyncChannel mWifiP2pChannel;
@@ -1149,6 +1152,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
         mP2pSupported = mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_WIFI_DIRECT);
+        mNanSupported = mContext.getPackageManager()
+                .hasSystemFeature(PackageManager.FEATURE_WIFI_NAN);
 
         mWifiConfigManager = mFacade.makeWifiConfigManager(context, this, mWifiNative, facade,
                 mClock, userManager, KeyStore.getInstance());
@@ -1176,6 +1181,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
         IBinder s1 = mFacade.getService(Context.WIFI_P2P_SERVICE);
         mWifiP2pServiceImpl = (WifiP2pServiceImpl) IWifiP2pManager.Stub.asInterface(s1);
+
+        mWifiNanManager = (WifiNanManager) mContext.getSystemService(Context.WIFI_NAN_SERVICE);
 
         mNetworkInfo.setIsAvailable(false);
         mLastBssid = null;
@@ -5670,6 +5677,17 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 }
             }
 
+            if (mNanSupported && mWifiNanManager != null) {
+                if (mOperationalMode == CONNECT_MODE) {
+                    mWifiNanManager.enableUsage();
+                } else {
+                    /*
+                     * NAN state machine starts in disabled state. Nothing
+                     * needed to keep it disabled.
+                     */
+                }
+            }
+
             final Intent intent = new Intent(WifiManager.WIFI_SCAN_AVAILABLE);
             intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
             intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_ENABLED);
@@ -5821,6 +5839,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
             noteScanEnd(); // wrap up any pending request.
             mBufferedScanMsg.clear();
+
+            if (mNanSupported && mWifiNanManager != null) {
+                mWifiNanManager.disableUsage();
+            }
         }
     }
 
