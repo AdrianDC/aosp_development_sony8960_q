@@ -89,34 +89,36 @@ public class WifiMetrics {
             return sb.toString();
         }
         public void updateFromWifiConfiguration(WifiConfiguration config) {
-            if (config != null) {
-                // Is this a hidden network
-                mRouterFingerPrintProto.hidden = config.hiddenSSID;
-                // Config may not have a valid dtimInterval set yet, in which case dtim will be zero
-                // (These are only populated from beacon frame scan results, which are returned as
-                // scan results from the chip far less frequently than Probe-responses)
-                if (config.dtimInterval > 0) {
-                    mRouterFingerPrintProto.dtim = config.dtimInterval;
-                }
-                mCurrentConnectionEvent.mConfigSsid = config.SSID;
-                // Get AuthType information from config (We do this again from ScanResult after
-                // associating with BSSID)
-                if (config.allowedKeyManagement != null
-                        && config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)) {
-                    mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
-                            .authentication = WifiMetricsProto.RouterFingerPrint.AUTH_OPEN;
-                } else if (config.isEnterprise()) {
-                    mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
-                            .authentication = WifiMetricsProto.RouterFingerPrint.AUTH_ENTERPRISE;
-                } else {
-                    mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
-                            .authentication = WifiMetricsProto.RouterFingerPrint.AUTH_PERSONAL;
-                }
-                // If there's a ScanResult candidate associated with this config already, get it and
-                // log (more accurate) metrics from it
-                ScanResult candidate = config.getNetworkSelectionStatus().getCandidate();
-                if (candidate != null) {
-                    updateMetricsFromScanResult(candidate);
+            synchronized (mLock) {
+                if (config != null) {
+                    // Is this a hidden network
+                    mRouterFingerPrintProto.hidden = config.hiddenSSID;
+                    // Config may not have a valid dtimInterval set yet, in which case dtim will be zero
+                    // (These are only populated from beacon frame scan results, which are returned as
+                    // scan results from the chip far less frequently than Probe-responses)
+                    if (config.dtimInterval > 0) {
+                        mRouterFingerPrintProto.dtim = config.dtimInterval;
+                    }
+                    mCurrentConnectionEvent.mConfigSsid = config.SSID;
+                    // Get AuthType information from config (We do this again from ScanResult after
+                    // associating with BSSID)
+                    if (config.allowedKeyManagement != null
+                            && config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)) {
+                        mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
+                                .authentication = WifiMetricsProto.RouterFingerPrint.AUTH_OPEN;
+                    } else if (config.isEnterprise()) {
+                        mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
+                                .authentication = WifiMetricsProto.RouterFingerPrint.AUTH_ENTERPRISE;
+                    } else {
+                        mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
+                                .authentication = WifiMetricsProto.RouterFingerPrint.AUTH_PERSONAL;
+                    }
+                    // If there's a ScanResult candidate associated with this config already, get it and
+                    // log (more accurate) metrics from it
+                    ScanResult candidate = config.getNetworkSelectionStatus().getCandidate();
+                    if (candidate != null) {
+                        updateMetricsFromScanResult(candidate);
+                    }
                 }
             }
         }
@@ -330,8 +332,10 @@ public class WifiMetrics {
      * set the RoamType of the current ConnectionEvent (if any)
      */
     public void setConnectionEventRoamType(int roamType) {
-        if (mCurrentConnectionEvent != null) {
-            mCurrentConnectionEvent.mConnectionEvent.roamType = roamType;
+        synchronized (mLock) {
+            if (mCurrentConnectionEvent != null) {
+                mCurrentConnectionEvent.mConnectionEvent.roamType = roamType;
+            }
         }
     }
 
@@ -339,17 +343,19 @@ public class WifiMetrics {
      * Set AP related metrics from ScanDetail
      */
     public void setConnectionScanDetail(ScanDetail scanDetail) {
-        if (mCurrentConnectionEvent != null && scanDetail != null) {
-            NetworkDetail networkDetail = scanDetail.getNetworkDetail();
-            ScanResult scanResult = scanDetail.getScanResult();
-            //Ensure that we have a networkDetail, and that it corresponds to the currently
-            //tracked connection attempt
-            if (networkDetail != null && scanResult != null
-                    && mCurrentConnectionEvent.mConfigSsid != null
-                    && mCurrentConnectionEvent.mConfigSsid
-                    .equals("\"" + networkDetail.getSSID() + "\"")) {
-                updateMetricsFromNetworkDetail(networkDetail);
-                updateMetricsFromScanResult(scanResult);
+        synchronized (mLock) {
+            if (mCurrentConnectionEvent != null && scanDetail != null) {
+                NetworkDetail networkDetail = scanDetail.getNetworkDetail();
+                ScanResult scanResult = scanDetail.getScanResult();
+                //Ensure that we have a networkDetail, and that it corresponds to the currently
+                //tracked connection attempt
+                if (networkDetail != null && scanResult != null
+                        && mCurrentConnectionEvent.mConfigSsid != null
+                        && mCurrentConnectionEvent.mConfigSsid
+                        .equals("\"" + networkDetail.getSSID() + "\"")) {
+                    updateMetricsFromNetworkDetail(networkDetail);
+                    updateMetricsFromScanResult(scanResult);
+                }
             }
         }
     }
@@ -639,8 +645,10 @@ public class WifiMetrics {
      * @return byte array of the deserialized & consolidated Proto
      */
     public byte[] toByteArray() {
-        consolidateProto(false);
-        return mWifiLogProto.toByteArray(mWifiLogProto);
+        synchronized (mLock) {
+            consolidateProto(false);
+            return mWifiLogProto.toByteArray(mWifiLogProto);
+        }
     }
 
     /**
