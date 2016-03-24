@@ -1736,10 +1736,6 @@ public class WifiNative {
 
         synchronized (sLock) {
             if (startHalNative()) {
-                if (!setInterfaceUp(true)) {
-                    sLocalLog.log("Could not bring up interface: " + mInterfaceName);
-                    return false;
-                }
                 int wlan0Index = queryInterfaceIndex(mInterfaceName);
                 if (wlan0Index == -1) {
                     if (DBG) sLocalLog.log("Could not find interface with name: " + mInterfaceName);
@@ -1764,9 +1760,6 @@ public class WifiNative {
                 try {
                     sThread.join(STOP_HAL_TIMEOUT_MS);
                     Log.d(TAG, "HAL event thread stopped successfully");
-                    if (!setInterfaceUp(false)) {
-                        if (DBG) sLocalLog.log("Could not bring down interface: " + mInterfaceName);
-                    }
                 } catch (InterruptedException e) {
                     Log.e(TAG, "Could not stop HAL cleanly");
                 }
@@ -2475,11 +2468,11 @@ public class WifiNative {
         }
     }
 
-    private static native boolean setInterfaceUpNative(String interfaceName, boolean up);
+    private static native boolean setInterfaceUpNative(boolean up);
     public boolean setInterfaceUp(boolean up) {
         synchronized (sLock) {
             if (isHalStarted()) {
-                return setInterfaceUpNative(mInterfaceName, up);
+                return setInterfaceUpNative(up);
             } else {
                 return false;
             }
