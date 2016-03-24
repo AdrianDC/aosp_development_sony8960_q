@@ -578,23 +578,22 @@ public class WifiNative {
      *
      * RANGE=ALL gets all scan results
      * RANGE=ID- gets results from ID
-     * MASK=<N> see wpa_supplicant/src/common/wpa_ctrl.h for details
-     * 0                         0                        1                       0     2
-     *                           WPA_BSS_MASK_MESH_SCAN | WPA_BSS_MASK_DELIM    | WPA_BSS_MASK_WIFI_DISPLAY
-     * 0                         0                        0                       1     1   -> 9
-     * WPA_BSS_MASK_INTERNETW  | WPA_BSS_MASK_P2P_SCAN  | WPA_BSS_MASK_WPS_SCAN | WPA_BSS_MASK_SSID
-     * 1                         0                        0                       1     9   -> d
-     * WPA_BSS_MASK_FLAGS      | WPA_BSS_MASK_IE        | WPA_BSS_MASK_AGE      | WPA_BSS_MASK_TSF
-     * 1                         0                        0                       0     8
-     * WPA_BSS_MASK_LEVEL      | WPA_BSS_MASK_NOISE     | WPA_BSS_MASK_QUAL     | WPA_BSS_MASK_CAPABILITIES
-     * 0                         1                        1                       1     7
-     * WPA_BSS_MASK_BEACON_INT | WPA_BSS_MASK_FREQ      | WPA_BSS_MASK_BSSID    | WPA_BSS_MASK_ID
+     * MASK=<N> BSS command information mask.
      *
-     * WPA_BSS_MASK_INTERNETW adds ANQP info (ctrl_iface:4151-4176)
+     * The mask used in this method, 0x29d87, gets the following fields:
      *
-     * ctrl_iface.c:wpa_supplicant_ctrl_iface_process:7884
-     *  wpa_supplicant_ctrl_iface_bss:4315
-     *  print_bss_info
+     *     WPA_BSS_MASK_ID         (Bit 0)
+     *     WPA_BSS_MASK_BSSID      (Bit 1)
+     *     WPA_BSS_MASK_FREQ       (Bit 2)
+     *     WPA_BSS_MASK_LEVEL      (Bit 7)
+     *     WPA_BSS_MASK_TSF        (Bit 8)
+     *     WPA_BSS_MASK_IE         (Bit 10)
+     *     WPA_BSS_MASK_FLAGS      (Bit 11)
+     *     WPA_BSS_MASK_SSID       (Bit 12)
+     *     WPA_BSS_MASK_INTERNETW  (Bit 15) (adds ANQP info)
+     *     WPA_BSS_MASK_DELIM      (Bit 17)
+     *
+     * See wpa_supplicant/src/common/wpa_ctrl.h for details.
      */
     private String getRawScanResults(String range) {
         return doStringCommandWithoutLogging("BSS RANGE=" + range + " MASK=0x29d87");
