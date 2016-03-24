@@ -2955,23 +2955,26 @@ public class WifiConfigManager {
             loge("WifiConfiguration from scan results " +
                     config.SSID + " cap " + result.capabilities);
         }
-        if (result.capabilities.contains("WEP")) {
+
+        if (result.capabilities.contains("PSK") || result.capabilities.contains("EAP")
+                || result.capabilities.contains("WEP")) {
+            if (result.capabilities.contains("PSK")) {
+                config.allowedKeyManagement.set(KeyMgmt.WPA_PSK);
+            }
+
+            if (result.capabilities.contains("EAP")) {
+                config.allowedKeyManagement.set(KeyMgmt.WPA_EAP);
+                config.allowedKeyManagement.set(KeyMgmt.IEEE8021X);
+            }
+
+            if (result.capabilities.contains("WEP")) {
+                config.allowedKeyManagement.set(KeyMgmt.NONE);
+                config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.OPEN);
+                config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.SHARED);
+            }
+        } else {
             config.allowedKeyManagement.set(KeyMgmt.NONE);
-            config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.OPEN); //?
-            config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.SHARED);
         }
-
-        if (result.capabilities.contains("PSK")) {
-            config.allowedKeyManagement.set(KeyMgmt.WPA_PSK);
-        }
-
-        if (result.capabilities.contains("EAP")) {
-            //this is probably wrong, as we don't have a way to enter the enterprise config
-            config.allowedKeyManagement.set(KeyMgmt.WPA_EAP);
-            config.allowedKeyManagement.set(KeyMgmt.IEEE8021X);
-        }
-
-        /* getScanDetailCache(config).put(scanDetail); */
 
         return config;
     }
