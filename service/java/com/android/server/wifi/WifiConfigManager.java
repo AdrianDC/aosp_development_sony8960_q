@@ -1790,6 +1790,11 @@ public class WifiConfigManager {
         return config != null && config.ephemeral;
     }
 
+    boolean getMeteredHint(int netId) {
+        WifiConfiguration config = mConfiguredNetworks.getForCurrentUser(netId);
+        return config != null && config.meteredHint;
+    }
+
     /**
      * Should be called when a single network configuration is made.
      * @param network The network configuration that changed.
@@ -2140,6 +2145,7 @@ public class WifiConfigManager {
                 currentConfig.selfAdded = config.selfAdded;
                 currentConfig.didSelfAdd = config.didSelfAdd;
                 currentConfig.ephemeral = config.ephemeral;
+                currentConfig.meteredHint = config.meteredHint;
                 currentConfig.lastConnectUid = config.lastConnectUid;
                 currentConfig.lastUpdateUid = config.lastUpdateUid;
                 currentConfig.creatorUid = config.creatorUid;

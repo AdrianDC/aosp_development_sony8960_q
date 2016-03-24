@@ -88,6 +88,7 @@ public class WifiNetworkHistory {
     private static final String VALIDATED_INTERNET_ACCESS_KEY = "VALIDATED_INTERNET_ACCESS";
     private static final String NO_INTERNET_ACCESS_REPORTS_KEY = "NO_INTERNET_ACCESS_REPORTS";
     private static final String EPHEMERAL_KEY = "EPHEMERAL";
+    private static final String METERED_HINT_KEY = "METERED_HINT";
     private static final String NUM_ASSOCIATION_KEY = "NUM_ASSOCIATION";
     private static final String DELETED_CRC32_KEY = "DELETED_CRC32";
     private static final String DELETED_EPHEMERAL_KEY = "DELETED_EPHEMERAL";
@@ -209,6 +210,8 @@ public class WifiNetworkHistory {
                             + Boolean.toString(config.validatedInternetAccess) + NL);
                     out.writeUTF(EPHEMERAL_KEY + SEPARATOR
                             + Boolean.toString(config.ephemeral) + NL);
+                    out.writeUTF(METERED_HINT_KEY + SEPARATOR
+                            + Boolean.toString(config.meteredHint) + NL);
                     if (config.creationTime != null) {
                         out.writeUTF(CREATION_TIME_KEY + SEPARATOR + config.creationTime + NL);
                     }
@@ -422,6 +425,9 @@ public class WifiNetworkHistory {
                             break;
                         case EPHEMERAL_KEY:
                             config.ephemeral = Boolean.parseBoolean(value);
+                            break;
+                        case METERED_HINT_KEY:
+                            config.meteredHint = Boolean.parseBoolean(value);
                             break;
                         case CREATOR_UID_KEY:
                             config.creatorUid = Integer.parseInt(value);

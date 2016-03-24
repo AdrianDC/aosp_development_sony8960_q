@@ -4320,6 +4320,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
         mWifiInfo.setSSID(stateChangeResult.wifiSsid);
         mWifiInfo.setEphemeral(mWifiConfigManager.isEphemeral(mWifiInfo.getNetworkId()));
+        if (!mWifiInfo.getMeteredHint()) { // don't override the value if already set.
+            mWifiInfo.setMeteredHint(mWifiConfigManager.getMeteredHint(mWifiInfo.getNetworkId()));
+        }
 
         mSupplicantStateTracker.sendMessage(Message.obtain(message));
 
@@ -4467,7 +4470,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             }
         }
         mWifiInfo.setInetAddress(addr);
-        mWifiInfo.setMeteredHint(dhcpResults.hasMeteredHint());
+        if (!mWifiInfo.getMeteredHint()) { // don't override the value if already set.
+            mWifiInfo.setMeteredHint(dhcpResults.hasMeteredHint());
+        }
     }
 
     private void handleSuccessfulIpConfiguration() {
