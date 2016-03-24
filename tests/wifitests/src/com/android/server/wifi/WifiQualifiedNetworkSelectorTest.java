@@ -22,9 +22,15 @@ import static com.android.server.wifi.WifiConfigurationTestUtil.SECURITY_PSK;
 import static com.android.server.wifi.WifiConfigurationTestUtil.generateWifiConfig;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.validateMockitoUsage;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
@@ -60,6 +66,7 @@ public class WifiQualifiedNetworkSelectorTest {
     public void setUp() throws Exception {
         mResource = getResource();
         mScoreManager = getNetworkScoreManager();
+        mScoreCache = getScoreCache();
         mContext = getContext();
         mWifiConfigManager = getWifiConfigManager();
         mWifiInfo = getWifiInfo();
@@ -68,6 +75,7 @@ public class WifiQualifiedNetworkSelectorTest {
                 mContext, mWifiInfo, mClock);
         mWifiQualifiedNetworkSelector.enableVerboseLogging(1);
         mWifiQualifiedNetworkSelector.setUserPreferredBand(1);
+        mWifiQualifiedNetworkSelector.setWifiNetworkScoreCache(mScoreCache);
         when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis());
     }
 
@@ -81,6 +89,7 @@ public class WifiQualifiedNetworkSelectorTest {
     private Context mContext;
     private Resources mResource;
     private NetworkScoreManager mScoreManager;
+    private WifiNetworkScoreCache mScoreCache;
     private WifiInfo mWifiInfo;
     private Clock mClock = mock(Clock.class);
     private static final String[] DEFAULT_SSIDS = {"\"test1\"", "\"test2\""};
@@ -127,6 +136,10 @@ public class WifiQualifiedNetworkSelectorTest {
         NetworkScoreManager networkScoreManager = mock(NetworkScoreManager.class);
 
         return networkScoreManager;
+    }
+
+    WifiNetworkScoreCache getScoreCache() {
+        return mock(WifiNetworkScoreCache.class);
     }
 
     WifiInfo getWifiInfo() {
@@ -232,6 +245,23 @@ public class WifiQualifiedNetworkSelectorTest {
                     .thenReturn(associateWithScanResult);
             index++;
         }
+    }
+
+    private void configureScoreCache(List<ScanDetail> scanDetails, Integer[] scores,
+            boolean[] meteredHints) {
+        for (int i = 0; i < scanDetails.size(); i++) {
+            ScanDetail scanDetail = scanDetails.get(i);
+            Integer score = scores[i];
+            ScanResult scanResult = scanDetail.getScanResult();
+            if (score != null) {
+                when(mScoreCache.isScoredNetwork(scanResult)).thenReturn(true);
+                when(mScoreCache.hasScoreCurve(scanResult)).thenReturn(true);
+                when(mScoreCache.getNetworkScore(eq(scanResult), anyBoolean())).thenReturn(score);
+                when(mScoreCache.getNetworkScore(scanResult)).thenReturn(score);
+            }
+            when(mScoreCache.getMeteredHint(scanResult)).thenReturn(meteredHints[i]);
+        }
+
     }
 
     /**
@@ -485,7 +515,7 @@ public class WifiQualifiedNetworkSelectorTest {
         String[] ssids = DEFAULT_SSIDS;
         String[] bssids = DEFAULT_BSSIDS;
         int[] frequencies = {2437, 2437};
-        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[NONE]"};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[ESS]"};
         int[] levels = {-70, -70};
         int[] security = {SECURITY_EAP, SECURITY_NONE};
 
@@ -1189,7 +1219,7 @@ public class WifiQualifiedNetworkSelectorTest {
         String[] ssids = DEFAULT_SSIDS;
         String[] bssids = DEFAULT_BSSIDS;
         int[] frequencies = {5400, 5400};
-        String[] caps = {"[NONE]", "[NONE]"};
+        String[] caps = {"[ESS]", "[ESS]"};
         int[] levels = {-70, -65};
         int[] security = {SECURITY_NONE, SECURITY_NONE};
 
@@ -1555,5 +1585,64 @@ public class WifiQualifiedNetworkSelectorTest {
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 false, scanDetails, false, true, false, false);
         verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    /**
+     * Case #33  Choose an ephemeral network with a good score because no saved networks
+     *           are available.
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is not connected to any network.
+     * selectQualifiedNetwork() is called with 2 scan results, test1 and test2.
+     * test1 is an enterprise network w/o a score.
+     * test2 is an open network with a good score. Additionally it's a metered network.
+     * isUntrustedConnectionsAllowed is set to true.
+     *
+     * expected result: return test2 with meteredHint set to True.
+     */
+    @Test
+    public void selectQualifiedNetworkChoosesEphemeral() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {5200, 5200};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[ESS]"};
+        int[] levels = {-70, -70};
+        Integer[] scores = {null, 120};
+        boolean[] meteredHints = {false, true};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        configureScoreCache(scanDetails, scores, meteredHints);
+
+        // No saved networks.
+        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(any(ScanDetail.class)))
+                .thenReturn(null);
+
+        WifiConfiguration unTrustedNetworkCandidate = mock(WifiConfiguration.class);
+        // Setup the config as an invalid candidate. This is done to workaround a Mockito issue.
+        // Basically Mockito is unable to mock package-private methods in classes loaded from a
+        // different Jar (like all of the framework code) which results in the actual saveNetwork()
+        // method being invoked in this case. Because the config is invalid it quickly returns.
+        unTrustedNetworkCandidate.SSID = null;
+        unTrustedNetworkCandidate.networkId = WifiConfiguration.INVALID_NETWORK_ID;
+        ScanResult untrustedScanResult = scanDetails.get(1).getScanResult();
+        when(mWifiConfigManager
+                .wifiConfigurationFromScanResult(untrustedScanResult))
+                .thenReturn(unTrustedNetworkCandidate);
+
+        WifiConfiguration.NetworkSelectionStatus selectionStatus =
+                mock(WifiConfiguration.NetworkSelectionStatus.class);
+        when(unTrustedNetworkCandidate.getNetworkSelectionStatus()).thenReturn(selectionStatus);
+
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
+                false /* forceSelectNetwork */,
+                true /* isUntrustedConnectionsAllowed */,
+                scanDetails,
+                false, /* isLinkDebouncing */
+                false, /* isConnected */
+                true, /* isDisconnected */
+                false /* isSupplicantTransient */);
+        verify(selectionStatus).setCandidate(untrustedScanResult);
+        assertSame(candidate, unTrustedNetworkCandidate);
+        assertEquals(meteredHints[1], candidate.meteredHint);
     }
 }

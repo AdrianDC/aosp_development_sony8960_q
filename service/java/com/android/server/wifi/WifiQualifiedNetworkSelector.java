@@ -29,6 +29,7 @@ import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.internal.R;
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -114,6 +115,11 @@ class WifiQualifiedNetworkSelector {
 
     private void qnsLoge(String log) {
         mLocalLog.log(log);
+    }
+
+    @VisibleForTesting
+    void setWifiNetworkScoreCache(WifiNetworkScoreCache cache) {
+        mNetworkScoreCache = cache;
     }
 
     /**
@@ -833,18 +839,26 @@ class WifiQualifiedNetworkSelector {
                                 untrustedScanResultCandidate);
 
                 unTrustedNetworkCandidate.ephemeral = true;
+                if (mNetworkScoreCache != null) {
+                    boolean meteredHint =
+                            mNetworkScoreCache.getMeteredHint(untrustedScanResultCandidate);
+                    unTrustedNetworkCandidate.meteredHint = meteredHint;
+                }
                 mWifiConfigManager.saveNetwork(unTrustedNetworkCandidate,
                         WifiConfiguration.UNKNOWN_UID);
 
 
-                qnsLog("new ephemeral candidate" + untrustedScanResultCandidate.SSID + ":"
-                        + untrustedScanResultCandidate.BSSID + "network ID:"
-                        + unTrustedNetworkCandidate.networkId);
+                qnsLog(String.format("new ephemeral candidate %s:%s network ID:%d, meteredHint=%b",
+                        untrustedScanResultCandidate.SSID, untrustedScanResultCandidate.BSSID,
+                        unTrustedNetworkCandidate.networkId,
+                        unTrustedNetworkCandidate.meteredHint));
 
             } else {
-                qnsLog("choose existing ephemeral candidate" + untrustedScanResultCandidate.SSID
-                        + ":" + untrustedScanResultCandidate.BSSID + "network ID:"
-                        + unTrustedNetworkCandidate.networkId);
+                qnsLog(String.format("choose existing ephemeral candidate %s:%s network ID:%d, "
+                                + "meteredHint=%b",
+                        untrustedScanResultCandidate.SSID, untrustedScanResultCandidate.BSSID,
+                        unTrustedNetworkCandidate.networkId,
+                        unTrustedNetworkCandidate.meteredHint));
             }
             unTrustedNetworkCandidate.getNetworkSelectionStatus()
                     .setCandidate(untrustedScanResultCandidate);

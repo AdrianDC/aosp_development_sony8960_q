@@ -31,8 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class WifiNetworkScoreCache extends INetworkScoreCache.Stub
- {
+public class WifiNetworkScoreCache extends INetworkScoreCache.Stub {
 
     // A Network scorer returns a score in the range [-128, +127]
     // We treat the lowest possible score as though there were no score, effectively allowing the
@@ -108,6 +107,16 @@ public class WifiNetworkScoreCache extends INetworkScoreCache.Stub
             }
         }
         return score;
+    }
+
+    /**
+     * Returns the ScoredNetwork metered hint for a given ScanResult.
+     *
+     * If there is no ScoredNetwork associated with the ScanResult then false will be returned.
+     */
+    public boolean getMeteredHint(ScanResult result) {
+        ScoredNetwork network = getScoredNetwork(result);
+        return network != null && network.meteredHint;
     }
 
     public int getNetworkScore(ScanResult result, boolean isActiveNetwork) {
