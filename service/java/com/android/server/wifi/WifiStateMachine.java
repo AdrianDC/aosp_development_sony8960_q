@@ -889,6 +889,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     static final int CMD_IPV4_PROVISIONING_SUCCESS                      = BASE + 200;
     static final int CMD_IPV4_PROVISIONING_FAILURE                      = BASE + 201;
 
+    /* Push a new APF program to the HAL */
+    static final int CMD_INSTALL_PACKET_FILTER                          = BASE + 202;
+
     // For message logging.
     private static final Class[] sMessageClasses = {
             AsyncChannel.class, WifiStateMachine.class, DhcpClient.class };
@@ -1394,6 +1397,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         @Override
         public void onReachabilityLost(String logMsg) {
             sendMessage(CMD_IP_REACHABILITY_LOST, logMsg);
+        }
+
+        @Override
+        public void installPacketFilter(byte[] filter) {
+            sendMessage(CMD_INSTALL_PACKET_FILTER, filter);
         }
     }
 
@@ -2710,6 +2718,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     @Override
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         super.dump(fd, pw, args);
+        if (args.length == 1 && "apf".equals(args[0])) {
+            mIpManager.dumpApf(pw);
+            return;
+        }
         mSupplicantStateTracker.dump(fd, pw, args);
         pw.println("mLinkProperties " + mLinkProperties);
         pw.println("mWifiInfo " + mWifiInfo);
@@ -2761,6 +2773,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_USER_ACTION);
         mWifiLogger.dump(fd, pw, args);
         mWifiQualifiedNetworkSelector.dump(fd, pw, args);
+        mIpManager.dumpApf(pw);
     }
 
     public void handleUserSwitch(int userId) {
@@ -3307,6 +3320,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 if (msg.obj != null) {
                     sb.append(" ").append((String) msg.obj);
                 }
+                break;
+            case CMD_INSTALL_PACKET_FILTER:
+                sb.append(" len=" + ((byte[])msg.obj).length);
                 break;
             case CMD_ROAM_WATCHDOG_TIMER:
                 sb.append(" ");
@@ -5014,6 +5030,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     /* Defer this message until supplicant is started. */
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
                     deferMessage(message);
+                    break;
+                case CMD_INSTALL_PACKET_FILTER:
+                    mWifiNative.installPacketFilter((byte[]) message.obj);
                     break;
                 default:
                     loge("Error! unhandled message" + message);
@@ -7132,11 +7151,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             if (this != mNetworkAgent) return;
             unwantedNetwork(NETWORK_STATUS_UNWANTED_DISABLE_AUTOJOIN);
         }
-
-        @Override
-        protected boolean installPacketFilter(byte[] filter) {
-            return mWifiNative.installPacketFilter(filter);
-        }
     }
 
     void unwantedNetwork(int reason) {
@@ -7261,16 +7275,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 setNetworkDetailedState(DetailedState.DISCONNECTED);
             }
             setNetworkDetailedState(DetailedState.CONNECTING);
-
-            WifiNative.PacketFilterCapabilities packetFilterCapabilities =
-                    mWifiNative.getPacketFilterCapabilities();
-            if (packetFilterCapabilities != null) {
-                mNetworkMisc.apfVersionSupported =
-                        packetFilterCapabilities.apfVersionSupported;
-                mNetworkMisc.maximumApfProgramSize =
-                        packetFilterCapabilities.maximumApfProgramSize;
-                mNetworkMisc.apfPacketFormat = ARPHRD_ETHER;
-            }
 
             mNetworkAgent = new WifiNetworkAgent(getHandler().getLooper(), mContext,
                     "WifiNetworkAgent", mNetworkInfo, mNetworkCapabilitiesFilter,
@@ -7704,6 +7708,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 final IpManager.ProvisioningConfiguration prov =
                         mIpManager.buildProvisioningConfiguration()
                             .withPreDhcpAction()
+                            .withApfCapabilities(mWifiNative.getApfCapabilities())
                             .build();
                 mIpManager.startProvisioning(prov);
                 obtainingIpWatchdogCount++;
@@ -7722,6 +7727,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     final IpManager.ProvisioningConfiguration prov =
                             mIpManager.buildProvisioningConfiguration()
                                 .withStaticConfiguration(config)
+                                .withApfCapabilities(mWifiNative.getApfCapabilities())
                                 .build();
                     mIpManager.startProvisioning(prov);
                 }

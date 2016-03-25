@@ -23,6 +23,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
 import android.net.wifi.ScanResult;
@@ -2489,23 +2490,11 @@ public class WifiNative {
         }
     }
 
-    public static final class PacketFilterCapabilities {
-        /**
-         * Version of APF instruction set supported for packet filtering.  0 indicates no support for
-         * packet filtering using APF programs.
-         */
-        public int apfVersionSupported;
-
-        /**
-         * Maximum size of APF program allowed.
-         */
-        public int maximumApfProgramSize;
-    }
-    private static native PacketFilterCapabilities getPacketFilterCapabilitiesNative(int iface);
-    public PacketFilterCapabilities getPacketFilterCapabilities() {
+    private static native ApfCapabilities getApfCapabilitiesNative(int iface);
+    public ApfCapabilities getApfCapabilities() {
         synchronized (sLock) {
             if (isHalStarted()) {
-                return getPacketFilterCapabilitiesNative(sWlan0Index);
+                return getApfCapabilitiesNative(sWlan0Index);
             } else {
                 return null;
             }
