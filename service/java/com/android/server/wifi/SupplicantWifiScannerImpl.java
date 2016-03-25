@@ -541,7 +541,8 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                     if ((mLastScanSettings.reportEvents
                                     & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT) != 0) {
                         for (ScanResult scanResult : backgroundScanResults) {
-                            mBackgroundScanEventHandler.onFullScanResult(scanResult);
+                            // TODO(b/27506257): Fill in correct bucketsScanned value
+                            mBackgroundScanEventHandler.onFullScanResult(scanResult, 0);
                         }
                     }
                 }
@@ -554,6 +555,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                 }
 
                 if ((mLastScanSettings.reportEvents & WifiScanner.REPORT_EVENT_NO_BATCH) == 0) {
+                    // TODO(b/27506257): Fill in correct bucketsScanned value
                     mBackgroundScanBuffer.add(new WifiScanner.ScanData(mLastScanSettings.scanId, 0,
                                     scanResultsArray));
                 }
@@ -593,7 +595,9 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                     && mLastScanSettings.singleScanEventHandler != null) {
                 if (mLastScanSettings.reportSingleScanFullResults) {
                     for (ScanResult scanResult : singleScanResults) {
-                        mLastScanSettings.singleScanEventHandler.onFullScanResult(scanResult);
+                        // ignore buckets scanned since there is only one bucket for a single scan
+                        mLastScanSettings.singleScanEventHandler.onFullScanResult(scanResult,
+                                /* bucketsScanned */ 0);
                     }
                 }
                 Collections.sort(singleScanResults, SCAN_RESULT_SORT_COMPARATOR);

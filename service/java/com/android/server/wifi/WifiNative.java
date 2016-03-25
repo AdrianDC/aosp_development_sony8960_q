@@ -1899,7 +1899,7 @@ public class WifiNative {
          * Called for each AP as it is found with the entire contents of the beacon/probe response.
          * Only called when WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT is specified.
          */
-        void onFullScanResult(ScanResult fullScanResult);
+        void onFullScanResult(ScanResult fullScanResult, int bucketsScanned);
         /**
          * Callback on an event during a gscan scan.
          * See WifiNative.WIFI_SCAN_* for possible values.
@@ -2053,7 +2053,7 @@ public class WifiNative {
         ScanEventHandler handler = sScanEventHandler;
         if (handler != null) {
             populateScanResult(result, beaconCap, " onFullScanResult ");
-            handler.onFullScanResult(result);
+            handler.onFullScanResult(result, bucketsScanned);
         }
     }
 

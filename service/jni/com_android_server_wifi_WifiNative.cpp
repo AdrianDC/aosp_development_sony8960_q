@@ -568,6 +568,7 @@ static jobject android_net_wifi_getScanResults(
 
             helper.setIntField(data, "mId", scan_data[i].scan_id);
             helper.setIntField(data, "mFlags", scan_data[i].flags);
+            helper.setIntField(data, "mBucketsScanned", scan_data[i].buckets_scanned);
 
             /* sort all scan results by timestamp */
             qsort(scan_data[i].results, scan_data[i].num_results,

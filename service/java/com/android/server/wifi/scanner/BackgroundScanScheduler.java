@@ -325,7 +325,7 @@ public class BackgroundScanScheduler {
      * settings.
      */
     public boolean shouldReportFullScanResultForSettings(@NonNull ScanResult result,
-            @NonNull ScanSettings settings) {
+            int bucketsScanned, @NonNull ScanSettings settings) {
         return ScanScheduleUtil.shouldReportFullScanResultForSettings(mChannelHelper,
                 result, settings);
     }
