@@ -15,6 +15,7 @@
 cc_library_host_static {
     name: "libckati",
     srcs: [
+        "affinity.cc",
         "command.cc",
         "dep.cc",
         "eval.cc",
@@ -30,6 +31,7 @@ cc_library_host_static {
         "log.cc",
         "ninja.cc",
         "parser.cc",
+        "regen.cc",
         "rule.cc",
         "stats.cc",
         "stmt.cc",
@@ -37,6 +39,7 @@ cc_library_host_static {
         "stringprintf.cc",
         "strutil.cc",
         "symtab.cc",
+        "thread_pool.cc",
         "timeutil.cc",
         "var.cc",
         "version_unknown.cc",
@@ -53,7 +56,7 @@ cc_binary_host {
     cflags: ["-W", "-Wall", "-DNOLOG"],
     target: {
         linux: {
-            host_ldlibs: ["-lrt"],
+            host_ldlibs: ["-lrt", "-lpthread"],
         },
     },
 }
@@ -65,13 +68,14 @@ cc_test_host {
         "find_test.cc",
         "ninja_test.cc",
         "string_piece_test.cc",
+        "strutil_bench.cc",
         "strutil_test.cc",
     ],
     gtest: false,
     whole_static_libs: ["libckati"],
     target: {
         linux: {
-            host_ldlibs: ["-lrt"],
+            host_ldlibs: ["-lrt", "-lpthread"],
         },
     },
 }

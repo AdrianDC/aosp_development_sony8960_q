@@ -108,6 +108,10 @@ def normalize_ninja_log(log, mk)
     # This test expects ninja fails. Strip ninja specific error logs.
     log.gsub!(/^FAILED: .*\n/, '')
     log.gsub!(/^ninja: .*\n/, '')
+  elsif mk =~ /\/fail_/
+    # Recipes in these tests fail.
+    log.gsub!(/^FAILED: .*/, '*** [test] Error 1')
+    log.gsub!(/^ninja: .*\n/, '')
   end
   log
 end
@@ -341,7 +345,6 @@ run_shell_test = proc do |sh|
     output = normalize_kati_log(output)
     if is_ninja_test
       output = normalize_ninja_log(output, sh)
-      output.gsub!(/No need to regenerate ninja file\n/, '')
     end
     File.open('out.make', 'w'){|ofile|ofile.print(expected)}
     File.open('out.kati', 'w'){|ofile|ofile.print(output)}

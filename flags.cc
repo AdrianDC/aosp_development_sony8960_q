@@ -49,7 +49,7 @@ static bool ParseCommandLineOptionWithArg(StringPiece option,
 
 void Flags::Parse(int argc, char** argv) {
   subkati_args.push_back(argv[0]);
-  num_jobs = sysconf(_SC_NPROCESSORS_ONLN);
+  num_jobs = num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
   const char* num_jobs_str;
 
   for (int i = 1; i < argc; i++) {
@@ -82,6 +82,8 @@ void Flags::Parse(int argc, char** argv) {
       dump_kati_stamp = true;
     } else if (!strcmp(arg, "--detect_android_echo")) {
       detect_android_echo = true;
+    } else if (!strcmp(arg, "--detect_depfiles")) {
+      detect_depfiles = true;
     } else if (ParseCommandLineOptionWithArg(
         "-j", argv, &i, &num_jobs_str)) {
       num_jobs = strtol(num_jobs_str, NULL, 10);
@@ -100,10 +102,6 @@ void Flags::Parse(int argc, char** argv) {
         "--ninja_dir", argv, &i, &ninja_dir)) {
     } else if (!strcmp(arg, "--use_find_emulator")) {
       use_find_emulator = true;
-    } else if (!strcmp(arg, "--gen_regen_rule")) {
-      // TODO: Make this default once we have removed unnecessary
-      // command line change from Android build.
-      gen_regen_rule = true;
     } else if (ParseCommandLineOptionWithArg(
         "--goma_dir", argv, &i, &goma_dir)) {
     } else if (ParseCommandLineOptionWithArg(

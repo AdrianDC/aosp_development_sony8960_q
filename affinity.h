@@ -12,26 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THREAD_H_
-#define THREAD_H_
+#ifndef AFFINITY_H_
+#define AFFINITY_H_
 
-#include <pthread.h>
+void SetAffinityForSingleThread();
+void SetAffinityForMultiThread();
 
-#include <functional>
-
-using namespace std;
-
-class thread {
-  typedef function<void(void)> fn_t;
-
- public:
-  explicit thread(const fn_t& fn);
-  void join();
-
- private:
-  static void* Run(void* p);
-
-  pthread_t th_;
-};
-
-#endif  // THREAD_H_
+#endif

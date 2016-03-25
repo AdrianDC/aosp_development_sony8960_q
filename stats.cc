@@ -16,11 +16,11 @@
 
 #include "stats.h"
 
+#include <mutex>
 #include <vector>
 
 #include "flags.h"
 #include "log.h"
-#include "mutex.h"
 #include "stringprintf.h"
 #include "thread_local.h"
 #include "timeutil.h"
@@ -29,13 +29,7 @@ namespace {
 
 mutex g_mu;
 vector<Stats*>* g_stats;
-#ifdef __linux__
-thread_local double g_start_time;
-#define REF(x) x
-#else
 DEFINE_THREAD_LOCAL(double, g_start_time);
-#define REF(x) x.Ref()
-#endif
 
 }  // namespace
 
@@ -53,16 +47,16 @@ string Stats::String() const {
 }
 
 void Stats::Start() {
-  CHECK(!REF(g_start_time));
-  REF(g_start_time) = GetTime();
+  CHECK(!TLS_REF(g_start_time));
+  TLS_REF(g_start_time) = GetTime();
   unique_lock<mutex> lock(mu_);
   cnt_++;
 }
 
 double Stats::End() {
-  CHECK(REF(g_start_time));
-  double e = GetTime() - REF(g_start_time);
-  REF(g_start_time) = 0;
+  CHECK(TLS_REF(g_start_time));
+  double e = GetTime() - TLS_REF(g_start_time);
+  TLS_REF(g_start_time) = 0;
   unique_lock<mutex> lock(mu_);
   elapsed_ += e;
   return e;

@@ -21,6 +21,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "affinity.h"
 #include "dep.h"
 #include "eval.h"
 #include "exec.h"
@@ -104,13 +105,13 @@ static void ReadBootstrapMakefile(const vector<Symbol>& targets,
   Parse(Intern(bootstrap).str(), Loc("*bootstrap*", 0), stmts);
 }
 
-static void SetVar(StringPiece l, VarOrigin origin, Vars* vars) {
+static void SetVar(StringPiece l, VarOrigin origin) {
   size_t found = l.find('=');
   CHECK(found != string::npos);
   Symbol lhs = Intern(l.substr(0, found));
   StringPiece rhs = l.substr(found + 1);
-  vars->Assign(lhs,
-               new RecursiveVar(NewLiteral(rhs.data()), origin, rhs.data()));
+  lhs.SetGlobalVar(
+      new RecursiveVar(NewLiteral(rhs.data()), origin, rhs.data()));
 }
 
 extern "C" char** environ;
@@ -123,7 +124,7 @@ static int Run(const vector<Symbol>& targets,
   if (g_flags.generate_ninja && (g_flags.regen || g_flags.dump_kati_stamp)) {
     ScopedTimeReporter tr("regen check time");
     if (!NeedsRegen(start_time, orig_args)) {
-      printf("No need to regenerate ninja file\n");
+      fprintf(stderr, "No need to regenerate ninja file\n");
       return 0;
     }
     if (g_flags.dump_kati_stamp) {
@@ -133,13 +134,16 @@ static int Run(const vector<Symbol>& targets,
     ClearGlobCache();
   }
 
+  SetAffinityForSingleThread();
+
   MakefileCacheManager* cache_mgr = NewMakefileCacheManager();
 
-  Vars* vars = new Vars();
+  Intern("MAKEFILE_LIST").SetGlobalVar(
+      new SimpleVar(StringPrintf(" %s", g_flags.makefile), VarOrigin::FILE));
   for (char** p = environ; *p; p++) {
-    SetVar(*p, VarOrigin::ENVIRONMENT, vars);
+    SetVar(*p, VarOrigin::ENVIRONMENT);
   }
-  Evaluator* ev = new Evaluator(vars);
+  Evaluator* ev = new Evaluator();
 
   vector<Stmt*> bootstrap_asts;
   ReadBootstrapMakefile(targets, &bootstrap_asts);
@@ -151,12 +155,8 @@ static int Run(const vector<Symbol>& targets,
   ev->set_is_bootstrap(false);
 
   for (StringPiece l : cl_vars) {
-    SetVar(l, VarOrigin::COMMAND_LINE, ev->mutable_vars());
+    SetVar(l, VarOrigin::COMMAND_LINE);
   }
-
-  vars->Assign(Intern("MAKEFILE_LIST"),
-               new SimpleVar(StringPrintf(" %s", g_flags.makefile),
-                             VarOrigin::FILE));
 
   {
     ScopedTimeReporter tr("eval time");
@@ -208,7 +208,6 @@ static int Run(const vector<Symbol>& targets,
   for (Stmt* stmt : bootstrap_asts)
     delete stmt;
   delete ev;
-  delete vars;
   delete cache_mgr;
 
   return 0;

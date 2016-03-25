@@ -30,13 +30,14 @@ namespace {
 
 void TestWordScanner() {
   vector<StringPiece> ss;
-  for (StringPiece tok : WordScanner("foo bar baz")) {
+  for (StringPiece tok : WordScanner("foo bar baz hogeeeeeeeeeeeeeeee")) {
     ss.push_back(tok);
   }
-  assert(ss.size() == 3LU);
+  assert(ss.size() == 4LU);
   ASSERT_EQ(ss[0], "foo");
   ASSERT_EQ(ss[1], "bar");
   ASSERT_EQ(ss[2], "baz");
+  ASSERT_EQ(ss[3], "hogeeeeeeeeeeeeeeee");
 }
 
 void TestHasPrefix() {
@@ -115,6 +116,28 @@ void TestNormalizePath() {
   ASSERT_EQ(NormalizePath("./../../a/b"), "../../a/b");
 }
 
+string EscapeShell(string s) {
+  ::EscapeShell(&s);
+  return s;
+}
+
+void TestEscapeShell() {
+  ASSERT_EQ(EscapeShell(""), "");
+  ASSERT_EQ(EscapeShell("foo"), "foo");
+  ASSERT_EQ(EscapeShell("foo$`\\baz\"bar"), "foo\\$\\`\\\\baz\\\"bar");
+  ASSERT_EQ(EscapeShell("$$"), "\\$$");
+  ASSERT_EQ(EscapeShell("$$$"), "\\$$\\$");
+  ASSERT_EQ(EscapeShell("\\\n"), "\\\\\n");
+}
+
+void TestFindEndOfLine() {
+  size_t lf_cnt = 0;
+  ASSERT_EQ(FindEndOfLine("foo", 0, &lf_cnt), 3);
+  char buf[10] = {'f', 'o', '\\', '\0', 'x', 'y'};
+  ASSERT_EQ(FindEndOfLine(StringPiece(buf, 6), 0, &lf_cnt), 3);
+  ASSERT_EQ(FindEndOfLine(StringPiece(buf, 2), 0, &lf_cnt), 2);
+}
+
 }  // namespace
 
 int main() {
@@ -125,5 +148,7 @@ int main() {
   TestNoLineBreak();
   TestHasWord();
   TestNormalizePath();
+  TestEscapeShell();
+  TestFindEndOfLine();
   assert(!g_failed);
 }

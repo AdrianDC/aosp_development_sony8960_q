@@ -14,16 +14,31 @@
 
 // +build ignore
 
+//#define ENABLE_TID_CHECK
+
 #include "symtab.h"
 
+#ifdef ENABLE_TID_CHECK
+#include <pthread.h>
+#endif
 #include <string.h>
 
 #include <unordered_map>
 
 #include "log.h"
 #include "strutil.h"
+#include "var.h"
+
+struct SymbolData {
+  SymbolData()
+      : gv(kUndefined) {
+  }
+
+  Var* gv;
+};
 
 vector<string*>* g_symbols;
+static vector<SymbolData> g_symbol_data;
 
 Symbol kEmptySym = Symbol(Symbol::IsUninitialized());
 Symbol kShellSym = Symbol(Symbol::IsUninitialized());
@@ -32,9 +47,52 @@ Symbol::Symbol(int v)
     : v_(v) {
 }
 
+Var* Symbol::GetGlobalVar() const {
+  if (static_cast<size_t>(v_) >= g_symbol_data.size()) {
+    g_symbol_data.resize(v_ + 1);
+  }
+  Var* v = g_symbol_data[v_].gv;
+  if (v->Origin() == VarOrigin::ENVIRONMENT ||
+      v->Origin() == VarOrigin::ENVIRONMENT_OVERRIDE) {
+    Vars::add_used_env_vars(*this);
+  }
+  return v;
+}
+
+void Symbol::SetGlobalVar(Var* v) const {
+  if (static_cast<size_t>(v_) >= g_symbol_data.size()) {
+    g_symbol_data.resize(v_ + 1);
+  }
+  Var* orig = g_symbol_data[v_].gv;
+  if (orig->Origin() == VarOrigin::OVERRIDE ||
+      orig->Origin() == VarOrigin::ENVIRONMENT_OVERRIDE) {
+    return;
+  }
+  if (orig->Origin() == VarOrigin::AUTOMATIC) {
+    ERROR("overriding automatic variable is not implemented yet");
+  }
+  if (orig->IsDefined())
+    delete orig;
+  g_symbol_data[v_].gv = v;
+}
+
+ScopedGlobalVar::ScopedGlobalVar(Symbol name, Var* var)
+    : name_(name), orig_(NULL) {
+  orig_ = name.GetGlobalVar();
+  g_symbol_data[name_.val()].gv = var;
+}
+
+ScopedGlobalVar::~ScopedGlobalVar() {
+  g_symbol_data[name_.val()].gv = orig_;
+}
+
 class Symtab {
  public:
   Symtab() {
+#ifdef ENABLE_TID_CHECK
+    tid_ = pthread_self();
+#endif
+
     CHECK(g_symbols == NULL);
     g_symbols = &symbols_;
 
@@ -72,6 +130,11 @@ class Symtab {
   }
 
   Symbol Intern(StringPiece s) {
+#ifdef ENABLE_TID_CHECK
+    if (tid_ != pthread_self())
+      abort();
+#endif
+
     if (s.size() <= 1) {
       return Symbol(s.empty() ? 0 : (unsigned char)s[0]);
     }
@@ -81,6 +144,9 @@ class Symtab {
  private:
   unordered_map<StringPiece, Symbol> symtab_;
   vector<string*> symbols_;
+#ifdef ENABLE_TID_CHECK
+  pthread_t tid_;
+#endif
 };
 
 static Symtab* g_symtab;

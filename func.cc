@@ -182,10 +182,14 @@ void FilterOutFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
 }
 
 void SortFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
-  const string&& list = args[0]->Eval(ev);
+  string list;
+  args[0]->Eval(ev, &list);
+  COLLECT_STATS("func sort time");
+  // TODO(hamaji): Probably we could use a faster string-specific sort
+  // algorithm.
   vector<StringPiece> toks;
   WordScanner(list).Split(&toks);
-  sort(toks.begin(), toks.end());
+  stable_sort(toks.begin(), toks.end());
   WordWriter ww(s);
   StringPiece prev;
   for (StringPiece tok : toks) {
@@ -574,8 +578,9 @@ void ShellFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
 }
 
 void CallFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
-  static const string tmpvar_names[] = {
-    "0", "1",  "2",  "3",  "4",  "5",  "6",  "7",  "8",  "9"
+  static const Symbol tmpvar_names[] = {
+    Intern("0"), Intern("1"),  Intern("2"), Intern("3"), Intern("4"),
+    Intern("5"), Intern("6"),  Intern("7"), Intern("8"), Intern("9")
   };
 
   const string&& func_name = args[0]->Eval(ev);
@@ -590,28 +595,26 @@ void CallFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
         new SimpleVar(args[i]->Eval(ev), VarOrigin::AUTOMATIC));
     av.push_back(move(s));
   }
-  vector<unique_ptr<ScopedVar>> sv;
+  vector<unique_ptr<ScopedGlobalVar>> sv;
   for (size_t i = 1; ; i++) {
     string s;
-    StringPiece tmpvar_name;
+    Symbol tmpvar_name_sym(Symbol::IsUninitialized{});
     if (i < sizeof(tmpvar_names)/sizeof(tmpvar_names[0])) {
-      tmpvar_name = tmpvar_names[i];
+      tmpvar_name_sym = tmpvar_names[i];
     } else {
       s = StringPrintf("%d", i);
-      tmpvar_name = s;
+      tmpvar_name_sym = Intern(s);
     }
     if (i < args.size()) {
-      sv.emplace_back(new ScopedVar(ev->mutable_vars(),
-                                    Intern(tmpvar_name), av[i-1].get()));
+      sv.emplace_back(new ScopedGlobalVar(tmpvar_name_sym, av[i-1].get()));
     } else {
       // We need to blank further automatic vars
-      Var *v = ev->LookupVar(Intern(tmpvar_name));
+      Var *v = ev->LookupVar(tmpvar_name_sym);
       if (!v->IsDefined()) break;
       if (v->Origin() != VarOrigin::AUTOMATIC) break;
 
       av.emplace_back(new SimpleVar("", VarOrigin::AUTOMATIC));
-      sv.emplace_back(new ScopedVar(ev->mutable_vars(),
-                                    Intern(tmpvar_name), av[i-1].get()));
+      sv.emplace_back(new ScopedGlobalVar(tmpvar_name_sym, av[i-1].get()));
     }
   }
 
@@ -628,7 +631,7 @@ void ForeachFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
   for (StringPiece tok : WordScanner(list)) {
     unique_ptr<SimpleVar> v(new SimpleVar(
         tok.as_string(), VarOrigin::AUTOMATIC));
-    ScopedVar sv(ev->mutable_vars(), Intern(varname), v.get());
+    ScopedGlobalVar sv(Intern(varname), v.get());
     ww.MaybeAddWhitespace();
     args[2]->Eval(ev, s);
   }

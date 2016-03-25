@@ -15,7 +15,6 @@
 #ifndef DEP_H_
 #define DEP_H_
 
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -43,6 +42,7 @@ struct DepNode {
   bool is_phony;
   bool is_restat;
   vector<Symbol> actual_inputs;
+  vector<Symbol> actual_order_only_inputs;
   Vars* rule_vars;
   Var* depfile_var;
   Symbol output_pattern;
@@ -53,7 +53,7 @@ void InitDepNodePool();
 void QuitDepNodePool();
 
 void MakeDep(Evaluator* ev,
-             const vector<shared_ptr<Rule>>& rules,
+             const vector<const Rule*>& rules,
              const unordered_map<Symbol, Vars*>& rule_vars,
              const vector<Symbol>& targets,
              vector<DepNode*>* nodes);

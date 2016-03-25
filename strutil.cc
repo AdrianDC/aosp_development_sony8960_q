@@ -24,24 +24,59 @@
 #include <stack>
 #include <utility>
 
+#ifdef __SSE4_2__
+#include <smmintrin.h>
+#endif
+
 #include "log.h"
+
+static bool isSpace(char c) {
+  return (9 <= c && c <= 13) || c == 32;
+}
+
+#ifdef __SSE4_2__
+static int SkipUntilSSE42(const char* s, int len,
+                          const char* ranges, int ranges_size) {
+  __m128i ranges16 = _mm_loadu_si128((const __m128i*)ranges);
+  int i = 0;
+  do {
+    __m128i b16 = _mm_loadu_si128((const __m128i*)(s + i));
+    int r = _mm_cmpestri(
+        ranges16, ranges_size, b16, len - i,
+        _SIDD_LEAST_SIGNIFICANT | _SIDD_CMP_RANGES | _SIDD_UBYTE_OPS);
+    if (r != 16) {
+      return i + r;
+    }
+    i += 16;
+  } while (i < len);
+  return len;
+}
+#endif
 
 WordScanner::Iterator& WordScanner::Iterator::operator++() {
   int len = static_cast<int>(in->size());
-  for (s = i; s < len; s++) {
-    if (!isspace((*in)[s]))
+  for (s = i + 1; s < len; s++) {
+    if (!isSpace((*in)[s]))
       break;
   }
-  if (s == len) {
+  if (s >= len) {
     in = NULL;
     s = 0;
     i = 0;
     return *this;
   }
+
+#ifdef __SSE4_2__
+  static const char ranges[] = "\x09\x0d  ";
+  i = s;
+  i += SkipUntilSSE42(in->data() + s, len - s, ranges, 4);
+#else
   for (i = s; i < len; i++) {
-    if (isspace((*in)[i]))
+    if (isSpace((*in)[i]))
       break;
   }
+#endif
+
   return *this;
 }
 
@@ -57,7 +92,7 @@ WordScanner::Iterator WordScanner::begin() const {
   Iterator iter;
   iter.in = &in_;
   iter.s = 0;
-  iter.i = 0;
+  iter.i = -1;
   ++iter;
   return iter;
 }
@@ -120,10 +155,10 @@ bool HasWord(StringPiece str, StringPiece w) {
   size_t found = str.find(w);
   if (found == string::npos)
     return false;
-  if (found != 0 && !isspace(str[found-1]))
+  if (found != 0 && !isSpace(str[found-1]))
     return false;
   size_t end = found + w.size();
-  if (end != str.size() && !isspace(str[end]))
+  if (end != str.size() && !isSpace(str[end]))
     return false;
   return true;
 }
@@ -211,7 +246,7 @@ string NoLineBreak(const string& s) {
 StringPiece TrimLeftSpace(StringPiece s) {
   size_t i = 0;
   for (; i < s.size(); i++) {
-    if (isspace(s[i]))
+    if (isSpace(s[i]))
       continue;
     char n = s.get(i+1);
     if (s[i] == '\\' && (n == '\r' || n == '\n')) {
@@ -227,7 +262,7 @@ StringPiece TrimRightSpace(StringPiece s) {
   size_t i = 0;
   for (; i < s.size(); i++) {
     char c = s[s.size() - 1 - i];
-    if (isspace(c)) {
+    if (isSpace(c)) {
       if ((c == '\r' || c == '\n') && s.get(s.size() - 2 - i) == '\\')
         i++;
       continue;
@@ -388,6 +423,36 @@ size_t FindThreeOutsideParen(StringPiece s, char c1, char c2, char c3) {
 }
 
 size_t FindEndOfLine(StringPiece s, size_t e, size_t* lf_cnt) {
+#ifdef __SSE4_2__
+  static const char ranges[] = "\0\0\n\n\\\\";
+  while (e < s.size()) {
+    e += SkipUntilSSE42(s.data() + e, s.size() - e, ranges, 6);
+    if (e >= s.size()) {
+      CHECK(s.size() == e);
+      break;
+    }
+    char c = s[e];
+    if (c == '\0')
+      break;
+    if (c == '\\') {
+      if (s[e+1] == '\n') {
+        e += 2;
+        ++*lf_cnt;
+      } else if (s[e+1] == '\r' && s[e+2] == '\n') {
+        e += 3;
+        ++*lf_cnt;
+      } else if (s[e+1] == '\\') {
+        e += 2;
+      } else {
+        e++;
+      }
+    } else if (c == '\n') {
+      ++*lf_cnt;
+      return e;
+    }
+  }
+  return e;
+#else
   bool prev_backslash = false;
   for (; e < s.size(); e++) {
     char c = s[e];
@@ -404,6 +469,7 @@ size_t FindEndOfLine(StringPiece s, size_t e, size_t* lf_cnt) {
     }
   }
   return e;
+#endif
 }
 
 StringPiece TrimLeadingCurdir(StringPiece s) {
@@ -460,4 +526,61 @@ string EchoEscape(const string str) {
     }
   }
   return buf;
+}
+
+void EscapeShell(string* s) {
+#ifdef __SSE4_2__
+  static const char ranges[] = "\0\0\"\"$$\\\\``";
+  size_t prev = 0;
+  size_t i = SkipUntilSSE42(s->c_str(), s->size(), ranges, 10);
+  if (i == s->size())
+    return;
+
+  string r;
+  for (; i < s->size();) {
+    StringPiece(*s).substr(prev, i - prev).AppendToString(&r);
+    char c = (*s)[i];
+    r += '\\';
+    if (c == '$') {
+      if ((*s)[i+1] == '$') {
+        r += '$';
+        i++;
+      }
+    }
+    r += c;
+    i++;
+    prev = i;
+    i += SkipUntilSSE42(s->c_str() + i, s->size() - i, ranges, 10);
+  }
+  StringPiece(*s).substr(prev).AppendToString(&r);
+  s->swap(r);
+#else
+  if (s->find_first_of("$`\\\"") == string::npos)
+    return;
+  string r;
+  bool last_dollar = false;
+  for (char c : *s) {
+    switch (c) {
+      case '$':
+        if (last_dollar) {
+          r += c;
+          last_dollar = false;
+        } else {
+          r += '\\';
+          r += c;
+          last_dollar = true;
+        }
+        break;
+      case '`':
+      case '"':
+      case '\\':
+        r += '\\';
+        // fall through.
+      default:
+        r += c;
+        last_dollar = false;
+    }
+  }
+  s->swap(r);
+#endif
 }

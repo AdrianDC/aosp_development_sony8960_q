@@ -47,6 +47,10 @@ void Var::AppendVar(Evaluator*, Value*) {
   CHECK(false);
 }
 
+SimpleVar::SimpleVar(VarOrigin origin)
+    : origin_(origin) {
+}
+
 SimpleVar::SimpleVar(const string& v, VarOrigin origin)
     : v_(v), origin_(origin) {
 }
@@ -56,8 +60,10 @@ void SimpleVar::Eval(Evaluator*, string* s) const {
 }
 
 void SimpleVar::AppendVar(Evaluator* ev, Value* v) {
+  string buf;
+  v->Eval(ev, &buf);
   v_.push_back(' ');
-  v->Eval(ev, &v_);
+  v_ += buf;
 }
 
 StringPiece SimpleVar::String() const {
@@ -108,6 +114,10 @@ Vars::~Vars() {
   }
 }
 
+void Vars::add_used_env_vars(Symbol v) {
+  used_env_vars_.insert(v);
+}
+
 Var* Vars::Lookup(Symbol name) const {
   auto found = find(name);
   if (found == end())
@@ -121,7 +131,7 @@ Var* Vars::Lookup(Symbol name) const {
 }
 
 void Vars::Assign(Symbol name, Var* v) {
-  auto p = insert(make_pair(name, v));
+  auto p = emplace(name, v);
   if (!p.second) {
     Var* orig = p.first->second;
     if (orig->Origin() == VarOrigin::OVERRIDE ||
@@ -141,7 +151,7 @@ unordered_set<Symbol> Vars::used_env_vars_;
 
 ScopedVar::ScopedVar(Vars* vars, Symbol name, Var* var)
     : vars_(vars), orig_(NULL) {
-  auto p = vars->insert(make_pair(name, var));
+  auto p = vars->emplace(name, var);
   iter_ = p.first;
   if (!p.second) {
     orig_ = iter_->second;

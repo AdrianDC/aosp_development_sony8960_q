@@ -30,16 +30,8 @@
 #include "symtab.h"
 #include "var.h"
 
-EvalResult::~EvalResult() {
-  for (auto p : rule_vars)
-    delete p.second;
-  delete vars;
-}
-
-Evaluator::Evaluator(const Vars* vars)
-    : in_vars_(vars),
-      vars_(new Vars()),
-      last_rule_(NULL),
+Evaluator::Evaluator()
+    : last_rule_(NULL),
       current_scope_(NULL),
       avoid_io_(false),
       eval_depth_(0) {
@@ -61,9 +53,12 @@ Var* Evaluator::EvalRHS(Symbol lhs, Value* rhs_v, StringPiece orig_rhs,
   Var* rhs = NULL;
   bool needs_assign = true;
   switch (op) {
-    case AssignOp::COLON_EQ:
-      rhs = new SimpleVar(rhs_v->Eval(this), origin);
+    case AssignOp::COLON_EQ: {
+      SimpleVar* sv = new SimpleVar(origin);
+      rhs_v->Eval(this, sv->mutable_value());
+      rhs = sv;
       break;
+    }
     case AssignOp::EQ:
       rhs = new RecursiveVar(rhs_v, origin, orig_rhs);
       break;
@@ -100,13 +95,13 @@ Var* Evaluator::EvalRHS(Symbol lhs, Value* rhs_v, StringPiece orig_rhs,
 void Evaluator::EvalAssign(const AssignStmt* stmt) {
   loc_ = stmt->loc();
   last_rule_ = NULL;
-  Symbol lhs = Intern(stmt->lhs->Eval(this));
+  Symbol lhs = stmt->GetLhsSymbol(this);
   if (lhs.empty())
     Error("*** empty variable name.");
   Var* rhs = EvalRHS(lhs, stmt->rhs, stmt->orig_rhs, stmt->op,
                      stmt->directive == AssignDirective::OVERRIDE);
   if (rhs)
-    vars_->Assign(lhs, rhs);
+    lhs.SetGlobalVar(rhs);
 }
 
 void Evaluator::EvalRule(const RuleStmt* stmt) {
@@ -131,11 +126,12 @@ void Evaluator::EvalRule(const RuleStmt* stmt) {
     }
 
     LOG("Rule: %s", rule->DebugString().c_str());
-    rules_.push_back(shared_ptr<Rule>(rule));
+    rules_.push_back(rule);
     last_rule_ = rule;
     return;
   }
 
+  Symbol lhs = Intern(rule_var.lhs);
   for (Symbol output : rule_var.outputs) {
     auto p = rule_vars_.emplace(output, nullptr);
     if (p.second) {
@@ -159,7 +155,6 @@ void Evaluator::EvalRule(const RuleStmt* stmt) {
     }
 
     current_scope_ = p.first->second;
-    Symbol lhs = Intern(rule_var.lhs);
     Var* rhs_var = EvalRHS(lhs, rhs, StringPiece("*TODO*"), rule_var.op);
     if (rhs_var)
       current_scope_->Assign(lhs, new RuleVar(rhs_var, rule_var.op));
@@ -288,10 +283,7 @@ void Evaluator::EvalExport(const ExportStmt* stmt) {
 }
 
 Var* Evaluator::LookupVarGlobal(Symbol name) {
-  Var* v = vars_->Lookup(name);
-  if (v->IsDefined())
-    return v;
-  v = in_vars_->Lookup(name);
+  Var* v = name.GetGlobalVar();
   if (v->IsDefined())
     return v;
   used_undefined_vars_.insert(name);

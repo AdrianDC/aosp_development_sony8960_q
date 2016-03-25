@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 #include <map>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -40,6 +41,8 @@
 #include "string_piece.h"
 #include "stringprintf.h"
 #include "strutil.h"
+#include "thread_pool.h"
+#include "timeutil.h"
 #include "var.h"
 #include "version.h"
 
@@ -165,6 +168,12 @@ bool GetDepfileFromCommand(string* cmd, string* out) {
   return true;
 }
 
+struct NinjaNode {
+  const DepNode* node;
+  vector<Command*> commands;
+  int rule_id;
+};
+
 class NinjaGenerator {
  public:
   NinjaGenerator(Evaluator* ev, double start_time)
@@ -175,7 +184,7 @@ class NinjaGenerator {
         start_time_(start_time),
         default_target_(NULL) {
     ev_->set_avoid_io(true);
-    shell_ = ev->EvalVar(kShellSym);
+    shell_ = EscapeNinja(ev->EvalVar(kShellSym));
     if (g_flags.goma_dir)
       gomacc_ = StringPrintf("%s/gomacc ", g_flags.goma_dir);
 
@@ -184,12 +193,15 @@ class NinjaGenerator {
 
   ~NinjaGenerator() {
     ev_->set_avoid_io(false);
+    for (NinjaNode* nn : nodes_)
+      delete nn;
   }
 
   void Generate(const vector<DepNode*>& nodes,
                 const string& orig_args) {
     unlink(GetNinjaStampFilename().c_str());
-    GenerateNinja(nodes, orig_args);
+    PopulateNinjaNodes(nodes);
+    GenerateNinja();
     GenerateShell();
     GenerateStamp(orig_args);
   }
@@ -206,8 +218,40 @@ class NinjaGenerator {
   }
 
  private:
-  string GenRuleName() {
-    return StringPrintf("rule%d", rule_id_++);
+  void PopulateNinjaNodes(const vector<DepNode*>& nodes) {
+    ScopedTimeReporter tr("ninja gen (eval)");
+    for (DepNode* node : nodes) {
+      PopulateNinjaNode(node);
+    }
+  }
+
+  void PopulateNinjaNode(DepNode* node) {
+    auto p = done_.insert(node->output);
+    if (!p.second)
+      return;
+
+    // A hack to exclude out phony target in Android. If this exists,
+    // "ninja -t clean" tries to remove this directory and fails.
+    if (g_flags.detect_android_echo && node->output.str() == "out")
+      return;
+
+    // This node is a leaf node
+    if (!node->has_rule && !node->is_phony) {
+      return;
+    }
+
+    NinjaNode* nn = new NinjaNode;
+    nn->node = node;
+    ce_.Eval(node, &nn->commands);
+    nn->rule_id = nn->commands.empty() ? -1 : rule_id_++;
+    nodes_.push_back(nn);
+
+    for (DepNode* d : node->deps) {
+      PopulateNinjaNode(d);
+    }
+    for (DepNode* d : node->order_onlys) {
+      PopulateNinjaNode(d);
+    }
   }
 
   StringPiece TranslateCommand(const char* in, string* cmd_buf) {
@@ -284,6 +328,22 @@ class NinjaGenerator {
                        cmd_buf->size() - orig_size);
   }
 
+  bool IsOutputMkdir(const char *name, StringPiece cmd) {
+    if (!HasPrefix(cmd, "mkdir -p ")) {
+      return false;
+    }
+    cmd = cmd.substr(9, cmd.size());
+    if (cmd.get(cmd.size() - 1) == '/') {
+      cmd = cmd.substr(0, cmd.size() - 1);
+    }
+
+    StringPiece dir = Dirname(name);
+    if (cmd == dir) {
+      return true;
+    }
+    return false;
+  }
+
   bool GetDescriptionFromCommand(StringPiece cmd, string *out) {
     if (!HasPrefix(cmd, "echo ")) {
       return false;
@@ -333,7 +393,8 @@ class NinjaGenerator {
     return true;
   }
 
-  bool GenShellScript(const vector<Command*>& commands,
+  bool GenShellScript(const char *name,
+                      const vector<Command*>& commands,
                       string* cmd_buf,
                       string* description) {
     // TODO: This is a dirty hack to set local_pool even without
@@ -346,25 +407,19 @@ class NinjaGenerator {
     static bool was_gomacc_found = false;
     bool got_descritpion = false;
     bool use_gomacc = false;
-    bool should_ignore_error = false;
+    auto command_count = commands.size();
     for (const Command* c : commands) {
+      size_t cmd_begin = cmd_buf->size();
+
       if (!cmd_buf->empty()) {
-        if (should_ignore_error) {
-          *cmd_buf += " ; ";
-        } else {
-          *cmd_buf += " && ";
-        }
+        *cmd_buf += " && ";
       }
-      should_ignore_error = c->ignore_error;
 
       const char* in = c->cmd.c_str();
       while (isspace(*in))
         in++;
 
-      bool needs_subshell = commands.size() > 1;
-      if (*in == '(') {
-        needs_subshell = false;
-      }
+      bool needs_subshell = (command_count > 1 || c->ignore_error);
 
       if (needs_subshell)
         *cmd_buf += '(';
@@ -374,11 +429,15 @@ class NinjaGenerator {
       if (g_flags.detect_android_echo && !got_descritpion && !c->echo &&
           GetDescriptionFromCommand(translated, description)) {
         got_descritpion = true;
-        cmd_buf->resize(cmd_start);
+        translated.clear();
+      } else if (IsOutputMkdir(name, translated) && !c->echo &&
+                 cmd_begin == 0) {
         translated.clear();
       }
       if (translated.empty()) {
-        *cmd_buf += "true";
+        cmd_buf->resize(cmd_begin);
+        command_count -= 1;
+        continue;
       } else if (g_flags.goma_dir) {
         size_t pos = GetGomaccPosForAndroidCompileCommand(translated);
         if (pos != string::npos) {
@@ -390,22 +449,24 @@ class NinjaGenerator {
         was_gomacc_found = true;
       }
 
-      if (c == commands.back() && c->ignore_error) {
+      if (c->ignore_error) {
         *cmd_buf += " ; true";
       }
 
       if (needs_subshell)
-        *cmd_buf += ')';
+        *cmd_buf += " )";
     }
     return (was_gomacc_found || g_flags.remote_num_jobs ||
             g_flags.goma_dir) && !use_gomacc;
   }
 
-  bool GetDepfile(DepNode* node, string* cmd_buf, string* depfile) {
+  bool GetDepfile(const DepNode* node, string* cmd_buf, string* depfile) {
     if (node->depfile_var) {
       node->depfile_var->Eval(ev_, depfile);
       return true;
     }
+    if (!g_flags.detect_depfiles)
+      return false;
 
     *cmd_buf += ' ';
     bool result = GetDepfileFromCommand(cmd_buf, depfile);
@@ -413,75 +474,55 @@ class NinjaGenerator {
     return result;
   }
 
-  void EmitDepfile(DepNode* node, string* cmd_buf) {
+  void EmitDepfile(NinjaNode* nn, string* cmd_buf, ostringstream* o) {
+    const DepNode* node = nn->node;
     string depfile;
     if (!GetDepfile(node, cmd_buf, &depfile))
       return;
-    fprintf(fp_, " depfile = %s\n", depfile.c_str());
-    fprintf(fp_, " deps = gcc\n");
+    *o << " depfile = " << depfile << "\n";
+    *o << " deps = gcc\n";
   }
 
-  void EmitNode(DepNode* node) {
-    auto p = done_.insert(node->output);
-    if (!p.second)
-      return;
-
-    // A hack to exclude out phony target in Android. If this exists,
-    // "ninja -t clean" tries to remove this directory and fails.
-    if (g_flags.detect_android_echo && node->output.str() == "out")
-      return;
-
-    // This node is a leaf node
-    if (!node->has_rule && !node->is_phony) {
-      return;
-    }
-
-    vector<Command*> commands;
-    ce_.Eval(node, &commands);
+  void EmitNode(NinjaNode* nn, ostringstream* o) {
+    const DepNode* node = nn->node;
+    const vector<Command*>& commands = nn->commands;
 
     string rule_name = "phony";
     bool use_local_pool = false;
     if (!commands.empty()) {
-      rule_name = GenRuleName();
-      fprintf(fp_, "rule %s\n", rule_name.c_str());
+      rule_name = StringPrintf("rule%d", nn->rule_id);
+      *o << "rule " << rule_name << "\n";
 
       string description = "build $out";
       string cmd_buf;
-      use_local_pool |= GenShellScript(commands, &cmd_buf, &description);
-      fprintf(fp_, " description = %s\n", description.c_str());
-      EmitDepfile(node, &cmd_buf);
+      use_local_pool |= GenShellScript(node->output.c_str(), commands,
+                                       &cmd_buf, &description);
+      *o << " description = " << description << "\n";
+      EmitDepfile(nn, &cmd_buf, o);
 
       // It seems Linux is OK with ~130kB and Mac's limit is ~250kB.
       // TODO: Find this number automatically.
       if (cmd_buf.size() > 100 * 1000) {
-        fprintf(fp_, " rspfile = $out.rsp\n");
-        fprintf(fp_, " rspfile_content = %s\n", cmd_buf.c_str());
-        fprintf(fp_, " command = %s $out.rsp\n", shell_.c_str());
+        *o << " rspfile = $out.rsp\n";
+        *o << " rspfile_content = " << cmd_buf << "\n";
+        *o << " command = " << shell_ << " $out.rsp\n";
       } else {
         EscapeShell(&cmd_buf);
-        fprintf(fp_, " command = %s -c \"%s\"\n",
-                shell_.c_str(), cmd_buf.c_str());
+        *o << " command = " << shell_ << " -c \"" << cmd_buf << "\"\n";
       }
       if (node->is_restat) {
-        fprintf(fp_, " restat = 1\n");
+        *o << " restat = 1\n";
       }
     }
 
-    EmitBuild(node, rule_name, use_local_pool);
-
-    for (DepNode* d : node->deps) {
-      EmitNode(d);
-    }
-    for (DepNode* d : node->order_onlys) {
-      EmitNode(d);
-    }
+    EmitBuild(nn, rule_name, use_local_pool, o);
   }
 
-  string EscapeBuildTarget(Symbol s) const {
-    if (s.str().find_first_of("$: ") == string::npos)
-      return s.str();
+  string EscapeNinja(const string& s) const {
+    if (s.find_first_of("$: ") == string::npos)
+      return s;
     string r;
-    for (char c : s.str()) {
+    for (char c : s) {
       switch (c) {
         case '$':
         case ':':
@@ -495,86 +536,43 @@ class NinjaGenerator {
     return r;
   }
 
-  void EscapeShell(string* s) const {
-    if (s->find_first_of("$`\\\"") == string::npos)
-      return;
-    string r;
-    bool last_dollar = false;
-    for (char c : *s) {
-      switch (c) {
-        case '$':
-          if (last_dollar) {
-            r += c;
-            last_dollar = false;
-          } else {
-            r += '\\';
-            r += c;
-            last_dollar = true;
-          }
-          break;
-        case '`':
-        case '"':
-        case '\\':
-          r += '\\';
-          // fall through.
-        default:
-          r += c;
-          last_dollar = false;
-      }
-    }
-    s->swap(r);
+  string EscapeBuildTarget(Symbol s) const {
+    return EscapeNinja(s.str());
   }
 
-  void EmitBuild(DepNode* node, const string& rule_name, bool use_local_pool) {
+  void EmitBuild(NinjaNode* nn, const string& rule_name,
+                 bool use_local_pool, ostringstream* o) {
+    const DepNode* node = nn->node;
     string target = EscapeBuildTarget(node->output);
-    fprintf(fp_, "build %s: %s",
-            target.c_str(),
-            rule_name.c_str());
+    *o << "build " << target << ": " << rule_name;
     vector<Symbol> order_onlys;
     if (node->is_phony) {
-      fprintf(fp_, " _kati_always_build_");
+      *o << " _kati_always_build_";
     }
     for (DepNode* d : node->deps) {
-      fprintf(fp_, " %s", EscapeBuildTarget(d->output).c_str());
+      *o << " " << EscapeBuildTarget(d->output).c_str();
     }
     if (!node->order_onlys.empty()) {
-      fprintf(fp_, " ||");
+      *o << " ||";
       for (DepNode* d : node->order_onlys) {
-        fprintf(fp_, " %s", EscapeBuildTarget(d->output).c_str());
+        *o << " " << EscapeBuildTarget(d->output).c_str();
       }
     }
-    fprintf(fp_, "\n");
+    *o << "\n";
     if (use_local_pool)
-      fprintf(fp_, " pool = local_pool\n");
+      *o << " pool = local_pool\n";
     if (node->is_default_target) {
+      unique_lock<mutex> lock(mu_);
       default_target_ = node;
     }
-  }
-
-  void EmitRegenRules(const string& orig_args) {
-    if (!g_flags.gen_regen_rule)
-      return;
-
-    fprintf(fp_, "rule regen_ninja\n");
-    fprintf(fp_, " command = %s\n", orig_args.c_str());
-    fprintf(fp_, " generator = 1\n");
-    fprintf(fp_, " description = Regenerate ninja files due to dependency\n");
-    fprintf(fp_, "build %s: regen_ninja", GetNinjaFilename().c_str());
-    unordered_set<string> makefiles;
-    MakefileCacheManager::Get()->GetAllFilenames(&makefiles);
-    for (const string& makefile : makefiles) {
-      fprintf(fp_, " %.*s", SPF(makefile));
-    }
-    fprintf(fp_, " %s", kati_binary_.c_str());
-    fprintf(fp_, "\n\n");
   }
 
   static string GetEnvScriptFilename() {
     return GetFilename("env%s.sh");
   }
 
-  void GenerateNinja(const vector<DepNode*>& nodes,
-                     const string& orig_args) {
+  void GenerateNinja() {
+    ScopedTimeReporter tr("ninja gen (emit)");
     fp_ = fopen(GetNinjaFilename().c_str(), "wb");
     if (fp_ == NULL)
       PERROR("fopen(build.ninja) failed");
@@ -599,10 +597,24 @@ class NinjaGenerator {
 
     fprintf(fp_, "build _kati_always_build_: phony\n\n");
 
-    EmitRegenRules(orig_args);
+    unique_ptr<ThreadPool> tp(NewThreadPool(g_flags.num_jobs));
+    CHECK(g_flags.num_jobs);
+    int num_nodes_per_task = nodes_.size() / (g_flags.num_jobs * 10) + 1;
+    int num_tasks = nodes_.size() / num_nodes_per_task + 1;
+    vector<ostringstream> bufs(num_tasks);
+    for (int i = 0; i < num_tasks; i++) {
+      tp->Submit([this, i, num_nodes_per_task, &bufs]() {
+          int l = min(num_nodes_per_task * (i + 1),
+                      static_cast<int>(nodes_.size()));
+          for (int j = num_nodes_per_task * i; j < l; j++) {
+            EmitNode(nodes_[j], &bufs[i]);
+          }
+        });
+    }
+    tp->Wait();
 
-    for (DepNode* node : nodes) {
-      EmitNode(node);
+    for (const ostringstream& buf : bufs) {
+      fprintf(fp_, "%s", buf.str().c_str());
     }
 
     unordered_set<Symbol> used_env_vars(Vars::used_env_vars());
@@ -765,8 +777,11 @@ class NinjaGenerator {
   string shell_;
   map<string, string> used_envs_;
   string kati_binary_;
-  double start_time_;
-  DepNode* default_target_;
+  const double start_time_;
+  vector<NinjaNode*> nodes_;
+
+  mutex mu_;
+  const DepNode* default_target_;
 };
 
 string GetNinjaFilename() {

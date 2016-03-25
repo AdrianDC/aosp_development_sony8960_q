@@ -12,24 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CONDVAR_H_
-#define CONDVAR_H_
+#include <string>
+#include <vector>
 
-#include <pthread.h>
+#include "flags.h"
+#include "string_piece.h"
+#include "strutil.h"
+#include "timeutil.h"
 
-#include "mutex.h"
+using namespace std;
 
-class condition_variable {
- public:
-  condition_variable();
-  ~condition_variable();
+int main() {
+  g_flags.enable_stat_logs = true;
+  string s;
+  while (s.size() < 400000) {
+    if (!s.empty())
+      s += ' ';
+    s += "frameworks/base/docs/html/tv/adt-1/index.jd";
+  }
 
-  void wait(const unique_lock<mutex>& mu);
-  void notify_one();
-  void notify_all();
-
- private:
-  pthread_cond_t cond_;
-};
-
-#endif  // CONDVAR_H_
+  ScopedTimeReporter tr("WordScanner");
+  static const int N = 1000;
+  for (int i = 0; i < N; i++) {
+    vector<StringPiece> toks;
+    WordScanner(s).Split(&toks);
+  }
+}

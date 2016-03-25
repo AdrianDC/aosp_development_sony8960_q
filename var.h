@@ -62,22 +62,25 @@ class Var : public Evaluable {
 
 class SimpleVar : public Var {
  public:
+  explicit SimpleVar(VarOrigin origin);
   SimpleVar(const string& v, VarOrigin origin);
 
-  virtual const char* Flavor() const {
+  virtual const char* Flavor() const override {
     return "simple";
   }
-  virtual VarOrigin Origin() const {
+  virtual VarOrigin Origin() const override {
     return origin_;
   }
 
   virtual void Eval(Evaluator* ev, string* s) const override;
 
-  virtual void AppendVar(Evaluator* ev, Value* v);
+  virtual void AppendVar(Evaluator* ev, Value* v) override;
 
   virtual StringPiece String() const override;
 
   virtual string DebugString() const override;
+
+  string* mutable_value() { return &v_; }
 
  private:
   string v_;
@@ -88,16 +91,16 @@ class RecursiveVar : public Var {
  public:
   RecursiveVar(Value* v, VarOrigin origin, StringPiece orig);
 
-  virtual const char* Flavor() const {
+  virtual const char* Flavor() const override {
     return "recursive";
   }
-  virtual VarOrigin Origin() const {
+  virtual VarOrigin Origin() const override {
     return origin_;
   }
 
   virtual void Eval(Evaluator* ev, string* s) const override;
 
-  virtual void AppendVar(Evaluator* ev, Value* v);
+  virtual void AppendVar(Evaluator* ev, Value* v) override;
 
   virtual StringPiece String() const override;
 
@@ -113,13 +116,13 @@ class UndefinedVar : public Var {
  public:
   UndefinedVar();
 
-  virtual const char* Flavor() const {
+  virtual const char* Flavor() const override {
     return "undefined";
   }
-  virtual VarOrigin Origin() const {
+  virtual VarOrigin Origin() const override {
     return VarOrigin::UNDEFINED;
   }
-  virtual bool IsDefined() const { return false; }
+  virtual bool IsDefined() const override { return false; }
 
   virtual void Eval(Evaluator* ev, string* s) const override;
 
@@ -138,19 +141,19 @@ class RuleVar : public Var {
     delete v_;
   }
 
-  virtual const char* Flavor() const {
+  virtual const char* Flavor() const override {
     return v_->Flavor();
   }
-  virtual VarOrigin Origin() const {
+  virtual VarOrigin Origin() const override {
     return v_->Origin();
   }
-  virtual bool IsDefined() const {
+  virtual bool IsDefined() const override {
     return v_->IsDefined();
   }
-  virtual void Eval(Evaluator* ev, string* s) const {
+  virtual void Eval(Evaluator* ev, string* s) const override {
     v_->Eval(ev, s);
   }
-  virtual void AppendVar(Evaluator* ev, Value* v) {
+  virtual void AppendVar(Evaluator* ev, Value* v) override {
     v_->AppendVar(ev, v);
   }
   virtual StringPiece String() const override {
@@ -175,6 +178,8 @@ class Vars : public unordered_map<Symbol, Var*> {
   Var* Lookup(Symbol name) const;
 
   void Assign(Symbol name, Var* v);
+
+  static void add_used_env_vars(Symbol v);
 
   static const unordered_set<Symbol>& used_env_vars() {
     return used_env_vars_;
