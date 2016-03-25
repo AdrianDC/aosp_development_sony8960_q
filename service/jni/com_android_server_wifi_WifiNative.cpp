@@ -28,6 +28,7 @@
 #include <sys/socket.h>
 #include <sys/klog.h>
 #include <linux/if.h>
+#include <linux/if_arp.h>
 #include "wifi.h"
 #include "wifi_hal.h"
 #include "jni_helper.h"
@@ -1409,7 +1410,7 @@ static jobject android_net_wifi_get_rtt_capabilities(JNIEnv *env, jclass cls, ji
     }
 }
 
-static jobject android_net_wifi_get_packet_filter_capabilities(JNIEnv *env, jclass cls,
+static jobject android_net_wifi_get_apf_capabilities(JNIEnv *env, jclass cls,
         jint iface) {
 
     JNIHelper helper(env);
@@ -1418,10 +1419,24 @@ static jobject android_net_wifi_get_packet_filter_capabilities(JNIEnv *env, jcla
     wifi_error ret = hal_fn.wifi_get_packet_filter_capabilities(handle, &version, &max_len);
 
     if (WIFI_SUCCESS == ret) {
-        JNIObject<jobject> capabilities = helper.createObject(
-                "com/android/server/wifi/WifiNative$PacketFilterCapabilities");
-        helper.setIntField(capabilities, "apfVersionSupported", version);
-        helper.setIntField(capabilities, "maximumApfProgramSize", max_len);
+        // Cannot just use createObject() because members are final and initializer values must be
+        // passed via ApfCapabilities().
+        JNIObject<jclass> apf_cls(helper, env->FindClass("android/net/apf/ApfCapabilities"));
+        if (apf_cls == NULL) {
+            ALOGE("Error in finding class android/net/apf/ApfCapabilities");
+            return NULL;
+        }
+        jmethodID constructor = env->GetMethodID(apf_cls, "<init>", "(III)V");
+        if (constructor == 0) {
+            ALOGE("Error in constructor ID for android/net/apf/ApfCapabilities");
+            return NULL;
+        }
+        JNIObject<jobject> capabilities(helper, env->NewObject(apf_cls, constructor, version,
+                max_len, ARPHRD_ETHER));
+        if (capabilities == NULL) {
+            ALOGE("Could not create new object of android/net/apf/ApfCapabilities");
+            return NULL;
+        }
         ALOGD("APF version supported: %d", version);
         ALOGD("Maximum APF program size: %d", max_len);
         return capabilities.detach();
@@ -2324,8 +2339,8 @@ static JNINativeMethod gWifiMethods[] = {
     { "setInterfaceUpNative", "(Z)Z",  (void*) android_net_wifi_set_interface_up},
     { "getRttCapabilitiesNative", "(I)Landroid/net/wifi/RttManager$RttCapabilities;",
             (void*) android_net_wifi_get_rtt_capabilities},
-    { "getPacketFilterCapabilitiesNative", "(I)Lcom/android/server/wifi/WifiNative$PacketFilterCapabilities;",
-            (void*) android_net_wifi_get_packet_filter_capabilities},
+    { "getApfCapabilitiesNative", "(I)Landroid/net/apf/ApfCapabilities;",
+            (void*) android_net_wifi_get_apf_capabilities},
     { "installPacketFilterNative", "(I[B)Z", (void*) android_net_wifi_install_packet_filter},
     {"setCountryCodeHalNative", "(ILjava/lang/String;)Z",
             (void*) android_net_wifi_set_Country_Code_Hal},
