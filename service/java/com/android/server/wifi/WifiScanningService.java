@@ -35,7 +35,8 @@ public class WifiScanningService extends SystemService {
         mHandlerThread = new HandlerThread("WifiScanningService");
         mHandlerThread.start();
         mImpl = new WifiScanningServiceImpl(getContext(), mHandlerThread.getLooper(),
-                WifiScannerImpl.DEFAULT_FACTORY, BatteryStatsService.getService());
+                WifiScannerImpl.DEFAULT_FACTORY, BatteryStatsService.getService(),
+                WifiInjector.getInstance());
     }
 
     @Override

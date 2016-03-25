@@ -75,8 +75,11 @@ public class WifiScanningServiceTest {
     @Mock WifiScannerImpl mWifiScannerImpl;
     @Mock WifiScannerImpl.WifiScannerImplFactory mWifiScannerImplFactory;
     @Mock IBatteryStats mBatteryStats;
+    @Mock WifiInjector mWifiInjector;
+    WifiMetrics mWifiMetrics;
     MockLooper mLooper;
     WifiScanningServiceImpl mWifiScanningServiceImpl;
+
 
     @Before
     public void setUp() throws Exception {
@@ -85,6 +88,7 @@ public class WifiScanningServiceTest {
         mAlarmManager = new MockAlarmManager();
         when(mContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
+        mWifiMetrics = new WifiMetrics();
 
         ChannelHelper channelHelper = new PresetKnownBandsChannelHelper(
                 new int[]{2400, 2450},
@@ -95,8 +99,9 @@ public class WifiScanningServiceTest {
         when(mWifiScannerImplFactory.create(any(Context.class), any(Looper.class)))
                 .thenReturn(mWifiScannerImpl);
         when(mWifiScannerImpl.getChannelHelper()).thenReturn(channelHelper);
+        when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
         mWifiScanningServiceImpl = new WifiScanningServiceImpl(mContext, mLooper.getLooper(),
-                mWifiScannerImplFactory, mBatteryStats);
+                mWifiScannerImplFactory, mBatteryStats, mWifiInjector);
     }
 
     @After
@@ -389,6 +394,9 @@ public class WifiScanningServiceTest {
         assertSuccessfulResponse(requestId, messageCaptor.getAllValues().get(0));
         assertFailedResponse(requestId, WifiScanner.REASON_UNSPECIFIED,
                 "Failed to start single scan", messageCaptor.getAllValues().get(1));
+
+        assertEquals(mWifiMetrics.getOneshotScanCount(), 1);
+        assertEquals(mWifiMetrics.getScanReturnEntry(WifiMetricsProto.WifiLog.SCAN_UNKNOWN), 1);
     }
 
     /**
@@ -424,6 +432,8 @@ public class WifiScanningServiceTest {
         mLooper.dispatchAll();
         verifyFailedResponse(order, handler, requestId,
                 WifiScanner.REASON_UNSPECIFIED, "Scan failed");
+        assertEquals(mWifiMetrics.getOneshotScanCount(), 1);
+        assertEquals(mWifiMetrics.getScanReturnEntry(WifiMetricsProto.WifiLog.SCAN_UNKNOWN), 1);
     }
 
     // TODO Add more single scan tests
@@ -552,8 +562,9 @@ public class WifiScanningServiceTest {
         mLooper.dispatchAll();
         verifyScanResultsRecieved(handlerOrder, handler, requestId2, results2.getScanData());
         verifySingleScanCompletedRecieved(handlerOrder, handler, requestId2);
+        assertEquals(mWifiMetrics.getOneshotScanCount(), 2);
+        assertEquals(mWifiMetrics.getScanReturnEntry(WifiMetricsProto.WifiLog.SCAN_SUCCESS), 2);
     }
-
 
 
     /**
@@ -656,6 +667,8 @@ public class WifiScanningServiceTest {
                     messageCaptor.getAllValues().get(2));
             assertSingleScanCompletedMessage(requestId2, messageCaptor.getAllValues().get(3));
         }
+        assertEquals(mWifiMetrics.getOneshotScanCount(), 3);
+        assertEquals(mWifiMetrics.getScanReturnEntry(WifiMetricsProto.WifiLog.SCAN_SUCCESS), 3);
     }
 
     private void doSuccessfulBackgroundScan(WifiScanner.ScanSettings requestSettings,
@@ -691,6 +704,7 @@ public class WifiScanningServiceTest {
                         WifiScanner.WIFI_BAND_BOTH)
                 .build();
         doSuccessfulBackgroundScan(requestSettings, nativeSettings);
+        assertEquals(mWifiMetrics.getBackgroundScanCount(), 1);
     }
 
     /**

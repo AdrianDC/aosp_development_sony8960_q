@@ -20,7 +20,8 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.os.SystemClock;
 import android.util.Base64;
-import android.util.SparseArray;
+import android.util.Log;
+import android.util.SparseIntArray;
 
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.util.InformationElementUtil;
@@ -41,6 +42,7 @@ import java.util.List;
  */
 public class WifiMetrics {
     private static final String TAG = "WifiMetrics";
+    private static final boolean DBG = false;
     private final Object mLock = new Object();
     private static final int MAX_CONNECTION_EVENTS = 256;
     /**
@@ -61,13 +63,12 @@ public class WifiMetrics {
     /**
      * Count of number of times each scan return code, indexed by WifiLog.ScanReturnCode
      */
-    private final SparseArray<WifiMetricsProto.WifiLog.ScanReturnEntry> mScanReturnEntries;
+    private SparseIntArray mScanReturnEntries;
     /**
      * Mapping of system state to the counts of scans requested in that wifi state * screenOn
      * combination. Indexed by WifiLog.WifiState * (1 + screenOn)
      */
-    private final SparseArray<WifiMetricsProto.WifiLog.WifiSystemStateEntry>
-            mWifiSystemStateEntries;
+    private SparseIntArray mWifiSystemStateEntries;
 
     class RouterFingerPrint {
         private WifiMetricsProto.RouterFingerPrint mRouterFingerPrintProto;
@@ -266,7 +267,7 @@ public class WifiMetrics {
                 }
                 sb.append(", signalStrength=");
                 sb.append(mConnectionEvent.signalStrength);
-                sb.append("\n  ");
+                sb.append("  ");
                 sb.append("mRouterFingerprint: ");
                 sb.append(mRouterFingerPrint.toString());
             }
@@ -277,10 +278,14 @@ public class WifiMetrics {
     public WifiMetrics() {
         mWifiLogProto = new WifiMetricsProto.WifiLog();
         mConnectionEventList = new ArrayList<>();
+        mScanReturnEntries = new SparseIntArray();
+        mWifiSystemStateEntries = new SparseIntArray();
         mCurrentConnectionEvent = null;
-        mScanReturnEntries = new SparseArray<WifiMetricsProto.WifiLog.ScanReturnEntry>();
-        mWifiSystemStateEntries = new SparseArray<WifiMetricsProto.WifiLog.WifiSystemStateEntry>();
     }
+
+    // Values used for indexing SystemStateEntries
+    private static final int SCREEN_ON = 1;
+    private static final int SCREEN_OFF = 0;
 
     /**
      * Create a new connection event. Call when wifi attempts to make a new network connection
@@ -500,6 +505,7 @@ public class WifiMetrics {
      * Increment Non Empty Scan Results count
      */
     public void incrementNonEmptyScanResultCount() {
+        if (DBG) Log.v(TAG, "incrementNonEmptyScanResultCount");
         synchronized (mLock) {
             mWifiLogProto.numNonEmptyScanResults++;
         }
@@ -509,8 +515,63 @@ public class WifiMetrics {
      * Increment Empty Scan Results count
      */
     public void incrementEmptyScanResultCount() {
+        if (DBG) Log.v(TAG, "incrementEmptyScanResultCount");
         synchronized (mLock) {
             mWifiLogProto.numEmptyScanResults++;
+        }
+    }
+
+    /**
+     * Increment background scan count
+     */
+    public void incrementBackgroundScanCount() {
+        if (DBG) Log.v(TAG, "incrementBackgroundScanCount");
+        synchronized (mLock) {
+            mWifiLogProto.numBackgroundScans++;
+        }
+    }
+
+   /**
+     * Get Background scan count
+     */
+    public int getBackgroundScanCount() {
+        synchronized (mLock) {
+            return mWifiLogProto.numBackgroundScans;
+        }
+    }
+
+    /**
+     * Increment oneshot scan count
+     */
+    public void incrementOneshotScanCount() {
+        synchronized (mLock) {
+            mWifiLogProto.numOneshotScans++;
+        }
+    }
+
+    /**
+     * Get oneshot scan count
+     */
+    public int getOneshotScanCount() {
+        synchronized (mLock) {
+            return mWifiLogProto.numOneshotScans;
+        }
+    }
+
+    private String returnCodeToString(int scanReturnCode) {
+        switch(scanReturnCode){
+            case WifiMetricsProto.WifiLog.SCAN_UNKNOWN:
+                return "SCAN_UNKNOWN";
+            case WifiMetricsProto.WifiLog.SCAN_SUCCESS:
+                return "SCAN_SUCCESS";
+            case WifiMetricsProto.WifiLog.SCAN_FAILURE_INTERRUPTED:
+                return "SCAN_FAILURE_INTERRUPTED";
+            case WifiMetricsProto.WifiLog.SCAN_FAILURE_INVALID_CONFIGURATION:
+                return "SCAN_FAILURE_INVALID_CONFIGURATION";
+            case WifiMetricsProto.WifiLog.FAILURE_WIFI_DISABLED:
+                return "FAILURE_WIFI_DISABLED";
+            default:
+                return "<UNKNOWN>";
         }
     }
 
@@ -519,16 +580,36 @@ public class WifiMetrics {
      *
      * @param scanReturnCode Return code from scan attempt WifiMetricsProto.WifiLog.SCAN_X
      */
-    public void incrementScanReturnEntry(int scanReturnCode) {
+    public void incrementScanReturnEntry(int scanReturnCode, int countToAdd) {
         synchronized (mLock) {
-            WifiMetricsProto.WifiLog.ScanReturnEntry entry = mScanReturnEntries.get(scanReturnCode);
-            if (entry == null) {
-                entry = new WifiMetricsProto.WifiLog.ScanReturnEntry();
-                entry.scanReturnCode = scanReturnCode;
-                entry.scanResultsCount = 0;
-            }
-            entry.scanResultsCount++;
+            if (DBG) Log.v(TAG, "incrementScanReturnEntry " + returnCodeToString(scanReturnCode));
+            int entry = mScanReturnEntries.get(scanReturnCode);
+            entry += countToAdd;
             mScanReturnEntries.put(scanReturnCode, entry);
+        }
+    }
+    /**
+     * Get the count of this scanReturnCode
+     * @param scanReturnCode that we are getting the count for
+     */
+    public int getScanReturnEntry(int scanReturnCode) {
+        synchronized (mLock) {
+            return mScanReturnEntries.get(scanReturnCode);
+        }
+    }
+
+    private String wifiSystemStateToString(int state) {
+        switch(state){
+            case WifiMetricsProto.WifiLog.WIFI_UNKNOWN:
+                return "WIFI_UNKNOWN";
+            case WifiMetricsProto.WifiLog.WIFI_DISABLED:
+                return "WIFI_DISABLED";
+            case WifiMetricsProto.WifiLog.WIFI_DISCONNECTED:
+                return "WIFI_DISCONNECTED";
+            case WifiMetricsProto.WifiLog.WIFI_ASSOCIATED:
+                return "WIFI_ASSOCIATED";
+            default:
+                return "default";
         }
     }
 
@@ -540,17 +621,24 @@ public class WifiMetrics {
      */
     public void incrementWifiSystemScanStateCount(int state, boolean screenOn) {
         synchronized (mLock) {
-            int index = state * (screenOn ? 2 : 1);
-            WifiMetricsProto.WifiLog.WifiSystemStateEntry entry =
-                    mWifiSystemStateEntries.get(index);
-            if (entry == null) {
-                entry = new WifiMetricsProto.WifiLog.WifiSystemStateEntry();
-                entry.wifiState = state;
-                entry.wifiStateCount = 0;
-                entry.isScreenOn = screenOn;
+            if (DBG) {
+                Log.v(TAG, "incrementWifiSystemScanStateCount " + wifiSystemStateToString(state)
+                        + " " + screenOn);
             }
-            entry.wifiStateCount++;
-            mWifiSystemStateEntries.put(state, entry);
+            int index = (state * 2) + (screenOn ? SCREEN_ON : SCREEN_OFF);
+            int entry = mWifiSystemStateEntries.get(index);
+            entry++;
+            mWifiSystemStateEntries.put(index, entry);
+        }
+    }
+
+    /**
+     * Get the count of this system State Entry
+     */
+    public int getSystemStateCount(int state, boolean screenOn) {
+        synchronized (mLock) {
+            int index = state * 2 + (screenOn ? SCREEN_ON : SCREEN_OFF);
+            return mWifiSystemStateEntries.get(index);
         }
     }
 
@@ -599,23 +687,55 @@ public class WifiMetrics {
                 pw.println("mWifiLogProto.isLocationEnabled=" + mWifiLogProto.isLocationEnabled);
                 pw.println("mWifiLogProto.isScanningAlwaysEnabled="
                         + mWifiLogProto.isScanningAlwaysEnabled);
-                pw.println("mWifiLogProto.numWifiToggledViaSettings="
-                        + mWifiLogProto.numWifiToggledViaSettings);
-                //TODO - Pending scanning refactor
-                pw.println("mWifiLogProto.numNetworksAddedByApps=" + "<TODO>");
-                pw.println("mWifiLogProto.numNonEmptyScanResults=" + "<TODO>");
-                pw.println("mWifiLogProto.numEmptyScanResults=" + "<TODO>");
-                pw.println("mWifiLogProto.numOneshotScans=" + "<TODO>");
-                pw.println("mWifiLogProto.numBackgroundScans=" + "<TODO>");
-                pw.println("mScanReturnEntries:" + " <TODO>");
-                pw.println("mSystemStateEntries:" + " <TODO>");
+                pw.println("mWifiLogProto.numNetworksAddedByUser="
+                        + mWifiLogProto.numNetworksAddedByUser);
+                pw.println("mWifiLogProto.numNetworksAddedByApps="
+                        + mWifiLogProto.numNetworksAddedByApps);
+                pw.println("mWifiLogProto.numNonEmptyScanResults="
+                        + mWifiLogProto.numNonEmptyScanResults);
+                pw.println("mWifiLogProto.numEmptyScanResults="
+                        + mWifiLogProto.numEmptyScanResults);
+                pw.println("mWifiLogProto.numOneshotScans="
+                        + mWifiLogProto.numOneshotScans);
+                pw.println("mWifiLogProto.numBackgroundScans="
+                        + mWifiLogProto.numBackgroundScans);
+
+                pw.println("mScanReturnEntries:");
+                pw.println("  SCAN_UNKNOWN: " + getScanReturnEntry(
+                        WifiMetricsProto.WifiLog.SCAN_UNKNOWN));
+                pw.println("  SCAN_SUCCESS: " + getScanReturnEntry(
+                        WifiMetricsProto.WifiLog.SCAN_SUCCESS));
+                pw.println("  SCAN_FAILURE_INTERRUPTED: " + getScanReturnEntry(
+                        WifiMetricsProto.WifiLog.SCAN_FAILURE_INTERRUPTED));
+                pw.println("  SCAN_FAILURE_INVALID_CONFIGURATION: " + getScanReturnEntry(
+                        WifiMetricsProto.WifiLog.SCAN_FAILURE_INVALID_CONFIGURATION));
+                pw.println("  FAILURE_WIFI_DISABLED: " + getScanReturnEntry(
+                        WifiMetricsProto.WifiLog.FAILURE_WIFI_DISABLED));
+
+                pw.println("mSystemStateEntries: <state><screenOn> : <scansInitiated>");
+                pw.println("  WIFI_UNKNOWN       ON: "
+                        + getSystemStateCount(WifiMetricsProto.WifiLog.WIFI_UNKNOWN, true));
+                pw.println("  WIFI_DISABLED      ON: "
+                        + getSystemStateCount(WifiMetricsProto.WifiLog.WIFI_DISABLED, true));
+                pw.println("  WIFI_DISCONNECTED  ON: "
+                        + getSystemStateCount(WifiMetricsProto.WifiLog.WIFI_DISCONNECTED, true));
+                pw.println("  WIFI_ASSOCIATED    ON: "
+                        + getSystemStateCount(WifiMetricsProto.WifiLog.WIFI_ASSOCIATED, true));
+                pw.println("  WIFI_UNKNOWN      OFF: "
+                        + getSystemStateCount(WifiMetricsProto.WifiLog.WIFI_UNKNOWN, false));
+                pw.println("  WIFI_DISABLED     OFF: "
+                        + getSystemStateCount(WifiMetricsProto.WifiLog.WIFI_DISABLED, false));
+                pw.println("  WIFI_DISCONNECTED OFF: "
+                        + getSystemStateCount(WifiMetricsProto.WifiLog.WIFI_DISCONNECTED, false));
+                pw.println("  WIFI_ASSOCIATED   OFF: "
+                        + getSystemStateCount(WifiMetricsProto.WifiLog.WIFI_ASSOCIATED, false));
             }
         }
     }
 
     /**
-     * Assign the separate ConnectionEvent, SystemStateEntry and ScanReturnCode lists to their
-     * respective lists within mWifiLogProto, and clear the original lists managed here.
+     * append the separate ConnectionEvent, SystemStateEntry and ScanReturnCode collections to their
+     * respective lists within mWifiLogProto
      *
      * @param incremental Only include ConnectionEvents created since last automatic bug report
      */
@@ -623,18 +743,47 @@ public class WifiMetrics {
         List<WifiMetricsProto.ConnectionEvent> events = new ArrayList<>();
         synchronized (mLock) {
             for (ConnectionEvent event : mConnectionEventList) {
+                // If this is not incremental, dump full ConnectionEvent list
+                // Else Dump all un-dumped events except for the current one
                 if (!incremental || ((mCurrentConnectionEvent != event)
                         && !event.mConnectionEvent.automaticBugReportTaken)) {
                     //Get all ConnectionEvents that haven not been dumped as a proto, also exclude
                     //the current active un-ended connection event
                     events.add(event.mConnectionEvent);
-                    event.mConnectionEvent.automaticBugReportTaken = true;
+                    if (incremental) {
+                        event.mConnectionEvent.automaticBugReportTaken = true;
+                    }
                 }
             }
             if (events.size() > 0) {
                 mWifiLogProto.connectionEvent = events.toArray(mWifiLogProto.connectionEvent);
             }
-            //<TODO> SystemStateEntry and ScanReturnCode list consolidation
+
+            //Convert the SparseIntArray of scanReturnEntry integers into ScanReturnEntry proto list
+            mWifiLogProto.scanReturnEntries =
+                    new WifiMetricsProto.WifiLog.ScanReturnEntry[mScanReturnEntries.size()];
+            for (int i = 0; i < mScanReturnEntries.size(); i++) {
+                mWifiLogProto.scanReturnEntries[i] = new WifiMetricsProto.WifiLog.ScanReturnEntry();
+                mWifiLogProto.scanReturnEntries[i].scanReturnCode = mScanReturnEntries.keyAt(i);
+                mWifiLogProto.scanReturnEntries[i].scanResultsCount = mScanReturnEntries.valueAt(i);
+            }
+
+            // Convert the SparseIntArray of systemStateEntry into WifiSystemStateEntry proto list
+            // This one is slightly more complex, as the Sparse are indexed with:
+            //     key: wifiState * 2 + isScreenOn, value: wifiStateCount
+            mWifiLogProto.wifiSystemStateEntries =
+                    new WifiMetricsProto.WifiLog
+                    .WifiSystemStateEntry[mWifiSystemStateEntries.size()];
+            for (int i = 0; i < mWifiSystemStateEntries.size(); i++) {
+                mWifiLogProto.wifiSystemStateEntries[i] =
+                        new WifiMetricsProto.WifiLog.WifiSystemStateEntry();
+                mWifiLogProto.wifiSystemStateEntries[i].wifiState =
+                        mWifiSystemStateEntries.keyAt(i) / 2;
+                mWifiLogProto.wifiSystemStateEntries[i].wifiStateCount =
+                        mWifiSystemStateEntries.valueAt(i);
+                mWifiLogProto.wifiSystemStateEntries[i].isScreenOn =
+                        (mWifiSystemStateEntries.keyAt(i) % 2) > 0;
+            }
         }
     }
 
