@@ -149,46 +149,24 @@ public class ScanDetail {
         }
     }
 
-    /**
-     * Return the scan result bject.
-     *
-     * @return ScanResult
-     */
     public ScanResult getScanResult() {
         return mScanResult;
     }
 
-    /**
-     * Return current network detail object
-     *
-     * @return NetworkDetail
-     */
     public NetworkDetail getNetworkDetail() {
         return mNetworkDetail;
     }
 
-    /**
-     * Return the associated ssid
-     *
-     * @return String
-     */
     public String getSSID() {
         return mNetworkDetail == null ? mScanResult.SSID : mNetworkDetail.getSSID();
     }
 
-    /**
-     * Return the associated bssid String
-     *
-     * @return String bssid
-     */
     public String getBSSIDString() {
         return  mNetworkDetail == null ? mScanResult.BSSID : mNetworkDetail.getBSSIDString();
     }
 
     /**
      *  Return the network detail key string.
-     *
-     *  @return String
      */
     public String toKeyString() {
         NetworkDetail networkDetail = mNetworkDetail;
@@ -203,8 +181,6 @@ public class ScanDetail {
 
     /**
      * Return the time this network was last seen.
-     *
-     * @return long
      */
     public long getSeen() {
         return mSeen;
@@ -212,8 +188,6 @@ public class ScanDetail {
 
     /**
      * Update the time this network was last seen to the current system time.
-     *
-     * @return long
      */
     public long setSeen() {
         mSeen = System.currentTimeMillis();
