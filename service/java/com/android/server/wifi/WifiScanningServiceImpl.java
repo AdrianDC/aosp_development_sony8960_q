@@ -75,6 +75,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
     private static final LocalLog mLocalLog = new LocalLog(1024);
 
+    private final WifiMetrics mWifiMetrics;
+
     private static void localLog(String message) {
         mLocalLog.log(message);
     }
@@ -243,13 +245,15 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private final AlarmManager mAlarmManager;
 
     WifiScanningServiceImpl(Context context, Looper looper,
-            WifiScannerImpl.WifiScannerImplFactory scannerImplFactory, IBatteryStats batteryStats) {
+            WifiScannerImpl.WifiScannerImplFactory scannerImplFactory, IBatteryStats batteryStats,
+            WifiInjector wifiInjector) {
         mContext = context;
         mLooper = looper;
         mScannerImplFactory = scannerImplFactory;
         mBatteryStats = batteryStats;
         mClients = new ArrayMap<>();
         mAlarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+        mWifiMetrics = wifiInjector.getWifiMetrics();
 
         mPreviousSchedule = null;
     }
@@ -443,6 +447,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         class DriverStartedState extends State {
             @Override
             public void exit() {
+                mWifiMetrics.incrementScanReturnEntry(
+                        WifiMetricsProto.WifiLog.SCAN_FAILURE_INTERRUPTED,
+                        mPendingScans.size());
                 sendOpFailedToAllAndClear(mPendingScans, WifiScanner.REASON_UNSPECIFIED,
                         "Scan was interrupted");
             }
@@ -453,6 +460,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
                 switch (msg.what) {
                     case WifiScanner.CMD_START_SINGLE_SCAN:
+                        mWifiMetrics.incrementOneshotScanCount();
+                        // <TODO> b/27793184
+                        //  Determine the system state (Wifi enabled/disabled/associated...etc) and
+                        //  screenOn/Off, use it to increment the Metrics SystemScanState count
+                        //      mWifiMetrics.incrementWifiSystemScanStateCount(???, ???);
                         if (validateAndAddToScanQueue(ci, msg.arg2, (ScanSettings) msg.obj)) {
                             replySucceeded(msg);
                             // If were not currently scanning then try to start a scan. Otherwise
@@ -463,6 +475,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                             }
                         } else {
                             replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "bad request");
+                            mWifiMetrics.incrementScanReturnEntry(
+                                    WifiMetricsProto.WifiLog.SCAN_FAILURE_INVALID_CONFIGURATION, 1);
                         }
                         return HANDLED;
                     case WifiScanner.CMD_STOP_SINGLE_SCAN:
@@ -490,6 +504,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             @Override
             public void exit() {
                 // if any scans are still active (never got results available then indicate failure)
+                mWifiMetrics.incrementScanReturnEntry(
+                                WifiMetricsProto.WifiLog.SCAN_UNKNOWN,
+                                mActiveScans.size());
                 sendOpFailedToAllAndClear(mActiveScans, WifiScanner.REASON_UNSPECIFIED,
                         "Scan was interrupted");
             }
@@ -499,6 +516,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             public boolean processMessage(Message msg) {
                 switch (msg.what) {
                     case CMD_SCAN_RESULTS_AVAILABLE:
+                        mWifiMetrics.incrementScanReturnEntry(
+                                WifiMetricsProto.WifiLog.SCAN_SUCCESS,
+                                mActiveScans.size());
                         reportScanResults(mScannerImpl.getLatestSingleScanResults());
                         mActiveScans.clear();
                         transitionTo(mIdleState);
@@ -507,6 +527,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         reportFullScanResult((ScanResult) msg.obj);
                         return HANDLED;
                     case CMD_SCAN_FAILED:
+                        mWifiMetrics.incrementScanReturnEntry(
+                                WifiMetricsProto.WifiLog.SCAN_UNKNOWN, mActiveScans.size());
                         sendOpFailedToAllAndClear(mActiveScans, WifiScanner.REASON_UNSPECIFIED,
                                 "Scan failed");
                         transitionTo(mIdleState);
@@ -590,6 +612,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 mPendingScans.clear();
                 transitionTo(mScanningState);
             } else {
+                mWifiMetrics.incrementScanReturnEntry(
+                        WifiMetricsProto.WifiLog.SCAN_UNKNOWN, mPendingScans.size());
                 // notify and cancel failed scans
                 sendOpFailedToAllAndClear(mPendingScans, WifiScanner.REASON_UNSPECIFIED,
                         "Failed to start single scan");
@@ -621,6 +645,13 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
 
         void reportScanResults(ScanData results) {
+            if (results != null && results.getResults() != null) {
+                if (results.getResults().length > 0) {
+                    mWifiMetrics.incrementNonEmptyScanResultCount();
+                } else {
+                    mWifiMetrics.incrementEmptyScanResultCount();
+                }
+            }
             for (Map.Entry<Pair<ClientInfo, Integer>, ScanSettings> entry
                          : mActiveScans.entrySet()) {
                 ClientInfo ci = entry.getKey().first;
@@ -779,7 +810,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 switch (msg.what) {
                     case CMD_DRIVER_LOADED:
                         // TODO this should be moved to a common location since it is used outside
-                        // of this state machine. It is ok right now becuase the driver loaded event
+                        // of this state machine. It is ok right now because the driver loaded event
                         // is sent to this state machine first.
                         if (mScannerImpl == null) {
                             mScannerImpl = mScannerImplFactory.create(mContext, mLooper);
@@ -863,6 +894,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     case CMD_DRIVER_UNLOADED:
                         return NOT_HANDLED;
                     case WifiScanner.CMD_START_BACKGROUND_SCAN:
+                        mWifiMetrics.incrementBackgroundScanCount();
                         if (addBackgroundScanRequest(ci, msg.arg2, (ScanSettings) msg.obj)) {
                             replySucceeded(msg);
                         } else {
@@ -873,6 +905,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         removeBackgroundScanRequest(ci, msg.arg2);
                         break;
                     case WifiScanner.CMD_START_PNO_SCAN:
+                        mWifiMetrics.incrementBackgroundScanCount();
                         Bundle pnoParams = (Bundle) msg.obj;
                         PnoSettings pnoSettings =
                                 pnoParams.getParcelable(WifiScanner.PNO_PARAMS_PNO_SETTINGS_KEY);
@@ -986,7 +1019,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 }
                 return HANDLED;
             }
-
         }
 
         private boolean addBackgroundScanRequest(ClientInfo ci, int handler,
@@ -1080,6 +1112,15 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
 
         private void reportScanResults(ScanData[] results) {
+            for (ScanData result : results) {
+                if (result != null && result.getResults() != null) {
+                    if (result.getResults().length > 0) {
+                        mWifiMetrics.incrementNonEmptyScanResultCount();
+                    } else {
+                        mWifiMetrics.incrementEmptyScanResultCount();
+                    }
+                }
+            }
             for (Map.Entry<Pair<ClientInfo, Integer>, ScanSettings> entry
                     : mActiveBackgroundScans.entrySet()) {
                 ClientInfo ci = entry.getKey().first;
@@ -1219,7 +1260,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         private final AsyncChannel mChannel;
         /**
          * Indicates if the client is still connected
-         * If the client is no longer connected then messages to it will be signlently dropped
+         * If the client is no longer connected then messages to it will be silently dropped
          */
         private boolean mDisconnected = false;
         private final int mUid;

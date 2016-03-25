@@ -3854,11 +3854,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             }
             mActiveScanDetail = activeScanDetail;
         }
-        if (mNumScanResultsReturned > 0) {
-            mWifiMetrics.incrementNonEmptyScanResultCount();
-        } else {
-            mWifiMetrics.incrementEmptyScanResultCount();
-        }
 
         if (linkDebouncing) {
             // If debouncing, we dont re-select a SSID or BSSID hence

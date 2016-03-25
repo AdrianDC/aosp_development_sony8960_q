@@ -133,7 +133,15 @@ public class WifiMetricsTest {
     private static final int NUM_NEWTORKS_ADDED_BY_APPS = 17;
     private static final int NUM_EMPTY_SCAN_RESULTS = 19;
     private static final int NUM_NON_EMPTY_SCAN_RESULTS = 23;
-    private static final int NUM_INCREMENTS = 10;
+    private static final int NUM_SCAN_UNKNOWN = 1;
+    private static final int NUM_SCAN_SUCCESS = 2;
+    private static final int NUM_SCAN_FAILURE_INTERRUPTED = 3;
+    private static final int NUM_SCAN_FAILURE_INVALID_CONFIGURATION = 5;
+    private static final int NUM_WIFI_UNKNOWN_SCREEN_OFF = 3;
+    private static final int NUM_WIFI_UNKNOWN_SCREEN_ON = 5;
+    private static final int NUM_WIFI_ASSOCIATED_SCREEN_OFF = 7;
+    private static final int NUM_WIFI_ASSOCIATED_SCREEN_ON = 11;
+
 
     /**
      * Set simple metrics, increment others
@@ -154,22 +162,29 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_NON_EMPTY_SCAN_RESULTS; i++) {
             mWifiMetrics.incrementNonEmptyScanResultCount();
         }
-
-        //Test incrementing counts
-        for (int i = 0; i < NUM_INCREMENTS; i++) {
-
-            mWifiMetrics.incrementScanReturnEntry(WifiMetricsProto.WifiLog.SCAN_UNKNOWN);
-            mWifiMetrics.incrementScanReturnEntry(WifiMetricsProto.WifiLog.SCAN_SUCCESS);
-            mWifiMetrics.incrementScanReturnEntry(
-                    WifiMetricsProto.WifiLog.SCAN_FAILURE_INTERRUPTED);
-            mWifiMetrics.incrementScanReturnEntry(
-                    WifiMetricsProto.WifiLog.SCAN_FAILURE_INVALID_CONFIGURATION);
+        mWifiMetrics.incrementScanReturnEntry(WifiMetricsProto.WifiLog.SCAN_UNKNOWN,
+                NUM_SCAN_UNKNOWN);
+        mWifiMetrics.incrementScanReturnEntry(WifiMetricsProto.WifiLog.SCAN_SUCCESS,
+                NUM_SCAN_SUCCESS);
+        mWifiMetrics.incrementScanReturnEntry(
+                WifiMetricsProto.WifiLog.SCAN_FAILURE_INTERRUPTED,
+                NUM_SCAN_FAILURE_INTERRUPTED);
+        mWifiMetrics.incrementScanReturnEntry(
+                WifiMetricsProto.WifiLog.SCAN_FAILURE_INVALID_CONFIGURATION,
+                NUM_SCAN_FAILURE_INVALID_CONFIGURATION);
+        for (int i = 0; i < NUM_WIFI_UNKNOWN_SCREEN_OFF; i++) {
             mWifiMetrics.incrementWifiSystemScanStateCount(WifiMetricsProto.WifiLog.WIFI_UNKNOWN,
                     false);
+        }
+        for (int i = 0; i < NUM_WIFI_UNKNOWN_SCREEN_ON; i++) {
             mWifiMetrics.incrementWifiSystemScanStateCount(WifiMetricsProto.WifiLog.WIFI_UNKNOWN,
                     true);
+        }
+        for (int i = 0; i < NUM_WIFI_ASSOCIATED_SCREEN_OFF; i++) {
             mWifiMetrics.incrementWifiSystemScanStateCount(WifiMetricsProto.WifiLog.WIFI_ASSOCIATED,
                     false);
+        }
+        for (int i = 0; i < NUM_WIFI_ASSOCIATED_SCREEN_ON; i++) {
             mWifiMetrics.incrementWifiSystemScanStateCount(WifiMetricsProto.WifiLog.WIFI_ASSOCIATED,
                     true);
         }
@@ -204,8 +219,51 @@ public class WifiMetricsTest {
         assertEquals("mDeserializedWifiMetrics.numNonEmptyScanResults == "
                         + "NUM_NON_EMPTY_SCAN_RESULTS",
                 mDeserializedWifiMetrics.numNonEmptyScanResults, NUM_NON_EMPTY_SCAN_RESULTS);
+        assertScanReturnEntryEquals(WifiMetricsProto.WifiLog.SCAN_UNKNOWN,
+                NUM_SCAN_UNKNOWN);
+        assertScanReturnEntryEquals(WifiMetricsProto.WifiLog.SCAN_SUCCESS,
+                NUM_SCAN_SUCCESS);
+        assertScanReturnEntryEquals(WifiMetricsProto.WifiLog.SCAN_FAILURE_INTERRUPTED,
+                NUM_SCAN_FAILURE_INTERRUPTED);
+        assertScanReturnEntryEquals(WifiMetricsProto.WifiLog.SCAN_FAILURE_INVALID_CONFIGURATION,
+                NUM_SCAN_FAILURE_INVALID_CONFIGURATION);
+        assertSystemStateEntryEquals(WifiMetricsProto.WifiLog.WIFI_UNKNOWN, false,
+                NUM_WIFI_UNKNOWN_SCREEN_OFF);
+        assertSystemStateEntryEquals(WifiMetricsProto.WifiLog.WIFI_UNKNOWN, true,
+                NUM_WIFI_UNKNOWN_SCREEN_ON);
+        assertSystemStateEntryEquals(
+                WifiMetricsProto.WifiLog.WIFI_ASSOCIATED, false, NUM_WIFI_ASSOCIATED_SCREEN_OFF);
+        assertSystemStateEntryEquals(WifiMetricsProto.WifiLog.WIFI_ASSOCIATED, true,
+                NUM_WIFI_ASSOCIATED_SCREEN_ON);
     }
 
+    /**
+     *  Assert deserialized metrics Scan Return Entry equals count
+     */
+    public void assertScanReturnEntryEquals(int returnCode, int count) {
+        for (int i = 0; i < mDeserializedWifiMetrics.scanReturnEntries.length; i++) {
+            if (mDeserializedWifiMetrics.scanReturnEntries[i].scanReturnCode == returnCode) {
+                assertEquals(mDeserializedWifiMetrics.scanReturnEntries[i].scanResultsCount, count);
+                return;
+            }
+        }
+        assertEquals(null, count);
+    }
+
+    /**
+     *  Assert deserialized metrics SystemState entry equals count
+     */
+    public void assertSystemStateEntryEquals(int state, boolean screenOn, int count) {
+        for (int i = 0; i < mDeserializedWifiMetrics.wifiSystemStateEntries.length; i++) {
+            if (mDeserializedWifiMetrics.wifiSystemStateEntries[i].wifiState == state
+                    && mDeserializedWifiMetrics.wifiSystemStateEntries[i].isScreenOn == screenOn) {
+                assertEquals(mDeserializedWifiMetrics.wifiSystemStateEntries[i].wifiStateCount,
+                        count);
+                return;
+            }
+        }
+        assertEquals(null, count);
+    }
     /**
      * Combination of all other WifiMetrics unit tests, an internal-integration test, or functional
      * test
