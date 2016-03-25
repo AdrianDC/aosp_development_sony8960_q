@@ -390,9 +390,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
          * Called for each full scan result if requested
          */
         @Override
-        public void onFullScanResult(ScanResult fullScanResult) {
+        public void onFullScanResult(ScanResult fullScanResult, int bucketsScanned) {
             if (DBG) localLog("onFullScanResult received");
-            sendMessage(CMD_FULL_SCAN_RESULTS, 0, 0, fullScanResult);
+            sendMessage(CMD_FULL_SCAN_RESULTS, 0, bucketsScanned, fullScanResult);
         }
 
         @Override
@@ -524,7 +524,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         transitionTo(mIdleState);
                         return HANDLED;
                     case CMD_FULL_SCAN_RESULTS:
-                        reportFullScanResult((ScanResult) msg.obj);
+                        reportFullScanResult((ScanResult) msg.obj, /* bucketsScanned */ msg.arg2);
                         return HANDLED;
                     case CMD_SCAN_FAILED:
                         mWifiMetrics.incrementScanReturnEntry(
@@ -631,7 +631,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             clientHandlers.clear();
         }
 
-        void reportFullScanResult(ScanResult result) {
+        void reportFullScanResult(ScanResult result, int bucketsScanned) {
             for (Map.Entry<Pair<ClientInfo, Integer>, ScanSettings> entry
                          : mActiveScans.entrySet()) {
                 ClientInfo ci = entry.getKey().first;
@@ -751,9 +751,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
 
         @Override
-        public void onFullScanResult(ScanResult fullScanResult) {
+        public void onFullScanResult(ScanResult fullScanResult, int bucketsScanned) {
             if (DBG) localLog("onFullScanResult received");
-            sendMessage(CMD_FULL_SCAN_RESULTS, 0, 0, fullScanResult);
+            sendMessage(CMD_FULL_SCAN_RESULTS, 0, bucketsScanned, fullScanResult);
         }
 
         @Override
@@ -945,7 +945,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         reportScanResults(mScannerImpl.getLatestBatchedScanResults(true));
                         break;
                     case CMD_FULL_SCAN_RESULTS:
-                        reportFullScanResult((ScanResult) msg.obj);
+                        reportFullScanResult((ScanResult) msg.obj, /* bucketsScanned */ msg.arg2);
                         break;
 
                     case CMD_HOTLIST_AP_FOUND: {
@@ -1092,13 +1092,14 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
         }
 
-        private void reportFullScanResult(ScanResult result) {
+        private void reportFullScanResult(ScanResult result, int bucketsScanned) {
             for (Map.Entry<Pair<ClientInfo, Integer>, ScanSettings> entry
                     : mActiveBackgroundScans.entrySet()) {
                 ClientInfo ci = entry.getKey().first;
                 int handler = entry.getKey().second;
                 ScanSettings settings = entry.getValue();
-                if (mScheduler.shouldReportFullScanResultForSettings(result, settings)) {
+                if (mScheduler.shouldReportFullScanResultForSettings(
+                                result, bucketsScanned, settings)) {
                     ScanResult newResult = new ScanResult(result);
                     if (result.informationElements != null) {
                         newResult.informationElements = result.informationElements.clone();

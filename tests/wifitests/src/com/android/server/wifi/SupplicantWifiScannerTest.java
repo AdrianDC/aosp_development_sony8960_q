@@ -629,7 +629,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
 
         if (fullResults != null) {
             for (ScanResult result : fullResults) {
-                order.verify(eventHandler).onFullScanResult(eq(result));
+                order.verify(eventHandler).onFullScanResult(eq(result), eq(0));
             }
         }
 
