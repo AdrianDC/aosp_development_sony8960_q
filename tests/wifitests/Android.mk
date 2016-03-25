@@ -100,18 +100,24 @@ LOCAL_JACK_FLAGS := \
 	-D jack.coverage.jacoco.include=$(jacoco_include) \
 	-D jack.coverage.jacoco.exclude=$(jacoco_exclude)
 
+# wifi-service and services must be included here so that the latest changes
+# will be used when tests. Otherwise the tests would run against the installed
+# system.
+# TODO figure out if this is the correct thing to do, this seems to not be right
+# since neither is declared a static java library.
 LOCAL_STATIC_JAVA_LIBRARIES := \
-	mockito-target \
 	android-support-test \
-	wifi-service \
-	services
-
-LOCAL_JAVA_LIBRARIES := android.test.runner \
 	mockito-target \
-	android-support-test \
+	services \
 	wifi-service \
-	services
 
+LOCAL_JAVA_LIBRARIES := \
+	android.test.runner \
+	wifi-service \
+	services \
+
+# These must be explicitly included because they are not normally accessible
+# from apps.
 LOCAL_JNI_SHARED_LIBRARIES := \
 	libwifi-service \
 	libc++ \
@@ -129,8 +135,7 @@ LOCAL_JNI_SHARED_LIBRARIES := \
 	liblzma \
 
 ifdef WPA_SUPPLICANT_VERSION
-LOCAL_JNI_SHARED_LIBRARIES := $(LOCAL_JNI_SHARED_LIBRARIES) \
-	libwpa_client
+LOCAL_JNI_SHARED_LIBRARIES += libwpa_client
 endif
 
 LOCAL_PACKAGE_NAME := FrameworksWifiTests
