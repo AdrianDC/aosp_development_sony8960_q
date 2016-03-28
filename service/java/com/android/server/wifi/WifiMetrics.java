@@ -45,6 +45,9 @@ public class WifiMetrics {
     private static final boolean DBG = false;
     private final Object mLock = new Object();
     private static final int MAX_CONNECTION_EVENTS = 256;
+
+    private boolean mScreenOn;
+    private int mWifiState;
     /**
      * Metrics are stored within an instance of the WifiLog proto during runtime,
      * The ConnectionEvent, SystemStateEntries & ScanReturnEntries metrics are stored during
@@ -165,6 +168,8 @@ public class WifiMetrics {
         private long mRealEndTime;
         private String mConfigSsid;
         private String mConfigBssid;
+        private int mWifiState;
+        private boolean mScreenOn;
 
         private ConnectionEvent() {
             mConnectionEvent = new WifiMetricsProto.ConnectionEvent();
@@ -174,6 +179,8 @@ public class WifiMetrics {
             mConnectionEvent.routerFingerprint = mRouterFingerPrint.mRouterFingerPrintProto;
             mConfigSsid = "<NULL>";
             mConfigBssid = "<NULL>";
+            mWifiState = WifiMetricsProto.WifiLog.WIFI_UNKNOWN;
+            mScreenOn = false;
         }
 
         public String toString() {
@@ -267,8 +274,24 @@ public class WifiMetrics {
                 }
                 sb.append(", signalStrength=");
                 sb.append(mConnectionEvent.signalStrength);
-                sb.append("  ");
-                sb.append("mRouterFingerprint: ");
+                sb.append(", wifiState=");
+                switch(mWifiState) {
+                    case WifiMetricsProto.WifiLog.WIFI_DISABLED:
+                        sb.append("WIFI_DISABLED");
+                        break;
+                    case WifiMetricsProto.WifiLog.WIFI_DISCONNECTED:
+                        sb.append("WIFI_DISCONNECTED");
+                        break;
+                    case WifiMetricsProto.WifiLog.WIFI_ASSOCIATED:
+                        sb.append("WIFI_ASSOCIATED");
+                        break;
+                    default:
+                        sb.append("WIFI_UNKNOWN");
+                        break;
+                }
+                sb.append(", screenOn=");
+                sb.append(mScreenOn);
+                sb.append(". mRouterFingerprint: ");
                 sb.append(mRouterFingerPrint.toString());
             }
             return sb.toString();
@@ -281,6 +304,8 @@ public class WifiMetrics {
         mScanReturnEntries = new SparseIntArray();
         mWifiSystemStateEntries = new SparseIntArray();
         mCurrentConnectionEvent = null;
+        mScreenOn = true;
+        mWifiState = WifiMetricsProto.WifiLog.WIFI_DISABLED;
     }
 
     // Values used for indexing SystemStateEntries
@@ -329,6 +354,8 @@ public class WifiMetrics {
             mCurrentConnectionEvent.mRouterFingerPrint.updateFromWifiConfiguration(config);
             mCurrentConnectionEvent.mConfigBssid = "any";
             mCurrentConnectionEvent.mRealStartTime = SystemClock.elapsedRealtime();
+            mCurrentConnectionEvent.mWifiState = mWifiState;
+            mCurrentConnectionEvent.mScreenOn = mScreenOn;
             mConnectionEventList.add(mCurrentConnectionEvent);
         }
     }
@@ -812,6 +839,24 @@ public class WifiMetrics {
             mScanReturnEntries.clear();
             mWifiSystemStateEntries.clear();
             mWifiLogProto.clear();
+        }
+    }
+
+    /**
+     *  Set screen state (On/Off)
+     */
+    public void setScreenState(boolean screenOn) {
+        synchronized (mLock) {
+            mScreenOn = screenOn;
+        }
+    }
+
+    /**
+     *  Set wifi state (WIFI_UNKNOWN, WIFI_DISABLED, WIFI_DISCONNECTED, WIFI_ASSOCIATED)
+     */
+    public void setWifiState(int wifiState) {
+        synchronized (mLock) {
+            mWifiState = wifiState;
         }
     }
 }
