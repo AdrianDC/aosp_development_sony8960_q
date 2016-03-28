@@ -3626,6 +3626,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
         cancelDelayedScan();
 
+        mWifiMetrics.setScreenState(screenOn);
+
         if (screenOn) {
             enableBackgroundScan(false);
             setScanAlarm(false);
@@ -6110,6 +6112,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     class ConnectModeState extends State {
 
         @Override
+        public void enter() {
+            // Inform metrics that Wifi is Enabled (but not yet connected)
+            mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_DISCONNECTED);
+        }
+
+        @Override
+        public void exit() {
+            // Inform metrics that Wifi is being disabled (Toggled, airplane enabled, etc)
+            mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_DISABLED);
+        }
+
+        @Override
         public boolean processMessage(Message message) {
             WifiConfiguration config;
             int netId;
@@ -7281,6 +7295,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             // cause the roam to faile and the device to disconnect
             clearCurrentConfigBSSID("L2ConnectedState");
             mCountryCode.setReadyForChange(false);
+            mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_ASSOCIATED);
         }
 
         @Override
@@ -7303,6 +7318,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 handleNetworkDisconnect();
             }
             mCountryCode.setReadyForChange(true);
+            mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_DISCONNECTED);
         }
 
         @Override
