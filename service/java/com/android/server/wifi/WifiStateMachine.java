@@ -425,7 +425,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     private DhcpResults mDhcpResults;
 
     // NOTE: Do not return to clients - use #getWiFiInfoForUid(int)
-    private WifiInfo mWifiInfo;
+    private final WifiInfo mWifiInfo;
     private NetworkInfo mNetworkInfo;
     private final NetworkCapabilities mDfltNetworkCapabilities;
     private SupplicantStateTracker mSupplicantStateTracker;
@@ -1205,6 +1205,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
         mNetworkCapabilitiesFilter.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
         mNetworkCapabilitiesFilter.addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        mNetworkCapabilitiesFilter.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
         mNetworkCapabilitiesFilter.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED);
         mNetworkCapabilitiesFilter.setLinkUpstreamBandwidthKbps(1024 * 1024);
         mNetworkCapabilitiesFilter.setLinkDownstreamBandwidthKbps(1024 * 1024);
@@ -3977,29 +3978,24 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             return false;
         }
         delta = networkDelta;
-        if (mWifiInfo != null) {
-            if (!getEnableAutoJoinWhenAssociated()
-                    && mWifiInfo.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID) {
-                // If AutoJoin while associated is not enabled,
-                // we should never switch network when already associated
-                delta = -1000;
-            } else {
-                // TODO: Look at per AC packet count, do not switch if VO/VI traffic is present
-                // TODO: at the interface. We should also discriminate between ucast and mcast,
-                // TODO: since the rxSuccessRate include all the bonjour and Ipv6
-                // TODO: broadcasts
-                if ((mWifiInfo.txSuccessRate > 20) || (mWifiInfo.rxSuccessRate > 80)) {
-                    delta -= 999;
-                } else if ((mWifiInfo.txSuccessRate > 5) || (mWifiInfo.rxSuccessRate > 30)) {
-                    delta -= 6;
-                }
-                logd("shouldSwitchNetwork "
-                        + " txSuccessRate=" + String.format("%.2f", mWifiInfo.txSuccessRate)
-                        + " rxSuccessRate=" + String.format("%.2f", mWifiInfo.rxSuccessRate)
-                        + " delta " + networkDelta + " -> " + delta);
-            }
+        if (!getEnableAutoJoinWhenAssociated()
+                && mWifiInfo.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID) {
+            // If AutoJoin while associated is not enabled,
+            // we should never switch network when already associated
+            delta = -1000;
         } else {
+            // TODO: Look at per AC packet count, do not switch if VO/VI traffic is present
+            // TODO: at the interface. We should also discriminate between ucast and mcast,
+            // TODO: since the rxSuccessRate include all the bonjour and Ipv6
+            // TODO: broadcasts
+            if ((mWifiInfo.txSuccessRate > 20) || (mWifiInfo.rxSuccessRate > 80)) {
+                delta -= 999;
+            } else if ((mWifiInfo.txSuccessRate > 5) || (mWifiInfo.rxSuccessRate > 30)) {
+                delta -= 6;
+            }
             logd("shouldSwitchNetwork "
+                    + " txSuccessRate=" + String.format("%.2f", mWifiInfo.txSuccessRate)
+                    + " rxSuccessRate=" + String.format("%.2f", mWifiInfo.rxSuccessRate)
                     + " delta " + networkDelta + " -> " + delta);
         }
         if (delta > 0) {
@@ -4021,17 +4017,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     WifiScoreReport mWifiScoreReport = null;
 
     public double getTxPacketRate() {
-        if (mWifiInfo != null) {
-            return mWifiInfo.txSuccessRate;
-        }
-        return -1;
+        return mWifiInfo.txSuccessRate;
     }
 
     public double getRxPacketRate() {
-        if (mWifiInfo != null) {
-            return mWifiInfo.rxSuccessRate;
-        }
-        return -1;
+        return mWifiInfo.rxSuccessRate;
     }
 
     /**
@@ -4483,6 +4473,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         mWifiInfo.setInetAddress(addr);
         if (!mWifiInfo.getMeteredHint()) { // don't override the value if already set.
             mWifiInfo.setMeteredHint(dhcpResults.hasMeteredHint());
+            updateCapabilities(getCurrentWifiConfiguration());
         }
     }
 
@@ -7049,9 +7040,17 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 networkCapabilities.addCapability(
                         NetworkCapabilities.NET_CAPABILITY_TRUSTED);
             }
-            networkCapabilities.setSignalStrength(mWifiInfo.getRssi() != WifiInfo.INVALID_RSSI ?
-                    mWifiInfo.getRssi() : NetworkCapabilities.SIGNAL_STRENGTH_UNSPECIFIED);
+
+            networkCapabilities.setSignalStrength(
+                    (mWifiInfo.getRssi() != WifiInfo.INVALID_RSSI)
+                    ? mWifiInfo.getRssi()
+                    : NetworkCapabilities.SIGNAL_STRENGTH_UNSPECIFIED);
         }
+
+        if (mWifiInfo.getMeteredHint()) {
+            networkCapabilities.removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
+        }
+
         mNetworkAgent.sendNetworkCapabilities(networkCapabilities);
     }
 
@@ -7076,8 +7075,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         + Integer.toString(mWifiInfo.score));
                 unwantedNetwork(NETWORK_STATUS_UNWANTED_VALIDATION_FAILED);
             } else if (status == NetworkAgent.VALID_NETWORK) {
-                if (DBG && mWifiInfo != null) log("WifiNetworkAgent -> Wifi networkStatus valid, score= "
-                        + Integer.toString(mWifiInfo.score));
+                if (DBG) {
+                    log("WifiNetworkAgent -> Wifi networkStatus valid, score= "
+                            + Integer.toString(mWifiInfo.score));
+                }
                 doNetworkStatus(status);
             }
         }
@@ -7419,48 +7420,45 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                                     + " interval=" + fullBandConnectedTimeIntervalMilli
                                     + " maxinterval=" + maxFullBandConnectedTimeIntervalMilli);
                         }
-                        if (mWifiInfo != null) {
-                            if (mWifiConfigManager.enableFullBandScanWhenAssociated.get() &&
-                                    (now_ms - lastFullBandConnectedTimeMilli)
-                                    > fullBandConnectedTimeIntervalMilli) {
-                                if (DBG) {
-                                    logd("CMD_START_SCAN try full band scan age="
+
+                        if (mWifiConfigManager.enableFullBandScanWhenAssociated.get()
+                                && (now_ms - lastFullBandConnectedTimeMilli)
+                                > fullBandConnectedTimeIntervalMilli) {
+                            if (DBG) {
+                                logd("CMD_START_SCAN try full band scan age="
                                          + Long.toString(now_ms - lastFullBandConnectedTimeMilli)
                                          + " interval=" + fullBandConnectedTimeIntervalMilli
                                          + " maxinterval=" + maxFullBandConnectedTimeIntervalMilli);
-                                }
-                                tryFullBandScan = true;
                             }
+                            tryFullBandScan = true;
+                        }
 
-                            if (mWifiInfo.txSuccessRate >
-                                    mWifiConfigManager.maxTxPacketForFullScans
-                                    || mWifiInfo.rxSuccessRate >
-                                    mWifiConfigManager.maxRxPacketForFullScans) {
-                                // Too much traffic at the interface, hence no full band scan
+                        if (mWifiInfo.txSuccessRate > mWifiConfigManager.maxTxPacketForFullScans
+                                || mWifiInfo.rxSuccessRate
+                                > mWifiConfigManager.maxRxPacketForFullScans) {
+                            // Too much traffic at the interface, hence no full band scan
+                            if (DBG) {
+                                logd("CMD_START_SCAN prevent full band scan due to pkt rate");
+                            }
+                            tryFullBandScan = false;
+                        }
+
+                        if (mWifiInfo.txSuccessRate > mWifiConfigManager.maxTxPacketForPartialScans
+                                || mWifiInfo.rxSuccessRate
+                                > mWifiConfigManager.maxRxPacketForPartialScans) {
+                            // Don't scan if lots of packets are being sent
+                            restrictChannelList = true;
+                            if (mWifiConfigManager.alwaysEnableScansWhileAssociated.get() == 0) {
                                 if (DBG) {
-                                    logd("CMD_START_SCAN " +
-                                            "prevent full band scan due to pkt rate");
+                                    logd("CMD_START_SCAN source " + message.arg1
+                                            + " ...and ignore scans"
+                                            + " tx="
+                                            + String.format("%.2f", mWifiInfo.txSuccessRate)
+                                            + " rx="
+                                            + String.format("%.2f", mWifiInfo.rxSuccessRate));
                                 }
-                                tryFullBandScan = false;
-                            }
-
-                            if (mWifiInfo.txSuccessRate >
-                                    mWifiConfigManager.maxTxPacketForPartialScans
-                                    || mWifiInfo.rxSuccessRate >
-                                    mWifiConfigManager.maxRxPacketForPartialScans) {
-                                // Don't scan if lots of packets are being sent
-                                restrictChannelList = true;
-                                if (mWifiConfigManager.alwaysEnableScansWhileAssociated.get() ==
-                                        0) {
-                                    if (DBG) {
-                                     logd("CMD_START_SCAN source " + message.arg1
-                                        + " ...and ignore scans"
-                                        + " tx=" + String.format("%.2f", mWifiInfo.txSuccessRate)
-                                        + " rx=" + String.format("%.2f", mWifiInfo.rxSuccessRate));
-                                    }
-                                    messageHandlingStatus = MESSAGE_HANDLING_STATUS_REFUSED;
-                                    return HANDLED;
-                                }
+                                messageHandlingStatus = MESSAGE_HANDLING_STATUS_REFUSED;
+                                return HANDLED;
                             }
                         }
 
