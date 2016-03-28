@@ -49,9 +49,11 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
 
         // Check if ePNO is supported by the HAL.
         int halFeatureSet = mWifiNative.getSupportedFeatureSet();
+        mHalBasedPnoSupported = false;
+        /* TODO(b/27877781): Swith ePNO on
         mHalBasedPnoSupported =
                 ((halFeatureSet & WifiManager.WIFI_FEATURE_HAL_EPNO)
-                        == WifiManager.WIFI_FEATURE_HAL_EPNO);
+                        == WifiManager.WIFI_FEATURE_HAL_EPNO); */
     }
 
     @Override
