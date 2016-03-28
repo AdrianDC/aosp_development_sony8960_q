@@ -7328,6 +7328,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     break;
                 case CMD_IPV4_PROVISIONING_SUCCESS: {
                     handleIPv4Success((DhcpResults) message.obj);
+                    sendNetworkStateChangeBroadcast(mLastBssid);
                     break;
                 }
                 case CMD_IPV4_PROVISIONING_FAILURE: {
