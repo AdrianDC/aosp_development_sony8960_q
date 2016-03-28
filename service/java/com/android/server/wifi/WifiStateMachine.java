@@ -9281,18 +9281,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             attributes.add("v6dns");
         }
 
-        // TODO: Replace with String.join(" ", attributes) once we're fully on JDK 8.
-        StringBuilder sb = new StringBuilder();
-        boolean first = true;
-        for (String attr : attributes) {
-            if (!first) {
-                sb.append(" ");
-            } else {
-                first = false;
-            }
-            sb.append(attr);
-        }
-        return sb.toString();
+        return TextUtils.join(" ", attributes);
     }
 
     /**
