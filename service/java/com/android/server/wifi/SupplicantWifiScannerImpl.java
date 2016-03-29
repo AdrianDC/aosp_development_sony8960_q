@@ -714,7 +714,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
     }
 
     @Override
-    public boolean resetHwPnoList(WifiNative.PnoSettings settings) {
+    public boolean resetHwPnoList() {
         synchronized (mSettingsLock) {
             if (mPnoSettings == null) {
                 Log.w(TAG, "No PNO scan running");

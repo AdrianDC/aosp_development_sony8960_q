@@ -129,11 +129,11 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
     }
 
     @Override
-    public boolean resetHwPnoList(WifiNative.PnoSettings settings) {
+    public boolean resetHwPnoList() {
         if (mHalBasedPnoSupported) {
             return mWifiNative.resetPnoList();
         } else {
-            return mSupplicantScannerDelegate.resetHwPnoList(settings);
+            return mSupplicantScannerDelegate.resetHwPnoList();
         }
     }
 

@@ -1221,7 +1221,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
                 boolean wasBackgroundScanScheduled;
                 if (mScannerImpl.isHwPnoSupported(pnoSettings.isConnected)) {
-                    mScannerImpl.resetHwPnoList(convertPnoSettingsToNative(pnoSettings));
+                    mScannerImpl.resetHwPnoList();
                     wasBackgroundScanScheduled =
                             mScannerImpl.shouldScheduleBackgroundScanForHwPno();
                 } else {
