@@ -946,6 +946,7 @@ static jboolean android_net_wifi_untrackSignificantWifiChange(
 
 wifi_iface_stat link_stat;
 wifi_radio_stat radio_stat; // L release has support for only one radio
+u32 *tx_time_per_level_arr = 0;
 
 void onLinkStatsResults(wifi_request_id id, wifi_iface_stat *iface_stat,
          int num_radios, wifi_radio_stat *radio_stats)
@@ -958,6 +959,17 @@ void onLinkStatsResults(wifi_request_id id, wifi_iface_stat *iface_stat,
 
     if (num_radios > 0 && radio_stats != 0) {
         memcpy(&radio_stat, radio_stats, sizeof(wifi_radio_stat));
+        if ((radio_stats->num_tx_levels > 0)
+                && (radio_stats->num_tx_levels <= RADIO_STAT_MAX_TX_LEVELS)) {
+            // This realloc should be a no-op after the first allocation because for a given
+            // device, the number of power levels should not change.
+            u32 arr_size = sizeof(u32) * radio_stats->num_tx_levels;
+            tx_time_per_level_arr = (u32 *)realloc(tx_time_per_level_arr, arr_size);
+            memcpy(tx_time_per_level_arr, radio_stats->tx_time_per_levels, arr_size);
+            radio_stat.tx_time_per_levels = tx_time_per_level_arr;
+        } else {
+            radio_stat.tx_time_per_levels = 0;
+        }
     } else {
         memset(&radio_stat, 0, sizeof(wifi_radio_stat));
     }
@@ -996,6 +1008,12 @@ static jobject android_net_wifi_getLinkLayerStats (JNIEnv *env, jclass cls, jint
        return NULL;
     }
 
+    JNIObject<jintArray> tx_time_per_level = helper.newIntArray(radio_stat.num_tx_levels);
+    if (tx_time_per_level == NULL) {
+        ALOGE("Error in allocating wifiLinkLayerStats");
+        return NULL;
+    }
+
     helper.setIntField(wifiLinkLayerStats, "beacon_rx", link_stat.beacon_rx);
     helper.setIntField(wifiLinkLayerStats, "rssi_mgmt", link_stat.rssi_mgmt);
     helper.setLongField(wifiLinkLayerStats, "rxmpdu_be", link_stat.ac[WIFI_AC_BE].rx_mpdu);
@@ -1019,6 +1037,12 @@ static jobject android_net_wifi_getLinkLayerStats (JNIEnv *env, jclass cls, jint
     helper.setIntField(wifiLinkLayerStats, "tx_time", radio_stat.tx_time);
     helper.setIntField(wifiLinkLayerStats, "rx_time", radio_stat.rx_time);
     helper.setIntField(wifiLinkLayerStats, "on_time_scan", radio_stat.on_time_scan);
+    if (radio_stat.tx_time_per_levels != 0) {
+        helper.setIntArrayRegion(tx_time_per_level, 0, radio_stat.num_tx_levels,
+                (jint *)radio_stat.tx_time_per_levels);
+    }
+    helper.setObjectField(wifiLinkLayerStats, "tx_time_per_level", "[I", tx_time_per_level);
+
 
     return wifiLinkLayerStats.detach();
 }
