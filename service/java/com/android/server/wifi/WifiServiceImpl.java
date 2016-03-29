@@ -724,6 +724,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                         / 1000.0;
 
                 final long rxIdleTime = stats.on_time - stats.tx_time - stats.rx_time;
+                final long[] txTimePerLevel = new long[stats.tx_time_per_level.length];
+                for (int i = 0; i < txTimePerLevel.length; i++) {
+                    txTimePerLevel[i] = stats.tx_time_per_level[i];
+                    // TODO(b/27227497): Need to read the power consumed per level from config
+                }
                 final long energyUsed = (long)((stats.tx_time * txCurrent +
                         stats.rx_time * rxCurrent +
                         rxIdleTime * rxIdleCurrent) * voltage);
@@ -736,6 +741,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                     sb.append(" voltage=" + voltage);
                     sb.append(" on_time=" + stats.on_time);
                     sb.append(" tx_time=" + stats.tx_time);
+                    sb.append(" tx_time_per_level=" + Arrays.toString(stats.tx_time_per_level));
                     sb.append(" rx_time=" + stats.rx_time);
                     sb.append(" rxIdleTime=" + rxIdleTime);
                     sb.append(" energy=" + energyUsed);
@@ -745,7 +751,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 // Convert the LinkLayerStats into EnergyActivity
                 energyInfo = new WifiActivityEnergyInfo(SystemClock.elapsedRealtime(),
                         WifiActivityEnergyInfo.STACK_STATE_STATE_IDLE, stats.tx_time,
-                        stats.rx_time, rxIdleTime, energyUsed);
+                        txTimePerLevel, stats.rx_time, rxIdleTime, energyUsed);
             }
             if (energyInfo != null && energyInfo.isValid()) {
                 return energyInfo;
