@@ -101,6 +101,7 @@ public class WifiNetworkHistory {
     private static final String NETWORK_SELECTION_STATUS_KEY = "NETWORK_SELECTION_STATUS";
     private static final String NETWORK_SELECTION_DISABLE_REASON_KEY =
             "NETWORK_SELECTION_DISABLE_REASON";
+    private static final String HAS_EVER_CONNECTED_KEY = "HAS_EVER_CONNECTED";
 
     private static final String SEPARATOR = ":  ";
     private static final String NL = "\n";
@@ -167,7 +168,8 @@ public class WifiNetworkHistory {
                                 + " choice:" + status.getConnectChoice()
                                 + " link:" + numlink
                                 + " status:" + config.status
-                                + " nid:" + config.networkId);
+                                + " nid:" + config.networkId
+                                + " hasEverConnected: " + status.getHasEverConnected());
                     }
 
                     if (!isValid(config)) {
@@ -289,6 +291,8 @@ public class WifiNetworkHistory {
                     if (config.lastFailure != null) {
                         out.writeUTF(FAILURE_KEY + SEPARATOR + config.lastFailure + NL);
                     }
+                    out.writeUTF(HAS_EVER_CONNECTED_KEY + SEPARATOR
+                            + Boolean.toString(status.getHasEverConnected()) + NL);
                     out.writeUTF(NL);
                     // Add extra blank lines for clarity
                     out.writeUTF(NL);
@@ -531,6 +535,9 @@ public class WifiNetworkHistory {
                             break;
                         case SHARED_KEY:
                             config.shared = Boolean.parseBoolean(value);
+                            break;
+                        case HAS_EVER_CONNECTED_KEY:
+                            networkStatus.setHasEverConnected(Boolean.parseBoolean(value));
                             break;
                     }
                 }
