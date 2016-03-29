@@ -40,6 +40,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.database.ContentObserver;
 import android.net.ConnectivityManager;
+import android.net.ip.IpManager;
 import android.net.DhcpInfo;
 import android.net.DhcpResults;
 import android.net.Network;
@@ -1431,6 +1432,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             // WifiMetrics proto bytes were requested. Dump only these.
             mWifiStateMachine.updateWifiMetrics();
             mWifiMetrics.dump(fd, pw, args);
+        } else if (args.length > 0 && IpManager.DUMP_ARG.equals(args[0])) {
+            // IpManager dump was requested. Pass it along and take no further action.
+            String[] ipManagerArgs = new String[args.length - 1];
+            System.arraycopy(args, 1, ipManagerArgs, 0, ipManagerArgs.length);
+            mWifiStateMachine.dumpIpManager(fd, pw, ipManagerArgs);
         } else {
             pw.println("Wi-Fi is " + mWifiStateMachine.syncGetWifiStateByName());
             pw.println("Stay-awake conditions: " +

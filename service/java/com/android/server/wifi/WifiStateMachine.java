@@ -2716,13 +2716,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         }
     }
 
+    public void dumpIpManager(FileDescriptor fd, PrintWriter pw, String[] args) {
+        mIpManager.dump(fd, pw, args);
+    }
+
     @Override
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         super.dump(fd, pw, args);
-        if (args.length == 1 && "apf".equals(args[0])) {
-            mIpManager.dumpApf(pw);
-            return;
-        }
         mSupplicantStateTracker.dump(fd, pw, args);
         pw.println("mLinkProperties " + mLinkProperties);
         pw.println("mWifiInfo " + mWifiInfo);
@@ -2774,7 +2774,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_USER_ACTION);
         mWifiLogger.dump(fd, pw, args);
         mWifiQualifiedNetworkSelector.dump(fd, pw, args);
-        mIpManager.dumpApf(pw);
+        dumpIpManager(fd, pw, args);
     }
 
     public void handleUserSwitch(int userId) {
