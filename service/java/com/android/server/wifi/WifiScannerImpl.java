@@ -137,10 +137,9 @@ public abstract class WifiScannerImpl {
 
     /**
      * Reset PNO list to terminate PNO background scan.
-     * @param settings PNO settings for this scan.
      * @return true if success, false otherwise
      */
-    public abstract boolean resetHwPnoList(WifiNative.PnoSettings settings);
+    public abstract boolean resetHwPnoList();
 
     /**
      * This returns whether HW PNO is supported or not.
