@@ -94,8 +94,14 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
     // Pno related info.
     private WifiNative.PnoSettings mPnoSettings = null;
     private WifiNative.PnoEventHandler mPnoEventHandler;
-    private boolean mHwPnoRunning = false;
     private final boolean mHwPnoScanSupported;
+    private final HwPnoDebouncer mHwPnoDebouncer;
+    private final HwPnoDebouncer.Listener mHwPnoDebouncerListener = new HwPnoDebouncer.Listener() {
+        public void onPnoScanFailed() {
+            Log.e(TAG, "Pno scan failure received");
+            reportPnoScanFailure();
+        }
+    };
 
     /**
      * Duration to wait before timing out a scan.
@@ -128,6 +134,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
         mChannelHelper = channelHelper;
         mAlarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
         mEventHandler = new Handler(looper, this);
+        mHwPnoDebouncer = new HwPnoDebouncer(mWifiNative, mAlarmManager, mEventHandler);
 
         // Check if the device supports HW PNO scans.
         mHwPnoScanSupported = mContext.getResources().getBoolean(
@@ -435,7 +442,6 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                     // indicate scan failure async
                     mEventHandler.post(new Runnable() {
                             public void run() {
-                                newScanSettings.singleScanActive = false;
                                 if (newScanSettings.singleScanEventHandler != null) {
                                     newScanSettings.singleScanEventHandler
                                             .onScanStatus(WifiNative.WIFI_SCAN_FAILED);
@@ -446,8 +452,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                 }
             } else if (isHwPnoScanRequired()) {
                 newScanSettings.setHwPnoScan(mPnoEventHandler);
-                boolean success = resumeHwPnoScan();
-                if (success) {
+                if (startHwPnoScan()) {
                     Log.d(TAG, "Starting wifi PNO scan");
                     mLastScanSettings = newScanSettings;
                 } else {
@@ -499,6 +504,20 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                             .onScanStatus(WifiNative.WIFI_SCAN_FAILED);
                 }
                 // TODO(b/27769665) background scans should be failed too if scans fail enough
+                mLastScanSettings = null;
+            }
+        }
+    }
+
+    private void reportPnoScanFailure() {
+        synchronized (mSettingsLock) {
+            if (mLastScanSettings != null && mLastScanSettings.hwPnoScanActive) {
+                if (mLastScanSettings.pnoScanEventHandler != null) {
+                    mLastScanSettings.pnoScanEventHandler.onPnoScanFailed();
+                }
+                // Clean up PNO state, we don't want to continue PNO scanning.
+                mPnoSettings = null;
+                mPnoEventHandler = null;
                 mLastScanSettings = null;
             }
         }
@@ -652,33 +671,15 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
     }
 
     private boolean startHwPnoScan() {
-        if (!mWifiNative.enableBackgroundScan(true, null)) {
-            return false;
-        }
-        mHwPnoRunning = true;
-        return true;
+        return mHwPnoDebouncer.startPnoScan(mHwPnoDebouncerListener);
     }
 
-    private boolean stopHwPnoScan() {
-        if (!mWifiNative.enableBackgroundScan(false, null)) {
-            return false;
-        }
-        mHwPnoRunning = false;
-        return true;
+    private void stopHwPnoScan() {
+        mHwPnoDebouncer.stopPnoScan();
     }
 
-    private boolean resumeHwPnoScan() {
-        if (!mHwPnoRunning) {
-            return startHwPnoScan();
-        }
-        return true;
-    }
-
-    private boolean pauseHwPnoScan() {
-        if (mHwPnoRunning) {
-            return stopHwPnoScan();
-        }
-        return true;
+    private void pauseHwPnoScan() {
+        mHwPnoDebouncer.forceStopPnoScan();
     }
 
     /**
@@ -722,7 +723,8 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
             mPnoEventHandler = null;
             mPnoSettings = null;
             // For supplicant based PNO, we stop the scan immediately when we reset pno list.
-            return stopHwPnoScan();
+            stopHwPnoScan();
+            return true;
         }
     }
 
@@ -986,6 +988,137 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                 return eventType;
             }
             return EVENT_NONE;
+        }
+    }
+
+    /**
+     * HW PNO Debouncer is used to debounce PNO requests. This guards against toggling the PNO
+     * state too often which is not handled very well by some drivers.
+     * Note: This is not thread safe!
+     */
+    public static class HwPnoDebouncer {
+        public static final String PNO_DEBOUNCER_ALARM_TAG = TAG + "Pno Monitor";
+        private static final int MINIMUM_PNO_GAP_MS = 5 * 1000;
+
+        private final WifiNative mWifiNative;
+        private final AlarmManager mAlarmManager;
+        private final Handler mEventHandler;
+        private long mLastPnoChangeTimeStamp = -1L;
+        private boolean mExpectedPnoState = false;
+        private boolean mCurrentPnoState = false;;
+        private boolean mWaitForTimer = false;
+        private Listener mListener;
+
+        /**
+         * Interface used to indicate PNO scan notifications.
+         */
+        public interface Listener {
+            /**
+             * Used to indicate a delayed PNO scan request failure.
+             */
+            void onPnoScanFailed();
+        }
+
+        public HwPnoDebouncer(WifiNative wifiNative, AlarmManager alarmManager,
+                Handler eventHandler) {
+            mWifiNative = wifiNative;
+            mAlarmManager = alarmManager;
+            mEventHandler = eventHandler;
+        }
+
+        /**
+         * Enable/Disable PNO state in wpa_supplicant
+         * @param enable boolean indicating whether PNO is being enabled or disabled.
+         */
+        private boolean updatePnoState(boolean enable) {
+            if (mCurrentPnoState == enable) {
+                if (DBG) Log.d(TAG, "PNO state is already " + enable);
+                return true;
+            }
+            Log.d(TAG, "Change PNO state from " + mCurrentPnoState + " to " + enable);
+
+            mLastPnoChangeTimeStamp = System.currentTimeMillis();
+            if (mWifiNative.setPnoScan(enable)) {
+                mCurrentPnoState = enable;
+                return true;
+            } else {
+                Log.e(TAG, "PNO state change to " + enable + " failed");
+                return false;
+            }
+        }
+
+        private final AlarmManager.OnAlarmListener mAlarmListener =
+                new AlarmManager.OnAlarmListener() {
+            public void onAlarm() {
+                if (DBG) Log.d(TAG, "PNO timer expired, expected state " + mExpectedPnoState);
+                if (!updatePnoState(mExpectedPnoState)) {
+                    if (mListener != null) {
+                        mListener.onPnoScanFailed();
+                    }
+                }
+                mWaitForTimer = false;
+            }
+        };
+
+        /**
+         * Enable/Disable PNO state. This method will debounce PNO scan requests.
+         * @param enable boolean indicating whether PNO is being enabled or disabled.
+         */
+        private boolean setPnoState(boolean enable) {
+            boolean isSuccess = true;
+            mExpectedPnoState = enable;
+            if (!mWaitForTimer) {
+                long timeDifference = System.currentTimeMillis() - mLastPnoChangeTimeStamp;
+                if (timeDifference >= MINIMUM_PNO_GAP_MS) {
+                    isSuccess = updatePnoState(enable);
+                } else {
+                    long alarmTimeout = MINIMUM_PNO_GAP_MS - timeDifference;
+                    Log.d(TAG, "Start PNO timer with delay " + alarmTimeout);
+                    mAlarmManager.set(AlarmManager.RTC_WAKEUP,
+                            System.currentTimeMillis() + alarmTimeout, PNO_DEBOUNCER_ALARM_TAG,
+                            mAlarmListener, mEventHandler);
+                    mWaitForTimer = true;
+                }
+            }
+            return isSuccess;
+        }
+
+        /**
+         * Start PNO scan
+         */
+        public boolean startPnoScan(Listener listener) {
+            if (DBG) Log.d(TAG, "Starting PNO scan");
+            mListener = listener;
+            if (!setPnoState(true)) {
+                mListener = null;
+                return false;
+            }
+            return true;
+        }
+
+        /**
+         * Stop PNO scan
+         */
+        public void stopPnoScan() {
+            if (DBG) Log.d(TAG, "Stopping PNO scan");
+            setPnoState(false);
+            mListener = null;
+        }
+
+        /**
+         * Force stop PNO scanning. This method will bypass the debounce logic and stop PNO
+         * scan immediately.
+         */
+        public void forceStopPnoScan() {
+            if (mCurrentPnoState) {
+                if (DBG) Log.d(TAG, "Force stopping Pno scan");
+                // Cancel the debounce timer and stop PNO scan.
+                if (mWaitForTimer) {
+                    mAlarmManager.cancel(mAlarmListener);
+                    mWaitForTimer = false;
+                }
+                updatePnoState(false);
+            }
         }
     }
 }
