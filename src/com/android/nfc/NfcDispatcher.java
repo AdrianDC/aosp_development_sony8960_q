@@ -259,6 +259,20 @@ class NfcDispatcher {
             }
         }
 
+        if (provisioningOnly) {
+            if (message == null) {
+                // We only allow NDEF-message dispatch in provisioning mode
+                return DISPATCH_FAIL;
+            }
+            // Restrict to mime-types in whitelist.
+            String ndefMimeType = message.getRecords()[0].toMimeType();
+            if (provisioningMimes == null ||
+                    !(Arrays.asList(provisioningMimes).contains(ndefMimeType))) {
+                Log.e(TAG, "Dropping NFC intent in provisioning mode.");
+                return DISPATCH_FAIL;
+            }
+        }
+
         if (DBG) Log.d(TAG, "dispatch tag: " + tag.toString() + " message: " + message);
 
         DispatchInfo dispatch = new DispatchInfo(mContext, tag, message);
