@@ -169,7 +169,7 @@ public class ConfigBuilder {
         return buildConfig(homeSP, caCert, clientChain, clientKey);
     }
 
-    public static WifiConfiguration buildConfig(HomeSP homeSP, X509Certificate caCert,
+    private static WifiConfiguration buildConfig(HomeSP homeSP, X509Certificate caCert,
                                                  List<X509Certificate> clientChain, PrivateKey key)
             throws IOException, GeneralSecurityException {
 
@@ -353,9 +353,8 @@ public class ConfigBuilder {
         enterpriseConfig.setEapMethod(remapEAPMethod(eapMethodID));
         enterpriseConfig.setRealm(homeSP.getCredential().getRealm());
         config.enterpriseConfig = enterpriseConfig;
-        if (homeSP.getUpdateIdentifier() >= 0) {
-            config.updateIdentifier = Integer.toString(homeSP.getUpdateIdentifier());
-        }
+        // The framework based config builder only ever builds r1 configs:
+        config.updateIdentifier = null;
 
         return config;
     }
