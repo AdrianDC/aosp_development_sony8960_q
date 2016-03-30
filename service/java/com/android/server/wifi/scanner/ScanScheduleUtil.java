@@ -91,40 +91,89 @@ public class ScanScheduleUtil {
     }
 
     /**
+     * Check if the specified bucket was scanned. If not all information is available then this
+     * method will return true.
+     *
+     * @param scheduledBucket Index of the bucket to check for, zero indexed, or -1 if unavailable
+     * @param bucketsScannedBitSet The bitset of all buckets scanned, 0 if unavailable
+     */
+    private static boolean isBucketMaybeScanned(int scheduledBucket, int bucketsScannedBitSet) {
+        if (bucketsScannedBitSet == 0 || scheduledBucket < 0) {
+            return true;
+        } else {
+            return (bucketsScannedBitSet & (1 << scheduledBucket)) != 0;
+        }
+    }
+
+    /**
+     * Check if the specified bucket was scanned. If not all information is available then this
+     * method will return false.
+     *
+     * @param scheduledBucket Index of the bucket to check for, zero indexed, or -1 if unavailable
+     * @param bucketsScannedBitSet The bitset of all buckets scanned, 0 if unavailable
+     */
+    private static boolean isBucketDefinitlyScanned(int scheduledBucket, int bucketsScannedBitSet) {
+        if (bucketsScannedBitSet == 0 || scheduledBucket < 0) {
+            return false;
+        } else {
+            return (bucketsScannedBitSet & (1 << scheduledBucket)) != 0;
+        }
+    }
+
+    /**
      * Returns true if the given scan result should be reported to a listener with the given
      * settings.
      */
     public static boolean shouldReportFullScanResultForSettings(ChannelHelper channelHelper,
-            ScanResult result, ScanSettings settings) {
-        return channelHelper.settingsContainChannel(settings, result.frequency);
+            ScanResult result, int bucketsScanned, ScanSettings settings, int scheduledBucket) {
+        if (isBucketMaybeScanned(scheduledBucket, bucketsScanned)) {
+            return channelHelper.settingsContainChannel(settings, result.frequency);
+        } else {
+            return false;
+        }
     }
 
     /**
      * Returns a filtered version of the scan results from the chip that represents only the data
      * requested in the settings. Will return null if the result should not be reported.
+     *
+     * If a ScanData indicates that the bucket the settings were placed in was scanned then it
+     * will always be included (filtered to only include requested channels). If it indicates that
+     * the bucket was definitely not scanned then the scan data will not be reported.
+     * If it is not possible to determine if the settings bucket was scanned or not then a
+     * ScanData will be included if the scan was empty or there was at least one scan result that
+     * matches a requested channel (again the results will be filtered to only include requested
+     * channels.
      */
     public static ScanData[] filterResultsForSettings(ChannelHelper channelHelper,
-            ScanData[] scanDatas, ScanSettings settings) {
+            ScanData[] scanDatas, ScanSettings settings, int scheduledBucket) {
         List<ScanData> filteredScanDatas = new ArrayList<>(scanDatas.length);
         List<ScanResult> filteredResults = new ArrayList<>();
         for (ScanData scanData : scanDatas) {
-            filteredResults.clear();
-            for (ScanResult scanResult : scanData.getResults()) {
-                if (channelHelper.settingsContainChannel(settings, scanResult.frequency)) {
-                    filteredResults.add(scanResult);
+            // only report ScanData if the settings bucket could have been scanned
+            if (isBucketMaybeScanned(scheduledBucket, scanData.getBucketsScanned())) {
+                filteredResults.clear();
+                for (ScanResult scanResult : scanData.getResults()) {
+                    if (channelHelper.settingsContainChannel(settings, scanResult.frequency)) {
+                        filteredResults.add(scanResult);
+                    }
+                    if (settings.numBssidsPerScan > 0
+                            && filteredResults.size() >= settings.numBssidsPerScan) {
+                        break;
+                    }
                 }
-                if (settings.numBssidsPerScan > 0
-                        && filteredResults.size() >= settings.numBssidsPerScan) {
-                    break;
+                // will include scan results if the scan was empty, there was at least one
+                // one result that matched the scan request or we are sure that all the requested
+                // channels were scanned.
+                if (filteredResults.size() == scanData.getResults().length) {
+                    filteredScanDatas.add(scanData);
+                } else if (filteredResults.size() > 0 || isBucketDefinitlyScanned(scheduledBucket,
+                                scanData.getBucketsScanned())) {
+                    filteredScanDatas.add(new ScanData(scanData.getId(),
+                                    scanData.getFlags(),
+                                    filteredResults.toArray(
+                                            new ScanResult[filteredResults.size()])));
                 }
-            }
-            if (filteredResults.size() == scanData.getResults().length) {
-                filteredScanDatas.add(scanData);
-            } else if (filteredResults.size() > 0) {
-                filteredScanDatas.add(new ScanData(scanData.getId(),
-                                scanData.getFlags(),
-                                filteredResults.toArray(
-                                        new ScanResult[filteredResults.size()])));
             }
         }
         if (filteredScanDatas.size() == 0) {
