@@ -84,7 +84,11 @@ public final class RttService extends SystemService {
                     replyFailed(msg, RttManager.REASON_INVALID_LISTENER, "Could not find listener");
                     return;
                 }
-
+                if (!enforcePermissionCheck(msg)) {
+                    replyFailed(msg, RttManager.REASON_PERMISSION_DENIED,
+                            "Client doesn't have LOCATION_HARDWARE permission");
+                    return;
+                }
                 final int validCommands[] = {
                         RttManager.CMD_OP_START_RANGING,
                         RttManager.CMD_OP_STOP_RANGING,
@@ -243,6 +247,10 @@ public final class RttService extends SystemService {
             void cleanup() {
                 mRequests.clear();
                 mRequestQueue.clear();
+                // When client is lost, clean up responder requests and send disable responder
+                // message to RttStateMachine.
+                mResponderRequests.clear();
+                mStateMachine.sendMessage(RttManager.CMD_OP_DISABLE_RESPONDER);
             }
         }
 
@@ -324,12 +332,6 @@ public final class RttService extends SystemService {
                             transitionTo(mInitiatorEnabledState);
                             break;
                         case RttManager.CMD_OP_START_RANGING: {
-                            //check permission
-                            if(DBG) Log.d(TAG, "UID is: " + msg.sendingUid);
-                            if (!enforcePermissionCheck(msg)) {
-                                break;
-                            }
-
                             RttManager.ParcelableRttParams params =
                                     (RttManager.ParcelableRttParams)msg.obj;
                             if (params == null || params.mParams == null
@@ -345,10 +347,6 @@ public final class RttService extends SystemService {
                         }
                             break;
                         case RttManager.CMD_OP_STOP_RANGING:
-                            if(!enforcePermissionCheck(msg)) {
-                                break;
-                            }
-
                             for (Iterator<RttRequest> it = mRequestQueue.iterator();
                                     it.hasNext(); ) {
                                 RttRequest request = it.next();
@@ -361,9 +359,6 @@ public final class RttService extends SystemService {
                             }
                             break;
                         case RttManager.CMD_OP_ENABLE_RESPONDER:
-                            if (!enforcePermissionCheck(msg)) {
-                                break;
-                            }
                             int key = msg.arg2;
                             mResponderConfig =
                                     mWifiNative.enableRttResponder(MAX_RESPONDER_DURATION_SECONDS);
@@ -381,9 +376,7 @@ public final class RttService extends SystemService {
                             }
                             break;
                         case RttManager.CMD_OP_DISABLE_RESPONDER:
-                            if (!enforcePermissionCheck(msg)) {
-                                break;
-                            }
+                            break;
                         default:
                             return NOT_HANDLED;
                     }
@@ -435,10 +428,6 @@ public final class RttService extends SystemService {
                             sendMessage(CMD_ISSUE_NEXT_REQUEST);
                             break;
                         case RttManager.CMD_OP_STOP_RANGING:
-                            if(!enforcePermissionCheck(msg)) {
-                                break;
-                            }
-
                             if (mOutstandingRequest != null
                                     && msg.arg2 == mOutstandingRequest.key) {
                                 if (DBG) Log.d(TAG, "Cancelling ongoing RTT of: " + msg.arg2);
@@ -484,7 +473,9 @@ public final class RttService extends SystemService {
                             ci.reportResponderEnableSucceed(key, mResponderConfig);
                             return HANDLED;
                         case RttManager.CMD_OP_DISABLE_RESPONDER:
-                            ci.removeResponderRequest(key);
+                            if (ci != null) {
+                                ci.removeResponderRequest(key);
+                            }
                             // Only disable responder when there are no outstanding clients.
                             if (!hasOutstandingReponderRequests()) {
                                 if (!mWifiNative.disableRttResponder()) {
@@ -535,7 +526,9 @@ public final class RttService extends SystemService {
             reply.obj = bundle;
 
             try {
-                msg.replyTo.send(reply);
+                if (msg.replyTo != null) {
+                    msg.replyTo.send(reply);
+                }
             } catch (RemoteException e) {
                 // There's not much we can do if reply can't be sent!
             }
@@ -547,7 +540,6 @@ public final class RttService extends SystemService {
                          -1, msg.sendingUid, "LocationRTT");
             } catch (SecurityException e) {
                 Log.e(TAG, "UID: " + msg.sendingUid + " has no LOCATION_HARDWARE Permission");
-                replyFailed(msg,RttManager.REASON_PERMISSION_DENIED, "No params");
                 return false;
             }
             return true;
