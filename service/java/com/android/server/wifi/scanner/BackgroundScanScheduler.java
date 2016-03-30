@@ -32,8 +32,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 /**
  * <p>This class takes a series of scan requests and formulates the best hardware level scanning
@@ -291,11 +293,12 @@ public class BackgroundScanScheduler {
     private final ChannelHelper mChannelHelper;
     private final ChannelCollection mChannelCollection;
     private WifiNative.ScanSettings mSchedule;
+    private final Map<ScanSettings, Integer> mSettingsToScheduledBucket = new HashMap<>();
 
     public BackgroundScanScheduler(ChannelHelper channelHelper) {
         mChannelHelper = channelHelper;
         mChannelCollection = mChannelHelper.createChannelCollection();
-        mSchedule = createSchedule(Collections.<ScanSettings>emptyList());
+        createSchedule();
     }
 
     /**
@@ -310,7 +313,7 @@ public class BackgroundScanScheduler {
 
         compactBuckets(getMaxBuckets());
 
-        mSchedule = createSchedule(requests);
+        createSchedule();
     }
 
     /**
@@ -327,7 +330,7 @@ public class BackgroundScanScheduler {
     public boolean shouldReportFullScanResultForSettings(@NonNull ScanResult result,
             int bucketsScanned, @NonNull ScanSettings settings) {
         return ScanScheduleUtil.shouldReportFullScanResultForSettings(mChannelHelper,
-                result, settings);
+                result, bucketsScanned, settings, getScheduledBucket(settings));
     }
 
     /**
@@ -336,48 +339,67 @@ public class BackgroundScanScheduler {
      */
     public @Nullable ScanData[] filterResultsForSettings(@NonNull ScanData[] scanDatas,
             @NonNull ScanSettings settings) {
-        return ScanScheduleUtil.filterResultsForSettings(mChannelHelper, scanDatas, settings);
+        return ScanScheduleUtil.filterResultsForSettings(mChannelHelper, scanDatas, settings,
+                getScheduledBucket(settings));
     }
 
-    // creates a schedule for the given buckets and requests
-    private WifiNative.ScanSettings createSchedule(Collection<ScanSettings> requests) {
+    private int getScheduledBucket(ScanSettings settings) {
+        Integer scheduledBucket = mSettingsToScheduledBucket.get(settings);
+        if (scheduledBucket != null) {
+            return scheduledBucket;
+        } else {
+            Slog.wtf(TAG, "No bucket found for settings");
+            return -1;
+        }
+    }
+
+    /**
+     * creates a schedule for the current buckets
+     */
+    private void createSchedule() {
+        mSettingsToScheduledBucket.clear();
         WifiNative.ScanSettings schedule = new WifiNative.ScanSettings();
         schedule.num_buckets = mBuckets.getActiveCount();
         schedule.buckets = new WifiNative.BucketSettings[mBuckets.getActiveCount()];
+
+        schedule.max_ap_per_scan = 0;
+        schedule.report_threshold_num_scans = getMaxBatch();
+        HashSet<Integer> hiddenNetworkIdSet = new HashSet<>();
 
         // set all buckets in schedule
         int bucketId = 0;
         for (int i = 0; i < mBuckets.size(); ++i) {
             if (mBuckets.isActive(i)) {
-                schedule.buckets[bucketId++] =
+                schedule.buckets[bucketId] =
                         mBuckets.get(i).createBucketSettings(bucketId, getMaxChannels());
+
+                for (ScanSettings settings : mBuckets.get(i).settings) {
+                    mSettingsToScheduledBucket.put(settings, bucketId);
+
+                    // set APs per scan
+                    if (settings.numBssidsPerScan > schedule.max_ap_per_scan) {
+                        schedule.max_ap_per_scan = settings.numBssidsPerScan;
+                    }
+
+                    // set batching
+                    if (settings.maxScansToCache != 0
+                            && settings.maxScansToCache < schedule.report_threshold_num_scans) {
+                        schedule.report_threshold_num_scans = settings.maxScansToCache;
+                    }
+
+                    // note hidden networks
+                    if (settings.hiddenNetworkIds != null) {
+                        for (int j = 0; j < settings.hiddenNetworkIds.length; j++) {
+                            hiddenNetworkIdSet.add(settings.hiddenNetworkIds[j]);
+                        }
+                    }
+                }
+                bucketId++;
             }
         }
 
         schedule.report_threshold_percent = DEFAULT_REPORT_THRESHOLD_PERCENTAGE;
 
-        // update batching settings
-        schedule.max_ap_per_scan = 0;
-        schedule.report_threshold_num_scans = getMaxBatch();
-        HashSet<Integer> hiddenNetworkIdSet = new HashSet<>();
-        for (ScanSettings settings : requests) {
-            // set APs per scan
-            if (settings.numBssidsPerScan > schedule.max_ap_per_scan) {
-                schedule.max_ap_per_scan = settings.numBssidsPerScan;
-            }
-
-            // set batching
-            if (settings.maxScansToCache != 0
-                    && settings.maxScansToCache < schedule.report_threshold_num_scans) {
-                schedule.report_threshold_num_scans = settings.maxScansToCache;
-            }
-
-            if (settings.hiddenNetworkIds != null) {
-                for (int i = 0; i < settings.hiddenNetworkIds.length; i++) {
-                    hiddenNetworkIdSet.add(settings.hiddenNetworkIds[i]);
-                }
-            }
-        }
         if (schedule.max_ap_per_scan == 0 || schedule.max_ap_per_scan > getMaxApPerScan()) {
             schedule.max_ap_per_scan = getMaxApPerScan();
         }
@@ -406,7 +428,7 @@ public class BackgroundScanScheduler {
             schedule.base_period_ms = DEFAULT_PERIOD_MS;
         }
 
-        return schedule;
+        mSchedule = schedule;
     }
 
     /**

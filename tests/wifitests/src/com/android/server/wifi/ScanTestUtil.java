@@ -16,10 +16,9 @@
 
 package com.android.server.wifi;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.when;
+import static org.junit.Assert.*;
+import static org.junit.Assume.*;
+import static org.mockito.Mockito.*;
 
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiScanner;
@@ -220,20 +219,25 @@ public class ScanTestUtil {
                 -1, null, "", 0, freq, 0);
     }
 
-    public static ScanData createScanData(int... freqs) {
+    private static ScanData createScanData(int[] freqs, int bucketsScanned) {
         ScanResult[] results = new ScanResult[freqs.length];
         for (int i = 0; i < freqs.length; ++i) {
             results[i] = createScanResult(freqs[i]);
         }
-        return new ScanData(0, 0, results);
+        return new ScanData(0, 0, bucketsScanned, results);
+    }
+
+    public static ScanData[] createScanDatas(int[][] freqs, int[] bucketsScanned) {
+        assumeTrue(freqs.length == bucketsScanned.length);
+        ScanData[] data = new ScanData[freqs.length];
+        for (int i = 0; i < freqs.length; ++i) {
+            data[i] = createScanData(freqs[i], bucketsScanned[i]);
+        }
+        return data;
     }
 
     public static ScanData[] createScanDatas(int[][] freqs) {
-        ScanData[] data = new ScanData[freqs.length];
-        for (int i = 0; i < freqs.length; ++i) {
-            data[i] = createScanData(freqs[i]);
-        }
-        return data;
+        return createScanDatas(freqs, new int[freqs.length] /* defaults all 0 */);
     }
 
     private static void assertScanDataEquals(String prefix, ScanData expected, ScanData actual) {

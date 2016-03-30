@@ -638,7 +638,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 int handler = entry.getKey().second;
                 ScanSettings settings = entry.getValue();
                 if (ScanScheduleUtil.shouldReportFullScanResultForSettings(mChannelHelper,
-                                result, settings)) {
+                                result, bucketsScanned, settings, -1)) {
                     ci.sendMessage(WifiScanner.CMD_FULL_SCAN_RESULT, 0, handler, result);
                 }
             }
@@ -659,7 +659,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 ScanSettings settings = entry.getValue();
                 ScanData[] resultsArray = new ScanData[] {results};
                 ScanData[] resultsToDeliver = ScanScheduleUtil.filterResultsForSettings(
-                        mChannelHelper, resultsArray, settings);
+                        mChannelHelper, resultsArray, settings, -1);
                 WifiScanner.ParcelableScanData parcelableScanData =
                         new WifiScanner.ParcelableScanData(resultsToDeliver);
                 logCallback("singleScanResults",  ci, handler);
