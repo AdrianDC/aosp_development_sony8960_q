@@ -444,7 +444,7 @@ public class WifiNative {
             }
             return values;
         } catch (UnsupportedEncodingException e) {
-            Log.e(TAG, "Unable to serialize networkExtra: " + e.toString());
+            Log.e(TAG, "Unable to deserialize networkExtra: " + e.toString());
             return null;
         } catch (JSONException e) {
             // This is not necessarily an error. This exception will also occur if we encounter a
