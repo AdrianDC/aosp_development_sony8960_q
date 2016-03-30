@@ -2003,7 +2003,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         Set<Integer> hiddenNetworkIds = mWifiConfigManager.getHiddenConfiguredNetworkIds();
 
         // call wifi native to start the scan
-        if (startScanNative(freqs, hiddenNetworkIds)) {
+        if (startScanNative(freqs, hiddenNetworkIds, workSource)) {
             // only count battery consumption if scan request is accepted
             noteScanStart(message.arg1, workSource);
             // a full scan covers everything, clearing scan request buffer
@@ -2059,7 +2059,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     /**
      * return true iff scan request is accepted
      */
-    private boolean startScanNative(final Set<Integer> freqs, Set<Integer> hiddenNetworkIds) {
+    private boolean startScanNative(final Set<Integer> freqs, Set<Integer> hiddenNetworkIds,
+            WorkSource workSource) {
         WifiScanner.ScanSettings settings = new WifiScanner.ScanSettings();
         if (freqs == null) {
             settings.band = WifiScanner.WIFI_BAND_BOTH_WITH_DFS;
@@ -2095,7 +2096,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 public void onPeriodChanged(int periodInMs) {
                 }
             };
-        mWifiScanner.startScan(settings, nativeScanListener);
+        mWifiScanner.startScan(settings, nativeScanListener, workSource);
         mIsScanOngoing = true;
         mIsFullScanOngoing = (freqs == null);
         lastScanFreqs = freqs;
@@ -7236,7 +7237,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 hiddenNetworkIds.add(config.networkId);
             }
             // Call wifi native to start the scan
-            if (startScanNative(freqs, hiddenNetworkIds)) {
+            if (startScanNative(freqs, hiddenNetworkIds, null)) {
                 // Only count battery consumption if scan request is accepted
                 noteScanStart(SCAN_ALARM_SOURCE, null);
                 messageHandlingStatus = MESSAGE_HANDLING_STATUS_OK;
