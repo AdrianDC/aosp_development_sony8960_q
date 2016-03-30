@@ -465,7 +465,13 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         //  Determine the system state (Wifi enabled/disabled/associated...etc) and
                         //  screenOn/Off, use it to increment the Metrics SystemScanState count
                         //      mWifiMetrics.incrementWifiSystemScanStateCount(???, ???);
-                        if (validateAndAddToScanQueue(ci, msg.arg2, (ScanSettings) msg.obj)) {
+
+                        Bundle scanParams = (Bundle) msg.obj;
+                        ScanSettings scanSettings =
+                                scanParams.getParcelable(WifiScanner.SCAN_PARAMS_SCAN_SETTINGS_KEY);
+                        WorkSource workSource =
+                                scanParams.getParcelable(WifiScanner.SCAN_PARAMS_WORK_SOURCE_KEY);
+                        if (validateAndAddToScanQueue(ci, msg.arg2, scanSettings, workSource)) {
                             replySucceeded(msg);
                             // If were not currently scanning then try to start a scan. Otherwise
                             // this scan will be scheduled when transitioning back to IdleState
@@ -539,7 +545,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
         }
 
-        boolean validateAndAddToScanQueue(ClientInfo ci, int handler, ScanSettings settings) {
+        boolean validateAndAddToScanQueue(ClientInfo ci, int handler, ScanSettings settings,
+                WorkSource workSource) {
             if (ci == null) {
                 Log.d(TAG, "Failing single scan request ClientInfo not found " + handler);
                 return false;
@@ -551,6 +558,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 }
             }
             logScanRequest("addSingleScanRequest", ci, handler, settings, null);
+            // TODO(b/27903217): Blame scan on provided work source
             mPendingScans.put(ci, handler, settings);
             return true;
         }
@@ -893,18 +901,24 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         return NOT_HANDLED;
                     case CMD_DRIVER_UNLOADED:
                         return NOT_HANDLED;
-                    case WifiScanner.CMD_START_BACKGROUND_SCAN:
+                    case WifiScanner.CMD_START_BACKGROUND_SCAN: {
                         mWifiMetrics.incrementBackgroundScanCount();
-                        if (addBackgroundScanRequest(ci, msg.arg2, (ScanSettings) msg.obj)) {
+                        Bundle scanParams = (Bundle) msg.obj;
+                        ScanSettings scanSettings =
+                                scanParams.getParcelable(WifiScanner.SCAN_PARAMS_SCAN_SETTINGS_KEY);
+                        WorkSource workSource =
+                                scanParams.getParcelable(WifiScanner.SCAN_PARAMS_WORK_SOURCE_KEY);
+                        if (addBackgroundScanRequest(ci, msg.arg2, scanSettings, workSource)) {
                             replySucceeded(msg);
                         } else {
                             replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "bad request");
                         }
                         break;
+                    }
                     case WifiScanner.CMD_STOP_BACKGROUND_SCAN:
                         removeBackgroundScanRequest(ci, msg.arg2);
                         break;
-                    case WifiScanner.CMD_START_PNO_SCAN:
+                    case WifiScanner.CMD_START_PNO_SCAN: {
                         mWifiMetrics.incrementBackgroundScanCount();
                         Bundle pnoParams = (Bundle) msg.obj;
                         PnoSettings pnoSettings =
@@ -917,6 +931,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                             replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "bad request");
                         }
                         break;
+                    }
                     case WifiScanner.CMD_STOP_PNO_SCAN:
                         removeScanRequestForPno(ci, msg.arg2);
                         break;
@@ -1022,7 +1037,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
 
         private boolean addBackgroundScanRequest(ClientInfo ci, int handler,
-                ScanSettings settings) {
+                ScanSettings settings, WorkSource workSource) {
             // sanity check the input
             if (ci == null) {
                 Log.d(TAG, "Failing scan request ClientInfo not found " + handler);
@@ -1073,6 +1088,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
 
             logScanRequest("addBackgroundScanRequest", ci, handler, settings, null);
+            // TODO(b/27903217): Blame scan on provided work source
             mActiveBackgroundScans.put(ci, handler, settings);
 
             if (updateSchedule()) {
@@ -1203,7 +1219,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             // We need to schedule a background scan either because HW PNO requires background
             // scan or if there is no HW PNO scan support.
             if (shouldScheduleBackgroundScan) {
-                if(!addBackgroundScanRequest(ci, handler, scanSettings)) {
+                if (!addBackgroundScanRequest(ci, handler, scanSettings, null)) {
                     loge("Background scan request for PNO failed.");
                     return false;
                 }
@@ -2010,7 +2026,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             Message msg = Message.obtain();
             msg.what = WifiScanner.CMD_START_BACKGROUND_SCAN;
             msg.arg2 = SCAN_COMMAND_ID;
-            msg.obj = settings;
+            msg.getData().putParcelable(WifiScanner.SCAN_PARAMS_SCAN_SETTINGS_KEY, settings);
             mClientHandler.sendMessage(msg);
         }
 
