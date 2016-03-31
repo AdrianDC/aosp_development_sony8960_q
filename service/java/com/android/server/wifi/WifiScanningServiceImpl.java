@@ -1296,7 +1296,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
         public void removePnoSettings(ClientInfo ci) {
             mActivePnoScans.removeAll(ci);
-            removeInternalClientOnEmpty();
             transitionTo(mStartedState);
         }
 
@@ -1389,6 +1388,13 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
 
             @Override
+            public void exit() {
+                // Reset PNO scan in ScannerImpl before we exit.
+                mScannerImpl.resetHwPnoList();
+                removeInternalClient();
+            }
+
+            @Override
             public boolean processMessage(Message msg) {
                 ClientInfo ci = mClients.get(msg.replyTo);
                 switch (msg.what) {
@@ -1470,6 +1476,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
 
             @Override
+            public void exit() {
+                removeInternalClient();
+            }
+
+            @Override
             public boolean processMessage(Message msg) {
                 ClientInfo ci = mClients.get(msg.replyTo);
                 switch (msg.what) {
@@ -1546,14 +1557,12 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             return mActivePnoScans.entrySet().iterator().next().getValue().second;
         }
 
-        private void removeInternalClientOnEmpty() {
-            if (mActivePnoScans.isEmpty()) {
-                if (mInternalClientInfo != null) {
-                    mInternalClientInfo.cleanup();
-                    mInternalClientInfo = null;
-                } else {
-                    loge("No Internal client for PNO");
-                }
+        private void removeInternalClient() {
+            if (mInternalClientInfo != null) {
+                mInternalClientInfo.cleanup();
+                mInternalClientInfo = null;
+            } else {
+                Log.w(TAG, "No Internal client for PNO");
             }
         }
 
@@ -1563,7 +1572,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         new InternalClientInfo(ci.getUid(), new Messenger(this.getHandler()));
                 mInternalClientInfo.register();
             } else {
-                loge("Internal client for PNO already exists");
+                Log.w(TAG, "Internal client for PNO already exists");
             }
         }
 
@@ -1575,7 +1584,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
         private Pair<PnoSettings, ScanSettings> removePnoScanRequest(ClientInfo ci, int handler) {
             Pair<PnoSettings, ScanSettings> settings = mActivePnoScans.remove(ci, handler);
-            removeInternalClientOnEmpty();
             return settings;
         }
 
@@ -1604,7 +1612,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
         private void removeHwPnoScanRequest(ClientInfo ci, int handler) {
             if (ci != null) {
-                mScannerImpl.resetHwPnoList();
                 Pair<PnoSettings, ScanSettings> settings = removePnoScanRequest(ci, handler);
                 logScanRequest(
                         "removeHwPnoScanRequest", ci, handler, settings.second, settings.first);
@@ -1660,7 +1667,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         new WifiScanner.OperationResult(reason, description));
             }
             mActivePnoScans.clear();
-            removeInternalClientOnEmpty();
         }
 
         private void addBackgroundScanRequest(ScanSettings settings) {
