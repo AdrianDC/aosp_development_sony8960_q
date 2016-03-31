@@ -38,11 +38,15 @@ import android.util.SparseArray;
 
 import com.android.server.wifi.hotspot2.Utils;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
@@ -1092,45 +1096,14 @@ public class WifiConfigStore {
      * Read network variables from wpa_supplicant.conf.
      *
      * @param key The parameter to be parsed.
-     * @return Map of corresponding ssid to the value of the param requested.
+     * @return Map of corresponding configKey to the value of the param requested.
      */
     public Map<String, String> readNetworkVariablesFromSupplicantFile(String key) {
-        // TODO(b/26733972): This method assumes that the SSID is a unique identifier for network
-        // configurations. That is wrong. There may be any number of networks with the same SSID.
-        // There may also be any number of network configurations for the same network. The correct
-        // unique identifier is the configKey. This method should be switched from SSID to configKey
-        // (which is either stored in wpa_supplicant.conf directly or can be computed from the
-        // information found in that file).
         Map<String, String> result = new HashMap<>();
         BufferedReader reader = null;
-        if (VDBG) localLog("readNetworkVariablesFromSupplicantFile key=" + key);
         try {
             reader = new BufferedReader(new FileReader(SUPPLICANT_CONFIG_FILE));
-            boolean found = false;
-            String networkSsid = null;
-            String value = null;
-            for (String line = reader.readLine(); line != null; line = reader.readLine()) {
-                if (line.matches("[ \\t]*network=\\{")) {
-                    found = true;
-                    networkSsid = null;
-                    value = null;
-                } else if (line.matches("[ \\t]*\\}")) {
-                    found = false;
-                    networkSsid = null;
-                    value = null;
-                }
-                if (found) {
-                    String trimmedLine = line.trim();
-                    if (trimmedLine.startsWith("ssid=")) {
-                        networkSsid = trimmedLine.substring(5);
-                    } else if (trimmedLine.startsWith(key + "=")) {
-                        value = trimmedLine.substring(key.length() + 1);
-                    }
-                    if (networkSsid != null && value != null) {
-                        result.put(networkSsid, value);
-                    }
-                }
-            }
+            result = readNetworkVariablesFromReader(reader, key);
         } catch (FileNotFoundException e) {
             if (VDBG) loge("Could not open " + SUPPLICANT_CONFIG_FILE + ", " + e);
         } catch (IOException e) {
@@ -1141,29 +1114,71 @@ public class WifiConfigStore {
                     reader.close();
                 }
             } catch (IOException e) {
-                // Just ignore the fact that we couldn't close
+                if (VDBG) {
+                    loge("Could not close reader for " + SUPPLICANT_CONFIG_FILE + ", " + e);
+                }
             }
         }
         return result;
     }
 
     /**
-     * Read network variable from wpa_supplicant.conf
+     * Read network variables from a given reader. This method is separate from
+     * readNetworkVariablesFromSupplicantFile() for testing.
      *
-     * @param ssid SSID of the corresponding network
-     * @param key  key of the variable to be read.
-     * @return Value corresponding to the key in conf file.
+     * @param reader The reader to read the network variables from.
+     * @param key The parameter to be parsed.
+     * @return Map of corresponding configKey to the value of the param requested.
      */
-    public String readNetworkVariableFromSupplicantFile(String ssid, String key) {
-        long start = SystemClock.elapsedRealtimeNanos();
-        Map<String, String> data = readNetworkVariablesFromSupplicantFile(key);
-        long end = SystemClock.elapsedRealtimeNanos();
-
-        if (VDBG) {
-            localLog("readNetworkVariableFromSupplicantFile ssid=[" + ssid + "] key=" + key
-                    + " duration=" + (long) (end - start));
+    public Map<String, String> readNetworkVariablesFromReader(BufferedReader reader, String key)
+            throws IOException {
+        Map<String, String> result = new HashMap<>();
+        if (VDBG) localLog("readNetworkVariablesFromReader key=" + key);
+        boolean found = false;
+        String configKey = null;
+        String value = null;
+        for (String line = reader.readLine(); line != null; line = reader.readLine()) {
+            if (line.matches("[ \\t]*network=\\{")) {
+                found = true;
+                configKey = null;
+                value = null;
+            } else if (line.matches("[ \\t]*\\}")) {
+                found = false;
+                configKey = null;
+                value = null;
+            }
+            if (found) {
+                String trimmedLine = line.trim();
+                if (trimmedLine.startsWith(ID_STRING_VAR_NAME + "=")) {
+                    try {
+                        // Trim the quotes wrapping the id_str value.
+                        final String encodedExtras = trimmedLine.substring(
+                                8, trimmedLine.length() -1);
+                        final JSONObject json =
+                                new JSONObject(URLDecoder.decode(encodedExtras, "UTF-8"));
+                        if (json.has(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY)) {
+                            final Object configKeyFromJson =
+                                    json.get(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY);
+                            if (configKeyFromJson instanceof String) {
+                                configKey = (String) configKeyFromJson;
+                            }
+                        }
+                    } catch (JSONException e) {
+                        if (VDBG) {
+                            loge("Could not get "+ WifiConfigStore.ID_STRING_KEY_CONFIG_KEY
+                                    + ", " + e);
+                        }
+                    }
+                }
+                if (trimmedLine.startsWith(key + "=")) {
+                    value = trimmedLine.substring(key.length() + 1);
+                }
+                if (configKey != null && value != null) {
+                    result.put(configKey, value);
+                }
+            }
         }
-        return data.get(ssid);
+        return result;
     }
 
     /**

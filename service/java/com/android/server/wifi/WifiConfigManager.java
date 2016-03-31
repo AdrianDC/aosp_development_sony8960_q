@@ -584,8 +584,8 @@ public class WifiConfigManager {
 
             if (pskMap != null && config.allowedKeyManagement != null
                     && config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)
-                    && pskMap.containsKey(config.SSID)) {
-                newConfig.preSharedKey = pskMap.get(config.SSID);
+                    && pskMap.containsKey(config.configKey(true))) {
+                newConfig.preSharedKey = pskMap.get(config.configKey(true));
             }
             networks.add(newConfig);
         }
@@ -618,7 +618,7 @@ public class WifiConfigManager {
      * @return List of networks
      */
     List<WifiConfiguration> getPrivilegedConfiguredNetworks() {
-        Map<String, String> pskMap = getCredentialsBySsidMap();
+        Map<String, String> pskMap = getCredentialsByConfigKeyMap();
         List<WifiConfiguration> configurations = getConfiguredNetworks(pskMap);
         for (WifiConfiguration configuration : configurations) {
             try {
@@ -660,9 +660,9 @@ public class WifiConfigManager {
 
     /**
      * Fetch the preSharedKeys for all networks.
-     * @return a map from Ssid to preSharedKey.
+     * @return a map from configKey to preSharedKey.
      */
-    private Map<String, String> getCredentialsBySsidMap() {
+    private Map<String, String> getCredentialsByConfigKeyMap() {
         return readNetworkVariablesFromSupplicantFile("psk");
     }
 
@@ -1898,8 +1898,16 @@ public class WifiConfigManager {
         return mWifiConfigStore.readNetworkVariablesFromSupplicantFile(key);
     }
 
-    private String readNetworkVariableFromSupplicantFile(String ssid, String key) {
-        return mWifiConfigStore.readNetworkVariableFromSupplicantFile(ssid, key);
+    private String readNetworkVariableFromSupplicantFile(String configKey, String key) {
+        long start = SystemClock.elapsedRealtimeNanos();
+        Map<String, String> data = mWifiConfigStore.readNetworkVariablesFromSupplicantFile(key);
+        long end = SystemClock.elapsedRealtimeNanos();
+
+        if (VDBG) {
+            localLog("readNetworkVariableFromSupplicantFile configKey=[" + configKey + "] key="
+                    + key + " duration=" + (long) (end - start));
+        }
+        return data.get(configKey);
     }
 
     boolean needsUnlockedKeyStore() {
@@ -2375,8 +2383,10 @@ public class WifiConfigManager {
             }
 
             if (doLink == true && onlyLinkSameCredentialConfigurations) {
-                String apsk = readNetworkVariableFromSupplicantFile(link.SSID, "psk");
-                String bpsk = readNetworkVariableFromSupplicantFile(config.SSID, "psk");
+                String apsk =
+                        readNetworkVariableFromSupplicantFile(link.configKey(), "psk");
+                String bpsk =
+                        readNetworkVariableFromSupplicantFile(config.configKey(), "psk");
                 if (apsk == null || bpsk == null
                         || TextUtils.isEmpty(apsk) || TextUtils.isEmpty(apsk)
                         || apsk.equals("*") || apsk.equals(DELETED_CONFIG_PSK)
@@ -2657,7 +2667,7 @@ public class WifiConfigManager {
                         associatedWifiConfigurations.add(config);
                     }
                 } else {
-		            Log.w(Utils.hs2LogTag(getClass()), "Failed to find config for '" +
+                    Log.w(Utils.hs2LogTag(getClass()), "Failed to find config for '" +
                             entry.getKey().getFQDN() + "'");
                     /* perhaps the configuration was deleted?? */
                 }
