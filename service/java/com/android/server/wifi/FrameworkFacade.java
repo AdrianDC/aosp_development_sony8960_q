@@ -35,6 +35,10 @@ public class FrameworkFacade {
         return new WifiLogger(stateMachine, wifiNative, maxRingbufferSizeBytes);
     }
 
+    public boolean setIntegerSetting(Context context, String name, int def) {
+        return Settings.Global.putInt(context.getContentResolver(), name, def);
+    }
+
     public int getIntegerSetting(Context context, String name, int def) {
         return Settings.Global.getInt(context.getContentResolver(), name, def);
     }

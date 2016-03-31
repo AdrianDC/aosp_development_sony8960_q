@@ -1352,6 +1352,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
         intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_DISABLED);
         mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
+
+        mVerboseLoggingLevel = mFacade.getIntegerSetting(
+                mContext, Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, 0);
+        updateLoggingLevel();
     }
 
     class IpManagerCallback extends IpManager.Callback {
@@ -1425,6 +1429,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
     void enableVerboseLogging(int verbose) {
         mVerboseLoggingLevel = verbose;
+        mFacade.setIntegerSetting(
+                mContext, Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, verbose);
+        updateLoggingLevel();
+    }
+
+    void updateLoggingLevel() {
         if (mVerboseLoggingLevel > 0) {
             DBG = true;
             mWifiNative.setSupplicantLogLevel("DEBUG");
@@ -1432,13 +1442,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             DBG = false;
             mWifiNative.setSupplicantLogLevel("INFO");
         }
-        mCountryCode.enableVerboseLogging(verbose);
+        mCountryCode.enableVerboseLogging(mVerboseLoggingLevel);
         mWifiLogger.startLogging(DBG);
-        mWifiMonitor.enableVerboseLogging(verbose);
-        mWifiNative.enableVerboseLogging(verbose);
-        mWifiConfigManager.enableVerboseLogging(verbose);
-        mSupplicantStateTracker.enableVerboseLogging(verbose);
-        mWifiQualifiedNetworkSelector.enableVerboseLogging(verbose);
+        mWifiMonitor.enableVerboseLogging(mVerboseLoggingLevel);
+        mWifiNative.enableVerboseLogging(mVerboseLoggingLevel);
+        mWifiConfigManager.enableVerboseLogging(mVerboseLoggingLevel);
+        mSupplicantStateTracker.enableVerboseLogging(mVerboseLoggingLevel);
+        mWifiQualifiedNetworkSelector.enableVerboseLogging(mVerboseLoggingLevel);
     }
 
     public void setHalBasedAutojoinOffload(int enabled) {
