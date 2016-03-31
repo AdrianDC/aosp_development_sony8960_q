@@ -758,7 +758,8 @@ public class WifiStateMachineTest {
                 ArgumentCaptor.forClass(WifiScanner.ScanSettings.class);
         ArgumentCaptor<WifiScanner.ScanListener> scanListenerCaptor =
                 ArgumentCaptor.forClass(WifiScanner.ScanListener.class);
-        verify(mWifiScanner).startScan(scanSettingsCaptor.capture(), scanListenerCaptor.capture());
+        verify(mWifiScanner).startScan(scanSettingsCaptor.capture(), scanListenerCaptor.capture(),
+                eq(null));
         WifiScanner.ScanSettings actualSettings = scanSettingsCaptor.getValue();
         assertEquals("band", band, actualSettings.band);
         assertEquals("reportEvents", reportEvents, actualSettings.reportEvents);
