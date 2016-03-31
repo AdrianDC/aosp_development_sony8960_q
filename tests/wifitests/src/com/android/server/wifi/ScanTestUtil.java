@@ -240,16 +240,14 @@ public class ScanTestUtil {
         return createScanDatas(freqs, new int[freqs.length] /* defaults all 0 */);
     }
 
-    private static void assertScanDataEquals(String prefix, ScanData expected, ScanData actual) {
-        assertNotNull(prefix + "expected ScanData was null", expected);
-        assertNotNull(prefix + "actual ScanData was null", actual);
-        assertEquals(prefix + "id", expected.getId(), actual.getId());
-        assertEquals(prefix + "flags", expected.getFlags(), actual.getFlags());
-        assertEquals(prefix + "results.length",
-                expected.getResults().length, actual.getResults().length);
-        for (int j = 0; j < expected.getResults().length; ++j) {
-            ScanResult expectedResult = expected.getResults()[j];
-            ScanResult actualResult = actual.getResults()[j];
+    private static void assertScanResultsEquals(String prefix, ScanResult[] expected,
+            ScanResult[] actual) {
+        assertNotNull(prefix + "expected ScanResults was null", expected);
+        assertNotNull(prefix + "actual ScanResults was null", actual);
+        assertEquals(prefix + "results.length", expected.length, actual.length);
+        for (int j = 0; j < expected.length; ++j) {
+            ScanResult expectedResult = expected[j];
+            ScanResult actualResult = actual[j];
             assertEquals(prefix + "results[" + j + "].SSID",
                     expectedResult.SSID, actualResult.SSID);
             assertEquals(prefix + "results[" + j + "].wifiSsid",
@@ -267,6 +265,21 @@ public class ScanTestUtil {
             assertEquals(prefix + "results[" + j + "].seen",
                     expectedResult.seen, actualResult.seen);
         }
+    }
+
+    /**
+     * Asserts if the provided scan result arrays are the same.
+     */
+    public static void assertScanResultsEquals(ScanResult[] expected, ScanResult[] actual) {
+        assertScanResultsEquals("", expected, actual);
+    }
+
+    private static void assertScanDataEquals(String prefix, ScanData expected, ScanData actual) {
+        assertNotNull(prefix + "expected ScanData was null", expected);
+        assertNotNull(prefix + "actual ScanData was null", actual);
+        assertEquals(prefix + "id", expected.getId(), actual.getId());
+        assertEquals(prefix + "flags", expected.getFlags(), actual.getFlags());
+        assertScanResultsEquals(prefix, expected.getResults(), actual.getResults());
     }
 
     public static void assertScanDataEquals(ScanData expected, ScanData actual) {
@@ -334,6 +347,39 @@ public class ScanTestUtil {
                         actual.buckets[i].channels == null
                         || actual.buckets[i].channels.length == 0);
             }
+        }
+    }
+
+    /**
+     * Asserts if the provided pno settings are the same.
+     */
+    public static void assertNativePnoSettingsEquals(WifiNative.PnoSettings expected,
+            WifiNative.PnoSettings actual) {
+        assertNotNull("expected was null", expected);
+        assertNotNull("actaul was null", actual);
+        assertEquals("min5GHzRssi", expected.min5GHzRssi, actual.min5GHzRssi);
+        assertEquals("min24GHzRssi", expected.min24GHzRssi, actual.min24GHzRssi);
+        assertEquals("initialScoreMax", expected.initialScoreMax, actual.initialScoreMax);
+        assertEquals("currentConnectionBonus", expected.currentConnectionBonus,
+                actual.currentConnectionBonus);
+        assertEquals("sameNetworkBonus", expected.sameNetworkBonus, actual.sameNetworkBonus);
+        assertEquals("secureBonus", expected.secureBonus, actual.secureBonus);
+        assertEquals("band5GHzBonus", expected.band5GHzBonus, actual.band5GHzBonus);
+        assertEquals("isConnected", expected.isConnected, actual.isConnected);
+        assertNotNull("expected networkList was null", expected.networkList);
+        assertNotNull("actual networkList was null", actual.networkList);
+        assertEquals("networkList.length", expected.networkList.length, actual.networkList.length);
+        for (int i = 0; i < expected.networkList.length; i++) {
+            assertEquals("networkList[" + i + "].ssid",
+                    expected.networkList[i].ssid, actual.networkList[i].ssid);
+            assertEquals("networkList[" + i + "].networkId",
+                    expected.networkList[i].networkId, actual.networkList[i].networkId);
+            assertEquals("networkList[" + i + "].priority",
+                    expected.networkList[i].priority, actual.networkList[i].priority);
+            assertEquals("networkList[" + i + "].flags",
+                    expected.networkList[i].flags, actual.networkList[i].flags);
+            assertEquals("networkList[" + i + "].auth_bit_field",
+                    expected.networkList[i].auth_bit_field, actual.networkList[i].auth_bit_field);
         }
     }
 
