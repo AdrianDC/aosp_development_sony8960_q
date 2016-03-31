@@ -95,7 +95,7 @@ public class ScanResults {
      *              to the returned scan details. Duplicates can be specified to create multiple
      *              ScanDetails with the same frequency.
      */
-    private static ScanDetail[] generateNativeResults(int seed, int... freqs) {
+    private static ScanDetail[] generateNativeResults(boolean needIE, int seed, int... freqs) {
         ScanDetail[] results = new ScanDetail[freqs.length];
         // Seed the results based on the provided seed as well as the test method name
         // This provides more varied scan results between individual tests that are very similar.
@@ -105,8 +105,13 @@ public class ScanResults {
             String ssid = new BigInteger(128, r).toString(36);
             String bssid = generateBssid(r);
             int rssi = r.nextInt(40) - 99; // -99 to -60
-            ScanResult.InformationElement ie[] = new ScanResult.InformationElement[1];
-            ie[0] = generateSsidIe(ssid);
+            ScanResult.InformationElement[] ie;
+            if (needIE) {
+                ie = new ScanResult.InformationElement[1];
+                ie[0] = generateSsidIe(ssid);
+            } else {
+                ie = new ScanResult.InformationElement[0];
+            }
             List<String> anqpLines = new ArrayList<>();
             NetworkDetail nd = new NetworkDetail(bssid, ie, anqpLines, freq);
             ScanDetail detail = new ScanDetail(nd, WifiSsid.createFromAsciiEncoded(ssid),
@@ -120,11 +125,25 @@ public class ScanResults {
     }
 
     /**
+     * Create scan results with no IE information.
+     */
+    private static ScanDetail[] generateNativeResults(int seed, int... freqs) {
+        return generateNativeResults(true, seed, freqs);
+    }
+
+    /**
      * Create a ScanResults with randomly generated results seeded by the id.
      * @see #generateNativeResults for more details on how results are generated
      */
     public static ScanResults create(int id, int... freqs) {
         return new ScanResults(id, -1, generateNativeResults(id, freqs));
+    }
+
+    /**
+     * Create a ScanResults with no IE information.
+     */
+    public static ScanResults createWithNoIE(int id, int... freqs) {
+        return new ScanResults(id, -1, generateNativeResults(false, id, freqs));
     }
 
     /**

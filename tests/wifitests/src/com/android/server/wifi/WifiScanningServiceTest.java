@@ -24,6 +24,7 @@ import static org.mockito.Mockito.*;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
+import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.os.Bundle;
@@ -32,6 +33,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.WorkSource;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.util.Pair;
 
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.Protocol;
@@ -48,6 +50,10 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.internal.matchers.CapturingMatcher;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiScanningServiceImpl}.
@@ -226,12 +232,16 @@ public class WifiScanningServiceTest {
         return scanEventHandlerCaptor.getValue();
     }
 
-    private void verifyStartBackgroundScan(InOrder order, WifiNative.ScanSettings expected) {
+    private WifiNative.ScanEventHandler verifyStartBackgroundScan(InOrder order,
+            WifiNative.ScanSettings expected) {
         ArgumentCaptor<WifiNative.ScanSettings> scanSettingsCaptor =
                 ArgumentCaptor.forClass(WifiNative.ScanSettings.class);
+        ArgumentCaptor<WifiNative.ScanEventHandler> scanEventHandlerCaptor =
+                ArgumentCaptor.forClass(WifiNative.ScanEventHandler.class);
         order.verify(mWifiScannerImpl).startBatchedScan(scanSettingsCaptor.capture(),
-                any(WifiNative.ScanEventHandler.class));
+                scanEventHandlerCaptor.capture());
         assertNativeScanSettingsEquals(expected, scanSettingsCaptor.getValue());
+        return scanEventHandlerCaptor.getValue();
     }
 
     private static final int MAX_AP_PER_SCAN = 16;
@@ -713,5 +723,289 @@ public class WifiScanningServiceTest {
                 .addBucketWithChannels(20000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN, 5150)
                 .build();
         doSuccessfulBackgroundScan(requestSettings, nativeSettings);
+    }
+
+    private Pair<WifiScanner.ScanSettings, WifiNative.ScanSettings> createScanSettingsForHwPno()
+            throws Exception {
+        WifiScanner.ScanSettings requestSettings = createRequest(
+                channelsToSpec(0, 2400, 5150, 5175), 20000, 0, 20,
+                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        WifiNative.ScanSettings nativeSettings = new NativeScanSettingsBuilder()
+                .withBasePeriod(20000)
+                .withMaxApPerScan(MAX_AP_PER_SCAN)
+                .withMaxScansToCache(BackgroundScanScheduler.DEFAULT_MAX_SCANS_TO_BATCH)
+                .addBucketWithChannels(20000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN,
+                        0, 2400, 5150, 5175)
+                .build();
+        return Pair.create(requestSettings, nativeSettings);
+    }
+
+    private Pair<WifiScanner.ScanSettings, WifiNative.ScanSettings> createScanSettingsForSwPno()
+            throws Exception {
+        Pair<WifiScanner.ScanSettings, WifiNative.ScanSettings> settingsPair =
+                createScanSettingsForHwPno();
+
+        WifiScanner.ScanSettings requestSettings = settingsPair.first;
+        WifiNative.ScanSettings nativeSettings = settingsPair.second;
+        // reportEvents field is overridden for SW PNO
+        for (int i = 0; i < nativeSettings.buckets.length; i++) {
+            nativeSettings.buckets[i].report_events = WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
+                    | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT;
+        }
+        return Pair.create(requestSettings, nativeSettings);
+    }
+
+    private Pair<WifiScanner.PnoSettings, WifiNative.PnoSettings> createPnoSettings(
+            ScanResults results)
+            throws Exception {
+        WifiScanner.PnoSettings requestPnoSettings = new WifiScanner.PnoSettings();
+        requestPnoSettings.networkList =
+                new WifiScanner.PnoSettings.PnoNetwork[results.getRawScanResults().length];
+        int i = 0;
+        for (ScanResult scanResult : results.getRawScanResults()) {
+            requestPnoSettings.networkList[i++] =
+                    new WifiScanner.PnoSettings.PnoNetwork(scanResult.SSID);
+        }
+
+        WifiNative.PnoSettings nativePnoSettings = new WifiNative.PnoSettings();
+        nativePnoSettings.min5GHzRssi = requestPnoSettings.min5GHzRssi;
+        nativePnoSettings.min24GHzRssi = requestPnoSettings.min24GHzRssi;
+        nativePnoSettings.initialScoreMax = requestPnoSettings.initialScoreMax;
+        nativePnoSettings.currentConnectionBonus = requestPnoSettings.currentConnectionBonus;
+        nativePnoSettings.sameNetworkBonus = requestPnoSettings.sameNetworkBonus;
+        nativePnoSettings.secureBonus = requestPnoSettings.secureBonus;
+        nativePnoSettings.band5GHzBonus = requestPnoSettings.band5GHzBonus;
+        nativePnoSettings.isConnected = requestPnoSettings.isConnected;
+        nativePnoSettings.networkList =
+                new WifiNative.PnoNetwork[requestPnoSettings.networkList.length];
+        for (i = 0; i < requestPnoSettings.networkList.length; i++) {
+            nativePnoSettings.networkList[i] = new WifiNative.PnoNetwork();
+            nativePnoSettings.networkList[i].ssid = requestPnoSettings.networkList[i].ssid;
+            nativePnoSettings.networkList[i].networkId =
+                    requestPnoSettings.networkList[i].networkId;
+            nativePnoSettings.networkList[i].priority = requestPnoSettings.networkList[i].priority;
+            nativePnoSettings.networkList[i].flags = requestPnoSettings.networkList[i].flags;
+            nativePnoSettings.networkList[i].auth_bit_field =
+                    requestPnoSettings.networkList[i].authBitField;
+        }
+        return Pair.create(requestPnoSettings, nativePnoSettings);
+    }
+
+    private ScanResults createScanResultsForPno() {
+        return ScanResults.create(0, 2400, 5150, 5175);
+    }
+
+    private ScanResults createScanResultsForPnoWithNoIE() {
+        return ScanResults.createWithNoIE(0, 2400, 5150, 5175);
+    }
+
+    private WifiNative.PnoEventHandler verifyHwPno(InOrder order,
+            WifiNative.PnoSettings expected) {
+        ArgumentCaptor<WifiNative.PnoSettings> pnoSettingsCaptor =
+                ArgumentCaptor.forClass(WifiNative.PnoSettings.class);
+        ArgumentCaptor<WifiNative.PnoEventHandler> pnoEventHandlerCaptor =
+                ArgumentCaptor.forClass(WifiNative.PnoEventHandler.class);
+        order.verify(mWifiScannerImpl).setHwPnoList(pnoSettingsCaptor.capture(),
+                pnoEventHandlerCaptor.capture());
+        assertNativePnoSettingsEquals(expected, pnoSettingsCaptor.getValue());
+        return pnoEventHandlerCaptor.getValue();
+    }
+
+    private void sendPnoScanRequest(BidirectionalAsyncChannel controlChannel,
+            int scanRequestId, WifiScanner.ScanSettings scanSettings,
+            WifiScanner.PnoSettings pnoSettings) {
+        Bundle pnoParams = new Bundle();
+        scanSettings.isPnoScan = true;
+        pnoParams.putParcelable(WifiScanner.PNO_PARAMS_SCAN_SETTINGS_KEY, scanSettings);
+        pnoParams.putParcelable(WifiScanner.PNO_PARAMS_PNO_SETTINGS_KEY, pnoSettings);
+        controlChannel.sendMessage(Message.obtain(null, WifiScanner.CMD_START_PNO_SCAN, 0,
+                scanRequestId, pnoParams));
+    }
+
+    private void assertPnoNetworkFoundMessage(int listenerId, ScanResult[] expected,
+            Message networkFoundMessage) {
+        assertEquals("what", WifiScanner.CMD_PNO_NETWORK_FOUND, networkFoundMessage.what);
+        assertEquals("listenerId", listenerId, networkFoundMessage.arg2);
+        ScanTestUtil.assertScanResultsEquals(expected,
+                ((WifiScanner.ParcelableScanResults) networkFoundMessage.obj).getResults());
+    }
+
+    private void verifyPnoNetworkFoundRecieved(InOrder order, Handler handler, int listenerId,
+            ScanResult[] expected) {
+        Message scanResultMessage = verifyHandleMessageAndGetMessage(order, handler,
+                WifiScanner.CMD_PNO_NETWORK_FOUND);
+        assertPnoNetworkFoundMessage(listenerId, expected, scanResultMessage);
+    }
+
+    private void expectSuccessfulBackgroundScan(InOrder order,
+            WifiNative.ScanSettings nativeSettings, ScanResults results) {
+        when(mWifiScannerImpl.startBatchedScan(any(WifiNative.ScanSettings.class),
+                any(WifiNative.ScanEventHandler.class))).thenReturn(true);
+        mLooper.dispatchAll();
+        WifiNative.ScanEventHandler eventHandler = verifyStartBackgroundScan(order, nativeSettings);
+        WifiScanner.ScanData[] scanDatas = new WifiScanner.ScanData[1];
+        scanDatas[0] = results.getScanData();
+        for (ScanResult fullScanResult : results.getRawScanResults()) {
+            eventHandler.onFullScanResult(fullScanResult, 0);
+        }
+        when(mWifiScannerImpl.getLatestBatchedScanResults(anyBoolean())).thenReturn(scanDatas);
+        eventHandler.onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
+        mLooper.dispatchAll();
+    }
+
+    private void expectHwPnoScanWithNoBackgroundScan(InOrder order, Handler handler, int requestId,
+            WifiNative.PnoSettings nativeSettings, ScanResults results) {
+        when(mWifiScannerImpl.isHwPnoSupported(anyBoolean())).thenReturn(true);
+        when(mWifiScannerImpl.shouldScheduleBackgroundScanForHwPno()).thenReturn(false);
+
+        when(mWifiScannerImpl.setHwPnoList(any(WifiNative.PnoSettings.class),
+                any(WifiNative.PnoEventHandler.class))).thenReturn(true);
+        mLooper.dispatchAll();
+        WifiNative.PnoEventHandler eventHandler = verifyHwPno(order, nativeSettings);
+        verifySuccessfulResponse(order, handler, requestId);
+        eventHandler.onPnoNetworkFound(results.getRawScanResults());
+        mLooper.dispatchAll();
+    }
+
+    private void expectHwPnoScanWithBackgroundScan(InOrder order, Handler handler, int requestId,
+            WifiNative.ScanSettings nativeScanSettings,
+            WifiNative.PnoSettings nativePnoSettings, ScanResults results) {
+        when(mWifiScannerImpl.isHwPnoSupported(anyBoolean())).thenReturn(true);
+        when(mWifiScannerImpl.shouldScheduleBackgroundScanForHwPno()).thenReturn(true);
+
+        when(mWifiScannerImpl.setHwPnoList(any(WifiNative.PnoSettings.class),
+                any(WifiNative.PnoEventHandler.class))).thenReturn(true);
+        when(mWifiScannerImpl.startBatchedScan(any(WifiNative.ScanSettings.class),
+                any(WifiNative.ScanEventHandler.class))).thenReturn(true);
+        mLooper.dispatchAll();
+        WifiNative.PnoEventHandler eventHandler = verifyHwPno(order, nativePnoSettings);
+        verifySuccessfulResponse(order, handler, requestId);
+        verifyStartBackgroundScan(order, nativeScanSettings);
+        eventHandler.onPnoNetworkFound(results.getRawScanResults());
+        mLooper.dispatchAll();
+    }
+
+    private void expectHwPnoScanWithBackgroundScanWithNoIE(InOrder order, Handler handler,
+            int requestId, WifiNative.ScanSettings nativeBackgroundScanSettings,
+            WifiNative.ScanSettings nativeSingleScanSettings,
+            WifiNative.PnoSettings nativePnoSettings, ScanResults results) {
+        when(mWifiScannerImpl.startSingleScan(any(WifiNative.ScanSettings.class),
+                any(WifiNative.ScanEventHandler.class))).thenReturn(true);
+
+        expectHwPnoScanWithBackgroundScan(order, handler, requestId, nativeBackgroundScanSettings,
+                nativePnoSettings, results);
+        WifiNative.ScanEventHandler eventHandler =
+                verifyStartSingleScan(order, nativeSingleScanSettings);
+        when(mWifiScannerImpl.getLatestSingleScanResults()).thenReturn(results.getScanData());
+        eventHandler.onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
+        mLooper.dispatchAll();
+    }
+    private void expectSwPnoScan(InOrder order, WifiNative.ScanSettings nativeScanSettings,
+            ScanResults results) {
+        when(mWifiScannerImpl.isHwPnoSupported(anyBoolean())).thenReturn(false);
+        when(mWifiScannerImpl.shouldScheduleBackgroundScanForHwPno()).thenReturn(true);
+
+        expectSuccessfulBackgroundScan(order, nativeScanSettings, results);
+    }
+
+    /**
+     * Tests Supplicant PNO scan when the PNO scan results contain IE info. This ensures that the
+     * PNO scan results are plumbed back to the client as a PNO network found event.
+     */
+    @Test
+    public void testSuccessfulHwPnoScanWithNoBackgroundScan() throws Exception {
+        startServiceAndLoadDriver();
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler, mWifiScannerImpl);
+        int requestId = 12;
+
+        ScanResults scanResults = createScanResultsForPno();
+        Pair<WifiScanner.ScanSettings, WifiNative.ScanSettings> scanSettings =
+                createScanSettingsForHwPno();
+        Pair<WifiScanner.PnoSettings, WifiNative.PnoSettings> pnoSettings =
+                createPnoSettings(scanResults);
+
+        sendPnoScanRequest(controlChannel, requestId, scanSettings.first, pnoSettings.first);
+        expectHwPnoScanWithNoBackgroundScan(order, handler, requestId, pnoSettings.second,
+                scanResults);
+        verifyPnoNetworkFoundRecieved(order, handler, requestId, scanResults.getRawScanResults());
+    }
+
+    /**
+     * Tests Hal ePNO scan when the PNO scan results contain IE info. This ensures that the
+     * PNO scan results are plumbed back to the client as a PNO network found event.
+     */
+    @Test
+    public void testSuccessfulHwPnoScanWithBackgroundScan() throws Exception {
+        startServiceAndLoadDriver();
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler, mWifiScannerImpl);
+        int requestId = 12;
+
+        ScanResults scanResults = createScanResultsForPno();
+        Pair<WifiScanner.ScanSettings, WifiNative.ScanSettings> scanSettings =
+                createScanSettingsForHwPno();
+        Pair<WifiScanner.PnoSettings, WifiNative.PnoSettings> pnoSettings =
+                createPnoSettings(scanResults);
+
+        sendPnoScanRequest(controlChannel, requestId, scanSettings.first, pnoSettings.first);
+        expectHwPnoScanWithBackgroundScan(order, handler, requestId, scanSettings.second,
+                pnoSettings.second, scanResults);
+        verifyPnoNetworkFoundRecieved(order, handler, requestId, scanResults.getRawScanResults());
+    }
+
+    /**
+     * Tests Hal ePNO scan when the PNO scan results don't contain IE info. This ensures that the
+     * single scan results are plumbed back to the client as a PNO network found event.
+     */
+    @Test
+    public void testSuccessfulHwPnoScanWithBackgroundScanWithNoIE() throws Exception {
+        startServiceAndLoadDriver();
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler, mWifiScannerImpl);
+        int requestId = 12;
+
+        ScanResults scanResults = createScanResultsForPnoWithNoIE();
+        Pair<WifiScanner.ScanSettings, WifiNative.ScanSettings> scanSettings =
+                createScanSettingsForHwPno();
+        Pair<WifiScanner.PnoSettings, WifiNative.PnoSettings> pnoSettings =
+                createPnoSettings(scanResults);
+
+        sendPnoScanRequest(controlChannel, requestId, scanSettings.first, pnoSettings.first);
+        expectHwPnoScanWithBackgroundScanWithNoIE(order, handler, requestId, scanSettings.second,
+                computeSingleScanNativeSettings(scanSettings.first), pnoSettings.second,
+                scanResults);
+
+        ArrayList<ScanResult> sortScanList =
+                new ArrayList<ScanResult>(Arrays.asList(scanResults.getRawScanResults()));
+        Collections.sort(sortScanList, WifiScannerImpl.SCAN_RESULT_SORT_COMPARATOR);
+        verifyPnoNetworkFoundRecieved(order, handler, requestId,
+                sortScanList.toArray(new ScanResult[sortScanList.size()]));
+    }
+
+    /**
+     * Tests SW PNO scan. This ensures that the background scan results are plumbed back to the
+     * client as a PNO network found event.
+     */
+    @Test
+    public void testSuccessfulSwPnoScan() throws Exception {
+        startServiceAndLoadDriver();
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler, mWifiScannerImpl);
+        int requestId = 12;
+
+        ScanResults scanResults = createScanResultsForPno();
+        Pair<WifiScanner.ScanSettings, WifiNative.ScanSettings> scanSettings =
+                createScanSettingsForSwPno();
+        Pair<WifiScanner.PnoSettings, WifiNative.PnoSettings> pnoSettings =
+                createPnoSettings(scanResults);
+
+        sendPnoScanRequest(controlChannel, requestId, scanSettings.first, pnoSettings.first);
+        expectSwPnoScan(order, scanSettings.second, scanResults);
+        verifyPnoNetworkFoundRecieved(order, handler, requestId, scanResults.getRawScanResults());
     }
 }
