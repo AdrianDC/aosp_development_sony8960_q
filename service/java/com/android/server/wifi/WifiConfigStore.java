@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.app.backup.BackupManager;
 import android.net.IpConfiguration.IpAssignment;
 import android.net.IpConfiguration.ProxySettings;
 import android.net.wifi.WifiConfiguration;
@@ -110,11 +111,14 @@ public class WifiConfigStore {
     private final boolean mShowNetworks;
     private final HashSet<String> mBssidBlacklist = new HashSet<String>();
 
+    private final BackupManagerProxy mBackupManagerProxy;
+
     WifiConfigStore(WifiNative wifiNative, KeyStore keyStore, LocalLog localLog,
             boolean showNetworks, boolean verboseDebug) {
         mWifiNative = wifiNative;
         mKeyStore = keyStore;
         mShowNetworks = showNetworks;
+        mBackupManagerProxy = new BackupManagerProxy();
 
         if (mShowNetworks) {
             mLocalLog = localLog;
@@ -890,6 +894,8 @@ public class WifiConfigStore {
                 && config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
             return updateNetworkKeys(config, existingConfig);
         }
+        // Stage the backup of the SettingsProvider package which backs this up
+        mBackupManagerProxy.notifyDataChanged();
         return true;
     }
 
@@ -912,6 +918,8 @@ public class WifiConfigStore {
         if (config.enterpriseConfig != null) {
             removeKeys(config.enterpriseConfig);
         }
+        // Stage the backup of the SettingsProvider package which backs this up
+        mBackupManagerProxy.notifyDataChanged();
         return true;
     }
 
