@@ -553,6 +553,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         //      mWifiMetrics.incrementWifiSystemScanStateCount(???, ???);
 
                         Bundle scanParams = (Bundle) msg.obj;
+                        if (scanParams == null) {
+                            replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "params null");
+                            return HANDLED;
+                        }
+                        scanParams.setDefusable(true);
                         ScanSettings scanSettings =
                                 scanParams.getParcelable(WifiScanner.SCAN_PARAMS_SCAN_SETTINGS_KEY);
                         WorkSource workSource =
@@ -960,6 +965,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     case WifiScanner.CMD_START_BACKGROUND_SCAN: {
                         mWifiMetrics.incrementBackgroundScanCount();
                         Bundle scanParams = (Bundle) msg.obj;
+                        if (scanParams == null) {
+                            replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "params null");
+                            return HANDLED;
+                        }
+                        scanParams.setDefusable(true);
                         ScanSettings scanSettings =
                                 scanParams.getParcelable(WifiScanner.SCAN_PARAMS_SCAN_SETTINGS_KEY);
                         WorkSource workSource =
@@ -1427,6 +1437,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 switch (msg.what) {
                     case WifiScanner.CMD_START_PNO_SCAN:
                         Bundle pnoParams = (Bundle) msg.obj;
+                        if (pnoParams == null) {
+                            replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "params null");
+                            return HANDLED;
+                        }
+                        pnoParams.setDefusable(true);
                         PnoSettings pnoSettings =
                                 pnoParams.getParcelable(WifiScanner.PNO_PARAMS_PNO_SETTINGS_KEY);
                         // This message is handled after the transition to SwPnoScan/HwPnoScan state
@@ -1466,6 +1481,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 switch (msg.what) {
                     case WifiScanner.CMD_START_PNO_SCAN:
                         Bundle pnoParams = (Bundle) msg.obj;
+                        if (pnoParams == null) {
+                            replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "params null");
+                            return HANDLED;
+                        }
+                        pnoParams.setDefusable(true);
                         PnoSettings pnoSettings =
                                 pnoParams.getParcelable(WifiScanner.PNO_PARAMS_PNO_SETTINGS_KEY);
                         ScanSettings scanSettings =
@@ -1552,6 +1572,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 switch (msg.what) {
                     case WifiScanner.CMD_START_PNO_SCAN:
                         Bundle pnoParams = (Bundle) msg.obj;
+                        if (pnoParams == null) {
+                            replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "params null");
+                            return HANDLED;
+                        }
+                        pnoParams.setDefusable(true);
                         PnoSettings pnoSettings =
                                 pnoParams.getParcelable(WifiScanner.PNO_PARAMS_PNO_SETTINGS_KEY);
                         ScanSettings scanSettings =
