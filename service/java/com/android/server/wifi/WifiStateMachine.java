@@ -9021,18 +9021,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
             String base64Challenge = android.util.Base64.encodeToString(
                     rand, android.util.Base64.NO_WRAP);
-            /*
-             * First, try with appType = 2 => USIM according to
-             * com.android.internal.telephony.PhoneConstants#APPTYPE_xxx
-             */
-            int appType = 2;
-            String tmResponse = tm.getIccSimChallengeResponse(appType, base64Challenge);
+
+            // Try USIM first for authentication.
+            String tmResponse = tm.getIccAuthentication(tm.APPTYPE_USIM,
+                    tm.AUTHTYPE_EAP_SIM, base64Challenge);
             if (tmResponse == null) {
                 /* Then, in case of failure, issue may be due to sim type, retry as a simple sim
-                 * appType = 1 => SIM
                  */
-                appType = 1;
-                tmResponse = tm.getIccSimChallengeResponse(appType, base64Challenge);
+                tmResponse = tm.getIccAuthentication(tm.APPTYPE_SIM,
+                        tm.AUTHTYPE_EAP_SIM, base64Challenge);
             }
             logv("Raw Response - " + tmResponse);
 
@@ -9126,8 +9123,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             TelephonyManager tm = (TelephonyManager)
                     mContext.getSystemService(Context.TELEPHONY_SERVICE);
             if (tm != null) {
-                int appType = 2; // 2 => USIM
-                tmResponse = tm.getIccSimChallengeResponse(appType, base64Challenge);
+                tmResponse = tm.getIccAuthentication(tm.APPTYPE_USIM,
+                        tm.AUTHTYPE_EAP_AKA, base64Challenge);
                 logv("Raw Response - " + tmResponse);
             } else {
                 loge("could not get telephony manager");
