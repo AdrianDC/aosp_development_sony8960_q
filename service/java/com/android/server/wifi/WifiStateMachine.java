@@ -871,9 +871,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     static final int CMD_USER_SWITCH                                    = BASE + 165;
 
     /**
-     * Used temporarily to handle messages bounced between WifiStateMachine and IpManager.
-     *
-     * These will be deleted when DHCPv4 and static IP configuration are moved out.
+     * Used to handle messages bounced between WifiStateMachine and IpManager.
      */
     static final int CMD_IPV4_PROVISIONING_SUCCESS                      = BASE + 200;
     static final int CMD_IPV4_PROVISIONING_FAILURE                      = BASE + 201;
@@ -883,6 +881,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
     /* Enable/disable fallback packet filtering */
     static final int CMD_SET_FALLBACK_PACKET_FILTERING                  = BASE + 203;
+
+    /* Enable/disable Neighbor Discovery offload functionality. */
+    static final int CMD_CONFIG_ND_OFFLOAD                              = BASE + 204;
 
     // For message logging.
     private static final Class[] sMessageClasses = {
@@ -1383,11 +1384,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         }
 
         @Override
-        public void on464XlatChange(boolean enabled) {
-            mWifiNative.configureNeighborDiscoveryOffload(!enabled);
-        }
-
-        @Override
         public void onLinkPropertiesChange(LinkProperties newLp) {
             sendMessage(CMD_UPDATE_LINKPROPERTIES, newLp);
         }
@@ -1405,6 +1401,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         @Override
         public void setFallbackMulticastFilter(boolean enabled) {
             sendMessage(CMD_SET_FALLBACK_PACKET_FILTERING, enabled);
+        }
+
+        @Override
+        public void setNeighborDiscoveryOffload(boolean enabled) {
+            sendMessage(CMD_CONFIG_ND_OFFLOAD, (enabled ? 1 : 0));
         }
     }
 
@@ -5662,6 +5663,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     break;
                 case WifiMonitor.HS20_REMEDIATION_EVENT:
                     mWifiConfigManager.wnmFrameReceived((WnmData) message.obj);
+                    break;
+                case CMD_CONFIG_ND_OFFLOAD:
+                    final boolean enabled = (message.arg1 > 0);
+                    mWifiNative.configureNeighborDiscoveryOffload(enabled);
                     break;
                 default:
                     return NOT_HANDLED;
