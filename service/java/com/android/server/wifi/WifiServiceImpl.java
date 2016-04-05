@@ -1803,7 +1803,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             if (mMulticasters.size() != 0) {
                 return;
             } else {
-                mWifiStateMachine.startFilteringMulticastV4Packets();
+                mWifiStateMachine.startFilteringMulticastPackets();
             }
         }
     }
@@ -1814,11 +1814,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         synchronized (mMulticasters) {
             mMulticastEnabled++;
             mMulticasters.add(new Multicaster(tag, binder));
-            // Note that we could call stopFilteringMulticastV4Packets only when
+            // Note that we could call stopFilteringMulticastPackets only when
             // our new size == 1 (first call), but this function won't
             // be called often and by making the stopPacket call each
             // time we're less fragile and self-healing.
-            mWifiStateMachine.stopFilteringMulticastV4Packets();
+            mWifiStateMachine.stopFilteringMulticastPackets();
         }
 
         int uid = Binder.getCallingUid();
@@ -1855,7 +1855,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             removed.unlinkDeathRecipient();
         }
         if (mMulticasters.size() == 0) {
-            mWifiStateMachine.startFilteringMulticastV4Packets();
+            mWifiStateMachine.startFilteringMulticastPackets();
         }
 
         final long ident = Binder.clearCallingIdentity();
