@@ -983,16 +983,19 @@ public class WifiStateMachineTest {
         assertEquals("", mWsm.getGsmSimAuthResponse(invalidRequests, tm));
 
         final String[] failedRequests = { "5E5F" };
-        when(tm.getIccSimChallengeResponse(anyInt(),
+        when(tm.getIccAuthentication(anyInt(), anyInt(),
                 eq(createSimChallengeRequest(new byte[] { 0x5e, 0x5f })))).thenReturn(null);
         assertEquals(null, mWsm.getGsmSimAuthResponse(failedRequests, tm));
 
-        when(tm.getIccSimChallengeResponse(2, createSimChallengeRequest(new byte[] { 0x1a, 0x2b })))
+        when(tm.getIccAuthentication(2, tm.AUTHTYPE_EAP_SIM,
+                createSimChallengeRequest(new byte[] { 0x1a, 0x2b })))
                 .thenReturn(null);
-        when(tm.getIccSimChallengeResponse(1, createSimChallengeRequest(new byte[] { 0x1a, 0x2b })))
+        when(tm.getIccAuthentication(1, tm.AUTHTYPE_EAP_SIM,
+                createSimChallengeRequest(new byte[] { 0x1a, 0x2b })))
                 .thenReturn(createSimAuthResponse(new byte[] { 0x1D, 0x2C },
                        new byte[] { 0x3B, 0x4A }));
-        when(tm.getIccSimChallengeResponse(1, createSimChallengeRequest(new byte[] { 0x01, 0x23 })))
+        when(tm.getIccAuthentication(1, tm.AUTHTYPE_EAP_SIM,
+                createSimChallengeRequest(new byte[] { 0x01, 0x23 })))
                 .thenReturn(createSimAuthResponse(new byte[] { 0x33, 0x22 },
                         new byte[] { 0x11, 0x00 }));
         assertEquals(":3b4a:1d2c:1100:3322", mWsm.getGsmSimAuthResponse(
