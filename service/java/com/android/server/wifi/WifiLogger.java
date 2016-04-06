@@ -30,6 +30,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.zip.Deflater;
 
@@ -116,6 +118,10 @@ class WifiLogger extends BaseWifiLogger {
             stopLoggingAllBuffers();
             startLoggingAllExceptPerPacketBuffers();
         }
+
+        if (verboseEnabled && !mWifiNative.startPktFateMonitoring()) {
+            Log.e(TAG, "Failed to start packet fate monitoring");
+        }
     }
 
     @Override
@@ -153,6 +159,15 @@ class WifiLogger extends BaseWifiLogger {
     }
 
     @Override
+    synchronized void reportConnectionFailure() {
+        if (mLogLevel <= VERBOSE_NORMAL_LOG) {
+            return;
+        }
+
+        mPacketFatesForLastFailure = fetchPacketFates();
+    }
+
+    @Override
     public synchronized void captureBugReportData(int reason) {
         BugReport report = captureBugreport(reason, true);
         mLastBugReports.addLast(report);
@@ -167,7 +182,7 @@ class WifiLogger extends BaseWifiLogger {
 
     @Override
     public synchronized void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        dump(pw);
+        super.dump(pw);
 
         for (int i = 0; i < mLastAlerts.size(); i++) {
             pw.println("--------------------------------------------------------------------");
@@ -182,6 +197,8 @@ class WifiLogger extends BaseWifiLogger {
             pw.print(mLastBugReports.get(i));
             pw.println("--------------------------------------------------------------------");
         }
+
+        dumpPacketFates(pw);
 
         pw.println("--------------------------------------------------------------------");
     }
@@ -521,4 +538,64 @@ class WifiLogger extends BaseWifiLogger {
         return lines;
     }
 
+    /** Packet fate reporting */
+    private ArrayList<WifiNative.FateReport> mPacketFatesForLastFailure;
+
+    private ArrayList<WifiNative.FateReport> fetchPacketFates() {
+        ArrayList<WifiNative.FateReport> mergedFates = new ArrayList<WifiNative.FateReport>();
+        WifiNative.TxFateReport[] txFates =
+                new WifiNative.TxFateReport[WifiLoggerHal.MAX_FATE_LOG_LEN];
+        if (mWifiNative.getTxPktFates(txFates)) {
+            for (int i = 0; i < txFates.length && txFates[i] != null; i++) {
+                mergedFates.add(txFates[i]);
+            }
+        }
+
+        WifiNative.RxFateReport[] rxFates =
+                new WifiNative.RxFateReport[WifiLoggerHal.MAX_FATE_LOG_LEN];
+        if (mWifiNative.getRxPktFates(rxFates)) {
+            for (int i = 0; i < rxFates.length && rxFates[i] != null; i++) {
+                mergedFates.add(rxFates[i]);
+            }
+        }
+
+        Collections.sort(mergedFates, new Comparator<WifiNative.FateReport>() {
+            @Override
+            public int compare(WifiNative.FateReport lhs, WifiNative.FateReport rhs) {
+                return Long.compare(lhs.mDriverTimestampUSec, rhs.mDriverTimestampUSec);
+            }
+        });
+
+        return mergedFates;
+    }
+
+    private void dumpPacketFates(PrintWriter pw) {
+        dumpPacketFatesInternal(pw, "Last failed connection fates", mPacketFatesForLastFailure);
+        if (DBG) {
+            dumpPacketFatesInternal(pw, "Latest fates", fetchPacketFates());
+        }
+    }
+
+    private static void dumpPacketFatesInternal(
+            PrintWriter pw, String description, ArrayList<WifiNative.FateReport> fates) {
+        if (fates == null) {
+            pw.format("No fates fetched for \"%s\"\n", description);
+            return;
+        }
+
+        if (fates.size() == 0) {
+            pw.format("HAL provided zero fates for \"%s\"\n", description);
+            return;
+        }
+
+        int i = 0;
+        pw.format("--------------------- %s ----------------------\n", description);
+        for (WifiNative.FateReport fate : fates) {
+            pw.format("Frame number: %d\n", i + 1);
+            pw.print(fate);
+            pw.print("\n");
+            ++i;
+        }
+        pw.println("--------------------------------------------------------------------");
+    }
 }

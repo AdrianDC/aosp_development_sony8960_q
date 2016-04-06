@@ -96,6 +96,7 @@ public :
     jboolean setStringField(jobject obj, const char *name, const char *value);
     void reportEvent(jclass cls, const char *method, const char *signature, ...);
     JNIObject<jobject> createObject(const char *className);
+    JNIObject<jobject> createObjectWithArgs(const char *className, const char *signature, ...);
     JNIObject<jobjectArray> createObjectArray(const char *className, int size);
     void setObjectField(jobject obj, const char *name, const char *type, jobject value);
     void callMethod(jobject obj, const char *method, const char *signature, ...);
@@ -120,9 +121,9 @@ public :
     JNIObject<jlongArray> newLongArray(int num);
     JNIObject<jstring> newStringUTF(const char *utf);
     void setObjectArrayElement(jobjectArray array, int index, jobject obj);
-    void setByteArrayRegion(jbyteArray array, int from, int to, jbyte *bytes);
-    void setIntArrayRegion(jintArray array, int from, int to, jint *ints);
-    void setLongArrayRegion(jlongArray array, int from, int to, jlong *longs);
+    void setByteArrayRegion(jbyteArray array, int from, int to, const jbyte *bytes);
+    void setIntArrayRegion(jintArray array, int from, int to, const jint *ints);
+    void setLongArrayRegion(jlongArray array, int from, int to, const jlong *longs);
 
     jobject newGlobalRef(jobject obj);
     void deleteGlobalRef(jobject obj);

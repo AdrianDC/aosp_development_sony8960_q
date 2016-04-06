@@ -29,6 +29,11 @@
 #include <sys/klog.h>
 #include <linux/if.h>
 #include <linux/if_arp.h>
+
+#include <algorithm>
+#include <limits>
+#include <vector>
+
 #include "wifi.h"
 #include "wifi_hal.h"
 #include "jni_helper.h"
@@ -1922,6 +1927,137 @@ static jboolean android_net_wifi_reset_log_handler(JNIEnv *env, jclass cls, jint
     return true;
 }
 
+static jint android_net_wifi_start_pkt_fate_monitoring(JNIEnv *env, jclass cls, jint iface) {
+
+    JNIHelper helper(env);
+    return hal_fn.wifi_start_pkt_fate_monitoring(
+        getIfaceHandle(helper, cls, iface));
+}
+
+// Helper for make_default_fate().
+template<typename T> void set_to_max(T* value) {
+    if (!value) {
+        return;
+    }
+    *value = std::numeric_limits<T>::max();
+}
+
+// make_default_fate() has two purposes:
+// 1) Minimize the chances of data leakage. In case the HAL gives us an overlong long |frame_len|,
+//    for example, we want to return zeros, rather than other data from this process.
+// 2) Make it obvious when the HAL doesn't set a field. We accomplish this by setting fields
+//    to "impossible" values, where possible.
+// Normally, such work would be done in a ctor. However, doing so would make the HAL API
+// incompatible with C. So we use a free-standing function instead.
+//
+// TODO(quiche): Add unit test for this function. b/27726696
+template<typename FateReportT> FateReportT make_default_fate() {
+
+    FateReportT fate_report;
+    set_to_max(&fate_report.fate);
+    std::fill(std::begin(fate_report.md5_prefix), std::end(fate_report.md5_prefix), 0);
+    set_to_max(&fate_report.frame_inf.payload_type);
+    fate_report.frame_inf.frame_len = 0;
+    fate_report.frame_inf.driver_timestamp_usec = 0;
+    fate_report.frame_inf.firmware_timestamp_usec = 0;
+    std::fill(std::begin(fate_report.frame_inf.frame_content.ieee_80211_mgmt_bytes),
+        std::end(fate_report.frame_inf.frame_content.ieee_80211_mgmt_bytes), 0);
+    return fate_report;
+}
+
+// TODO(quiche): Add unit test for this function. b/27726696
+template<typename FateReportT, typename HalFateFetcherT> wifi_error get_pkt_fates(
+    HalFateFetcherT fate_fetcher_func, const char *java_fate_type,
+    JNIEnv *env, jclass cls, jint iface, jobjectArray reports) {
+
+    JNIHelper helper(env);
+    const size_t n_reports_wanted =
+        std::min(helper.getArrayLength(reports), MAX_FATE_LOG_LEN);
+
+    std::vector<FateReportT> report_bufs(n_reports_wanted, make_default_fate<FateReportT>());
+    size_t n_reports_provided = 0;
+    wifi_error result = fate_fetcher_func(
+        getIfaceHandle(helper, cls, iface),
+        report_bufs.data(),
+        n_reports_wanted,
+        &n_reports_provided);
+    if (result != WIFI_SUCCESS) {
+        return result;
+    }
+
+    if (n_reports_provided > n_reports_wanted) {
+        LOG_ALWAYS_FATAL(
+            "HAL data exceeds request; memory may be corrupt (provided: %zu, requested: %zu)",
+            n_reports_provided, n_reports_wanted);
+    }
+
+    for (size_t i = 0; i < n_reports_provided; ++i) {
+        const FateReportT& report(report_bufs[i]);
+
+        const char *frame_bytes_native = nullptr;
+        size_t max_frame_len;
+        switch (report.frame_inf.payload_type) {
+            case FRAME_TYPE_UNKNOWN:
+            case FRAME_TYPE_ETHERNET_II:
+                max_frame_len = MAX_FRAME_LEN_ETHERNET;
+                frame_bytes_native = report.frame_inf.frame_content.ethernet_ii_bytes;
+                break;
+            case FRAME_TYPE_80211_MGMT:
+                max_frame_len = MAX_FRAME_LEN_80211_MGMT;
+                frame_bytes_native = report.frame_inf.frame_content.ieee_80211_mgmt_bytes;
+                break;
+            default:
+                max_frame_len = 0;
+                frame_bytes_native = 0;
+        }
+
+        size_t copy_len = report.frame_inf.frame_len;
+        if (copy_len > max_frame_len) {
+            ALOGW("Overly long frame (len: %zu, max: %zu)", copy_len, max_frame_len);
+            copy_len = max_frame_len;
+        }
+
+        JNIObject<jbyteArray> frame_bytes_java = helper.newByteArray(copy_len);
+        if (frame_bytes_java.isNull()) {
+            ALOGE("Failed to allocate frame data buffer");
+            return WIFI_ERROR_OUT_OF_MEMORY;
+        }
+        helper.setByteArrayRegion(frame_bytes_java, 0, copy_len,
+            reinterpret_cast<const jbyte *>(frame_bytes_native));
+
+        JNIObject<jobject> fate_report = helper.createObjectWithArgs(
+            java_fate_type,
+            "(BJB[B)V",  // byte, long, byte, byte array
+            static_cast<jbyte>(report.fate),
+            static_cast<jlong>(report.frame_inf.driver_timestamp_usec),
+            static_cast<jbyte>(report.frame_inf.payload_type),
+            frame_bytes_java.get());
+        if (fate_report.isNull()) {
+            ALOGE("Failed to create %s", java_fate_type);
+            return WIFI_ERROR_OUT_OF_MEMORY;
+        }
+        helper.setObjectArrayElement(reports, i, fate_report);
+    }
+
+    return result;
+}
+
+static jint android_net_wifi_get_tx_pkt_fates(JNIEnv *env, jclass cls, jint iface,
+    jobjectArray reports) {
+
+    return get_pkt_fates<wifi_tx_report>(
+        hal_fn.wifi_get_tx_pkt_fates, "com/android/server/wifi/WifiNative$TxFateReport",
+        env, cls, iface, reports);
+}
+
+static jint android_net_wifi_get_rx_pkt_fates(JNIEnv *env, jclass cls, jint iface,
+    jobjectArray reports) {
+
+    return get_pkt_fates<wifi_rx_report>(
+        hal_fn.wifi_get_rx_pkt_fates, "com/android/server/wifi/WifiNative$RxFateReport",
+        env, cls, iface, reports);
+}
+
 // ----------------------------------------------------------------------------
 // ePno framework
 // ----------------------------------------------------------------------------
@@ -2417,6 +2553,11 @@ static JNINativeMethod gWifiMethods[] = {
             (void*)android_net_wifi_setBssidBlacklist},
     {"setLoggingEventHandlerNative", "(II)Z", (void *) android_net_wifi_set_log_handler},
     {"resetLogHandlerNative", "(II)Z", (void *) android_net_wifi_reset_log_handler},
+    {"startPktFateMonitoringNative", "(I)I", (void*) android_net_wifi_start_pkt_fate_monitoring},
+    {"getTxPktFatesNative", "(I[Lcom/android/server/wifi/WifiNative$TxFateReport;)I",
+            (void*) android_net_wifi_get_tx_pkt_fates},
+    {"getRxPktFatesNative", "(I[Lcom/android/server/wifi/WifiNative$RxFateReport;)I",
+            (void*) android_net_wifi_get_rx_pkt_fates},
     { "startSendingOffloadedPacketNative", "(II[B[B[BI)I",
              (void*)android_net_wifi_start_sending_offloaded_packet},
     { "stopSendingOffloadedPacketNative", "(II)I",
