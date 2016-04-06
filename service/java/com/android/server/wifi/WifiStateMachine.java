@@ -26,7 +26,6 @@ import static android.net.wifi.WifiManager.WIFI_STATE_DISABLING;
 import static android.net.wifi.WifiManager.WIFI_STATE_ENABLED;
 import static android.net.wifi.WifiManager.WIFI_STATE_ENABLING;
 import static android.net.wifi.WifiManager.WIFI_STATE_UNKNOWN;
-import static android.system.OsConstants.ARPHRD_ETHER;
 
 import android.Manifest;
 import android.app.ActivityManager;
@@ -148,8 +147,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @hide
  */
-public class WifiStateMachine extends StateMachine implements WifiNative.PnoEventHandler,
-    WifiNative.WifiRssiEventHandler {
+public class WifiStateMachine extends StateMachine implements WifiNative.WifiRssiEventHandler {
 
     private static final String NETWORKTYPE = "WIFI";
     private static final String NETWORKTYPE_UNTRUSTED = "WIFI_UT";
@@ -186,6 +184,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     private WifiMonitor mWifiMonitor;
     private WifiNative mWifiNative;
     private WifiConfigManager mWifiConfigManager;
+    private WifiConnectivityManager mWifiConnectivityManager;
     private WifiQualifiedNetworkSelector mWifiQualifiedNetworkSelector;
     private INetworkManagementService mNwService;
     private ConnectivityManager mCm;
@@ -223,62 +222,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     private ScanDetail mActiveScanDetail;   // ScanDetail associated with active network
     private boolean linkDebouncing = false;
 
-    private boolean mHalBasedPnoDriverSupported = false;
-
-    private boolean mHalBasedPnoEnableInDevSettings = false;
-
-    private int mHalFeatureSet = 0;
-    private static int mPnoResultFound = 0;
-
     private int mCurrentUserId = UserHandle.USER_SYSTEM;
-
-    private boolean mAllowUntrustedConnections = false;
-
-    @Override
-    public void onPnoNetworkFound(ScanResult results[]) {
-        if (DBG) {
-            Log.e(TAG, "onPnoNetworkFound event received num = " + results.length);
-            for (int i = 0; i < results.length; i++) {
-                Log.e(TAG, results[i].toString());
-            }
-        }
-        sendMessage(CMD_PNO_NETWORK_FOUND, results.length, 0, results);
-    }
-
-    /**
-     * Ignore Pno scan failed events. This is needed for WifiScanner
-     * TODO(rpius): Remove this once PNO scan logic is removed from WifiStateMachine.
-     */
-    @Override
-    public void onPnoScanFailed() {
-        return;
-    }
-
-    public void processPnoNetworkFound(ScanResult results[]) {
-        ScanSettings settings = new ScanSettings();
-        settings.channelSet = new ArrayList<WifiChannel>();
-        StringBuilder sb = new StringBuilder();
-        sb.append("");
-        for (int i=0; i<results.length; i++) {
-            WifiChannel channel = new WifiChannel();
-            channel.freqMHz = results[i].frequency;
-            settings.channelSet.add(channel);
-            sb.append(results[i].SSID).append(" ");
-        }
-
-        stopPnoOffload();
-
-        Log.e(TAG, "processPnoNetworkFound starting scan cnt=" + mPnoResultFound);
-        startScan(PNO_NETWORK_FOUND_SOURCE, mPnoResultFound,  settings, null);
-        mPnoResultFound ++;
-        //sendMessage(CMD_SCAN_RESULTS_AVAILABLE);
-        int delay = 30 * 1000;
-        // reconfigure Pno after 1 minutes if we're still in disconnected state
-        sendMessageDelayed(CMD_RESTART_AUTOJOIN_OFFLOAD, delay,
-                mRestartAutoJoinOffloadCounter, " processPnoNetworkFound " + sb.toString(),
-                (long)delay);
-        mRestartAutoJoinOffloadCounter++;
-    }
 
     @Override
     public void onRssiThresholdBreached(byte curRssi) {
@@ -312,10 +256,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         }
     }
     public void registerNetworkDisabled(int netId) {
-        // Restart legacy PNO and autojoin offload if needed
-        sendMessage(CMD_RESTART_AUTOJOIN_OFFLOAD, 0,
-                mRestartAutoJoinOffloadCounter, " registerNetworkDisabled " + netId);
-        mRestartAutoJoinOffloadCounter++;
+        // Initiate a connectivity scan
+        if (mWifiConnectivityManager != null) {
+            mWifiConnectivityManager.forceConnectivityScan();
+        }
     }
 
     // Testing various network disconnect cases by sending lots of spurious
@@ -323,7 +267,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     private boolean testNetworkDisconnect = false;
 
     private boolean mEnableRssiPolling = false;
-    private boolean mLegacyPnoEnabled = false;
     private int mRssiPollToken = 0;
     /* 3 operational states for STA operation: CONNECT_MODE, SCAN_ONLY_MODE, SCAN_ONLY_WIFI_OFF_MODE
     * In CONNECT_MODE, the STA can scan and connect to an access point
@@ -343,7 +286,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     private static final int SET_ALLOW_UNTRUSTED_SOURCE = -4;
     private static final int ENABLE_WIFI = -5;
     public static final int DFS_RESTRICTED_SCAN_REQUEST = -6;
-    public static final int PNO_NETWORK_FOUND_SOURCE = -7;
 
     private static final int SCAN_REQUEST_BUFFER_MAX_SIZE = 10;
     private static final String CUSTOMIZED_SCAN_SETTING = "customized_scan_settings";
@@ -593,9 +535,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
     private AlarmManager mAlarmManager;
     private PendingIntent mScanIntent;
-    private PendingIntent mPnoIntent;
 
-    private int mDisconnectedPnoAlarmCount = 0;
     /* Tracks current frequency mode */
     private AtomicInteger mFrequencyBand = new AtomicInteger(WifiManager.WIFI_FREQUENCY_BAND_AUTO);
 
@@ -836,21 +776,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
     static final int CMD_ACCEPT_UNVALIDATED                             = BASE + 153;
 
-    /* used to restart PNO when it was stopped due to association attempt */
-    static final int CMD_RESTART_AUTOJOIN_OFFLOAD                       = BASE + 154;
-
-    static int mRestartAutoJoinOffloadCounter = 0;
-
-    /* used to log if PNO was started */
-    static final int CMD_STARTED_PNO_DBG                                = BASE + 155;
-
-    static final int CMD_PNO_NETWORK_FOUND                              = BASE + 156;
-
     /* used to log if PNO was started */
     static final int CMD_UPDATE_ASSOCIATED_SCAN_PERMISSION              = BASE + 158;
-
-    /* used to log if GSCAN was started */
-    static final int CMD_STARTED_GSCAN_DBG                              = BASE + 159;
 
     /* used to offload sending IP packet */
     static final int CMD_START_IP_PACKET_OFFLOAD                        = BASE + 160;
@@ -1011,33 +938,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     /* Soft ap state */
     private State mSoftApState = new SoftApState();
 
-    private class WifiScanListener implements WifiScanner.ScanListener {
-        @Override
-        public void onSuccess() {
-            Log.e(TAG, "WifiScanListener onSuccess");
-        };
-        @Override
-        public void onFailure(int reason, String description) {
-            Log.e(TAG, "WifiScanListener onFailure");
-        };
-        @Override
-        public void onPeriodChanged(int periodInMs) {
-            Log.e(TAG, "WifiScanListener onPeriodChanged  period=" + periodInMs);
-        }
-        @Override
-        public void onResults(WifiScanner.ScanData[] results) {
-            Log.e(TAG, "WifiScanListener onResults2 "  + results.length);
-        }
-        @Override
-        public void onFullResult(ScanResult fullScanResult) {
-            Log.e(TAG, "WifiScanListener onFullResult " + fullScanResult.toString());
-        }
-
-        WifiScanListener() {}
-    }
-
-    WifiScanListener mWifiScanListener = new WifiScanListener();
-
     public static class SimAuthRequestData {
         int networkId;
         int protocol;
@@ -1069,10 +969,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     private static final String ACTION_START_SCAN =
             "com.android.server.WifiManager.action.START_SCAN";
 
-    private static final int PNO_START_REQUEST = 0;
-    private static final String ACTION_START_PNO =
-            "com.android.server.WifiManager.action.START_PNO";
-
     /**
      * Keep track of whether WIFI is running.
      */
@@ -1102,7 +998,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
     private static final int sFrameworkMinScanIntervalSaneValue = 10000;
 
-    private boolean mPnoEnabled;
     private long mGScanStartTimeMilli;
     private long mGScanPeriodMilli;
 
@@ -1173,7 +1068,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
         mAlarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
         mScanIntent = getPrivateBroadcast(ACTION_START_SCAN, SCAN_REQUEST);
-        mPnoIntent = getPrivateBroadcast(ACTION_START_PNO, PNO_START_REQUEST);
 
         // Make sure the interval is not configured less than 10 seconds
         int period = mContext.getResources().getInteger(
@@ -1217,18 +1111,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     }
                 },
                 new IntentFilter(ACTION_START_SCAN));
-
-        mContext.registerReceiver(
-                new BroadcastReceiver() {
-                    @Override
-                    public void onReceive(Context context, Intent intent) {
-                        sendMessage(CMD_RESTART_AUTOJOIN_OFFLOAD, 0,
-                                mRestartAutoJoinOffloadCounter, "pno alarm");
-                        if (DBG)
-                            logd("PNO START ALARM sent");
-                    }
-                },
-                new IntentFilter(ACTION_START_PNO));
 
 
         IntentFilter filter = new IntentFilter();
@@ -1448,29 +1330,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         mWifiConfigManager.enableVerboseLogging(mVerboseLoggingLevel);
         mSupplicantStateTracker.enableVerboseLogging(mVerboseLoggingLevel);
         mWifiQualifiedNetworkSelector.enableVerboseLogging(mVerboseLoggingLevel);
-    }
-
-    public void setHalBasedAutojoinOffload(int enabled) {
-        // Shoult be used for debug only, triggered form developper settings
-        // enabling HAl based PNO dynamically is not safe and not a normal operation
-        mHalBasedPnoEnableInDevSettings = enabled > 0;
-        mWifiConfigManager.enableHalBasedPno.set(mHalBasedPnoEnableInDevSettings);
-        mWifiConfigManager.enableSsidWhitelist.set(mHalBasedPnoEnableInDevSettings);
-        sendMessage(CMD_DISCONNECT);
-    }
-
-    int getHalBasedAutojoinOffload() {
-        return mHalBasedPnoEnableInDevSettings ? 1 : 0;
-    }
-
-    boolean useHalBasedAutoJoinOffload() {
-        // all three settings need to be true:
-        // - developper settings switch
-        // - driver support
-        // - config option
-        return mHalBasedPnoEnableInDevSettings
-                && mHalBasedPnoDriverSupported
-                && mWifiConfigManager.enableHalBasedPno.get();
+        if (mWifiConnectivityManager != null) {
+            mWifiConnectivityManager.enableVerboseLogging(mVerboseLoggingLevel);
+        }
     }
 
     boolean allowFullBandScanAndAssociated() {
@@ -1516,31 +1378,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     // we want to throttle the GScan Stop->Start transition
     static final long SCAN_PERMISSION_UPDATE_THROTTLE_MILLI = 20000;
     void updateAssociatedScanPermission() {
-
-        if (useHalBasedAutoJoinOffload()) {
-            boolean allowed = allowFullBandScanAndAssociated();
-
-            long now = System.currentTimeMillis();
-            if (mConnectedModeGScanOffloadStarted && !allowed) {
-                if (DBG) {
-                    Log.e(TAG, " useHalBasedAutoJoinOffload stop offload");
-                }
-                stopPnoOffload();
-                stopGScan(" useHalBasedAutoJoinOffload");
-            }
-            if (!mConnectedModeGScanOffloadStarted && allowed) {
-                if ((now - mLastScanPermissionUpdate) > SCAN_PERMISSION_UPDATE_THROTTLE_MILLI) {
-                    // Re-enable Gscan offload, this will trigger periodic scans and allow firmware
-                    // to look for 5GHz BSSIDs and better networks
-                    if (DBG) {
-                        Log.e(TAG, " useHalBasedAutoJoinOffload restart offload");
-                    }
-                    startGScanConnectedModeOffload("updatePermission "
-                            + (now - mLastScanPermissionUpdate) + "ms");
-                    mLastScanPermissionUpdate = now;
-                }
-            }
-        }
     }
 
     private int mAggressiveHandover = 0;
@@ -1864,9 +1701,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             mWifiInfo.updatePacketRates(mTxPkts, mRxPkts);
         } else {
             mWifiInfo.updatePacketRates(stats);
-        }
-        if (useHalBasedAutoJoinOffload()) {
-            sendMessage(CMD_UPDATE_ASSOCIATED_SCAN_PERMISSION);
         }
         return stats;
     }
@@ -2224,6 +2058,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         return false;
     }
 
+    public boolean isLinkDebouncing() {
+        return linkDebouncing;
+    }
+
     /**
      * Get status information for the current connection, if any.
      *
@@ -2492,43 +2330,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     }
 
     /**
-     * Convert WifiScanner.PnoNetwork List to WifiNative.PnoNetwork List
-     * TODO(rpius): Remove this once WifiScanner starts PNO scanning.
-     */
-    private List<WifiNative.PnoNetwork> convertPnoNetworkListToNative(
-            List<WifiScanner.PnoSettings.PnoNetwork> pnoNetworkList) {
-        List<WifiNative.PnoNetwork> nativePnoNetworkList = new ArrayList<>();
-        for (WifiScanner.PnoSettings.PnoNetwork pnoNetwork : pnoNetworkList) {
-            WifiNative.PnoNetwork nativePnoNetwork = new WifiNative.PnoNetwork();
-            nativePnoNetwork.ssid = pnoNetwork.ssid;
-            nativePnoNetwork.networkId = pnoNetwork.networkId;
-            nativePnoNetwork.priority = pnoNetwork.priority;
-            nativePnoNetwork.flags = pnoNetwork.flags;
-            nativePnoNetwork.auth_bit_field = pnoNetwork.authBitField;
-            nativePnoNetworkList.add(nativePnoNetwork);
-        }
-        return nativePnoNetworkList;
-    }
-
-    void enableBackgroundScan(boolean enable) {
-        if (enable) {
-            mWifiConfigManager.enableAllNetworks();
-            // Now enable all the networks in wpa_supplicant. These will be
-            // disabled when we connect to a network after PNO.
-            mWifiConfigManager.enableAllNetworksNative();
-        }
-        List<WifiScanner.PnoSettings.PnoNetwork> pnoList =
-                mWifiConfigManager.retrieveDisconnectedPnoNetworkList(enable);
-        boolean ret =
-                mWifiNative.enableBackgroundScan(enable, convertPnoNetworkListToNative(pnoList));
-        if (ret) {
-            mLegacyPnoEnabled = enable;
-        } else {
-            Log.e(TAG, " Fail to set up pno, want " + enable + " now " + mLegacyPnoEnabled);
-        }
-    }
-
-    /**
      * Blacklist a BSSID. This will avoid the AP if there are
      * alternate APs to connect
      *
@@ -2729,7 +2530,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         pw.println("mUserWantsSuspendOpt " + mUserWantsSuspendOpt);
         pw.println("mSuspendOptNeedsDisabled " + mSuspendOptNeedsDisabled);
         pw.println("Supplicant status " + mWifiNative.status(true));
-        pw.println("mLegacyPnoEnabled " + mLegacyPnoEnabled);
         if (mCountryCode.getCurrentCountryCode() != null) {
             pw.println("CurrentCountryCode " + mCountryCode.getCurrentCountryCode());
         } else {
@@ -2769,6 +2569,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         mWifiLogger.dump(fd, pw, args);
         mWifiQualifiedNetworkSelector.dump(fd, pw, args);
         dumpIpManager(fd, pw, args);
+        if (mWifiConnectivityManager != null) {
+            mWifiConnectivityManager.dump(fd, pw, args);
+        }
     }
 
     public void handleUserSwitch(int userId) {
@@ -2822,32 +2625,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         }
         sb.append(" ").append(printTime());
         switch (msg.what) {
-            case CMD_STARTED_GSCAN_DBG:
-            case CMD_STARTED_PNO_DBG:
-                sb.append(" ");
-                sb.append(Integer.toString(msg.arg1));
-                sb.append(" ");
-                sb.append(Integer.toString(msg.arg2));
-                if (msg.obj != null) {
-                    sb.append(" " + (String)msg.obj);
-                }
-                break;
-            case CMD_RESTART_AUTOJOIN_OFFLOAD:
-                sb.append(" ");
-                sb.append(Integer.toString(msg.arg1));
-                sb.append(" ");
-                sb.append(Integer.toString(msg.arg2));
-                sb.append("/").append(Integer.toString(mRestartAutoJoinOffloadCounter));
-                if (msg.obj != null) {
-                    sb.append(" " + (String)msg.obj);
-                }
-                break;
             case CMD_UPDATE_ASSOCIATED_SCAN_PERMISSION:
                 sb.append(" ");
                 sb.append(Integer.toString(msg.arg1));
                 sb.append(" ");
                 sb.append(Integer.toString(msg.arg2));
-                sb.append(" halAllowed=").append(useHalBasedAutoJoinOffload());
                 sb.append(" scanAllowed=").append(allowFullBandScanAndAssociated());
                 sb.append(" autojoinAllowed=");
                 sb.append(mWifiConfigManager.enableAutoJoinWhenAssociated.get());
@@ -2857,20 +2639,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 sb.append(" rx=").append(mWifiInfo.rxSuccessRate);
                 sb.append("/").append(mWifiConfigManager.maxRxPacketForFullScans);
                 sb.append(" -> ").append(mConnectedModeGScanOffloadStarted);
-                break;
-            case CMD_PNO_NETWORK_FOUND:
-                sb.append(" ");
-                sb.append(Integer.toString(msg.arg1));
-                sb.append(" ");
-                sb.append(Integer.toString(msg.arg2));
-                if (msg.obj != null) {
-                    ScanResult[] results = (ScanResult[])msg.obj;
-                    for (int i = 0; i < results.length; i++) {
-                       sb.append(" ").append(results[i].SSID).append(" ");
-                       sb.append(results[i].frequency);
-                       sb.append(" ").append(results[i].level);
-                    }
-                }
                 break;
             case CMD_START_SCAN:
                 now = System.currentTimeMillis();
@@ -3379,224 +3147,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         return sb.toString();
     }
 
-    private void stopPnoOffload() {
-
-        // clear the PNO list
-        if (!mWifiNative.resetPnoList()) {
-            Log.e(TAG, "Failed to stop pno");
-        }
-
-    }
-
-    private boolean startGScanConnectedModeOffload(String reason) {
-        if (DBG) {
-            if (reason == null) {
-                reason = "";
-            }
-            logd("startGScanConnectedModeOffload " + reason);
-        }
-        stopGScan("startGScanConnectedModeOffload " + reason);
-        if (!mScreenOn) return false;
-
-        if (USE_PAUSE_SCANS) {
-            mWifiNative.pauseScan();
-        }
-        mPnoEnabled = configurePno();
-        if (mPnoEnabled == false) {
-            if (USE_PAUSE_SCANS) {
-                mWifiNative.restartScan();
-            }
-            return false;
-        }
-        if (!startConnectedGScan(reason)) {
-            if (USE_PAUSE_SCANS) {
-                mWifiNative.restartScan();
-            }
-            return false;
-        }
-        if (USE_PAUSE_SCANS) {
-            mWifiNative.restartScan();
-        }
-        mConnectedModeGScanOffloadStarted = true;
-        if (DBG) {
-            logd("startGScanConnectedModeOffload success");
-        }
-        return true;
-    }
-
-    private boolean startGScanDisconnectedModeOffload(String reason) {
-        if (DBG) {
-            logd("startGScanDisconnectedModeOffload " + reason);
-        }
-        stopGScan("startGScanDisconnectedModeOffload " + reason);
-        if (USE_PAUSE_SCANS) {
-            mWifiNative.pauseScan();
-        }
-        mPnoEnabled = configurePno();
-        if (mPnoEnabled == false) {
-            if (USE_PAUSE_SCANS) {
-                mWifiNative.restartScan();
-            }
-            return false;
-        }
-        if (!startDisconnectedGScan(reason)) {
-            if (USE_PAUSE_SCANS) {
-                mWifiNative.restartScan();
-            }
-            return false;
-        }
-        if (USE_PAUSE_SCANS) {
-            mWifiNative.restartScan();
-        }
-        return true;
-    }
-
-    private boolean configurePno() {
-        if (!useHalBasedAutoJoinOffload()) return false;
-
-        if (mWifiScanner == null) {
-            log("configurePno: mWifiScanner is null ");
-            return true;
-        }
-
-        List<WifiNative.PnoNetwork> llist = null;
-        //TODO: add getPnoList in WifiQualifiedNetworkSelector
-        //mWifiAutoJoinController.getPnoList(getCurrentWifiConfiguration());
-        if (llist == null || llist.size() == 0) {
-            stopPnoOffload();
-            log("configurePno: empty PNO list ");
-            return true;
-        }
-        if (DBG) {
-            log("configurePno: got llist size " + llist.size());
-        }
-
-        // first program the network we want to look for thru the pno API
-        WifiNative.PnoNetwork[] list =
-                (WifiNative.PnoNetwork[]) llist.toArray(new WifiNative.PnoNetwork[0]);
-
-        if (!mWifiNative.setPnoList(list, WifiStateMachine.this)) {
-            Log.e(TAG, "Failed to set pno, length = " + list.length);
-            return false;
-        }
-
-        if (true) {
-            StringBuilder sb = new StringBuilder();
-            for (WifiNative.PnoNetwork network : list) {
-                sb.append("[").append(network.ssid).append(" auth=").append(network.auth_bit_field);
-                sb.append(" flags=");
-                sb.append(network.flags);
-                sb.append("] ");
-
-            }
-            sendMessage(CMD_STARTED_PNO_DBG, 1, (int)mGScanPeriodMilli, sb.toString());
-        }
-        return true;
-    }
-
-    final static int DISCONNECTED_SHORT_SCANS_DURATION_MILLI = 2 * 60 * 1000;
-    final static int CONNECTED_SHORT_SCANS_DURATION_MILLI = 2 * 60 * 1000;
-
-    private boolean startConnectedGScan(String reason) {
-        // send a scan background request so as to kick firmware
-        // 5GHz roaming and autojoin
-        // We do this only if screen is on
-        WifiScanner.ScanSettings settings;
-
-        if (mPnoEnabled) {
-            settings = new WifiScanner.ScanSettings();
-            settings.band = WifiScanner.WIFI_BAND_BOTH;
-            long now = System.currentTimeMillis();
-
-            if (!mScreenOn  || (mGScanStartTimeMilli!= 0 && now > mGScanStartTimeMilli
-                    && ((now - mGScanStartTimeMilli) > CONNECTED_SHORT_SCANS_DURATION_MILLI))) {
-                settings.periodInMs = mWifiConfigManager.wifiAssociatedLongScanIntervalMilli.get();
-            } else {
-                mGScanStartTimeMilli = now;
-                settings.periodInMs = mWifiConfigManager.wifiAssociatedShortScanIntervalMilli.get();
-                // if we start offload with short interval, then reconfigure it after a given
-                // duration of time so as to reduce the scan frequency
-                int delay = 30 * 1000 + CONNECTED_SHORT_SCANS_DURATION_MILLI;
-                sendMessageDelayed(CMD_RESTART_AUTOJOIN_OFFLOAD, delay,
-                        mRestartAutoJoinOffloadCounter, " startConnectedGScan " + reason,
-                        (long)delay);
-                mRestartAutoJoinOffloadCounter++;
-            }
-            mGScanPeriodMilli = settings.periodInMs;
-            settings.reportEvents = WifiScanner.REPORT_EVENT_AFTER_BUFFER_FULL;
-            if (DBG) {
-                log("startConnectedScan: settings band="+ settings.band
-                        + " period=" + settings.periodInMs);
-            }
-
-            mWifiScanner.startBackgroundScan(settings, mWifiScanListener);
-            if (true) {
-                sendMessage(CMD_STARTED_GSCAN_DBG, 1, (int)mGScanPeriodMilli, reason);
-            }
-        }
-        return true;
-    }
-
-    private boolean startDisconnectedGScan(String reason) {
-        // send a scan background request so as to kick firmware
-        // PNO
-        // This is done in both screen On and screen Off modes
-        WifiScanner.ScanSettings settings;
-
-        if (mWifiScanner == null) {
-            log("startDisconnectedGScan: no wifi scanner");
-            return false;
-        }
-
-        if (mPnoEnabled) {
-            settings = new WifiScanner.ScanSettings();
-            settings.band = WifiScanner.WIFI_BAND_BOTH;
-            long now = System.currentTimeMillis();
-
-
-            if (!mScreenOn  || (mGScanStartTimeMilli != 0 && now > mGScanStartTimeMilli
-                    && ((now - mGScanStartTimeMilli) > DISCONNECTED_SHORT_SCANS_DURATION_MILLI))) {
-                settings.periodInMs =
-                        mWifiConfigManager.wifiDisconnectedLongScanIntervalMilli.get();
-            } else {
-                settings.periodInMs =
-                        mWifiConfigManager.wifiDisconnectedShortScanIntervalMilli.get();
-                mGScanStartTimeMilli = now;
-                // if we start offload with short interval, then reconfigure it after a given
-                // duration of time so as to reduce the scan frequency
-                int delay = 30 * 1000 + DISCONNECTED_SHORT_SCANS_DURATION_MILLI;
-                sendMessageDelayed(CMD_RESTART_AUTOJOIN_OFFLOAD, delay,
-                        mRestartAutoJoinOffloadCounter, " startDisconnectedGScan " + reason,
-                        (long)delay);
-                mRestartAutoJoinOffloadCounter++;
-            }
-            mGScanPeriodMilli = settings.periodInMs;
-            settings.reportEvents = WifiScanner.REPORT_EVENT_AFTER_BUFFER_FULL;
-            if (DBG) {
-                log("startDisconnectedScan: settings band="+ settings.band
-                        + " period=" + settings.periodInMs);
-            }
-            mWifiScanner.startBackgroundScan(settings, mWifiScanListener);
-            if (true) {
-                sendMessage(CMD_STARTED_GSCAN_DBG, 1, (int)mGScanPeriodMilli, reason);
-            }
-        }
-        return true;
-    }
-
-    private boolean stopGScan(String reason) {
-        mGScanStartTimeMilli = 0;
-        mGScanPeriodMilli = 0;
-        if (mWifiScanner != null) {
-            mWifiScanner.stopBackgroundScan(mWifiScanListener);
-        }
-        mConnectedModeGScanOffloadStarted = false;
-        if (true) {
-            sendMessage(CMD_STARTED_GSCAN_DBG, 0, 0, reason);
-        }
-        return true;
-    }
-
     private void handleScreenStateChanged(boolean screenOn) {
         mScreenOn = screenOn;
         if (DBG) {
@@ -3621,61 +3171,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         mOnTimeScreenStateChange = mOnTime;
         lastScreenStateChangeTimeStamp = lastLinkLayerStatsUpdate;
 
-        cancelDelayedScan();
-
         mWifiMetrics.setScreenState(screenOn);
 
-        if (screenOn) {
-            enableBackgroundScan(false);
-            setScanAlarm(false);
-            clearBlacklist();
-
-            fullBandConnectedTimeIntervalMilli
-                    = mWifiConfigManager.wifiAssociatedShortScanIntervalMilli.get();
-            // In either Disconnectedstate or ConnectedState,
-            // start the scan alarm so as to enable autojoin
-            if (getCurrentState() == mConnectedState
-                    && allowFullBandScanAndAssociated()) {
-                if (useHalBasedAutoJoinOffload()) {
-                    startGScanConnectedModeOffload("screenOnConnected");
-                } else {
-                    // Scan after 500ms
-                    startDelayedScan(500, null, null);
-                }
-            } else if (getCurrentState() == mDisconnectedState) {
-                if (useHalBasedAutoJoinOffload()) {
-                    startGScanDisconnectedModeOffload("screenOnDisconnected");
-                } else {
-                    // Scan after 500ms
-                    startDelayedScan(500, null, null);
-                }
-            }
-        } else {
-            if (getCurrentState() == mDisconnectedState) {
-                // Screen Off and Disconnected and chipset doesn't support scan offload
-                //              => start scan alarm
-                // Screen Off and Disconnected and chipset does support scan offload
-                //              => will use scan offload (i.e. background scan)
-                if (useHalBasedAutoJoinOffload()) {
-                    startGScanDisconnectedModeOffload("screenOffDisconnected");
-                } else {
-                    if (!mBackgroundScanSupported) {
-                        setScanAlarm(true);
-                    } else {
-                        if (!mIsScanOngoing) {
-                            enableBackgroundScan(true);
-                        }
-                    }
-                }
-            } else {
-                enableBackgroundScan(false);
-                if (useHalBasedAutoJoinOffload()) {
-                    // don't try stop Gscan if it is not enabled
-                    stopGScan("ScreenOffStop(enableBackground=" + mLegacyPnoEnabled + ") ");
-                }
-            }
+        if (mWifiConnectivityManager != null) {
+            mWifiConnectivityManager.handleScreenStateChanged(screenOn);
         }
-        if (DBG) logd("backgroundScan enabled=" + mLegacyPnoEnabled);
 
         if (DBG) log("handleScreenStateChanged Exit: " + screenOn);
     }
@@ -3696,7 +3196,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
         if (mWifiNative.setBand(band)) {
             mFrequencyBand.set(band);
-            mWifiQualifiedNetworkSelector.setUserPreferredBand(band);
+            if (mWifiConnectivityManager != null) {
+                mWifiConnectivityManager.setUserPreferredBand(band);
+            }
             if (DBG) {
                 logd("done set frequency band " + band);
             }
@@ -3862,24 +3364,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             // just try to reconnect to the same SSID by triggering a roam
             // The third parameter 1 means roam not from network selection but debouncing
             sendMessage(CMD_AUTO_ROAM, mLastNetworkId, 1, null);
-        } else {
-            WifiConfiguration candidate =
-                    mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                    mAllowUntrustedConnections, mScanResults, linkDebouncing, isConnected(),
-                    isDisconnected(), isSupplicantTransientState());
-            tryToConnectToNetwork(candidate);
-        }
-    }
-
-    /**
-     * Set whether connections to untrusted connections are allowed.
-     */
-    void setAllowUntrustedConnections(boolean allow) {
-        boolean changed = (mAllowUntrustedConnections != allow);
-        mAllowUntrustedConnections = allow;
-        if (changed) {
-            // Trigger a scan so as to reattempt autojoin
-            startScanForUntrustedSettingChange();
         }
     }
 
@@ -4747,7 +4231,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             if (!networkRequest.networkCapabilities.hasCapability(
                     NetworkCapabilities.NET_CAPABILITY_TRUSTED)) {
                 if (++mUntrustedReqCount == 1) {
-                    setAllowUntrustedConnections(true);
+                    if (mWifiConnectivityManager != null) {
+                        mWifiConnectivityManager.setUntrustedConnectionAllowed(true);
+                    }
                 }
             }
         }
@@ -4757,7 +4243,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             if (!networkRequest.networkCapabilities.hasCapability(
                     NetworkCapabilities.NET_CAPABILITY_TRUSTED)) {
                 if (--mUntrustedReqCount == 0) {
-                    setAllowUntrustedConnections(false);
+                    if (mWifiConnectivityManager != null) {
+                        mWifiConnectivityManager.setUntrustedConnectionAllowed(false);
+                    }
                 }
             }
         }
@@ -4908,9 +4396,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 case CMD_DISCONNECTING_WATCHDOG_TIMER:
                 case CMD_ROAM_WATCHDOG_TIMER:
                 case CMD_DISABLE_EPHEMERAL_NETWORK:
-                case CMD_RESTART_AUTOJOIN_OFFLOAD:
-                case CMD_STARTED_PNO_DBG:
-                case CMD_STARTED_GSCAN_DBG:
                 case CMD_UPDATE_ASSOCIATED_SCAN_PERMISSION:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
@@ -5064,11 +4549,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             if (mWifiApConfigStore == null) {
                 mWifiApConfigStore =
                         mFacade.makeApConfigStore(mContext, mBackupManagerProxy);
-            }
-
-            if (mWifiConfigManager.enableHalBasedPno.get()) {
-                // make sure developer Settings are in sync with the config option
-                mHalBasedPnoEnableInDevSettings = true;
             }
         }
         @Override
@@ -5504,6 +4984,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             if (mWifiScanner == null) {
                 mWifiScanner =
                         (WifiScanner) mContext.getSystemService(Context.WIFI_SCANNING_SERVICE);
+                mWifiConnectivityManager = new WifiConnectivityManager(mContext,
+                    WifiStateMachine.this, mWifiScanner, mWifiConfigManager, mWifiInfo,
+                    mWifiQualifiedNetworkSelector);
             }
 
             mWifiLogger.startLogging(DBG);
@@ -5572,19 +5055,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_ENABLED);
             mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
 
-            mHalFeatureSet = mWifiNative.getSupportedFeatureSet();
-            if ((mHalFeatureSet & WifiManager.WIFI_FEATURE_HAL_EPNO)
-                    == WifiManager.WIFI_FEATURE_HAL_EPNO) {
-                mHalBasedPnoDriverSupported = true;
-            }
-
             // Enable link layer stats gathering
             mWifiNative.setWifiLinkLayerStats("wlan0", 1);
-
-            if (DBG) {
-                logd("Driverstarted State enter done, epno=" + mHalBasedPnoDriverSupported
-                     + " feature=" + mHalFeatureSet);
-            }
         }
 
         @Override
@@ -5839,8 +5311,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         } else {
                             mWifiConfigManager.enableAllNetworks();
                         }
-                        // start a scan to trigger Quality network selection
-                        startScan(ENABLE_WIFI, 0, null, null);
 
                         // Loose last selection choice since user toggled WiFi
                         mWifiConfigManager.
@@ -6106,12 +5576,22 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
         @Override
         public void enter() {
+            // Inform WifiConnectivityManager that Wifi is enabled
+            if (mWifiConnectivityManager != null) {
+                mWifiConnectivityManager.setWifiEnabled(true);
+            }
             // Inform metrics that Wifi is Enabled (but not yet connected)
             mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_DISCONNECTED);
+
+
         }
 
         @Override
         public void exit() {
+            // Inform WifiConnectivityManager that Wifi is disabled
+            if (mWifiConnectivityManager != null) {
+                mWifiConnectivityManager.setWifiEnabled(false);
+            }
             // Inform metrics that Wifi is being disabled (Toggled, airplane enabled, etc)
             mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_DISABLED);
         }
@@ -6138,8 +5618,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     }
                     if (bssid != null) {
                         // If we have a BSSID, tell configStore to black list it
-                        didBlackListBSSID = mWifiQualifiedNetworkSelector
-                                .enableBssidForQualityNetworkSelection(bssid, false);
+                        if (mWifiConnectivityManager != null) {
+                            didBlackListBSSID = mWifiConnectivityManager.trackBssid(bssid,
+                                    false);
+                        }
                     }
 
                     mWifiConfigManager.updateNetworkSelectionStatus(mTargetNetworkId,
@@ -6263,8 +5745,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                                 mWifiConfigManager.updateLastConnectUid(config, message.sendingUid);
                                 boolean persist = mWifiConfigManager
                                         .checkConfigOverridePermission(message.sendingUid);
-                                mWifiQualifiedNetworkSelector
-                                        .userSelectNetwork(res, persist);
+                                if (mWifiConnectivityManager != null) {
+                                    mWifiConnectivityManager.connectToUserSelectNetwork(res,
+                                            persist);
+                                }
 
                                 // Remember time of last connection attempt
                                 lastConnectAttemptTimestamp = System.currentTimeMillis();
@@ -6326,7 +5810,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     // disable other only means select this network, does not mean all other
                     // networks need to be disabled
                     if (disableOthers) {
-                        mWifiQualifiedNetworkSelector.enableNetworkByUser(config);
                         // Remember time of last connection attempt
                         lastConnectAttemptTimestamp = System.currentTimeMillis();
                         mWifiConnectionStatistics.numWifiManagerJoinAttempt++;
@@ -6335,7 +5818,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     autoRoamSetBSSID(netId, "any");
 
                     int uid = message.sendingUid;
-                    mWifiQualifiedNetworkSelector.enableNetworkByUser(config);
+                    mWifiConfigManager.updateNetworkSelectionStatus(config,
+                                WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+                    mWifiConfigManager.setLatestUserSelectedConfiguration(config);
                     ok = mWifiConfigManager.enableNetwork(netId, disableOthers, uid);
                     if (!ok) {
                         messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
@@ -6471,11 +5956,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     mWifiNative.disconnect();
                     break;
                 case CMD_RECONNECT:
-                    WifiConfiguration candidate =
-                            mWifiQualifiedNetworkSelector.selectQualifiedNetwork(true,
-                            mAllowUntrustedConnections, mScanResults, linkDebouncing,
-                            isConnected(), isDisconnected(), isSupplicantTransientState());
-                    tryToConnectToNetwork(candidate);
+                    if (mWifiConnectivityManager != null) {
+                        mWifiConnectivityManager.forceConnectivityScan();
+                    }
                     break;
                 case CMD_REASSOCIATE:
                     lastConnectAttemptTimestamp = System.currentTimeMillis();
@@ -6607,18 +6090,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                             transitionTo(mRoamingState);
                         } else if (didDisconnect) {
                             transitionTo(mDisconnectingState);
-                        } else {
-                            /* Already in disconnected state, nothing to change */
-                            if (!mScreenOn && mLegacyPnoEnabled && mBackgroundScanSupported) {
-                                int delay = 60 * 1000;
-                                if (DBG) {
-                                    logd("Starting PNO alarm: " + delay);
-                                }
-                                mAlarmManager.set(AlarmManager.RTC_WAKEUP,
-                                       System.currentTimeMillis() + delay,
-                                       mPnoIntent);
-                            }
-                            mRestartAutoJoinOffloadCounter++;
                         }
                     } else {
                         loge("Failed to connect config: " + config + " netId: " + netId);
@@ -6734,7 +6205,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
 
                     mWifiConfigManager.setAndEnableLastSelectedConfiguration(netId);
-                    mWifiQualifiedNetworkSelector.userSelectNetwork(netId, persist);
+                    if (mWifiConnectivityManager != null) {
+                        mWifiConnectivityManager.connectToUserSelectNetwork(netId, persist);
+                    }
                     didDisconnect = false;
                     if (mLastNetworkId != WifiConfiguration.INVALID_NETWORK_ID
                             && mLastNetworkId != netId) {
@@ -6870,13 +6343,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                             mWifiConfigManager.updateLastConnectUid(config, message.sendingUid);
                             mWifiConfigManager.writeKnownNetworkHistory();
                         }
-                        //Fixme, CMD_AUTO_SAVE_NETWORK can be cleaned
-                        mWifiQualifiedNetworkSelector.userSelectNetwork(
-                                result.getNetworkId(), persistConnect);
-                        candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(true,
-                                mAllowUntrustedConnections, mScanResults, linkDebouncing,
-                                isConnected(), isDisconnected(), isSupplicantTransientState());
-                        tryToConnectToNetwork(candidate);
+
+                        if (mWifiConnectivityManager != null) {
+                            mWifiConnectivityManager.connectToUserSelectNetwork(
+                                    result.getNetworkId(), persistConnect);
+                        }
                     } else {
                         loge("Failed to save network");
                         messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
@@ -6996,9 +6467,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     if (DBG) log("ConnectModeState: Network connection lost ");
                     handleNetworkDisconnect();
                     transitionTo(mDisconnectedState);
-                    break;
-                case CMD_PNO_NETWORK_FOUND:
-                    processPnoNetworkFound((ScanResult[]) message.obj);
                     break;
                 case CMD_ADD_PASSPOINT_MO:
                     res = mWifiConfigManager.addPasspointManagementObject((String) message.obj);
@@ -7897,8 +7365,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         mLastBssid = (String) message.obj;
                         mWifiInfo.setBSSID(mLastBssid);
                         mWifiInfo.setNetworkId(mLastNetworkId);
-                        mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(
-                                mLastBssid, true);
+                        if (mWifiConnectivityManager != null) {
+                            mWifiConnectivityManager.trackBssid(mLastBssid, true);
+                        }
                         sendNetworkStateChangeBroadcast(mLastBssid);
 
                         // Successful framework roam! (probably)
@@ -7976,20 +7445,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                        + " mScreenOn=" + mScreenOn
                        + " scanperiod="
                        + Integer.toString(
-                            mWifiConfigManager.wifiAssociatedShortScanIntervalMilli.get())
-                       + " useGscan=" + mHalBasedPnoDriverSupported + "/"
-                        + mWifiConfigManager.enableHalBasedPno.get()
-                        + " mHalBasedPnoEnableInDevSettings " + mHalBasedPnoEnableInDevSettings);
+                            mWifiConfigManager.wifiAssociatedShortScanIntervalMilli.get()));
             }
-            if (mScreenOn
-                    && getEnableAutoJoinWhenAssociated()) {
-                if (useHalBasedAutoJoinOffload()) {
-                    startGScanConnectedModeOffload("connectedEnter");
-                } else {
-                    // restart scan alarm
-                    startDelayedScan(mWifiConfigManager.wifiAssociatedShortScanIntervalMilli.get(),
-                            null, null);
-                }
+
+            if (mWifiConnectivityManager != null) {
+                mWifiConnectivityManager.handleConnectionStateChanged(
+                        WifiConnectivityManager.WIFI_STATE_CONNECTED);
             }
             registerConnected();
             lastConnectAttemptTimestamp = 0;
@@ -8020,35 +7481,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             logStateAndMessage(message, this);
 
             switch (message.what) {
-                case CMD_RESTART_AUTOJOIN_OFFLOAD:
-                    if ( (int)message.arg2 < mRestartAutoJoinOffloadCounter ) {
-                        messageHandlingStatus = MESSAGE_HANDLING_STATUS_OBSOLETE;
-                        return HANDLED;
-                    }
-                    /* If we are still in Disconnected state after having discovered a valid
-                     * network this means autojoin didnt managed to associate to the network,
-                     * then restart PNO so as we will try associating to it again.
-                     */
-                    if (useHalBasedAutoJoinOffload()) {
-                        if (mGScanStartTimeMilli == 0) {
-                            // If offload is not started, then start it...
-                            startGScanConnectedModeOffload("connectedRestart");
-                        } else {
-                            // If offload is already started, then check if we need to increase
-                            // the scan period and restart the Gscan
-                            long now = System.currentTimeMillis();
-                            if (mGScanStartTimeMilli != 0 && now > mGScanStartTimeMilli
-                                    && ((now - mGScanStartTimeMilli)
-                                    > DISCONNECTED_SHORT_SCANS_DURATION_MILLI)
-                                && (mGScanPeriodMilli
-                                    < mWifiConfigManager
-                                    .wifiDisconnectedLongScanIntervalMilli.get()))
-                            {
-                                startConnectedGScan("Connected restart gscan");
-                            }
-                        }
-                    }
-                    break;
                 case CMD_UPDATE_ASSOCIATED_SCAN_PERMISSION:
                     updateAssociatedScanPermission();
                     break;
@@ -8299,7 +7731,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         @Override
         public void exit() {
             logd("WifiStateMachine: Leaving Connected state");
-            setScanAlarm(false);
+            if (mWifiConnectivityManager != null) {
+                mWifiConnectivityManager.handleConnectionStateChanged(
+                         WifiConnectivityManager.WIFI_STATE_TRANSITIONING);
+            }
+
             mLastDriverRoamAttempt = 0;
             mWhiteListedSsids = null;
         }
@@ -8313,7 +7749,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             if (DBG) {
                 logd(" Enter DisconnectingState State scan interval "
                         + mWifiConfigManager.wifiDisconnectedShortScanIntervalMilli.get()
-                        + " mLegacyPnoEnabled= " + mLegacyPnoEnabled
                         + " screenOn=" + mScreenOn);
             }
 
@@ -8378,41 +7813,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             if (DBG) {
                 logd(" Enter DisconnectedState scan interval "
                         + mWifiConfigManager.wifiDisconnectedShortScanIntervalMilli.get()
-                        + " mLegacyPnoEnabled= " + mLegacyPnoEnabled
-                        + " screenOn=" + mScreenOn
-                        + " useGscan=" + mHalBasedPnoDriverSupported + "/"
-                        + mWifiConfigManager.enableHalBasedPno.get());
+                        + " screenOn=" + mScreenOn);
             }
 
             /** clear the roaming state, if we were roaming, we failed */
             mAutoRoaming = false;
 
-            if (useHalBasedAutoJoinOffload()) {
-                startGScanDisconnectedModeOffload("disconnectedEnter");
-            } else {
-                if (mScreenOn) {
-                    /**
-                     * screen lit and => start scan immediately
-                     */
-                    startScan(UNKNOWN_SCAN_SOURCE, 0, null, null);
-                } else {
-                    /**
-                     * screen dark and PNO supported => scan alarm disabled
-                     */
-                    if (mBackgroundScanSupported) {
-                        /* If a regular scan result is pending, do not initiate background
-                         * scan until the scan results are returned. This is needed because
-                        * initiating a background scan will cancel the regular scan and
-                        * scan results will not be returned until background scanning is
-                        * cleared
-                        */
-                        if (!mIsScanOngoing) {
-                            enableBackgroundScan(true);
-                        }
-                    } else {
-                        setScanAlarm(true);
-                    }
-                }
+            if (mWifiConnectivityManager != null) {
+                mWifiConnectivityManager.handleConnectionStateChanged(
+                        WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
             }
 
             /**
@@ -8427,7 +7836,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             }
 
             mDisconnectedTimeStamp = System.currentTimeMillis();
-            mDisconnectedPnoAlarmCount = 0;
         }
         @Override
         public boolean processMessage(Message message) {
@@ -8510,99 +7918,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                                     + " -> obsolete");
                             return HANDLED;
                         }
-                        /* Disable background scan temporarily during a regular scan */
-                        enableBackgroundScan(false);
+
                         handleScanRequest(message);
                         ret = HANDLED;
                     } else {
-
-                        /*
-                         * The SCAN request is not handled in this state and
-                         * would eventually might/will get handled in the
-                         * parent's state. The PNO, if already enabled had to
-                         * get disabled before the SCAN trigger. Hence, stop
-                         * the PNO if already enabled in this state, though the
-                         * SCAN request is not handled(PNO disable before the
-                         * SCAN trigger in any other state is not the right
-                         * place to issue).
-                         */
-
-                        enableBackgroundScan(false);
                         ret = NOT_HANDLED;
                     }
-                    break;
-                case CMD_RESTART_AUTOJOIN_OFFLOAD:
-                    if ( (int)message.arg2 < mRestartAutoJoinOffloadCounter ) {
-                        messageHandlingStatus = MESSAGE_HANDLING_STATUS_OBSOLETE;
-                        return HANDLED;
-                    }
-                    /* If we are still in Disconnected state after having discovered a valid
-                     * network this means autojoin didnt managed to associate to the network,
-                     * then restart PNO so as we will try associating to it again.
-                     */
-                    if (useHalBasedAutoJoinOffload()) {
-                        if (mGScanStartTimeMilli == 0) {
-                            // If offload is not started, then start it...
-                            startGScanDisconnectedModeOffload("disconnectedRestart");
-                        } else {
-                            // If offload is already started, then check if we need to increase
-                            // the scan period and restart the Gscan
-                            long now = System.currentTimeMillis();
-                            if (mGScanStartTimeMilli != 0 && now > mGScanStartTimeMilli
-                                    && ((now - mGScanStartTimeMilli)
-                                    > DISCONNECTED_SHORT_SCANS_DURATION_MILLI)
-                                    && (mGScanPeriodMilli
-                                    < mWifiConfigManager
-                                    .wifiDisconnectedLongScanIntervalMilli.get()))
-                            {
-                                startDisconnectedGScan("disconnected restart gscan");
-                            }
-                        }
-                    } else {
-                        // If we are still disconnected for a short while after having found a
-                        // network thru PNO, then something went wrong, and for some reason we
-                        // couldn't join this network.
-                        // It might be due to a SW bug in supplicant or the wifi stack, or an
-                        // interoperability issue, or we try to join a bad bss and failed
-                        // In that case we want to restart pno so as to make sure that we will
-                        // attempt again to join that network.
-                        if (!mScreenOn && !mIsScanOngoing && mBackgroundScanSupported) {
-                            enableBackgroundScan(false);
-                            enableBackgroundScan(true);
-                        }
-                        return HANDLED;
-                    }
-                    break;
-                case WifiMonitor.SCAN_RESULTS_EVENT:
-                case WifiMonitor.SCAN_FAILED_EVENT:
-                    /* Re-enable background scan when a pending scan result is received */
-                    if (!mScreenOn && mIsScanOngoing
-                            && mBackgroundScanSupported
-                            && !useHalBasedAutoJoinOffload()) {
-                        enableBackgroundScan(true);
-                    } else if (!mScreenOn
-                            && !mIsScanOngoing
-                            && mBackgroundScanSupported
-                            && !useHalBasedAutoJoinOffload()) {
-                        // We receive scan results from legacy PNO, hence restart the PNO alarm
-                        int delay;
-                        if (mDisconnectedPnoAlarmCount < 1) {
-                            delay = 30 * 1000;
-                        } else if (mDisconnectedPnoAlarmCount < 3) {
-                            delay = 60 * 1000;
-                        } else {
-                            delay = 360 * 1000;
-                        }
-                        mDisconnectedPnoAlarmCount++;
-                        if (DBG) {
-                            logd("Starting PNO alarm " + delay);
-                        }
-                        mAlarmManager.set(AlarmManager.RTC_WAKEUP,
-                                System.currentTimeMillis() + delay,
-                                mPnoIntent);
-                    }
-                    /* Handled in parent state */
-                    ret = NOT_HANDLED;
                     break;
                 case WifiP2pServiceImpl.P2P_CONNECTION_CHANGED:
                     NetworkInfo info = (NetworkInfo) message.obj;
@@ -8623,13 +7944,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         // scanning at the normal period. This is necessary because scanning might
                         // have been disabled altogether if WIFI_SCAN_INTERVAL_WHEN_P2P_CONNECTED_MS
                         // was set to zero.
-                        if (useHalBasedAutoJoinOffload()) {
-                            startGScanDisconnectedModeOffload("p2pRestart");
-                        } else {
-                            startDelayedScan(
-                                    mWifiConfigManager.wifiDisconnectedShortScanIntervalMilli.get(),
+                        startDelayedScan(
+                                mWifiConfigManager.wifiDisconnectedShortScanIntervalMilli.get(),
                                     null, null);
-                        }
                     }
                     break;
                 case CMD_RECONNECT:
@@ -8654,11 +7971,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
         @Override
         public void exit() {
-            mDisconnectedPnoAlarmCount = 0;
-            /* No need for a background scan upon exit from a disconnected state */
-            enableBackgroundScan(false);
-            setScanAlarm(false);
-            mAlarmManager.cancel(mPnoIntent);
+            if (mWifiConnectivityManager != null) {
+                mWifiConnectivityManager.handleConnectionStateChanged(
+                         WifiConnectivityManager.WIFI_STATE_TRANSITIONING);
+            }
         }
     }
 
@@ -9205,6 +8521,26 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
     }
 
     /**
+     * Automatically connect to the network specified
+     *
+     * @param networkId ID of the network to connect to
+     * @param bssid BSSID of the network
+     */
+    public void autoConnectToNetwork(int networkId, String bssid) {
+        sendMessage(CMD_AUTO_CONNECT, networkId, 0, bssid);
+    }
+
+    /**
+     * Automatically roam to the network specified
+     *
+     * @param networkId ID of the network to roam to
+     * @param scanResult scan result which identifies the network to roam to
+     */
+    public void autoRoamToNetwork(int networkId, ScanResult scanResult) {
+        sendMessage(CMD_AUTO_ROAM, networkId, 0, scanResult);
+    }
+
+    /**
      * @param reason reason code from supplicant on network disconnected event
      * @return true if this is a suspicious disconnect
      */
@@ -9288,58 +8624,5 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
         }
 
         return TextUtils.join(" ", attributes);
-    }
-
-    /**
-     * Try to connect to the network of candidate. According to the current connected network, this
-     * API determines whether no action, disconnect and connect, or roaming.
-     *
-     * @param candidate the candidate network to connect to
-     */
-    private void tryToConnectToNetwork(WifiConfiguration candidate) {
-        if (candidate == null) {
-            if (DBG) {
-                Log.d(TAG, "Try to connect to null, give up");
-            }
-            return;
-        }
-
-        ScanResult scanResultCandidate = candidate.getNetworkSelectionStatus().getCandidate();
-        if (scanResultCandidate == null) {
-            Log.e(TAG, "tryToConnectToNetwork: bad candidate. Network:"  + candidate
-                    + " scanresult: " + scanResultCandidate);
-            return;
-        }
-
-        String targetBssid = scanResultCandidate.BSSID;
-        String  targetAssociationId = candidate.SSID + " : " + targetBssid;
-        if (targetBssid != null && targetBssid.equals(mWifiInfo.getBSSID())) {
-            if (DBG) {
-                Log.d(TAG, "tryToConnectToNetwork: Already connect to" + targetAssociationId);
-            }
-            return;
-        }
-
-        WifiConfiguration currentConnectedNetwork = mWifiConfigManager
-                .getWifiConfiguration(mWifiInfo.getNetworkId());
-        String currentAssociationId = (currentConnectedNetwork == null) ? "Disconnected" :
-                (mWifiInfo.getSSID() + " : " + mWifiInfo.getBSSID());
-
-        if (currentConnectedNetwork != null
-                && (currentConnectedNetwork.networkId == candidate.networkId
-                || currentConnectedNetwork.isLinked(candidate))) {
-            if (DBG) {
-                Log.d(TAG, "tryToConnectToNetwork: Roaming from " + currentAssociationId + " to "
-                        + targetAssociationId);
-            }
-            sendMessage(CMD_AUTO_ROAM, candidate.networkId, 0, scanResultCandidate);
-        } else {
-            if (DBG) {
-                Log.d(TAG, "tryToConnectToNetwork: Reconnect from " + currentAssociationId + " to "
-                        + targetAssociationId);
-            }
-
-            sendMessage(CMD_AUTO_CONNECT, candidate.networkId, 0, scanResultCandidate.BSSID);
-        }
     }
 }

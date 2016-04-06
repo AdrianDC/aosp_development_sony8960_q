@@ -39,7 +39,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-class WifiQualifiedNetworkSelector {
+/**
+ * This class looks at all the connectivity scan results then
+ * select an network for the phone to connect/roam to.
+ */
+public class WifiQualifiedNetworkSelector {
     private WifiConfigManager mWifiConfigManager;
     private WifiInfo mWifiInfo;
     private NetworkScoreManager mScoreManager;
@@ -67,8 +71,8 @@ class WifiQualifiedNetworkSelector {
     public static final int MINIMUM_2G_ACCEPT_RSSI = -85;
     public static final int MINIMUM_5G_ACCEPT_RSSI = -82;
 
-    private static final int RSSI_SCORE_SLOPE = 4;
-    private static final int RSSI_SCORE_OFFSET = 85;
+    public static final int RSSI_SCORE_SLOPE = 4;
+    public static final int RSSI_SCORE_OFFSET = 85;
 
     public static final int BAND_AWARD_5GHz = 40;
     public static final int SAME_NETWORK_AWARD = 16;
@@ -182,14 +186,6 @@ class WifiQualifiedNetworkSelector {
 
         return (network.SSID + ":" + network.networkId);
 
-    }
-
-    void enableNetworkByUser(WifiConfiguration network) {
-        if (network != null) {
-            mWifiConfigManager.updateNetworkSelectionStatus(network,
-                    WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
-            mWifiConfigManager.setLatestUserSelectedConfiguration(network);
-        }
     }
 
     /**
