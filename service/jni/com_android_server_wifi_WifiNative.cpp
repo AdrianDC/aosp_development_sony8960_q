@@ -947,6 +947,19 @@ static jboolean android_net_wifi_untrackSignificantWifiChange(
 wifi_iface_stat link_stat;
 wifi_radio_stat radio_stat; // L release has support for only one radio
 u32 *tx_time_per_level_arr = 0;
+// Let's cache the supported feature set to avoid unnecessary HAL invocations.
+feature_set cached_feature_set = 0;
+
+bool isTxLevelStatsPresent(wifi_radio_stat *radio_stats) {
+    if (IS_SUPPORTED_FEATURE(WIFI_FEATURE_TX_TRANSMIT_POWER, cached_feature_set)) {
+        if(radio_stats->tx_time_per_levels != 0 && radio_stats->num_tx_levels > 0) {
+            return true;
+        } else {
+            ALOGE("Ignoring invalid tx_level info in radio_stats");
+        }
+    }
+    return false;
+}
 
 void onLinkStatsResults(wifi_request_id id, wifi_iface_stat *iface_stat,
          int num_radios, wifi_radio_stat *radio_stats)
@@ -959,8 +972,7 @@ void onLinkStatsResults(wifi_request_id id, wifi_iface_stat *iface_stat,
 
     if (num_radios > 0 && radio_stats != 0) {
         memcpy(&radio_stat, radio_stats, sizeof(wifi_radio_stat));
-        if ((radio_stats->num_tx_levels > 0)
-                && (radio_stats->num_tx_levels <= RADIO_STAT_MAX_TX_LEVELS)) {
+        if (isTxLevelStatsPresent(radio_stats)) {
             // This realloc should be a no-op after the first allocation because for a given
             // device, the number of power levels should not change.
             u32 arr_size = sizeof(u32) * radio_stats->num_tx_levels;
@@ -968,6 +980,7 @@ void onLinkStatsResults(wifi_request_id id, wifi_iface_stat *iface_stat,
             memcpy(tx_time_per_level_arr, radio_stats->tx_time_per_levels, arr_size);
             radio_stat.tx_time_per_levels = tx_time_per_level_arr;
         } else {
+            radio_stat.num_tx_levels = 0;
             radio_stat.tx_time_per_levels = 0;
         }
     } else {
@@ -995,7 +1008,16 @@ static jobject android_net_wifi_getLinkLayerStats (JNIEnv *env, jclass cls, jint
     memset(&handler, 0, sizeof(handler));
     handler.on_link_stats_results = &onLinkStatsResults;
     wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
-    int result = hal_fn.wifi_get_link_stats(0, handle, handler);
+    int result;
+    // Cache the features supported by the device to determine if tx level stats are present or not
+    if (cached_feature_set == 0) {
+        result = hal_fn.wifi_get_supported_feature_set(handle, &cached_feature_set);
+        if (result != WIFI_SUCCESS) {
+            cached_feature_set = 0;
+        }
+    }
+
+    result = hal_fn.wifi_get_link_stats(0, handle, handler);
     if (result < 0) {
         ALOGE("android_net_wifi_getLinkLayerStats: failed to get link statistics\n");
         return NULL;
