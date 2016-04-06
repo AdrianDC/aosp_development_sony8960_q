@@ -510,7 +510,10 @@ public class WifiConfigStore {
                 if (configKey == null) {
                     // Handle the legacy case where the configKey is not stored in
                     // wpa_supplicant.conf but can be computed straight away.
+                    // Force an update of this legacy network configuration by writing
+                    // the configKey for this network into wpa_supplicant.conf.
                     configKey = config.configKey();
+                    saveNetworkMetadata(config);
                 }
                 final WifiConfiguration duplicateConfig = configs.put(configKey, config);
                 if (duplicateConfig != null) {
