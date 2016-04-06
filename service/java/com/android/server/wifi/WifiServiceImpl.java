@@ -40,13 +40,13 @@ import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.database.ContentObserver;
 import android.net.ConnectivityManager;
-import android.net.ip.IpManager;
 import android.net.DhcpInfo;
 import android.net.DhcpResults;
 import android.net.Network;
 import android.net.NetworkScorerAppManager;
 import android.net.NetworkUtils;
 import android.net.Uri;
+import android.net.ip.IpManager;
 import android.net.wifi.IWifiManager;
 import android.net.wifi.PasspointManagementObjectDefinition;
 import android.net.wifi.ScanResult;
@@ -1913,15 +1913,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public boolean getEnableAutoJoinWhenAssociated() {
         enforceAccessPermission();
         return mWifiStateMachine.getEnableAutoJoinWhenAssociated();
-    }
-    public void setHalBasedAutojoinOffload(int enabled) {
-        enforceConnectivityInternalPermission();
-        mWifiStateMachine.setHalBasedAutojoinOffload(enabled);
-    }
-
-    public int getHalBasedAutojoinOffload() {
-        enforceAccessPermission();
-        return mWifiStateMachine.getHalBasedAutojoinOffload();
     }
 
     /* Return the Wifi Connection statistics object */

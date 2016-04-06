@@ -3307,22 +3307,10 @@ public class WifiConfigManager {
     }
 
     void clearBssidBlacklist() {
-        if (!mWifiStateMachine.useHalBasedAutoJoinOffload()) {
-            if(DBG) {
-                Log.d(TAG, "No blacklist allowed without epno enabled");
-            }
-            return;
-        }
         mWifiConfigStore.clearBssidBlacklist();
     }
 
     void blackListBssid(String bssid) {
-        if (!mWifiStateMachine.useHalBasedAutoJoinOffload()) {
-            if(DBG) {
-                Log.d(TAG, "No blacklist allowed without epno enabled");
-            }
-            return;
-        }
         mWifiConfigStore.blackListBssid(bssid);
     }
 
