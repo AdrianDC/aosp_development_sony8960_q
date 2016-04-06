@@ -4449,6 +4449,22 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 mWifiNative.BLUETOOTH_COEXISTENCE_MODE_SENSE);
     }
 
+    /**
+     * Inform other components (WifiMetrics, WifiLogger, etc.) that the current connection attempt
+     * has concluded.
+     */
+    private void reportConnectionAttemptEnd(int level2FailureCode, int connectivityFailureCode) {
+        mWifiMetrics.endConnectionEvent(level2FailureCode, connectivityFailureCode);
+        switch (level2FailureCode) {
+            case WifiMetrics.ConnectionEvent.FAILURE_NONE:
+            case WifiMetrics.ConnectionEvent.FAILURE_REDUNDANT_CONNECTION_ATTEMPT:
+                // WifiLogger doesn't care about success, or pre-empted connections.
+                break;
+            default:
+                mWifiLogger.reportConnectionFailure();
+        }
+    }
+
     private void handleIPv4Success(DhcpResults dhcpResults) {
         if (DBG) {
             logd("handleIPv4Success <" + dhcpResults.toString() + ">");
@@ -4518,7 +4534,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
             }
             log("DHCP failure count=" + count);
         }
-        mWifiMetrics.endConnectionEvent(
+        reportConnectionAttemptEnd(
                 WifiMetrics.ConnectionEvent.FAILURE_DHCP,
                 WifiMetricsProto.ConnectionEvent.HLF_DHCP);
         synchronized(mDhcpResultsLock) {
@@ -6132,7 +6148,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
 
                     mSupplicantStateTracker.sendMessage(WifiMonitor.ASSOCIATION_REJECTION_EVENT);
                     //If rejection occurred while Metrics is tracking a ConnnectionEvent, end it.
-                    mWifiMetrics.endConnectionEvent(
+                    reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_ASSOCIATION_REJECTION,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     break;
@@ -6145,7 +6161,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                                         .DISABLED_AUTHENTICATION_FAILURE);
                     }
                     //If failure occurred while Metrics is tracking a ConnnectionEvent, end it.
-                    mWifiMetrics.endConnectionEvent(
+                    reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_AUTHENTICATION_FAILURE,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     break;
@@ -6156,7 +6172,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                             message.arg1,
                             WifiConfiguration.NetworkSelectionStatus
                             .DISABLED_AUTHENTICATION_FAILURE);
-                    mWifiMetrics.endConnectionEvent(
+                    reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_SSID_TEMP_DISABLED,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     break;
@@ -6608,7 +6624,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         loge("Failed to connect config: " + config + " netId: " + netId);
                         replyToMessage(message, WifiManager.CONNECT_NETWORK_FAILED,
                                 WifiManager.ERROR);
-                        mWifiMetrics.endConnectionEvent(
+                        reportConnectionAttemptEnd(
                                 WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         break;
@@ -6760,7 +6776,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         loge("Failed to connect config: " + config + " netId: " + netId);
                         replyToMessage(message, WifiManager.CONNECT_NETWORK_FAILED,
                                 WifiManager.ERROR);
-                        mWifiMetrics.endConnectionEvent(
+                        reportConnectionAttemptEnd(
                                 WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         break;
@@ -7330,7 +7346,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                 }
                 case CMD_IP_CONFIGURATION_SUCCESSFUL:
                     handleSuccessfulIpConfiguration();
-                    mWifiMetrics.endConnectionEvent(
+                    reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_NONE,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     sendConnectedState();
@@ -7738,7 +7754,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     /* Defer any power mode changes since we must keep active power mode at DHCP */
 
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
-                    mWifiMetrics.endConnectionEvent(
+                    reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_NETWORK_DISCONNECTION,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     return NOT_HANDLED;
@@ -7886,7 +7902,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         sendNetworkStateChangeBroadcast(mLastBssid);
 
                         // Successful framework roam! (probably)
-                        mWifiMetrics.endConnectionEvent(
+                        reportConnectionAttemptEnd(
                                 WifiMetrics.ConnectionEvent.FAILURE_NONE,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         // We used to transition to ObtainingIpState in an
@@ -8098,7 +8114,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     return NOT_HANDLED;
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
                     long lastRoam = 0;
-                    mWifiMetrics.endConnectionEvent(
+                    reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_NETWORK_DISCONNECTION,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     if (mLastDriverRoamAttempt != 0) {
@@ -8211,7 +8227,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                     }
 
                     if (deferForUserInput(message, netId, false)) {
-                        mWifiMetrics.endConnectionEvent(
+                        reportConnectionAttemptEnd(
                                 WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         break;
@@ -8219,7 +8235,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                             WifiConfiguration.USER_BANNED) {
                         replyToMessage(message, WifiManager.CONNECT_NETWORK_FAILED,
                                 WifiManager.NOT_AUTHORIZED);
-                        mWifiMetrics.endConnectionEvent(
+                        reportConnectionAttemptEnd(
                                 WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         break;
@@ -8247,7 +8263,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.PnoEven
                         replyToMessage(message, WifiManager.CONNECT_NETWORK_FAILED,
                                 WifiManager.ERROR);
                         messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
-                        mWifiMetrics.endConnectionEvent(
+                        reportConnectionAttemptEnd(
                                 WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         break;

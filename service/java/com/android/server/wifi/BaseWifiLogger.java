@@ -28,6 +28,8 @@ public class BaseWifiLogger {
 
     public synchronized void stopLogging() { }
 
+    synchronized void reportConnectionFailure() {}
+
     public synchronized void captureBugReportData(int reason) { }
 
     public synchronized void captureAlertData(int errorCode, byte[] alertData) { }
@@ -38,7 +40,7 @@ public class BaseWifiLogger {
         pw.println("set config_wifi_enable_wifi_firmware_debugging to enable");
     }
 
-    public synchronized void dump(PrintWriter pw) {
+    protected synchronized void dump(PrintWriter pw) {
         pw.println("Chipset information :-----------------------------------------------");
         pw.println("FW Version is: " + mFirmwareVersion);
         pw.println("Driver Version is: " + mDriverVersion);

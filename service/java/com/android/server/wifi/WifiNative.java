@@ -44,6 +44,8 @@ import android.text.TextUtils;
 import android.util.LocalLog;
 import android.util.Log;
 
+import com.android.internal.annotations.Immutable;
+import com.android.internal.util.HexDump;
 import com.android.server.connectivity.KeepalivePacketData;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.SupplicantBridge;
@@ -55,6 +57,8 @@ import libcore.util.HexEncoding;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
@@ -84,6 +88,9 @@ import java.util.Set;
  */
 public class WifiNative {
     private static boolean DBG = false;
+
+    // Must match wifi_hal.h
+    public static final int WIFI_SUCCESS = 0;
 
     /**
      * Hold this lock before calling supplicant or HAL methods
@@ -2768,6 +2775,198 @@ public class WifiNative {
                 }
             }
             return null;
+        }
+    }
+
+    //---------------------------------------------------------------------------------
+    /* Packet fate API */
+
+    @Immutable
+    abstract static class FateReport {
+        final byte mFate;
+        final long mDriverTimestampUSec;
+        final byte mFrameType;
+        final byte[] mFrameBytes;
+
+        FateReport(byte fate, long driverTimestampUSec, byte frameType, byte[] frameBytes) {
+            mFate = fate;
+            mDriverTimestampUSec = driverTimestampUSec;
+            mFrameType = frameType;
+            mFrameBytes = frameBytes;
+        }
+
+        @Override
+        public String toString() {
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            pw.format("Frame direction: %s\n", directionToString());
+            pw.format("Frame timestamp: %d\n", mDriverTimestampUSec);
+            pw.format("Frame fate: %s\n", fateToString());
+            pw.format("Frame type: %s\n", frameTypeToString(mFrameType));
+            pw.format("Frame length: %d\n", mFrameBytes.length);
+            pw.append("Frame bytes");
+            pw.append(HexDump.dumpHexString(mFrameBytes));
+            pw.append("\n");
+            return sw.toString();
+        }
+
+        protected abstract String directionToString();
+
+        protected abstract String fateToString();
+
+        private static String frameTypeToString(byte frameType) {
+            switch (frameType) {
+                case WifiLoggerHal.FRAME_TYPE_UNKNOWN:
+                    return "unknown";
+                case WifiLoggerHal.FRAME_TYPE_ETHERNET_II:
+                    return "data";
+                case WifiLoggerHal.FRAME_TYPE_80211_MGMT:
+                    return "802.11 management";
+                default:
+                    return Byte.toString(frameType);
+            }
+        }
+    }
+
+    /**
+     * Represents the fate information for one outbound packet.
+     */
+    @Immutable
+    public static final class TxFateReport extends FateReport {
+        TxFateReport(byte fate, long driverTimestampUSec, byte frameType, byte[] frameBytes) {
+            super(fate, driverTimestampUSec, frameType, frameBytes);
+        }
+
+        @Override
+        protected String directionToString() {
+            return "TX";
+        }
+
+        @Override
+        protected String fateToString() {
+            switch (mFate) {
+                case WifiLoggerHal.TX_PKT_FATE_ACKED:
+                    return "acked";
+                case WifiLoggerHal.TX_PKT_FATE_SENT:
+                    return "sent";
+                case WifiLoggerHal.TX_PKT_FATE_FW_QUEUED:
+                    return "firmware queued";
+                case WifiLoggerHal.TX_PKT_FATE_FW_DROP_INVALID:
+                    return "firmware dropped (invalid frame)";
+                case WifiLoggerHal.TX_PKT_FATE_FW_DROP_NOBUFS:
+                    return "firmware dropped (no bufs)";
+                case WifiLoggerHal.TX_PKT_FATE_FW_DROP_OTHER:
+                    return "firmware dropped (other)";
+                case WifiLoggerHal.TX_PKT_FATE_DRV_QUEUED:
+                    return "driver queued";
+                case WifiLoggerHal.TX_PKT_FATE_DRV_DROP_INVALID:
+                    return "driver dropped (invalid frame)";
+                case WifiLoggerHal.TX_PKT_FATE_DRV_DROP_NOBUFS:
+                    return "driver dropped (no bufs)";
+                case WifiLoggerHal.TX_PKT_FATE_DRV_DROP_OTHER:
+                    return "driver dropped (other)";
+                default:
+                    return Byte.toString(mFate);
+            }
+        }
+    }
+
+    /**
+     * Represents the fate information for one inbound packet.
+     */
+    @Immutable
+    public static final class RxFateReport extends FateReport {
+        RxFateReport(byte fate, long driverTimestampUSec, byte frameType, byte[] frameBytes) {
+            super(fate, driverTimestampUSec, frameType, frameBytes);
+        }
+
+        @Override
+        protected String directionToString() {
+            return "RX";
+        }
+
+        @Override
+        protected String fateToString() {
+            switch (mFate) {
+                case WifiLoggerHal.RX_PKT_FATE_SUCCESS:
+                    return "success";
+                case WifiLoggerHal.RX_PKT_FATE_FW_QUEUED:
+                    return "firmware queued";
+                case WifiLoggerHal.RX_PKT_FATE_FW_DROP_FILTER:
+                    return "firmware dropped (filter)";
+                case WifiLoggerHal.RX_PKT_FATE_FW_DROP_INVALID:
+                    return "firmware dropped (invalid frame)";
+                case WifiLoggerHal.RX_PKT_FATE_FW_DROP_NOBUFS:
+                    return "firmware dropped (no bufs)";
+                case WifiLoggerHal.RX_PKT_FATE_FW_DROP_OTHER:
+                    return "firmware dropped (other)";
+                case WifiLoggerHal.RX_PKT_FATE_DRV_QUEUED:
+                    return "driver queued";
+                case WifiLoggerHal.RX_PKT_FATE_DRV_DROP_FILTER:
+                    return "driver dropped (filter)";
+                case WifiLoggerHal.RX_PKT_FATE_DRV_DROP_INVALID:
+                    return "driver dropped (invalid frame)";
+                case WifiLoggerHal.RX_PKT_FATE_DRV_DROP_NOBUFS:
+                    return "driver dropped (no bufs)";
+                case WifiLoggerHal.RX_PKT_FATE_DRV_DROP_OTHER:
+                    return "driver dropped (other)";
+                default:
+                    return Byte.toString(mFate);
+            }
+        }
+    }
+
+    private static native int startPktFateMonitoringNative(int iface);
+    /**
+     * Ask the HAL to enable packet fate monitoring. Fails unless HAL is started.
+     */
+    public boolean startPktFateMonitoring() {
+        synchronized (sLock) {
+            if (isHalStarted()) {
+                return startPktFateMonitoringNative(sWlan0Index) == WIFI_SUCCESS;
+            } else {
+                return false;
+            }
+        }
+    }
+
+    private static native int getTxPktFatesNative(int iface, TxFateReport[] reportBufs);
+    /**
+     * Fetch the most recent TX packet fates from the HAL. Fails unless HAL is started.
+     */
+    public boolean getTxPktFates(TxFateReport[] reportBufs) {
+        synchronized (sLock) {
+            if (isHalStarted()) {
+                int res = getTxPktFatesNative(sWlan0Index, reportBufs);
+                if (res != WIFI_SUCCESS) {
+                    Log.e(TAG, "getTxPktFatesNative returned " + res);
+                    return false;
+                } else {
+                    return true;
+                }
+            } else {
+                return false;
+            }
+        }
+    }
+
+    private static native int getRxPktFatesNative(int iface, RxFateReport[] reportBufs);
+    /**
+     * Fetch the most recent RX packet fates from the HAL. Fails unless HAL is started.
+     */
+    public boolean getRxPktFates(RxFateReport[] reportBufs) {
+        synchronized (sLock) {
+            if (isHalStarted()) {
+                int res = getRxPktFatesNative(sWlan0Index, reportBufs);
+                if (res != WIFI_SUCCESS) {
+                    Log.e(TAG, "getRxPktFatesNative returned " + res);
+                    return false;
+                } else {
+                    return true;
+                }
+            } else {
+                return false;
+            }
         }
     }
 
