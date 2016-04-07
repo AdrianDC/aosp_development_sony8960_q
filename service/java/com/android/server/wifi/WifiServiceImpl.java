@@ -2091,4 +2091,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         return !tasks.isEmpty() && pkgName.equals(tasks.get(0).topActivity.getPackageName());
     }
 
+    /**
+     * Enable/disable WifiConnectivityManager at runtime
+     *
+     * @param enabled true-enable; false-disable
+     */
+    public void enableWifiConnectivityManager(boolean enabled) {
+        enforceConnectivityInternalPermission();
+        mWifiStateMachine.enableWifiConnectivityManager(enabled);
+    }
 }
