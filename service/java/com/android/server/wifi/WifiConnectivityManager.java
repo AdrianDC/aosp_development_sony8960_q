@@ -527,20 +527,6 @@ public class WifiConnectivityManager {
         }
     }
 
-    // Stop a PNO scan
-    private void stopPnoScan() {
-        // Initialize PNO settings
-        PnoSettings pnoSettings = new PnoSettings();
-        ArrayList<PnoSettings.PnoNetwork> pnoNetworkList =
-                mConfigManager.retrieveDisconnectedPnoNetworkList(false);
-        int listSize = pnoNetworkList.size();
-
-        pnoSettings.networkList = new PnoSettings.PnoNetwork[listSize];
-        pnoSettings.networkList = pnoNetworkList.toArray(pnoSettings.networkList);
-
-        mScanner.stopPnoScan(pnoSettings, mPnoScanListener);
-    }
-
     // Start a DisconnectedPNO scan when screen is off and Wifi is disconnected
     private void startDisconnectedPnoScan() {
         // Initialize PNO settings
@@ -706,7 +692,7 @@ public class WifiConnectivityManager {
         } else {
             mScanner.stopBackgroundScan(mPeriodicScanListener);
         }
-        stopPnoScan();
+        mScanner.stopPnoScan(mPnoScanListener);
         mScanRestartCount = 0;
     }
 
