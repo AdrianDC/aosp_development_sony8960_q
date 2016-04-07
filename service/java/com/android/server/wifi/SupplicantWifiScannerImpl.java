@@ -161,8 +161,6 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
             resetHotlist();
             untrackSignificantWifiChange();
             mLastScanSettings = null; // finally clear any active scan
-            // TODO(b/27677054): Remove this once all PNO scans are started via Scanner
-            mWifiNative.resumeBackgroundScan();
         }
     }
 
@@ -424,8 +422,6 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
             if ((newScanSettings.backgroundScanActive || newScanSettings.singleScanActive)
                     && !allFreqs.isEmpty()) {
                 pauseHwPnoScan();
-                // TODO(b/27677054): Remove this once all PNO scans are started via Scanner
-                mWifiNative.pauseBackgroundScan();
                 Set<Integer> freqs = allFreqs.getSupplicantScanFreqs();
                 boolean success = mWifiNative.scan(freqs, hiddenNetworkIdSet);
                 if (success) {
@@ -469,9 +465,6 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                         }
                     });
                 }
-            } else {
-                // TODO(b/27677054): Remove this once all PNO scans are started via Scanner
-                mWifiNative.resumeBackgroundScan();
             }
         }
     }
