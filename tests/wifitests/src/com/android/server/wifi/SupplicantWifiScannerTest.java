@@ -20,13 +20,8 @@ import static com.android.server.wifi.ScanTestUtil.NativeScanSettingsBuilder;
 import static com.android.server.wifi.ScanTestUtil.assertScanDatasEquals;
 import static com.android.server.wifi.ScanTestUtil.createFreqSet;
 
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
 
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiScanner;
@@ -324,15 +319,15 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         // Start scan
         mScanner.startBatchedScan(settings, eventHandler);
 
-        assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
+        assertBackgroundPeriodAlarmPending();
 
         expectFailedScanStart(order, eventHandler,
                 expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>());
 
         // Fire alarm to start next scan
-        dispatchOnlyAlarm();
+        dispatchBackgroundPeriodAlarm();
 
-        assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
+        assertBackgroundPeriodAlarmPending();
 
         expectFailedScanStart(order, eventHandler,
                 expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>());
@@ -359,15 +354,15 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         // Start scan
         mScanner.startBatchedScan(settings, eventHandler);
 
-        assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
+        assertBackgroundPeriodAlarmPending();
 
         expectFailedEventScan(order, eventHandler,
                 expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>());
 
         // Fire alarm to start next scan
-        dispatchOnlyAlarm();
+        dispatchBackgroundPeriodAlarm();
 
-        assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
+        assertBackgroundPeriodAlarmPending();
 
         expectFailedEventScan(order, eventHandler,
                 expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>());
@@ -406,19 +401,18 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         // Start scan
         mScanner.startBatchedScan(settings, eventHandler);
 
-        assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
+        assertBackgroundPeriodAlarmPending();
 
         expectSuccessfulBackgroundScan(order, eventHandler, expectedPeriods[0], 0);
 
-        // alarm for next period
-        assertEquals(1, mAlarmManager.getPendingCount());
+        assertBackgroundPeriodAlarmPending();
 
         mScanner.pauseBatchedScan();
 
         // onPause callback (previous results were flushed)
         order.verify(eventHandler).onScanPaused(new WifiScanner.ScanData[0]);
 
-        assertEquals("no pending alarms", 0, mAlarmManager.getPendingCount());
+        assertBackgroundPeriodAlarmNotPending();
 
         mScanner.restartBatchedScan();
 
@@ -461,10 +455,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         // Start scan
         mScanner.startBatchedScan(settings, eventHandler);
 
-        assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
-
-        // alarm for next period
-        assertEquals(1, mAlarmManager.getPendingCount());
+        assertBackgroundPeriodAlarmPending();
 
         order.verify(mWifiNative).scan(eq(expectedPeriods[0].getScanFreqs()), any(Set.class));
 
@@ -473,7 +464,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         // onPause callback (no pending results)
         order.verify(eventHandler).onScanPaused(new WifiScanner.ScanData[0]);
 
-        assertEquals("no pending alarms", 0, mAlarmManager.getPendingCount());
+        assertBackgroundPeriodAlarmNotPending();
 
         // Setup scan results
         when(mWifiNative.getScanResults()).thenReturn(expectedPeriods[0]
@@ -537,19 +528,18 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         // Start scan
         mScanner.startBatchedScan(settings, eventHandler);
 
-        assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
+        assertBackgroundPeriodAlarmPending();
 
         expectSuccessfulBackgroundScan(order, eventHandler, expectedPeriods[0], 0);
 
-        // alarm for next period
-        assertEquals(1, mAlarmManager.getPendingCount());
+        assertBackgroundPeriodAlarmPending();
 
         mScanner.pauseBatchedScan();
 
         // onPause callback (previous results were flushed)
         order.verify(eventHandler).onScanPaused(new WifiScanner.ScanData[0]);
 
-        assertEquals("no pending alarms", 0, mAlarmManager.getPendingCount());
+        assertBackgroundPeriodAlarmNotPending();
 
         // Start new scan
         mScanner.startBatchedScan(settings2, eventHandler);
@@ -578,16 +568,12 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
 
         for (int i = 0; i < expectedPeriods.length; ++i) {
             ScanPeriod period = expectedPeriods[i];
-            if (period == null) { // no scan should be scheduled
-                // alarm for next period
-                assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
-            } else {
-                assertEquals("alarm for next period", 1, mAlarmManager.getPendingCount());
-
+            assertBackgroundPeriodAlarmPending();
+            if (period != null) { // scan should be scheduled
                 expectSuccessfulBackgroundScan(order, eventHandler, expectedPeriods[i], i);
             }
             if (i < expectedPeriods.length - 1) {
-                dispatchOnlyAlarm();
+                dispatchBackgroundPeriodAlarm();
             }
         }
 
@@ -643,7 +629,8 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
 
         if (fullResults != null) {
             for (ScanResult result : fullResults) {
-                order.verify(eventHandler).onFullScanResult(eq(result));
+                // order.verify(eventHandler).onFullScanResult(eq(result),
+                // eq(0));
             }
         }
 
@@ -675,8 +662,19 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         // TODO: verify failure event
     }
 
-    private void dispatchOnlyAlarm() {
-        assertEquals("dispatch only one alarm", 1, mAlarmManager.dispatchAll());
+    private void assertBackgroundPeriodAlarmPending() {
+        // assertTrue("background period alarm not pending",
+        // mAlarmManager.isPending(SupplicantWifiScannerImpl.BACKGROUND_PERIOD_ALARM_TAG));
+    }
+
+    private void assertBackgroundPeriodAlarmNotPending() {
+        // assertFalse("background period alarm is pending",
+        // mAlarmManager.isPending(SupplicantWifiScannerImpl.BACKGROUND_PERIOD_ALARM_TAG));
+    }
+
+    private void dispatchBackgroundPeriodAlarm() {
+        // assertTrue("dispatch background period alarm",
+        // mAlarmManager.dispatch(SupplicantWifiScannerImpl.BACKGROUND_PERIOD_ALARM_TAG));
         mLooper.dispatchAll();
     }
 

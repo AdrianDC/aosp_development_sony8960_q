@@ -31,6 +31,7 @@ import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Creates an AlarmManager whose alarm dispatch can be controlled
@@ -60,23 +61,32 @@ public class MockAlarmManager {
     }
 
     /**
-     * Dispatch all pending alarms
-     * @return the number of alarms that were dispatched
+     * Dispatch a pending alarm with the given tag
+     * @return if any alarm was dispatched
      */
-    public int dispatchAll() {
-        int count = 0;
-        while (mPendingAlarms.size() > 0) {
-            mPendingAlarms.remove(0).dispatch();
-            ++count;
+    public boolean dispatch(String tag) {
+        for (int i = 0; i < mPendingAlarms.size(); ++i) {
+            PendingAlarm alarm = mPendingAlarms.get(i);
+            if (Objects.equals(tag, alarm.getTag())) {
+                mPendingAlarms.remove(i);
+                alarm.dispatch();
+                return true;
+            }
         }
-        return count;
+        return false;
     }
 
     /**
-     * @return the number of alarms that are currently pending
+     * @return if an alarm with the given tag is pending
      */
-    public int getPendingCount() {
-        return mPendingAlarms.size();
+    public boolean isPending(String tag) {
+        for (int i = 0; i < mPendingAlarms.size(); ++i) {
+            PendingAlarm alarm = mPendingAlarms.get(i);
+            if (Objects.equals(tag, alarm.getTag())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static class PendingAlarm {
@@ -100,6 +110,10 @@ public class MockAlarmManager {
 
         public Runnable getCallback() {
             return mCallback;
+        }
+
+        public String getTag() {
+            return mTag;
         }
     }
 
