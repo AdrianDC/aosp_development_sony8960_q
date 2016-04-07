@@ -344,7 +344,7 @@ public class SupplicantPnoScannerTest {
         order.verify(mWifiNative).scan(any(Set.class), any(Set.class));
 
         // Make sure that HW PNO scan was not started
-        verify(mWifiNative, never()).enableBackgroundScan(anyBoolean(), anyObject());
+        verify(mWifiNative, never()).setPnoScan(anyBoolean());
 
         // Setup scan results
         when(mWifiNative.getScanResults()).thenReturn(scanResults.getScanDetailArrayList());
