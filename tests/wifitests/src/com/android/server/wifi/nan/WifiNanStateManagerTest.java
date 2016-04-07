@@ -45,6 +45,7 @@ import android.os.UserHandle;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
 
+import com.android.server.wifi.MockAlarmManager;
 import com.android.server.wifi.MockLooper;
 
 import libcore.util.HexEncoding;
@@ -70,6 +71,7 @@ public class WifiNanStateManagerTest {
     private WifiNanStateManager mDut;
     @Mock private WifiNanNative mMockNative;
     @Mock private Context mMockContext;
+    MockAlarmManager mAlarmManager;
 
     @Rule
     public ErrorCollector collector = new ErrorCollector();
@@ -80,6 +82,10 @@ public class WifiNanStateManagerTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
+
+        mAlarmManager = new MockAlarmManager();
+        when(mMockContext.getSystemService(Context.ALARM_SERVICE))
+                .thenReturn(mAlarmManager.getAlarmManager());
 
         mMockLooper = new MockLooper();
 
@@ -255,6 +261,53 @@ public class WifiNanStateManagerTest {
 
         validateInternalClientInfoCleanedUp(clientId1);
         validateInternalClientInfoCleanedUp(clientId2);
+
+        inOrder.verifyNoMoreInteractions();
+    }
+
+    /**
+     * Validate that when the HAL doesn't respond we get a TIMEOUT (which
+     * results in a failure response) at which point we can process additional
+     * commands. Steps: (1) connect, (2) publish - timeout, (3) publish +
+     * success.
+     */
+    @Test
+    public void testHalNoResponseTimeout() throws Exception {
+        final int clientId = 12341;
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        final PublishConfig publishConfig = new PublishConfig.Builder().build();
+
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
+
+        // (1) connect (successfully)
+        mDut.connect(clientId, mockCallback, configRequest);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
+                eq(true));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
+
+        // (2) publish + timeout
+        mDut.publish(clientId, publishConfig, mockSessionCallback);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).publish(anyShort(), eq(0), eq(publishConfig));
+        assertTrue(mAlarmManager.dispatch(WifiNanStateManager.HAL_COMMAND_TIMEOUT_TAG));
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback)
+                .onSessionConfigFail(WifiNanSessionCallback.REASON_OTHER);
+        validateInternalNoSessions(clientId);
+
+        // (3) publish + success
+        mDut.publish(clientId, publishConfig, mockSessionCallback);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, 9999);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onSessionStarted(anyInt());
 
         inOrder.verifyNoMoreInteractions();
     }
