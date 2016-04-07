@@ -797,6 +797,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /* used to indicate that the foreground user was switched */
     static final int CMD_USER_SWITCH                                    = BASE + 165;
 
+    /* Enable/Disable WifiConnectivityManager */
+    static final int CMD_ENABLE_WIFI_CONNECTIVITY_MANAGER               = BASE + 166;
+
     /**
      * Used to handle messages bounced between WifiStateMachine and IpManager.
      */
@@ -5156,6 +5159,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     final boolean enabled = (message.arg1 > 0);
                     mWifiNative.configureNeighborDiscoveryOffload(enabled);
                     break;
+                case CMD_ENABLE_WIFI_CONNECTIVITY_MANAGER:
+                    if (mWifiConnectivityManager != null) {
+                        mWifiConnectivityManager.enable(message.arg1 == 1 ? true : false);
+                    }
+                    break;
                 default:
                     return NOT_HANDLED;
             }
@@ -8538,6 +8546,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     public void autoRoamToNetwork(int networkId, ScanResult scanResult) {
         sendMessage(CMD_AUTO_ROAM, networkId, 0, scanResult);
+    }
+
+    /**
+     * Dynamically turn on/off WifiConnectivityManager
+     *
+     * @param enabled true-enable; false-disable
+     */
+    public void enableWifiConnectivityManager(boolean enabled) {
+        sendMessage(CMD_ENABLE_WIFI_CONNECTIVITY_MANAGER, enabled ? 1 : 0);
     }
 
     /**

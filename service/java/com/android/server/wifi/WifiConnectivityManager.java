@@ -83,6 +83,7 @@ public class WifiConnectivityManager {
                                                         ? 1024 : 16384);
     private boolean mDbg = false;
     private boolean mWifiEnabled = false;
+    private boolean mWifiConnectivityManagerEnabled = true;
     private boolean mForceSelectNetwork = false;
     private boolean mScreenOn = false;
     private int mWifiState = WIFI_STATE_UNKNOWN;
@@ -479,7 +480,7 @@ public class WifiConnectivityManager {
 
     // Start a single scan for watchdog
     private void startSingleScan() {
-        if (!mWifiEnabled) {
+        if (!mWifiEnabled || !mWifiConnectivityManagerEnabled) {
             return;
         }
 
@@ -666,9 +667,11 @@ public class WifiConnectivityManager {
         localLog("startConnectivityScan: screenOn=" + mScreenOn
                         + " wifiState=" + mWifiState
                         + " forceSelectNetwork=" + forceSelectNetwork
-                        + " wifiEnabled=" + mWifiEnabled);
+                        + " wifiEnabled=" + mWifiEnabled
+                        + " wifiConnectivityManagerEnabled="
+                        + mWifiConnectivityManagerEnabled);
 
-        if (!mWifiEnabled) {
+        if (!mWifiEnabled || !mWifiConnectivityManagerEnabled) {
             return;
         }
 
@@ -807,6 +810,19 @@ public class WifiConnectivityManager {
         mWifiEnabled = enable;
 
         if (!mWifiEnabled) {
+            stopConnectivityScan();
+        }
+    }
+
+    /**
+     * Turn on/off the WifiConnectivityMangager at runtime
+     */
+    public void enable(boolean enable) {
+        Log.i(TAG, "Set WiFiConnectivityManager " + (enable ? "enabled" : "disabled"));
+
+        mWifiConnectivityManagerEnabled = enable;
+
+        if (!mWifiConnectivityManagerEnabled) {
             stopConnectivityScan();
         }
     }
