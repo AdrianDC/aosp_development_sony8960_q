@@ -23,15 +23,18 @@ import java.util.ArrayList;
  */
 public class ByteArrayRingBuffer {
     private ArrayList<byte[]> mArrayList;
-    private final int mMaxBytes;
+    private int mMaxBytes;
     private int mBytesUsed;
 
     /**
      * Creates a ring buffer that holds at most |maxBytes| of data. The overhead for each element
      * is not included in this limit.
-     * @param maxBytes upper bound on the amount of data held
+     * @param maxBytes upper bound on the amount of data to hold
      */
     public ByteArrayRingBuffer(int maxBytes) {
+        if (maxBytes < 1) {
+            throw new IllegalArgumentException();
+        }
         mArrayList = new ArrayList<byte[]>();
         mMaxBytes = maxBytes;
         mBytesUsed = 0;
@@ -47,13 +50,7 @@ public class ByteArrayRingBuffer {
      * @return true if the data was added
      */
     public boolean appendBuffer(byte[] newData) {
-        // Loop is O(n^2), but |n| is expected to be small.
-        while (mBytesUsed + newData.length > mMaxBytes
-                && !mArrayList.isEmpty()) {
-            mBytesUsed -= mArrayList.get(0).length;
-            mArrayList.remove(0);
-        }
-
+        pruneToSize(mMaxBytes - newData.length);
         if (mBytesUsed + newData.length > mMaxBytes) {
             return false;
         }
@@ -78,5 +75,25 @@ public class ByteArrayRingBuffer {
      */
     public int getNumBuffers() {
         return mArrayList.size();
+    }
+
+    /**
+     * Resize the buffer, removing existing data if necessary.
+     * @param maxBytes upper bound on the amount of data to hold
+     */
+    public void resize(int maxBytes) {
+        pruneToSize(maxBytes);
+        mMaxBytes = maxBytes;
+    }
+
+    private void pruneToSize(int sizeBytes) {
+        int newBytesUsed = mBytesUsed;
+        int i = 0;
+        while (i < mArrayList.size() && newBytesUsed > sizeBytes) {
+            newBytesUsed -= mArrayList.get(i).length;
+            i++;
+        }
+        mArrayList.subList(0, i).clear();
+        mBytesUsed = newBytesUsed;
     }
 }

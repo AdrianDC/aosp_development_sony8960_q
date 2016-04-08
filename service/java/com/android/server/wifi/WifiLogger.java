@@ -36,9 +36,15 @@ import java.util.HashMap;
 import java.util.zip.Deflater;
 
 /**
- * Tracks various logs for framework
+ * Tracks various logs for framework.
  */
 class WifiLogger extends BaseWifiLogger {
+    /**
+     * Thread-safety:
+     * 1) All non-private methods are |synchronized|.
+     * 2) Callbacks into WifiLogger use non-private (and hence, synchronized) methods. See, e.g,
+     *    onRingBufferData(), onWifiAlert().
+     */
 
     private static final String TAG = "WifiLogger";
     private static final boolean DBG = false;
@@ -80,18 +86,20 @@ class WifiLogger extends BaseWifiLogger {
     /** minimum buffer size for each of the log levels */
     private static final int MinBufferSizes[] = new int[] { 0, 16384, 16384, 65536 };
 
+    @VisibleForTesting public static final int RING_BUFFER_BYTE_LIMIT_SMALL = 32 * 1024;
+    @VisibleForTesting public static final int RING_BUFFER_BYTE_LIMIT_LARGE = 1024 * 1024;
+
     private int mLogLevel = VERBOSE_NO_LOG;
     private WifiNative.RingBufferStatus[] mRingBuffers;
     private WifiNative.RingBufferStatus mPerPacketRingBuffer;
     private WifiStateMachine mWifiStateMachine;
     private final WifiNative mWifiNative;
-    private final int mMaxRingBufferSizeBytes;
+    private int mMaxRingBufferSizeBytes = RING_BUFFER_BYTE_LIMIT_SMALL;
 
     public WifiLogger(
-            WifiStateMachine wifiStateMachine, WifiNative wifiNative, int maxRingBufferSizeBytes) {
+            WifiStateMachine wifiStateMachine, WifiNative wifiNative) {
         mWifiStateMachine = wifiStateMachine;
         mWifiNative = wifiNative;
-        mMaxRingBufferSizeBytes = maxRingBufferSizeBytes;
     }
 
     @Override
@@ -105,8 +113,10 @@ class WifiLogger extends BaseWifiLogger {
 
         if (verboseEnabled) {
             mLogLevel = VERBOSE_LOG_WITH_WAKEUP;
+            mMaxRingBufferSizeBytes = RING_BUFFER_BYTE_LIMIT_LARGE;
         } else {
             mLogLevel = VERBOSE_NORMAL_LOG;
+            mMaxRingBufferSizeBytes = RING_BUFFER_BYTE_LIMIT_SMALL;
         }
 
         if (mRingBuffers == null) {
@@ -116,6 +126,7 @@ class WifiLogger extends BaseWifiLogger {
         if (mRingBuffers != null) {
             /* log level may have changed, so restart logging with new levels */
             stopLoggingAllBuffers();
+            resizeRingBuffers();
             startLoggingAllExceptPerPacketBuffers();
         }
 
@@ -356,6 +367,12 @@ class WifiLogger extends BaseWifiLogger {
         }
 
         return mRingBuffers != null;
+    }
+
+    private void resizeRingBuffers() {
+        for (ByteArrayRingBuffer byteArrayRingBuffer : mRingBufferData.values()) {
+            byteArrayRingBuffer.resize(mMaxRingBufferSizeBytes);
+        }
     }
 
     private boolean startLoggingAllExceptPerPacketBuffers() {

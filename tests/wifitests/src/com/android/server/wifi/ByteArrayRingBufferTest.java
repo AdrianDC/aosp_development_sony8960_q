@@ -150,4 +150,47 @@ public class ByteArrayRingBufferTest {
         assertFalse(rb.appendBuffer(data2));
         assertEquals(0, rb.getNumBuffers());
     }
+
+    /** Verifies resizes()'s behavior when shrinking the buffer:
+     *  1) Existing data is pruned.
+     *  2) We really do decrease the size limit.
+     */
+    @Test
+    public void resizePrunesDataAndUpdatesSizeLimitOnShrink() {
+        final ByteArrayRingBuffer rb = new ByteArrayRingBuffer(MAX_BYTES);
+        assertTrue(rb.appendBuffer(new byte[MAX_BYTES]));
+
+        final byte newSize = 1;
+        rb.resize(newSize);
+        assertEquals(0, rb.getNumBuffers());
+        assertFalse(rb.appendBuffer(new byte[newSize + 1]));
+    }
+
+    /** Verifies resize()'s behavior when growing the buffer:
+     *  1) Existing data is retained.
+     *  2) We really do increase the size limit.
+     */
+    @Test
+    public void resizeRetainsExistingDataAndUpdatesSizeLimitOnGrow() {
+        final ByteArrayRingBuffer rb = new ByteArrayRingBuffer(MAX_BYTES);
+        assertTrue(rb.appendBuffer(new byte[MAX_BYTES]));
+        rb.resize(MAX_BYTES * 2);
+        assertTrue(rb.appendBuffer(new byte[MAX_BYTES]));
+        assertEquals(2, rb.getNumBuffers());
+    }
+
+    /** Verifies that we don't crash when shrinking an empty buffer. */
+    @Test
+    public void shrinkingEmptyBufferSucceeds() {
+        final ByteArrayRingBuffer rb = new ByteArrayRingBuffer(MAX_BYTES * 2);
+        rb.resize(MAX_BYTES);
+    }
+
+    /** Verifies that we don't crash when growing an empty buffer. */
+    @Test
+    public void growingEmptyBufferSucceeds() {
+        final ByteArrayRingBuffer rb = new ByteArrayRingBuffer(MAX_BYTES);
+        rb.resize(MAX_BYTES * 2);
+    }
+
 }
