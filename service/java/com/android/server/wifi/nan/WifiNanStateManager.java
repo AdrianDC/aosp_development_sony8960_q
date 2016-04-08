@@ -25,21 +25,17 @@ import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
 import android.net.wifi.nan.WifiNanEventCallback;
 import android.net.wifi.nan.WifiNanManager;
-import android.net.wifi.nan.WifiNanSessionCallback;
 import android.os.Bundle;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
-import android.os.SystemClock;
 import android.os.UserHandle;
 import android.util.Log;
 import android.util.Pair;
 import android.util.SparseArray;
 
-import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
-import com.android.internal.util.WakeupMessage;
 
 import libcore.util.HexEncoding;
 
@@ -53,9 +49,6 @@ public class WifiNanStateManager {
     private static final String TAG = "WifiNanStateManager";
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
-
-    @VisibleForTesting
-    public static final String HAL_COMMAND_TIMEOUT_TAG = TAG + "HAL Command Timeout";
 
     private static WifiNanStateManager sNanStateManagerSingleton;
 
@@ -560,21 +553,6 @@ public class WifiNanStateManager {
         }
 
         private class WaitForResponseState extends State {
-            private static final long NAN_COMMAND_TIMEOUT = 5_000;
-            private WakeupMessage mTimeoutMessage;
-
-            @Override
-            public void enter() {
-                mTimeoutMessage = new WakeupMessage(mContext, getHandler(), HAL_COMMAND_TIMEOUT_TAG,
-                        MESSAGE_TYPE_TIMEOUT, mCurrentCommand.arg1, mCurrentTransactionId);
-                mTimeoutMessage.schedule(SystemClock.elapsedRealtime() + NAN_COMMAND_TIMEOUT);
-            }
-
-            @Override
-            public void exit() {
-                mTimeoutMessage.cancel();
-            }
-
             @Override
             public boolean processMessage(Message msg) {
                 if (VDBG) {
@@ -820,6 +798,7 @@ public class WifiNanStateManager {
             } else {
                 mCurrentCommand = obtainMessage(msg.what);
                 mCurrentCommand.copyFrom(msg);
+                // TODO: create a TIMEOUT signal b/28021222
             }
 
             return waitForResponse;
@@ -878,85 +857,17 @@ public class WifiNanStateManager {
 
             mCurrentCommand = null;
             mCurrentTransactionId = TRANSACTION_ID_IGNORE;
+
+            // TODO: disable TIMEOUT b/28021222
         }
 
         private void processTimeout(Message msg) {
-            if (VDBG) {
-                Log.v(TAG, "processTimeout: msg=" + msg);
-            }
-
-            if (mCurrentCommand == null) {
-                Log.wtf(TAG, "processTimeout: no existing command stored!? msg=" + msg);
-                mCurrentTransactionId = TRANSACTION_ID_IGNORE;
-                return;
-            }
-
-            /*
-             * Only have to handle those COMMANDs which wait for a response.
-             */
-            switch (msg.arg1) {
-                case COMMAND_TYPE_CONNECT: {
-                    onConfigFailedLocal(mCurrentCommand, WifiNanEventCallback.REASON_OTHER);
-                    break;
-                }
-                case COMMAND_TYPE_DISCONNECT: {
-                    /*
-                     * Will only get here on DISCONNECT if was downgrading. The
-                     * callback will do a NOP - but should still call it.
-                     */
-                    onConfigFailedLocal(mCurrentCommand, WifiNanEventCallback.REASON_OTHER);
-                    break;
-                }
-                case COMMAND_TYPE_TERMINATE_SESSION: {
-                    Log.wtf(TAG, "processTimeout: TERMINATE_SESSION - shouldn't be waiting!");
-                    break;
-                }
-                case COMMAND_TYPE_PUBLISH: {
-                    onSessionConfigFailLocal(mCurrentCommand, true,
-                            WifiNanSessionCallback.REASON_OTHER);
-                    break;
-                }
-                case COMMAND_TYPE_UPDATE_PUBLISH: {
-                    onSessionConfigFailLocal(mCurrentCommand, true,
-                            WifiNanSessionCallback.REASON_OTHER);
-                    break;
-                }
-                case COMMAND_TYPE_SUBSCRIBE: {
-                    onSessionConfigFailLocal(mCurrentCommand, false,
-                            WifiNanSessionCallback.REASON_OTHER);
-                    break;
-                }
-                case COMMAND_TYPE_UPDATE_SUBSCRIBE: {
-                    onSessionConfigFailLocal(mCurrentCommand, false,
-                            WifiNanSessionCallback.REASON_OTHER);
-                    break;
-                }
-                case COMMAND_TYPE_SEND_MESSAGE: {
-                    onMessageSendFailLocal(mCurrentCommand, WifiNanSessionCallback.REASON_TX_FAIL);
-                    break;
-                }
-                case COMMAND_TYPE_ENABLE_USAGE:
-                    Log.wtf(TAG, "processTimeout: ENABLE_USAGE - shouldn't be waiting!");
-                    break;
-                case COMMAND_TYPE_DISABLE_USAGE:
-                    Log.wtf(TAG, "processTimeout: DISABLE_USAGE - shouldn't be waiting!");
-                    break;
-                default:
-                    Log.wtf(TAG, "processTimeout: this isn't a COMMAND -- msg=" + msg);
-                    /* fall-through */
-            }
+            // TODO: b/28021222
         }
 
         @Override
         protected String getLogRecString(Message msg) {
-            StringBuffer sb = new StringBuffer(WifiNanStateManager.messageToString(msg));
-
-            if (msg.what == MESSAGE_TYPE_COMMAND
-                    && mCurrentTransactionId != TRANSACTION_ID_IGNORE) {
-                sb.append(" (Trasnaction ID=" + mCurrentTransactionId + ")");
-            }
-
-            return sb.toString();
+            return WifiNanStateManager.messageToString(msg);
         }
 
         @Override
