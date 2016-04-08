@@ -20,6 +20,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
@@ -84,13 +85,195 @@ public class WifiNanManagerTest {
     }
 
     /*
+     * WifiNanEventCallbackProxy Tests
+     */
+
+    /**
+     * Validate the successful connect flow: (1) try subscribing (2) connect +
+     * success (3) publish, (4) disconnect (5) try publishing (6) connect again
+     */
+    @Test
+    public void testConnectFlow() throws Exception {
+        final int clientId = 4565;
+
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
+                any(ConfigRequest.class))).thenReturn(clientId);
+
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService);
+        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanEventCallback.class);
+        ArgumentCaptor<IBinder> binder = ArgumentCaptor.forClass(IBinder.class);
+
+        // (1) try subscribing on an unconnected manager: fails silently
+        mDut.subscribe(new SubscribeConfig.Builder().build(), mockSessionCallback);
+
+        // (2) connect + success
+        mDut.connect(mMockLooper.getLooper(), mockCallback);
+        inOrder.verify(mockNanService).connect(binder.capture(),
+                clientProxyCallback.capture(), (ConfigRequest) isNull());
+        clientProxyCallback.getValue().onConnectSuccess();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
+
+        // (3) publish - should succeed
+        PublishConfig publishConfig = new PublishConfig.Builder().build();
+        mDut.publish(publishConfig, mockSessionCallback);
+        inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
+                any(IWifiNanSessionCallback.class));
+
+        // (4) disconnect
+        mDut.disconnect();
+        inOrder.verify(mockNanService).disconnect(eq(clientId), eq(binder.getValue()));
+
+        // (5) try publishing again - fails silently
+        mDut.publish(new PublishConfig.Builder().build(), mockSessionCallback);
+
+        // (6) connect
+        mDut.connect(mMockLooper.getLooper(), mockCallback);
+        inOrder.verify(mockNanService).connect(binder.capture(), any(IWifiNanEventCallback.class),
+                (ConfigRequest) isNull());
+
+        inOrder.verifyNoMoreInteractions();
+    }
+
+    /**
+     * Validate the failed connect flow: (1) connect + failure, (2) try
+     * publishing (3) connect + success (4) subscribe
+     */
+    @Test
+    public void testConnectFailure() throws Exception {
+        final int clientId = 4565;
+        final int reason = WifiNanEventCallback.REASON_OTHER;
+
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
+                any(ConfigRequest.class))).thenReturn(clientId);
+
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService);
+        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanEventCallback.class);
+
+        // (1) connect + failure
+        mDut.connect(mMockLooper.getLooper(), mockCallback);
+        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
+                (ConfigRequest) isNull());
+        clientProxyCallback.getValue().onConnectFail(reason);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectFail(reason);
+
+        // (2) try publishing - silent failure (since already know that no
+        // connection)
+        mDut.publish(new PublishConfig.Builder().build(), mockSessionCallback);
+
+        // (3) connect + success
+        mDut.connect(mMockLooper.getLooper(), mockCallback);
+        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
+                (ConfigRequest) isNull());
+        clientProxyCallback.getValue().onConnectSuccess();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
+
+        // (4) subscribe: should succeed
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
+        mDut.subscribe(subscribeConfig, mockSessionCallback);
+        inOrder.verify(mockNanService).subscribe(eq(clientId), eq(subscribeConfig),
+                any(IWifiNanSessionCallback.class));
+
+        inOrder.verifyNoMoreInteractions();
+    }
+
+    /**
+     * Validate connect flow when NAN is shutting down: (1) connect + success
+     * (2) publish (3) NAN down (4) try updating the publish (5) connect again
+     */
+    @Test
+    public void testConnectNanDownFlow() throws Exception {
+        final int clientId = 4565;
+        final int sessionId = 123;
+        final int reason = WifiNanEventCallback.REASON_REQUESTED;
+
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
+                any(ConfigRequest.class))).thenReturn(clientId);
+
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService);
+        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanEventCallback.class);
+        ArgumentCaptor<IWifiNanSessionCallback> sessionProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanSessionCallback.class);
+        ArgumentCaptor<WifiNanPublishSession> publishSession = ArgumentCaptor
+                .forClass(WifiNanPublishSession.class);
+
+        // (1) connect + success
+        mDut.connect(mMockLooper.getLooper(), mockCallback);
+        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
+                (ConfigRequest) isNull());
+        clientProxyCallback.getValue().onConnectSuccess();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
+
+        // (2) publish - should succeed
+        PublishConfig publishConfig = new PublishConfig.Builder().build();
+        mDut.publish(publishConfig, mockSessionCallback);
+        inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
+                sessionProxyCallback.capture());
+        sessionProxyCallback.getValue().onSessionStarted(sessionId);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onPublishStarted(publishSession.capture());
+
+        // (3) NAN down
+        clientProxyCallback.getValue().onNanDown(reason);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onNanDown(reason);
+
+        // (4) try updating the publish - silent failure (already informed that
+        // NAN down)
+        publishSession.getValue().updatePublish(publishConfig);
+
+        // (5) connect - should try the service (i.e. succeed)
+        mDut.connect(mMockLooper.getLooper(), mockCallback);
+        inOrder.verify(mockNanService).connect(any(IBinder.class), any(IWifiNanEventCallback.class),
+                (ConfigRequest) isNull());
+
+        inOrder.verifyNoMoreInteractions();
+    }
+
+    /**
+     * Validate that cannot call connect on an existing connection: (1) connect
+     * + success, (2) try connect again
+     */
+    @Test
+    public void testInvalidConnectSequence() throws Exception {
+        final int clientId = 4565;
+
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
+                any(ConfigRequest.class))).thenReturn(clientId);
+
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService);
+        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanEventCallback.class);
+
+        // (1) connect + success
+        mDut.connect(mMockLooper.getLooper(), mockCallback);
+        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
+                (ConfigRequest) isNull());
+        clientProxyCallback.getValue().onConnectSuccess();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
+
+        // (2) connect - fails silently
+        mDut.connect(mMockLooper.getLooper(), mockCallback);
+
+        inOrder.verifyNoMoreInteractions();
+    }
+
+    /*
      * WifiNanSessionCallbackProxy Tests
      */
 
     /**
-     * Validate the publish flow: (1) publish, (2) success creates session, (3)
-     * pass through everything, (4) update publish through session, (5)
-     * terminate locally, (6) try another command for local failure feedback.
+     * Validate the publish flow: (0) connect + success, (1) publish, (2)
+     * success creates session, (3) pass through everything, (4) update publish
+     * through session, (5) terminate locally, (6) try another command -
+     * ignored.
      */
     @Test
     public void testPublishFlow() throws Exception {
@@ -102,67 +285,81 @@ public class WifiNanManagerTest {
         final String string1 = "hey from here...";
         final String string2 = "some other arbitrary string...";
         final int messageId = 2123;
-        final int reason = WifiNanSessionCallback.FAIL_REASON_OTHER;
+        final int reason = WifiNanSessionCallback.REASON_OTHER;
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class)))
-                .thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
+                eq(configRequest))).thenReturn(clientId);
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
                 mockPublishSession);
+        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanEventCallback.class);
         ArgumentCaptor<IWifiNanSessionCallback> sessionProxyCallback = ArgumentCaptor
                 .forClass(IWifiNanSessionCallback.class);
         ArgumentCaptor<WifiNanPublishSession> publishSession = ArgumentCaptor
                 .forClass(WifiNanPublishSession.class);
 
-        mDut.connect(mMockLooper.getLooper(), mockCallback);
-        mDut.requestConfig(configRequest);
-        mDut.publish(publishConfig, mockSessionCallback);
-
+        // (0) connect + success
+        mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
         inOrder.verify(mockNanService).connect(any(IBinder.class),
-                any(IWifiNanEventCallback.class));
-        inOrder.verify(mockNanService).requestConfig(eq(clientId), eq(configRequest));
+                clientProxyCallback.capture(), eq(configRequest));
+        clientProxyCallback.getValue().onConnectSuccess();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
+
+        // (1) publish
+        mDut.publish(publishConfig, mockSessionCallback);
         inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
                 sessionProxyCallback.capture());
 
+        // (2) publish session created
         sessionProxyCallback.getValue().onSessionStarted(sessionId);
         mMockLooper.dispatchAll();
-
         inOrder.verify(mockSessionCallback).onPublishStarted(publishSession.capture());
 
+        // (3) ...
         publishSession.getValue().sendMessage(peerId, string1.getBytes(), string1.length(),
                 messageId);
-        publishSession.getValue().updatePublish(publishConfig);
         sessionProxyCallback.getValue().onMatch(peerId, string1.getBytes(),
                 string1.length(), string2.getBytes(), string2.length());
         sessionProxyCallback.getValue().onMessageReceived(peerId, string1.getBytes(),
                 string1.length());
         sessionProxyCallback.getValue().onMessageSendFail(messageId, reason);
         sessionProxyCallback.getValue().onMessageSendSuccess(messageId);
-        sessionProxyCallback.getValue().onSessionConfigFail(reason);
-        sessionProxyCallback.getValue().onSessionTerminated(reason);
         mMockLooper.dispatchAll();
 
         inOrder.verify(mockNanService).sendMessage(eq(clientId), eq(sessionId), eq(peerId),
                 eq(string1.getBytes()), eq(string1.length()), eq(messageId));
-        inOrder.verify(mockNanService).updatePublish(eq(clientId), eq(sessionId),
-                eq(publishConfig));
         inOrder.verify(mockSessionCallback).onMatch(eq(peerId), eq(string1.getBytes()),
                 eq(string1.length()), eq(string2.getBytes()), eq(string2.length()));
         inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()),
                 eq(string1.length()));
         inOrder.verify(mockSessionCallback).onMessageSendFail(eq(messageId), eq(reason));
         inOrder.verify(mockSessionCallback).onMessageSendSuccess(eq(messageId));
+
+        // (4) update publish
+        publishSession.getValue().updatePublish(publishConfig);
+        sessionProxyCallback.getValue().onSessionConfigFail(reason);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockNanService).updatePublish(eq(clientId), eq(sessionId),
+                eq(publishConfig));
         inOrder.verify(mockSessionCallback).onSessionConfigFail(eq(reason));
-        inOrder.verify(mockSessionCallback).onSessionTerminated(eq(reason));
-        inOrder.verify(mockNanService).terminateSession(eq(clientId), eq(sessionId));
+
+        // (5) terminate
+        publishSession.getValue().terminate();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockNanService).terminateSession(clientId, sessionId);
+
+        // (6) try an update (nothing)
+        publishSession.getValue().updatePublish(publishConfig);
+        mMockLooper.dispatchAll();
 
         inOrder.verifyNoMoreInteractions();
     }
 
     /**
-     * Validate that if an active publish receives a termination (error or done)
-     * then it feeds back to the service an actual termination to free service
-     * data.
+     * Validate race condition of session terminate and session action: (1)
+     * connect, (2) publish success + terminate, (3) update.
      */
     @Test
     public void testPublishRemoteTerminate() throws Exception {
@@ -172,45 +369,47 @@ public class WifiNanManagerTest {
         final PublishConfig publishConfig = new PublishConfig.Builder().build();
         final int reason = WifiNanSessionCallback.TERMINATE_REASON_DONE;
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class)))
-                .thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
+                eq(configRequest))).thenReturn(clientId);
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
                 mockPublishSession);
+        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanEventCallback.class);
         ArgumentCaptor<IWifiNanSessionCallback> sessionProxyCallback = ArgumentCaptor
                 .forClass(IWifiNanSessionCallback.class);
         ArgumentCaptor<WifiNanPublishSession> publishSession = ArgumentCaptor
                 .forClass(WifiNanPublishSession.class);
 
-        mDut.connect(mMockLooper.getLooper(), mockCallback);
-        mDut.requestConfig(configRequest);
-        mDut.publish(publishConfig, mockSessionCallback);
+        // (1) connect successfully
+        mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
+        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
+                eq(configRequest));
+        clientProxyCallback.getValue().onConnectSuccess();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
 
-        inOrder.verify(mockNanService).connect(any(IBinder.class),
-                any(IWifiNanEventCallback.class));
-        inOrder.verify(mockNanService).requestConfig(eq(clientId), eq(configRequest));
+        // (2) publish: successfully - then terminated
+        mDut.publish(publishConfig, mockSessionCallback);
         inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
                 sessionProxyCallback.capture());
-
         sessionProxyCallback.getValue().onSessionStarted(sessionId);
         sessionProxyCallback.getValue().onSessionTerminated(reason);
         mMockLooper.dispatchAll();
-
         inOrder.verify(mockSessionCallback).onPublishStarted(publishSession.capture());
         inOrder.verify(mockSessionCallback).onSessionTerminated(reason);
-        inOrder.verify(mockNanService).terminateSession(clientId, sessionId);
 
+        // (3) failure when trying to update: NOP
         publishSession.getValue().updatePublish(publishConfig);
-        inOrder.verify(mockSessionCallback)
-                .onSessionConfigFail(WifiNanSessionCallback.FAIL_REASON_SESSION_TERMINATED);
 
         inOrder.verifyNoMoreInteractions();
     }
 
     /**
-     * Validate the subscribe flow: (1) subscribe, (2) success creates session,
-     * (3) pass through everything, (4) update subscribe through session, (5)
-     * terminate locally, (6) try another command for local failure feedback.
+     * Validate the subscribe flow: (0) connect + success, (1) subscribe, (2)
+     * success creates session, (3) pass through everything, (4) update
+     * subscribe through session, (5) terminate locally, (6) try another command
+     * - ignored.
      */
     @Test
     public void testSubscribeFlow() throws Exception {
@@ -222,67 +421,81 @@ public class WifiNanManagerTest {
         final String string1 = "hey from here...";
         final String string2 = "some other arbitrary string...";
         final int messageId = 2123;
-        final int reason = WifiNanSessionCallback.FAIL_REASON_OTHER;
+        final int reason = WifiNanSessionCallback.REASON_OTHER;
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class)))
-                .thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
+                eq(configRequest))).thenReturn(clientId);
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
                 mockSubscribeSession);
+        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanEventCallback.class);
         ArgumentCaptor<IWifiNanSessionCallback> sessionProxyCallback = ArgumentCaptor
                 .forClass(IWifiNanSessionCallback.class);
         ArgumentCaptor<WifiNanSubscribeSession> subscribeSession = ArgumentCaptor
                 .forClass(WifiNanSubscribeSession.class);
 
-        mDut.connect(mMockLooper.getLooper(), mockCallback);
-        mDut.requestConfig(configRequest);
-        mDut.subscribe(subscribeConfig, mockSessionCallback);
+        // (0) connect + success
+        mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
+        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
+                eq(configRequest));
+        clientProxyCallback.getValue().onConnectSuccess();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
 
-        inOrder.verify(mockNanService).connect(any(IBinder.class),
-                any(IWifiNanEventCallback.class));
-        inOrder.verify(mockNanService).requestConfig(eq(clientId), eq(configRequest));
+        // (1) subscribe
+        mDut.subscribe(subscribeConfig, mockSessionCallback);
         inOrder.verify(mockNanService).subscribe(eq(clientId), eq(subscribeConfig),
                 sessionProxyCallback.capture());
 
+        // (2) subscribe session created
         sessionProxyCallback.getValue().onSessionStarted(sessionId);
         mMockLooper.dispatchAll();
-
         inOrder.verify(mockSessionCallback).onSubscribeStarted(subscribeSession.capture());
 
+        // (3) ...
         subscribeSession.getValue().sendMessage(peerId, string1.getBytes(), string1.length(),
                 messageId);
-        subscribeSession.getValue().updateSubscribe(subscribeConfig);
         sessionProxyCallback.getValue().onMatch(peerId, string1.getBytes(), string1.length(),
                 string2.getBytes(), string2.length());
         sessionProxyCallback.getValue().onMessageReceived(peerId, string1.getBytes(),
                 string1.length());
         sessionProxyCallback.getValue().onMessageSendFail(messageId, reason);
         sessionProxyCallback.getValue().onMessageSendSuccess(messageId);
-        sessionProxyCallback.getValue().onSessionConfigFail(reason);
-        sessionProxyCallback.getValue().onSessionTerminated(reason);
         mMockLooper.dispatchAll();
 
         inOrder.verify(mockNanService).sendMessage(eq(clientId), eq(sessionId), eq(peerId),
                 eq(string1.getBytes()), eq(string1.length()), eq(messageId));
-        inOrder.verify(mockNanService).updateSubscribe(eq(clientId), eq(sessionId),
-                eq(subscribeConfig));
         inOrder.verify(mockSessionCallback).onMatch(eq(peerId), eq(string1.getBytes()),
                 eq(string1.length()), eq(string2.getBytes()), eq(string2.length()));
         inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()),
                 eq(string1.length()));
         inOrder.verify(mockSessionCallback).onMessageSendFail(eq(messageId), eq(reason));
         inOrder.verify(mockSessionCallback).onMessageSendSuccess(eq(messageId));
+
+        // (4) update subscribe
+        subscribeSession.getValue().updateSubscribe(subscribeConfig);
+        sessionProxyCallback.getValue().onSessionConfigFail(reason);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockNanService).updateSubscribe(eq(clientId), eq(sessionId),
+                eq(subscribeConfig));
         inOrder.verify(mockSessionCallback).onSessionConfigFail(eq(reason));
-        inOrder.verify(mockSessionCallback).onSessionTerminated(eq(reason));
-        inOrder.verify(mockNanService).terminateSession(eq(clientId), eq(sessionId));
+
+        // (5) terminate
+        subscribeSession.getValue().terminate();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockNanService).terminateSession(clientId, sessionId);
+
+        // (6) try an update (nothing)
+        subscribeSession.getValue().updateSubscribe(subscribeConfig);
+        mMockLooper.dispatchAll();
 
         inOrder.verifyNoMoreInteractions();
     }
 
     /**
-     * Validate that if an active subscribe receives a termination (error or
-     * done) then it feeds back to the service an actual termination to free
-     * service data.
+     * Validate race condition of session terminate and session action: (1)
+     * connect, (2) subscribe success + terminate, (3) update.
      */
     @Test
     public void testSubscribeRemoteTerminate() throws Exception {
@@ -292,37 +505,38 @@ public class WifiNanManagerTest {
         final SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
         final int reason = WifiNanSessionCallback.TERMINATE_REASON_DONE;
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class)))
-                .thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
+                eq(configRequest))).thenReturn(clientId);
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
                 mockSubscribeSession);
+        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanEventCallback.class);
         ArgumentCaptor<IWifiNanSessionCallback> sessionProxyCallback = ArgumentCaptor
                 .forClass(IWifiNanSessionCallback.class);
         ArgumentCaptor<WifiNanSubscribeSession> subscribeSession = ArgumentCaptor
                 .forClass(WifiNanSubscribeSession.class);
 
-        mDut.connect(mMockLooper.getLooper(), mockCallback);
-        mDut.requestConfig(configRequest);
-        mDut.subscribe(subscribeConfig, mockSessionCallback);
+        // (1) connect successfully
+        mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
+        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
+                eq(configRequest));
+        clientProxyCallback.getValue().onConnectSuccess();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
 
-        inOrder.verify(mockNanService).connect(any(IBinder.class),
-                any(IWifiNanEventCallback.class));
-        inOrder.verify(mockNanService).requestConfig(eq(clientId), eq(configRequest));
+        // (2) subscribe: successfully - then terminated
+        mDut.subscribe(subscribeConfig, mockSessionCallback);
         inOrder.verify(mockNanService).subscribe(eq(clientId), eq(subscribeConfig),
                 sessionProxyCallback.capture());
-
         sessionProxyCallback.getValue().onSessionStarted(sessionId);
         sessionProxyCallback.getValue().onSessionTerminated(reason);
         mMockLooper.dispatchAll();
-
         inOrder.verify(mockSessionCallback).onSubscribeStarted(subscribeSession.capture());
         inOrder.verify(mockSessionCallback).onSessionTerminated(reason);
-        inOrder.verify(mockNanService).terminateSession(clientId, sessionId);
 
+        // (3) failure when trying to update: NOP
         subscribeSession.getValue().updateSubscribe(subscribeConfig);
-        inOrder.verify(mockSessionCallback)
-                .onSessionConfigFail(WifiNanSessionCallback.FAIL_REASON_SESSION_TERMINATED);
 
         inOrder.verifyNoMoreInteractions();
     }

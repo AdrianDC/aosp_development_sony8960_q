@@ -61,7 +61,9 @@ public class WifiNanServiceImplTest {
     @Mock
     private IBinder mBinderMock;
     @Mock
-    IWifiNanEventCallback mCallbackMock;
+    private IWifiNanEventCallback mCallbackMock;
+    @Mock
+    private IWifiNanSessionCallback mSessionCallbackMock;
 
     /**
      * Using instead of spy to avoid native crash failures - possibly due to
@@ -121,6 +123,21 @@ public class WifiNanServiceImplTest {
     }
 
     /**
+     * Validate connect() when a non-null config is passed.
+     */
+    @Test
+    public void testConnectWithConfig() {
+        ConfigRequest configRequest = new ConfigRequest.Builder().setMasterPreference(55).build();
+
+        int returnedClientId = mDut.connect(mBinderMock, mCallbackMock, configRequest);
+
+        ArgumentCaptor<Integer> clientId = ArgumentCaptor.forClass(Integer.class);
+        verify(mNanStateManagerMock).connect(clientId.capture(), eq(mCallbackMock),
+                eq(configRequest));
+        assertEquals(returnedClientId, (int) clientId.getValue());
+    }
+
+    /**
      * Validate disconnect() - correct pass-through args.
      *
      * @throws Exception
@@ -145,8 +162,8 @@ public class WifiNanServiceImplTest {
     }
 
     /**
-     * Validate that security exception thrown when attempting operation using
-     * an a client ID which was already cleared-up.
+     * Validate that security exception thrown when attempting operation using a
+     * client ID which was already cleared-up.
      */
     @Test(expected = SecurityException.class)
     public void testFailOnClearedUpClientId() throws Exception {
@@ -185,10 +202,10 @@ public class WifiNanServiceImplTest {
 
         mDut.fakeUid = mDefaultUid;
 
-        ConfigRequest configRequest = new ConfigRequest.Builder().build();
-        mDut.requestConfig(clientId, configRequest);
+        PublishConfig publishConfig = new PublishConfig.Builder().build();
+        mDut.publish(clientId, publishConfig, mSessionCallbackMock);
 
-        verify(mNanStateManagerMock).requestConfig(clientId, configRequest);
+        verify(mNanStateManagerMock).publish(clientId, publishConfig, mSessionCallbackMock);
         assertTrue("SecurityException for invalid access from wrong UID thrown", failsAsExpected);
     }
 
@@ -217,7 +234,7 @@ public class WifiNanServiceImplTest {
 
         int prevId = 0;
         for (int i = 0; i < loopCount; ++i) {
-            int id = mDut.connect(mBinderMock, mCallbackMock);
+            int id = mDut.connect(mBinderMock, mCallbackMock, null);
             if (i != 0) {
                 assertTrue("Client ID incrementing", id > prevId);
             }
@@ -226,23 +243,10 @@ public class WifiNanServiceImplTest {
     }
 
     /**
-     * Validate requestConfig() - correct pass-through args.
-     */
-    @Test
-    public void testRequestConfig() {
-        int clientId = doConnect();
-        ConfigRequest configRequest = new ConfigRequest.Builder().build();
-
-        mDut.requestConfig(clientId, configRequest);
-
-        verify(mNanStateManagerMock).requestConfig(clientId, configRequest);
-    }
-
-    /**
      * Validate terminateSession() - correct pass-through args.
      */
     @Test
-    public void testStopSession() {
+    public void testTerminateSession() {
         int sessionId = 1024;
         int clientId = doConnect();
 
@@ -266,6 +270,20 @@ public class WifiNanServiceImplTest {
     }
 
     /**
+     * Validate updatePublish() - correct pass-through args.
+     */
+    @Test
+    public void testUpdatePublish() {
+        int sessionId = 1232;
+        PublishConfig publishConfig = new PublishConfig.Builder().build();
+        int clientId = doConnect();
+
+        mDut.updatePublish(clientId, sessionId, publishConfig);
+
+        verify(mNanStateManagerMock).updatePublish(clientId, sessionId, publishConfig);
+    }
+
+    /**
      * Validate subscribe() - correct pass-through args.
      */
     @Test
@@ -277,6 +295,20 @@ public class WifiNanServiceImplTest {
         mDut.subscribe(clientId, subscribeConfig, mockCallback);
 
         verify(mNanStateManagerMock).subscribe(clientId, subscribeConfig, mockCallback);
+    }
+
+    /**
+     * Validate updateSubscribe() - correct pass-through args.
+     */
+    @Test
+    public void testUpdateSubscribe() {
+        int sessionId = 1232;
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
+        int clientId = doConnect();
+
+        mDut.updateSubscribe(clientId, sessionId, subscribeConfig);
+
+        verify(mNanStateManagerMock).updateSubscribe(clientId, sessionId, subscribeConfig);
     }
 
     /**
@@ -316,10 +348,11 @@ public class WifiNanServiceImplTest {
      */
 
     private int doConnect() {
-        int returnedClientId = mDut.connect(mBinderMock, mCallbackMock);
+        int returnedClientId = mDut.connect(mBinderMock, mCallbackMock, null);
 
         ArgumentCaptor<Integer> clientId = ArgumentCaptor.forClass(Integer.class);
-        verify(mNanStateManagerMock).connect(clientId.capture(), eq(mCallbackMock));
+        verify(mNanStateManagerMock).connect(clientId.capture(), eq(mCallbackMock),
+                eq(new ConfigRequest.Builder().build()));
         assertEquals(returnedClientId, (int) clientId.getValue());
 
         return returnedClientId;

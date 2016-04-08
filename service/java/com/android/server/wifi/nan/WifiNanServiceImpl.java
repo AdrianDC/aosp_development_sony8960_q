@@ -24,6 +24,7 @@ import android.net.wifi.nan.IWifiNanManager;
 import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanEventCallback;
 import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -47,7 +48,6 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
 
     private Context mContext;
     private WifiNanStateManager mStateManager;
-    private final boolean mNanSupported;
 
     private final Object mLock = new Object();
     private final SparseArray<IBinder.DeathRecipient> mDeathRecipientsByClientId =
@@ -57,11 +57,6 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
 
     public WifiNanServiceImpl(Context context) {
         mContext = context.getApplicationContext();
-
-        mNanSupported = mContext.getPackageManager()
-                .hasSystemFeature(PackageManager.FEATURE_WIFI_NAN);
-        if (DBG) Log.w(TAG, "WifiNanServiceImpl: mNanSupported=" + mNanSupported);
-
         mStateManager = WifiNanStateManager.getInstance();
     }
 
@@ -80,7 +75,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     public void start() {
         Log.i(TAG, "Starting Wi-Fi NAN service");
 
-        // TODO: share worker thread with other Wi-Fi handlers
+        // TODO: share worker thread with other Wi-Fi handlers (b/27924886)
         HandlerThread wifiNanThread = new HandlerThread("wifiNanService");
         wifiNanThread.start();
 
@@ -88,22 +83,38 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
-    public int connect(final IBinder binder, IWifiNanEventCallback callback) {
+    public int connect(final IBinder binder, IWifiNanEventCallback callback,
+            ConfigRequest configRequest) {
         enforceAccessPermission();
         enforceChangePermission();
         if (callback == null) {
             throw new IllegalArgumentException("Callback must not be null");
         }
+        if (binder == null) {
+            throw new IllegalArgumentException("Binder must not be null");
+        }
+
+        if (configRequest != null) {
+            /*
+             * TODO: enforce additional permissions if configuration is
+             * non-standard (i.e. the system API). (b/27696149)
+             */
+        } else {
+            configRequest = new ConfigRequest.Builder().build();
+        }
+        configRequest.validate();
 
         final int uid = getMockableCallingUid();
 
         final int clientId;
         synchronized (mLock) {
             clientId = mNextClientId++;
-            mUidByClientId.put(clientId, uid);
         }
 
-        if (VDBG) Log.v(TAG, "connect: uid=" + uid + ", clientId=" + clientId);
+        if (VDBG) {
+            Log.v(TAG, "connect: uid=" + uid + ", clientId=" + clientId + ", configRequest"
+                    + configRequest);
+        }
 
         IBinder.DeathRecipient dr = new IBinder.DeathRecipient() {
             @Override
@@ -119,16 +130,25 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
                 mStateManager.disconnect(clientId);
             }
         };
-        synchronized (mLock) {
-            mDeathRecipientsByClientId.put(clientId, dr);
-        }
+
         try {
             binder.linkToDeath(dr, 0);
         } catch (RemoteException e) {
-            Log.w(TAG, "Error on linkToDeath - " + e);
+            Log.e(TAG, "Error on linkToDeath - " + e);
+            try {
+                callback.onConnectFail(WifiNanEventCallback.REASON_OTHER);
+            } catch (RemoteException e1) {
+                Log.e(TAG, "Error on onConnectFail()");
+            }
+            return 0;
         }
 
-        mStateManager.connect(clientId, callback);
+        synchronized (mLock) {
+            mDeathRecipientsByClientId.put(clientId, dr);
+            mUidByClientId.put(clientId, uid);
+        }
+
+        mStateManager.connect(clientId, callback, configRequest);
 
         return clientId;
     }
@@ -142,6 +162,10 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceClientValidity(uid, clientId);
         if (VDBG) Log.v(TAG, "disconnect: uid=" + uid + ", clientId=" + clientId);
 
+        if (binder == null) {
+            throw new IllegalArgumentException("Binder must not be null");
+        }
+
         synchronized (mLock) {
             IBinder.DeathRecipient dr = mDeathRecipientsByClientId.get(clientId);
             if (dr != null) {
@@ -152,21 +176,6 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         }
 
         mStateManager.disconnect(clientId);
-    }
-
-    @Override
-    public void requestConfig(int clientId, ConfigRequest configRequest) {
-        enforceAccessPermission();
-        enforceChangePermission();
-
-        int uid = getMockableCallingUid();
-        enforceClientValidity(uid, clientId);
-        if (VDBG) {
-            Log.v(TAG, "requestConfig: uid=" + uid + "clientId=" + clientId + ", configRequest="
-                    + configRequest);
-        }
-
-        mStateManager.requestConfig(clientId, configRequest);
     }
 
     @Override
@@ -189,9 +198,14 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             IWifiNanSessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
+
         if (callback == null) {
             throw new IllegalArgumentException("Callback must not be null");
         }
+        if (publishConfig == null) {
+            throw new IllegalArgumentException("PublishConfig must not be null");
+        }
+        publishConfig.validate();
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
@@ -208,6 +222,11 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
+        if (publishConfig == null) {
+            throw new IllegalArgumentException("PublishConfig must not be null");
+        }
+        publishConfig.validate();
+
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
@@ -223,9 +242,14 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             IWifiNanSessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
+
         if (callback == null) {
             throw new IllegalArgumentException("Callback must not be null");
         }
+        if (subscribeConfig == null) {
+            throw new IllegalArgumentException("SubscribeConfig must not be null");
+        }
+        subscribeConfig.validate();
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
@@ -242,6 +266,11 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
+        if (subscribeConfig == null) {
+            throw new IllegalArgumentException("SubscribeConfig must not be null");
+        }
+        subscribeConfig.validate();
+
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
@@ -257,6 +286,11 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             int messageLength, int messageId) {
         enforceAccessPermission();
         enforceChangePermission();
+
+        if (messageLength != 0 && (message == null || message.length < messageLength)) {
+            throw new IllegalArgumentException(
+                    "Non-matching combination of message and messageLength");
+        }
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
@@ -279,10 +313,11 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             return;
         }
         pw.println("Wi-Fi NAN Service");
-        pw.println("  mNanSupported: " + mNanSupported);
-        pw.println("  mNextClientId: " + mNextClientId);
-        pw.println("  mDeathRecipientsByClientId: " + mDeathRecipientsByClientId);
-        pw.println("  mUidByClientId: " + mUidByClientId);
+        synchronized (mLock) {
+            pw.println("  mNextClientId: " + mNextClientId);
+            pw.println("  mDeathRecipientsByClientId: " + mDeathRecipientsByClientId);
+            pw.println("  mUidByClientId: " + mUidByClientId);
+        }
         mStateManager.dump(fd, pw, args);
     }
 

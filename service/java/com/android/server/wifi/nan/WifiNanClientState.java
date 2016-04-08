@@ -18,7 +18,6 @@ package com.android.server.wifi.nan;
 
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventCallback;
-import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.SparseArray;
@@ -49,9 +48,11 @@ public class WifiNanClientState {
     private int mClientId;
     private ConfigRequest mConfigRequest;
 
-    public WifiNanClientState(int clientId, IWifiNanEventCallback callback) {
+    public WifiNanClientState(int clientId, IWifiNanEventCallback callback,
+            ConfigRequest configRequest) {
         mClientId = clientId;
         mCallback = callback;
+        mConfigRequest = configRequest;
     }
 
     /**
@@ -59,16 +60,11 @@ public class WifiNanClientState {
      * the client. Destroys all discovery sessions belonging to this client.
      */
     public void destroy() {
-        mCallback = null;
         for (int i = 0; i < mSessions.size(); ++i) {
             mSessions.valueAt(i).terminate();
         }
         mSessions.clear();
         mConfigRequest = null;
-    }
-
-    public void setConfigRequest(ConfigRequest configRequest) {
-        mConfigRequest = configRequest;
     }
 
     public ConfigRequest getConfigRequest() {
@@ -77,6 +73,10 @@ public class WifiNanClientState {
 
     public int getClientId() {
         return mClientId;
+    }
+
+    public IWifiNanEventCallback getCallback() {
+        return mCallback;
     }
 
     /**
@@ -99,19 +99,33 @@ public class WifiNanClientState {
     }
 
     /**
-     * Create a new discovery session.
+     * Add the session to the client database.
      *
-     * @param sessionId Session ID of the new discovery session.
-     * @param callback Singleton session callback.
+     * @param session Session to be added.
      */
-    public void createSession(int sessionId, IWifiNanSessionCallback callback,
-            boolean isPublishSession) {
-        WifiNanSessionState session = mSessions.get(sessionId);
-        if (session != null) {
-            Log.e(TAG, "createSession: sessionId already exists (replaced) - " + sessionId);
+    public void addSession(WifiNanSessionState session) {
+        int sessionId = session.getSessionId();
+        if (mSessions.get(sessionId) != null) {
+            Log.w(TAG, "createSession: sessionId already exists (replaced) - " + sessionId);
         }
 
-        mSessions.put(sessionId, new WifiNanSessionState(sessionId, callback, isPublishSession));
+        mSessions.put(sessionId, session);
+    }
+
+    /**
+     * Remove the specified session from the client database - without doing a
+     * terminate on the session. The assumption is that it is already
+     * terminated.
+     *
+     * @param sessionId The session ID of the session to be removed.
+     */
+    public void removeSession(int sessionId) {
+        if (mSessions.get(sessionId) == null) {
+            Log.e(TAG, "removeSession: sessionId doesn't exist - " + sessionId);
+            return;
+        }
+
+        mSessions.delete(sessionId);
     }
 
     /**
@@ -127,8 +141,8 @@ public class WifiNanClientState {
             return;
         }
 
-        mSessions.delete(sessionId);
         session.terminate();
+        mSessions.delete(sessionId);
     }
 
     /**
@@ -143,71 +157,16 @@ public class WifiNanClientState {
     }
 
     /**
-     * Called to dispatch the configuration completed event to the client.
-     * Dispatched if the client registered for this event.
-     *
-     * @param completedConfig The configuration which was completed.
-     */
-    public void onConfigCompleted(ConfigRequest completedConfig) {
-        if (mCallback != null) {
-            try {
-                mCallback.onConfigCompleted(completedConfig);
-            } catch (RemoteException e) {
-                Log.w(TAG, "onConfigCompleted: RemoteException - ignored: " + e);
-            }
-        }
-    }
-
-    /**
-     * Called to dispatch the configuration failed event to the client.
-     * Dispatched if the client registered for this event.
-     *
-     * @param failedConfig The configuration which failed.
-     * @param reason The failure reason.
-     */
-    public void onConfigFailed(ConfigRequest failedConfig, int reason) {
-        if (mCallback != null) {
-            try {
-                mCallback.onConfigFailed(failedConfig, reason);
-            } catch (RemoteException e) {
-                Log.w(TAG, "onConfigFailed: RemoteException - ignored: " + e);
-            }
-        }
-    }
-
-    /**
-     * Called to dispatch the NAN down event to the client. Dispatched if the
-     * client registered for this event.
-     *
-     * @param reason The reason code for NAN going down.
-     * @return A 1 if registered to listen for event, 0 otherwise.
-     */
-    public int onNanDown(int reason) {
-        if (mCallback != null) {
-            try {
-                mCallback.onNanDown(reason);
-            } catch (RemoteException e) {
-                Log.w(TAG, "onNanDown: RemoteException - ignored: " + e);
-            }
-
-            return 1;
-        }
-
-        return 0;
-    }
-
-    /**
      * Called to dispatch the NAN interface address change to the client - as an
      * identity change (interface address information not propagated to client -
-     * privacy concerns). Dispatched if the client registered for the identity
-     * changed event.
+     * privacy concerns).
      *
      * @param mac The new MAC address of the discovery interface - not
      *            propagated to client!
      * @return A 1 if registered to listen for event, 0 otherwise.
      */
     public int onInterfaceAddressChange(byte[] mac) {
-        if (mCallback != null && mConfigRequest.mEnableIdentityChangeCallback) {
+        if (mConfigRequest.mEnableIdentityChangeCallback) {
             try {
                 mCallback.onIdentityChanged();
             } catch (RemoteException e) {
@@ -232,7 +191,7 @@ public class WifiNanClientState {
      * @return A 1 if registered to listen for event, 0 otherwise.
      */
     public int onClusterChange(int flag, byte[] mac) {
-        if (mCallback != null && mConfigRequest.mEnableIdentityChangeCallback) {
+        if (mConfigRequest.mEnableIdentityChangeCallback) {
             try {
                 mCallback.onIdentityChanged();
             } catch (RemoteException e) {

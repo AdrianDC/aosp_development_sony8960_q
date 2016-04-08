@@ -288,8 +288,41 @@ wifi_error wifi_nan_stats_request_mock(transaction_id id,
 wifi_error wifi_nan_config_request_mock(transaction_id id,
                                         wifi_interface_handle iface,
                                         NanConfigRequest* msg) {
+  JNIHelper helper(mock_mVM);
+
   ALOGD("wifi_nan_config_request_mock");
-  return WIFI_ERROR_UNINITIALIZED;
+  HalMockJsonWriter jsonW;
+  jsonW.put_int("config_sid_beacon", msg->config_sid_beacon);
+  jsonW.put_int("sid_beacon", msg->sid_beacon);
+  jsonW.put_int("config_rssi_proximity", msg->config_rssi_proximity);
+  jsonW.put_int("rssi_proximity", msg->rssi_proximity);
+  jsonW.put_int("config_master_pref", msg->config_master_pref);
+  jsonW.put_int("master_pref", msg->master_pref);
+  jsonW.put_int("config_5g_rssi_close_proximity", msg->config_5g_rssi_close_proximity);
+  jsonW.put_int("rssi_close_proximity_5g_val", msg->rssi_close_proximity_5g_val);
+  jsonW.put_int("config_rssi_window_size", msg->config_rssi_window_size);
+  jsonW.put_int("rssi_window_size_val", msg->rssi_window_size_val);
+  jsonW.put_int("config_cluster_attribute_val", msg->config_cluster_attribute_val);
+  jsonW.put_int("config_scan_params", msg->config_scan_params);
+  // TODO: NanSocialChannelScanParams scan_params_val
+  jsonW.put_int("config_random_factor_force", msg->config_random_factor_force);
+  jsonW.put_int("random_factor_force_val", msg->random_factor_force_val);
+  jsonW.put_int("config_hop_count_force", msg->config_hop_count_force);
+  jsonW.put_int("hop_count_force_val", msg->hop_count_force_val);
+  jsonW.put_int("config_conn_capability", msg->config_conn_capability);
+  // TODO: NanTransmitPostConnectivityCapability conn_capability_val
+  jsonW.put_int("num_config_discovery_attr", msg->num_config_discovery_attr);
+  // TODO: NanTransmitPostDiscovery discovery_attr_val[NAN_MAX_POSTDISCOVERY_LEN]
+  jsonW.put_int("config_fam", msg->config_fam);
+  // TODO: NanFurtherAvailabilityMap fam_val
+  std::string str = jsonW.to_string();
+
+  JNIObject < jstring > json_write_string = helper.newStringUTF(str.c_str());
+
+  helper.callMethod(mock_mObj, "configHalMockNative", "(SLjava/lang/String;)V",
+                    (short) id, json_write_string.get());
+
+  return WIFI_SUCCESS;
 }
 
 wifi_error wifi_nan_tca_request_mock(transaction_id id,
