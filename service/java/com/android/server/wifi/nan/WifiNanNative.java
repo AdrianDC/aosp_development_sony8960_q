@@ -39,9 +39,9 @@ public class WifiNanNative {
 
     private static final int WIFI_SUCCESS = 0;
 
-    private static boolean sNanNativeInit = false;
-
     private static WifiNanNative sWifiNanNativeSingleton;
+
+    private boolean mNanNativeInit = false;
 
     private static native int registerNanNatives();
 
@@ -105,32 +105,29 @@ public class WifiNanNative {
     private static native int getCapabilitiesNative(short transactionId, Class<WifiNative> cls,
             int iface);
 
-    private boolean isNanInit(boolean tryToInit) {
-        if (!tryToInit || sNanNativeInit) {
-            return sNanNativeInit;
-        }
-
-        if (DBG) Log.d(TAG, "isNanInit: trying to init");
+    private boolean isNanInit() {
         synchronized (WifiNative.sLock) {
-            boolean halStarted = WifiNative.getWlanNativeInterface().isHalStarted();
-            if (!halStarted) {
-                halStarted = WifiNative.getWlanNativeInterface().startHal();
-            }
-            if (halStarted) {
+            if (!WifiNative.getWlanNativeInterface().isHalStarted()) {
+                /*
+                 * We should never start the HAL - that's done at a higher level
+                 * by the Wi-Fi state machine.
+                 */
+                mNanNativeInit = false;
+                return false;
+            } else if (!mNanNativeInit) {
                 int ret = initNanHandlersNative(WifiNative.class, WifiNative.sWlan0Index);
                 if (DBG) Log.d(TAG, "initNanHandlersNative: res=" + ret);
-                sNanNativeInit = ret == WIFI_SUCCESS;
+                mNanNativeInit = ret == WIFI_SUCCESS;
 
-                if (sNanNativeInit) {
+                if (mNanNativeInit) {
                     ret = getCapabilitiesNative((short) 0, WifiNative.class,
                             WifiNative.sWlan0Index);
                     if (DBG) Log.d(TAG, "getCapabilitiesNative: res=" + ret);
                 }
 
-                return sNanNativeInit;
+                return mNanNativeInit;
             } else {
-                Log.w(TAG, "isNanInit: HAL not initialized");
-                return false;
+                return true;
             }
         }
     }
@@ -154,12 +151,10 @@ public class WifiNanNative {
      * @param initialConfiguration Specifies whether initial configuration
      *            (true) or an update (false) to the configuration.
      */
-    public void enableAndConfigure(short transactionId, ConfigRequest configRequest,
+    public boolean enableAndConfigure(short transactionId, ConfigRequest configRequest,
             boolean initialConfiguration) {
-        boolean success;
-
         if (VDBG) Log.d(TAG, "enableAndConfigure: configRequest=" + configRequest);
-        if (isNanInit(true)) {
+        if (isNanInit()) {
             int ret;
             if (initialConfiguration) {
                 synchronized (WifiNative.sLock) {
@@ -174,14 +169,11 @@ public class WifiNanNative {
                 }
                 if (DBG) Log.d(TAG, "updateConfigurationNative: ret=" + ret);
             }
-            success = ret == WIFI_SUCCESS;
+            return ret == WIFI_SUCCESS;
         } else {
             Log.w(TAG, "enableAndConfigure: NanInit fails");
-            success = false;
+            return false;
         }
-
-
-        // TODO: do something on !success - send failure message back
     }
 
     private static native int disableNative(short transactionId, Class<WifiNative> cls, int iface);
@@ -192,23 +184,19 @@ public class WifiNanNative {
      * @param transactionId transactionId Transaction ID for the transaction -
      *            used in the async callback to match with the original request.
      */
-    public void disable(short transactionId) {
-        boolean success;
-
+    public boolean disable(short transactionId) {
         if (VDBG) Log.d(TAG, "disableNan");
-        if (isNanInit(true)) {
+        if (isNanInit()) {
             int ret;
             synchronized (WifiNative.sLock) {
                 ret = disableNative(transactionId, WifiNative.class, WifiNative.sWlan0Index);
             }
             if (DBG) Log.d(TAG, "disableNative: ret=" + ret);
-            success = ret == WIFI_SUCCESS;
+            return ret == WIFI_SUCCESS;
         } else {
             Log.w(TAG, "disable: cannot initialize NAN");
-            success = false;
+            return false;
         }
-
-        // TODO: do something on !success - send failure message back
     }
 
     private static native int publishNative(short transactionId, int publishId,
@@ -223,27 +211,23 @@ public class WifiNanNative {
      *            session.
      * @param publishConfig Configuration of the discovery session.
      */
-    public void publish(short transactionId, int publishId, PublishConfig publishConfig) {
-        boolean success;
-
+    public boolean publish(short transactionId, int publishId, PublishConfig publishConfig) {
         if (VDBG) {
             Log.d(TAG, "publish: transactionId=" + transactionId + ", config=" + publishConfig);
         }
 
-        if (isNanInit(true)) {
+        if (isNanInit()) {
             int ret;
             synchronized (WifiNative.sLock) {
                 ret = publishNative(transactionId, publishId, WifiNative.class,
                         WifiNative.sWlan0Index, publishConfig);
             }
             if (DBG) Log.d(TAG, "publishNative: ret=" + ret);
-            success = ret == WIFI_SUCCESS;
+            return ret == WIFI_SUCCESS;
         } else {
             Log.w(TAG, "publish: cannot initialize NAN");
-            success = false;
+            return false;
         }
-
-        // TODO: do something on !success - send failure message back
     }
 
     private static native int subscribeNative(short transactionId, int subscribeId,
@@ -258,27 +242,24 @@ public class WifiNanNative {
      *            subscribe session.
      * @param subscribeConfig Configuration of the discovery session.
      */
-    public void subscribe(short transactionId, int subscribeId, SubscribeConfig subscribeConfig) {
-        boolean success;
-
+    public boolean subscribe(short transactionId, int subscribeId,
+            SubscribeConfig subscribeConfig) {
         if (VDBG) {
             Log.d(TAG, "subscribe: transactionId=" + transactionId + ", config=" + subscribeConfig);
         }
 
-        if (isNanInit(true)) {
+        if (isNanInit()) {
             int ret;
             synchronized (WifiNative.sLock) {
                 ret = subscribeNative(transactionId, subscribeId, WifiNative.class,
                         WifiNative.sWlan0Index, subscribeConfig);
             }
             if (DBG) Log.d(TAG, "subscribeNative: ret=" + ret);
-            success = ret == WIFI_SUCCESS;
+            return ret == WIFI_SUCCESS;
         } else {
             Log.w(TAG, "subscribe: cannot initialize NAN");
-            success = false;
+            return false;
         }
-
-        // TODO: do something on !success - send failure message back
     }
 
     private static native int sendMessageNative(short transactionId, Class<WifiNative> cls,
@@ -298,10 +279,8 @@ public class WifiNanNative {
      * @param message Message.
      * @param messageLength Message byte array length.
      */
-    public void sendMessage(short transactionId, int pubSubId, int requestorInstanceId, byte[] dest,
-            byte[] message, int messageLength) {
-        boolean success;
-
+    public boolean sendMessage(short transactionId, int pubSubId, int requestorInstanceId,
+            byte[] dest, byte[] message, int messageLength) {
         if (VDBG) {
             Log.d(TAG,
                     "sendMessage: transactionId=" + transactionId + ", pubSubId=" + pubSubId
@@ -310,20 +289,18 @@ public class WifiNanNative {
                             + messageLength);
         }
 
-        if (isNanInit(true)) {
+        if (isNanInit()) {
             int ret;
             synchronized (WifiNative.sLock) {
                 ret = sendMessageNative(transactionId, WifiNative.class, WifiNative.sWlan0Index,
                         pubSubId, requestorInstanceId, dest, message, messageLength);
             }
             if (DBG) Log.d(TAG, "sendMessageNative: ret=" + ret);
-            success = ret == WIFI_SUCCESS;
+            return ret == WIFI_SUCCESS;
         } else {
             Log.w(TAG, "sendMessage: cannot initialize NAN");
-            success = false;
+            return false;
         }
-
-        // TODO: do something on !success - send failure message back
     }
 
     private static native int stopPublishNative(short transactionId, Class<WifiNative> cls,
@@ -337,27 +314,23 @@ public class WifiNanNative {
      * @param pubSubId ID of the publish/subscribe session - obtained when
      *            creating a session.
      */
-    public void stopPublish(short transactionId, int pubSubId) {
-        boolean success;
-
+    public boolean stopPublish(short transactionId, int pubSubId) {
         if (VDBG) {
             Log.d(TAG, "stopPublish: transactionId=" + transactionId + ", pubSubId=" + pubSubId);
         }
 
-        if (isNanInit(true)) {
+        if (isNanInit()) {
             int ret;
             synchronized (WifiNative.sLock) {
                 ret = stopPublishNative(transactionId, WifiNative.class, WifiNative.sWlan0Index,
                         pubSubId);
             }
             if (DBG) Log.d(TAG, "stopPublishNative: ret=" + ret);
-            success = ret == WIFI_SUCCESS;
+            return ret == WIFI_SUCCESS;
         } else {
             Log.w(TAG, "stopPublish: cannot initialize NAN");
-            success = false;
+            return false;
         }
-
-        // TODO: do something on !success - send failure message back
     }
 
     private static native int stopSubscribeNative(short transactionId, Class<WifiNative> cls,
@@ -371,27 +344,23 @@ public class WifiNanNative {
      * @param pubSubId ID of the publish/subscribe session - obtained when
      *            creating a session.
      */
-    public void stopSubscribe(short transactionId, int pubSubId) {
-        boolean success;
-
+    public boolean stopSubscribe(short transactionId, int pubSubId) {
         if (VDBG) {
             Log.d(TAG, "stopSubscribe: transactionId=" + transactionId + ", pubSubId=" + pubSubId);
         }
 
-        if (isNanInit(true)) {
+        if (isNanInit()) {
             int ret;
             synchronized (WifiNative.sLock) {
                 ret = stopSubscribeNative(transactionId, WifiNative.class, WifiNative.sWlan0Index,
                         pubSubId);
             }
             if (DBG) Log.d(TAG, "stopSubscribeNative: ret=" + ret);
-            success = ret == WIFI_SUCCESS;
+            return ret == WIFI_SUCCESS;
         } else {
             Log.w(TAG, "stopSubscribe: cannot initialize NAN");
-            success = false;
+            return false;
         }
-
-        // TODO: do something on !success - send failure message back
     }
 
     // EVENTS

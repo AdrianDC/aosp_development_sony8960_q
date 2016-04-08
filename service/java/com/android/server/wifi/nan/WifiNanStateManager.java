@@ -16,16 +16,20 @@
 
 package com.android.server.wifi.nan;
 
+import android.content.Context;
+import android.content.Intent;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
 import android.net.wifi.nan.WifiNanEventCallback;
+import android.net.wifi.nan.WifiNanManager;
 import android.os.Bundle;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
+import android.os.UserHandle;
 import android.util.Log;
 import android.util.Pair;
 import android.util.SparseArray;
@@ -69,6 +73,8 @@ public class WifiNanStateManager {
     private static final int COMMAND_TYPE_SUBSCRIBE = 5;
     private static final int COMMAND_TYPE_UPDATE_SUBSCRIBE = 6;
     private static final int COMMAND_TYPE_SEND_MESSAGE = 7;
+    private static final int COMMAND_TYPE_ENABLE_USAGE = 8;
+    private static final int COMMAND_TYPE_DISABLE_USAGE = 9;
 
     private static final int RESPONSE_TYPE_ON_CONFIG_SUCCESS = 0;
     private static final int RESPONSE_TYPE_ON_CONFIG_FAIL = 1;
@@ -95,7 +101,6 @@ public class WifiNanStateManager {
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE = "message";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_PEER_ID = "message_peer_id";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_ID = "message_id";
-    private static final String MESSAGE_BUNDLE_KEY_RESPONSE_TYPE = "response_type";
     private static final String MESSAGE_BUNDLE_KEY_SSI_LENGTH = "ssi_length";
     private static final String MESSAGE_BUNDLE_KEY_SSI_DATA = "ssi_data";
     private static final String MESSAGE_BUNDLE_KEY_FILTER_LENGTH = "filter_length";
@@ -106,9 +111,15 @@ public class WifiNanStateManager {
     private static final String MESSAGE_BUNDLE_KEY_REQ_INSTANCE_ID = "req_instance_id";
 
     /*
-     * All state is only accessed through the state machine handler thread: no
-     * need to synchronize.
+     * Asynchronous access with no lock
      */
+    private volatile boolean mUsageEnabled = false;
+
+    /*
+     * Synchronous access: state is only accessed through the state machine
+     * handler thread: no need to use a lock.
+     */
+    private Context mContext;
     private WifiNanNative.Capabilities mCapabilities;
     private WifiNanStateMachine mSm;
 
@@ -139,9 +150,10 @@ public class WifiNanStateManager {
      *
      * @param looper Thread looper on which to run the handler.
      */
-    public void start(Looper looper) {
+    public void start(Context context, Looper looper) {
         Log.i(TAG, "start()");
 
+        mContext = context;
         mSm = new WifiNanStateMachine(TAG, looper);
         mSm.setDbg(DBG);
         mSm.start();
@@ -254,6 +266,36 @@ public class WifiNanStateManager {
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_ID, messageId);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH, messageLength);
         mSm.sendMessage(msg);
+    }
+
+    /**
+     * Enable usage of NAN. Doesn't actually turn on NAN (form clusters) - that
+     * only happens when a connection is created.
+     */
+    public void enableUsage() {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_ENABLE_USAGE;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Disable usage of NAN. Terminates all existing clients with onNanDown().
+     */
+    public void disableUsage() {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_DISABLE_USAGE;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Checks whether NAN usage is enabled (not necessarily that NAN is up right
+     * now) or disabled.
+     *
+     * @return A boolean indicating whether NAN usage is enabled (true) or
+     *         disabled (false).
+     */
+    public boolean isUsageEnabled() {
+        return mUsageEnabled;
     }
 
     /*
@@ -737,6 +779,14 @@ public class WifiNanStateManager {
                             sessionId, peerId, message, messageLength, messageId);
                     break;
                 }
+                case COMMAND_TYPE_ENABLE_USAGE:
+                    enableUsageLocal();
+                    waitForResponse = false;
+                    break;
+                case COMMAND_TYPE_DISABLE_USAGE:
+                    disableUsageLocal();
+                    waitForResponse = false;
+                    break;
                 default:
                     waitForResponse = false;
                     Log.wtf(TAG, "processCommand: this isn't a COMMAND -- msg=" + msg);
@@ -816,6 +866,11 @@ public class WifiNanStateManager {
         }
 
         @Override
+        protected String getLogRecString(Message msg) {
+            return WifiNanStateManager.messageToString(msg);
+        }
+
+        @Override
         public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
             pw.println("WifiNanStateMachine:");
             pw.println("  mNextTransactionId: " + mNextTransactionId);
@@ -826,14 +881,49 @@ public class WifiNanStateManager {
         }
     }
 
+    private void sendNanStateChangedBroadcast(boolean enabled) {
+        if (VDBG) {
+            Log.v(TAG, "sendNanStateChangedBroadcast: enabled=" + enabled);
+        }
+        final Intent intent = new Intent(WifiNanManager.WIFI_NAN_STATE_CHANGED_ACTION);
+        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY);
+        if (enabled) {
+            intent.putExtra(WifiNanManager.EXTRA_WIFI_STATE, WifiNanManager.WIFI_NAN_STATE_ENABLED);
+        } else {
+            intent.putExtra(WifiNanManager.EXTRA_WIFI_STATE,
+                    WifiNanManager.WIFI_NAN_STATE_DISABLED);
+        }
+        mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
+    }
+
     /*
      * COMMANDS
      */
+
     private boolean connectLocal(short transactionId, int clientId, IWifiNanEventCallback callback,
             ConfigRequest configRequest) {
         if (VDBG) {
             Log.v(TAG, "connectLocal(): transactionId=" + transactionId + ", clientId=" + clientId
                     + ", callback=" + callback + ", configRequest=" + configRequest);
+        }
+
+        if (!mUsageEnabled) {
+            Log.w(TAG, "connect(): called with mUsageEnabled=false");
+            try {
+                /*
+                 * calling here explicitly (vs. a NOP) since otherwise there
+                 * will be no indication whatsoever to the caller to put it back
+                 * into an UNCONNECTED state. While theoretically they shouldn't
+                 * be calling this without checking isUsageEnabled() or waiting
+                 * for the broadcast - there is always a possibility that
+                 * between then and connect() the usage was disabled (e.g. Wi-Fi
+                 * down).
+                 */
+                callback.onNanDown(WifiNanEventCallback.REASON_REQUESTED);
+            } catch (RemoteException e) {
+                Log.w(TAG, "onNanDown: RemoteException - ignored: " + e);
+            }
+            return false;
         }
 
         if (mClients.get(clientId) != null) {
@@ -863,9 +953,8 @@ public class WifiNanStateManager {
             return false;
         }
 
-        WifiNanNative.getInstance().enableAndConfigure(transactionId, merged,
+        return WifiNanNative.getInstance().enableAndConfigure(transactionId, merged,
                 mCurrentNanConfiguration == null);
-        return true;
     }
 
     private boolean disconnectLocal(short transactionId, int clientId) {
@@ -893,8 +982,7 @@ public class WifiNanStateManager {
             return false;
         }
 
-        WifiNanNative.getInstance().enableAndConfigure(transactionId, merged, false);
-        return true;
+        return WifiNanNative.getInstance().enableAndConfigure(transactionId, merged, false);
     }
 
     private void terminateSessionLocal(int clientId, int sessionId) {
@@ -925,8 +1013,7 @@ public class WifiNanStateManager {
             return false;
         }
 
-        WifiNanNative.getInstance().publish(transactionId, 0, publishConfig);
-        return true;
+        return WifiNanNative.getInstance().publish(transactionId, 0, publishConfig);
     }
 
     private boolean updatePublishLocal(short transactionId, int clientId, int sessionId,
@@ -965,8 +1052,7 @@ public class WifiNanStateManager {
             return false;
         }
 
-        WifiNanNative.getInstance().subscribe(transactionId, 0, subscribeConfig);
-        return true;
+        return WifiNanNative.getInstance().subscribe(transactionId, 0, subscribeConfig);
     }
 
     private boolean updateSubscribeLocal(short transactionId, int clientId, int sessionId,
@@ -1017,6 +1103,27 @@ public class WifiNanStateManager {
         }
 
         return session.sendMessage(transactionId, peerId, message, messageLength, messageId);
+    }
+
+    private void enableUsageLocal() {
+        if (mUsageEnabled) {
+            return;
+        }
+
+        mUsageEnabled = true;
+        sendNanStateChangedBroadcast(true);
+    }
+
+    private void disableUsageLocal() {
+        if (!mUsageEnabled) {
+            return;
+        }
+
+        mUsageEnabled = false;
+        WifiNanNative.getInstance().disable((short) 0);
+        onNanDownLocal(WifiNanEventCallback.REASON_REQUESTED);
+
+        sendNanStateChangedBroadcast(false);
     }
 
     /*
@@ -1447,12 +1554,125 @@ public class WifiNanStateManager {
                 .build();
     }
 
+    private static String messageToString(Message msg) {
+        StringBuilder sb = new StringBuilder();
+
+        switch (msg.what) {
+            case MESSAGE_TYPE_NOTIFICATION:
+                sb.append("NOTIFICATION/");
+                switch (msg.arg1) {
+                    case NOTIFICATION_TYPE_CAPABILITIES_UPDATED:
+                        sb.append("CAPABILITIES_UPDATED");
+                        break;
+                    case NOTIFICATION_TYPE_INTERFACE_CHANGE:
+                        sb.append("INTERFACE_CHANGE");
+                        break;
+                    case NOTIFICATION_TYPE_CLUSTER_CHANGE:
+                        sb.append("CLUSTER_CHANGE");
+                        break;
+                    case NOTIFICATION_TYPE_MATCH:
+                        sb.append("MATCH");
+                        break;
+                    case NOTIFICATION_TYPE_SESSION_TERMINATED:
+                        sb.append("SESSION_TERMINATED");
+                        break;
+                    case NOTIFICATION_TYPE_MESSAGE_RECEIVED:
+                        sb.append("MESSAGE_RECEIVED");
+                        break;
+                    case NOTIFICATION_TYPE_NAN_DOWN:
+                        sb.append("NAN_DOWN");
+                        break;
+                    default:
+                        sb.append("<unknown>");
+                        break;
+                }
+                break;
+            case MESSAGE_TYPE_COMMAND:
+                sb.append("COMMAND/");
+                switch (msg.arg1) {
+                    case COMMAND_TYPE_CONNECT:
+                        sb.append("CONNECT");
+                        break;
+                    case COMMAND_TYPE_DISCONNECT:
+                        sb.append("DISCONNECT");
+                        break;
+                    case COMMAND_TYPE_TERMINATE_SESSION:
+                        sb.append("TERMINATE_SESSION");
+                        break;
+                    case COMMAND_TYPE_PUBLISH:
+                        sb.append("PUBLISH");
+                        break;
+                    case COMMAND_TYPE_UPDATE_PUBLISH:
+                        sb.append("UPDATE_PUBLISH");
+                        break;
+                    case COMMAND_TYPE_SUBSCRIBE:
+                        sb.append("SUBSCRIBE");
+                        break;
+                    case COMMAND_TYPE_UPDATE_SUBSCRIBE:
+                        sb.append("UPDATE_SUBSCRIBE");
+                        break;
+                    case COMMAND_TYPE_SEND_MESSAGE:
+                        sb.append("SEND_MESSAGE");
+                        break;
+                    case COMMAND_TYPE_ENABLE_USAGE:
+                        sb.append("ENABLE_USAGE");
+                        break;
+                    case COMMAND_TYPE_DISABLE_USAGE:
+                        sb.append("DISABLE_USAGE");
+                        break;
+                    default:
+                        sb.append("<unknown>");
+                        break;
+                }
+                break;
+            case MESSAGE_TYPE_RESPONSE:
+                sb.append("RESPONSE/");
+                switch (msg.arg1) {
+                    case RESPONSE_TYPE_ON_CONFIG_SUCCESS:
+                        sb.append("ON_CONFIG_SUCCESS");
+                        break;
+                    case RESPONSE_TYPE_ON_CONFIG_FAIL:
+                        sb.append("ON_CONFIG_FAIL");
+                        break;
+                    case RESPONSE_TYPE_ON_SESSION_CONFIG_SUCCESS:
+                        sb.append("ON_SESSION_CONFIG_SUCCESS");
+                        break;
+                    case RESPONSE_TYPE_ON_SESSION_CONFIG_FAIL:
+                        sb.append("ON_SESSION_CONFIG_FAIL");
+                        break;
+                    case RESPONSE_TYPE_ON_MESSAGE_SEND_SUCCESS:
+                        sb.append("ON_MESSAGE_SEND_SUCCESS");
+                        break;
+                    case RESPONSE_TYPE_ON_MESSAGE_SEND_FAIL:
+                        sb.append("ON_MESSAGE_SEND_FAIL");
+                        break;
+                    default:
+                        sb.append("<unknown>");
+                        break;
+
+                }
+                break;
+            case MESSAGE_TYPE_TIMEOUT:
+                sb.append("TIMEOUT");
+                break;
+            default:
+                sb.append("<unknown>");
+        }
+
+        if (msg.what == MESSAGE_TYPE_RESPONSE || msg.what == MESSAGE_TYPE_TIMEOUT) {
+            sb.append(" (Transaction ID=" + msg.arg2 + ")");
+        }
+
+        return sb.toString();
+    }
+
     /**
      * Dump the internal state of the class.
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("NanStateManager:");
         pw.println("  mClients: [" + mClients + "]");
+        pw.println("  mUsageEnabled: " + mUsageEnabled);
         pw.println("  mCapabilities: [" + mCapabilities + "]");
         pw.println("  mCurrentNanConfiguration: " + mCurrentNanConfiguration);
         for (int i = 0; i < mClients.size(); ++i) {

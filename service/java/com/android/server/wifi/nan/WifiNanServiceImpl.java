@@ -79,7 +79,44 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         HandlerThread wifiNanThread = new HandlerThread("wifiNanService");
         wifiNanThread.start();
 
-        mStateManager.start(wifiNanThread.getLooper());
+        mStateManager.start(mContext, wifiNanThread.getLooper());
+    }
+
+    @Override
+    public void enableUsage() {
+        enforceAccessPermission();
+        enforceChangePermission();
+        /*
+         * TODO: enforce additional permissions b/27696149.
+         */
+
+        mStateManager.enableUsage();
+    }
+
+    @Override
+    public void disableUsage() {
+        enforceAccessPermission();
+        enforceChangePermission();
+        /*
+         * TODO: enforce additional permissions b/27696149.
+         */
+
+        mStateManager.disableUsage();
+
+        /*
+         * Potential leak (b/27796984) since we keep app information here (uid,
+         * binder-link-to-death), while clearing all state information. However:
+         * (1) can't clear all information since don't have binder, (2)
+         * information will clear once app dies, (3) allows us to do security
+         * checks in the future.
+         */
+    }
+
+    @Override
+    public boolean isUsageEnabled() {
+        enforceAccessPermission();
+
+        return mStateManager.isUsageEnabled();
     }
 
     @Override

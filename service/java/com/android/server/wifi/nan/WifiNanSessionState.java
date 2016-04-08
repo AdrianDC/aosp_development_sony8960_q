@@ -106,8 +106,7 @@ public class WifiNanSessionState {
             return false;
         }
 
-        WifiNanNative.getInstance().publish(transactionId, mPubSubId, config);
-        return true;
+        return WifiNanNative.getInstance().publish(transactionId, mPubSubId, config);
     }
 
     /**
@@ -128,8 +127,7 @@ public class WifiNanSessionState {
             return false;
         }
 
-        WifiNanNative.getInstance().subscribe(transactionId, mPubSubId, config);
-        return true;
+        return WifiNanNative.getInstance().subscribe(transactionId, mPubSubId, config);
     }
 
     /**
@@ -160,9 +158,8 @@ public class WifiNanSessionState {
         }
         byte[] peerMac = HexEncoding.decode(peerMacStr.toCharArray(), false);
 
-        WifiNanNative.getInstance().sendMessage(transactionId, mPubSubId, peerId, peerMac, message,
-                messageLength);
-        return true;
+        return WifiNanNative.getInstance().sendMessage(transactionId, mPubSubId, peerId, peerMac,
+                message, messageLength);
     }
 
     /**

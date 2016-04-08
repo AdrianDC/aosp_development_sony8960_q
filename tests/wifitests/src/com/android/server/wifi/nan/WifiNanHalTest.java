@@ -67,7 +67,7 @@ public class WifiNanHalTest {
         MockitoAnnotations.initMocks(this);
 
         HalMockUtils.initHalMockLibrary();
-        WifiNanHalMock.initNanHalMockLibrary();
+        WifiNanHalMock.initNanHalMockLibrary(mDut);
         WifiNanNative.initNanHandlersNative(WifiNative.class, WifiNative.sWlan0Index);
         HalMockUtils.setHalMockObject(mNanHalMock);
         installMockNanStateManager(mNanStateManager);
