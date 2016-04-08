@@ -679,7 +679,7 @@ public class WifiConfigManagerTest {
 
         reset(mWifiNative);
         final Field lastSelectedConfigurationField =
-                WifiConfigManager.class.getDeclaredField("lastSelectedConfiguration");
+                WifiConfigManager.class.getDeclaredField("mLastSelectedConfiguration");
         lastSelectedConfigurationField.setAccessible(true);
         WifiConfiguration removedEphemeralConfig = null;
         final Set<WifiConfiguration> oldUserOnlyConfigs = new HashSet<>();

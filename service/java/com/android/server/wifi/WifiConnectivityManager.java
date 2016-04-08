@@ -382,12 +382,12 @@ public class WifiConnectivityManager {
         mMin5GHzRssi = WifiQualifiedNetworkSelector.MINIMUM_5G_ACCEPT_RSSI;
         mMin24GHzRssi = WifiQualifiedNetworkSelector.MINIMUM_2G_ACCEPT_RSSI;
         mBand5GHzBonus = WifiQualifiedNetworkSelector.BAND_AWARD_5GHz;
-        mCurrentConnectionBonus = mConfigManager.currentNetworkBoost.get();
+        mCurrentConnectionBonus = mConfigManager.mCurrentNetworkBoost.get();
         mSameNetworkBonus = context.getResources().getInteger(
                                 R.integer.config_wifi_framework_SAME_BSSID_AWARD);
         mSecureBonus = context.getResources().getInteger(
                             R.integer.config_wifi_framework_SECURITY_AWARD);
-        mInitialScoreMax = (mConfigManager.thresholdSaturatedRssi24.get()
+        mInitialScoreMax = (mConfigManager.mThresholdSaturatedRssi24.get()
                             + WifiQualifiedNetworkSelector.RSSI_SCORE_OFFSET)
                             * WifiQualifiedNetworkSelector.RSSI_SCORE_SLOPE;
 
