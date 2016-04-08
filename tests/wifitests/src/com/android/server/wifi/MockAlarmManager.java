@@ -49,9 +49,10 @@ public class MockAlarmManager {
         mPendingAlarms = new ArrayList<>();
 
         mAlarmManager = mock(AlarmManager.class);
-        doAnswer(new SetListenerAnswer())
-                .when(mAlarmManager).set(anyInt(), anyLong(), anyString(),
-                        any(AlarmManager.OnAlarmListener.class), any(Handler.class));
+        doAnswer(new SetListenerAnswer()).when(mAlarmManager).set(anyInt(), anyLong(), anyString(),
+                any(AlarmManager.OnAlarmListener.class), any(Handler.class));
+        doAnswer(new SetListenerAnswer()).when(mAlarmManager).setExact(anyInt(), anyLong(),
+                anyString(), any(AlarmManager.OnAlarmListener.class), any(Handler.class));
         doAnswer(new CancelListenerAnswer())
                 .when(mAlarmManager).cancel(any(AlarmManager.OnAlarmListener.class));
     }
