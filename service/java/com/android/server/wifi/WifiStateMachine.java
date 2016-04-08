@@ -1043,9 +1043,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 R.bool.config_wifi_enable_wifi_firmware_debugging);
 
         if (enableFirmwareLogs) {
-            int maxRingBufferSizeBytes = mContext.getResources().getInteger(
-                    R.integer.config_wifi_logger_ring_buffer_size_limit_kb) * 1024;
-            mWifiLogger = facade.makeRealLogger(this, mWifiNative, maxRingBufferSizeBytes);
+            mWifiLogger = facade.makeRealLogger(this, mWifiNative);
         } else {
             mWifiLogger = facade.makeBaseLogger();
         }
