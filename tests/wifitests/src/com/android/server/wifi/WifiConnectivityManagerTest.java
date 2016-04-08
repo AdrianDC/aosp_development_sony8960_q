@@ -176,9 +176,9 @@ public class WifiConnectivityManagerTest {
         WifiConfigManager wifiConfigManager = mock(WifiConfigManager.class);
 
         when(wifiConfigManager.getWifiConfiguration(anyInt())).thenReturn(null);
-        wifiConfigManager.thresholdSaturatedRssi24 = new AtomicInteger(
+        wifiConfigManager.mThresholdSaturatedRssi24 = new AtomicInteger(
                 WifiQualifiedNetworkSelector.RSSI_SATURATION_2G_BAND);
-        wifiConfigManager.currentNetworkBoost = new AtomicInteger(
+        wifiConfigManager.mCurrentNetworkBoost = new AtomicInteger(
                 WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD);
 
         return wifiConfigManager;

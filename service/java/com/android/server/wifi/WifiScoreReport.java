@@ -99,7 +99,7 @@ public class WifiScoreReport {
                                                  WifiScoreReport lastReport,
                                                  int aggressiveHandover) {
         boolean debugLogging = false;
-        if (wifiConfigManager.enableVerboseLogging.get() > 0) {
+        if (wifiConfigManager.mEnableVerboseLogging.get() > 0) {
             debugLogging = true;
         }
 
@@ -107,13 +107,13 @@ public class WifiScoreReport {
 
         int score = STARTING_SCORE;
         boolean isBadLinkspeed = (wifiInfo.is24GHz()
-                && wifiInfo.getLinkSpeed() < wifiConfigManager.badLinkSpeed24)
+                && wifiInfo.getLinkSpeed() < wifiConfigManager.mBadLinkSpeed24)
                 || (wifiInfo.is5GHz() && wifiInfo.getLinkSpeed()
-                < wifiConfigManager.badLinkSpeed5);
+                < wifiConfigManager.mBadLinkSpeed5);
         boolean isGoodLinkspeed = (wifiInfo.is24GHz()
-                && wifiInfo.getLinkSpeed() >= wifiConfigManager.goodLinkSpeed24)
+                && wifiInfo.getLinkSpeed() >= wifiConfigManager.mGoodLinkSpeed24)
                 || (wifiInfo.is5GHz() && wifiInfo.getLinkSpeed()
-                >= wifiConfigManager.goodLinkSpeed5);
+                >= wifiConfigManager.mGoodLinkSpeed5);
 
         int badLinkspeedcount = 0;
         if (lastReport != null) {
@@ -173,14 +173,14 @@ public class WifiScoreReport {
 
         boolean is24GHz = use24Thresholds || wifiInfo.is24GHz();
 
-        boolean isBadRSSI = (is24GHz && rssi < wifiConfigManager.thresholdMinimumRssi24.get())
-                || (!is24GHz && rssi < wifiConfigManager.thresholdMinimumRssi5.get());
-        boolean isLowRSSI = (is24GHz && rssi < wifiConfigManager.thresholdQualifiedRssi24.get())
+        boolean isBadRSSI = (is24GHz && rssi < wifiConfigManager.mThresholdMinimumRssi24.get())
+                || (!is24GHz && rssi < wifiConfigManager.mThresholdMinimumRssi5.get());
+        boolean isLowRSSI = (is24GHz && rssi < wifiConfigManager.mThresholdQualifiedRssi24.get())
                 || (!is24GHz
-                        && wifiInfo.getRssi() < wifiConfigManager.thresholdMinimumRssi5.get());
-        boolean isHighRSSI = (is24GHz && rssi >= wifiConfigManager.thresholdSaturatedRssi24.get())
+                        && wifiInfo.getRssi() < wifiConfigManager.mThresholdMinimumRssi5.get());
+        boolean isHighRSSI = (is24GHz && rssi >= wifiConfigManager.mThresholdSaturatedRssi24.get())
                 || (!is24GHz
-                        && wifiInfo.getRssi() >= wifiConfigManager.thresholdSaturatedRssi5.get());
+                        && wifiInfo.getRssi() >= wifiConfigManager.mThresholdSaturatedRssi5.get());
 
         if (isBadRSSI) sb.append(" br");
         if (isLowRSSI) sb.append(" lr");
@@ -206,7 +206,7 @@ public class WifiScoreReport {
                     }
                     currentConfiguration.numTicksAtBadRSSI = 0;
                 }
-                if (wifiConfigManager.enableWifiCellularHandoverUserTriggeredAdjustment
+                if (wifiConfigManager.mEnableWifiCellularHandoverUserTriggeredAdjustment
                         && (currentConfiguration.numUserTriggeredWifiDisableBadRSSI > 0
                                 || currentConfiguration.numUserTriggeredWifiDisableLowRSSI > 0
                                 || currentConfiguration
@@ -228,7 +228,7 @@ public class WifiScoreReport {
                     }
                     currentConfiguration.numTicksAtLowRSSI = 0;
                 }
-                if (wifiConfigManager.enableWifiCellularHandoverUserTriggeredAdjustment
+                if (wifiConfigManager.mEnableWifiCellularHandoverUserTriggeredAdjustment
                         && (currentConfiguration.numUserTriggeredWifiDisableLowRSSI > 0
                                 || currentConfiguration
                                         .numUserTriggeredWifiDisableNotHighRSSI > 0)) {
@@ -246,7 +246,7 @@ public class WifiScoreReport {
                     }
                     currentConfiguration.numTicksAtNotHighRSSI = 0;
                 }
-                if (wifiConfigManager.enableWifiCellularHandoverUserTriggeredAdjustment
+                if (wifiConfigManager.mEnableWifiCellularHandoverUserTriggeredAdjustment
                         && currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI > 0) {
                     score = score - USER_DISCONNECT_PENALTY;
                     penalizedDueToUserTriggeredDisconnect = 3;

@@ -170,9 +170,9 @@ public class WifiQualifiedNetworkSelector {
                 R.integer.config_wifi_framework_PASSPOINT_SECURITY_AWARD);
         mSecurityAward = context.getResources().getInteger(
                 R.integer.config_wifi_framework_SECURITY_AWARD);
-        mNoIntnetPenalty = (mWifiConfigManager.thresholdSaturatedRssi24.get() + mRssiScoreOffset)
-                * mRssiScoreSlope + mWifiConfigManager.bandAward5Ghz.get()
-                + mWifiConfigManager.currentNetworkBoost.get() + mSameBssidAward + mSecurityAward;
+        mNoIntnetPenalty = (mWifiConfigManager.mThresholdSaturatedRssi24.get() + mRssiScoreOffset)
+                * mRssiScoreSlope + mWifiConfigManager.mBandAward5Ghz.get()
+                + mWifiConfigManager.mCurrentNetworkBoost.get() + mSameBssidAward + mSecurityAward;
     }
 
     void enableVerboseLogging(int verbose) {
@@ -227,9 +227,10 @@ public class WifiQualifiedNetworkSelector {
         }
 
         int currentRssi = mWifiInfo.getRssi();
-        if ((mWifiInfo.is24GHz() && currentRssi < mWifiConfigManager.thresholdQualifiedRssi24.get())
+        if ((mWifiInfo.is24GHz()
+                        && currentRssi < mWifiConfigManager.mThresholdQualifiedRssi24.get())
                 || (mWifiInfo.is5GHz()
-                && currentRssi < mWifiConfigManager.thresholdQualifiedRssi5.get())) {
+                        && currentRssi < mWifiConfigManager.mThresholdQualifiedRssi5.get())) {
             qnsLog("Current band = " + (mWifiInfo.is24GHz() ? "2.4GHz band" : "5GHz band")
                     + "current RSSI is: " + currentRssi);
             return false;
@@ -269,7 +270,7 @@ public class WifiQualifiedNetworkSelector {
             //already connected. Just try to find better candidate
             //if switch network is not allowed in connected mode, do not trigger Qualified Network
             //Selection
-            if (!mWifiConfigManager.getEnableNewNetworkSelectionWhenAssociated()) {
+            if (!mWifiConfigManager.getEnableAutoJoinWhenAssociated()) {
                 qnsLog("Switch network under connection is not allowed");
                 return false;
             }
@@ -347,14 +348,14 @@ public class WifiQualifiedNetworkSelector {
 
         int score = 0;
         //calculate the RSSI score
-        int rssi = scanResult.level <= mWifiConfigManager.thresholdSaturatedRssi24.get()
-                ? scanResult.level : mWifiConfigManager.thresholdSaturatedRssi24.get();
+        int rssi = scanResult.level <= mWifiConfigManager.mThresholdSaturatedRssi24.get()
+                ? scanResult.level : mWifiConfigManager.mThresholdSaturatedRssi24.get();
         score += (rssi + mRssiScoreOffset) * mRssiScoreSlope;
         sbuf.append(" RSSI score: " +  score);
         if (scanResult.is5GHz()) {
             //5GHz band
-            score += mWifiConfigManager.bandAward5Ghz.get();
-            sbuf.append(" 5GHz bonus: " + mWifiConfigManager.bandAward5Ghz.get());
+            score += mWifiConfigManager.mBandAward5Ghz.get();
+            sbuf.append(" 5GHz bonus: " + mWifiConfigManager.mBandAward5Ghz.get());
         }
 
         //last user selection award
@@ -372,9 +373,9 @@ public class WifiQualifiedNetworkSelector {
 
         //same network award
         if (network == currentNetwork || network.isLinked(currentNetwork)) {
-            score += mWifiConfigManager.currentNetworkBoost.get();
+            score += mWifiConfigManager.mCurrentNetworkBoost.get();
             sbuf.append(" Same network with current associated. Bonus: "
-                    + mWifiConfigManager.currentNetworkBoost.get());
+                    + mWifiConfigManager.mCurrentNetworkBoost.get());
         }
 
         //same BSSID award
@@ -678,9 +679,9 @@ public class WifiQualifiedNetworkSelector {
 
             //skip scan result with too weak signals
             if ((scanResult.is24GHz() && scanResult.level
-                    < mWifiConfigManager.thresholdMinimumRssi24.get())
+                    < mWifiConfigManager.mThresholdMinimumRssi24.get())
                     || (scanResult.is5GHz() && scanResult.level
-                    < mWifiConfigManager.thresholdMinimumRssi5.get())) {
+                    < mWifiConfigManager.mThresholdMinimumRssi5.get())) {
                 if (mDbg) {
                     lowSignalScan.append(scanId + "(" + (scanResult.is24GHz() ? "2.4GHz" : "5GHz")
                             + ")" + scanResult.level + " / ");
