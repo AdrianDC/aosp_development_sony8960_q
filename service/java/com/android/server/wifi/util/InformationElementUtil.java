@@ -311,6 +311,7 @@ public class InformationElementUtil {
      * by wpa_supplicant.
      */
     public static class Capabilities {
+        private static final int CAP_ESS_BIT_OFFSET = 0;
         private static final int CAP_PRIVACY_BIT_OFFSET = 4;
 
         private static final int WPA_VENDOR_OUI_TYPE_ONE = 0x01f25000;
@@ -526,6 +527,7 @@ public class InformationElementUtil {
                 return capabilities;
             }
 
+            boolean ess = beaconCap.get(CAP_ESS_BIT_OFFSET);
             boolean privacy = beaconCap.get(CAP_PRIVACY_BIT_OFFSET);
 
             for (InformationElement ie : ies) {
@@ -545,6 +547,10 @@ public class InformationElementUtil {
             if (!rsneFound && !wpaFound && privacy) {
                 //private Beacon without an RSNE or WPA IE, hence WEP0
                 capabilities += "[WEP]";
+            }
+
+            if (ess) {
+                capabilities += "[ESS]";
             }
 
             return capabilities;

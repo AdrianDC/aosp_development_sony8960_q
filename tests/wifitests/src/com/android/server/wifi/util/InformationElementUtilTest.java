@@ -241,7 +241,6 @@ public class InformationElementUtilTest {
     /**
      * Test Capabilities.buildCapabilities() with a RSN IE.
      * Expect the function to return a string with the proper security information.
-     *
      */
     @Test
     public void buildCapabilities_rsnElement() {
@@ -267,7 +266,6 @@ public class InformationElementUtilTest {
     /**
      * Test Capabilities.buildCapabilities() with a WPA type 1 IE.
      * Expect the function to return a string with the proper security information.
-     *
      */
     @Test
     public void buildCapabilities_wpa1Element() {
@@ -293,11 +291,10 @@ public class InformationElementUtilTest {
 
     /**
      * Test Capabilities.buildCapabilities() with a vendor specific element which
-     * is not WPA type 1 however. Beacon Capability Information field has the Privacy
+     * is not WPA type 1. Beacon Capability Information field has the Privacy
      * bit set.
      *
      * Expect the function to return a string with the proper security information.
-     *
      */
     @Test
     public void buildCapabilities_nonRsnWpa1Element_privacySet() {
@@ -319,11 +316,10 @@ public class InformationElementUtilTest {
 
     /**
      * Test Capabilities.buildCapabilities() with a vendor specific element which
-     * is not WPA type 1 however. Beacon Capability Information field doesn't have the
+     * is not WPA type 1. Beacon Capability Information field doesn't have the
      * Privacy bit set.
      *
-     * Expect the function to return a string with the proper security information.
-     *
+     * Expect the function to return an empty string.
      */
     @Test
     public void buildCapabilities_nonRsnWpa1Element_privacyClear() {
@@ -337,6 +333,55 @@ public class InformationElementUtilTest {
 
         BitSet beaconCap = new BitSet(16);
         beaconCap.clear(4);
+
+        String result = InformationElementUtil.Capabilities.buildCapabilities(ies, beaconCap);
+
+        assertEquals("", result);
+    }
+
+    /**
+     * Test Capabilities.buildCapabilities() with a vendor specific element which
+     * is not WPA type 1. Beacon Capability Information field has the ESS bit set.
+     *
+     * Expect the function to return a string with [ESS] there.
+     */
+    @Test
+    public void buildCapabilities_nonRsnWpa1Element_essSet() {
+        InformationElement ie = new InformationElement();
+        ie.id = InformationElement.EID_VSA;
+        ie.bytes = new byte[] { (byte) 0x00, (byte) 0x04, (byte) 0x0E, (byte) 0x01,
+                                (byte) 0x01, (byte) 0x02, (byte) 0x01, (byte) 0x00,
+                                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00 };
+
+        InformationElement[] ies = new InformationElement[] { ie };
+
+        BitSet beaconCap = new BitSet(16);
+        beaconCap.set(0);
+
+        String result = InformationElementUtil.Capabilities.buildCapabilities(ies, beaconCap);
+
+        assertEquals("[ESS]", result);
+    }
+
+    /**
+     * Test Capabilities.buildCapabilities() with a vendor specific element which
+     * is not WPA type 1. Beacon Capability Information field doesn't have the
+     * ESS bit set.
+     *
+     * Expect the function to return an empty string.
+     */
+    @Test
+    public void buildCapabilities_nonRsnWpa1Element_essClear() {
+        InformationElement ie = new InformationElement();
+        ie.id = InformationElement.EID_VSA;
+        ie.bytes = new byte[] { (byte) 0x00, (byte) 0x04, (byte) 0x0E, (byte) 0x01,
+                                (byte) 0x01, (byte) 0x02, (byte) 0x01, (byte) 0x00,
+                                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00 };
+
+        InformationElement[] ies = new InformationElement[] { ie };
+
+        BitSet beaconCap = new BitSet(16);
+        beaconCap.clear(0);
 
         String result = InformationElementUtil.Capabilities.buildCapabilities(ies, beaconCap);
 
