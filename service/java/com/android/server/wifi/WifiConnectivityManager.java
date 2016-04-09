@@ -16,6 +16,8 @@
 
 package com.android.server.wifi;
 
+import static com.android.server.wifi.WifiStateMachine.WIFI_WORK_SOURCE;
+
 import android.app.ActivityManager;
 import android.app.AlarmManager;
 import android.content.Context;
@@ -502,9 +504,9 @@ public class WifiConnectivityManager {
 
         // re-enable this when b/27695292 is fixed
         // mSingleScanListener.clearScanDetails();
-        // mScanner.startScan(settings, mSingleScanListener);
+        // mScanner.startScan(settings, mSingleScanListener, WIFI_WORK_SOURCE);
         SingleScanListener singleScanListener = new SingleScanListener();
-        mScanner.startScan(settings, singleScanListener);
+        mScanner.startScan(settings, singleScanListener, WIFI_WORK_SOURCE);
     }
 
     // Start a periodic scan when screen is on
@@ -523,7 +525,7 @@ public class WifiConnectivityManager {
             settings.periodInMs = PERIODIC_SCAN_INTERVAL_MS;
 
             mPeriodicScanListener.clearScanDetails();
-            mScanner.startBackgroundScan(settings, mPeriodicScanListener);
+            mScanner.startBackgroundScan(settings, mPeriodicScanListener, WIFI_WORK_SOURCE);
         }
     }
 

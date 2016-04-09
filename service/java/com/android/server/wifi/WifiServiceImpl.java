@@ -464,6 +464,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             // supplied WorkSource to allow future WorkSource combining.
             workSource.clearNames();
         }
+        if (workSource == null && Binder.getCallingUid() >= 0) {
+            workSource = new WorkSource(Binder.getCallingUid());
+        }
         mWifiStateMachine.startScan(Binder.getCallingUid(), scanRequestCounter++,
                 settings, workSource);
     }
