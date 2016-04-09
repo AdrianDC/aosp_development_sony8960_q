@@ -568,12 +568,13 @@ public class WifiMetrics {
     }
 
     /**
-     * Increment oneshot scan count
+     * Increment oneshot scan count, and the associated WifiSystemScanStateCount entry
      */
     public void incrementOneshotScanCount() {
         synchronized (mLock) {
             mWifiLogProto.numOneshotScans++;
         }
+        incrementWifiSystemScanStateCount(mWifiState, mScreenOn);
     }
 
     /**

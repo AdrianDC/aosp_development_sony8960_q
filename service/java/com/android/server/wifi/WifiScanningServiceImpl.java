@@ -547,11 +547,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 switch (msg.what) {
                     case WifiScanner.CMD_START_SINGLE_SCAN:
                         mWifiMetrics.incrementOneshotScanCount();
-                        // <TODO> b/27793184
-                        //  Determine the system state (Wifi enabled/disabled/associated...etc) and
-                        //  screenOn/Off, use it to increment the Metrics SystemScanState count
-                        //      mWifiMetrics.incrementWifiSystemScanStateCount(???, ???);
-
                         Bundle scanParams = (Bundle) msg.obj;
                         if (scanParams == null) {
                             replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "params null");
