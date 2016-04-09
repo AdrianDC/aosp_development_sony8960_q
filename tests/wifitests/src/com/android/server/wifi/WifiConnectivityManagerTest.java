@@ -29,6 +29,7 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiScanner.ScanListener;
 import android.net.wifi.WifiScanner.ScanSettings;
+import android.os.WorkSource;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.R;
@@ -122,14 +123,16 @@ public class WifiConnectivityManagerTest {
 
         // do a synchronous answer for the ScanListener callbacks
         doAnswer(new AnswerWithArguments() {
-            public void answer(ScanSettings settings, ScanListener listener) throws Exception {
-                listener.onResults(results);
-            }}).when(scanner).startBackgroundScan(anyObject(), anyObject());
+                public void answer(ScanSettings settings, ScanListener listener,
+                        WorkSource workSource) throws Exception {
+                    listener.onResults(results);
+                }}).when(scanner).startBackgroundScan(anyObject(), anyObject(), anyObject());
 
         doAnswer(new AnswerWithArguments() {
-            public void answer(ScanSettings settings, ScanListener listener) throws Exception {
-                listener.onResults(results);
-            }}).when(scanner).startScan(anyObject(), anyObject());
+                public void answer(ScanSettings settings, ScanListener listener,
+                        WorkSource workSource) throws Exception {
+                    listener.onResults(results);
+                }}).when(scanner).startScan(anyObject(), anyObject(), anyObject());
 
         return scanner;
     }
