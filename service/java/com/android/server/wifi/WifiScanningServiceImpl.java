@@ -355,6 +355,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private static WorkSource computeWorkSource(ClientInfo ci, WorkSource requestedWorkSource) {
         if (requestedWorkSource != null) {
             if (isWorkSourceValid(requestedWorkSource)) {
+                // Wifi currently doesn't use names, so need to clear names out of the
+                // supplied WorkSource to allow future WorkSource combining.
+                requestedWorkSource.clearNames();
                 return requestedWorkSource;
             } else {
                 loge("Got invalid work source request: " + requestedWorkSource.toString() +
@@ -592,10 +595,27 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
         }
 
-        // TODO(b/27903217): Blame scan on provided work source
         class ScanningState extends State {
+            private WorkSource mScanWorkSource;
+
+            @Override
+            public void enter() {
+                mScanWorkSource = mActiveScans.createMergedWorkSource();
+                try {
+                    mBatteryStats.noteWifiScanStartedFromSource(mScanWorkSource);
+                } catch (RemoteException e) {
+                    loge(e.toString());
+                }
+            }
+
             @Override
             public void exit() {
+                try {
+                    mBatteryStats.noteWifiScanStoppedFromSource(mScanWorkSource);
+                } catch (RemoteException e) {
+                    loge(e.toString());
+                }
+
                 // if any scans are still active (never got results available then indicate failure)
                 mWifiMetrics.incrementScanReturnEntry(
                                 WifiMetricsProto.WifiLog.SCAN_UNKNOWN,
@@ -1758,16 +1778,18 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         private void addBackgroundScanRequest(ScanSettings settings) {
             if (DBG) localLog("Starting background scan");
             if (mInternalClientInfo != null) {
-                mInternalClientInfo.sendScanRequestToClientHandler(
-                        WifiScanner.CMD_START_BACKGROUND_SCAN, settings);
+                mInternalClientInfo.sendRequestToClientHandler(
+                        WifiScanner.CMD_START_BACKGROUND_SCAN, settings,
+                        WifiStateMachine.WIFI_WORK_SOURCE);
             }
         }
 
         private void addSingleScanRequest(ScanSettings settings) {
             if (DBG) localLog("Starting single scan");
             if (mInternalClientInfo != null) {
-                mInternalClientInfo.sendScanRequestToClientHandler(
-                        WifiScanner.CMD_START_SINGLE_SCAN, settings);
+                mInternalClientInfo.sendRequestToClientHandler(
+                        WifiScanner.CMD_START_SINGLE_SCAN, settings,
+                        WifiStateMachine.WIFI_WORK_SOURCE);
             }
         }
 
@@ -1957,13 +1979,15 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
          * Send a message to the client handler which should reroute the message to the appropriate
          * state machine.
          */
-        public void sendScanRequestToClientHandler(int what, ScanSettings settings) {
+        public void sendRequestToClientHandler(int what, ScanSettings settings,
+                WorkSource workSource) {
             Message msg = Message.obtain();
             msg.what = what;
             msg.arg2 = INTERNAL_CLIENT_HANDLER;
             if (settings != null) {
                 Bundle bundle = new Bundle();
                 bundle.putParcelable(WifiScanner.SCAN_PARAMS_SCAN_SETTINGS_KEY, settings);
+                bundle.putParcelable(WifiScanner.SCAN_PARAMS_WORK_SOURCE_KEY, workSource);
                 msg.obj = bundle;
             }
             msg.replyTo = mMessenger;
@@ -1975,8 +1999,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
          * Send a message to the client handler which should reroute the message to the appropriate
          * state machine.
          */
-        public void sendScanRequestToClientHandler(int what) {
-            sendScanRequestToClientHandler(what, null);
+        public void sendRequestToClientHandler(int what) {
+            sendRequestToClientHandler(what, null, null);
         }
     }
 
@@ -2358,15 +2382,15 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         private void addScanRequest(ScanSettings settings) {
             if (DBG) localLog("Starting scans");
             if (mInternalClientInfo != null) {
-                mInternalClientInfo.sendScanRequestToClientHandler(
-                        WifiScanner.CMD_START_BACKGROUND_SCAN, settings);
+                mInternalClientInfo.sendRequestToClientHandler(
+                        WifiScanner.CMD_START_BACKGROUND_SCAN, settings, null);
             }
         }
 
         private void removeScanRequest() {
             if (DBG) localLog("Stopping scans");
             if (mInternalClientInfo != null) {
-                mInternalClientInfo.sendScanRequestToClientHandler(
+                mInternalClientInfo.sendRequestToClientHandler(
                         WifiScanner.CMD_STOP_BACKGROUND_SCAN);
             }
         }
@@ -2502,12 +2526,12 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             ScanSettings settings, PnoSettings pnoSettings) {
         StringBuilder sb = new StringBuilder();
         sb.append(request)
-                .append(": Client=")
+                .append(": ")
                 .append(ci.toString())
                 .append(",Id=")
                 .append(id);
         if (workSource != null) {
-            sb.append(",WorkSource=").append(workSource);
+            sb.append(",").append(workSource);
         }
         if (settings != null) {
             sb.append(", ");
@@ -2523,7 +2547,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     void logCallback(String callback, ClientInfo ci, int id) {
         StringBuilder sb = new StringBuilder();
         sb.append(callback)
-                .append(": Client=")
+                .append(": ")
                 .append(ci.toString())
                 .append(",Id=")
                 .append(id);
@@ -2531,7 +2555,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     }
 
     static String describeTo(StringBuilder sb, ScanSettings scanSettings) {
-        sb.append(" ScanSettings { ")
+        sb.append("ScanSettings { ")
           .append(" band:").append(scanSettings.band)
           .append(" period:").append(scanSettings.periodInMs)
           .append(" reportEvents:").append(scanSettings.reportEvents)
@@ -2550,7 +2574,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     }
 
     static String describeTo(StringBuilder sb, PnoSettings pnoSettings) {
-        sb.append(" PnoSettings { ")
+        sb.append("PnoSettings { ")
           .append(" min5GhzRssi:").append(pnoSettings.min5GHzRssi)
           .append(" min24GhzRssi:").append(pnoSettings.min24GHzRssi)
           .append(" initialScoreMax:").append(pnoSettings.initialScoreMax)

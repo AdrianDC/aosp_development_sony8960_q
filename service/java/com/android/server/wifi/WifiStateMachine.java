@@ -976,6 +976,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             "com.android.server.WifiManager.action.START_SCAN";
 
     /**
+     * Work source to use to blame usage on the WiFi service
+     */
+    public static final WorkSource WIFI_WORK_SOURCE = new WorkSource(Process.WIFI_UID);
+
+    /**
      * Keep track of whether WIFI is running.
      */
     private boolean mIsRunning = false;
@@ -1113,7 +1118,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     @Override
                     public void onReceive(Context context, Intent intent) {
                         sScanAlarmIntentCount++; // Used for debug only
-                        startScan(SCAN_ALARM_SOURCE, mDelayedScanCounter.incrementAndGet(), null, null);
+                        startScan(SCAN_ALARM_SOURCE, mDelayedScanCounter.incrementAndGet(), null,
+                                WIFI_WORK_SOURCE);
                         if (DBG)
                             logd("SCAN ALARM -> " + mDelayedScanCounter.get());
                     }
@@ -1413,7 +1419,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiConfigManager.enableAutoJoinWhenAssociated(enabled);
         if (!old_state && enabled && mScreenOn && getCurrentState() == mConnectedState) {
             startDelayedScan(mWifiConfigManager.mWifiAssociatedShortScanIntervalMs.get(), null,
-                    null);
+                    WIFI_WORK_SOURCE);
         }
         return true;
     }
@@ -1547,7 +1553,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * so as to kick of autojoin.
      */
     public void startScanForUntrustedSettingChange() {
-        startScan(SET_ALLOW_UNTRUSTED_SOURCE, 0, null, null);
+        startScan(SET_ALLOW_UNTRUSTED_SOURCE, 0, null, WIFI_WORK_SOURCE);
     }
 
     /**
@@ -1610,9 +1616,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return 0;
     }
 
-    // Keeping track of scan requests
-    private long lastStartScanTimeStamp = 0;
-    private long lastScanDuration = 0;
     // Last connect attempt is used to prevent scan requests:
     //  - for a period of 10 seconds after attempting to connect
     private long lastConnectAttemptTimestamp = 0;
@@ -1648,15 +1651,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private int mOnTime = 0;
     private int mTxTime = 0;
     private int mRxTime = 0;
-    private int mOnTimeStartScan = 0;
-    private int mTxTimeStartScan = 0;
-    private int mRxTimeStartScan = 0;
-    private int mOnTimeScan = 0;
-    private int mTxTimeScan = 0;
-    private int mRxTimeScan = 0;
-    private int mOnTimeThisScan = 0;
-    private int mTxTimeThisScan = 0;
-    private int mRxTimeThisScan = 0;
 
     private int mOnTimeScreenStateChange = 0;
     private long lastOntimeReportTimeStamp = 0;
@@ -1712,30 +1706,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return stats;
     }
 
-    void startRadioScanStats() {
-        WifiLinkLayerStats stats = getWifiLinkLayerStats(false);
-        if (stats != null) {
-            mOnTimeStartScan = stats.on_time;
-            mTxTimeStartScan = stats.tx_time;
-            mRxTimeStartScan = stats.rx_time;
-            mOnTime = stats.on_time;
-            mTxTime = stats.tx_time;
-            mRxTime = stats.rx_time;
-        }
-    }
-
-    void closeRadioScanStats() {
-        WifiLinkLayerStats stats = getWifiLinkLayerStats(false);
-        if (stats != null) {
-            mOnTimeThisScan = stats.on_time - mOnTimeStartScan;
-            mTxTimeThisScan = stats.tx_time - mTxTimeStartScan;
-            mRxTimeThisScan = stats.rx_time - mRxTimeStartScan;
-            mOnTimeScan += mOnTimeThisScan;
-            mTxTimeScan += mTxTimeThisScan;
-            mRxTimeScan += mRxTimeThisScan;
-        }
-    }
-
     int startWifiIPPacketOffload(int slot, KeepalivePacketData packetData, int intervalSeconds) {
         int ret = mWifiNative.startSendingOffloadedPacket(slot, packetData, intervalSeconds * 1000);
         if (ret != 0) {
@@ -1765,70 +1735,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return mWifiNative.stopRssiMonitoring();
     }
 
-    // If workSource is not null, blame is given to it, otherwise blame is given to callingUid.
-    private void noteScanStart(int callingUid, WorkSource workSource) {
-        if (lastStartScanTimeStamp != 0) {
-            noteScanEnd();
-        }
-        long now = System.currentTimeMillis();
-        lastStartScanTimeStamp = now;
-        lastScanDuration = 0;
-        if (DBG) {
-            String ts = String.format("[%,d ms]", now);
-            if (workSource != null) {
-                if (DBG) logd(ts + " noteScanStart" + workSource.toString()
-                        + " uid " + Integer.toString(callingUid));
-            } else {
-                if (DBG) logd(ts + " noteScanstart no scan source"
-                        + " uid " + Integer.toString(callingUid));
-            }
-        }
-        startRadioScanStats();
-        if (mScanWorkSource == null && ((callingUid != UNKNOWN_SCAN_SOURCE
-                && callingUid != SCAN_ALARM_SOURCE)
-                || workSource != null)) {
-            mScanWorkSource = workSource != null ? workSource : new WorkSource(callingUid);
-
-            if (mScanWorkSource.size() == 1 && mScanWorkSource.get(0) < 0) {
-                // WiFi uses negative UIDs to mean special things. BatteryStats don't care!
-                mScanWorkSource = new WorkSource(Process.WIFI_UID);
-            }
-
-            try {
-                mBatteryStats.noteWifiScanStartedFromSource(mScanWorkSource);
-            } catch (RemoteException e) {
-                log(e.toString());
-            }
-        }
-    }
-
-    private void noteScanEnd() {
-        closeRadioScanStats();
-        long now = System.currentTimeMillis();
-        if (lastStartScanTimeStamp != 0) {
-            lastScanDuration = now - lastStartScanTimeStamp;
-        }
-        lastStartScanTimeStamp = 0;
-        if (DBG) {
-            String ts = String.format("[%,d ms]", now);
-            if (mScanWorkSource != null)
-                logd(ts + " noteScanEnd " + mScanWorkSource.toString()
-                        + " onTime=" + mOnTimeThisScan);
-            else
-                logd(ts + " noteScanEnd no scan source"
-                        + " onTime=" + mOnTimeThisScan);
-        }
-        if (mScanWorkSource != null) {
-            try {
-                mBatteryStats.noteWifiScanStoppedFromSource(mScanWorkSource);
-            } catch (RemoteException e) {
-                log(e.toString());
-            } finally {
-                mScanWorkSource = null;
-            }
-        }
-    }
-
     private void handleScanRequest(Message message) {
         ScanSettings settings = null;
         WorkSource workSource = null;
@@ -1854,8 +1760,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         // call wifi native to start the scan
         if (startScanNative(freqs, hiddenNetworkIds, workSource)) {
-            // only count battery consumption if scan request is accepted
-            noteScanStart(message.arg1, workSource);
             // a full scan covers everything, clearing scan request buffer
             if (freqs == null)
                 mBufferedScanMsg.clear();
@@ -2664,13 +2568,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 }
                 if (mIsScanOngoing) sb.append(" onGoing");
                 if (mIsFullScanOngoing) sb.append(" full");
-                if (lastStartScanTimeStamp != 0) {
-                    sb.append(" started:").append(lastStartScanTimeStamp);
-                    sb.append(",").append(now - lastStartScanTimeStamp);
-                }
-                if (lastScanDuration != 0) {
-                    sb.append(" dur:").append(lastScanDuration);
-                }
                 sb.append(" cnt=").append(mDelayedScanCounter);
                 sb.append(" rssi=").append(mWifiInfo.getRssi());
                 sb.append(" f=").append(mWifiInfo.getFrequency());
@@ -2780,21 +2677,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 }
                 sb.append(" known=").append(mNumScanResultsKnown);
                 sb.append(" got=").append(mNumScanResultsReturned);
-                if (lastScanDuration != 0) {
-                    sb.append(" dur:").append(lastScanDuration);
-                }
-                if (mOnTime != 0) {
-                    sb.append(" on:").append(mOnTimeThisScan).append(",").append(mOnTimeScan);
-                    sb.append(",").append(mOnTime);
-                }
-                if (mTxTime != 0) {
-                    sb.append(" tx:").append(mTxTimeThisScan).append(",").append(mTxTimeScan);
-                    sb.append(",").append(mTxTime);
-                }
-                if (mRxTime != 0) {
-                    sb.append(" rx:").append(mRxTimeThisScan).append(",").append(mRxTimeScan);
-                    sb.append(",").append(mRxTime);
-                }
                 sb.append(String.format(" bcn=%d", mRunningBeaconCount));
                 sb.append(String.format(" con=%d", mConnectionRequests));
                 key = mWifiConfigManager.getLastSelectedConfiguration();
@@ -4785,7 +4667,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case WifiMonitor.SCAN_RESULTS_EVENT:
                 case WifiMonitor.SCAN_FAILED_EVENT:
                     maybeRegisterNetworkFactory(); // Make sure our NetworkFactory is registered
-                    noteScanEnd();
                     setScanResults();
                     if (mIsFullScanOngoing || mSendScanResultsBroadcast) {
                         /* Just updated results from full scan, let apps know about this */
@@ -5197,7 +5078,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
             intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_DISABLED);
             mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
-            noteScanEnd(); // wrap up any pending request.
             mBufferedScanMsg.clear();
 
             if (mNanSupported && mWifiNanManager != null) {
@@ -5782,7 +5662,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                 mWifiConnectionStatistics.numWifiManagerJoinAttempt++;
 
                                 // As a courtesy to the caller, trigger a scan now
-                                startScan(ADD_OR_UPDATE_SOURCE, 0, null, null);
+                                startScan(ADD_OR_UPDATE_SOURCE, 0, null, WIFI_WORK_SOURCE);
                             }
                         }
                     }
@@ -6724,9 +6604,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 hiddenNetworkIds.add(config.networkId);
             }
             // Call wifi native to start the scan
-            if (startScanNative(freqs, hiddenNetworkIds, null)) {
-                // Only count battery consumption if scan request is accepted
-                noteScanStart(SCAN_ALARM_SOURCE, null);
+            if (startScanNative(freqs, hiddenNetworkIds, WIFI_WORK_SOURCE)) {
                 messageHandlingStatus = MESSAGE_HANDLING_STATUS_OK;
             } else {
                 // used for debug only, mark scan as failed
@@ -6900,7 +6778,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         if (!checkAndRestartDelayedScan(message.arg2,
                                 shouldScan,
                                 mWifiConfigManager.mWifiAssociatedShortScanIntervalMs.get(),
-                                null, null)) {
+                                null, WIFI_WORK_SOURCE)) {
                             messageHandlingStatus = MESSAGE_HANDLING_STATUS_OBSOLETE;
                             logd("L2Connected CMD_START_SCAN source "
                                     + message.arg1
@@ -7878,7 +7756,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (mP2pConnected.get()) break;
                     if (mNoNetworksPeriodicScan != 0 && message.arg1 == mPeriodicScanToken &&
                             mWifiConfigManager.getConfiguredNetworks().size() == 0) {
-                        startScan(UNKNOWN_SCAN_SOURCE, -1, null, null);
+                        startScan(UNKNOWN_SCAN_SOURCE, -1, null, WIFI_WORK_SOURCE);
                         sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
                                     ++mPeriodicScanToken, 0), mNoNetworksPeriodicScan);
                     }
@@ -7940,7 +7818,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                     period);
                         }
                         if (!checkAndRestartDelayedScan(message.arg2,
-                                true, period, null, null)) {
+                                true, period, null, WIFI_WORK_SOURCE)) {
                             messageHandlingStatus = MESSAGE_HANDLING_STATUS_OBSOLETE;
                             logd("Disconnected CMD_START_SCAN source "
                                     + message.arg1
@@ -7976,7 +7854,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         // was set to zero.
                         startDelayedScan(
                                 mWifiConfigManager.mWifiDisconnectedShortScanIntervalMs.get(),
-                                    null, null);
+                                    null, WIFI_WORK_SOURCE);
                     }
                     break;
                 case CMD_RECONNECT:
