@@ -23,7 +23,6 @@ import static com.android.server.wifi.WifiConfigurationTestUtil.generateWifiConf
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyInt;
@@ -258,6 +257,13 @@ public class WifiQualifiedNetworkSelectorTest {
                 when(mScoreCache.hasScoreCurve(scanResult)).thenReturn(true);
                 when(mScoreCache.getNetworkScore(eq(scanResult), anyBoolean())).thenReturn(score);
                 when(mScoreCache.getNetworkScore(scanResult)).thenReturn(score);
+            } else {
+                when(mScoreCache.isScoredNetwork(scanResult)).thenReturn(false);
+                when(mScoreCache.hasScoreCurve(scanResult)).thenReturn(false);
+                when(mScoreCache.getNetworkScore(eq(scanResult), anyBoolean())).thenReturn(
+                        WifiNetworkScoreCache.INVALID_NETWORK_SCORE);
+                when(mScoreCache.getNetworkScore(scanResult)).thenReturn(
+                        WifiNetworkScoreCache.INVALID_NETWORK_SCORE);
             }
             when(mScoreCache.getMeteredHint(scanResult)).thenReturn(meteredHints[i]);
         }
@@ -1075,6 +1081,8 @@ public class WifiQualifiedNetworkSelectorTest {
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 false, scanDetails, false, true, false, false);
         assertEquals("choose the wrong BSSID", null, candidate);
+        assertEquals("Should receive zero filteredScanDetails", 0,
+                mWifiQualifiedNetworkSelector.getFilteredScanDetails().size());
     }
 
     /**
@@ -1644,5 +1652,160 @@ public class WifiQualifiedNetworkSelectorTest {
         verify(selectionStatus).setCandidate(untrustedScanResult);
         assertSame(candidate, unTrustedNetworkCandidate);
         assertEquals(meteredHints[1], candidate.meteredHint);
+    }
+
+    /**
+     * Case #34    Test Filtering of potential candidate scanDetails (Untrusted allowed)
+     *
+     * In this test. we simulate following scenario
+     * WifiStateMachine is under disconnected state
+     * test1 is @ 2GHz with RSSI -60
+     * test2 is @ 5Ghz with RSSI -86, (below minimum threshold)
+     * test3 is @ 5Ghz with RSSI -50, however it has no associated saved config
+     * test4 is @ 2Ghz with RSSI -62, no associated config, but is Ephemeral
+     *
+     * Expected behavior: test1 is chosen due to 5GHz signal is too weak (5GHz bonus can not
+     * compensate).
+     * test1 & test4's scanDetails are returned by 'getFilteredScanDetail()'
+     */
+    @Test
+    public void testGetFilteredScanDetailsReturnsOnlyConsideredScanDetails_untrustedAllowed() {
+        String[] ssids = {"\"test1\"", "\"test2\"", "\"test3\"", "\"test4\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4", "de:ad:ba:b1:e5:55",
+                "c0:ff:ee:ee:e3:ee"};
+        int[] frequencies = {2437, 5180, 5180, 2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]",
+                "[WPA2-EAP-CCMP][ESS]"};
+        int[] levels = {-60, -86, -50, -62};
+        int[] security = {SECURITY_PSK, SECURITY_PSK, SECURITY_PSK, SECURITY_PSK};
+        boolean[] meteredHints = {false, false, false, true};
+        Integer[] scores = {null, null, null, 120};
+
+        //Create all 4 scanDetails
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+
+        //Setup NetworkScoreCache for detecting ephemeral networks ("test4")
+        configureScoreCache(scanDetails, scores, meteredHints);
+        WifiConfiguration unTrustedNetworkCandidate = mock(WifiConfiguration.class);
+        unTrustedNetworkCandidate.SSID = null;
+        unTrustedNetworkCandidate.networkId = WifiConfiguration.INVALID_NETWORK_ID;
+        ScanResult untrustedScanResult = scanDetails.get(3).getScanResult();
+        when(mWifiConfigManager
+                .wifiConfigurationFromScanResult(untrustedScanResult))
+                .thenReturn(unTrustedNetworkCandidate);
+        WifiConfiguration.NetworkSelectionStatus selectionStatus =
+                        mock(WifiConfiguration.NetworkSelectionStatus.class);
+        when(unTrustedNetworkCandidate.getNetworkSelectionStatus()).thenReturn(selectionStatus);
+
+        //Set up associated configs for test1 & test2
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(
+                Arrays.copyOfRange(ssids, 0, 2), Arrays.copyOfRange(security, 0, 2));
+        prepareConfigStore(savedConfigs);
+        List<ScanDetail> savedScanDetails = new ArrayList<ScanDetail>(scanDetails.subList(0, 2));
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, savedScanDetails);
+
+        //Force mock ConfigManager to return null (and not an empty list) for "test3" & "test4"
+        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetails.get(2)))
+                    .thenReturn(null);
+        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetails.get(3)))
+                    .thenReturn(null);
+
+        ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
+
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
+                false /* forceSelectNetwork */,
+                true /* isUntrustedConnectionsAllowed */,
+                scanDetails,
+                false, /* isLinkDebouncing */
+                false, /* isConnected */
+                true, /* isDisconnected */
+                false /* isSupplicantTransient */);
+
+        verifySelectedResult(chosenScanResult, candidate);
+        //Verify two scanDetails returned in the filteredScanDetails
+        assertEquals(2, mWifiQualifiedNetworkSelector.getFilteredScanDetails().size());
+        assertEquals(mWifiQualifiedNetworkSelector.getFilteredScanDetails().get(0).toString(),
+                scanDetails.get(0).toString());
+        assertEquals(mWifiQualifiedNetworkSelector.getFilteredScanDetails().get(1).toString(),
+                scanDetails.get(3).toString());
+    }
+
+
+    /**
+     * Case #35    Test Filtering of potential candidate scanDetails (Untrusted disallowed)
+     *
+     * In this test. we simulate following scenario
+     * WifiStateMachine is under disconnected state
+     * test1 is @ 2GHz with RSSI -60
+     * test2 is @ 5Ghz with RSSI -86, (below minimum threshold)
+     * test3 is @ 5Ghz with RSSI -50, however it has no associated saved config
+     * test4 is @ 2Ghz with RSSI -62, no associated config, but is Ephemeral
+     *
+     * Expected behavior: test1 is chosen due to 5GHz signal is too weak (5GHz bonus can not
+     * compensate).
+     * test1 & test4's scanDetails are returned by 'getFilteredScanDetail()'
+     */
+    @Test
+    public void testGetFilteredScanDetailsReturnsOnlyConsideredScanDetails_untrustedDisallowed() {
+        String[] ssids = {"\"test1\"", "\"test2\"", "\"test3\"", "\"test4\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4", "de:ad:ba:b1:e5:55",
+                "c0:ff:ee:ee:e3:ee"};
+        int[] frequencies = {2437, 5180, 5180, 2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]",
+                "[WPA2-EAP-CCMP][ESS]"};
+        int[] levels = {-60, -86, -50, -62};
+        int[] security = {SECURITY_PSK, SECURITY_PSK, SECURITY_PSK, SECURITY_PSK};
+        boolean[] meteredHints = {false, false, false, true};
+        Integer[] scores = {null, null, null, 120};
+
+        //Create all 4 scanDetails
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+
+        //Setup NetworkScoreCache for detecting ephemeral networks ("test4")
+        configureScoreCache(scanDetails, scores, meteredHints);
+        WifiConfiguration unTrustedNetworkCandidate = mock(WifiConfiguration.class);
+        unTrustedNetworkCandidate.SSID = null;
+        unTrustedNetworkCandidate.networkId = WifiConfiguration.INVALID_NETWORK_ID;
+        ScanResult untrustedScanResult = scanDetails.get(3).getScanResult();
+        when(mWifiConfigManager
+                .wifiConfigurationFromScanResult(untrustedScanResult))
+                .thenReturn(unTrustedNetworkCandidate);
+        WifiConfiguration.NetworkSelectionStatus selectionStatus =
+                        mock(WifiConfiguration.NetworkSelectionStatus.class);
+        when(unTrustedNetworkCandidate.getNetworkSelectionStatus()).thenReturn(selectionStatus);
+
+        //Set up associated configs for test1 & test2
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(
+                Arrays.copyOfRange(ssids, 0, 2), Arrays.copyOfRange(security, 0, 2));
+        prepareConfigStore(savedConfigs);
+        List<ScanDetail> savedScanDetails = new ArrayList<ScanDetail>(scanDetails.subList(0, 2));
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigManager.getConfiguredNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, savedScanDetails);
+
+        //Force mock ConfigManager to return null (and not an empty list) for "test3" & "test4"
+        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetails.get(2)))
+                    .thenReturn(null);
+        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetails.get(3)))
+                    .thenReturn(null);
+
+        ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
+
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
+                false /* forceSelectNetwork */,
+                false /* isUntrustedConnectionsAllowed */,
+                scanDetails,
+                false, /* isLinkDebouncing */
+                false, /* isConnected */
+                true, /* isDisconnected */
+                false /* isSupplicantTransient */);
+
+        verifySelectedResult(chosenScanResult, candidate);
+        //Verify two scanDetails returned in the filteredScanDetails
+        assertEquals(1, mWifiQualifiedNetworkSelector.getFilteredScanDetails().size());
+        assertEquals(mWifiQualifiedNetworkSelector.getFilteredScanDetails().get(0).toString(),
+                scanDetails.get(0).toString());
     }
 }

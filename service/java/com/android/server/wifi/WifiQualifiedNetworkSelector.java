@@ -55,6 +55,8 @@ public class WifiQualifiedNetworkSelector {
     private String mCurrentBssid = null;
     //buffer most recent scan results
     private List<ScanDetail> mScanDetails = null;
+    //buffer of filtered scan results (Scan results considered by network selection)
+    private volatile List<ScanDetail> mFilteredScanDetails = null;
 
     //Minimum time gap between last successful Qualified Network Selection and new selection attempt
     //usable only when current state is connected state   default 10 s
@@ -131,6 +133,16 @@ public class WifiQualifiedNetworkSelector {
      */
     public WifiConfiguration getConnetionTargetNetwork() {
         return mCurrentConnectedNetwork;
+    }
+
+    /**
+     * @return the list of ScanDetails scored as potential candidates by the last run of
+     * selectQualifiedNetwork, this will be empty if QNS determined no selection was needed on last
+     * run. This includes scan details of sufficient signal strength, and had an associated
+     * WifiConfiguration.
+     */
+    public List<ScanDetail> getFilteredScanDetails() {
+        return mFilteredScanDetails;
     }
 
     /**
@@ -616,6 +628,7 @@ public class WifiQualifiedNetworkSelector {
             boolean isSupplicantTransient) {
         qnsLog("==========start qualified Network Selection==========");
         mScanDetails = scanDetails;
+        List<ScanDetail>  filteredScanDetails = new ArrayList<>();
         if (mCurrentConnectedNetwork == null) {
             mCurrentConnectedNetwork =
                     mWifiConfigManager.getWifiConfiguration(mWifiInfo.getNetworkId());
@@ -629,6 +642,7 @@ public class WifiQualifiedNetworkSelector {
                 isDisconnected, isSupplicantTransient)) {
             qnsLog("Quit qualified Network Selection since it is not forced and current network is"
                     + " qualified already");
+            mFilteredScanDetails = filteredScanDetails;
             return null;
         }
 
@@ -706,11 +720,11 @@ public class WifiQualifiedNetworkSelector {
             }
 
             //check whether this scan result belong to a saved network
-            boolean ephemeral = false;
+            boolean potentiallyEphemeral = false;
             List<WifiConfiguration> associatedWifiConfigurations =
                     mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetail);
             if (associatedWifiConfigurations == null) {
-                ephemeral =  true;
+                potentiallyEphemeral =  true;
                 if (mDbg) {
                     notSavedScan.append(scanId + " / ");
                 }
@@ -718,14 +732,14 @@ public class WifiQualifiedNetworkSelector {
                 //if there are more than 1 associated network, it must be a passpoint network
                 WifiConfiguration network = associatedWifiConfigurations.get(0);
                 if (network.ephemeral) {
-                    ephemeral =  true;
+                    potentiallyEphemeral =  true;
                 }
             }
 
-            if (ephemeral) {
+            if (potentiallyEphemeral) {
                 if (isUntrustedConnectionsAllowed && mNetworkScoreCache != null) {
                     int netScore = mNetworkScoreCache.getNetworkScore(scanResult, false);
-                    //get network score
+                    //get network score (Determine if this is an 'Ephemeral' network)
                     if (netScore != WifiNetworkScoreCache.INVALID_NETWORK_SCORE) {
                         qnsLog(scanId + "has score: " + netScore);
                         if (netScore > unTrustedHighestScore) {
@@ -733,9 +747,14 @@ public class WifiQualifiedNetworkSelector {
                             untrustedScanResultCandidate = scanResult;
                             qnsLog(scanId + " become the new untrusted candidate");
                         }
+                        // scanDetail is for available ephemeral network
+                        filteredScanDetails.add(scanDetail);
                     }
                 }
                 continue;
+            } else {
+                // scanDetail is for available saved network
+                filteredScanDetails.add(scanDetail);
             }
 
             // calculate the core of each scanresult whose associated network is not ephemeral. Due
@@ -782,6 +801,8 @@ public class WifiQualifiedNetworkSelector {
                 networkCandidate = configurationCandidateForThisScan;
             }
         }
+
+        mFilteredScanDetails = filteredScanDetails;
 
         //kick the score manager if there is any unscored network
         if (mScoreManager != null && unscoredNetworks.size() != 0) {
