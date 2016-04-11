@@ -1908,9 +1908,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         return mWifiStateMachine.getAllowScansWithTraffic();
     }
 
-    public boolean enableAutoJoinWhenAssociated(boolean enabled) {
+    public boolean setEnableAutoJoinWhenAssociated(boolean enabled) {
         enforceChangePermission();
-        return mWifiStateMachine.enableAutoJoinWhenAssociated(enabled);
+        return mWifiStateMachine.setEnableAutoJoinWhenAssociated(enabled);
     }
 
     public boolean getEnableAutoJoinWhenAssociated() {
