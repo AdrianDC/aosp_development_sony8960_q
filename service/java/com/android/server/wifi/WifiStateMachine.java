@@ -1408,9 +1408,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return mWifiConfigManager.mAlwaysEnableScansWhileAssociated.get();
     }
 
-    public boolean enableAutoJoinWhenAssociated(boolean enabled) {
+    public boolean setEnableAutoJoinWhenAssociated(boolean enabled) {
         boolean old_state = mWifiConfigManager.getEnableAutoJoinWhenAssociated();
-        mWifiConfigManager.enableAutoJoinWhenAssociated(enabled);
+        mWifiConfigManager.setEnableAutoJoinWhenAssociated(enabled);
         if (!old_state && enabled && mScreenOn && getCurrentState() == mConnectedState) {
             startDelayedScan(mWifiConfigManager.mWifiAssociatedShortScanIntervalMs.get(), null,
                     WIFI_WORK_SOURCE);
