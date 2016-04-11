@@ -261,19 +261,6 @@ public class WifiConfigManager {
     public AtomicInteger mCurrentNetworkBoost = new AtomicInteger();
     public AtomicInteger mBandAward5Ghz = new AtomicInteger();
 
-    // TODO(samueltan): the follow fields are not used anywhere other than the constructor of
-    // WifiConfigManager, where they are initialized from the config XML. Delete these fields
-    // and their corresponding default values in the config XML.
-    public int mMaxAuthErrorsToBlacklist;
-    public int mMaxConnectionErrorsToBlacklist;
-    public int mWifiConfigBlacklistMinTimeMs;
-    public int mAssociatedHysteresisHigh;
-    public int mAssociatedHysteresisLow;
-    public boolean mEnable5GHzPreference;
-    public final AtomicInteger mMaxNumPassiveChannelsForPartialScans = new AtomicInteger();
-    public final AtomicInteger mWifiDisconnectedLongScanIntervalMs = new AtomicInteger();
-    public final AtomicInteger mWifiAssociatedLongScanIntervalMs = new AtomicInteger();
-
     /**
      * If Connectivity Service has triggered an unwanted network disconnect
      */
@@ -395,37 +382,20 @@ public class WifiConfigManager {
 
         mWifiAssociatedShortScanIntervalMs.set(mContext.getResources().getInteger(
                 R.integer.config_wifi_associated_short_scan_interval));
-        mWifiAssociatedLongScanIntervalMs.set(mContext.getResources().getInteger(
-                R.integer.config_wifi_associated_short_scan_interval));
         mWifiDisconnectedShortScanIntervalMs.set(mContext.getResources().getInteger(
                 R.integer.config_wifi_disconnected_short_scan_interval));
-        mWifiDisconnectedLongScanIntervalMs.set(mContext.getResources().getInteger(
-                R.integer.config_wifi_disconnected_long_scan_interval));
-
         mOnlyLinkSameCredentialConfigurations = mContext.getResources().getBoolean(
                 R.bool.config_wifi_only_link_same_credential_configurations);
         mMaxNumActiveChannelsForPartialScans.set(mContext.getResources().getInteger(
                 R.integer.config_wifi_framework_associated_partial_scan_max_num_active_channels));
-        mMaxNumPassiveChannelsForPartialScans.set(mContext.getResources().getInteger(
-                R.integer.config_wifi_framework_associated_partial_scan_max_num_passive_channels));
         mAssociatedFullScanMaxIntervalMs = mContext.getResources().getInteger(
                 R.integer.config_wifi_framework_associated_full_scan_max_interval);
         mAssociatedFullScanBackoff.set(mContext.getResources().getInteger(
                 R.integer.config_wifi_framework_associated_full_scan_backoff));
         mEnableLinkDebouncing = mContext.getResources().getBoolean(
                 R.bool.config_wifi_enable_disconnection_debounce);
-
-        mEnable5GHzPreference = mContext.getResources().getBoolean(
-                R.bool.config_wifi_enable_5GHz_preference);
-
         mBandAward5Ghz.set(mContext.getResources().getInteger(
                 R.integer.config_wifi_framework_5GHz_preference_boost_factor));
-
-        mAssociatedHysteresisHigh = mContext.getResources().getInteger(
-                R.integer.config_wifi_framework_current_association_hysteresis_high);
-        mAssociatedHysteresisLow = mContext.getResources().getInteger(
-                R.integer.config_wifi_framework_current_association_hysteresis_low);
-
         mThresholdMinimumRssi5.set(mContext.getResources().getInteger(
                 R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz));
         mThresholdQualifiedRssi5.set(mContext.getResources().getInteger(
@@ -438,10 +408,8 @@ public class WifiConfigManager {
                 R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_24GHz));
         mThresholdSaturatedRssi24.set(mContext.getResources().getInteger(
                 R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_24GHz));
-
         mEnableWifiCellularHandoverUserTriggeredAdjustment = mContext.getResources().getBoolean(
                 R.bool.config_wifi_framework_cellular_handover_enable_user_triggered_adjustment);
-
         mBadLinkSpeed24 = mContext.getResources().getInteger(
                 R.integer.config_wifi_framework_wifi_score_bad_link_speed_24);
         mBadLinkSpeed5 = mContext.getResources().getInteger(
@@ -450,17 +418,8 @@ public class WifiConfigManager {
                 R.integer.config_wifi_framework_wifi_score_good_link_speed_24);
         mGoodLinkSpeed5 = mContext.getResources().getInteger(
                 R.integer.config_wifi_framework_wifi_score_good_link_speed_5);
-
-        mMaxAuthErrorsToBlacklist = mContext.getResources().getInteger(
-                R.integer.config_wifi_framework_max_auth_errors_to_blacklist);
-        mMaxConnectionErrorsToBlacklist = mContext.getResources().getInteger(
-                R.integer.config_wifi_framework_max_connection_errors_to_blacklist);
-        mWifiConfigBlacklistMinTimeMs = mContext.getResources().getInteger(
-                R.integer.config_wifi_framework_network_black_list_min_time_milli);
-
         mEnableAutoJoinWhenAssociated.set(mContext.getResources().getBoolean(
                 R.bool.config_wifi_framework_enable_associated_network_selection));
-
         mCurrentNetworkBoost.set(mContext.getResources().getInteger(
                 R.integer.config_wifi_framework_current_network_boost));
         mNetworkSwitchingBlackListPeriodMs = mContext.getResources().getInteger(
@@ -468,7 +427,6 @@ public class WifiConfigManager {
 
         mEnableHalBasedPno.set(mContext.getResources().getBoolean(
                         R.bool.config_wifi_hal_pno_enable));
-
         mEnableSsidWhitelist.set(mContext.getResources().getBoolean(
                 R.bool.config_wifi_ssid_white_list_enable));
         if (!mEnableHalBasedPno.get() && mEnableSsidWhitelist.get()) {
