@@ -31,6 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
+import android.app.ActivityManager;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -108,6 +109,10 @@ public class WifiStateMachineTest {
 
     private static final int MANAGED_PROFILE_UID = 1100000;
     private static final int OTHER_USER_UID = 1200000;
+    private static final int LOG_REC_LIMIT_IN_VERBOSE_MODE =
+            (ActivityManager.isLowRamDeviceStatic()
+                    ? WifiStateMachine.NUM_LOG_RECS_VERBOSE_LOW_MEMORY
+                    : WifiStateMachine.NUM_LOG_RECS_VERBOSE);
 
     private long mBinderToken;
 
@@ -999,4 +1004,53 @@ public class WifiStateMachineTest {
         assertEquals(":3b4a:1d2c:1100:3322", mWsm.getGsmSimAuthResponse(
                 new String[] { "1A2B", "0123" }, tm));
     }
+
+    /**
+     * Verifies that, by default, we allow only the "normal" number of log records.
+     */
+    @Test
+    public void normalLogRecSizeIsUsedByDefault() {
+        for (int i = 0; i < WifiStateMachine.NUM_LOG_RECS_NORMAL * 2; i++) {
+            mWsm.sendMessage(WifiStateMachine.CMD_BOOT_COMPLETED);
+        }
+        mLooper.dispatchAll();
+        assertEquals(WifiStateMachine.NUM_LOG_RECS_NORMAL, mWsm.getLogRecSize());
+    }
+
+    /**
+     * Verifies that, in verbose mode, we allow a larger number of log records.
+     */
+    @Test
+    public void enablingVerboseLoggingIncreasesLogRecSize() {
+        assertTrue(LOG_REC_LIMIT_IN_VERBOSE_MODE > WifiStateMachine.NUM_LOG_RECS_NORMAL);
+        mWsm.enableVerboseLogging(1);
+        for (int i = 0; i < LOG_REC_LIMIT_IN_VERBOSE_MODE * 2; i++) {
+            mWsm.sendMessage(WifiStateMachine.CMD_BOOT_COMPLETED);
+        }
+        mLooper.dispatchAll();
+        assertEquals(LOG_REC_LIMIT_IN_VERBOSE_MODE, mWsm.getLogRecSize());
+    }
+
+    /**
+     * Verifies that moving from verbose mode to normal mode resets the buffer, and limits new
+     * records to a small number of entries.
+     */
+    @Test
+    public void disablingVerboseLoggingClearsRecordsAndDecreasesLogRecSize() {
+        mWsm.enableVerboseLogging(1);
+        for (int i = 0; i < LOG_REC_LIMIT_IN_VERBOSE_MODE; i++) {
+            mWsm.sendMessage(WifiStateMachine.CMD_BOOT_COMPLETED);
+        }
+        mLooper.dispatchAll();
+        assertEquals(LOG_REC_LIMIT_IN_VERBOSE_MODE, mWsm.getLogRecSize());
+
+        mWsm.enableVerboseLogging(0);
+        assertEquals(0, mWsm.getLogRecSize());
+        for (int i = 0; i < LOG_REC_LIMIT_IN_VERBOSE_MODE; i++) {
+            mWsm.sendMessage(WifiStateMachine.CMD_BOOT_COMPLETED);
+        }
+        mLooper.dispatchAll();
+        assertEquals(WifiStateMachine.NUM_LOG_RECS_NORMAL, mWsm.getLogRecSize());
+    }
+
 }
