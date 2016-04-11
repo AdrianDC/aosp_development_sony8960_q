@@ -1304,11 +1304,13 @@ static jobject android_net_wifi_enableResponder(
     wifi_channel_info channel;
     // Get channel information from HAL if it's not provided by caller.
     if (channel_hint == NULL) {
-        bool status = hal_fn.wifi_rtt_get_available_channel(handle, &channel);
+        wifi_rtt_responder responder_info_hint;
+        bool status = hal_fn.wifi_rtt_get_responder_info(handle, &responder_info_hint);
         if (status != WIFI_SUCCESS) {
             ALOGE("could not get available channel for responder");
             return NULL;
         }
+        channel = responder_info_hint.channel;
     } else {
         channel.center_freq = helper.getIntField(channel_hint, "mPrimaryFrequency");
         channel.center_freq0 = helper.getIntField(channel_hint, "mCenterFrequency0");
@@ -1320,13 +1322,15 @@ static jobject android_net_wifi_enableResponder(
         ALOGD("wifi_channel_width: %d, center_freq: %d, center_freq0: %d",
               channel.width, channel.center_freq, channel.center_freq0);
     }
-    wifi_channel_info channel_used;
+
+    wifi_rtt_responder responder_info_used;
     bool status = hal_fn.wifi_enable_responder(id, handle, channel, timeout_seconds,
-            &channel_used);
+            &responder_info_used);
     if (status != WIFI_SUCCESS) {
         ALOGE("enabling responder mode failed");
         return NULL;
     }
+    wifi_channel_info channel_used = responder_info_used.channel;
     if (DBG) {
         ALOGD("wifi_channel_width: %d, center_freq: %d, center_freq0: %d",
               channel_used.width, channel_used.center_freq, channel_used.center_freq0);
@@ -1338,9 +1342,7 @@ static jobject android_net_wifi_enableResponder(
     helper.setIntField(responderConfig, "centerFreq0", channel_used.center_freq0);
     helper.setIntField(responderConfig, "centerFreq1", channel_used.center_freq1);
     helper.setIntField(responderConfig, "channelWidth", channel_used.width);
-    // TODO: use preamble from chip once it's populated.
-    const int preamble = 0x02;
-    helper.setIntField(responderConfig, "preamble", preamble);
+    helper.setIntField(responderConfig, "preamble", responder_info_used.preamble);
     return responderConfig.detach();
 }
 
