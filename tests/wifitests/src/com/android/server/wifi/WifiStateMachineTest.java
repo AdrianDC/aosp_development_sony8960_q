@@ -200,14 +200,14 @@ public class WifiStateMachineTest {
         when(facade.checkUidPermission(eq(android.Manifest.permission.OVERRIDE_WIFI_CONFIG),
                 anyInt())).thenReturn(PackageManager.PERMISSION_GRANTED);
 
-        when(facade.makeWifiConfigManager(any(Context.class),  any(WifiStateMachine.class),
-                any(WifiNative.class), any(FrameworkFacade.class), any(Clock.class),
+        when(facade.makeWifiConfigManager(any(Context.class), any(WifiNative.class),
+                any(FrameworkFacade.class), any(Clock.class),
                 any(UserManager.class), any(KeyStore.class))).then(new AnswerWithArguments() {
-            public WifiConfigManager answer(Context context, WifiStateMachine wifiStateMachine,
-                    WifiNative wifiNative, FrameworkFacade frameworkFacade, Clock clock,
+            public WifiConfigManager answer(Context context, WifiNative wifiNative,
+                    FrameworkFacade frameworkFacade, Clock clock,
                     UserManager userManager, KeyStore keyStore){
-                mWifiConfigManager = new WifiConfigManager(context, wifiStateMachine, wifiNative,
-                        frameworkFacade, clock, userManager, keyStore);
+                mWifiConfigManager = new WifiConfigManager(context, wifiNative, frameworkFacade,
+                        clock, userManager, keyStore);
                 return mWifiConfigManager;
             }
         });
@@ -920,12 +920,12 @@ public class WifiStateMachineTest {
 
     @Test
     public void handleUserSwitch() throws Exception {
-        assertEquals(UserHandle.USER_SYSTEM, mWsm.getCurrentUserId());
+        assertEquals(UserHandle.USER_SYSTEM, mWifiConfigManager.getCurrentUserId());
 
         mWsm.handleUserSwitch(10);
         mLooper.dispatchAll();
 
-        assertEquals(10, mWsm.getCurrentUserId());
+        assertEquals(10, mWifiConfigManager.getCurrentUserId());
     }
 
     @Test
