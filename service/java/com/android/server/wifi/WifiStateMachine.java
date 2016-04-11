@@ -98,6 +98,7 @@ import android.util.Log;
 import android.util.SparseArray;
 
 import com.android.internal.R;
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.AsyncChannel;
 import com.android.internal.util.MessageUtils;
@@ -150,6 +151,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private static final String NETWORKTYPE = "WIFI";
     private static final String NETWORKTYPE_UNTRUSTED = "WIFI_UT";
+    @VisibleForTesting public static final short NUM_LOG_RECS_NORMAL = 100;
+    @VisibleForTesting public static final short NUM_LOG_RECS_VERBOSE_LOW_MEMORY = 200;
+    @VisibleForTesting public static final short NUM_LOG_RECS_VERBOSE = 3000;
     private static boolean DBG = false;
     private static boolean USE_PAUSE_SCANS = false;
     private static final String TAG = "WifiStateMachine";
@@ -1184,7 +1188,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         setInitialState(mInitialState);
 
-        setLogRecSize(ActivityManager.isLowRamDeviceStatic() ? 100 : 3000);
+        setLogRecSize(NUM_LOG_RECS_NORMAL);
         setLogOnlyTransitions(false);
 
         //start the state machine
@@ -1320,9 +1324,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         if (mVerboseLoggingLevel > 0) {
             DBG = true;
             mWifiNative.setSupplicantLogLevel("DEBUG");
+            setLogRecSize(ActivityManager.isLowRamDeviceStatic()
+                    ? NUM_LOG_RECS_VERBOSE_LOW_MEMORY : NUM_LOG_RECS_VERBOSE);
         } else {
             DBG = false;
             mWifiNative.setSupplicantLogLevel("INFO");
+            setLogRecSize(NUM_LOG_RECS_NORMAL);
         }
         mCountryCode.enableVerboseLogging(mVerboseLoggingLevel);
         mWifiLogger.startLogging(DBG);
