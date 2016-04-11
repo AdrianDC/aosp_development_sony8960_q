@@ -39,7 +39,6 @@ import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.IPackageManager;
 import android.content.pm.PackageManager;
-import android.content.pm.UserInfo;
 import android.database.ContentObserver;
 import android.net.ConnectivityManager;
 import android.net.DhcpResults;
@@ -194,7 +193,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
     private boolean mTemporarilyDisconnectWifi = false;
     private final String mPrimaryDeviceType;
-    private final UserManager mUserManager;
     private final Clock mClock = new Clock();
     private final WifiCountryCode mCountryCode;
 
@@ -219,10 +217,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private int mLastSignalLevel = -1;
     private String mLastBssid;
     private int mLastNetworkId; // The network Id we successfully joined
-    private ScanDetail mActiveScanDetail;   // ScanDetail associated with active network
     private boolean linkDebouncing = false;
-
-    private int mCurrentUserId = UserHandle.USER_SYSTEM;
 
     @Override
     public void onRssiThresholdBreached(byte curRssi) {
@@ -1022,7 +1017,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiMetrics = wifiInjector.getWifiMetrics();
         mContext = context;
         mFacade = facade;
-        mUserManager = userManager;
         mWifiNative = WifiNative.getWlanNativeInterface();
         mBackupManagerProxy = backupManagerProxy;
 
@@ -1039,7 +1033,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mP2pSupported = mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_WIFI_DIRECT);
 
-        mWifiConfigManager = mFacade.makeWifiConfigManager(context, this, mWifiNative, facade,
+        mWifiConfigManager = mFacade.makeWifiConfigManager(context, mWifiNative, facade,
                 mClock, userManager, KeyStore.getInstance());
 
         mWifiMonitor = WifiMonitor.getInstance();
@@ -3236,7 +3230,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                 }
             }
-            mActiveScanDetail = activeScanDetail;
+            mWifiConfigManager.setActiveScanDetail(activeScanDetail);
         }
 
         if (linkDebouncing) {
@@ -3246,12 +3240,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // just try to reconnect to the same SSID by triggering a roam
             // The third parameter 1 means roam not from network selection but debouncing
             sendMessage(CMD_AUTO_ROAM, mLastNetworkId, 1, null);
-        }
-    }
-
-    public ScanDetail getActiveScanDetail() {
-        synchronized (mScanResultsLock) {
-            return mActiveScanDetail;
         }
     }
 
@@ -4382,8 +4370,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
                 case CMD_USER_SWITCH:
-                    mCurrentUserId = message.arg1;
-                    mWifiConfigManager.handleUserSwitch();
+                    mWifiConfigManager.handleUserSwitch(message.arg1);
                     break;
                 case CMD_ADD_PASSPOINT_MO:
                 case CMD_MODIFY_PASSPOINT_MO:
@@ -5031,7 +5018,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mWifiConfigManager.notifyIconReceived((IconEvent) message.obj);
                     break;
                 case WifiMonitor.HS20_REMEDIATION_EVENT:
-                    mWifiConfigManager.wnmFrameReceived((WnmData) message.obj);
+                    wnmFrameReceived((WnmData) message.obj);
                     break;
                 case CMD_CONFIG_ND_OFFLOAD:
                     final boolean enabled = (message.arg1 > 0);
@@ -5593,9 +5580,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_ADD_OR_UPDATE_NETWORK:
                     // Only the current foreground user can modify networks.
-                    if (!isCurrentUserProfile(UserHandle.getUserId(message.sendingUid))) {
+                    if (!mWifiConfigManager.isCurrentUserProfile(
+                            UserHandle.getUserId(message.sendingUid))) {
                         loge("Only the current foreground user can modify networks "
-                                + " currentUserId=" + mCurrentUserId
+                                + " currentUserId=" + mWifiConfigManager.getCurrentUserId()
                                 + " sendingUserId=" + UserHandle.getUserId(message.sendingUid));
                         replyToMessage(message, message.what, FAILURE);
                         break;
@@ -5648,9 +5636,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_REMOVE_NETWORK:
                     // Only the current foreground user can modify networks.
-                    if (!isCurrentUserProfile(UserHandle.getUserId(message.sendingUid))) {
+                    if (!mWifiConfigManager.isCurrentUserProfile(
+                            UserHandle.getUserId(message.sendingUid))) {
                         loge("Only the current foreground user can modify networks "
-                                + " currentUserId=" + mCurrentUserId
+                                + " currentUserId=" + mWifiConfigManager.getCurrentUserId()
                                 + " sendingUserId=" + UserHandle.getUserId(message.sendingUid));
                         replyToMessage(message, message.what, FAILURE);
                         break;
@@ -5674,9 +5663,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_ENABLE_NETWORK:
                     // Only the current foreground user can modify networks.
-                    if (!isCurrentUserProfile(UserHandle.getUserId(message.sendingUid))) {
+                    if (!mWifiConfigManager.isCurrentUserProfile(
+                            UserHandle.getUserId(message.sendingUid))) {
                         loge("Only the current foreground user can modify networks "
-                                + " currentUserId=" + mCurrentUserId
+                                + " currentUserId=" + mWifiConfigManager.getCurrentUserId()
                                 + " sendingUserId=" + UserHandle.getUserId(message.sendingUid));
                         replyToMessage(message, message.what, FAILURE);
                         break;
@@ -5942,7 +5932,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     //Determine if this CONNECTION is for a user selection
                     if (mWifiConfigManager.isLastSelectedConfiguration(config)
-                            && isCurrentUserProfile(UserHandle.getUserId(config.lastConnectUid))) {
+                            && mWifiConfigManager.isCurrentUserProfile(
+                                    UserHandle.getUserId(config.lastConnectUid))) {
                         lastConnectUid = config.lastConnectUid;
                         mWifiMetrics.setConnectionEventRoamType(
                                 WifiMetricsProto.ConnectionEvent.ROAM_USER_SELECTED);
@@ -5994,9 +5985,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case WifiManager.CONNECT_NETWORK:
                     // Only the current foreground user can modify networks.
-                    if (!isCurrentUserProfile(UserHandle.getUserId(message.sendingUid))) {
+                    if (!mWifiConfigManager.isCurrentUserProfile(
+                            UserHandle.getUserId(message.sendingUid))) {
                         loge("Only the current foreground user can modify networks "
-                                + " currentUserId=" + mCurrentUserId
+                                + " currentUserId=" + mWifiConfigManager.getCurrentUserId()
                                 + " sendingUserId=" + UserHandle.getUserId(message.sendingUid));
                         replyToMessage(message, WifiManager.CONNECT_NETWORK_FAILED,
                                        WifiManager.NOT_AUTHORIZED);
@@ -6145,9 +6137,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // Fall thru
                 case WifiStateMachine.CMD_AUTO_SAVE_NETWORK:
                     // Only the current foreground user can modify networks.
-                    if (!isCurrentUserProfile(UserHandle.getUserId(message.sendingUid))) {
+                    if (!mWifiConfigManager.isCurrentUserProfile(
+                            UserHandle.getUserId(message.sendingUid))) {
                         loge("Only the current foreground user can modify networks "
-                                + " currentUserId=" + mCurrentUserId
+                                + " currentUserId=" + mWifiConfigManager.getCurrentUserId()
                                 + " sendingUserId=" + UserHandle.getUserId(message.sendingUid));
                         replyToMessage(message, WifiManager.SAVE_NETWORK_FAILED,
                                 WifiManager.NOT_AUTHORIZED);
@@ -6242,9 +6235,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case WifiManager.FORGET_NETWORK:
                     // Only the current foreground user can modify networks.
-                    if (!isCurrentUserProfile(UserHandle.getUserId(message.sendingUid))) {
+                    if (!mWifiConfigManager.isCurrentUserProfile(
+                            UserHandle.getUserId(message.sendingUid))) {
                         loge("Only the current foreground user can modify networks "
-                                + " currentUserId=" + mCurrentUserId
+                                + " currentUserId=" + mWifiConfigManager.getCurrentUserId()
                                 + " sendingUserId=" + UserHandle.getUserId(message.sendingUid));
                         replyToMessage(message, WifiManager.FORGET_NETWORK_FAILED,
                                 WifiManager.NOT_AUTHORIZED);
@@ -8390,22 +8384,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    public int getCurrentUserId() {
-        return mCurrentUserId;
-    }
-
-    private boolean isCurrentUserProfile(int userId) {
-        if (userId == mCurrentUserId) {
-            return true;
-        }
-        final UserInfo parent = mUserManager.getProfileParent(userId);
-        return parent != null && parent.id == mCurrentUserId;
-    }
-
-    public List<UserInfo> getCurrentUserProfiles() {
-        return mUserManager.getProfiles(mCurrentUserId);
-    }
-
     /**
      * Automatically connect to the network specified
      *
@@ -8519,5 +8497,29 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
 
         return TextUtils.join(" ", attributes);
+    }
+
+    private void wnmFrameReceived(WnmData event) {
+        // %012x HS20-SUBSCRIPTION-REMEDIATION "%u %s", osu_method, url
+        // %012x HS20-DEAUTH-IMMINENT-NOTICE "%u %u %s", code, reauth_delay, url
+
+        Intent intent = new Intent(WifiManager.PASSPOINT_WNM_FRAME_RECEIVED_ACTION);
+        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+
+        intent.putExtra(WifiManager.EXTRA_PASSPOINT_WNM_BSSID, event.getBssid());
+        intent.putExtra(WifiManager.EXTRA_PASSPOINT_WNM_URL, event.getUrl());
+
+        if (event.isDeauthEvent()) {
+            intent.putExtra(WifiManager.EXTRA_PASSPOINT_WNM_ESS, event.isEss());
+            intent.putExtra(WifiManager.EXTRA_PASSPOINT_WNM_DELAY, event.getDelay());
+        } else {
+            intent.putExtra(WifiManager.EXTRA_PASSPOINT_WNM_METHOD, event.getMethod());
+            WifiConfiguration config = getCurrentWifiConfiguration();
+            if (config != null && config.FQDN != null) {
+                intent.putExtra(WifiManager.EXTRA_PASSPOINT_WNM_PPOINT_MATCH,
+                        mWifiConfigManager.matchProviderWithCurrentNetwork(config.FQDN));
+            }
+        }
+        mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
     }
 }

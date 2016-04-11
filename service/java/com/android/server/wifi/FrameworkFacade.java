@@ -120,11 +120,10 @@ public class FrameworkFacade {
         return AppGlobals.getPackageManager().checkUidPermission(permName, uid);
     }
 
-    public WifiConfigManager makeWifiConfigManager(Context context,
-            WifiStateMachine wifiStateMachine, WifiNative wifiNative,
+    public WifiConfigManager makeWifiConfigManager(Context context, WifiNative wifiNative,
             FrameworkFacade frameworkFacade, Clock clock, UserManager userManager,
             KeyStore keyStore) {
-        return new WifiConfigManager(context, wifiStateMachine, wifiNative, frameworkFacade, clock,
-                userManager, keyStore);
+        return new WifiConfigManager(context, wifiNative, frameworkFacade, clock, userManager,
+                keyStore);
     }
 }

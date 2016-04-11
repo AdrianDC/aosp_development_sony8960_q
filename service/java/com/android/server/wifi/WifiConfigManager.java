@@ -25,6 +25,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.UserInfo;
 import android.net.IpConfiguration;
 import android.net.IpConfiguration.IpAssignment;
 import android.net.IpConfiguration.ProxySettings;
@@ -300,13 +301,14 @@ public class WifiConfigManager {
     private final PasspointManagementObjectManager mMOManager;
     private final boolean mEnableOsuQueries;
     private final SIMAccessor mSIMAccessor;
+    private final UserManager mUserManager;
 
-    private WifiStateMachine mWifiStateMachine;
     private FrameworkFacade mFacade;
     private Clock mClock;
     private boolean mOnlyLinkSameCredentialConfigurations;
     private IpConfigStore mIpconfigStore;
     private DelayedDiskWrite mWriter;
+    private int mCurrentUserId = UserHandle.USER_SYSTEM;
 
     /* A network id is a unique identifier for a network configured in the
      * supplicant. Network ids are generated when the supplicant reads
@@ -348,6 +350,8 @@ public class WifiConfigManager {
      */
     private HashSet<String> mLostConfigsDbg = new HashSet<String>();
 
+    private ScanDetail mActiveScanDetail;   // ScanDetail associated with active network
+    private final Object mActiveScanDetailLock = new Object();
 
     private class SupplicantBridgeCallbacks implements SupplicantBridge.SupplicantBridgeCallbacks {
         @Override
@@ -375,13 +379,13 @@ public class WifiConfigManager {
 
     }
 
-    WifiConfigManager(Context context,  WifiStateMachine wifiStateMachine, WifiNative wifiNative,
-            FrameworkFacade facade, Clock clock, UserManager userManager, KeyStore keyStore) {
+    WifiConfigManager(Context context, WifiNative wifiNative, FrameworkFacade facade, Clock clock,
+            UserManager userManager, KeyStore keyStore) {
         mContext = context;
         mFacade = facade;
         mClock = clock;
-        mWifiStateMachine = wifiStateMachine;
         mKeyStore = keyStore;
+        mUserManager = userManager;
 
         if (mShowNetworks) {
             mLocalLog = wifiNative.getLocalLog();
@@ -777,7 +781,7 @@ public class WifiConfigManager {
         if (sVDBG) localLogNetwork("selectNetwork", config.networkId);
         if (config.networkId == INVALID_NETWORK_ID) return false;
         if (!WifiConfigurationUtil.isVisibleToAnyProfile(config,
-                mWifiStateMachine.getCurrentUserProfiles())) {
+                mUserManager.getProfiles(mCurrentUserId))) {
             loge("selectNetwork " + Integer.toString(config.networkId) + ": Network config is not "
                     + "visible to current user.");
             return false;
@@ -849,7 +853,7 @@ public class WifiConfigManager {
         }
 
         if (!WifiConfigurationUtil.isVisibleToAnyProfile(config,
-                mWifiStateMachine.getCurrentUserProfiles())) {
+                mUserManager.getProfiles(mCurrentUserId))) {
             return new NetworkUpdateResult(INVALID_NETWORK_ID);
         }
 
@@ -1000,7 +1004,7 @@ public class WifiConfigManager {
      */
     int addOrUpdateNetwork(WifiConfiguration config, int uid) {
         if (config == null || !WifiConfigurationUtil.isVisibleToAnyProfile(config,
-                mWifiStateMachine.getCurrentUserProfiles())) {
+                mUserManager.getProfiles(mCurrentUserId))) {
             return WifiConfiguration.INVALID_NETWORK_ID;
         }
 
@@ -1049,7 +1053,10 @@ public class WifiConfigManager {
     }
 
     public int matchProviderWithCurrentNetwork(String fqdn) {
-        ScanDetail scanDetail = mWifiStateMachine.getActiveScanDetail();
+        ScanDetail scanDetail = null;
+        synchronized (mActiveScanDetailLock) {
+            scanDetail = mActiveScanDetail;
+        }
         if (scanDetail == null) {
             return PasspointMatch.None.ordinal();
         }
@@ -2271,7 +2278,7 @@ public class WifiConfigManager {
      */
     public void linkConfiguration(WifiConfiguration config) {
         if (!WifiConfigurationUtil.isVisibleToAnyProfile(config,
-                mWifiStateMachine.getCurrentUserProfiles())) {
+                mUserManager.getProfiles(mCurrentUserId))) {
             loge("linkConfiguration: Attempting to link config " + config.configKey()
                     + " that is not visible to the current user.");
             return;
@@ -2566,30 +2573,6 @@ public class WifiConfigManager {
 
     }
 
-    public void wnmFrameReceived(WnmData event) {
-        // %012x HS20-SUBSCRIPTION-REMEDIATION "%u %s", osu_method, url
-        // %012x HS20-DEAUTH-IMMINENT-NOTICE "%u %u %s", code, reauth_delay, url
-
-        Intent intent = new Intent(WifiManager.PASSPOINT_WNM_FRAME_RECEIVED_ACTION);
-        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-
-        intent.putExtra(WifiManager.EXTRA_PASSPOINT_WNM_BSSID, event.getBssid());
-        intent.putExtra(WifiManager.EXTRA_PASSPOINT_WNM_URL, event.getUrl());
-
-        if (event.isDeauthEvent()) {
-            intent.putExtra(WifiManager.EXTRA_PASSPOINT_WNM_ESS, event.isEss());
-            intent.putExtra(WifiManager.EXTRA_PASSPOINT_WNM_DELAY, event.getDelay());
-        } else {
-            intent.putExtra(WifiManager.EXTRA_PASSPOINT_WNM_METHOD, event.getMethod());
-            WifiConfiguration config = mWifiStateMachine.getCurrentWifiConfiguration();
-            if (config != null && config.FQDN != null) {
-                intent.putExtra(WifiManager.EXTRA_PASSPOINT_WNM_PPOINT_MATCH,
-                        matchProviderWithCurrentNetwork(config.FQDN));
-            }
-        }
-        mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
-    }
-
     private void updateAnqpCache(ScanDetail scanDetail,
                                  Map<Constants.ANQPElementType, ANQPElement> anqpElements) {
         NetworkDetail networkDetail = scanDetail.getNetworkDetail();
@@ -2795,10 +2778,13 @@ public class WifiConfigManager {
      * - Disables private network configurations belonging to the previous foreground user
      * - Enables private network configurations belonging to the new foreground user
      *
+     * @param userId The identifier of the new foreground user, after the switch.
+     *
      * TODO(b/26785736): Terminate background users if the new foreground user has one or more
      * private network configurations.
      */
-    public void handleUserSwitch() {
+    public void handleUserSwitch(int userId) {
+        mCurrentUserId = userId;
         Set<WifiConfiguration> ephemeralConfigs = new HashSet<>();
         for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
             if (config.ephemeral) {
@@ -2814,7 +2800,7 @@ public class WifiConfigManager {
         }
 
         final List<WifiConfiguration> hiddenConfigurations =
-                mConfiguredNetworks.handleUserSwitch(mWifiStateMachine.getCurrentUserId());
+                mConfiguredNetworks.handleUserSwitch(mCurrentUserId);
         for (WifiConfiguration network : hiddenConfigurations) {
             disableNetworkNative(network);
         }
@@ -2825,6 +2811,18 @@ public class WifiConfigManager {
         // * The user switch revealed additional networks that were temporarily disabled and got
         //   re-enabled now (because enableAllNetworks() sent the same broadcast already).
         sendConfiguredNetworksChangedBroadcast();
+    }
+
+    public int getCurrentUserId() {
+        return mCurrentUserId;
+    }
+
+    public boolean isCurrentUserProfile(int userId) {
+        if (userId == mCurrentUserId) {
+            return true;
+        }
+        final UserInfo parent = mUserManager.getProfileParent(userId);
+        return parent != null && parent.id == mCurrentUserId;
     }
 
     /* Compare current and new configuration and write to file on change */
@@ -3290,5 +3288,11 @@ public class WifiConfigManager {
 
     public void enableAutoJoinWhenAssociated(boolean enabled) {
         mEnableAutoJoinWhenAssociated.set(enabled);
+    }
+
+    public void setActiveScanDetail(ScanDetail activeScanDetail) {
+        synchronized (mActiveScanDetailLock) {
+            mActiveScanDetail = activeScanDetail;
+        }
     }
 }
