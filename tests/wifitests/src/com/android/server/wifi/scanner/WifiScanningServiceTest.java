@@ -11,10 +11,10 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.scanner;
 
 import static com.android.server.wifi.ScanTestUtil.*;
 
@@ -37,10 +37,16 @@ import android.util.Pair;
 
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.Protocol;
+import com.android.server.wifi.BidirectionalAsyncChannel;
+import com.android.server.wifi.MockAlarmManager;
 import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
-import com.android.server.wifi.scanner.BackgroundScanScheduler;
-import com.android.server.wifi.scanner.ChannelHelper;
-import com.android.server.wifi.scanner.PresetKnownBandsChannelHelper;
+import com.android.server.wifi.MockLooper;
+import com.android.server.wifi.ScanResults;
+import com.android.server.wifi.TestUtil;
+import com.android.server.wifi.WifiInjector;
+import com.android.server.wifi.WifiMetrics;
+import com.android.server.wifi.WifiMetricsProto;
+import com.android.server.wifi.WifiNative;
 
 import org.junit.After;
 import org.junit.Before;
@@ -56,7 +62,7 @@ import java.util.Arrays;
 import java.util.Collections;
 
 /**
- * Unit tests for {@link com.android.server.wifi.WifiScanningServiceImpl}.
+ * Unit tests for {@link com.android.server.wifi.scanner.WifiScanningServiceImpl}.
  */
 @SmallTest
 public class WifiScanningServiceTest {
@@ -826,7 +832,7 @@ public class WifiScanningServiceTest {
             Message networkFoundMessage) {
         assertEquals("what", WifiScanner.CMD_PNO_NETWORK_FOUND, networkFoundMessage.what);
         assertEquals("listenerId", listenerId, networkFoundMessage.arg2);
-        ScanTestUtil.assertScanResultsEquals(expected,
+        assertScanResultsEquals(expected,
                 ((WifiScanner.ParcelableScanResults) networkFoundMessage.obj).getResults());
     }
 

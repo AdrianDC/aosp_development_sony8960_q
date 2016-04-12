@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.scanner;
 
 import android.app.AlarmManager;
 import android.content.Context;
@@ -28,9 +28,10 @@ import android.os.SystemClock;
 import android.util.Log;
 
 import com.android.internal.R;
-import com.android.server.wifi.scanner.ChannelHelper;
+import com.android.server.wifi.ScanDetail;
+import com.android.server.wifi.WifiMonitor;
+import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
-import com.android.server.wifi.scanner.NoBandChannelHelper;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -42,7 +43,7 @@ import java.util.Set;
 
 /**
  * Implementation of the WifiScanner HAL API that uses wpa_supplicant to perform all scans
- * @see com.android.server.wifi.WifiScannerImpl for more details on each method
+ * @see com.android.server.wifi.scanner.WifiScannerImpl for more details on each method.
  */
 public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handler.Callback {
     private static final String TAG = "SupplicantWifiScannerImpl";

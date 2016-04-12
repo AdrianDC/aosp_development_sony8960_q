@@ -11,10 +11,10 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.scanner;
 
 import static com.android.server.wifi.ScanTestUtil.NativeScanSettingsBuilder;
 import static com.android.server.wifi.ScanTestUtil.assertScanDataEquals;
@@ -28,6 +28,13 @@ import android.net.wifi.WifiScanner;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.R;
+import com.android.server.wifi.MockAlarmManager;
+import com.android.server.wifi.MockLooper;
+import com.android.server.wifi.MockResources;
+import com.android.server.wifi.MockWifiMonitor;
+import com.android.server.wifi.ScanResults;
+import com.android.server.wifi.WifiMonitor;
+import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
 
 import org.junit.Before;
@@ -41,7 +48,7 @@ import java.util.Set;
 
 
 /**
- * Unit tests for {@link com.android.server.wifi.SupplicantWifiScannerImpl.setPnoList}.
+ * Unit tests for {@link com.android.server.wifi.scanner.SupplicantWifiScannerImpl.setPnoList}.
  */
 @SmallTest
 public class SupplicantPnoScannerTest {

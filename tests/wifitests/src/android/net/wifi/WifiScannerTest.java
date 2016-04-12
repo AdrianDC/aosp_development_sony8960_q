@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi;
+package android.net.wifi;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.anyString;
@@ -26,13 +26,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
-import android.net.wifi.IWifiScanner;
-import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiScanner.BssidInfo;
 import android.net.wifi.WifiScanner.BssidListener;
 import android.os.Handler;
 import android.os.Message;
 import android.test.suitebuilder.annotation.SmallTest;
+
+import com.android.server.wifi.BidirectionalAsyncChannelServer;
+import com.android.server.wifi.MockLooper;
 
 import org.junit.After;
 import org.junit.Before;
@@ -42,7 +43,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 /**
- * Unit tests for {@link WifiScanner}.
+ * Unit tests for {@link android.net.wifi.WifiScanner}.
  */
 @SmallTest
 public class WifiScannerTest {

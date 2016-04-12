@@ -11,7 +11,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
 
 package com.android.server.wifi;
@@ -29,7 +29,6 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
-import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -38,12 +37,6 @@ import java.util.Set;
  * Utilities for testing Wifi Scanning
  */
 public class ScanTestUtil {
-
-    public static void installWlanWifiNative(WifiNative wifiNative) throws Exception {
-        Field field = WifiNative.class.getDeclaredField("wlanNativeInterface");
-        field.setAccessible(true);
-        field.set(null, wifiNative);
-    }
 
     public static void setupMockChannels(WifiNative wifiNative, int[] channels24, int[] channels5,
             int[] channelsDfs) throws Exception {

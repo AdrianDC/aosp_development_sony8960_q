@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.scanner;
 
 import android.content.Context;
 import android.os.HandlerThread;
@@ -22,6 +22,7 @@ import android.util.Log;
 
 import com.android.server.SystemService;
 import com.android.server.am.BatteryStatsService;
+import com.android.server.wifi.WifiInjector;
 
 public class WifiScanningService extends SystemService {
 

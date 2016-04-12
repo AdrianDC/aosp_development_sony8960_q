@@ -11,23 +11,17 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.scanner;
 
 import static com.android.server.wifi.ScanTestUtil.NativeScanSettingsBuilder;
 import static com.android.server.wifi.ScanTestUtil.assertScanDataEquals;
 import static com.android.server.wifi.ScanTestUtil.createFreqSet;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
 
 import android.content.Context;
 import android.net.wifi.ScanResult;
@@ -36,6 +30,14 @@ import android.net.wifi.WifiScanner.ScanData;
 import android.net.wifi.WifiSsid;
 import android.os.SystemClock;
 
+import com.android.server.wifi.MockAlarmManager;
+import com.android.server.wifi.MockLooper;
+import com.android.server.wifi.MockResources;
+import com.android.server.wifi.MockWifiMonitor;
+import com.android.server.wifi.ScanDetail;
+import com.android.server.wifi.ScanResults;
+import com.android.server.wifi.WifiMonitor;
+import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
 
 import org.junit.Before;
@@ -52,7 +54,7 @@ import java.util.Set;
 
 /**
  * Base unit tests that should pass for all implementations of
- * {@link com.android.server.wifi.WifiScannerImpl}.
+ * {@link com.android.server.wifi.scanner.WifiScannerImpl}.
  */
 public abstract class BaseWifiScannerImplTest {
     @Mock Context mContext;

@@ -14,23 +14,21 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.scanner;
 
 import android.content.Context;
-import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
 
-import com.android.server.wifi.scanner.ChannelHelper;
-import com.android.server.wifi.scanner.HalChannelHelper;
+import com.android.server.wifi.WifiNative;
 
 /**
  * WifiScanner implementation that takes advantage of the gscan HAL API
  * The gscan API is used to perform background scans and wpa_supplicant is used for onehot scans.
- * @see com.android.server.wifi.WifiScannerImpl for more details on each method
+ * @see com.android.server.wifi.scanner.WifiScannerImpl for more details on each method.
  */
 public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callback {
     private static final String TAG = "HalWifiScannerImpl";
