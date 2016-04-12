@@ -455,6 +455,8 @@ public class WifiConfigManagerTest {
                 (Map<String, String>) anyObject())).thenReturn(true);
         when(mWifiNative.getNetworkVariable(network, WifiConfiguration.ssidVarName))
                 .thenReturn(encodeConfigSSID(CONFIGS.get(network)));
+        when(mWifiNative.getNetworkVariable(network, WifiConfiguration.pmfVarName))
+                .thenReturn("");
 
         // Store a network configuration.
         mWifiConfigManager.saveNetwork(CONFIGS.get(network), CONFIGS.get(network).creatorUid);
@@ -470,6 +472,9 @@ public class WifiConfigManagerTest {
                 Integer.toString(CONFIGS.get(network).creatorUid));
         verify(mWifiNative).setNetworkExtra(network, WifiConfigStore.ID_STRING_VAR_NAME,
                 metadata);
+
+        // Verify that an attempt to read back the requirePMF variable was made.
+        verify(mWifiNative).getNetworkVariable(network, WifiConfiguration.pmfVarName);
 
         // Verify that no wpa_supplicant variables were read or written for any other network
         // configurations.
