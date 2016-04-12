@@ -287,12 +287,14 @@ public class WifiConfigManager {
     private final boolean mEnableOsuQueries;
     private final SIMAccessor mSIMAccessor;
     private final UserManager mUserManager;
+    private final Object mActiveScanDetailLock = new Object();
 
     private FrameworkFacade mFacade;
     private Clock mClock;
-    private boolean mOnlyLinkSameCredentialConfigurations;
     private IpConfigStore mIpconfigStore;
     private DelayedDiskWrite mWriter;
+    private boolean mOnlyLinkSameCredentialConfigurations;
+    private boolean mShowNetworks = false;
     private int mCurrentUserId = UserHandle.USER_SYSTEM;
 
     /* Stores a map of NetworkId to ScanCache */
@@ -306,9 +308,6 @@ public class WifiConfigManager {
 
     /* Tracks the highest priority of configured networks */
     private int mLastPriority = -1;
-
-    // TODO set this back to false, used for debugging b/17516271.
-    private boolean mShowNetworks = true;
 
     /**
      * The mLastSelectedConfiguration is used to remember which network
@@ -328,7 +327,6 @@ public class WifiConfigManager {
     private HashSet<String> mLostConfigsDbg = new HashSet<String>();
 
     private ScanDetail mActiveScanDetail;   // ScanDetail associated with active network
-    private final Object mActiveScanDetailLock = new Object();
 
     private class SupplicantBridgeCallbacks implements SupplicantBridge.SupplicantBridgeCallbacks {
         @Override
