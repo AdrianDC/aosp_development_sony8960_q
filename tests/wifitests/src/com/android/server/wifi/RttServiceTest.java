@@ -124,6 +124,7 @@ public class RttServiceTest {
             Handler handler, int clientKey) {
         Message message = sendEnableResponder(channel, handler, clientKey,
                 createResponderConfig());
+        verify(mWifiNative).enableRttResponder(anyInt());
         assertEquals("reponse status is not success",
                 RttManager.CMD_OP_ENALBE_RESPONDER_SUCCEEDED, message.what);
         String actualMac = ((ResponderConfig) message.obj).macAddress;
@@ -132,10 +133,12 @@ public class RttServiceTest {
 
     // Send enable responder message and verify failure.
     private void sendEnableResponderFailed(BidirectionalAsyncChannel channel,
-            Handler handler, int clientKey) {
+            Handler handler, int clientKey, int reason) {
         Message message = sendEnableResponder(channel, handler, clientKey, null);
         assertEquals("reponse status is not failure",
                 RttManager.CMD_OP_ENALBE_RESPONDER_FAILED, message.what);
+        assertEquals("failure reason is not " + reason,
+                reason, message.arg1);
     }
 
     private Message sendEnableResponder(BidirectionalAsyncChannel channel, Handler handler,
@@ -149,7 +152,6 @@ public class RttServiceTest {
         mLooper.dispatchAll();
         ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
         verify(handler, atLeastOnce()).handleMessage(messageCaptor.capture());
-        verify(mWifiNative).enableRttResponder(anyInt());
         return messageCaptor.getValue();
     }
 
@@ -209,6 +211,9 @@ public class RttServiceTest {
         verify(mWifiNative).disableRttResponder();
     }
 
+    /**
+     * Enable responder failed because of internal error.
+     */
     @Test
     public void testEnableResponderFailure() throws Exception {
         startWifi();
@@ -216,7 +221,7 @@ public class RttServiceTest {
         when(mWifiNative.enableRttResponder(anyInt())).thenReturn(null);
         BidirectionalAsyncChannel channel = connectChannel(handler);
         // Disable failed.
-        sendEnableResponderFailed(channel, handler, CLIENT_KEY1);
+        sendEnableResponderFailed(channel, handler, CLIENT_KEY1, RttManager.REASON_UNSPECIFIED);
     }
 
     @Test
@@ -240,6 +245,18 @@ public class RttServiceTest {
         // Two clients enabled, one client disabled.
         sendDisableResponder(channel, CLIENT_KEY1, true);
         verify(mWifiNative, times(1)).getMacAddress();
+        verifyNoMoreInteractions(mWifiNative);
+    }
+
+    /**
+     * Enable responder failed because wifi is not enabled.
+     */
+    @Test
+    public void testEnableResponderFailedWifiDisabled() throws Exception {
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel channel = connectChannel(handler);
+        // Wifi is disabled as startWifi() is not invoked.
+        sendEnableResponderFailed(channel, handler, CLIENT_KEY1, RttManager.REASON_NOT_AVAILABLE);
         verifyNoMoreInteractions(mWifiNative);
     }
 
