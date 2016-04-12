@@ -295,14 +295,6 @@ public class WifiConfigManager {
     private DelayedDiskWrite mWriter;
     private int mCurrentUserId = UserHandle.USER_SYSTEM;
 
-    /* A network id is a unique identifier for a network configured in the
-     * supplicant. Network ids are generated when the supplicant reads
-     * the configuration file at start and can thus change for networks.
-     * We store the IP configuration for networks along with a unique id
-     * that is generated from SSID and security type of the network. A mapping
-     * from the generated unique id to network id of the network is needed to
-     * map supplicant config to IP configuration. */
-
     /* Stores a map of NetworkId to ScanCache */
     private ConcurrentHashMap<Integer, ScanDetailCache> mScanDetailCaches;
 
