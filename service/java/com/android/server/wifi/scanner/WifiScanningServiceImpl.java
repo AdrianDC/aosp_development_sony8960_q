@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.scanner;
 
 import android.Manifest;
 import android.app.AlarmManager;
@@ -51,10 +51,12 @@ import com.android.internal.util.AsyncChannel;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
-import com.android.server.wifi.scanner.BackgroundScanScheduler;
-import com.android.server.wifi.scanner.ChannelHelper;
+import com.android.server.wifi.WifiInjector;
+import com.android.server.wifi.WifiMetrics;
+import com.android.server.wifi.WifiMetricsProto;
+import com.android.server.wifi.WifiNative;
+import com.android.server.wifi.WifiStateMachine;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
-import com.android.server.wifi.scanner.ScanScheduleUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;

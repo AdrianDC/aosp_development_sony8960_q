@@ -11,10 +11,10 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.scanner;
 
 import static com.android.server.wifi.ScanTestUtil.NativeScanSettingsBuilder;
 import static com.android.server.wifi.ScanTestUtil.assertScanDatasEquals;
@@ -28,6 +28,11 @@ import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.test.suitebuilder.annotation.SmallTest;
 
+import com.android.server.wifi.ScanDetail;
+import com.android.server.wifi.ScanResults;
+import com.android.server.wifi.WifiMonitor;
+import com.android.server.wifi.WifiNative;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.InOrder;
@@ -37,7 +42,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Unit tests for {@link com.android.server.wifi.SupplicantWifiScannerImpl}.
+ * Unit tests for {@link com.android.server.wifi.scanner.SupplicantWifiScannerImpl}.
  */
 @SmallTest
 public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.scanner;
 
 import android.content.Context;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiScanner;
 import android.os.Looper;
 
-import com.android.server.wifi.scanner.ChannelHelper;
+import com.android.server.wifi.WifiNative;
 
 import java.util.Comparator;
 
@@ -31,7 +31,7 @@ import java.util.Comparator;
 public abstract class WifiScannerImpl {
 
     /**
-     * A factory that create a {@link com.android.server.wifi.WifiScannerImpl}
+     * A factory that create a {@link com.android.server.wifi.scanner.WifiScannerImpl}
      */
     public static interface WifiScannerImplFactory {
         WifiScannerImpl create(Context context, Looper looper);
