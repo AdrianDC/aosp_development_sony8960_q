@@ -5675,7 +5675,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_GET_CONFIGURED_NETWORKS:
                     replyToMessage(message, message.what,
-                            mWifiConfigManager.getConfiguredNetworks());
+                            mWifiConfigManager.getSavedNetworks());
                     break;
                 case WifiMonitor.SUP_REQUEST_IDENTITY:
                     int networkId = message.arg2;
@@ -5745,7 +5745,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_GET_PRIVILEGED_CONFIGURED_NETWORKS:
                     replyToMessage(message, message.what,
-                            mWifiConfigManager.getPrivilegedConfiguredNetworks());
+                            mWifiConfigManager.getPrivilegedSavedNetworks());
                     break;
                 case CMD_GET_MATCHING_CONFIG:
                     replyToMessage(message, message.what,
@@ -7637,7 +7637,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
              * Note that these are not wake up scans.
              */
             if (mNoNetworksPeriodicScan != 0 && !mP2pConnected.get()
-                    && mWifiConfigManager.getConfiguredNetworks().size() == 0) {
+                    && mWifiConfigManager.getSavedNetworks().size() == 0) {
                 sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
                         ++mPeriodicScanToken, 0), mNoNetworksPeriodicScan);
             }
@@ -7654,7 +7654,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_NO_NETWORKS_PERIODIC_SCAN:
                     if (mP2pConnected.get()) break;
                     if (mNoNetworksPeriodicScan != 0 && message.arg1 == mPeriodicScanToken &&
-                            mWifiConfigManager.getConfiguredNetworks().size() == 0) {
+                            mWifiConfigManager.getSavedNetworks().size() == 0) {
                         startScan(UNKNOWN_SCAN_SOURCE, -1, null, WIFI_WORK_SOURCE);
                         sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
                                     ++mPeriodicScanToken, 0), mNoNetworksPeriodicScan);
@@ -7742,7 +7742,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                 Settings.Global.WIFI_SCAN_INTERVAL_WHEN_P2P_CONNECTED_MS,
                                 defaultInterval);
                         mWifiNative.setScanInterval((int) scanIntervalMs/1000);
-                    } else if (mWifiConfigManager.getConfiguredNetworks().size() == 0) {
+                    } else if (mWifiConfigManager.getSavedNetworks().size() == 0) {
                         if (DBG) log("Turn on scanning after p2p disconnected");
                         sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
                                     ++mPeriodicScanToken, 0), mNoNetworksPeriodicScan);
@@ -8369,7 +8369,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         int numEnterpriseNetworks = 0;
         int numNetworksAddedByUser = 0;
         int numNetworksAddedByApps = 0;
-        for (WifiConfiguration config : mWifiConfigManager.getConfiguredNetworks()) {
+        for (WifiConfiguration config : mWifiConfigManager.getSavedNetworks()) {
             if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)) {
                 numOpenNetworks++;
             } else if (config.isEnterprise()) {

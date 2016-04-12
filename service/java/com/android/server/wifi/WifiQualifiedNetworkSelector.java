@@ -401,7 +401,7 @@ public class WifiQualifiedNetworkSelector {
      * This API try to update all the saved networks' network selection status
      */
     private void updateSavedNetworkSelectionStatus() {
-        List<WifiConfiguration> savedNetworks = mWifiConfigManager.getConfiguredNetworks();
+        List<WifiConfiguration> savedNetworks = mWifiConfigManager.getSavedNetworks();
         if (savedNetworks.size() == 0) {
             localLog("no saved network");
             return;
@@ -476,7 +476,7 @@ public class WifiQualifiedNetworkSelector {
         boolean change = false;
         String key = selected.configKey();
         long currentTime = mClock.currentTimeMillis();
-        List<WifiConfiguration> savedNetworks = mWifiConfigManager.getConfiguredNetworks();
+        List<WifiConfiguration> savedNetworks = mWifiConfigManager.getSavedNetworks();
 
         for (WifiConfiguration network : savedNetworks) {
             WifiConfiguration config = mWifiConfigManager.getWifiConfiguration(network.networkId);

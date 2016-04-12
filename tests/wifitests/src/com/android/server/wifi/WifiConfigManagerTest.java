@@ -289,7 +289,7 @@ public class WifiConfigManagerTest {
         addNetworks();
         for (Map.Entry<Integer, List<WifiConfiguration>> entry : VISIBLE_CONFIGS.entrySet()) {
             switchUser(entry.getKey());
-            verifyNetworkConfigs(entry.getValue(), mWifiConfigManager.getConfiguredNetworks());
+            verifyNetworkConfigs(entry.getValue(), mWifiConfigManager.getSavedNetworks());
         }
     }
 
@@ -303,7 +303,7 @@ public class WifiConfigManagerTest {
         for (Map.Entry<Integer, List<WifiConfiguration>> entry : VISIBLE_CONFIGS.entrySet()) {
             switchUser(entry.getKey());
             verifyNetworkConfigs(entry.getValue(),
-                    mWifiConfigManager.getPrivilegedConfiguredNetworks());
+                    mWifiConfigManager.getPrivilegedSavedNetworks());
         }
     }
 
@@ -832,7 +832,7 @@ public class WifiConfigManagerTest {
 
         // Load back the configuration.
         mWifiConfigManager.loadConfiguredNetworks();
-        List<WifiConfiguration> configs = mWifiConfigManager.getConfiguredNetworks();
+        List<WifiConfiguration> configs = mWifiConfigManager.getSavedNetworks();
         assertEquals(1, configs.size());
         WifiConfiguration loadedConfig = configs.get(0);
         assertEquals(ssid, unquote(loadedConfig.SSID));
