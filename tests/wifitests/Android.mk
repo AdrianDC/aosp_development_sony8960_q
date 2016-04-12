@@ -95,10 +95,8 @@ jacoco_exclude := $(subst $(space),$(comma),$(patsubst %,%*,$(local_classes)))
 
 jacoco_include := com.android.server.wifi.*,android.net.wifi.*
 
-
-LOCAL_JACK_FLAGS := \
-	-D jack.coverage.jacoco.include=$(jacoco_include) \
-	-D jack.coverage.jacoco.exclude=$(jacoco_exclude)
+LOCAL_JACK_COVERAGE_INCLUDE_FILTER := $(jacoco_include)
+LOCAL_JACK_COVERAGE_EXCLUDE_FILTER := $(jacoco_exclude)
 
 # wifi-service and services must be included here so that the latest changes
 # will be used when tests. Otherwise the tests would run against the installed
