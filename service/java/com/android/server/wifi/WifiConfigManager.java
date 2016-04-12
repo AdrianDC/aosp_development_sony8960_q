@@ -228,8 +228,6 @@ public class WifiConfigManager {
             Integer.MAX_VALUE   // threshold for DISABLED_BY_WIFI_MANAGER
     };
 
-    public final AtomicBoolean mEnableHalBasedPno = new AtomicBoolean();
-    public final AtomicBoolean mEnableSsidWhitelist = new AtomicBoolean();
     public final AtomicBoolean mEnableAutoJoinWhenAssociated = new AtomicBoolean();
     public final AtomicBoolean mEnableFullBandScanWhenAssociated = new AtomicBoolean(true);
     public final AtomicBoolean mEnableChipWakeUpWhenAssociated = new AtomicBoolean(true);
@@ -424,14 +422,6 @@ public class WifiConfigManager {
                 R.integer.config_wifi_framework_current_network_boost));
         mNetworkSwitchingBlackListPeriodMs = mContext.getResources().getInteger(
                 R.integer.config_wifi_network_switching_blacklist_time);
-
-        mEnableHalBasedPno.set(mContext.getResources().getBoolean(
-                        R.bool.config_wifi_hal_pno_enable));
-        mEnableSsidWhitelist.set(mContext.getResources().getBoolean(
-                R.bool.config_wifi_ssid_white_list_enable));
-        if (!mEnableHalBasedPno.get() && mEnableSsidWhitelist.get()) {
-            mEnableSsidWhitelist.set(false);
-        }
 
         boolean hs2on = mContext.getResources().getBoolean(R.bool.config_wifi_hotspot2_enabled);
         Log.d(Utils.hs2LogTag(getClass()), "Passpoint is " + (hs2on ? "enabled" : "disabled"));
