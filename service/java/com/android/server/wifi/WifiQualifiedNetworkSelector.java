@@ -50,7 +50,9 @@ public class WifiQualifiedNetworkSelector {
     private WifiNetworkScoreCache mNetworkScoreCache;
     private Clock mClock;
     private static final String TAG = "WifiQualifiedNetworkSelector:";
-    private boolean mDbg = true;
+    // Always enable debugging logs for now since QNS is still a new feature.
+    private static final boolean FORCE_DEBUG = true;
+    private boolean mDbg = FORCE_DEBUG;
     private WifiConfiguration mCurrentConnectedNetwork = null;
     private String mCurrentBssid = null;
     //buffer most recent scan results
@@ -113,13 +115,13 @@ public class WifiQualifiedNetworkSelector {
         long mBlacklistedTimeStamp = INVALID_TIME_STAMP;
     }
 
-    private void qnsLog(String log) {
+    private void localLog(String log) {
         if (mDbg) {
             mLocalLog.log(log);
         }
     }
 
-    private void qnsLoge(String log) {
+    private void localLoge(String log) {
         mLocalLog.log(log);
     }
 
@@ -165,7 +167,7 @@ public class WifiQualifiedNetworkSelector {
             mNetworkScoreCache = new WifiNetworkScoreCache(context);
             mScoreManager.registerNetworkScoreCache(NetworkKey.TYPE_WIFI, mNetworkScoreCache);
         } else {
-            qnsLoge("No network score service: Couldn't register as a WiFi score Manager, type="
+            localLoge("No network score service: Couldn't register as a WiFi score Manager, type="
                     + NetworkKey.TYPE_WIFI + " service= " + Context.NETWORK_SCORE_SERVICE);
             mNetworkScoreCache = null;
         }
@@ -188,7 +190,7 @@ public class WifiQualifiedNetworkSelector {
     }
 
     void enableVerboseLogging(int verbose) {
-        mDbg = verbose > 0;
+        mDbg = verbose > 0 || FORCE_DEBUG;
     }
 
     private String getNetworkString(WifiConfiguration network) {
@@ -210,29 +212,29 @@ public class WifiQualifiedNetworkSelector {
     private boolean isNetworkQualified(WifiConfiguration currentNetwork) {
 
         if (currentNetwork == null) {
-            qnsLog("Disconnected");
+            localLog("Disconnected");
             return false;
         } else {
-            qnsLog("Current network is: " + currentNetwork.SSID + " ,ID is: "
+            localLog("Current network is: " + currentNetwork.SSID + " ,ID is: "
                     + currentNetwork.networkId);
         }
 
         //if current connected network is an ephemeral network,we will consider
         // there is no current network
         if (currentNetwork.ephemeral) {
-            qnsLog("Current is ephemeral. Start reselect");
+            localLog("Current is ephemeral. Start reselect");
             return false;
         }
 
         //if current network is open network, not qualified
         if (mWifiConfigManager.isOpenNetwork(currentNetwork)) {
-            qnsLog("Current network is open network");
+            localLog("Current network is open network");
             return false;
         }
 
         // Current network band must match with user preference selection
         if (mWifiInfo.is24GHz() && (mUserPreferedBand != WifiManager.WIFI_FREQUENCY_BAND_2GHZ)) {
-            qnsLog("Current band dose not match user preference. Start Qualified Network"
+            localLog("Current band dose not match user preference. Start Qualified Network"
                     + " Selection Current band = " + (mWifiInfo.is24GHz() ? "2.4GHz band"
                     : "5GHz band") + "UserPreference band = " + mUserPreferedBand);
             return false;
@@ -243,7 +245,7 @@ public class WifiQualifiedNetworkSelector {
                         && currentRssi < mWifiConfigManager.mThresholdQualifiedRssi24.get())
                 || (mWifiInfo.is5GHz()
                         && currentRssi < mWifiConfigManager.mThresholdQualifiedRssi5.get())) {
-            qnsLog("Current band = " + (mWifiInfo.is24GHz() ? "2.4GHz band" : "5GHz band")
+            localLog("Current band = " + (mWifiInfo.is24GHz() ? "2.4GHz band" : "5GHz band")
                     + "current RSSI is: " + currentRssi);
             return false;
         }
@@ -268,13 +270,13 @@ public class WifiQualifiedNetworkSelector {
     private boolean needQualifiedNetworkSelection(boolean isLinkDebouncing, boolean isConnected,
             boolean isDisconnected, boolean isSupplicantTransientState) {
         if (mScanDetails.size() == 0) {
-            qnsLog("empty scan result");
+            localLog("empty scan result");
             return false;
         }
 
         // Do not trigger Qualified Network Selection during L2 link debouncing procedure
         if (isLinkDebouncing) {
-            qnsLog("Need not Qualified Network Selection during L2 debouncing");
+            localLog("Need not Qualified Network Selection during L2 debouncing");
             return false;
         }
 
@@ -283,7 +285,7 @@ public class WifiQualifiedNetworkSelector {
             //if switch network is not allowed in connected mode, do not trigger Qualified Network
             //Selection
             if (!mWifiConfigManager.getEnableAutoJoinWhenAssociated()) {
-                qnsLog("Switch network under connection is not allowed");
+                localLog("Switch network under connection is not allowed");
                 return false;
             }
 
@@ -292,8 +294,8 @@ public class WifiQualifiedNetworkSelector {
             if (mLastQualifiedNetworkSelectionTimeStamp != INVALID_TIME_STAMP) {
                 long gap = mClock.currentTimeMillis() - mLastQualifiedNetworkSelectionTimeStamp;
                 if (gap < MINIMUM_QUALIFIED_NETWORK_SELECTION_INTERVAL) {
-                    qnsLog("Too short to last successful Qualified Network Selection Gap is:" + gap
-                            + " ms!");
+                    localLog("Too short to last successful Qualified Network Selection Gap is:"
+                            + gap + " ms!");
                     return false;
                 }
             }
@@ -307,33 +309,9 @@ public class WifiQualifiedNetworkSelector {
                 return false;
             }
 
-            if (mCurrentConnectedNetwork != null
-                    && mCurrentConnectedNetwork.networkId != currentNetwork.networkId) {
-                //If this happens, supplicant switch the connection silently. This is a bug
-                // FIXME: 11/10/15
-                qnsLoge("supplicant switched the network silently" + " last Qualified Network"
-                        + " Selection:" + getNetworkString(mCurrentConnectedNetwork)
-                        + " current network:" + getNetworkString(currentNetwork));
-                mCurrentConnectedNetwork = currentNetwork;
-                mCurrentBssid = mWifiInfo.getBSSID();
-                //We do not believe lower layer choice
-                return true;
-            }
-
-            String bssid = mWifiInfo.getBSSID();
-            if (mCurrentBssid != null && !mCurrentBssid.equals(bssid)) {
-                //If this happens, supplicant roamed silently. This is a bug
-                // FIXME: 11/10/15
-                qnsLoge("supplicant roamed silently. Last selected BSSID:" + mCurrentBssid
-                        + " current BSSID:" + bssid);
-                mCurrentBssid = mWifiInfo.getBSSID();
-                //We do not believe lower layer choice
-                return true;
-            }
-
             if (!isNetworkQualified(mCurrentConnectedNetwork)) {
                 //need not trigger Qualified Network Selection if current network is qualified
-                qnsLog("Current network is not qualified");
+                localLog("Current network is not qualified");
                 return true;
             } else {
                 return false;
@@ -347,7 +325,7 @@ public class WifiQualifiedNetworkSelector {
             }
         } else {
             //Do not allow new network selection in other state
-            qnsLog("WifiStateMachine is not on connected or disconnected state");
+            localLog("WifiStateMachine is not on connected or disconnected state");
             return false;
         }
 
@@ -425,7 +403,7 @@ public class WifiQualifiedNetworkSelector {
     private void updateSavedNetworkSelectionStatus() {
         List<WifiConfiguration> savedNetworks = mWifiConfigManager.getConfiguredNetworks();
         if (savedNetworks.size() == 0) {
-            qnsLog("no saved network");
+            localLog("no saved network");
             return;
         }
 
@@ -457,7 +435,7 @@ public class WifiQualifiedNetworkSelector {
                     + status.getConnectChoiceTimestamp());
             sbuf.append("\n");
         }
-        qnsLog(sbuf.toString());
+        localLog(sbuf.toString());
     }
 
     /**
@@ -478,9 +456,9 @@ public class WifiQualifiedNetworkSelector {
      */
     public boolean userSelectNetwork(int netId, boolean persist) {
         WifiConfiguration selected = mWifiConfigManager.getWifiConfiguration(netId);
-        qnsLog("userSelectNetwork:" + netId + " persist:" + persist);
+        localLog("userSelectNetwork:" + netId + " persist:" + persist);
         if (selected == null || selected.SSID == null) {
-            qnsLoge("userSelectNetwork: Bad configuration with nid=" + netId);
+            localLoge("userSelectNetwork: Bad configuration with nid=" + netId);
             return false;
         }
 
@@ -491,7 +469,7 @@ public class WifiQualifiedNetworkSelector {
         }
 
         if (!persist) {
-            qnsLog("User has no privilege to overwrite the current priority");
+            localLog("User has no privilege to overwrite the current priority");
             return false;
         }
 
@@ -505,7 +483,7 @@ public class WifiQualifiedNetworkSelector {
             WifiConfiguration.NetworkSelectionStatus status = config.getNetworkSelectionStatus();
             if (config.networkId == selected.networkId) {
                 if (status.getConnectChoice() != null) {
-                    qnsLog("Remove user selection preference of " + status.getConnectChoice()
+                    localLog("Remove user selection preference of " + status.getConnectChoice()
                             + " Set Time: " + status.getConnectChoiceTimestamp() + " from "
                             + config.SSID + " : " + config.networkId);
                     status.setConnectChoice(null);
@@ -519,7 +497,7 @@ public class WifiQualifiedNetworkSelector {
             if (status.getSeenInLastQualifiedNetworkSelection()
                     && (status.getConnectChoice() == null
                     || !status.getConnectChoice().equals(key))) {
-                qnsLog("Add key:" + key + " Set Time: " + currentTime + " to "
+                localLog("Add key:" + key + " Set Time: " + currentTime + " to "
                         + getNetworkString(config));
                 status.setConnectChoice(key);
                 status.setConnectChoiceTimestamp(currentTime);
@@ -626,7 +604,7 @@ public class WifiQualifiedNetworkSelector {
             boolean isUntrustedConnectionsAllowed, List<ScanDetail>  scanDetails,
             boolean isLinkDebouncing, boolean isConnected, boolean isDisconnected,
             boolean isSupplicantTransient) {
-        qnsLog("==========start qualified Network Selection==========");
+        localLog("==========start qualified Network Selection==========");
         mScanDetails = scanDetails;
         List<ScanDetail>  filteredScanDetails = new ArrayList<>();
         if (mCurrentConnectedNetwork == null) {
@@ -640,8 +618,8 @@ public class WifiQualifiedNetworkSelector {
 
         if (!forceSelectNetwork && !needQualifiedNetworkSelection(isLinkDebouncing, isConnected,
                 isDisconnected, isSupplicantTransient)) {
-            qnsLog("Quit qualified Network Selection since it is not forced and current network is"
-                    + " qualified already");
+            localLog("Quit qualified Network Selection since it is not forced and current network"
+                    + " is qualified already");
             mFilteredScanDetails = filteredScanDetails;
             return null;
         }
@@ -656,7 +634,7 @@ public class WifiQualifiedNetworkSelector {
         WifiConfiguration lastUserSelectedNetwork =
                 mWifiConfigManager.getWifiConfiguration(lastUserSelectedNetWorkKey);
         if (lastUserSelectedNetwork != null) {
-            qnsLog("Last selection is " + lastUserSelectedNetwork.SSID + " Time to now: "
+            localLog("Last selection is " + lastUserSelectedNetwork.SSID + " Time to now: "
                     + ((mClock.currentTimeMillis() - mWifiConfigManager.getLastSelectedTimeStamp())
                             / 1000 / 60 + " minutes"));
         }
@@ -741,11 +719,11 @@ public class WifiQualifiedNetworkSelector {
                     int netScore = mNetworkScoreCache.getNetworkScore(scanResult, false);
                     //get network score (Determine if this is an 'Ephemeral' network)
                     if (netScore != WifiNetworkScoreCache.INVALID_NETWORK_SCORE) {
-                        qnsLog(scanId + "has score: " + netScore);
+                        localLog(scanId + "has score: " + netScore);
                         if (netScore > unTrustedHighestScore) {
                             unTrustedHighestScore = netScore;
                             untrustedScanResultCandidate = scanResult;
-                            qnsLog(scanId + " become the new untrusted candidate");
+                            localLog(scanId + " become the new untrusted candidate");
                         }
                         // scanDetail is for available ephemeral network
                         filteredScanDetails.add(scanDetail);
@@ -774,7 +752,7 @@ public class WifiQualifiedNetworkSelector {
                         && !network.BSSID.equals(scanResult.BSSID)) {
                     //in such scenario, user (APP) has specified the only BSSID to connect for this
                     // configuration. So only the matched scan result can be candidate
-                    qnsLog("Network: " + getNetworkString(network) + " has specified" + "BSSID:"
+                    localLog("Network: " + getNetworkString(network) + " has specified" + "BSSID:"
                             + network.BSSID + ". Skip " + scanResult.BSSID);
                     continue;
                 }
@@ -812,10 +790,10 @@ public class WifiQualifiedNetworkSelector {
         }
 
         if (mDbg) {
-            qnsLog(lowSignalScan + " skipped due to low signal\n");
-            qnsLog(notSavedScan + " skipped due to not saved\n ");
-            qnsLog(noValidSsid + " skipped due to not valid SSID\n");
-            qnsLog(scoreHistory.toString());
+            localLog(lowSignalScan + " skipped due to low signal\n");
+            localLog(notSavedScan + " skipped due to not saved\n ");
+            localLog(noValidSsid + " skipped due to not valid SSID\n");
+            localLog(scoreHistory.toString());
         }
 
         //we need traverse the whole user preference to choose the one user like most now
@@ -835,11 +813,11 @@ public class WifiQualifiedNetworkSelector {
                     }
                 } else {
                     //we should not come here in theory
-                    qnsLoge("Connect choice: " + key + " has no corresponding saved config");
+                    localLoge("Connect choice: " + key + " has no corresponding saved config");
                     break;
                 }
             }
-            qnsLog("After user choice adjust, the final candidate is:"
+            localLog("After user choice adjust, the final candidate is:"
                     + getNetworkString(networkCandidate) + " : " + scanResultCandidate.BSSID);
         }
 
@@ -847,7 +825,7 @@ public class WifiQualifiedNetworkSelector {
         if (scanResultCandidate == null && isUntrustedConnectionsAllowed) {
 
             if (untrustedScanResultCandidate == null) {
-                qnsLog("Can not find any candidate");
+                localLog("Can not find any candidate");
                 return null;
             }
 
@@ -866,13 +844,14 @@ public class WifiQualifiedNetworkSelector {
                         WifiConfiguration.UNKNOWN_UID);
 
 
-                qnsLog(String.format("new ephemeral candidate %s:%s network ID:%d, meteredHint=%b",
+                localLog(String.format("new ephemeral candidate %s:%s network ID:%d, "
+                                + "meteredHint=%b",
                         untrustedScanResultCandidate.SSID, untrustedScanResultCandidate.BSSID,
                         unTrustedNetworkCandidate.networkId,
                         unTrustedNetworkCandidate.meteredHint));
 
             } else {
-                qnsLog(String.format("choose existing ephemeral candidate %s:%s network ID:%d, "
+                localLog(String.format("choose existing ephemeral candidate %s:%s network ID:%d, "
                                 + "meteredHint=%b",
                         untrustedScanResultCandidate.SSID, untrustedScanResultCandidate.BSSID,
                         unTrustedNetworkCandidate.networkId,
@@ -885,7 +864,7 @@ public class WifiQualifiedNetworkSelector {
         }
 
         if (scanResultCandidate == null) {
-            qnsLog("Can not find any suitable candidates");
+            localLog("Can not find any suitable candidates");
             return null;
         }
 
@@ -901,13 +880,13 @@ public class WifiQualifiedNetworkSelector {
 
         //For debug purpose only
         if (scanResultCandidate.BSSID.equals(mCurrentBssid)) {
-            qnsLog(currentAssociationId + " is already the best choice!");
+            localLog(currentAssociationId + " is already the best choice!");
         } else if (mCurrentConnectedNetwork != null
                 && (mCurrentConnectedNetwork.networkId == networkCandidate.networkId
                 || mCurrentConnectedNetwork.isLinked(networkCandidate))) {
-            qnsLog("Roaming from " + currentAssociationId + " to " + targetAssociationId);
+            localLog("Roaming from " + currentAssociationId + " to " + targetAssociationId);
         } else {
-            qnsLog("reconnect from " + currentAssociationId + " to " + targetAssociationId);
+            localLog("reconnect from " + currentAssociationId + " to " + targetAssociationId);
         }
 
         mCurrentBssid = scanResultCandidate.BSSID;
@@ -918,9 +897,9 @@ public class WifiQualifiedNetworkSelector {
 
     //Dump the logs
     void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("Dump of Quality Network Selection");
-        pw.println(" - Log Begin ----");
+        pw.println("Dump of WifiQualifiedNetworkSelector");
+        pw.println("WifiQualifiedNetworkSelector - Log Begin ----");
         mLocalLog.dump(fd, pw, args);
-        pw.println(" - Log End ----");
+        pw.println("WifiQualifiedNetworkSelector - Log End ----");
     }
 }
