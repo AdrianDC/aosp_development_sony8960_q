@@ -213,8 +213,8 @@ public final class RttService extends SystemService {
                 mChannel.sendMessage(RttManager.CMD_OP_ENALBE_RESPONDER_SUCCEEDED, 0, key, config);
             }
 
-            void reportResponderEnableFailed(int key) {
-                mChannel.sendMessage(RttManager.CMD_OP_ENALBE_RESPONDER_FAILED, 0, key);
+            void reportResponderEnableFailed(int key, int reason) {
+                mChannel.sendMessage(RttManager.CMD_OP_ENALBE_RESPONDER_FAILED, reason, key);
                 mResponderRequests.remove(key);
             }
 
@@ -305,8 +305,14 @@ public final class RttService extends SystemService {
                         case RttManager.CMD_OP_STOP_RANGING:
                             return HANDLED;
                         case RttManager.CMD_OP_ENABLE_RESPONDER:
-                            replyFailed(msg, RttManager.REASON_NOT_AVAILABLE,
-                                    "Wifi not enabled");
+                            ClientInfo client = mClients.get(msg.replyTo);
+                            if (client == null) {
+                                Log.e(TAG, "client not connected yet!");
+                                break;
+                            }
+                            int key = msg.arg2;
+                            client.reportResponderEnableFailed(key,
+                                    RttManager.REASON_NOT_AVAILABLE);
                             break;
                         case RttManager.CMD_OP_DISABLE_RESPONDER:
                             return HANDLED;
@@ -372,7 +378,7 @@ public final class RttService extends SystemService {
                                 transitionTo(mResponderEnabledState);
                             } else {
                                 Log.e(TAG, "enable responder failed");
-                                ci.reportResponderEnableFailed(key);
+                                ci.reportResponderEnableFailed(key, RttManager.REASON_UNSPECIFIED);
                             }
                             break;
                         case RttManager.CMD_OP_DISABLE_RESPONDER:
