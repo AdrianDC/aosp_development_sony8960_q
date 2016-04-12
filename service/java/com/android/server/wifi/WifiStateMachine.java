@@ -971,8 +971,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private final AtomicInteger mWifiApState = new AtomicInteger(WIFI_AP_STATE_DISABLED);
 
     private static final int SCAN_REQUEST = 0;
-    private static final String ACTION_START_SCAN =
-            "com.android.server.WifiManager.action.START_SCAN";
 
     /**
      * Work source to use to blame usage on the WiFi service
@@ -1078,7 +1076,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mIpManager.setMulticastFilter(true);
 
         mAlarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
-        mScanIntent = getPrivateBroadcast(ACTION_START_SCAN, SCAN_REQUEST);
 
         // Make sure the interval is not configured less than 10 seconds
         int period = mContext.getResources().getInteger(
@@ -1110,20 +1107,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mNetworkCapabilitiesFilter.setLinkDownstreamBandwidthKbps(1024 * 1024);
         // TODO - needs to be a bit more dynamic
         mDfltNetworkCapabilities = new NetworkCapabilities(mNetworkCapabilitiesFilter);
-
-        mContext.registerReceiver(
-                new BroadcastReceiver() {
-                    @Override
-                    public void onReceive(Context context, Intent intent) {
-                        sScanAlarmIntentCount++; // Used for debug only
-                        startScan(SCAN_ALARM_SOURCE, mDelayedScanCounter.incrementAndGet(), null,
-                                WIFI_WORK_SOURCE);
-                        if (DBG)
-                            logd("SCAN ALARM -> " + mDelayedScanCounter.get());
-                    }
-                },
-                new IntentFilter(ACTION_START_SCAN));
-
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_SCREEN_ON);
@@ -1385,99 +1368,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         boolean old_state = mWifiConfigManager.getEnableAutoJoinWhenAssociated();
         mWifiConfigManager.setEnableAutoJoinWhenAssociated(enabled);
         if (!old_state && enabled && mScreenOn && getCurrentState() == mConnectedState) {
-            startDelayedScan(mWifiConfigManager.mWifiAssociatedShortScanIntervalMs.get(), null,
-                    WIFI_WORK_SOURCE);
+            if (mWifiConnectivityManager != null) {
+                mWifiConnectivityManager.forceConnectivityScan();
+            }
         }
         return true;
     }
 
     public boolean getEnableAutoJoinWhenAssociated() {
         return mWifiConfigManager.getEnableAutoJoinWhenAssociated();
-    }
-
-    /*
-     *
-     * Framework scan control
-     */
-
-    private boolean mAlarmEnabled = false;
-
-    private AtomicInteger mDelayedScanCounter = new AtomicInteger();
-
-    private void setScanAlarm(boolean enabled) {
-        if (DBG) {
-            String state;
-            if (enabled) state = "enabled"; else state = "disabled";
-            logd("setScanAlarm " + state
-                    + " defaultperiod " + mDefaultFrameworkScanIntervalMs
-                    + " mBackgroundScanSupported " + mBackgroundScanSupported);
-        }
-        if (mBackgroundScanSupported == false) {
-            // Scan alarm is only used for background scans if they are not
-            // offloaded to the wifi chipset, hence enable the scan alarm
-            // gicing us RTC_WAKEUP of backgroundScan is NOT supported
-            enabled = true;
-        }
-
-        if (enabled == mAlarmEnabled) return;
-        if (enabled) {
-            /* Set RTC_WAKEUP alarms if PNO is not supported - because no one is */
-            /* going to wake up the host processor to look for access points */
-            mAlarmManager.set(AlarmManager.RTC_WAKEUP,
-                    System.currentTimeMillis() + mDefaultFrameworkScanIntervalMs,
-                    mScanIntent);
-            mAlarmEnabled = true;
-        } else {
-            mAlarmManager.cancel(mScanIntent);
-            mAlarmEnabled = false;
-        }
-    }
-
-    private void cancelDelayedScan() {
-        mDelayedScanCounter.incrementAndGet();
-    }
-
-    private boolean checkAndRestartDelayedScan(int counter, boolean restart, int milli,
-                                               ScanSettings settings, WorkSource workSource) {
-
-        if (counter != mDelayedScanCounter.get()) {
-            return false;
-        }
-        if (restart)
-            startDelayedScan(milli, settings, workSource);
-        return true;
-    }
-
-    private void startDelayedScan(int milli, ScanSettings settings, WorkSource workSource) {
-        if (milli <= 0) return;
-        /**
-         * The cases where the scan alarm should be run are :
-         * - DisconnectedState && screenOn => used delayed timer
-         * - DisconnectedState && !screenOn && mBackgroundScanSupported => PNO
-         * - DisconnectedState && !screenOn && !mBackgroundScanSupported => used RTC_WAKEUP Alarm
-         * - ConnectedState && screenOn => used delayed timer
-         */
-
-        mDelayedScanCounter.incrementAndGet();
-        if (mScreenOn &&
-                (getCurrentState() == mDisconnectedState
-                        || getCurrentState() == mConnectedState)) {
-            Bundle bundle = new Bundle();
-            bundle.putParcelable(CUSTOMIZED_SCAN_SETTING, settings);
-            bundle.putParcelable(CUSTOMIZED_SCAN_WORKSOURCE, workSource);
-            bundle.putLong(SCAN_REQUEST_TIME, System.currentTimeMillis());
-            sendMessageDelayed(CMD_START_SCAN, SCAN_ALARM_SOURCE,
-                    mDelayedScanCounter.get(), bundle, milli);
-            if (DBG) logd("startDelayedScan send -> " + mDelayedScanCounter + " milli " + milli);
-        } else if (mBackgroundScanSupported == false
-                && !mScreenOn && getCurrentState() == mDisconnectedState) {
-            setScanAlarm(true);
-            if (DBG) logd("startDelayedScan start scan alarm -> "
-                    + mDelayedScanCounter + " milli " + milli);
-        } else {
-            if (DBG) logd("startDelayedScan unhandled -> "
-                    + mDelayedScanCounter + " milli " + milli);
-        }
     }
 
     private boolean setRandomMacOui() {
@@ -1513,14 +1412,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         boolean result = (resultMsg.arg1 != FAILURE);
         resultMsg.recycle();
         return result;
-    }
-
-    /**
-     * When settings allowing making use of untrusted networks change, trigger a scan
-     * so as to kick of autojoin.
-     */
-    public void startScanForUntrustedSettingChange() {
-        startScan(SET_ALLOW_UNTRUSTED_SOURCE, 0, null, WIFI_WORK_SOURCE);
     }
 
     /**
@@ -2526,7 +2417,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 }
                 if (mIsScanOngoing) sb.append(" onGoing");
                 if (mIsFullScanOngoing) sb.append(" full");
-                sb.append(" cnt=").append(mDelayedScanCounter);
                 sb.append(" rssi=").append(mWifiInfo.getRssi());
                 sb.append(" f=").append(mWifiInfo.getFrequency());
                 sb.append(" sc=").append(mWifiInfo.score);
@@ -6694,23 +6584,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         if (!mWifiConfigManager.getEnableAutoJoinWhenAssociated()) {
                             return HANDLED;
                         }
-                        boolean shouldScan = mScreenOn;
 
-                        if (!checkAndRestartDelayedScan(message.arg2,
-                                shouldScan,
-                                mWifiConfigManager.mWifiAssociatedShortScanIntervalMs.get(),
-                                null, WIFI_WORK_SOURCE)) {
-                            messageHandlingStatus = MESSAGE_HANDLING_STATUS_OBSOLETE;
-                            logd("L2Connected CMD_START_SCAN source "
-                                    + message.arg1
-                                    + " " + message.arg2 + ", " + mDelayedScanCounter
-                                    + " -> obsolete");
-                            return HANDLED;
-                        }
                         if (mP2pConnected.get()) {
                             logd("L2Connected CMD_START_SCAN source "
                                     + message.arg1
-                                    + " " + message.arg2 + ", " + mDelayedScanCounter
+                                    + " " + message.arg2 + ", "
                                     + " ignore because P2P is connected");
                             messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                             return HANDLED;
@@ -7115,7 +6993,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 log("RoamingState Enter"
                         + " mScreenOn=" + mScreenOn );
             }
-            setScanAlarm(false);
 
             // Make sure we disconnect if roaming fails
             roamWatchdogCount++;
@@ -7738,15 +7615,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                     Settings.Global.WIFI_SCAN_INTERVAL_WHEN_P2P_CONNECTED_MS,
                                     period);
                         }
-                        if (!checkAndRestartDelayedScan(message.arg2,
-                                true, period, null, WIFI_WORK_SOURCE)) {
-                            messageHandlingStatus = MESSAGE_HANDLING_STATUS_OBSOLETE;
-                            logd("Disconnected CMD_START_SCAN source "
-                                    + message.arg1
-                                    + " " + message.arg2 + ", " + mDelayedScanCounter
-                                    + " -> obsolete");
-                            return HANDLED;
-                        }
 
                         handleScanRequest(message);
                         ret = HANDLED;
@@ -7768,14 +7636,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         if (DBG) log("Turn on scanning after p2p disconnected");
                         sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
                                     ++mPeriodicScanToken, 0), mNoNetworksPeriodicScan);
-                    } else {
-                        // If P2P is not connected and there are saved networks, then restart
-                        // scanning at the normal period. This is necessary because scanning might
-                        // have been disabled altogether if WIFI_SCAN_INTERVAL_WHEN_P2P_CONNECTED_MS
-                        // was set to zero.
-                        startDelayedScan(
-                                mWifiConfigManager.mWifiDisconnectedShortScanIntervalMs.get(),
-                                    null, WIFI_WORK_SOURCE);
                     }
                     break;
                 case CMD_RECONNECT:
