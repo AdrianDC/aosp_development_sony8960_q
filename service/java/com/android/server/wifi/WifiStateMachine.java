@@ -1343,40 +1343,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    boolean allowFullBandScanAndAssociated() {
-
-        if (!mWifiConfigManager.getEnableAutoJoinWhenAssociated()) {
-            if (DBG) {
-                Log.e(TAG, "allowFullBandScanAndAssociated: "
-                        + " enableAutoJoinWhenAssociated : disallow");
-            }
-            return false;
-        }
-
-        if (mWifiInfo.txSuccessRate > mWifiConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS
-                || mWifiInfo.rxSuccessRate > mWifiConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS) {
-            if (DBG) {
-                Log.e(TAG, "allowFullBandScanAndAssociated: packet rate tx"
-                        + mWifiInfo.txSuccessRate + "  rx "
-                        + mWifiInfo.rxSuccessRate
-                        + " allow scan with traffic " + getAllowScansWithTraffic());
-            }
-            // Too much traffic at the interface, hence no full band scan
-            if (getAllowScansWithTraffic() == 0) {
-                return false;
-            }
-        }
-
-        if (getCurrentState() != mConnectedState) {
-            if (DBG) {
-                Log.e(TAG, "allowFullBandScanAndAssociated: getCurrentState() : disallow");
-            }
-            return false;
-        }
-
-        return true;
-    }
-
     long mLastScanPermissionUpdate = 0;
     boolean mConnectedModeGScanOffloadStarted = false;
     // Don't do a G-scan enable/re-enable cycle more than once within 20seconds
@@ -2071,14 +2037,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     /**
-     * Get unsynchronized pointer to scan result list
-     * Can be called only from AutoJoinController which runs in the WifiStateMachine context
-     */
-    public List<ScanDetail> getScanResultsListNoCopyUnsync() {
-        return mScanResults;
-    }
-
-    /**
      * Disconnect from Access Point
      */
     public void disconnectCommand() {
@@ -2535,7 +2493,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 sb.append(Integer.toString(msg.arg1));
                 sb.append(" ");
                 sb.append(Integer.toString(msg.arg2));
-                sb.append(" scanAllowed=").append(allowFullBandScanAndAssociated());
                 sb.append(" autojoinAllowed=");
                 sb.append(mWifiConfigManager.getEnableAutoJoinWhenAssociated());
                 sb.append(" withTraffic=").append(getAllowScansWithTraffic());
@@ -3325,43 +3282,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiInfo.setFrequency(newFrequency);
         }
         mWifiConfigManager.updateConfiguration(mWifiInfo);
-    }
-
-    /**
-     * Determine if we need to switch network:
-     * - the delta determine the urgency to switch and/or or the expected evilness of the disruption
-     * - match the uregncy of the switch versus the packet usage at the interface
-     */
-    boolean shouldSwitchNetwork(int networkDelta) {
-        int delta;
-        if (networkDelta <= 0) {
-            return false;
-        }
-        delta = networkDelta;
-        if (!mWifiConfigManager.getEnableAutoJoinWhenAssociated()
-                && mWifiInfo.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID) {
-            // If AutoJoin while associated is not enabled,
-            // we should never switch network when already associated
-            delta = -1000;
-        } else {
-            // TODO: Look at per AC packet count, do not switch if VO/VI traffic is present
-            // TODO: at the interface. We should also discriminate between ucast and mcast,
-            // TODO: since the rxSuccessRate include all the bonjour and Ipv6
-            // TODO: broadcasts
-            if ((mWifiInfo.txSuccessRate > 20) || (mWifiInfo.rxSuccessRate > 80)) {
-                delta -= 999;
-            } else if ((mWifiInfo.txSuccessRate > 5) || (mWifiInfo.rxSuccessRate > 30)) {
-                delta -= 6;
-            }
-            logd("shouldSwitchNetwork "
-                    + " txSuccessRate=" + String.format("%.2f", mWifiInfo.txSuccessRate)
-                    + " rxSuccessRate=" + String.format("%.2f", mWifiInfo.rxSuccessRate)
-                    + " delta " + networkDelta + " -> " + delta);
-        }
-        if (delta > 0) {
-            return true;
-        }
-        return false;
     }
 
     // Polling has completed, hence we wont have a score anymore
