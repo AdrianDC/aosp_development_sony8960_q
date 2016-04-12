@@ -16,7 +16,6 @@
 
 package com.android.server.wifi;
 
-import android.app.backup.BackupManager;
 import android.net.IpConfiguration.IpAssignment;
 import android.net.IpConfiguration.ProxySettings;
 import android.net.wifi.WifiConfiguration;
@@ -27,7 +26,6 @@ import android.net.wifi.WpsInfo;
 import android.net.wifi.WpsResult;
 import android.os.FileObserver;
 import android.os.Process;
-import android.os.SystemClock;
 import android.security.Credentials;
 import android.security.KeyChain;
 import android.security.KeyStore;
@@ -367,6 +365,15 @@ public class WifiConfigStore {
         if (!TextUtils.isEmpty(value)) {
             try {
                 config.hiddenSSID = Integer.parseInt(value) != 0;
+            } catch (NumberFormatException ignore) {
+            }
+        }
+
+        value = mWifiNative.getNetworkVariable(netId, WifiConfiguration.pmfVarName);
+        config.requirePMF = false;
+        if (!TextUtils.isEmpty(value)) {
+            try {
+                config.requirePMF = Integer.parseInt(value) != 0;
             } catch (NumberFormatException ignore) {
             }
         }
