@@ -474,17 +474,23 @@ public class WifiConfigManager {
         return mConfiguredNetworks.sizeForCurrentUser();
     }
 
-    private List<WifiConfiguration> getConfiguredNetworks(Map<String, String> pskMap) {
+    /**
+     * Fetch the list of currently saved networks (i.e. all configured networks, excluding
+     * ephemeral networks).
+     * @param pskMap Map of preSharedKeys, keyed by the configKey of the configuration the
+     * preSharedKeys belong to
+     * @return List of networks
+     */
+    private List<WifiConfiguration> getSavedNetworks(Map<String, String> pskMap) {
         List<WifiConfiguration> networks = new ArrayList<>();
         for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
             WifiConfiguration newConfig = new WifiConfiguration(config);
             // When updating this condition, update WifiStateMachine's CONNECT_NETWORK handler to
             // correctly handle updating existing configs that are filtered out here.
             if (config.ephemeral) {
-                // Do not enumerate and return this configuration to any one,
-                // for instance WiFi Picker.
-                // instead treat it as unknown. the configuration can still be retrieved
-                // directly by the key or networkId
+                // Do not enumerate and return this configuration to anyone (e.g. WiFi Picker);
+                // treat it as unknown instead. This configuration can still be retrieved
+                // directly by its key or networkId.
                 continue;
             }
 
@@ -499,7 +505,7 @@ public class WifiConfigManager {
     }
 
     /**
-     * This function returns all configuration, and is used for cebug and creating bug reports.
+     * This function returns all configuration, and is used for debug and creating bug reports.
      */
     private List<WifiConfiguration> getAllConfiguredNetworks() {
         List<WifiConfiguration> networks = new ArrayList<>();
@@ -511,20 +517,22 @@ public class WifiConfigManager {
     }
 
     /**
-     * Fetch the list of currently configured networks
+     * Fetch the list of currently saved networks (i.e. all configured networks, excluding
+     * ephemeral networks).
      * @return List of networks
      */
-    public List<WifiConfiguration> getConfiguredNetworks() {
-        return getConfiguredNetworks(null);
+    public List<WifiConfiguration> getSavedNetworks() {
+        return getSavedNetworks(null);
     }
 
     /**
-     * Fetch the list of currently configured networks, filled with real preSharedKeys
+     * Fetch the list of currently saved networks (i.e. all configured networks, excluding
+     * ephemeral networks), filled with real preSharedKeys.
      * @return List of networks
      */
-    List<WifiConfiguration> getPrivilegedConfiguredNetworks() {
+    List<WifiConfiguration> getPrivilegedSavedNetworks() {
         Map<String, String> pskMap = getCredentialsByConfigKeyMap();
-        List<WifiConfiguration> configurations = getConfiguredNetworks(pskMap);
+        List<WifiConfiguration> configurations = getSavedNetworks(pskMap);
         for (WifiConfiguration configuration : configurations) {
             try {
                 configuration
@@ -573,27 +581,33 @@ public class WifiConfigManager {
     }
 
     /**
-     * Fetch the list of currently configured networks that were recently seen
+     * Fetch the list of currently saved networks (i.e. all configured networks, excluding
+     * ephemeral networks) that were recently seen.
      *
+     * @param scanResultAgeMs The maximum age (in ms) of scan results for which we calculate the
+     * RSSI values
+     * @param copy If true, the returned list will contain copies of the configurations for the
+     * saved networks. Otherwise, the returned list will contain references to these
+     * configurations.
      * @return List of networks
      */
-    List<WifiConfiguration> getRecentConfiguredNetworks(int milli, boolean copy) {
+    List<WifiConfiguration> getRecentSavedNetworks(int scanResultAgeMs, boolean copy) {
         List<WifiConfiguration> networks = new ArrayList<WifiConfiguration>();
 
         for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
             if (config.ephemeral) {
-                // Do not enumerate and return this configuration to any one,
-                // instead treat it as unknown. the configuration can still be retrieved
-                // directly by the key or networkId
+                // Do not enumerate and return this configuration to anyone (e.g. WiFi Picker);
+                // treat it as unknown instead. This configuration can still be retrieved
+                // directly by its key or networkId.
                 continue;
             }
 
-            // Calculate the RSSI for scan results that are more recent than milli
+            // Calculate the RSSI for scan results that are more recent than scanResultAgeMs.
             ScanDetailCache cache = getScanDetailCache(config);
             if (cache == null) {
                 continue;
             }
-            config.setVisibility(cache.getVisibility(milli));
+            config.setVisibility(cache.getVisibility(scanResultAgeMs));
             if (config.visibility == null) {
                 continue;
             }
