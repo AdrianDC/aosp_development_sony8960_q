@@ -90,7 +90,6 @@ public class WifiNetworkHistory {
     private static final String EPHEMERAL_KEY = "EPHEMERAL";
     private static final String METERED_HINT_KEY = "METERED_HINT";
     private static final String NUM_ASSOCIATION_KEY = "NUM_ASSOCIATION";
-    private static final String DELETED_CRC32_KEY = "DELETED_CRC32";
     private static final String DELETED_EPHEMERAL_KEY = "DELETED_EPHEMERAL";
     private static final String CREATOR_NAME_KEY = "CREATOR_NAME";
     private static final String UPDATE_NAME_KEY = "UPDATE_NAME";
@@ -128,7 +127,6 @@ public class WifiNetworkHistory {
      */
     public void writeKnownNetworkHistory(final List<WifiConfiguration> networks,
             final ConcurrentHashMap<Integer, ScanDetailCache> scanDetailCaches,
-            final Set<Long> deletedSSIDs,
             final Set<String> deletedEphemeralSSIDs) {
 
         /* Make a copy */
@@ -298,13 +296,6 @@ public class WifiNetworkHistory {
                     out.writeUTF(NL);
                     out.writeUTF(NL);
                 }
-                if (deletedSSIDs != null && deletedSSIDs.size() > 0) {
-                    for (Long i : deletedSSIDs) {
-                        out.writeUTF(DELETED_CRC32_KEY);
-                        out.writeUTF(String.valueOf(i));
-                        out.writeUTF(NL);
-                    }
-                }
                 if (deletedEphemeralSSIDs != null && deletedEphemeralSSIDs.size() > 0) {
                     for (String ssid : deletedEphemeralSSIDs) {
                         out.writeUTF(DELETED_EPHEMERAL_KEY);
@@ -327,7 +318,6 @@ public class WifiNetworkHistory {
      */
     public void readNetworkHistory(Map<String, WifiConfiguration> configs,
             ConcurrentHashMap<Integer, ScanDetailCache> scanDetailCaches,
-            Set<Long> deletedSSIDs,
             Set<String> deletedEphemeralSSIDs) {
         localLog("readNetworkHistory() path:" + NETWORK_HISTORY_CONFIG_FILE);
 
@@ -515,9 +505,6 @@ public class WifiNetworkHistory {
                                     getScanDetailCache(config, scanDetailCaches).put(scanDetail);
                                 }
                             }
-                            break;
-                        case DELETED_CRC32_KEY:
-                            deletedSSIDs.add(Long.parseLong(value));
                             break;
                         case DELETED_EPHEMERAL_KEY:
                             if (!TextUtils.isEmpty(value)) {

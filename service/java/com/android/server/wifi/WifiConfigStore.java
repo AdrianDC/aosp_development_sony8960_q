@@ -60,8 +60,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.zip.CRC32;
-import java.util.zip.Checksum;
 
 /**
  * This class provides the API's to save/load/modify network configurations from a persistent
@@ -490,15 +488,6 @@ public class WifiConfigStore {
                 }
                 networkExtras.put(config.networkId, extras);
 
-                Checksum csum = new CRC32();
-                if (config.SSID != null) {
-                    csum.update(config.SSID.getBytes(), 0, config.SSID.getBytes().length);
-                    long d = csum.getValue();
-                    /* TODO(rpius)
-                    if (mDeletedSSIDs.contains(d)) {
-                        loge(" got CRC for SSID " + config.SSID + " -> " + d + ", was deleted");
-                    } */
-                }
                 if (config.priority > lastPriority) {
                     lastPriority = config.priority;
                 }
