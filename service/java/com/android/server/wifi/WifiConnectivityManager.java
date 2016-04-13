@@ -534,7 +534,7 @@ public class WifiConnectivityManager {
         // Initialize PNO settings
         PnoSettings pnoSettings = new PnoSettings();
         ArrayList<PnoSettings.PnoNetwork> pnoNetworkList =
-                mConfigManager.retrieveDisconnectedPnoNetworkList(true);
+                mConfigManager.retrieveDisconnectedPnoNetworkList();
         int listSize = pnoNetworkList.size();
 
         if (listSize == 0) {
