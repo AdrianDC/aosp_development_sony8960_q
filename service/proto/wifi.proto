@@ -134,6 +134,55 @@ message WifiLog {
      // Is screen on.
      optional bool is_screen_on = 3;
   }
+
+  // Mapping of Error/Success codes to the number of background scans that resulted in it
+  repeated ScanReturnEntry background_scan_return_entries = 18;
+
+  // Mapping of system state to the number of times that Background scans were requested in that
+  // state
+  repeated WifiSystemStateEntry background_scan_request_state = 19;
+
+  // Total number of times the Watchdog of Last Resort triggered, resetting the wifi stack
+  optional int32 num_last_resort_watchdog_triggers = 20;
+
+  // Total number of networks over bad association threshold when watchdog triggered
+  optional int32 num_last_resort_watchdog_bad_association_networks_total = 21;
+
+  // Total number of networks over bad authentication threshold when watchdog triggered
+  optional int32 num_last_resort_watchdog_bad_authentication_networks_total = 22;
+
+  // Total number of networks over bad dhcp threshold when watchdog triggered
+  optional int32 num_last_resort_watchdog_bad_dhcp_networks_total = 23;
+
+  // Total number of networks over bad other threshold when watchdog triggered
+  optional int32 num_last_resort_watchdog_bad_other_networks_total = 24;
+
+  // Total count of networks seen when watchdog triggered
+  optional int32 num_last_resort_watchdog_available_networks_total = 25;
+
+  // Total count of triggers with atleast one bad association network
+  optional int32 num_last_resort_watchdog_triggers_with_bad_association = 26;
+
+  // Total count of triggers with atleast one bad authentication network
+  optional int32 num_last_resort_watchdog_triggers_with_bad_authentication = 27;
+
+  // Total count of triggers with atleast one bad dhcp network
+  optional int32 num_last_resort_watchdog_triggers_with_bad_dhcp = 28;
+
+  // Total count of triggers with atleast one bad other network
+  optional int32 num_last_resort_watchdog_triggers_with_bad_other = 29;
+
+  // Count of times connectivity watchdog confirmed pno is working
+  optional int32 num_connectivity_watchdog_pno_good = 30;
+
+  // Count of times connectivity watchdog found pno not working
+  optional int32 num_connectivity_watchdog_pno_bad = 31;
+
+  // Count of times connectivity watchdog confirmed background scan is working
+  optional int32 num_connectivity_watchdog_background_good = 32;
+
+  // Count of times connectivity watchdog found background scan not working
+  optional int32 num_connectivity_watchdog_background_bad = 33;
 }
 
 // Information that gets logged for every WiFi connection.

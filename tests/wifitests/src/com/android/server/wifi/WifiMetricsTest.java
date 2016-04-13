@@ -141,7 +141,10 @@ public class WifiMetricsTest {
     private static final int NUM_WIFI_UNKNOWN_SCREEN_ON = 5;
     private static final int NUM_WIFI_ASSOCIATED_SCREEN_OFF = 7;
     private static final int NUM_WIFI_ASSOCIATED_SCREEN_ON = 11;
-
+    private static final int NUM_CONNECTIVITY_WATCHDOG_PNO_GOOD = 11;
+    private static final int NUM_CONNECTIVITY_WATCHDOG_PNO_BAD = 12;
+    private static final int NUM_CONNECTIVITY_WATCHDOG_BACKGROUND_GOOD = 13;
+    private static final int NUM_CONNECTIVITY_WATCHDOG_BACKGROUND_BAD = 14;
 
     /**
      * Set simple metrics, increment others
@@ -187,6 +190,18 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_WIFI_ASSOCIATED_SCREEN_ON; i++) {
             mWifiMetrics.incrementWifiSystemScanStateCount(WifiMetricsProto.WifiLog.WIFI_ASSOCIATED,
                     true);
+        }
+        for (int i = 0; i < NUM_CONNECTIVITY_WATCHDOG_PNO_GOOD; i++) {
+            mWifiMetrics.incrementNumConnectivityWatchdogPnoGood();
+        }
+        for (int i = 0; i < NUM_CONNECTIVITY_WATCHDOG_PNO_BAD; i++) {
+            mWifiMetrics.incrementNumConnectivityWatchdogPnoBad();
+        }
+        for (int i = 0; i < NUM_CONNECTIVITY_WATCHDOG_BACKGROUND_GOOD; i++) {
+            mWifiMetrics.incrementNumConnectivityWatchdogBackgroundGood();
+        }
+        for (int i = 0; i < NUM_CONNECTIVITY_WATCHDOG_BACKGROUND_BAD; i++) {
+            mWifiMetrics.incrementNumConnectivityWatchdogBackgroundBad();
         }
     }
 
@@ -235,6 +250,14 @@ public class WifiMetricsTest {
                 WifiMetricsProto.WifiLog.WIFI_ASSOCIATED, false, NUM_WIFI_ASSOCIATED_SCREEN_OFF);
         assertSystemStateEntryEquals(WifiMetricsProto.WifiLog.WIFI_ASSOCIATED, true,
                 NUM_WIFI_ASSOCIATED_SCREEN_ON);
+        assertEquals(mDeserializedWifiMetrics.numConnectivityWatchdogPnoGood,
+                NUM_CONNECTIVITY_WATCHDOG_PNO_GOOD);
+        assertEquals(mDeserializedWifiMetrics.numConnectivityWatchdogPnoBad,
+                NUM_CONNECTIVITY_WATCHDOG_PNO_BAD);
+        assertEquals(mDeserializedWifiMetrics.numConnectivityWatchdogBackgroundGood,
+                NUM_CONNECTIVITY_WATCHDOG_BACKGROUND_GOOD);
+        assertEquals(mDeserializedWifiMetrics.numConnectivityWatchdogBackgroundBad,
+                NUM_CONNECTIVITY_WATCHDOG_BACKGROUND_BAD);
     }
 
     /**
