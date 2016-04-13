@@ -81,6 +81,10 @@ public class WifiConfigStore {
     public static final String ID_STRING_KEY_FQDN = "fqdn";
     public static final String ID_STRING_KEY_CREATOR_UID = "creatorUid";
     public static final String ID_STRING_KEY_CONFIG_KEY = "configKey";
+
+    // Value stored by supplicant to requirePMF
+    public static final int STORED_VALUE_FOR_REQUIRE_PMF = 2;
+
     /**
      * In old configurations, the "private_key" field was used. However, newer
      * configurations use the key_id field with the engine_id set to "keystore".
@@ -371,7 +375,7 @@ public class WifiConfigStore {
         config.requirePMF = false;
         if (!TextUtils.isEmpty(value)) {
             try {
-                config.requirePMF = Integer.parseInt(value) != 0;
+                config.requirePMF = Integer.parseInt(value) == STORED_VALUE_FOR_REQUIRE_PMF;
             } catch (NumberFormatException ignore) {
             }
         }
@@ -801,7 +805,7 @@ public class WifiConfigStore {
         if (config.requirePMF && !mWifiNative.setNetworkVariable(
                 netId,
                 WifiConfiguration.pmfVarName,
-                "2")) {
+                Integer.toString(STORED_VALUE_FOR_REQUIRE_PMF))) {
             loge(config.SSID + ": failed to set requirePMF: " + config.requirePMF);
             return false;
         }
