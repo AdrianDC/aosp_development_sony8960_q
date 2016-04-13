@@ -149,8 +149,8 @@ import java.util.zip.Checksum;
  *
  */
 public class WifiConfigManager {
-
-    private Context mContext;
+    private static boolean sVDBG = false;
+    private static boolean sVVDBG = false;
     public static final String TAG = "WifiConfigManager";
     public static final int MAX_TX_PACKET_FOR_FULL_SCANS = 8;
     public static final int MAX_RX_PACKET_FOR_FULL_SCANS = 16;
@@ -158,19 +158,6 @@ public class WifiConfigManager {
     public static final int MAX_RX_PACKET_FOR_PARTIAL_SCANS = 80;
     public static final boolean ROAM_ON_ANY = false;
     public static final int MAX_NUM_SCAN_CACHE_ENTRIES = 128;
-
-    /* Enterprise configuration keys */
-    /**
-     * In old configurations, the "private_key" field was used. However, newer
-     * configurations use the key_id field with the engine_id set to "keystore".
-     * If this field is found in the configuration, the migration code is
-     * triggered.
-     */
-    public static final String OLD_PRIVATE_KEY_NAME = "private_key";
-
-    private static boolean sVDBG = false;
-    private static boolean sVVDBG = false;
-
     private static final boolean DBG = true;
     private static final String PPS_FILE = "/data/misc/wifi/PerProviderSubscription.conf";
     private static final String IP_CONFIG_FILE =
@@ -289,6 +276,7 @@ public class WifiConfigManager {
     private final UserManager mUserManager;
     private final Object mActiveScanDetailLock = new Object();
 
+    private Context mContext;
     private FrameworkFacade mFacade;
     private Clock mClock;
     private IpConfigStore mIpconfigStore;
