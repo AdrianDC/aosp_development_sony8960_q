@@ -1846,7 +1846,7 @@ static jboolean android_net_wifi_get_ring_buffer_data(JNIEnv *env, jclass cls, j
 }
 
 
-void on_firmware_memory_dump(char *buffer, int buffer_size) {
+static void on_firmware_memory_dump(char *buffer, int buffer_size) {
 
     JNIHelper helper(mVM);
     /* ALOGD("on_firmware_memory_dump called, vm = %p, obj = %p, env = %p buffer_size = %d"
@@ -1876,6 +1876,63 @@ static jboolean android_net_wifi_get_fw_memory_dump(JNIEnv *env, jclass cls, jin
     int result = hal_fn.wifi_get_firmware_memory_dump(handle, fw_dump_handle);
     return result == WIFI_SUCCESS;
 
+}
+
+std::vector<jbyte>* driver_state_dump_buffer_for_callback = nullptr;
+
+static void on_driver_state_dump(char *buffer, int buffer_size);
+static wifi_driver_memory_dump_callbacks driver_state_dump_callbacks = {
+    on_driver_state_dump
+};
+
+static void on_driver_state_dump(char *buffer, int buffer_size) {
+
+    if (!driver_state_dump_buffer_for_callback) {
+        ALOGE("Unexpected call from HAL implementation, into %s", __func__);
+        return;
+    }
+
+    if (buffer_size > 0) {
+        driver_state_dump_buffer_for_callback->insert(
+            driver_state_dump_buffer_for_callback->end(), buffer, buffer + buffer_size);
+    }
+}
+
+// TODO(quiche): Add unit tests. b/28072392
+static jbyteArray android_net_wifi_get_driver_state_dump(JNIEnv *env, jclass cls, jint iface){
+
+    JNIHelper helper(env);
+    wifi_interface_handle interface_handle = getIfaceHandle(helper, cls, iface);
+
+    if (!interface_handle) {
+        return nullptr;
+    }
+
+    int result;
+    std::vector<jbyte> state_dump_buffer_local;
+    driver_state_dump_buffer_for_callback = &state_dump_buffer_local;
+    result = hal_fn.wifi_get_driver_memory_dump(interface_handle, driver_state_dump_callbacks);
+    driver_state_dump_buffer_for_callback = nullptr;
+
+    if (result != WIFI_SUCCESS) {
+        ALOGW("HAL's wifi_get_driver_memory_dump returned %d", result);
+        return nullptr;
+    }
+
+    if (state_dump_buffer_local.empty()) {
+        ALOGW("HAL's wifi_get_driver_memory_dump provided zero bytes");
+        return nullptr;
+    }
+
+    const size_t dump_size = state_dump_buffer_local.size();
+    JNIObject<jbyteArray> driver_dump_java = helper.newByteArray(dump_size);
+    if (!driver_dump_java)  {
+        ALOGW("Failed to allocate Java buffer for driver state dump");
+        return nullptr;
+    }
+
+    helper.setByteArrayRegion(driver_dump_java, 0, dump_size, state_dump_buffer_local.data());
+    return driver_dump_java.detach();
 }
 
 static jboolean android_net_wifi_set_log_handler(JNIEnv *env, jclass cls, jint iface, jint id) {
@@ -2551,6 +2608,7 @@ static JNINativeMethod gWifiMethods[] = {
     {"getRingBufferDataNative", "(ILjava/lang/String;)Z",
             (void*) android_net_wifi_get_ring_buffer_data},
     {"getFwMemoryDumpNative","(I)Z", (void*) android_net_wifi_get_fw_memory_dump},
+    {"getDriverStateDumpNative","(I)[B", (void*) android_net_wifi_get_driver_state_dump},
     { "setBssidBlacklistNative", "(II[Ljava/lang/String;)Z",
             (void*)android_net_wifi_setBssidBlacklist},
     {"setLoggingEventHandlerNative", "(II)Z", (void *) android_net_wifi_set_log_handler},

@@ -20,6 +20,7 @@ import android.test.suitebuilder.annotation.SmallTest;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyObject;
@@ -352,6 +353,48 @@ public class WifiLoggerTest {
                 "Frame number: 4\nFrame direction: RX\nFrame timestamp: 3\n"));
     }
 
+    /**
+     * Verifies that, if verbose is disabled after fetching fates, the dump does not include
+     * fates.
+     */
+    @Test
+    public void dumpOmitsFatesIfVerboseIsDisabledAfterFetch() {
+        final boolean verbosityToggle = true;
+        mWifiLogger.startLogging(verbosityToggle);
+        when(mWifiNative.getTxPktFates(anyObject())).then(new AnswerWithArguments() {
+            public boolean answer(WifiNative.TxFateReport[] fates) {
+                fates[0] = new WifiNative.TxFateReport(
+                        WifiLoggerHal.TX_PKT_FATE_ACKED, 0, WifiLoggerHal.FRAME_TYPE_ETHERNET_II,
+                        new byte[0]
+                );
+                return true;
+            }
+        });
+        when(mWifiNative.getRxPktFates(anyObject())).then(new AnswerWithArguments() {
+            public boolean answer(WifiNative.RxFateReport[] fates) {
+                fates[0] = new WifiNative.RxFateReport(
+                        WifiLoggerHal.RX_PKT_FATE_SUCCESS, 1, WifiLoggerHal.FRAME_TYPE_ETHERNET_II,
+                        new byte[0]
+                );
+                return true;
+            }
+        });
+        mWifiLogger.reportConnectionFailure();
+        verify(mWifiNative).getTxPktFates(anyObject());
+        verify(mWifiNative).getRxPktFates(anyObject());
+
+        final boolean newVerbosityToggle = false;
+        mWifiLogger.startLogging(newVerbosityToggle);
+
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
+
+        String fateDumpString = sw.toString();
+        assertFalse(fateDumpString.contains("Frame direction: TX"));
+        assertFalse(fateDumpString.contains("Frame direction: RX"));
+    }
+
     /** Verifies that the default size of our ring buffers is small. */
     @Test
     public void ringBufferSizeIsSmallByDefault() throws Exception {
@@ -400,5 +443,112 @@ public class WifiLoggerTest {
                 mFakeRbs, new byte[WifiLogger.RING_BUFFER_BYTE_LIMIT_SMALL + 1]);
         mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
         assertEquals(0, getLoggerRingBufferData().length);
+    }
+
+    /** Verifies that we skip the firmware and driver dumps if verbose is not enabled. */
+    @Test
+    public void captureBugReportSkipsFirmwareAndDriverDumpsByDefault() {
+        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        verify(mWifiNative, never()).getFwMemoryDump();
+        verify(mWifiNative, never()).getDriverStateDump();
+    }
+
+    /** Verifies that we capture the firmware and driver dumps if verbose is enabled. */
+    @Test
+    public void captureBugReportTakesFirmwareAndDriverDumpsInVerboseMode() {
+        mWifiLogger.startLogging(true  /* verbose enabled */);
+        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        verify(mWifiNative).getFwMemoryDump();
+        verify(mWifiNative).getDriverStateDump();
+    }
+
+    /** Verifies that the dump includes driver state, if driver state was provided by HAL. */
+    @Test
+    public void dumpIncludesDriverStateDumpIfAvailable() {
+        when(mWifiNative.getDriverStateDump()).thenReturn(new byte[]{0, 1, 2});
+
+        mWifiLogger.startLogging(true  /* verbose enabled */);
+        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        verify(mWifiNative).getDriverStateDump();
+
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
+        assertTrue(sw.toString().contains(WifiLogger.DRIVER_DUMP_SECTION_HEADER));
+    }
+
+    /** Verifies that the dump skips driver state, if driver state was not provided by HAL. */
+    @Test
+    public void dumpOmitsDriverStateDumpIfUnavailable() {
+        mWifiLogger.startLogging(true  /* verbose enabled */);
+        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        verify(mWifiNative).getDriverStateDump();
+
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
+        assertFalse(sw.toString().contains(WifiLogger.DRIVER_DUMP_SECTION_HEADER));
+    }
+
+    /** Verifies that the dump omits driver state, if verbose was disabled after capture. */
+    @Test
+    public void dumpOmitsDriverStateDumpIfVerboseDisabledAfterCapture() {
+        when(mWifiNative.getDriverStateDump()).thenReturn(new byte[]{0, 1, 2});
+
+        mWifiLogger.startLogging(true  /* verbose enabled */);
+        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        verify(mWifiNative).getDriverStateDump();
+
+        mWifiLogger.startLogging(false  /* verbose no longer enabled */);
+
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
+        assertFalse(sw.toString().contains(WifiLogger.DRIVER_DUMP_SECTION_HEADER));
+    }
+
+    /** Verifies that the dump includes firmware dump, if firmware dump was provided by HAL. */
+    @Test
+    public void dumpIncludesFirmwareMemoryDumpIfAvailable() {
+        when(mWifiNative.getFwMemoryDump()).thenReturn(new byte[]{0, 1, 2});
+
+        mWifiLogger.startLogging(true  /* verbose enabled */);
+        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        verify(mWifiNative).getFwMemoryDump();
+
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
+        assertTrue(sw.toString().contains(WifiLogger.FIRMWARE_DUMP_SECTION_HEADER));
+    }
+
+    /** Verifies that the dump skips firmware memory, if firmware memory was not provided by HAL. */
+    @Test
+    public void dumpOmitsFirmwareMemoryDumpIfUnavailable() {
+        mWifiLogger.startLogging(true  /* verbose enabled */);
+        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        verify(mWifiNative).getFwMemoryDump();
+
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
+        assertFalse(sw.toString().contains(WifiLogger.FIRMWARE_DUMP_SECTION_HEADER));
+    }
+
+    /** Verifies that the dump omits firmware memory, if verbose was disabled after capture. */
+    @Test
+    public void dumpOmitsFirmwareMemoryDumpIfVerboseDisabledAfterCapture() {
+        when(mWifiNative.getFwMemoryDump()).thenReturn(new byte[]{0, 1, 2});
+
+        mWifiLogger.startLogging(true  /* verbose enabled */);
+        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        verify(mWifiNative).getFwMemoryDump();
+
+        mWifiLogger.startLogging(false  /* verbose no longer enabled */);
+
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
+        assertFalse(sw.toString().contains(WifiLogger.FIRMWARE_DUMP_SECTION_HEADER));
     }
 }

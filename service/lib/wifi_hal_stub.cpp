@@ -278,6 +278,11 @@ wifi_error wifi_configure_nd_offload_stub(wifi_interface_handle iface, u8 enable
     return WIFI_ERROR_NOT_SUPPORTED;
 }
 
+wifi_error wifi_get_driver_memory_dump_stub(wifi_interface_handle iface,
+    wifi_driver_memory_dump_callbacks callbacks)  {
+    return WIFI_ERROR_NOT_SUPPORTED;
+}
+
 wifi_error wifi_nan_enable_request_stub(transaction_id id,
                               wifi_interface_handle iface,
                               NanEnableRequest* msg) {
@@ -422,6 +427,7 @@ int init_wifi_stub_hal_func_table(wifi_hal_fn *hal_fn) {
     hal_fn->wifi_stop_sending_offloaded_packet = wifi_stop_sending_offloaded_packet_stub;
     hal_fn->wifi_get_wake_reason_stats = wifi_get_wake_reason_stats_stub;
     hal_fn->wifi_configure_nd_offload = wifi_configure_nd_offload_stub;
+    hal_fn->wifi_get_driver_memory_dump = wifi_get_driver_memory_dump_stub;
     hal_fn->wifi_nan_enable_request = wifi_nan_enable_request_stub;
     hal_fn->wifi_nan_disable_request = wifi_nan_disable_request_stub;
     hal_fn->wifi_nan_publish_request = wifi_nan_publish_request_stub;
