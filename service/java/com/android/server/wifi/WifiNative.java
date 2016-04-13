@@ -2609,6 +2609,18 @@ public class WifiNative {
         }
     }
 
+    private static native byte[] getDriverStateDumpNative(int iface);
+    /** Fetch the driver state, for driver debugging. */
+    public byte[] getDriverStateDump() {
+        synchronized (sLock) {
+            if (isHalStarted()) {
+                return getDriverStateDumpNative(sWlan0Index);
+            } else {
+                return null;
+            }
+        }
+    }
+
     //---------------------------------------------------------------------------------
     /* Packet fate API */
 

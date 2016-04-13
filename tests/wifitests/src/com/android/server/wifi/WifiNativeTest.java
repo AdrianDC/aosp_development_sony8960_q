@@ -311,5 +311,11 @@ public class WifiNativeTest {
     // itself. Also, we can't mock out the native methods, because those methods are private.
     // b/28005116.
 
+    /** Verifies that getDriverStateDumpNative returns null when HAL is not started. */
+    @Test
+    public void testGetDriverStateDumpReturnsNullWhenHalIsNotStarted() {
+        assertEquals(null, mWifiNative.getDriverStateDump());
+    }
 
+    // TODO(b/28005116): Add test for the success case of getDriverStateDump().
 }
