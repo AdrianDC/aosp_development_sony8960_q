@@ -670,6 +670,39 @@ public class WifiMetrics {
         }
     }
 
+    /**
+     * Increment number of times connectivity watchdog confirmed pno is working
+     */
+    public void incrementNumConnectivityWatchdogPnoGood() {
+        synchronized (mLock) {
+            mWifiLogProto.numConnectivityWatchdogPnoGood++;
+        }
+    }
+    /**
+     * Increment number of times connectivity watchdog found pno not working
+     */
+    public void incrementNumConnectivityWatchdogPnoBad() {
+        synchronized (mLock) {
+            mWifiLogProto.numConnectivityWatchdogPnoBad++;
+        }
+    }
+    /**
+     * Increment number of times connectivity watchdog confirmed background scan is working
+     */
+    public void incrementNumConnectivityWatchdogBackgroundGood() {
+        synchronized (mLock) {
+            mWifiLogProto.numConnectivityWatchdogBackgroundGood++;
+        }
+    }
+    /**
+     * Increment number of times connectivity watchdog found background scan not working
+     */
+    public void incrementNumConnectivityWatchdogBackgroundBad() {
+        synchronized (mLock) {
+            mWifiLogProto.numConnectivityWatchdogBackgroundBad++;
+        }
+    }
+
     public static final String PROTO_DUMP_ARG = "wifiMetricsProto";
     /**
      * Dump all WifiMetrics. Collects some metrics from ConfigStore, Settings and WifiManager
@@ -757,6 +790,14 @@ public class WifiMetrics {
                         + getSystemStateCount(WifiMetricsProto.WifiLog.WIFI_DISCONNECTED, false));
                 pw.println("  WIFI_ASSOCIATED   OFF: "
                         + getSystemStateCount(WifiMetricsProto.WifiLog.WIFI_ASSOCIATED, false));
+                pw.println("mWifiLogProto.numConnectivityWatchdogPnoGood="
+                        + mWifiLogProto.numConnectivityWatchdogPnoGood);
+                pw.println("mWifiLogProto.numConnectivityWatchdogPnoBad="
+                        + mWifiLogProto.numConnectivityWatchdogPnoBad);
+                pw.println("mWifiLogProto.numConnectivityWatchdogBackgroundGood="
+                        + mWifiLogProto.numConnectivityWatchdogBackgroundGood);
+                pw.println("mWifiLogProto.numConnectivityWatchdogBackgroundBad="
+                        + mWifiLogProto.numConnectivityWatchdogBackgroundBad);
             }
         }
     }
