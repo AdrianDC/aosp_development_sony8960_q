@@ -6261,7 +6261,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
 
         @Override
-        protected void networkStatus(int status) {
+        protected void networkStatus(int status, String redirectUrl) {
             if (this != mNetworkAgent) return;
             if (status == NetworkAgent.INVALID_NETWORK) {
                 if (DBG) log("WifiNetworkAgent -> Wifi networkStatus invalid, score="
