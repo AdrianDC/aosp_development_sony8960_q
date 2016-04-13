@@ -670,22 +670,6 @@ public class WifiConfigManager {
         }
     }
 
-    /**
-     * Enable a network in wpa_supplicant.
-     */
-    boolean enableNetworkNative(WifiConfiguration config) {
-        return mWifiConfigStore.enableNetwork(config);
-    }
-
-    /**
-     * Enable all networks in wpa_supplicant.
-     */
-    void enableAllNetworksNative() {
-        if (mWifiConfigStore.enableAllNetworks(mConfiguredNetworks.valuesForCurrentUser())) {
-            sendConfiguredNetworksChangedBroadcast();
-        }
-    }
-
     private boolean setNetworkPriorityNative(WifiConfiguration config, int priority) {
         return mWifiConfigStore.setNetworkPriority(config, priority);
     }
@@ -1084,27 +1068,15 @@ public class WifiConfigManager {
      * Retrieves an updated list of priorities for all the saved networks before
      * enabling disconnected PNO (wpa_supplicant based PNO).
      *
-     * @return list of networks with updated priorities.
-     */
-    public ArrayList<WifiScanner.PnoSettings.PnoNetwork> retrieveDisconnectedPnoNetworkList() {
-        return retrievePnoNetworkList(true, sDisconnectedPnoListComparator);
-    }
-
-    /**
-     * Retrieves an updated list of priorities for all the saved networks before
-     * enabling/disabling disconnected PNO (wpa_supplicant based PNO).
-     *
      * wpa_supplicant uses the priority of networks to build the list of SSID's to monitor
      * during PNO. If there are a lot of saved networks, this list will be truncated and we
      * might end up not connecting to the networks we use most frequently. So, We want the networks
      * to be re-sorted based on the relative |numAssociation| values.
      *
-     * @param enablePno boolean indicating whether PNO is being enabled or disabled.
      * @return list of networks with updated priorities.
      */
-    public ArrayList<WifiScanner.PnoSettings.PnoNetwork> retrieveDisconnectedPnoNetworkList(
-            boolean enablePno) {
-        return retrievePnoNetworkList(enablePno, sDisconnectedPnoListComparator);
+    public ArrayList<WifiScanner.PnoSettings.PnoNetwork> retrieveDisconnectedPnoNetworkList() {
+        return retrievePnoNetworkList(sDisconnectedPnoListComparator);
     }
 
     /**
@@ -1136,7 +1108,7 @@ public class WifiConfigManager {
      * @return list of networks with updated priorities.
      */
     public ArrayList<WifiScanner.PnoSettings.PnoNetwork> retrieveConnectedPnoNetworkList() {
-        return retrievePnoNetworkList(true, sConnectedPnoListComparator);
+        return retrievePnoNetworkList(sConnectedPnoListComparator);
     }
 
     /**
@@ -1170,32 +1142,21 @@ public class WifiConfigManager {
      * Retrieves an updated list of priorities for all the saved networks before
      * enabling/disabling PNO.
      *
-     * @param enablePno boolean indicating whether PNO is being enabled or disabled.
+     * @param pnoListComparator The comparator to use for sorting networks
      * @return list of networks with updated priorities.
      */
     private ArrayList<WifiScanner.PnoSettings.PnoNetwork> retrievePnoNetworkList(
-            boolean enablePno, PnoListComparator pnoListComparator) {
+            PnoListComparator pnoListComparator) {
         ArrayList<WifiScanner.PnoSettings.PnoNetwork> pnoList = new ArrayList<>();
         ArrayList<WifiConfiguration> wifiConfigurations =
                 new ArrayList<>(mConfiguredNetworks.valuesForCurrentUser());
-        if (enablePno) {
-            Collections.sort(wifiConfigurations, pnoListComparator);
-            // Let's use the network list size as the highest priority and then go down from there.
-            // So, the most frequently connected network has the highest priority now.
-            int priority = wifiConfigurations.size();
-            if (DBG) {
-                Log.d(TAG, "Retrieve network priorities before PNO. Max priority: " + priority);
-            }
-            for (WifiConfiguration config : wifiConfigurations) {
-                pnoList.add(createPnoNetworkFromWifiConfiguration(config, priority));
-                priority--;
-            }
-        } else {
-            // Revert the priorities back to the saved config values after PNO.
-            if (DBG) Log.d(TAG, "Retrieve network priorities after PNO.");
-            for (WifiConfiguration config : wifiConfigurations) {
-                pnoList.add(createPnoNetworkFromWifiConfiguration(config, config.priority));
-            }
+        Collections.sort(wifiConfigurations, pnoListComparator);
+        // Let's use the network list size as the highest priority and then go down from there.
+        // So, the most frequently connected network has the highest priority now.
+        int priority = wifiConfigurations.size();
+        for (WifiConfiguration config : wifiConfigurations) {
+            pnoList.add(createPnoNetworkFromWifiConfiguration(config, priority));
+            priority--;
         }
         return pnoList;
     }

@@ -934,25 +934,6 @@ public class WifiConfigStore {
     }
 
     /**
-     * Enable a network in wpa_supplicant.
-     *
-     * @param config Config corresponding to the network.
-     * @return true if successful, false otherwise.
-     */
-    public boolean enableNetwork(WifiConfiguration config) {
-        if (config == null) {
-            return false;
-        }
-        if (VDBG) localLog("enableNetwork: " + config.networkId);
-        if (!mWifiNative.enableNetworkWithoutConnect(config.networkId)) {
-            loge("Enable network in wpa_supplicant failed on " + config.networkId);
-            return false;
-        }
-        config.status = Status.ENABLED;
-        return true;
-    }
-
-    /**
      * Select a network in wpa_supplicant.
      *
      * @param config Config corresponding to the network.
@@ -1062,27 +1043,6 @@ public class WifiConfigStore {
      */
     public void enableHS20(boolean enable) {
         mWifiNative.setHs20(enable);
-    }
-
-    /**
-     * Enables all the networks in the provided list in wpa_supplicant.
-     *
-     * @param configs Collection of configs which needs to be enabled.
-     * @return true if successful, false otherwise.
-     */
-    public boolean enableAllNetworks(Collection<WifiConfiguration> configs) {
-        if (VDBG) localLog("enableAllNetworksNative");
-        boolean networkEnabled = false;
-        for (WifiConfiguration config : configs) {
-            if (config != null && !config.ephemeral
-                    && !config.getNetworkSelectionStatus().isNetworkEnabled()) {
-                if (enableNetwork(config)) {
-                    networkEnabled = true;
-                }
-            }
-        }
-        saveConfig();
-        return networkEnabled;
     }
 
     /**
