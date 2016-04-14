@@ -17,6 +17,7 @@
 package com.android.server.wifi.scanner;
 
 import android.net.wifi.WifiScanner;
+import android.util.ArraySet;
 
 import com.android.server.wifi.WifiNative;
 
@@ -87,6 +88,14 @@ public abstract class ChannelHelper {
          */
         public abstract boolean containsChannel(int channel);
         /**
+         * @return true if the collection contains all the channels of the supplied band
+         */
+        public abstract boolean containsBand(int band);
+        /**
+         * @return true if the collection contains some of the channels of the supplied band
+         */
+        public abstract boolean partiallyContainsBand(int band);
+        /**
          * @return true if the collection contains no channels
          */
         public abstract boolean isEmpty();
@@ -94,6 +103,19 @@ public abstract class ChannelHelper {
          * Remove all channels from the collection
          */
         public abstract void clear();
+        /**
+         * Retrieves a list of channels from the band which are missing in the channel collection.
+         */
+        public abstract Set<Integer> getMissingChannelsFromBand(int band);
+        /**
+         * Retrieves a list of channels from the band which are contained in the channel collection.
+         */
+        public abstract Set<Integer> getContainingChannelsFromBand(int band);
+        /**
+         * Gets a list of channels specified in the current channel collection. This will return
+         * an empty set if an entire Band if specified or if the list is empty.
+         */
+        public abstract Set<Integer> getChannelSet();
 
         /**
          * Add all channels in the ScanSetting to the collection
@@ -118,6 +140,73 @@ public abstract class ChannelHelper {
                 }
             } else {
                 addBand(bucketSettings.band);
+            }
+        }
+
+        /**
+         * Checks if all channels in ScanSetting is in the collection
+         */
+        public boolean containsSettings(WifiScanner.ScanSettings scanSettings) {
+            if (scanSettings.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
+                for (int j = 0; j < scanSettings.channels.length; ++j) {
+                    if (!containsChannel(scanSettings.channels[j].frequency)) {
+                        return false;
+                    }
+                }
+                return true;
+            } else {
+                return containsBand(scanSettings.band);
+            }
+        }
+
+        /**
+         * Checks if at least some of the channels in ScanSetting is in the collection
+         */
+        public boolean partiallyContainsSettings(WifiScanner.ScanSettings scanSettings) {
+            if (scanSettings.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
+                for (int j = 0; j < scanSettings.channels.length; ++j) {
+                    if (containsChannel(scanSettings.channels[j].frequency)) {
+                        return true;
+                    }
+                }
+                return false;
+            } else {
+                return partiallyContainsBand(scanSettings.band);
+            }
+        }
+
+        /**
+         * Retrieves a list of missing channels in the collection from the provided settings.
+         */
+        public Set<Integer> getMissingChannelsFromSettings(WifiScanner.ScanSettings scanSettings) {
+            if (scanSettings.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
+                ArraySet<Integer> missingChannels = new ArraySet<>();
+                for (int j = 0; j < scanSettings.channels.length; ++j) {
+                    if (!containsChannel(scanSettings.channels[j].frequency)) {
+                        missingChannels.add(scanSettings.channels[j].frequency);
+                    }
+                }
+                return missingChannels;
+            } else {
+                return getMissingChannelsFromBand(scanSettings.band);
+            }
+        }
+
+        /**
+         * Retrieves a list of containing channels in the collection from the provided settings.
+         */
+        public Set<Integer> getContainingChannelsFromSettings(
+                WifiScanner.ScanSettings scanSettings) {
+            if (scanSettings.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
+                ArraySet<Integer> containingChannels = new ArraySet<>();
+                for (int j = 0; j < scanSettings.channels.length; ++j) {
+                    if (containsChannel(scanSettings.channels[j].frequency)) {
+                        containingChannels.add(scanSettings.channels[j].frequency);
+                    }
+                }
+                return containingChannels;
+            } else {
+                return getContainingChannelsFromBand(scanSettings.band);
             }
         }
 

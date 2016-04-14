@@ -171,6 +171,28 @@ public class KnownBandsChannelHelper extends ChannelHelper {
         }
 
         @Override
+        public boolean containsBand(int band) {
+            WifiScanner.ChannelSpec[] bandChannels = getAvailableScanChannels(band);
+            for (int i = 0; i < bandChannels.length; ++i) {
+                if (!mChannels.contains(bandChannels[i].frequency)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public boolean partiallyContainsBand(int band) {
+            WifiScanner.ChannelSpec[] bandChannels = getAvailableScanChannels(band);
+            for (int i = 0; i < bandChannels.length; ++i) {
+                if (mChannels.contains(bandChannels[i].frequency)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
         public boolean isEmpty() {
             return mChannels.isEmpty();
         }
@@ -180,6 +202,39 @@ public class KnownBandsChannelHelper extends ChannelHelper {
             mAllBands = 0;
             mExactBands = 0;
             mChannels.clear();
+        }
+
+        @Override
+        public Set<Integer> getMissingChannelsFromBand(int band) {
+            ArraySet<Integer> missingChannels = new ArraySet<>();
+            WifiScanner.ChannelSpec[] bandChannels = getAvailableScanChannels(band);
+            for (int i = 0; i < bandChannels.length; ++i) {
+                if (!mChannels.contains(bandChannels[i].frequency)) {
+                    missingChannels.add(bandChannels[i].frequency);
+                }
+            }
+            return missingChannels;
+        }
+
+        @Override
+        public Set<Integer> getContainingChannelsFromBand(int band) {
+            ArraySet<Integer> containingChannels = new ArraySet<>();
+            WifiScanner.ChannelSpec[] bandChannels = getAvailableScanChannels(band);
+            for (int i = 0; i < bandChannels.length; ++i) {
+                if (mChannels.contains(bandChannels[i].frequency)) {
+                    containingChannels.add(bandChannels[i].frequency);
+                }
+            }
+            return containingChannels;
+        }
+
+        @Override
+        public Set<Integer> getChannelSet() {
+            if (!isEmpty() && mAllBands != mExactBands) {
+                return mChannels;
+            } else {
+                return new ArraySet<>();
+            }
         }
 
         @Override
