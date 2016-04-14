@@ -140,24 +140,48 @@ public class WifiConfigStore {
         return string;
     }
 
+    /**
+     * Generate a string to be used as a key value by wpa_supplicant from
+     * 'set', within the set of strings from 'strings' for the variable concatenated.
+     * Also transform the internal string format that uses _ (for bewildering
+     * reasons) into a wpa_supplicant adjusted value, that uses - as a separator
+     * (most of the time at least...).
+     * @param set a bit set with a one for each corresponding string to be included from strings.
+     * @param strings the set of string literals to concatenate strinfs from.
+     * @return A wpa_supplicant formatted value.
+     */
     private static String makeString(BitSet set, String[] strings) {
-        StringBuffer buf = new StringBuffer();
-        int nextSetBit = -1;
+        return makeStringWithException(set, strings, null);
+    }
+
+    /**
+     * Same as makeString with an exclusion parameter.
+     * @param set a bit set with a one for each corresponding string to be included from strings.
+     * @param strings the set of string literals to concatenate strinfs from.
+     * @param exception literal string to be excluded from the _ to - transformation.
+     * @return A wpa_supplicant formatted value.
+     */
+    private static String makeStringWithException(BitSet set, String[] strings, String exception) {
+        StringBuilder result = new StringBuilder();
 
         /* Make sure all set bits are in [0, strings.length) to avoid
          * going out of bounds on strings.  (Shouldn't happen, but...) */
-        set = set.get(0, strings.length);
+        BitSet trimmedSet = set.get(0, strings.length);
 
-        while ((nextSetBit = set.nextSetBit(nextSetBit + 1)) != -1) {
-            buf.append(strings[nextSetBit].replace('_', '-')).append(' ');
+        List<String> valueSet = new ArrayList<>();
+        for (int bit = trimmedSet.nextSetBit(0);
+             bit >= 0;
+             bit = trimmedSet.nextSetBit(bit+1)) {
+            String currentName = strings[bit];
+            if (exception != null && currentName.equals(exception)) {
+                valueSet.add(currentName);
+            } else {
+                // Most wpa_supplicant strings use a dash whereas (for some bizarre
+                // reason) the strings are defined with underscore in the code...
+                valueSet.add(currentName.replace('_', '-'));
+            }
         }
-
-        // remove trailing space
-        if (set.cardinality() > 0) {
-            buf.setLength(buf.length() - 1);
-        }
-
-        return buf.toString();
+        return TextUtils.join(" ", valueSet);
     }
 
     /*
@@ -726,7 +750,8 @@ public class WifiConfigStore {
             return false;
         }
         String allowedAuthAlgorithmsString =
-                makeString(config.allowedAuthAlgorithms, WifiConfiguration.AuthAlgorithm.strings);
+                makeString(config.allowedAuthAlgorithms,
+                        WifiConfiguration.AuthAlgorithm.strings);
         if (config.allowedAuthAlgorithms.cardinality() != 0 && !mWifiNative.setNetworkVariable(
                 netId,
                 WifiConfiguration.AuthAlgorithm.varName,
@@ -743,8 +768,13 @@ public class WifiConfigStore {
             loge("failed to set pairwise: " + allowedPairwiseCiphersString);
             return false;
         }
+        // Make sure that the string "GTK_NOT_USED" is /not/ transformed - wpa_supplicant
+        // uses this literal value and not the 'dashed' version.
         String allowedGroupCiphersString =
-                makeString(config.allowedGroupCiphers, WifiConfiguration.GroupCipher.strings);
+                makeStringWithException(config.allowedGroupCiphers,
+                        WifiConfiguration.GroupCipher.strings,
+                        WifiConfiguration.GroupCipher
+                                .strings[WifiConfiguration.GroupCipher.GTK_NOT_USED]);
         if (config.allowedGroupCiphers.cardinality() != 0 && !mWifiNative.setNetworkVariable(
                 netId,
                 WifiConfiguration.GroupCipher.varName,
@@ -843,7 +873,7 @@ public class WifiConfigStore {
                     return false;
                 }
             } catch (IllegalStateException e) {
-                loge(config.SSID + " invalid config for key installation");
+                loge(config.SSID + " invalid config for key installation: " + e.getMessage());
                 return false;
             }
         }
