@@ -38,7 +38,11 @@ import android.content.Context;
 import android.content.pm.UserInfo;
 import android.net.wifi.FakeKeys;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiConfiguration.AuthAlgorithm;
+import android.net.wifi.WifiConfiguration.GroupCipher;
 import android.net.wifi.WifiConfiguration.KeyMgmt;
+import android.net.wifi.WifiConfiguration.PairwiseCipher;
+import android.net.wifi.WifiConfiguration.Protocol;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiEnterpriseConfig.Eap;
 import android.net.wifi.WifiEnterpriseConfig.Phase2;
@@ -130,6 +134,14 @@ public class WifiConfigManagerTest {
         }
     }
 
+    /**
+     * Set of WifiConfigs for HasEverConnected tests.
+     */
+    private static final int HAS_EVER_CONNECTED_USER = 20;
+    private static final WifiConfiguration BASE_HAS_EVER_CONNECTED_CONFIG =
+            WifiConfigurationTestUtil.generateWifiConfig(
+                    0, HAS_EVER_CONNECTED_USER, "testHasEverConnected", false, true, null, null, 0);
+
     public static final String TAG = "WifiConfigManagerTest";
     @Mock private Context mContext;
     @Mock private WifiNative mWifiNative;
@@ -216,21 +228,27 @@ public class WifiConfigManagerTest {
     }
 
     private void addNetworks() throws Exception {
+        for (int i = 0; i < CONFIGS.size(); ++i) {
+            assertEquals(i, CONFIGS.get(i).networkId);
+            addNetwork(CONFIGS.get(i));
+        }
+    }
+
+    private void addNetwork(WifiConfiguration config) throws Exception {
         final int originalUserId = mWifiConfigManager.getCurrentUserId();
 
         when(mWifiNative.setNetworkVariable(anyInt(), anyString(), anyString())).thenReturn(true);
         when(mWifiNative.setNetworkExtra(anyInt(), anyString(), (Map<String, String>) anyObject()))
                 .thenReturn(true);
-        for (int i = 0; i < CONFIGS.size(); ++i) {
-            assertEquals(i, CONFIGS.get(i).networkId);
-            switchUserToCreatorOrParentOf(CONFIGS.get(i));
-            final WifiConfiguration config = new WifiConfiguration(CONFIGS.get(i));
-            config.networkId = -1;
-            when(mWifiNative.addNetwork()).thenReturn(i);
-            when(mWifiNative.getNetworkVariable(i, WifiConfiguration.ssidVarName))
-                .thenReturn(encodeConfigSSID(CONFIGS.get(i)));
-            mWifiConfigManager.saveNetwork(config, config.creatorUid);
-        }
+
+        switchUserToCreatorOrParentOf(config);
+        final WifiConfiguration configCopy = new WifiConfiguration(config);
+        int networkId = config.networkId;
+        config.networkId = -1;
+        when(mWifiNative.addNetwork()).thenReturn(networkId);
+        when(mWifiNative.getNetworkVariable(networkId, WifiConfiguration.ssidVarName))
+                .thenReturn(encodeConfigSSID(config));
+        mWifiConfigManager.saveNetwork(config, configCopy.creatorUid);
 
         switchUser(originalUserId);
     }
@@ -1156,4 +1174,470 @@ public class WifiConfigManagerTest {
                     new ArrayList(networkSelectionStatusToNetworkIdMap.values()));
         }
     }
+
+    /**
+     * Verifies that hasEverConnected is false for a newly added network
+     */
+    @Test
+    public void testAddNetworkHasEverConnectedFalse() throws Exception {
+        addNetwork(BASE_HAS_EVER_CONNECTED_CONFIG);
+        WifiConfiguration checkConfig = mWifiConfigManager.getWifiConfiguration(
+                BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+        assertFalse("Adding a new network should not have hasEverConnected set to true.",
+                checkConfig.getNetworkSelectionStatus().getHasEverConnected());
+    }
+
+
+    /**
+     * Verifies that hasEverConnected is false for a newly added network even when new config has
+     * mistakenly set HasEverConnected to true.
+    */
+    @Test
+    public void testAddNetworkOverridesHasEverConnectedWhenTrueInNewConfig() throws Exception {
+        WifiConfiguration newNetworkWithHasEverConnectedTrue =
+                new WifiConfiguration(BASE_HAS_EVER_CONNECTED_CONFIG);
+        newNetworkWithHasEverConnectedTrue.getNetworkSelectionStatus().setHasEverConnected(true);
+        addNetwork(newNetworkWithHasEverConnectedTrue);
+        // check if addNetwork clears the bit.
+        WifiConfiguration checkConfig = mWifiConfigManager.getWifiConfiguration(
+                newNetworkWithHasEverConnectedTrue.networkId);
+        assertFalse("Adding a new network should not have hasEverConnected set to true.",
+                checkConfig.getNetworkSelectionStatus().getHasEverConnected());
+    }
+
+
+    /**
+     * Verify that setting HasEverConnected with a config update can be read back.
+     */
+    @Test
+    public void testUpdateConfigToHasEverConnectedTrue() throws Exception {
+        addNetwork(BASE_HAS_EVER_CONNECTED_CONFIG);
+
+        // Get the newly saved config and update HasEverConnected
+        WifiConfiguration checkConfig = mWifiConfigManager.getWifiConfiguration(
+                BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+        assertFalse("Adding a new network should not have hasEverConnected set to true.",
+                checkConfig.getNetworkSelectionStatus().getHasEverConnected());
+        checkConfig.getNetworkSelectionStatus().setHasEverConnected(true);
+        mWifiConfigManager.addOrUpdateNetwork(checkConfig, HAS_EVER_CONNECTED_USER);
+
+        // verify that HasEverConnected was properly written and read back
+        checkHasEverConnectedTrue(BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+    }
+
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config preSharedKey is updated.
+     */
+    @Test
+    public void testUpdatePreSharedKeyClearsHasEverConnected() throws Exception {
+        final int originalUserId = mWifiConfigManager.getCurrentUserId();
+
+        testUpdateConfigToHasEverConnectedTrue();
+
+        WifiConfiguration original = mWifiConfigManager.getWifiConfiguration(
+                BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+
+        WifiConfiguration updatePreSharedKeyConfig = new WifiConfiguration();
+        updatePreSharedKeyConfig.networkId = BASE_HAS_EVER_CONNECTED_CONFIG.networkId;
+        updatePreSharedKeyConfig.SSID = original.SSID;
+        updatePreSharedKeyConfig.preSharedKey = "newpassword";
+        switchUserToCreatorOrParentOf(original);
+        mWifiConfigManager.addOrUpdateNetwork(updatePreSharedKeyConfig,
+                BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+
+        checkHasEverConnectedFalse(BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+        switchUser(originalUserId);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config allowedKeyManagement is
+     * updated.
+     */
+    @Test
+    public void testUpdateAllowedKeyManagementChanged() throws Exception {
+        final int originalUserId = mWifiConfigManager.getCurrentUserId();
+
+        testUpdateConfigToHasEverConnectedTrue();
+
+        WifiConfiguration updateAllowedKeyManagementConfig = new WifiConfiguration();
+        updateAllowedKeyManagementConfig.networkId = BASE_HAS_EVER_CONNECTED_CONFIG.networkId;
+        updateAllowedKeyManagementConfig.SSID = BASE_HAS_EVER_CONNECTED_CONFIG.SSID;
+        updateAllowedKeyManagementConfig.allowedKeyManagement.set(KeyMgmt.WPA_PSK);
+
+        // Set up mock to allow the new value to be read back into the config
+        String allowedKeyManagementString = makeString(
+                updateAllowedKeyManagementConfig.allowedKeyManagement,
+                    WifiConfiguration.KeyMgmt.strings);
+        when(mWifiNative.getNetworkVariable(BASE_HAS_EVER_CONNECTED_CONFIG.networkId,
+                KeyMgmt.varName)).thenReturn(allowedKeyManagementString);
+
+        switchUserToCreatorOrParentOf(BASE_HAS_EVER_CONNECTED_CONFIG);
+        mWifiConfigManager.addOrUpdateNetwork(updateAllowedKeyManagementConfig,
+                BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+
+        checkHasEverConnectedFalse(BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+        switchUser(originalUserId);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config allowedProtocols is
+     * updated.
+     */
+    @Test
+    public void testUpdateAllowedProtocolsChanged() throws Exception {
+        final int originalUserId = mWifiConfigManager.getCurrentUserId();
+
+        testUpdateConfigToHasEverConnectedTrue();
+
+        WifiConfiguration updateAllowedProtocolsConfig = new WifiConfiguration();
+        updateAllowedProtocolsConfig.networkId = BASE_HAS_EVER_CONNECTED_CONFIG.networkId;
+        updateAllowedProtocolsConfig.SSID = BASE_HAS_EVER_CONNECTED_CONFIG.SSID;
+        updateAllowedProtocolsConfig.allowedProtocols.set(
+                WifiConfiguration.Protocol.RSN);
+
+        // Set up mock to allow the new value to be read back into the config
+        String allowedProtocolsString = makeString(
+                updateAllowedProtocolsConfig.allowedProtocols,
+                    WifiConfiguration.Protocol.strings);
+        when(mWifiNative.getNetworkVariable(BASE_HAS_EVER_CONNECTED_CONFIG.networkId,
+                Protocol.varName)).thenReturn(allowedProtocolsString);
+
+        switchUserToCreatorOrParentOf(BASE_HAS_EVER_CONNECTED_CONFIG);
+        mWifiConfigManager.addOrUpdateNetwork(updateAllowedProtocolsConfig,
+                BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+
+        checkHasEverConnectedFalse(BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+        switchUser(originalUserId);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config allowedAuthAlgorithms is
+     * updated.
+     */
+    @Test
+    public void testUpdateAllowedAuthAlgorithmsChanged() throws Exception {
+        final int originalUserId = mWifiConfigManager.getCurrentUserId();
+
+        testUpdateConfigToHasEverConnectedTrue();
+
+        WifiConfiguration updateAllowedAuthAlgorithmsConfig = new WifiConfiguration();
+        updateAllowedAuthAlgorithmsConfig.networkId = BASE_HAS_EVER_CONNECTED_CONFIG.networkId;
+        updateAllowedAuthAlgorithmsConfig.SSID = BASE_HAS_EVER_CONNECTED_CONFIG.SSID;
+        updateAllowedAuthAlgorithmsConfig.allowedAuthAlgorithms.set(
+                WifiConfiguration.AuthAlgorithm.SHARED);
+
+        // Set up mock to allow the new value to be read back into the config
+        String allowedAuthAlgorithmsString = makeString(
+                updateAllowedAuthAlgorithmsConfig.allowedAuthAlgorithms,
+                    WifiConfiguration.AuthAlgorithm.strings);
+        when(mWifiNative.getNetworkVariable(BASE_HAS_EVER_CONNECTED_CONFIG.networkId,
+                AuthAlgorithm.varName)).thenReturn(allowedAuthAlgorithmsString);
+
+        switchUserToCreatorOrParentOf(BASE_HAS_EVER_CONNECTED_CONFIG);
+        mWifiConfigManager.addOrUpdateNetwork(updateAllowedAuthAlgorithmsConfig,
+                BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+
+        checkHasEverConnectedFalse(BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+        switchUser(originalUserId);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config allowedPairwiseCiphers is
+     * updated.
+     */
+    @Test
+    public void testUpdateAllowedPairwiseCiphersChanged() throws Exception {
+        final int originalUserId = mWifiConfigManager.getCurrentUserId();
+
+        testUpdateConfigToHasEverConnectedTrue();
+
+        WifiConfiguration updateAllowedPairwiseCiphersConfig = new WifiConfiguration();
+        updateAllowedPairwiseCiphersConfig.networkId = BASE_HAS_EVER_CONNECTED_CONFIG.networkId;
+        updateAllowedPairwiseCiphersConfig.SSID = BASE_HAS_EVER_CONNECTED_CONFIG.SSID;
+        updateAllowedPairwiseCiphersConfig.allowedPairwiseCiphers.set(
+                WifiConfiguration.PairwiseCipher.CCMP);
+
+        // Set up mock to allow the new value to be read back into the config
+        String allowedPairwiseCiphersString = makeString(
+                updateAllowedPairwiseCiphersConfig.allowedPairwiseCiphers,
+                    WifiConfiguration.PairwiseCipher.strings);
+        when(mWifiNative.getNetworkVariable(BASE_HAS_EVER_CONNECTED_CONFIG.networkId,
+                PairwiseCipher.varName)).thenReturn(allowedPairwiseCiphersString);
+
+        switchUserToCreatorOrParentOf(BASE_HAS_EVER_CONNECTED_CONFIG);
+        mWifiConfigManager.addOrUpdateNetwork(updateAllowedPairwiseCiphersConfig,
+                BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+
+        checkHasEverConnectedFalse(BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+        switchUser(originalUserId);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config allowedGroupCiphers is
+     * updated.
+     */
+    @Test
+    public void testUpdateAllowedGroupCiphersChanged() throws Exception {
+        final int originalUserId = mWifiConfigManager.getCurrentUserId();
+
+        testUpdateConfigToHasEverConnectedTrue();
+
+        WifiConfiguration updateAllowedGroupCiphersConfig = new WifiConfiguration();
+        updateAllowedGroupCiphersConfig.networkId = BASE_HAS_EVER_CONNECTED_CONFIG.networkId;
+        updateAllowedGroupCiphersConfig.SSID = BASE_HAS_EVER_CONNECTED_CONFIG.SSID;
+        updateAllowedGroupCiphersConfig.allowedGroupCiphers.set(
+                WifiConfiguration.GroupCipher.CCMP);
+
+        // Set up mock to allow the new value to be read back into the config
+        String allowedGroupCiphersString = makeString(
+                updateAllowedGroupCiphersConfig.allowedGroupCiphers,
+                    WifiConfiguration.GroupCipher.strings);
+        when(mWifiNative.getNetworkVariable(BASE_HAS_EVER_CONNECTED_CONFIG.networkId,
+                GroupCipher.varName)).thenReturn(allowedGroupCiphersString);
+
+        switchUserToCreatorOrParentOf(BASE_HAS_EVER_CONNECTED_CONFIG);
+        mWifiConfigManager.addOrUpdateNetwork(updateAllowedGroupCiphersConfig,
+                BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+
+        checkHasEverConnectedFalse(BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+        switchUser(originalUserId);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config wepKeys is
+     * updated.
+     */
+    @Test
+    public void testUpdateWepKeysChanged() throws Exception {
+        final int originalUserId = mWifiConfigManager.getCurrentUserId();
+
+        testUpdateConfigToHasEverConnectedTrue();
+
+        String tempKey = "hereisakey";
+        WifiConfiguration updateWepKeysConfig = new WifiConfiguration();
+        updateWepKeysConfig.networkId = BASE_HAS_EVER_CONNECTED_CONFIG.networkId;
+        updateWepKeysConfig.SSID = BASE_HAS_EVER_CONNECTED_CONFIG.SSID;
+        updateWepKeysConfig.wepKeys = new String[] {tempKey};
+
+        // Set up mock to allow the new value to be read back into the config
+        when(mWifiNative.getNetworkVariable(BASE_HAS_EVER_CONNECTED_CONFIG.networkId,
+                WifiConfiguration.wepKeyVarNames[0])).thenReturn(tempKey);
+
+        switchUserToCreatorOrParentOf(BASE_HAS_EVER_CONNECTED_CONFIG);
+        mWifiConfigManager.addOrUpdateNetwork(updateWepKeysConfig,
+                BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+
+        checkHasEverConnectedFalse(BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+        switchUser(originalUserId);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config hiddenSSID is
+     * updated.
+     */
+    @Test
+    public void testUpdateHiddenSSIDChanged() throws Exception {
+        final int originalUserId = mWifiConfigManager.getCurrentUserId();
+
+        testUpdateConfigToHasEverConnectedTrue();
+
+        WifiConfiguration updateHiddenSSIDConfig = new WifiConfiguration();
+        updateHiddenSSIDConfig.networkId = BASE_HAS_EVER_CONNECTED_CONFIG.networkId;
+        updateHiddenSSIDConfig.SSID = BASE_HAS_EVER_CONNECTED_CONFIG.SSID;
+        updateHiddenSSIDConfig.hiddenSSID = true;
+
+        // Set up mock to allow the new value to be read back into the config
+        when(mWifiNative.getNetworkVariable(BASE_HAS_EVER_CONNECTED_CONFIG.networkId,
+                WifiConfiguration.hiddenSSIDVarName)).thenReturn("1");
+
+        switchUserToCreatorOrParentOf(BASE_HAS_EVER_CONNECTED_CONFIG);
+        mWifiConfigManager.addOrUpdateNetwork(updateHiddenSSIDConfig,
+                BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+
+        checkHasEverConnectedFalse(BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+        switchUser(originalUserId);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config pmfVarName is
+     * updated.
+     */
+    @Test
+    public void testUpdateRequirePMFChanged() throws Exception {
+        final int originalUserId = mWifiConfigManager.getCurrentUserId();
+
+        testUpdateConfigToHasEverConnectedTrue();
+
+        WifiConfiguration updateRequirePMFConfig = new WifiConfiguration();
+        updateRequirePMFConfig.networkId = BASE_HAS_EVER_CONNECTED_CONFIG.networkId;
+        updateRequirePMFConfig.SSID = BASE_HAS_EVER_CONNECTED_CONFIG.SSID;
+        updateRequirePMFConfig.requirePMF = true;
+
+        // Set up mock to allow the new value to be read back into the config
+        // TODO: please see b/28088226  - this test is implemented as if WifiConfigStore correctly
+        // read back the boolean value.  When fixed, uncomment the following line and the
+        // checkHasEverConnectedFalse below.
+        //when(mWifiNative.getNetworkVariable(BASE_HAS_EVER_CONNECTED_CONFIG.networkId,
+        //        WifiConfiguration.pmfVarName)).thenReturn("2");
+
+        switchUserToCreatorOrParentOf(BASE_HAS_EVER_CONNECTED_CONFIG);
+        mWifiConfigManager.addOrUpdateNetwork(updateRequirePMFConfig,
+                BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+
+        //checkHasEverConnectedFalse(BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+        checkHasEverConnectedTrue(BASE_HAS_EVER_CONNECTED_CONFIG.networkId);
+        switchUser(originalUserId);
+    }
+
+    /**
+     * Verify WifiEnterpriseConfig changes are detected in WifiConfigManager.
+     */
+    @Test
+    public void testEnterpriseConfigAdded() {
+        EnterpriseConfig eapConfig =  new EnterpriseConfig(Eap.TTLS)
+                .setPhase2(Phase2.MSCHAPV2)
+                .setIdentity("username", "password")
+                .setCaCerts(new X509Certificate[] {FakeKeys.CA_CERT0});
+
+        assertTrue(mWifiConfigManager.wasEnterpriseConfigChange(null, eapConfig.enterpriseConfig));
+    }
+
+    /**
+     * Verify WifiEnterpriseConfig eap change is detected.
+     */
+    @Test
+    public void testEnterpriseConfigEapChangeDetected() {
+        EnterpriseConfig eapConfig = new EnterpriseConfig(Eap.TTLS);
+        EnterpriseConfig peapConfig = new EnterpriseConfig(Eap.PEAP);
+
+        assertTrue(mWifiConfigManager.wasEnterpriseConfigChange(eapConfig.enterpriseConfig,
+                peapConfig.enterpriseConfig));
+    }
+
+    /**
+     * Verify WifiEnterpriseConfig phase2 method change is detected.
+     */
+    @Test
+    public void testEnterpriseConfigPhase2ChangeDetected() {
+        EnterpriseConfig eapConfig = new EnterpriseConfig(Eap.TTLS).setPhase2(Phase2.MSCHAPV2);
+        EnterpriseConfig papConfig = new EnterpriseConfig(Eap.TTLS).setPhase2(Phase2.PAP);
+
+        assertTrue(mWifiConfigManager.wasEnterpriseConfigChange(eapConfig.enterpriseConfig,
+                papConfig.enterpriseConfig));
+    }
+
+    /**
+     * Verify WifiEnterpriseConfig added Certificate is detected.
+     */
+    @Test
+    public void testCaCertificateAddedDetected() {
+        EnterpriseConfig eapConfigNoCerts =  new EnterpriseConfig(Eap.TTLS)
+                .setPhase2(Phase2.MSCHAPV2)
+                .setIdentity("username", "password");
+
+        EnterpriseConfig eapConfig1Cert =  new EnterpriseConfig(Eap.TTLS)
+                .setPhase2(Phase2.MSCHAPV2)
+                .setIdentity("username", "password")
+                .setCaCerts(new X509Certificate[] {FakeKeys.CA_CERT0});
+
+        assertTrue(mWifiConfigManager.wasEnterpriseConfigChange(eapConfigNoCerts.enterpriseConfig,
+                eapConfig1Cert.enterpriseConfig));
+    }
+
+    /**
+     * Verify WifiEnterpriseConfig Certificate change is detected.
+     */
+    @Test
+    public void testDifferentCaCertificateDetected() {
+        EnterpriseConfig eapConfig =  new EnterpriseConfig(Eap.TTLS)
+                .setPhase2(Phase2.MSCHAPV2)
+                .setIdentity("username", "password")
+                .setCaCerts(new X509Certificate[] {FakeKeys.CA_CERT0});
+
+        EnterpriseConfig eapConfigNewCert =  new EnterpriseConfig(Eap.TTLS)
+                .setPhase2(Phase2.MSCHAPV2)
+                .setIdentity("username", "password")
+                .setCaCerts(new X509Certificate[] {FakeKeys.CA_CERT1});
+
+        assertTrue(mWifiConfigManager.wasEnterpriseConfigChange(eapConfig.enterpriseConfig,
+                eapConfigNewCert.enterpriseConfig));
+    }
+
+    /**
+     * Verify WifiEnterpriseConfig added Certificate changes are detected.
+     */
+    @Test
+    public void testCaCertificateChangesDetected() {
+        EnterpriseConfig eapConfig =  new EnterpriseConfig(Eap.TTLS)
+                .setPhase2(Phase2.MSCHAPV2)
+                .setIdentity("username", "password")
+                .setCaCerts(new X509Certificate[] {FakeKeys.CA_CERT0});
+
+        EnterpriseConfig eapConfigAddedCert =  new EnterpriseConfig(Eap.TTLS)
+                .setPhase2(Phase2.MSCHAPV2)
+                .setIdentity("username", "password")
+                .setCaCerts(new X509Certificate[] {FakeKeys.CA_CERT0, FakeKeys.CA_CERT1});
+
+        assertTrue(mWifiConfigManager.wasEnterpriseConfigChange(eapConfig.enterpriseConfig,
+                eapConfigAddedCert.enterpriseConfig));
+    }
+
+    /**
+     * Verify that WifiEnterpriseConfig does not detect changes for identical configs.
+     */
+    @Test
+    public void testWifiEnterpriseConfigNoChanges() {
+        EnterpriseConfig eapConfig =  new EnterpriseConfig(Eap.TTLS)
+                .setPhase2(Phase2.MSCHAPV2)
+                .setIdentity("username", "password")
+                .setCaCerts(new X509Certificate[] {FakeKeys.CA_CERT0, FakeKeys.CA_CERT1});
+
+        // Just to be clear that check is not against the same object
+        EnterpriseConfig eapConfigSame =  new EnterpriseConfig(Eap.TTLS)
+                .setPhase2(Phase2.MSCHAPV2)
+                .setIdentity("username", "password")
+                .setCaCerts(new X509Certificate[] {FakeKeys.CA_CERT0, FakeKeys.CA_CERT1});
+
+        assertFalse(mWifiConfigManager.wasEnterpriseConfigChange(eapConfig.enterpriseConfig,
+                eapConfigSame.enterpriseConfig));
+    }
+
+
+    private void checkHasEverConnectedTrue(int networkId) {
+        WifiConfiguration checkConfig = mWifiConfigManager.getWifiConfiguration(networkId);
+        assertTrue("hasEverConnected expected to be true.",
+                checkConfig.getNetworkSelectionStatus().getHasEverConnected());
+    }
+
+    private void checkHasEverConnectedFalse(int networkId) {
+        WifiConfiguration checkConfig = mWifiConfigManager.getWifiConfiguration(networkId);
+        assertFalse("Updating credentials network config should clear hasEverConnected.",
+                checkConfig.getNetworkSelectionStatus().getHasEverConnected());
+    }
+
+    /**
+     *  Helper function to translate from WifiConfiguration BitSet to String.
+     */
+    private static String makeString(BitSet set, String[] strings) {
+        StringBuffer buf = new StringBuffer();
+        int nextSetBit = -1;
+
+        /* Make sure all set bits are in [0, strings.length) to avoid
+         * going out of bounds on strings.  (Shouldn't happen, but...) */
+        set = set.get(0, strings.length);
+
+        while ((nextSetBit = set.nextSetBit(nextSetBit + 1)) != -1) {
+            buf.append(strings[nextSetBit].replace('_', '-')).append(' ');
+        }
+
+        // remove trailing space
+        if (set.cardinality() > 0) {
+            buf.setLength(buf.length() - 1);
+        }
+
+        return buf.toString();
+    }
+
+
 }

@@ -83,8 +83,10 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.security.cert.X509Certificate;
 import java.text.DateFormat;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
@@ -1971,6 +1973,11 @@ public class WifiConfigManager {
             // Fetch the existing config using networkID
             currentConfig = mConfiguredNetworks.getForCurrentUser(config.networkId);
         }
+
+        // originalConfig is used to check for credential and config changes that would cause
+        // HasEverConnected to be set to false.
+        WifiConfiguration originalConfig = new WifiConfiguration(currentConfig);
+
         if (!mWifiConfigStore.addOrUpdateNetwork(config, currentConfig)) {
             return new NetworkUpdateResult(INVALID_NETWORK_ID);
         }
@@ -2097,6 +2104,16 @@ public class WifiConfigManager {
             }
         }
 
+        boolean passwordChanged = false;
+        // check passed in config to see if it has more than a password set.
+        if (!newNetwork && config.preSharedKey != null && !config.preSharedKey.equals("*")) {
+            passwordChanged = true;
+        }
+
+        if (newNetwork || passwordChanged || wasCredentialChange(originalConfig, currentConfig)) {
+            currentConfig.getNetworkSelectionStatus().setHasEverConnected(false);
+        }
+
         // Persist configuration paramaters that are not saved by supplicant.
         if (config.lastUpdateName != null) {
             currentConfig.lastUpdateName = config.lastUpdateName;
@@ -2120,6 +2137,119 @@ public class WifiConfigManager {
         writeKnownNetworkHistory();
 
         return result;
+    }
+
+    private boolean wasBitSetUpdated(BitSet originalBitSet, BitSet currentBitSet) {
+        if (originalBitSet != null && currentBitSet != null) {
+            // both configs have values set, check if they are different
+            if (!originalBitSet.equals(currentBitSet)) {
+                // the BitSets are different
+                return true;
+            }
+        } else if (originalBitSet != null || currentBitSet != null) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean wasCredentialChange(WifiConfiguration originalConfig,
+            WifiConfiguration currentConfig) {
+        // Check if any core WifiConfiguration parameters changed that would impact new connections
+        if (originalConfig == null) {
+            return true;
+        }
+
+        if (wasBitSetUpdated(originalConfig.allowedKeyManagement,
+                currentConfig.allowedKeyManagement)) {
+            return true;
+        }
+
+        if (wasBitSetUpdated(originalConfig.allowedProtocols, currentConfig.allowedProtocols)) {
+            return true;
+        }
+
+        if (wasBitSetUpdated(originalConfig.allowedAuthAlgorithms,
+                currentConfig.allowedAuthAlgorithms)) {
+            return true;
+        }
+
+        if (wasBitSetUpdated(originalConfig.allowedPairwiseCiphers,
+                currentConfig.allowedPairwiseCiphers)) {
+            return true;
+        }
+
+        if (wasBitSetUpdated(originalConfig.allowedGroupCiphers,
+                currentConfig.allowedGroupCiphers)) {
+            return true;
+        }
+
+        if (originalConfig.wepKeys != null && currentConfig.wepKeys != null) {
+            if (originalConfig.wepKeys.length == currentConfig.wepKeys.length) {
+                for (int i = 0; i < originalConfig.wepKeys.length; i++) {
+                    if (originalConfig.wepKeys[i] != currentConfig.wepKeys[i]) {
+                        return true;
+                    }
+                }
+            } else {
+                return true;
+            }
+        }
+
+        if (originalConfig.hiddenSSID != currentConfig.hiddenSSID) {
+            return true;
+        }
+
+        if (originalConfig.requirePMF != currentConfig.requirePMF) {
+            return true;
+        }
+
+        if (wasEnterpriseConfigChange(originalConfig.enterpriseConfig,
+                currentConfig.enterpriseConfig)) {
+            return true;
+        }
+        return false;
+    }
+
+
+    protected boolean wasEnterpriseConfigChange(WifiEnterpriseConfig originalEnterpriseConfig,
+            WifiEnterpriseConfig currentEnterpriseConfig) {
+        if (originalEnterpriseConfig != null && currentEnterpriseConfig != null) {
+            if (originalEnterpriseConfig.getEapMethod() != currentEnterpriseConfig.getEapMethod()) {
+                return true;
+            }
+
+            if (originalEnterpriseConfig.getPhase2Method()
+                    != currentEnterpriseConfig.getPhase2Method()) {
+                return true;
+            }
+
+            X509Certificate[] originalCaCerts = originalEnterpriseConfig.getCaCertificates();
+            X509Certificate[] currentCaCerts = currentEnterpriseConfig.getCaCertificates();
+
+            if (originalCaCerts != null && currentCaCerts != null) {
+                if (originalCaCerts.length == currentCaCerts.length) {
+                    for (int i = 0; i < originalCaCerts.length; i++) {
+                        if (!originalCaCerts[i].equals(currentCaCerts[i])) {
+                            return true;
+                        }
+                    }
+                } else {
+                    // number of aliases is different, so the configs are different
+                    return true;
+                }
+            } else {
+                // one of the enterprise configs may have aliases
+                if (originalCaCerts != null || currentCaCerts != null) {
+                    return true;
+                }
+            }
+        } else {
+            // One of the configs may have an enterpriseConfig
+            if (originalEnterpriseConfig != null || currentEnterpriseConfig != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public WifiConfiguration getWifiConfigForHomeSP(HomeSP homeSP) {
