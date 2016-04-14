@@ -113,6 +113,7 @@ public class WifiStateMachineTest {
             (ActivityManager.isLowRamDeviceStatic()
                     ? WifiStateMachine.NUM_LOG_RECS_VERBOSE_LOW_MEMORY
                     : WifiStateMachine.NUM_LOG_RECS_VERBOSE);
+    private static final String DEFAULT_TEST_SSID = "\"GoogleGuest\"";
 
     private long mBinderToken;
 
@@ -727,6 +728,24 @@ public class WifiStateMachineTest {
     }
 
     /**
+     * Helper method to retrieve WifiConfiguration by SSID.
+     *
+     * Returns the associated WifiConfiguration if it is found, null otherwise.
+     */
+    private WifiConfiguration getWifiConfigurationForNetwork(String ssid) {
+        mLooper.startAutoDispatch();
+        List<WifiConfiguration> configs = mWsm.syncGetConfiguredNetworks(-1, mWsmAsyncChannel);
+        mLooper.stopAutoDispatch();
+
+        for (WifiConfiguration checkConfig : configs) {
+            if (checkConfig.SSID.equals(ssid)) {
+                return checkConfig;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Verifies that the current foreground user is allowed to forget a network.
      */
     @Test
@@ -921,6 +940,50 @@ public class WifiStateMachineTest {
         mLooper.dispatchAll();
 
         assertEquals("DisconnectedState", getCurrentState().getName());
+    }
+
+    /**
+     * WifiConfigurations default to HasEverConnected to false,  creating and adding a config should
+     * not update this value to true.
+     *
+     * Test: Successfully add a network. Check the config and verify
+     * WifiConfiguration.getHasEverConnected() is false.
+     */
+    @Test
+    public void addNetworkDoesNotSetHasEverConnectedTrue() throws Exception {
+        addNetworkAndVerifySuccess();
+
+        WifiConfiguration checkConfig = getWifiConfigurationForNetwork(DEFAULT_TEST_SSID);
+        assertFalse(checkConfig.getNetworkSelectionStatus().getHasEverConnected());
+    }
+
+    /**
+     * Successfully connecting to a network will set WifiConfiguration's value of HasEverConnected
+     * to true.
+     *
+     * Test: Successfully create and connect to a network. Check the config and verify
+     * WifiConfiguration.getHasEverConnected() is true.
+     */
+    @Test
+    public void setHasEverConnectedTrueOnConnect() throws Exception {
+        connect();
+
+        WifiConfiguration checkConfig = getWifiConfigurationForNetwork(DEFAULT_TEST_SSID);
+        assertTrue(checkConfig.getNetworkSelectionStatus().getHasEverConnected());
+    }
+
+    /**
+     * Fail network connection attempt and verify HasEverConnected remains false.
+     *
+     * Test: Successfully create a network but fail when connecting. Check the config and verify
+     * WifiConfiguration.getHasEverConnected() is false.
+     */
+    @Test
+    public void connectionFailureDoesNotSetHasEverConnectedTrue() throws Exception {
+        testDhcpFailure();
+
+        WifiConfiguration checkConfig = getWifiConfigurationForNetwork(DEFAULT_TEST_SSID);
+        assertFalse(checkConfig.getNetworkSelectionStatus().getHasEverConnected());
     }
 
     @Test

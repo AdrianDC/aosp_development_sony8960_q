@@ -5174,8 +5174,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 //Here we will clear all disable counters once a network is connected
                 //records how long this network is connected in future
                 config.lastConnected = System.currentTimeMillis();
-                config.getNetworkSelectionStatus().clearDisableReasonCounter();
                 config.numAssociation++;
+                WifiConfiguration.NetworkSelectionStatus networkSelectionStatus =
+                        config.getNetworkSelectionStatus();
+                networkSelectionStatus.clearDisableReasonCounter();
+                networkSelectionStatus.setHasEverConnected(true);
             }
             // On connect, reset wifiScoreReport
             mWifiScoreReport = null;
