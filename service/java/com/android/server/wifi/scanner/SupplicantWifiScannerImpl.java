@@ -110,7 +110,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
      * The expected behavior is that the hardware will return a failed scan if it does not
      * complete, but timeout just in case it does not.
      */
-    private static final long SCAN_TIMEOUT_MS = 10000;
+    private static final long SCAN_TIMEOUT_MS = 15000;
 
     AlarmManager.OnAlarmListener mScanPeriodListener = new AlarmManager.OnAlarmListener() {
             public void onAlarm() {
