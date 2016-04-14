@@ -22,6 +22,7 @@ import android.app.ActivityManager;
 import android.app.AlarmManager;
 import android.content.Context;
 import android.net.wifi.ScanResult;
+import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -419,8 +420,10 @@ public class WifiConnectivityManager {
 
         String targetBssid = scanResultCandidate.BSSID;
         String targetAssociationId = candidate.SSID + " : " + targetBssid;
-        if (targetBssid != null && targetBssid.equals(mWifiInfo.getBSSID())) {
-            localLog("connectToNetwork: Already connected to" + targetAssociationId);
+        if (targetBssid != null && targetBssid.equals(mWifiInfo.getBSSID())
+                    && SupplicantState.isConnecting(mWifiInfo.getSupplicantState())) {
+            localLog("connectToNetwork: Either already connected "
+                    + "or is connecting to " + targetAssociationId);
             return;
         }
 
