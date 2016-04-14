@@ -22,6 +22,8 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiScanner.ScanData;
 import android.net.wifi.WifiScanner.ScanSettings;
+import android.util.ArraySet;
+import android.util.Pair;
 import android.util.Rational;
 import android.util.Slog;
 
@@ -32,10 +34,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * <p>This class takes a series of scan requests and formulates the best hardware level scanning
@@ -58,7 +64,8 @@ public class BackgroundScanScheduler {
     private static final boolean DBG = false;
 
     public static final int DEFAULT_MAX_BUCKETS = 8;
-    public static final int DEFAULT_MAX_CHANNELS = 32;
+    // Max channels that can be specified per bucket
+    public static final int DEFAULT_MAX_CHANNELS_PER_BUCKET = 16;
     // anecdotally, some chipsets will fail without explanation with a higher batch size, and
     // there is apparently no way to retrieve the maximum batch size
     public static final int DEFAULT_MAX_SCANS_TO_BATCH = 10;
@@ -116,14 +123,30 @@ public class BackgroundScanScheduler {
             (PREDEFINED_BUCKET_PERIODS.length - 1);
 
     /**
-     * this class is an intermediate representation for scheduling
+     * This class is an intermediate representation for scheduling. This maintins the channel
+     * collection to be scanned by the bucket as settings are added to it.
      */
     private class Bucket {
         public int period;
-        public final List<ScanSettings> settings = new ArrayList<>();
+        public int bucketId;
+        private final List<ScanSettings> mScanSettingsList = new ArrayList<>();
+        private final ChannelCollection mChannelCollection;
 
         Bucket(int period) {
             this.period = period;
+            this.bucketId = 0;
+            mScanSettingsList.clear();
+            mChannelCollection = mChannelHelper.createChannelCollection();
+        }
+
+        /**
+         * Copy constructor which populates the settings list from the original bucket object.
+         */
+        Bucket(Bucket originalBucket) {
+            this(originalBucket.period);
+            for (ScanSettings settings : originalBucket.getSettingsList()) {
+                mScanSettingsList.add(settings);
+            }
         }
 
         /**
@@ -135,20 +158,49 @@ public class BackgroundScanScheduler {
             return channelSettings;
         }
 
+        public boolean addSettings(ScanSettings scanSettings) {
+            mChannelCollection.addChannels(scanSettings);
+            return mScanSettingsList.add(scanSettings);
+        }
+
+        public boolean removeSettings(ScanSettings scanSettings) {
+            if (mScanSettingsList.remove(scanSettings)) {
+                // It's difficult to handle settings removal from buckets in terms of
+                // maintaining the correct channel collection, so recreate the channel
+                // collection from the remaining elements.
+                updateChannelCollection();
+                return true;
+            }
+            return false;
+        }
+
+        public List<ScanSettings> getSettingsList() {
+            return mScanSettingsList;
+        }
+
+        public void updateChannelCollection() {
+            mChannelCollection.clear();
+            for (ScanSettings settings : mScanSettingsList) {
+                mChannelCollection.addChannels(settings);
+            }
+        }
+
+        public ChannelCollection getChannelCollection() {
+            return mChannelCollection;
+        }
+
         /**
          * convert the setting for this bucket to HAL representation
          */
-        public WifiNative.BucketSettings createBucketSettings(int bucketId,
-                int maxChannels) {
+        public WifiNative.BucketSettings createBucketSettings(int bucketId, int maxChannels) {
+            this.bucketId = bucketId;
             int reportEvents = WifiScanner.REPORT_EVENT_NO_BATCH;
             int maxPeriodInMs = 0;
             int stepCount = 0;
             int bucketIndex = 0;
 
-            mChannelCollection.clear();
-
-            for (int i = 0; i < settings.size(); ++i) {
-                WifiScanner.ScanSettings setting = settings.get(i);
+            for (int i = 0; i < mScanSettingsList.size(); ++i) {
+                WifiScanner.ScanSettings setting = mScanSettingsList.get(i);
                 int requestedReportEvents = setting.reportEvents;
                 if ((requestedReportEvents & WifiScanner.REPORT_EVENT_NO_BATCH) == 0) {
                     reportEvents &= ~WifiScanner.REPORT_EVENT_NO_BATCH;
@@ -159,9 +211,6 @@ public class BackgroundScanScheduler {
                 if ((requestedReportEvents & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT) != 0) {
                     reportEvents |= WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT;
                 }
-
-                mChannelCollection.addChannels(setting);
-
                 // For the bucket allocated to exponential back off scan, the values of
                 // the exponential back off scan related parameters from the very first
                 // setting in the settings list will be used to configure this bucket.
@@ -179,7 +228,6 @@ public class BackgroundScanScheduler {
                                     : setting.maxPeriodInMs;
                     stepCount = setting.stepCount;
                 }
-
             }
 
             WifiNative.BucketSettings bucketSettings = new WifiNative.BucketSettings();
@@ -197,6 +245,13 @@ public class BackgroundScanScheduler {
      * Maintains a list of buckets and the number that are active (non-null)
      */
     private class BucketList {
+        // Comparator to sort the buckets in order of increasing time periods
+        private final Comparator<Bucket> mTimePeriodSortComparator =
+                new Comparator<Bucket>() {
+                    public int compare(Bucket b1, Bucket b2) {
+                        return b1.period - b2.period;
+                    }
+                };
         private final Bucket[] mBuckets;
         private int mActiveBucketCount = 0;
 
@@ -248,10 +303,24 @@ public class BackgroundScanScheduler {
                 return mActiveBucketCount;
             }
         }
+
+        /**
+         * Returns the active regular buckets sorted by their increasing time periods.
+         */
+        public List<Bucket> getSortedActiveRegularBucketList() {
+            ArrayList<Bucket> activeBuckets = new ArrayList<>();
+            for (int i = 0; i < mBuckets.length; i++) {
+                if (mBuckets[i] != null && i != EXPONENTIAL_BACK_OFF_BUCKET_IDX) {
+                    activeBuckets.add(mBuckets[i]);
+                }
+            }
+            Collections.sort(activeBuckets, mTimePeriodSortComparator);
+            return activeBuckets;
+        }
     }
 
     private int mMaxBuckets = DEFAULT_MAX_BUCKETS;
-    private int mMaxChannels = DEFAULT_MAX_CHANNELS;
+    private int mMaxChannelsPerBucket = DEFAULT_MAX_CHANNELS_PER_BUCKET;
     private int mMaxBatch = DEFAULT_MAX_SCANS_TO_BATCH;
     private int mMaxApPerScan = DEFAULT_MAX_AP_PER_SCAN;
 
@@ -263,13 +332,13 @@ public class BackgroundScanScheduler {
         mMaxBuckets = maxBuckets;
     }
 
-    public int getMaxChannels() {
-        return mMaxChannels;
+    public int getMaxChannelsPerBucket() {
+        return mMaxChannelsPerBucket;
     }
 
     // TODO: find a way to get max channels
-    public void setMaxChannels(int maxChannels) {
-        mMaxChannels = maxChannels;
+    public void setMaxChannelsPerBucket(int maxChannels) {
+        mMaxChannelsPerBucket = maxChannels;
     }
 
     public int getMaxBatch() {
@@ -291,14 +360,13 @@ public class BackgroundScanScheduler {
 
     private final BucketList mBuckets = new BucketList();
     private final ChannelHelper mChannelHelper;
-    private final ChannelCollection mChannelCollection;
     private WifiNative.ScanSettings mSchedule;
-    private final Map<ScanSettings, Integer> mSettingsToScheduledBucket = new HashMap<>();
+    // This keeps track of the settings to the max time period bucket to which it was scheduled.
+    private final Map<ScanSettings, Bucket> mSettingsToScheduledBucket = new HashMap<>();
 
     public BackgroundScanScheduler(ChannelHelper channelHelper) {
         mChannelHelper = channelHelper;
-        mChannelCollection = mChannelHelper.createChannelCollection();
-        createSchedule();
+        createSchedule(new ArrayList<Bucket>(), getMaxChannelsPerBucket());
     }
 
     /**
@@ -313,7 +381,12 @@ public class BackgroundScanScheduler {
 
         compactBuckets(getMaxBuckets());
 
-        createSchedule();
+        List<Bucket> bucketList = optimizeBuckets();
+
+        List<Bucket> fixedBucketList =
+                fixBuckets(bucketList, getMaxBuckets(), getMaxChannelsPerBucket());
+
+        createSchedule(fixedBucketList, getMaxChannelsPerBucket());
     }
 
     /**
@@ -343,10 +416,13 @@ public class BackgroundScanScheduler {
                 getScheduledBucket(settings));
     }
 
-    private int getScheduledBucket(ScanSettings settings) {
-        Integer scheduledBucket = mSettingsToScheduledBucket.get(settings);
-        if (scheduledBucket != null) {
-            return scheduledBucket;
+    /**
+     * Retrieves the max time period bucket idx at which this setting was scheduled
+     */
+    public int getScheduledBucket(ScanSettings settings) {
+        Bucket maxScheduledBucket = mSettingsToScheduledBucket.get(settings);
+        if (maxScheduledBucket != null) {
+            return maxScheduledBucket.bucketId;
         } else {
             Slog.wtf(TAG, "No bucket found for settings");
             return -1;
@@ -356,11 +432,10 @@ public class BackgroundScanScheduler {
     /**
      * creates a schedule for the current buckets
      */
-    private void createSchedule() {
-        mSettingsToScheduledBucket.clear();
+    private void createSchedule(List<Bucket> bucketList, int maxChannelsPerBucket) {
         WifiNative.ScanSettings schedule = new WifiNative.ScanSettings();
-        schedule.num_buckets = mBuckets.getActiveCount();
-        schedule.buckets = new WifiNative.BucketSettings[mBuckets.getActiveCount()];
+        schedule.num_buckets = bucketList.size();
+        schedule.buckets = new WifiNative.BucketSettings[bucketList.size()];
 
         schedule.max_ap_per_scan = 0;
         schedule.report_threshold_num_scans = getMaxBatch();
@@ -368,34 +443,27 @@ public class BackgroundScanScheduler {
 
         // set all buckets in schedule
         int bucketId = 0;
-        for (int i = 0; i < mBuckets.size(); ++i) {
-            if (mBuckets.isActive(i)) {
-                schedule.buckets[bucketId] =
-                        mBuckets.get(i).createBucketSettings(bucketId, getMaxChannels());
-
-                for (ScanSettings settings : mBuckets.get(i).settings) {
-                    mSettingsToScheduledBucket.put(settings, bucketId);
-
-                    // set APs per scan
-                    if (settings.numBssidsPerScan > schedule.max_ap_per_scan) {
-                        schedule.max_ap_per_scan = settings.numBssidsPerScan;
-                    }
-
-                    // set batching
-                    if (settings.maxScansToCache != 0
-                            && settings.maxScansToCache < schedule.report_threshold_num_scans) {
-                        schedule.report_threshold_num_scans = settings.maxScansToCache;
-                    }
-
-                    // note hidden networks
-                    if (settings.hiddenNetworkIds != null) {
-                        for (int j = 0; j < settings.hiddenNetworkIds.length; j++) {
-                            hiddenNetworkIdSet.add(settings.hiddenNetworkIds[j]);
-                        }
+        for (Bucket bucket : bucketList) {
+            schedule.buckets[bucketId] =
+                    bucket.createBucketSettings(bucketId, maxChannelsPerBucket);
+            for (ScanSettings settings : bucket.getSettingsList()) {
+                // set APs per scan
+                if (settings.numBssidsPerScan > schedule.max_ap_per_scan) {
+                    schedule.max_ap_per_scan = settings.numBssidsPerScan;
+                }
+                // set batching
+                if (settings.maxScansToCache != 0
+                        && settings.maxScansToCache < schedule.report_threshold_num_scans) {
+                    schedule.report_threshold_num_scans = settings.maxScansToCache;
+                }
+                // note hidden networks
+                if (settings.hiddenNetworkIds != null) {
+                    for (int j = 0; j < settings.hiddenNetworkIds.length; j++) {
+                        hiddenNetworkIdSet.add(settings.hiddenNetworkIds[j]);
                     }
                 }
-                bucketId++;
             }
+            bucketId++;
         }
 
         schedule.report_threshold_percent = DEFAULT_REPORT_THRESHOLD_PERCENTAGE;
@@ -437,16 +505,14 @@ public class BackgroundScanScheduler {
     private void addScanToBuckets(ScanSettings settings) {
         int bucketIndex;
 
-        if (settings.maxPeriodInMs != 0
-                && settings.maxPeriodInMs != settings.periodInMs) {
+        if (settings.maxPeriodInMs != 0 && settings.maxPeriodInMs != settings.periodInMs) {
             // exponential back off scan has a dedicated bucket
             bucketIndex = EXPONENTIAL_BACK_OFF_BUCKET_IDX;
         } else {
-            bucketIndex = findBestRegularBucketIndex(settings.periodInMs,
-                                                     NUM_OF_REGULAR_BUCKETS);
+            bucketIndex = findBestRegularBucketIndex(settings.periodInMs, NUM_OF_REGULAR_BUCKETS);
         }
 
-        mBuckets.getOrCreate(bucketIndex).settings.add(settings);
+        mBuckets.getOrCreate(bucketIndex).addSettings(settings);
     }
 
     /**
@@ -485,12 +551,303 @@ public class BackgroundScanScheduler {
         for (int i = NUM_OF_REGULAR_BUCKETS - 1;
                 i >= 0 && mBuckets.getActiveRegularBucketCount() > maxRegularBuckets; --i) {
             if (mBuckets.isActive(i)) {
-                for (ScanSettings scanRequest : mBuckets.get(i).settings) {
+                for (ScanSettings scanRequest : mBuckets.get(i).getSettingsList()) {
                     int newBucketIndex = findBestRegularBucketIndex(scanRequest.periodInMs, i);
-                    mBuckets.getOrCreate(newBucketIndex).settings.add(scanRequest);
+                    mBuckets.getOrCreate(newBucketIndex).addSettings(scanRequest);
                 }
                 mBuckets.clear(i);
             }
         }
+    }
+
+    /**
+     * Clone the provided scan settings fields to a new ScanSettings object.
+     */
+    private ScanSettings cloneScanSettings(ScanSettings originalSettings) {
+        ScanSettings settings = new ScanSettings();
+        settings.band = originalSettings.band;
+        settings.channels = originalSettings.channels;
+        settings.hiddenNetworkIds = originalSettings.hiddenNetworkIds;
+        settings.periodInMs = originalSettings.periodInMs;
+        settings.reportEvents = originalSettings.reportEvents;
+        settings.numBssidsPerScan = originalSettings.numBssidsPerScan;
+        settings.maxScansToCache = originalSettings.maxScansToCache;
+        settings.maxPeriodInMs = originalSettings.maxPeriodInMs;
+        settings.stepCount = originalSettings.stepCount;
+        settings.isPnoScan = originalSettings.isPnoScan;
+        return settings;
+    }
+
+    /**
+     * Creates a split scan setting that needs to be added back to the current bucket.
+     */
+    private ScanSettings createCurrentBucketSplitSettings(ScanSettings originalSettings,
+            Set<Integer> currentBucketChannels) {
+        ScanSettings currentBucketSettings = cloneScanSettings(originalSettings);
+        // Let's create a new settings for the current bucket with the same flags, but the missing
+        // channels from the other bucket
+        currentBucketSettings.band = WifiScanner.WIFI_BAND_UNSPECIFIED;
+        currentBucketSettings.channels = new WifiScanner.ChannelSpec[currentBucketChannels.size()];
+        int chanIdx = 0;
+        for (Integer channel : currentBucketChannels) {
+            currentBucketSettings.channels[chanIdx++] = new WifiScanner.ChannelSpec(channel);
+        }
+        return currentBucketSettings;
+    }
+
+    /**
+     * Creates a split scan setting that needs to be added to the target lower time period bucket.
+     * The reportEvents field is modified to remove REPORT_EVENT_AFTER_EACH_SCAN because we
+     * need this flag only in the higher time period bucket.
+     */
+    private ScanSettings createTargetBucketSplitSettings(ScanSettings originalSettings,
+            Set<Integer> targetBucketChannels) {
+        ScanSettings targetBucketSettings = cloneScanSettings(originalSettings);
+        // The new settings for the other bucket will have the channels that already in the that
+        // bucket. We'll need to do some migration of the |reportEvents| flags.
+        targetBucketSettings.band = WifiScanner.WIFI_BAND_UNSPECIFIED;
+        targetBucketSettings.channels = new WifiScanner.ChannelSpec[targetBucketChannels.size()];
+        int chanIdx = 0;
+        for (Integer channel : targetBucketChannels) {
+            targetBucketSettings.channels[chanIdx++] = new WifiScanner.ChannelSpec(channel);
+        }
+        targetBucketSettings.reportEvents =
+                originalSettings.reportEvents
+                        & (WifiScanner.REPORT_EVENT_NO_BATCH
+                                | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT);
+        return targetBucketSettings;
+    }
+
+    /**
+     * Split the scan settings into 2 so that they can be put into 2 separate buckets.
+     * @return The first scan setting needs to be added back to the current bucket
+     *         The second scan setting needs to be added to the other bucket
+     */
+    private Pair<ScanSettings, ScanSettings> createSplitSettings(ScanSettings originalSettings,
+            ChannelCollection targetBucketChannelCol) {
+        Set<Integer> currentBucketChannels =
+                targetBucketChannelCol.getMissingChannelsFromSettings(originalSettings);
+        Set<Integer> targetBucketChannels =
+                targetBucketChannelCol.getContainingChannelsFromSettings(originalSettings);
+        // Two Copy of the original settings
+        ScanSettings currentBucketSettings =
+                createCurrentBucketSplitSettings(originalSettings, currentBucketChannels);
+        ScanSettings targetBucketSettings =
+                createTargetBucketSplitSettings(originalSettings, targetBucketChannels);
+        return Pair.create(currentBucketSettings, targetBucketSettings);
+    }
+
+    /**
+     * Try to merge the settings to lower buckets.
+     * Check if the channels in this settings is already covered by a lower time period
+     * bucket. If it's partially covered, the settings is split else the entire settings
+     * is moved to the lower time period bucket.
+     * This method updates the |mSettingsToScheduledBucket| mapping.
+     * @return Pair<wasMerged, remainingSplitSettings>
+     *         wasMerged -  boolean indicating whether the original setting was merged to lower time
+     *                      period buckets.
+     *         remainingSplitSettings - Partial Scan Settings that need to be added back to the
+     *                                  current bucket.
+     */
+    private Pair<Boolean, ScanSettings> mergeSettingsToLowerBuckets(ScanSettings originalSettings,
+            Bucket currentBucket, ListIterator<Bucket> iterTargetBuckets) {
+        ScanSettings remainingSplitSettings = null;
+        boolean wasMerged = false;
+        Bucket maxScheduledBucket = currentBucket;
+
+        while (iterTargetBuckets.hasPrevious()) {
+            Bucket targetBucket = iterTargetBuckets.previous();
+            ChannelCollection targetBucketChannelCol = targetBucket.getChannelCollection();
+            if (targetBucketChannelCol.containsSettings(originalSettings)) {
+                targetBucket.addSettings(originalSettings);
+                // Update the max scheduled bucket for this setting
+                maxScheduledBucket = targetBucket;
+                wasMerged = true;
+            } else if (targetBucketChannelCol.partiallyContainsSettings(originalSettings)) {
+                Pair<ScanSettings, ScanSettings> splitSettings;
+                if (remainingSplitSettings == null) {
+                    splitSettings = createSplitSettings(originalSettings, targetBucketChannelCol);
+                } else {
+                    splitSettings =
+                            createSplitSettings(remainingSplitSettings, targetBucketChannelCol);
+                }
+                targetBucket.addSettings(splitSettings.second);
+                // Update the |remainingSplitSettings| to keep track of the remaining scan settings.
+                // The original settings could be split across multiple buckets.
+                remainingSplitSettings = splitSettings.first;
+                wasMerged = true;
+            }
+        }
+        // Update the settings to scheduled bucket mapping. This is needed for event
+        // reporting lookup
+        mSettingsToScheduledBucket.put(originalSettings, maxScheduledBucket);
+
+        return Pair.create(wasMerged, remainingSplitSettings);
+    }
+
+    /**
+     * Optimize all the active buckets by removing duplicate channels in the buckets.
+     * This method tries to go through the settings in all the buckets and checks if the same
+     * channels for the setting is already being scanned by another bucked with lower time period.
+     * If yes, move the setting to the lower time period bucket. If all the settings from a higher
+     * period has been moved out, that bucket can be removed.
+     *
+     * We're trying to avoid cases where we have the same channels being scanned in different
+     * buckets. This is to workaround the fact that the HAL implementations have a max number of
+     * cumulative channel across buckets (b/28022609).
+     */
+    private List<Bucket> optimizeBuckets() {
+        mSettingsToScheduledBucket.clear();
+        List<Bucket> sortedBuckets = mBuckets.getSortedActiveRegularBucketList();
+        ListIterator<Bucket> iterBuckets = sortedBuckets.listIterator();
+        // This is needed to keep track of split settings that need to be added back to the same
+        // bucket at the end of iterating thru all the settings. This has to be a separate temp list
+        // to prevent concurrent modification exceptions during iterations.
+        List<ScanSettings> currentBucketSplitSettingsList = new ArrayList<>();
+
+        // We need to go thru each setting starting from the lowest time period bucket and check
+        // if they're already contained in a lower time period bucket. If yes, delete the setting
+        // from the current bucket and move it to the other bucket. If the settings are only
+        // partially contained, split the settings into two and move the partial bucket back
+        // to the same bucket. Finally, if all the settings have been moved out, remove the current
+        // bucket altogether.
+        while (iterBuckets.hasNext()) {
+            Bucket currentBucket = iterBuckets.next();
+            Iterator<ScanSettings> iterSettings = currentBucket.getSettingsList().iterator();
+
+            currentBucketSplitSettingsList.clear();
+
+            while (iterSettings.hasNext()) {
+                ScanSettings currentSettings = iterSettings.next();
+                ListIterator<Bucket> iterTargetBuckets =
+                        sortedBuckets.listIterator(iterBuckets.previousIndex());
+
+                Pair<Boolean, ScanSettings> mergeResult =
+                        mergeSettingsToLowerBuckets(
+                                currentSettings, currentBucket, iterTargetBuckets);
+
+                boolean wasMerged = mergeResult.first.booleanValue();
+                if (wasMerged) {
+                    // Remove the original settings from the current bucket.
+                    iterSettings.remove();
+                    ScanSettings remainingSplitSettings = mergeResult.second;
+                    if (remainingSplitSettings != null) {
+                        // Add back the remaining split settings to the current bucket.
+                        currentBucketSplitSettingsList.add(remainingSplitSettings);
+                    }
+                }
+            }
+
+            for (ScanSettings splitSettings: currentBucketSplitSettingsList) {
+                currentBucket.addSettings(splitSettings);
+            }
+            if (currentBucket.getSettingsList().isEmpty()) {
+                iterBuckets.remove();
+            } else {
+                // Update the channel collection to account for the removed settings
+                currentBucket.updateChannelCollection();
+            }
+        }
+
+        // Update the settings to scheduled bucket map for all exponential scans.
+        if (mBuckets.isActive(EXPONENTIAL_BACK_OFF_BUCKET_IDX)) {
+            Bucket exponentialBucket = mBuckets.get(EXPONENTIAL_BACK_OFF_BUCKET_IDX);
+            for (ScanSettings settings : exponentialBucket.getSettingsList()) {
+                mSettingsToScheduledBucket.put(settings, exponentialBucket);
+            }
+            sortedBuckets.add(exponentialBucket);
+        }
+
+        return sortedBuckets;
+    }
+
+    /**
+     * Partition the channel set into 2 or more based on the max channels that can be specified for
+     * each bucket.
+     */
+    private List<Set<Integer>> partitionChannelSet(Set<Integer> originalChannelSet,
+            int maxChannelsPerBucket) {
+        ArrayList<Set<Integer>> channelSetList = new ArrayList();
+        ArraySet<Integer> channelSet = new ArraySet<>();
+        Iterator<Integer> iterChannels = originalChannelSet.iterator();
+
+        while (iterChannels.hasNext()) {
+            channelSet.add(iterChannels.next());
+            if (channelSet.size() == maxChannelsPerBucket) {
+                channelSetList.add(channelSet);
+                channelSet = new ArraySet<>();
+            }
+        }
+        // Add the last partial set if any
+        if (!channelSet.isEmpty()) {
+            channelSetList.add(channelSet);
+        }
+        return channelSetList;
+    }
+
+    /**
+     * Creates a list of split buckets with the channel collection corrected to fit the
+     * max channel list size that can be specified. The original channel collection will be split
+     * into multiple buckets with the same scan settings.
+     * Note: This does not update the mSettingsToScheduledBucket map because this bucket is
+     * essentially a copy of the original bucket, so it should not affect the event reporting.
+     * This bucket results will come back the same time the original bucket results come back.
+     */
+    private List<Bucket> createSplitBuckets(Bucket originalBucket, List<Set<Integer>> channelSets) {
+        List<Bucket> splitBucketList = new ArrayList<>();
+        int channelSetIdx = 0;
+
+        for (Set<Integer> channelSet : channelSets) {
+            Bucket splitBucket;
+            if (channelSetIdx == 0) {
+                // Need to keep the original bucket to keep track of the settings to scheduled
+                // bucket mapping.
+                splitBucket = originalBucket;
+            } else {
+                splitBucket = new Bucket(originalBucket);
+            }
+            ChannelCollection splitBucketChannelCollection = splitBucket.getChannelCollection();
+            splitBucketChannelCollection.clear();
+            for (Integer channel : channelSet) {
+                splitBucketChannelCollection.addChannel(channel);
+            }
+            channelSetIdx++;
+            splitBucketList.add(splitBucket);
+        }
+        return splitBucketList;
+    }
+
+    /**
+     * Check if any of the buckets don't fit into the bucket specification and fix it. This
+     * creates duplicate buckets to fit all the channels. So, the channels to be scanned
+     * will be split across 2 (or more) buckets.
+     * TODO: If we reach the max number of buckets, then this fix will be skipped!
+     */
+    private List<Bucket> fixBuckets(List<Bucket> originalBucketList, int maxBuckets,
+            int maxChannelsPerBucket) {
+        List<Bucket> fixedBucketList = new ArrayList<>();
+        int totalNumBuckets = originalBucketList.size();
+
+        for (Bucket originalBucket : originalBucketList) {
+            ChannelCollection channelCollection = originalBucket.getChannelCollection();
+            Set<Integer> channelSet = channelCollection.getChannelSet();
+            if (channelSet.size() > maxChannelsPerBucket) {
+                List<Set<Integer>> channelSetList =
+                        partitionChannelSet(channelSet, maxChannelsPerBucket);
+                int newTotalNumBuckets = totalNumBuckets + channelSetList.size() - 1;
+                if (newTotalNumBuckets <= maxBuckets) {
+                    List<Bucket> splitBuckets = createSplitBuckets(originalBucket, channelSetList);
+                    for (Bucket bucket : splitBuckets) {
+                        fixedBucketList.add(bucket);
+                    }
+                    totalNumBuckets = newTotalNumBuckets;
+                } else {
+                    fixedBucketList.add(originalBucket);
+                }
+            } else {
+                fixedBucketList.add(originalBucket);
+            }
+        }
+        return fixedBucketList;
     }
 }

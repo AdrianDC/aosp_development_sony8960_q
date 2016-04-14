@@ -91,6 +91,22 @@ public class NoBandChannelHelper extends ChannelHelper {
         }
 
         @Override
+        public boolean containsBand(int band) {
+            if (band != WifiScanner.WIFI_BAND_UNSPECIFIED) {
+                return mAllChannels;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean partiallyContainsBand(int band) {
+            // We don't need to partially collapse settings in supplicant scanner because we
+            // don't have any limitation on the number of channels that can be scanned. We also
+            // don't currently keep track of bands very well in NoBandChannelHelper.
+            return false;
+        }
+
+        @Override
         public boolean isEmpty() {
             return !mAllChannels && mChannels.isEmpty();
         }
@@ -99,6 +115,31 @@ public class NoBandChannelHelper extends ChannelHelper {
         public void clear() {
             mAllChannels = false;
             mChannels.clear();
+        }
+
+        @Override
+        public Set<Integer> getMissingChannelsFromBand(int band) {
+            // We don't need to partially collapse settings in supplicant scanner because we
+            // don't have any limitation on the number of channels that can be scanned. We also
+            // don't currently keep track of bands very well in NoBandChannelHelper.
+            return new ArraySet<Integer>();
+        }
+
+        @Override
+        public Set<Integer> getContainingChannelsFromBand(int band) {
+            // We don't need to partially collapse settings in supplicant scanner because we
+            // don't have any limitation on the number of channels that can be scanned. We also
+            // don't currently keep track of bands very well in NoBandChannelHelper.
+            return new ArraySet<Integer>();
+        }
+
+        @Override
+        public Set<Integer> getChannelSet() {
+            if (!isEmpty() && !mAllChannels) {
+                return mChannels;
+            } else {
+                return new ArraySet<>();
+            }
         }
 
         @Override
