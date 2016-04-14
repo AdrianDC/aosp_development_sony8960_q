@@ -49,7 +49,8 @@ public class HalChannelHelper extends KnownBandsChannelHelper {
             Log.e(TAG, "Failed to get all channels for band, not updating band channel lists");
         } else if (channels24G.length > 0 || channels5G.length > 0 || channelsDfs.length > 0) {
             setBandChannels(channels24G, channels5G, channelsDfs);
+        } else {
+            Log.e(TAG, "Got zero length for all channel lists");
         }
-
     }
 }
