@@ -163,6 +163,8 @@ public class WifiStateMachineTest {
     private FrameworkFacade getFrameworkFacade() throws Exception {
         FrameworkFacade facade = mock(FrameworkFacade.class);
 
+        when(facade.makeWifiScanner(any(Context.class), any(Looper.class)))
+                .thenReturn(mWifiScanner);
         when(facade.makeBaseLogger()).thenReturn(mock(BaseWifiLogger.class));
         when(facade.getService(Context.NETWORKMANAGEMENT_SERVICE)).thenReturn(
                 mockWithInterfaces(IBinder.class, INetworkManagementService.class));
@@ -243,8 +245,6 @@ public class WifiStateMachineTest {
 
         when(context.getSystemService(Context.CONNECTIVITY_SERVICE)).thenReturn(
                 mock(ConnectivityManager.class));
-
-        when(context.getSystemService(Context.WIFI_SCANNING_SERVICE)).thenReturn(mWifiScanner);
 
         return context;
     }

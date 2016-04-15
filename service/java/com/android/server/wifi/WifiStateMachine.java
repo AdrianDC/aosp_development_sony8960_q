@@ -4669,8 +4669,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // We can't do this in the constructor because WifiStateMachine is created before the
             // wifi scanning service is initialized
             if (mWifiScanner == null) {
-                mWifiScanner =
-                        (WifiScanner) mContext.getSystemService(Context.WIFI_SCANNING_SERVICE);
+                mWifiScanner = mFacade.makeWifiScanner(mContext, getHandler().getLooper());
+
                 mWifiConnectivityManager = new WifiConnectivityManager(mContext,
                     WifiStateMachine.this, mWifiScanner, mWifiConfigManager, mWifiInfo,
                     mWifiQualifiedNetworkSelector, mWifiInjector);

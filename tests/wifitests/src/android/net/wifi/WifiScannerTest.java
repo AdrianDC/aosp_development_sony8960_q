@@ -69,7 +69,7 @@ public class WifiScannerTest {
         BidirectionalAsyncChannelServer server = new BidirectionalAsyncChannelServer(
                 mContext, mLooper.getLooper(), mHandler);
         when(mService.getMessenger()).thenReturn(server.getMessenger());
-        mWifiScanner = new WifiScanner(mContext, mService, mLooper.getLooper(), false);
+        mWifiScanner = new WifiScanner(mContext, mService, mLooper.getLooper());
         mLooper.dispatchAll();
     }
 
