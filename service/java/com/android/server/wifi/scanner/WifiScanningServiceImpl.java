@@ -775,7 +775,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 new RequestList<>();
 
         WifiBackgroundScanStateMachine(Looper looper) {
-            super(TAG, looper);
+            super("WifiBackgroundScanStateMachine", looper);
 
             setLogRecSize(512);
             setLogOnlyTransitions(false);
@@ -1331,7 +1331,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 new RequestList<>();
 
         WifiPnoScanStateMachine(Looper looper) {
-            super(TAG, looper);
+            super("WifiPnoScanStateMachine", looper);
 
             setLogRecSize(512);
             setLogOnlyTransitions(false);
@@ -2487,7 +2487,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         + ChannelHelper.toString(bucket));
             }
         }
-        pw.println("PNO scan state machine transitions:");
         mPnoScanStateMachine.dump(fd, pw, args);
     }
 
