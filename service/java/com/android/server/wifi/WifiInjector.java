@@ -31,8 +31,13 @@ public class WifiInjector {
     }
 
     private final WifiMetrics mWifiMetrics = new WifiMetrics();
+    private final WifiLastResortWatchdog mWifiLastResortWatchdog = new WifiLastResortWatchdog();
 
     public WifiMetrics getWifiMetrics() {
         return mWifiMetrics;
+    }
+
+    public WifiLastResortWatchdog getWifiLastResortWatchdog() {
+        return mWifiLastResortWatchdog;
     }
 }

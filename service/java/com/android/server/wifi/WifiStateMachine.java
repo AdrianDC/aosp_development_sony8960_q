@@ -183,8 +183,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     protected void log(String s) {;
         Log.d(getName(), s);
     }
-
+    private WifiLastResortWatchdog mWifiLastResortWatchdog;
     private WifiMetrics mWifiMetrics;
+    private WifiInjector mWifiInjector;
     private WifiMonitor mWifiMonitor;
     private WifiNative mWifiNative;
     private WifiConfigManager mWifiConfigManager;
@@ -1018,8 +1019,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             BackupManagerProxy backupManagerProxy,
                             WifiCountryCode countryCode) {
         super("WifiStateMachine", looper);
-
-        mWifiMetrics = wifiInjector.getWifiMetrics();
+        mWifiInjector = wifiInjector;
+        mWifiMetrics = mWifiInjector.getWifiMetrics();
+        mWifiLastResortWatchdog = wifiInjector.getWifiLastResortWatchdog();
         mContext = context;
         mFacade = facade;
         mWifiNative = WifiNative.getWlanNativeInterface();
@@ -4678,7 +4680,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         (WifiScanner) mContext.getSystemService(Context.WIFI_SCANNING_SERVICE);
                 mWifiConnectivityManager = new WifiConnectivityManager(mContext,
                     WifiStateMachine.this, mWifiScanner, mWifiConfigManager, mWifiInfo,
-                    mWifiQualifiedNetworkSelector);
+                    mWifiQualifiedNetworkSelector, mWifiInjector);
             }
 
             mWifiLogger.startLogging(DBG);
