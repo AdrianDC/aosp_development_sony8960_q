@@ -1726,9 +1726,9 @@ public class WifiQualifiedNetworkSelectorTest {
         verifySelectedResult(chosenScanResult, candidate);
         //Verify two scanDetails returned in the filteredScanDetails
         assertEquals(2, mWifiQualifiedNetworkSelector.getFilteredScanDetails().size());
-        assertEquals(mWifiQualifiedNetworkSelector.getFilteredScanDetails().get(0).toString(),
+        assertEquals(mWifiQualifiedNetworkSelector.getFilteredScanDetails().get(0).first.toString(),
                 scanDetails.get(0).toString());
-        assertEquals(mWifiQualifiedNetworkSelector.getFilteredScanDetails().get(1).toString(),
+        assertEquals(mWifiQualifiedNetworkSelector.getFilteredScanDetails().get(1).first.toString(),
                 scanDetails.get(3).toString());
     }
 
@@ -1805,7 +1805,7 @@ public class WifiQualifiedNetworkSelectorTest {
         verifySelectedResult(chosenScanResult, candidate);
         //Verify two scanDetails returned in the filteredScanDetails
         assertEquals(1, mWifiQualifiedNetworkSelector.getFilteredScanDetails().size());
-        assertEquals(mWifiQualifiedNetworkSelector.getFilteredScanDetails().get(0).toString(),
+        assertEquals(mWifiQualifiedNetworkSelector.getFilteredScanDetails().get(0).first.toString(),
                 scanDetails.get(0).toString());
     }
 }

@@ -84,6 +84,7 @@ public class WifiConnectivityManager {
     private final AlarmManager mAlarmManager;
     private final LocalLog mLocalLog = new LocalLog(ActivityManager.isLowRamDeviceStatic()
                                                         ? 1024 : 16384);
+    private final WifiLastResortWatchdog mWifiLastResortWatchdog;
     private boolean mDbg = false;
     private boolean mWifiEnabled = false;
     private boolean mWifiConnectivityManagerEnabled = true;
@@ -148,6 +149,28 @@ public class WifiConnectivityManager {
                 }
             };
 
+    /**
+     * Handles 'onResult' callbacks for the Periodic, Single & Pno ScanListener.
+     * Executes selection of potential network candidates, initiation of connection attempt to that
+     * network.
+     */
+    private void handleScanResults(List<ScanDetail> scanDetails, String listenerName) {
+        localLog(listenerName + " onResults: start QNS");
+        WifiConfiguration candidate =
+                mQualifiedNetworkSelector.selectQualifiedNetwork(mForceSelectNetwork,
+                mUntrustedConnectionAllowed, scanDetails,
+                mStateMachine.isLinkDebouncing(), mStateMachine.isConnected(),
+                mStateMachine.isDisconnected(),
+                mStateMachine.isSupplicantTransientState());
+        mWifiLastResortWatchdog.updateAvailableNetworks(
+                mQualifiedNetworkSelector.getFilteredScanDetails());
+        if (candidate != null) {
+            localLog(listenerName + ": QNS candidate-" + candidate.SSID);
+            connectToNetwork(candidate);
+        }
+
+    }
+
     // Periodic scan results listener. A periodic scan is initiated when
     // screen is on.
     private class PeriodicScanListener implements WifiScanner.ScanListener {
@@ -189,21 +212,7 @@ public class WifiConnectivityManager {
 
         @Override
         public void onResults(WifiScanner.ScanData[] results) {
-            localLog("PeriodicScanListener onResults: start QNS");
-
-            WifiConfiguration candidate =
-                    mQualifiedNetworkSelector.selectQualifiedNetwork(mForceSelectNetwork,
-                        mUntrustedConnectionAllowed, mScanDetails,
-                        mStateMachine.isLinkDebouncing(), mStateMachine.isConnected(),
-                        mStateMachine.isDisconnected(),
-                        mStateMachine.isSupplicantTransientState());
-
-            if (candidate != null) {
-                localLog("PeriodicScanListener: QNS candidate-" + candidate.SSID);
-
-                connectToNetwork(candidate);
-            }
-
+            handleScanResults(mScanDetails, "PeriodicScanListener");
             clearScanDetails();
         }
 
@@ -263,19 +272,7 @@ public class WifiConnectivityManager {
 
         @Override
         public void onResults(WifiScanner.ScanData[] results) {
-            localLog("SingleScanListener onResults: start QNS");
-
-            WifiConfiguration candidate =
-                    mQualifiedNetworkSelector.selectQualifiedNetwork(mForceSelectNetwork,
-                        mUntrustedConnectionAllowed, mScanDetails,
-                        mStateMachine.isLinkDebouncing(), mStateMachine.isConnected(),
-                        mStateMachine.isDisconnected(),
-                        mStateMachine.isSupplicantTransientState());
-
-            if (candidate != null) {
-                localLog("SingleScanListener: QNS candidate-" + candidate.SSID);
-                connectToNetwork(candidate);
-            }
+            handleScanResults(mScanDetails, "SingleScanListener");
         }
 
         @Override
@@ -350,20 +347,7 @@ public class WifiConnectivityManager {
             for (ScanResult result: results) {
                 mScanDetails.add(ScanDetailUtil.toScanDetail(result));
             }
-
-            localLog("PnoScanListener: onPnoNetworkFound: start QNS");
-
-            WifiConfiguration candidate =
-                        mQualifiedNetworkSelector.selectQualifiedNetwork(mForceSelectNetwork,
-                        mUntrustedConnectionAllowed, mScanDetails,
-                        mStateMachine.isLinkDebouncing(), mStateMachine.isConnected(),
-                        mStateMachine.isDisconnected(),
-                        mStateMachine.isSupplicantTransientState());
-
-            if (candidate != null) {
-                localLog("PnoScanListener: OnPnoNetworkFound: QNS candidate-" + candidate.SSID);
-                connectToNetwork(candidate);
-            }
+            handleScanResults(mScanDetails, "PnoScanListener");
         }
     }
 
@@ -374,13 +358,15 @@ public class WifiConnectivityManager {
      */
     public WifiConnectivityManager(Context context, WifiStateMachine stateMachine,
                 WifiScanner scanner, WifiConfigManager configManager, WifiInfo wifiInfo,
-                WifiQualifiedNetworkSelector qualifiedNetworkSelector) {
+                WifiQualifiedNetworkSelector qualifiedNetworkSelector,
+                WifiInjector wifiInjector) {
         mStateMachine = stateMachine;
         mScanner = scanner;
         mConfigManager = configManager;
         mWifiInfo = wifiInfo;
         mQualifiedNetworkSelector =  qualifiedNetworkSelector;
         mAlarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        mWifiLastResortWatchdog = wifiInjector.getWifiLastResortWatchdog();
 
         mMin5GHzRssi = WifiQualifiedNetworkSelector.MINIMUM_5G_ACCEPT_RSSI;
         mMin24GHzRssi = WifiQualifiedNetworkSelector.MINIMUM_2G_ACCEPT_RSSI;

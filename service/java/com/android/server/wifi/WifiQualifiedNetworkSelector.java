@@ -27,6 +27,7 @@ import android.net.wifi.WifiManager;
 import android.text.TextUtils;
 import android.util.LocalLog;
 import android.util.Log;
+import android.util.Pair;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
@@ -57,8 +58,9 @@ public class WifiQualifiedNetworkSelector {
     private String mCurrentBssid = null;
     //buffer most recent scan results
     private List<ScanDetail> mScanDetails = null;
-    //buffer of filtered scan results (Scan results considered by network selection)
-    private volatile List<ScanDetail> mFilteredScanDetails = null;
+    //buffer of filtered scan results (Scan results considered by network selection) & associated
+    //WifiConfiguration (if any)
+    private volatile List<Pair<ScanDetail, WifiConfiguration>> mFilteredScanDetails = null;
 
     //Minimum time gap between last successful Qualified Network Selection and new selection attempt
     //usable only when current state is connected state   default 10 s
@@ -143,7 +145,7 @@ public class WifiQualifiedNetworkSelector {
      * run. This includes scan details of sufficient signal strength, and had an associated
      * WifiConfiguration.
      */
-    public List<ScanDetail> getFilteredScanDetails() {
+    public List<Pair<ScanDetail, WifiConfiguration>> getFilteredScanDetails() {
         return mFilteredScanDetails;
     }
 
@@ -606,7 +608,7 @@ public class WifiQualifiedNetworkSelector {
             boolean isSupplicantTransient) {
         localLog("==========start qualified Network Selection==========");
         mScanDetails = scanDetails;
-        List<ScanDetail>  filteredScanDetails = new ArrayList<>();
+        List<Pair<ScanDetail, WifiConfiguration>>  filteredScanDetails = new ArrayList<>();
         if (mCurrentConnectedNetwork == null) {
             mCurrentConnectedNetwork =
                     mWifiConfigManager.getWifiConfiguration(mWifiInfo.getNetworkId());
@@ -699,6 +701,8 @@ public class WifiQualifiedNetworkSelector {
 
             //check whether this scan result belong to a saved network
             boolean potentiallyEphemeral = false;
+            // This local only used to store ephemeral config for filtering scan results
+            WifiConfiguration filteredEphemeralConfig = null;
             List<WifiConfiguration> associatedWifiConfigurations =
                     mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetail);
             if (associatedWifiConfigurations == null) {
@@ -710,6 +714,7 @@ public class WifiQualifiedNetworkSelector {
                 //if there are more than 1 associated network, it must be a passpoint network
                 WifiConfiguration network = associatedWifiConfigurations.get(0);
                 if (network.ephemeral) {
+                    filteredEphemeralConfig = network;
                     potentiallyEphemeral =  true;
                 }
             }
@@ -726,15 +731,11 @@ public class WifiQualifiedNetworkSelector {
                             localLog(scanId + " become the new untrusted candidate");
                         }
                         // scanDetail is for available ephemeral network
-                        filteredScanDetails.add(scanDetail);
+                        filteredScanDetails.add(Pair.create(scanDetail, filteredEphemeralConfig));
                     }
                 }
                 continue;
-            } else {
-                // scanDetail is for available saved network
-                filteredScanDetails.add(scanDetail);
             }
-
             // calculate the core of each scanresult whose associated network is not ephemeral. Due
             // to one scane result can associated with more than 1 network, we need calcualte all
             // the scores and use the highest one as the scanresults score
@@ -770,6 +771,8 @@ public class WifiQualifiedNetworkSelector {
                     status.setCandidateScore(score);
                 }
             }
+            // Create potential filteredScanDetail entry
+            filteredScanDetails.add(Pair.create(scanDetail, configurationCandidateForThisScan));
 
             if (highestScore > currentHighestScore || (highestScore == currentHighestScore
                     && scanResultCandidate != null

@@ -52,17 +52,17 @@ public class WifiConnectivityManagerTest {
      */
     @Before
     public void setUp() throws Exception {
-        mResource = getResource();
-        mAlarmManager = getAlarmManager();
-        mContext = getContext();
-        mWifiStateMachine = getWifiStateMachine();
-        mWifiConfigManager = getWifiConfigManager();
-        mWifiInfo = getWifiInfo();
-        mWifiScanner = getWifiScanner();
-        mWifiQNS = getWifiQualifiedNetworkSelector();
-
+        mWifiInjector = mockWifiInjector();
+        mResource = mockResource();
+        mAlarmManager = mockAlarmManager();
+        mContext = mockContext();
+        mWifiStateMachine = mockWifiStateMachine();
+        mWifiConfigManager = mockWifiConfigManager();
+        mWifiInfo = mockWifiInfo();
+        mWifiScanner = mockWifiScanner();
+        mWifiQNS = mockWifiQualifiedNetworkSelector();
         mWifiConnectivityManager = new WifiConnectivityManager(mContext, mWifiStateMachine,
-                mWifiScanner, mWifiConfigManager, mWifiInfo, mWifiQNS);
+                mWifiScanner, mWifiConfigManager, mWifiInfo, mWifiQNS, mWifiInjector);
         mWifiConnectivityManager.setWifiEnabled(true);
     }
 
@@ -83,13 +83,15 @@ public class WifiConnectivityManagerTest {
     private WifiScanner mWifiScanner;
     private WifiConfigManager mWifiConfigManager;
     private WifiInfo mWifiInfo;
+    private WifiLastResortWatchdog mWifiLastResortWatchdog;
+    private WifiInjector mWifiInjector;
 
     private static final int CANDIDATE_NETWORK_ID = 0;
     private static final String CANDIDATE_SSID = "\"AnSsid\"";
     private static final String CANDIDATE_BSSID = "6c:f3:7f:ae:8c:f3";
     private static final String TAG = "WifiConnectivityManager Unit Test";
 
-    Resources getResource() {
+    Resources mockResource() {
         Resources resource = mock(Resources.class);
 
         when(resource.getInteger(R.integer.config_wifi_framework_SECURITY_AWARD)).thenReturn(80);
@@ -98,13 +100,13 @@ public class WifiConnectivityManagerTest {
         return resource;
     }
 
-    AlarmManager getAlarmManager() {
+    AlarmManager mockAlarmManager() {
         AlarmManager alarmManager = mock(AlarmManager.class);
 
         return alarmManager;
     }
 
-    Context getContext() {
+    Context mockContext() {
         Context context = mock(Context.class);
 
         when(context.getResources()).thenReturn(mResource);
@@ -114,7 +116,7 @@ public class WifiConnectivityManagerTest {
         return context;
     }
 
-    WifiScanner getWifiScanner() {
+    WifiScanner mockWifiScanner() {
         WifiScanner scanner = mock(WifiScanner.class);
 
         // dummy scan results. QNS PeriodicScanListener bulids scanDetails from
@@ -137,7 +139,7 @@ public class WifiConnectivityManagerTest {
         return scanner;
     }
 
-    WifiStateMachine getWifiStateMachine() {
+    WifiStateMachine mockWifiStateMachine() {
         WifiStateMachine stateMachine = mock(WifiStateMachine.class);
 
         when(stateMachine.getFrequencyBand()).thenReturn(1);
@@ -149,7 +151,7 @@ public class WifiConnectivityManagerTest {
         return stateMachine;
     }
 
-    WifiQualifiedNetworkSelector getWifiQualifiedNetworkSelector() {
+    WifiQualifiedNetworkSelector mockWifiQualifiedNetworkSelector() {
         WifiQualifiedNetworkSelector qns = mock(WifiQualifiedNetworkSelector.class);
 
         WifiConfiguration candidate = generateWifiConfig(
@@ -162,11 +164,10 @@ public class WifiConnectivityManagerTest {
 
         when(qns.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyObject(),
               anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(candidate);
-
         return qns;
     }
 
-    WifiInfo getWifiInfo() {
+    WifiInfo mockWifiInfo() {
         WifiInfo wifiInfo = mock(WifiInfo.class);
 
         when(wifiInfo.getNetworkId()).thenReturn(WifiConfiguration.INVALID_NETWORK_ID);
@@ -175,7 +176,7 @@ public class WifiConnectivityManagerTest {
         return wifiInfo;
     }
 
-    WifiConfigManager getWifiConfigManager() {
+    WifiConfigManager mockWifiConfigManager() {
         WifiConfigManager wifiConfigManager = mock(WifiConfigManager.class);
 
         when(wifiConfigManager.getWifiConfiguration(anyInt())).thenReturn(null);
@@ -187,6 +188,12 @@ public class WifiConnectivityManagerTest {
         return wifiConfigManager;
     }
 
+    WifiInjector mockWifiInjector() {
+        WifiInjector wifiInjector = mock(WifiInjector.class);
+        mWifiLastResortWatchdog = mock(WifiLastResortWatchdog.class);
+        when(wifiInjector.getWifiLastResortWatchdog()).thenReturn(mWifiLastResortWatchdog);
+        return wifiInjector;
+    }
 
     /**
      *  Wifi enters disconnected state while screen is on.
