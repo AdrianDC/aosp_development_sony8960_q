@@ -18,6 +18,7 @@ package android.net.wifi;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
 
 import android.net.wifi.WifiEnterpriseConfig.Eap;
 import android.net.wifi.WifiEnterpriseConfig.Phase2;
@@ -46,6 +47,22 @@ public class WifiEnterpriseConfigTest {
     @Before
     public void setUp() throws Exception {
         mEnterpriseConfig = new WifiEnterpriseConfig();
+    }
+
+    @Test
+    public void testGetEmptyCaCertificate() {
+        // A newly-constructed WifiEnterpriseConfig object should have no CA certificate.
+        assertNull(mEnterpriseConfig.getCaCertificate());
+        assertNull(mEnterpriseConfig.getCaCertificates());
+        // Setting CA certificate to null explicitly.
+        mEnterpriseConfig.setCaCertificate(null);
+        assertNull(mEnterpriseConfig.getCaCertificate());
+        // Setting CA certificate to null using setCaCertificates().
+        mEnterpriseConfig.setCaCertificates(null);
+        assertNull(mEnterpriseConfig.getCaCertificates());
+        // Setting CA certificate to zero-length array.
+        mEnterpriseConfig.setCaCertificates(new X509Certificate[0]);
+        assertNull(mEnterpriseConfig.getCaCertificates());
     }
 
     @Test
