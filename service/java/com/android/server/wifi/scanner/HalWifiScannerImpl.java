@@ -17,6 +17,7 @@
 package com.android.server.wifi.scanner;
 
 import android.content.Context;
+import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.os.Handler;
 import android.os.Looper;
@@ -47,11 +48,9 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
 
         // Check if ePNO is supported by the HAL.
         int halFeatureSet = mWifiNative.getSupportedFeatureSet();
-        mHalBasedPnoSupported = false;
-        /* TODO(b/27877781): Swith ePNO on
         mHalBasedPnoSupported =
                 ((halFeatureSet & WifiManager.WIFI_FEATURE_HAL_EPNO)
-                        == WifiManager.WIFI_FEATURE_HAL_EPNO); */
+                        == WifiManager.WIFI_FEATURE_HAL_EPNO);
     }
 
     @Override
