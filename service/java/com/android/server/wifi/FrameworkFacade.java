@@ -34,6 +34,7 @@ import android.os.ServiceManager;
 import android.os.UserManager;
 import android.provider.Settings;
 import android.security.KeyStore;
+import android.telephony.CarrierConfigManager;
 
 import java.util.ArrayList;
 
@@ -83,6 +84,17 @@ public class FrameworkFacade {
     public SupplicantStateTracker makeSupplicantStateTracker(Context context,
             WifiConfigManager configManager, Handler handler) {
         return new SupplicantStateTracker(context, configManager, handler);
+    }
+
+    public boolean getConfigWiFiDisableInECBM(Context context) {
+       CarrierConfigManager configManager = (CarrierConfigManager) context
+               .getSystemService(Context.CARRIER_CONFIG_SERVICE);
+       if (configManager != null) {
+           return configManager.getConfig().getBoolean(
+               CarrierConfigManager.KEY_CONFIG_WIFI_DISABLE_IN_ECBM);
+       }
+       /* Default to TRUE */
+       return true;
     }
 
     /**

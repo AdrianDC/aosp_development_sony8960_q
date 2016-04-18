@@ -542,7 +542,10 @@ class WifiController extends StateMachine {
                     break;
                 case CMD_EMERGENCY_CALL_STATE_CHANGED:
                 case CMD_EMERGENCY_MODE_CHANGED:
-                    if (msg.arg1 == 1) {
+                    boolean getConfigWiFiDisableInECBM = mFacade.getConfigWiFiDisableInECBM(mContext);
+                    log("WifiController msg " + msg + " getConfigWiFiDisableInECBM "
+                            + getConfigWiFiDisableInECBM);
+                    if ((msg.arg1 == 1) && getConfigWiFiDisableInECBM) {
                         transitionTo(mEcmState);
                     }
                     break;
