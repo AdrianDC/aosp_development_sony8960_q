@@ -135,7 +135,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onNanDown(WifiNanEventCallback.REASON_REQUESTED);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mMockContext, mMockNative, mockCallback);
     }
 
     /**
@@ -200,7 +200,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectSuccess();
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mMockNative, mockCallback);
     }
 
     /**
@@ -262,7 +262,7 @@ public class WifiNanStateManagerTest {
         validateInternalClientInfoCleanedUp(clientId1);
         validateInternalClientInfoCleanedUp(clientId2);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback1, mockCallback2, mMockNative);
     }
 
     /**
@@ -309,7 +309,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionStarted(anyInt());
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mMockNative, mockCallback, mockSessionCallback);
     }
 
     /**
@@ -477,7 +477,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionConfigSuccess();
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
     }
 
     /**
@@ -521,12 +521,13 @@ public class WifiNanStateManagerTest {
         // (3) publish success
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, publishId);
         mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onSessionStarted(anyInt());
         inOrder.verify(mMockNative).stopPublish(transactionId.capture(), eq(publishId));
         inOrder.verify(mMockNative).disable((short) 0);
 
         validateInternalClientInfoCleanedUp(clientId);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
     }
 
     /**
@@ -693,7 +694,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionConfigSuccess();
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
     }
 
     /**
@@ -737,12 +738,13 @@ public class WifiNanStateManagerTest {
         // (3) subscribe success
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
         mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onSessionStarted(anyInt());
         inOrder.verify(mMockNative).stopSubscribe((short) 0, subscribeId);
         inOrder.verify(mMockNative).disable((short) 0);
 
         validateInternalClientInfoCleanedUp(clientId);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
     }
 
     /**
@@ -828,7 +830,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onMessageSendSuccess(messageId);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
     }
 
     /**
@@ -915,7 +917,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onMessageSendFail(msgToPeerId1, reason);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mMockNative, mockCallback, mockSessionCallback);
     }
 
     /**
@@ -996,7 +998,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onMessageSendSuccess(msgToPeerId2);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mMockNative, mockCallback, mockSessionCallback);
     }
 
     /**
@@ -1051,7 +1053,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mockSessionCallback).onMessageSendFail(messageId,
                 WifiNanSessionCallback.REASON_NO_MATCH_SESSION);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
     }
 
     /**
@@ -1147,7 +1149,7 @@ public class WifiNanStateManagerTest {
         validateInternalClientInfoCleanedUp(clientId1);
         inOrder.verify(mMockNative).disable((short) 0);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mMockNative, mockCallback1, mockCallback2, mockCallback3);
     }
 
     /**
@@ -1199,6 +1201,7 @@ public class WifiNanStateManagerTest {
         // (4) get successful response to the publish
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, publishId);
         mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onSessionStarted(anyInt());
         inOrder.verify(mMockNative).stopPublish((short) 0, publishId);
         inOrder.verify(mMockNative).disable((short) 0);
 
@@ -1212,7 +1215,7 @@ public class WifiNanStateManagerTest {
         mDut.onSessionTerminatedNotification(publishId, reason, true);
         mMockLooper.dispatchAll();
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mMockNative, mockCallback, mockSessionCallback);
     }
 
     /**
@@ -1248,13 +1251,14 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
 
         // (2) publish - no response
         mDut.publish(clientId, publishConfig, mockPublishSessionCallback);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mMockNative, mockCallback, mockPublishSessionCallback);
     }
 
     /**
@@ -1279,7 +1283,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mMockNative, mockCallback, mockSessionCallback);
     }
 
     /**
@@ -1323,7 +1327,7 @@ public class WifiNanStateManagerTest {
         mDut.onSessionConfigSuccessResponse(transactionIdConfig, false, pubSubId);
         mMockLooper.dispatchAll();
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mMockNative, mockCallback);
     }
 
     /**
@@ -1367,7 +1371,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mockSessionCallback)
                 .onSessionConfigFail(WifiNanSessionCallback.REASON_OTHER);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mMockNative, mockCallback, mockSessionCallback);
     }
 
     /**
@@ -1412,7 +1416,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mockSessionCallback)
                 .onSessionConfigFail(WifiNanSessionCallback.REASON_OTHER);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mMockNative, mockCallback, mockSessionCallback);
     }
 
     /**

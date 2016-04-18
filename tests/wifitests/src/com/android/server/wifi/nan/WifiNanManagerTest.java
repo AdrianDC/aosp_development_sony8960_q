@@ -23,6 +23,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.net.wifi.nan.ConfigRequest;
@@ -168,7 +169,7 @@ public class WifiNanManagerTest {
         inOrder.verify(mockNanService).connect(binder.capture(), any(IWifiNanEventCallback.class),
                 (ConfigRequest) isNull());
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService);
     }
 
     /**
@@ -213,7 +214,7 @@ public class WifiNanManagerTest {
         inOrder.verify(mockNanService).subscribe(eq(clientId), eq(subscribeConfig),
                 any(IWifiNanSessionCallback.class));
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService);
     }
 
     /**
@@ -268,7 +269,7 @@ public class WifiNanManagerTest {
         inOrder.verify(mockNanService).connect(any(IBinder.class), any(IWifiNanEventCallback.class),
                 (ConfigRequest) isNull());
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService);
     }
 
     /**
@@ -297,7 +298,7 @@ public class WifiNanManagerTest {
         // (2) connect - fails silently
         mDut.connect(mMockLooper.getLooper(), mockCallback);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService);
     }
 
     /*
@@ -389,7 +390,8 @@ public class WifiNanManagerTest {
         publishSession.getValue().updatePublish(publishConfig);
         mMockLooper.dispatchAll();
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService,
+                mockPublishSession);
     }
 
     /**
@@ -437,7 +439,8 @@ public class WifiNanManagerTest {
         // (3) failure when trying to update: NOP
         publishSession.getValue().updatePublish(publishConfig);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService,
+                mockPublishSession);
     }
 
     /**
@@ -525,7 +528,8 @@ public class WifiNanManagerTest {
         subscribeSession.getValue().updateSubscribe(subscribeConfig);
         mMockLooper.dispatchAll();
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService,
+                mockSubscribeSession);
     }
 
     /**
@@ -573,7 +577,8 @@ public class WifiNanManagerTest {
         // (3) failure when trying to update: NOP
         subscribeSession.getValue().updateSubscribe(subscribeConfig);
 
-        inOrder.verifyNoMoreInteractions();
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService,
+                mockSubscribeSession);
     }
 
     /*
