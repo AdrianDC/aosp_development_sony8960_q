@@ -105,13 +105,38 @@ public class WifiControllerTest {
     }
 
     @Test
-    public void testEcm() throws Exception {
+    public void testEcmOn() throws Exception {
         enableWifi();
+
+        // Test with WifiDisableInECBM turned on:
+        when(mFacade.getConfigWiFiDisableInECBM(mContext)).thenReturn(true);
+        doTestEcm(true);
+    }
+
+    @Test
+    public void testEcmOff() throws Exception {
+        enableWifi();
+
+        // Test with WifiDisableInECBM turned off
+        when(mFacade.getConfigWiFiDisableInECBM(mContext)).thenReturn(false);
+        doTestEcm(false);
+    }
+
+    private void assertInEcm(boolean ecmEnabled) throws Exception {
+        if (ecmEnabled) {
+            assertEquals("EcmState", getCurrentState().getName());
+        } else {
+            assertEquals("DeviceActiveState", getCurrentState().getName());
+        }
+    }
+
+
+    private void doTestEcm(boolean ecmEnabled) throws Exception {
 
         // test ecm changed
         mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, 1);
         mLooper.dispatchAll();
-        assertEquals("EcmState", getCurrentState().getName());
+        assertInEcm(ecmEnabled);
 
         mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, 0);
         mLooper.dispatchAll();
@@ -120,7 +145,7 @@ public class WifiControllerTest {
         // test call state changed
         mWifiController.sendMessage(CMD_EMERGENCY_CALL_STATE_CHANGED, 1);
         mLooper.dispatchAll();
-        assertEquals("EcmState", getCurrentState().getName());
+        assertInEcm(ecmEnabled);
 
         mWifiController.sendMessage(CMD_EMERGENCY_CALL_STATE_CHANGED, 0);
         mLooper.dispatchAll();
@@ -130,15 +155,15 @@ public class WifiControllerTest {
         // test both changed (variation 1 - the good case)
         mWifiController.sendMessage(CMD_EMERGENCY_CALL_STATE_CHANGED, 1);
         mLooper.dispatchAll();
-        assertEquals("EcmState", getCurrentState().getName());
+        assertInEcm(ecmEnabled);
 
         mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, 1);
         mLooper.dispatchAll();
-        assertEquals("EcmState", getCurrentState().getName());
+        assertInEcm(ecmEnabled);
 
         mWifiController.sendMessage(CMD_EMERGENCY_CALL_STATE_CHANGED, 0);
         mLooper.dispatchAll();
-        assertEquals("EcmState", getCurrentState().getName());
+        assertInEcm(ecmEnabled);
 
         mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, 0);
         mLooper.dispatchAll();
@@ -147,15 +172,15 @@ public class WifiControllerTest {
         // test both changed (variation 2 - emergency call in ecm)
         mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, 1);
         mLooper.dispatchAll();
-        assertEquals("EcmState", getCurrentState().getName());
+        assertInEcm(ecmEnabled);
 
         mWifiController.sendMessage(CMD_EMERGENCY_CALL_STATE_CHANGED, 1);
         mLooper.dispatchAll();
-        assertEquals("EcmState", getCurrentState().getName());
+        assertInEcm(ecmEnabled);
 
         mWifiController.sendMessage(CMD_EMERGENCY_CALL_STATE_CHANGED, 0);
         mLooper.dispatchAll();
-        assertEquals("EcmState", getCurrentState().getName());
+        assertInEcm(ecmEnabled);
 
         mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, 0);
         mLooper.dispatchAll();
@@ -164,15 +189,15 @@ public class WifiControllerTest {
         // test both changed (variation 3 - not so good order of events)
         mWifiController.sendMessage(CMD_EMERGENCY_CALL_STATE_CHANGED, 1);
         mLooper.dispatchAll();
-        assertEquals("EcmState", getCurrentState().getName());
+        assertInEcm(ecmEnabled);
 
         mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, 1);
         mLooper.dispatchAll();
-        assertEquals("EcmState", getCurrentState().getName());
+        assertInEcm(ecmEnabled);
 
         mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, 0);
         mLooper.dispatchAll();
-        assertEquals("EcmState", getCurrentState().getName());
+        assertInEcm(ecmEnabled);
 
         mWifiController.sendMessage(CMD_EMERGENCY_CALL_STATE_CHANGED, 0);
         mLooper.dispatchAll();
@@ -181,12 +206,12 @@ public class WifiControllerTest {
         // test that Wifi toggle doesn't exit Ecm
         mWifiController.sendMessage(CMD_EMERGENCY_CALL_STATE_CHANGED, 1);
         mLooper.dispatchAll();
-        assertEquals("EcmState", getCurrentState().getName());
+        assertInEcm(ecmEnabled);
 
         when(mSettingsStore.isWifiToggleEnabled()).thenReturn(true);
         mWifiController.sendMessage(CMD_WIFI_TOGGLED);
         mLooper.dispatchAll();
-        assertEquals("EcmState", getCurrentState().getName());
+        assertInEcm(ecmEnabled);
 
         mWifiController.sendMessage(CMD_EMERGENCY_CALL_STATE_CHANGED, 0);
         mLooper.dispatchAll();
