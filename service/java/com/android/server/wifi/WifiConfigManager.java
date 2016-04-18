@@ -3300,4 +3300,13 @@ public class WifiConfigManager {
             mActiveScanDetail = activeScanDetail;
         }
     }
+
+    /**
+     * Check if the provided ephemeral network was deleted by the user or not.
+     * @param ssid ssid of the network
+     * @return true if network was deleted, false otherwise.
+     */
+    public boolean wasEphemeralNetworkDeleted(String ssid) {
+        return mDeletedEphemeralSSIDs.contains(ssid);
+    }
 }
