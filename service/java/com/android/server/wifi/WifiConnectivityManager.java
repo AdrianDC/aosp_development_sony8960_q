@@ -55,8 +55,11 @@ public class WifiConnectivityManager {
     // performed when screen is on.
     private static final int PERIODIC_SCAN_INTERVAL_MS = 20000; // 20 seconds
     // PNO scan interval in milli-seconds. This is the scan
-    // performed when screen is off.
-    private static final int PNO_SCAN_INTERVAL_MS = 160000; // 160 seconds
+    // performed when screen is off and disconnected.
+    private static final int DISCONNECTED_PNO_SCAN_INTERVAL_MS = 20000; // 20 seconds
+    // PNO scan interval in milli-seconds. This is the scan
+    // performed when screen is off and connected.
+    private static final int CONNECTED_PNO_SCAN_INTERVAL_MS = 160000; // 160 seconds
     // Maximum number of retries when starting a scan failed
     private static final int MAX_SCAN_RESTART_ALLOWED = 5;
     // Number of milli-seconds to delay before retry starting
@@ -76,6 +79,12 @@ public class WifiConnectivityManager {
     public static final int WIFI_STATE_DISCONNECTED = 2;
     public static final int WIFI_STATE_TRANSITIONING = 3;
 
+    // Due to b/28020168, timer based single scan will be scheduled every
+    // PERIODIC_SCAN_INTERVAL_MS to provide periodic scan.
+    private static final boolean ENABLE_BACKGROUND_SCAN = true;
+    // Flag to turn on connected PNO, when needed
+    private static final boolean ENABLE_CONNECTED_PNO_SCAN = true;
+
     private final WifiStateMachine mStateMachine;
     private final WifiScanner mScanner;
     private final WifiConfigManager mConfigManager;
@@ -94,9 +103,6 @@ public class WifiConnectivityManager {
     private boolean mUntrustedConnectionAllowed = false;
     private int mScanRestartCount = 0;
     private int mSingleScanRestartCount = 0;
-    // Due to b/28020168, timer based single scan will be scheduled every
-    // PERIODIC_SCAN_INTERVAL_MS to provide periodic scan.
-    private boolean mNoBackgroundScan = true;
 
     // PNO settings
     private int mMin5GHzRssi;
@@ -502,7 +508,7 @@ public class WifiConnectivityManager {
     private void startPeriodicScan() {
         // Due to b/28020168, timer based single scan will be scheduled every
         // PERIODIC_SCAN_INTERVAL_MS to provide periodic scan.
-        if (mNoBackgroundScan) {
+        if (!ENABLE_BACKGROUND_SCAN) {
             startSingleScan();
             schedulePeriodicScanTimer();
         } else {
@@ -547,7 +553,7 @@ public class WifiConnectivityManager {
         scanSettings.band = getScanBand();
         scanSettings.reportEvents = WifiScanner.REPORT_EVENT_NO_BATCH;
         scanSettings.numBssidsPerScan = 0;
-        scanSettings.periodInMs = PNO_SCAN_INTERVAL_MS;
+        scanSettings.periodInMs = DISCONNECTED_PNO_SCAN_INTERVAL_MS;
         // TODO: enable exponential back off scan later to further save energy
         // scanSettings.maxPeriodInMs = 8 * scanSettings.periodInMs;
 
@@ -559,7 +565,7 @@ public class WifiConnectivityManager {
     // Start a ConnectedPNO scan when screen is off and Wifi is connected
     private void startConnectedPnoScan() {
         // Disable ConnectedPNO for now due to b/28020168
-        if (mNoBackgroundScan) {
+        if (!ENABLE_CONNECTED_PNO_SCAN) {
             return;
         }
 
@@ -590,7 +596,7 @@ public class WifiConnectivityManager {
         scanSettings.band = getScanBand();
         scanSettings.reportEvents = WifiScanner.REPORT_EVENT_NO_BATCH;
         scanSettings.numBssidsPerScan = 0;
-        scanSettings.periodInMs = PNO_SCAN_INTERVAL_MS;
+        scanSettings.periodInMs = CONNECTED_PNO_SCAN_INTERVAL_MS;
         // TODO: enable exponential back off scan later to further save energy
         // scanSettings.maxPeriodInMs = 8 * scanSettings.periodInMs;
 
@@ -678,7 +684,7 @@ public class WifiConnectivityManager {
     private void stopConnectivityScan() {
         // Due to b/28020168, timer based single scan will be scheduled every
         // PERIODIC_SCAN_INTERVAL_MS to provide periodic scan.
-        if (mNoBackgroundScan) {
+        if (!ENABLE_BACKGROUND_SCAN) {
             mAlarmManager.cancel(mPeriodicScanTimerListener);
         } else {
             mScanner.stopBackgroundScan(mPeriodicScanListener);
