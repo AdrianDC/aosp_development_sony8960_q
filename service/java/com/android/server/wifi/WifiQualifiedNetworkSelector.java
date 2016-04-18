@@ -723,7 +723,8 @@ public class WifiQualifiedNetworkSelector {
                 if (isUntrustedConnectionsAllowed && mNetworkScoreCache != null) {
                     int netScore = mNetworkScoreCache.getNetworkScore(scanResult, false);
                     //get network score (Determine if this is an 'Ephemeral' network)
-                    if (netScore != WifiNetworkScoreCache.INVALID_NETWORK_SCORE) {
+                    if (!mWifiConfigManager.wasEphemeralNetworkDeleted(scanResult.SSID)
+                            && netScore != WifiNetworkScoreCache.INVALID_NETWORK_SCORE) {
                         localLog(scanId + "has score: " + netScore);
                         if (netScore > unTrustedHighestScore) {
                             unTrustedHighestScore = netScore;
