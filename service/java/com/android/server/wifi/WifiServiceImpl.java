@@ -59,8 +59,10 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
+import android.os.BatteryStats;
 import android.os.Binder;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -69,6 +71,7 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
 import android.os.RemoteException;
+import android.os.ResultReceiver;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.UserHandle;
@@ -701,6 +704,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
             return 0;
         }
+    }
+
+    @Override
+    public void requestActivityInfo(ResultReceiver result) {
+        Bundle bundle = new Bundle();
+        bundle.putParcelable(BatteryStats.RESULT_RECEIVER_CONTROLLER_KEY, reportActivityInfo());
+        result.send(0, bundle);
     }
 
     /**
