@@ -47,9 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Locale;
 
-/**
- * Unit tests for {@link com.android.server.wifi.SoftApManager}.
- */
+/** Unit tests for {@link SoftApManager}. */
 @SmallTest
 public class SoftApManagerTest {
 
@@ -69,6 +67,7 @@ public class SoftApManagerTest {
     @Mock INetworkManagementService mNmService;
     @Mock ConnectivityManager mConnectivityManager;
     @Mock SoftApManager.Listener mListener;
+    @Mock InterfaceConfiguration mInterfaceConfiguration;
 
     /**
      * Internal BroadcastReceiver that SoftApManager uses to listen for tethering
@@ -78,15 +77,18 @@ public class SoftApManagerTest {
 
     SoftApManager mSoftApManager;
 
-    /**
-     * Setup test.
-     */
+    /** Sets up test. */
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         mLooper = new MockLooper();
 
         when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
+        when(mNmService.getInterfaceConfig(TEST_INTERFACE_NAME))
+                .thenReturn(mInterfaceConfiguration);
+        when(mConnectivityManager.getTetherableWifiRegexs())
+                .thenReturn(AVAILABLE_DEVICES);
+
         mSoftApManager = new SoftApManager(mContext,
                                            mLooper.getLooper(),
                                            mWifiNative,
@@ -104,9 +106,7 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
     }
 
-    /**
-     * Verify startSoftAp will fail if AP configuration is not provided.
-     */
+    /** Verifies startSoftAp will fail if AP configuration is not provided. */
     @Test
     public void startSoftApWithoutConfig() throws Exception {
         InOrder order = inOrder(mListener);
@@ -119,11 +119,61 @@ public class SoftApManagerTest {
                 WifiManager.WIFI_AP_STATE_FAILED, WifiManager.SAP_START_FAILURE_GENERAL);
     }
 
-    /**
-     * Successfully start soft AP.
-     */
+    /** Tests the handling of timeout after tethering is started. */
     @Test
-    public void startSoftApSuccess() throws Exception {
+    public void tetheringTimedOut() throws Exception {
+        startSoftApAndVerifyEnabled();
+        announceAvailableForTethering();
+        verifyTetheringRequested();
+
+        InOrder order = inOrder(mListener);
+
+        /* Move the time forward to simulate notification timeout. */
+        mLooper.moveTimeForward(5000);
+        mLooper.dispatchAll();
+
+        /* Verify soft ap is disabled. */
+        verify(mNmService).stopAccessPoint(eq(TEST_INTERFACE_NAME));
+        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
+        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
+    }
+
+    /** Tests the handling of tethered notification after tethering is started. */
+    @Test
+    public void tetherCompleted() throws Exception {
+        startSoftApAndVerifyEnabled();
+        announceAvailableForTethering();
+        verifyTetheringRequested();
+        announceTethered();
+        verifySoftApNotDisabled();
+    }
+
+    /** Tests the handling of stop command when soft AP is not started. */
+    @Test
+    public void stopWhenNotStarted() throws Exception {
+        mSoftApManager.stop();
+        mLooper.dispatchAll();
+        /* Verify no state changes. */
+        verify(mListener, never()).onStateChanged(anyInt(), anyInt());
+    }
+
+    /** Tests the handling of stop command when soft AP is started. */
+    @Test
+    public void stopWhenStarted() throws Exception {
+        startSoftApAndVerifyEnabled();
+
+        InOrder order = inOrder(mListener);
+
+        mSoftApManager.stop();
+        mLooper.dispatchAll();
+
+        verify(mNmService).stopAccessPoint(TEST_INTERFACE_NAME);
+        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
+        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
+    }
+
+    /** Starts soft AP and verifies that it is enabled successfully. */
+    protected void startSoftApAndVerifyEnabled() throws Exception {
         InOrder order = inOrder(mListener);
 
         /**
@@ -143,100 +193,36 @@ public class SoftApManagerTest {
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLED, 0);
     }
 
-    /**
-     * Test the handling of event that triggers tethering.
-     * @throws Exception
-     */
-    @Test
-    public void startTethering() throws Exception {
-        startSoftApSuccess();
-
-        /* Inject tethering event to start the tethering process. */
-        ArrayList<String> availableList =
-                new ArrayList<String>(Arrays.asList(AVAILABLE_DEVICES));
-        TestUtil.sendTetherStateChanged(
-                mBroadcastReceiver, mContext, availableList, new ArrayList<String>());
-
-        InterfaceConfiguration ifcg = mock(InterfaceConfiguration.class);
-        when(mConnectivityManager.getTetherableWifiRegexs())
-                .thenReturn(AVAILABLE_DEVICES);
-        when(mNmService.getInterfaceConfig(TEST_INTERFACE_NAME)).thenReturn(ifcg);
-        when(mConnectivityManager.tether(TEST_INTERFACE_NAME))
-                .thenReturn(ConnectivityManager.TETHER_ERROR_NO_ERROR);
-        mLooper.dispatchAll();
-        verify(ifcg).setLinkAddress(any(LinkAddress.class));
-        verify(ifcg).setInterfaceUp();
-        verify(mNmService).setInterfaceConfig(eq(TEST_INTERFACE_NAME), eq(ifcg));
-    }
-
-    /**
-     * Test the handling of tethering timeout after tethering is started.
-     * @throws Exception
-     */
-    @Test
-    public void tetheringTimedOut() throws Exception {
-        startTethering();
-
-        InOrder order = inOrder(mListener);
-
-        /* Move the time forward to simulate notification timeout. */
-        mLooper.moveTimeForward(5000);
-        mLooper.dispatchAll();
-
-        /* Verify soft ap is disabled. */
-        verify(mNmService).stopAccessPoint(eq(TEST_INTERFACE_NAME));
-        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
-        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
-    }
-
-    /**
-     * Test the handling of tethered notification after tethering is started.
-     * @throws Exception
-     */
-    @Test
-    public void tetherCompleted() throws Exception {
-        startTethering();
-
-        /* Inject tethering event indicating that the tethering interface is tethered. */
-        ArrayList<String> deviceList =
-                new ArrayList<String>(Arrays.asList(AVAILABLE_DEVICES));
-        TestUtil.sendTetherStateChanged(
-                mBroadcastReceiver, mContext, deviceList, deviceList);
-
-        mLooper.dispatchAll();
-
-        /* Verify soft ap is not disabled. */
+    /** Verifies that soft AP was not disabled. */
+    protected void verifySoftApNotDisabled() throws Exception {
         verify(mListener, never()).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
         verify(mListener, never()).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
     }
 
-    /**
-     * Test the handling of stop command when soft ap is not started.
-     * @throws Exception
-     */
-    @Test
-    public void stopWhenNotStarted() throws Exception {
-        mSoftApManager.stop();
+    /** Sends a broadcast intent indicating that the interface is available for tethering. */
+    protected void announceAvailableForTethering() throws Exception {
+        when(mConnectivityManager.tether(TEST_INTERFACE_NAME))
+                .thenReturn(ConnectivityManager.TETHER_ERROR_NO_ERROR);
+        ArrayList<String> availableList =
+                new ArrayList<String>(Arrays.asList(AVAILABLE_DEVICES));
+        TestUtil.sendTetherStateChanged(
+                mBroadcastReceiver, mContext, availableList, new ArrayList<String>());
         mLooper.dispatchAll();
-        /* Verify no state changes. */
-        verify(mListener, never()).onStateChanged(anyInt(), anyInt());
     }
 
-    /**
-     * Test the handling of stop command when soft ap is started.
-     * @throws Exception
-     */
-    @Test
-    public void stopWhenStarted() throws Exception {
-        startSoftApSuccess();
+    /** Verifies that tethering was requested. */
+    protected void verifyTetheringRequested() throws Exception {
+        verify(mInterfaceConfiguration).setLinkAddress(any(LinkAddress.class));
+        verify(mInterfaceConfiguration).setInterfaceUp();
+        verify(mNmService).setInterfaceConfig(eq(TEST_INTERFACE_NAME), eq(mInterfaceConfiguration));
+    }
 
-        InOrder order = inOrder(mListener);
-
-        mSoftApManager.stop();
+    /** Sends a broadcast intent indicating that the interface is tethered. */
+    protected void announceTethered() throws Exception {
+        ArrayList<String> deviceList =
+                new ArrayList<String>(Arrays.asList(AVAILABLE_DEVICES));
+        TestUtil.sendTetherStateChanged(
+                mBroadcastReceiver, mContext, deviceList, deviceList);
         mLooper.dispatchAll();
-
-        verify(mNmService).stopAccessPoint(TEST_INTERFACE_NAME);
-        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
-        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
     }
 }
