@@ -183,6 +183,11 @@ public class WifiConfigManager {
     private static final int DEFAULT_MAX_DHCP_RETRIES = 9;
 
     /**
+     * Maximum age of scan results that can be used for averaging out RSSI value.
+     */
+    private static final int SCAN_RESULT_MAXIMUM_AGE_MS = 40000;
+
+    /**
      * The threshold for each kind of error. If a network continuously encounter the same error more
      * than the threshold times, this network will be disabled. -1 means unavailable.
      */
@@ -550,8 +555,7 @@ public class WifiConfigManager {
                 result.level = info.getRssi();
 
                 // Average the RSSI value
-                result.averageRssi(previousRssi, previousSeen,
-                        WifiQualifiedNetworkSelector.SCAN_RESULT_MAXIMUNM_AGE);
+                result.averageRssi(previousRssi, previousSeen, SCAN_RESULT_MAXIMUM_AGE_MS);
                 if (mVerboseLoggingEnabled) {
                     logd("updateConfiguration freq=" + result.frequency
                             + " BSSID=" + result.BSSID

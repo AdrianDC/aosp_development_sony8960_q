@@ -342,7 +342,7 @@ public class WifiQualifiedNetworkSelectorTest {
         ScanResult chosenScanResult = scanDetails.get(scanDetails.size() - 1).getScanResult();
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
     }
@@ -379,7 +379,7 @@ public class WifiQualifiedNetworkSelectorTest {
         ScanResult chosenScanResult = scanDetails.get(scanDetails.size() - 1).getScanResult();
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
     }
@@ -415,7 +415,7 @@ public class WifiQualifiedNetworkSelectorTest {
         ScanResult chosenScanResult = scanDetails.get(scanDetails.size() - 1).getScanResult();
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
     }
@@ -452,7 +452,7 @@ public class WifiQualifiedNetworkSelectorTest {
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
     }
@@ -489,7 +489,7 @@ public class WifiQualifiedNetworkSelectorTest {
         ScanResult chosenScanResult = scanDetails.get(scanDetails.size() - 1).getScanResult();
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
     }
@@ -525,7 +525,7 @@ public class WifiQualifiedNetworkSelectorTest {
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
 
         assertEquals("choose the wrong SSID", null, candidate);
     }
@@ -561,7 +561,7 @@ public class WifiQualifiedNetworkSelectorTest {
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
     }
@@ -597,7 +597,7 @@ public class WifiQualifiedNetworkSelectorTest {
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
     }
@@ -632,7 +632,7 @@ public class WifiQualifiedNetworkSelectorTest {
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
     }
 
@@ -717,7 +717,7 @@ public class WifiQualifiedNetworkSelectorTest {
                 .thenReturn(configs[2]);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
     }
 
@@ -798,7 +798,7 @@ public class WifiQualifiedNetworkSelectorTest {
         mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
         mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], false);
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
     }
@@ -840,7 +840,7 @@ public class WifiQualifiedNetworkSelectorTest {
         //re-enable it
         mWifiQualifiedNetworkSelector.enableBssidForQualityNetworkSelection(bssids[1], true);
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
     }
@@ -885,9 +885,9 @@ public class WifiQualifiedNetworkSelectorTest {
 
         //re-enable it
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime()
-                + WifiQualifiedNetworkSelector.BSSID_BLACKLIST_EXPIRE_TIME);
+                + WifiQualifiedNetworkSelector.BSSID_BLACKLIST_EXPIRE_TIME_MS);
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
     }
@@ -926,7 +926,7 @@ public class WifiQualifiedNetworkSelectorTest {
         savedConfigs[1].getNetworkSelectionStatus().setNetworkSelectionStatus(
                 WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED);
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
     }
@@ -962,7 +962,7 @@ public class WifiQualifiedNetworkSelectorTest {
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, true, false, true, false);
+                false, true, false, true, false, scanDetails);
 
         assertEquals("choose the wrong network", null, candidate);
     }
@@ -994,11 +994,11 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         //first QNS
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
         //immediately second QNS
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
 
         verifySelectedResult(chosenScanResult, candidate);
@@ -1032,11 +1032,11 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         //first QNS
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
         //immediately second QNS
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
         assertEquals("choose the wrong BSSID", null, candidate);
     }
@@ -1068,11 +1068,11 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         //first QNS
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
         //immediately second QNS
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(true,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
 
         verifySelectedResult(chosenScanResult, candidate);
@@ -1105,7 +1105,7 @@ public class WifiQualifiedNetworkSelectorTest {
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         assertEquals("choose the wrong BSSID", null, candidate);
         assertEquals("Should receive zero filteredScanDetails", 0,
                 mWifiQualifiedNetworkSelector.getFilteredScanDetails().size());
@@ -1140,8 +1140,8 @@ public class WifiQualifiedNetworkSelectorTest {
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         //first time, connect to test2 due to 5GHz bonus
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
         when(mWifiInfo.getNetworkId()).thenReturn(1);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
@@ -1153,7 +1153,7 @@ public class WifiQualifiedNetworkSelectorTest {
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         assertEquals("choose the wrong BSSID", null, candidate);
     }
 
@@ -1184,8 +1184,8 @@ public class WifiQualifiedNetworkSelectorTest {
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         //first connect to test2 due to 5GHz bonus
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
         when(mWifiInfo.getNetworkId()).thenReturn(1);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
@@ -1193,7 +1193,7 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, true, true, false, false);
+                false, true, true, false, false, scanDetails);
         assertEquals("choose the wrong BSSID", null, candidate);
     }
 
@@ -1226,15 +1226,15 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
         when(mWifiInfo.is24GHz()).thenReturn(true);
         //connect to config2 first
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
 
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime() + 11 * 1000);
         when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
     }
 
@@ -1266,8 +1266,8 @@ public class WifiQualifiedNetworkSelectorTest {
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         //first connect to test2 because of RSSI
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
         when(mWifiInfo.getNetworkId()).thenReturn(1);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
@@ -1281,7 +1281,7 @@ public class WifiQualifiedNetworkSelectorTest {
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
     }
 
@@ -1314,8 +1314,8 @@ public class WifiQualifiedNetworkSelectorTest {
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         //first connect to test2 since test1's RSSI is negligible
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
         when(mWifiInfo.getNetworkId()).thenReturn(1);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
@@ -1328,7 +1328,7 @@ public class WifiQualifiedNetworkSelectorTest {
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
     }
 
@@ -1359,8 +1359,8 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
         when(mWifiInfo.getNetworkId()).thenReturn(1);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.getRssi()).thenReturn(levels[1]);
@@ -1375,7 +1375,7 @@ public class WifiQualifiedNetworkSelectorTest {
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
     }
 
@@ -1405,8 +1405,8 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
 
         when(mWifiInfo.getNetworkId()).thenReturn(1);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
@@ -1422,7 +1422,7 @@ public class WifiQualifiedNetworkSelectorTest {
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
     }
 
@@ -1454,8 +1454,8 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
         when(mWifiInfo.getNetworkId()).thenReturn(1);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(true);
@@ -1469,7 +1469,7 @@ public class WifiQualifiedNetworkSelectorTest {
 
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
     }
 
@@ -1499,8 +1499,8 @@ public class WifiQualifiedNetworkSelectorTest {
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
 
         when(mWifiInfo.getNetworkId()).thenReturn(1);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
@@ -1515,7 +1515,7 @@ public class WifiQualifiedNetworkSelectorTest {
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
     }
 
@@ -1551,8 +1551,8 @@ public class WifiQualifiedNetworkSelectorTest {
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
 
         when(mWifiInfo.getNetworkId()).thenReturn(1);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
@@ -1566,7 +1566,7 @@ public class WifiQualifiedNetworkSelectorTest {
 
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
     }
 
@@ -1602,8 +1602,8 @@ public class WifiQualifiedNetworkSelectorTest {
         final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(savedNetwork);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
-        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
-                false, true, false);
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, false,
+                false, true, false, scanDetails);
 
         when(mWifiInfo.getNetworkId()).thenReturn(1);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
@@ -1617,7 +1617,7 @@ public class WifiQualifiedNetworkSelectorTest {
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
     }
 
@@ -1671,11 +1671,11 @@ public class WifiQualifiedNetworkSelectorTest {
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
                 false /* forceSelectNetwork */,
                 true /* isUntrustedConnectionsAllowed */,
-                scanDetails,
                 false, /* isLinkDebouncing */
                 false, /* isConnected */
                 true, /* isDisconnected */
-                false /* isSupplicantTransient */);
+                false, /* isSupplicantTransient */
+                scanDetails);
         verify(selectionStatus).setCandidate(untrustedScanResult);
         assertSame(unTrustedNetworkCandidate, candidate);
         assertEquals(meteredHints[1], candidate.meteredHint);
@@ -1744,11 +1744,11 @@ public class WifiQualifiedNetworkSelectorTest {
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
                 false /* forceSelectNetwork */,
                 true /* isUntrustedConnectionsAllowed */,
-                scanDetails,
                 false, /* isLinkDebouncing */
                 false, /* isConnected */
                 true, /* isDisconnected */
-                false /* isSupplicantTransient */);
+                false, /* isSupplicantTransient */
+                scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
         //Verify two scanDetails returned in the filteredScanDetails
@@ -1823,11 +1823,11 @@ public class WifiQualifiedNetworkSelectorTest {
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
                 false /* forceSelectNetwork */,
                 false /* isUntrustedConnectionsAllowed */,
-                scanDetails,
                 false, /* isLinkDebouncing */
                 false, /* isConnected */
                 true, /* isDisconnected */
-                false /* isSupplicantTransient */);
+                false, /* isSupplicantTransient */
+                scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
         //Verify two scanDetails returned in the filteredScanDetails
@@ -1893,11 +1893,11 @@ public class WifiQualifiedNetworkSelectorTest {
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
                 false /* forceSelectNetwork */,
                 true /* isUntrustedConnectionsAllowed */,
-                scanDetails,
                 false, /* isLinkDebouncing */
                 false, /* isConnected */
                 true, /* isDisconnected */
-                false /* isSupplicantTransient */);
+                false, /* isSupplicantTransient */
+                scanDetails);
         verify(selectionStatus).setCandidate(untrustedScanResult);
         assertSame(candidate, unTrustedNetworkCandidate);
         assertEquals(meteredHints[0], candidate.meteredHint);
@@ -1938,11 +1938,11 @@ public class WifiQualifiedNetworkSelectorTest {
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
                 false /* forceSelectNetwork */,
                 false /* isUntrustedConnectionsAllowed */,
-                scanDetails,
                 false, /* isLinkDebouncing */
                 false, /* isConnected */
                 true, /* isDisconnected */
-                false /* isSupplicantTransient */);
+                false, /* isSupplicantTransient */
+                scanDetails);
         verifySelectedResult(scanDetails.get(0).getScanResult(), candidate);
         assertSame(candidate, savedConfigs[0]);
     }
@@ -1984,11 +1984,11 @@ public class WifiQualifiedNetworkSelectorTest {
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
                 false /* forceSelectNetwork */,
                 false /* isUntrustedConnectionsAllowed */,
-                scanDetails,
                 false, /* isLinkDebouncing */
                 false, /* isConnected */
                 true, /* isDisconnected */
-                false /* isSupplicantTransient */);
+                false, /* isSupplicantTransient */
+                scanDetails);
         verifySelectedResult(scanDetails.get(0).getScanResult(), candidate);
         assertSame(candidate, savedConfigs[0]);
     }
@@ -2035,11 +2035,11 @@ public class WifiQualifiedNetworkSelectorTest {
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
                 false /* forceSelectNetwork */,
                 true /* isUntrustedConnectionsAllowed */,
-                scanDetails,
                 false, /* isLinkDebouncing */
                 false, /* isConnected */
                 true, /* isDisconnected */
-                false /* isSupplicantTransient */);
+                false, /* isSupplicantTransient */
+                scanDetails);
         verifySelectedResult(scanDetails.get(0).getScanResult(), candidate);
         assertSame(candidate, savedConfigs[0]);
     }
@@ -2093,11 +2093,11 @@ public class WifiQualifiedNetworkSelectorTest {
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
                 false /* forceSelectNetwork */,
                 true /* isUntrustedConnectionsAllowed */,
-                scanDetails,
                 false, /* isLinkDebouncing */
                 false, /* isConnected */
                 true, /* isDisconnected */
-                false /* isSupplicantTransient */);
+                false, /* isSupplicantTransient */
+                scanDetails);
         verify(selectionStatus).setCandidate(untrustedScanResult);
         assertSame(unTrustedNetworkCandidate, candidate);
     }

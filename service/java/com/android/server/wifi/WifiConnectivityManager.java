@@ -216,10 +216,9 @@ public class WifiConnectivityManager {
         localLog(listenerName + " onResults: start QNS");
         WifiConfiguration candidate =
                 mQualifiedNetworkSelector.selectQualifiedNetwork(mForceSelectNetwork,
-                mUntrustedConnectionAllowed, scanDetails,
-                mStateMachine.isLinkDebouncing(), mStateMachine.isConnected(),
-                mStateMachine.isDisconnected(),
-                mStateMachine.isSupplicantTransientState());
+                mUntrustedConnectionAllowed, mStateMachine.isLinkDebouncing(),
+                mStateMachine.isConnected(), mStateMachine.isDisconnected(),
+                mStateMachine.isSupplicantTransientState(), scanDetails);
         mWifiLastResortWatchdog.updateAvailableNetworks(
                 mQualifiedNetworkSelector.getFilteredScanDetails());
         if (candidate != null) {

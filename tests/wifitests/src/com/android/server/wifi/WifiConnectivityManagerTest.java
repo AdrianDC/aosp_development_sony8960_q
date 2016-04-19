@@ -198,8 +198,8 @@ public class WifiConnectivityManagerTest {
         candidateScanResult.BSSID = CANDIDATE_BSSID;
         candidate.getNetworkSelectionStatus().setCandidate(candidateScanResult);
 
-        when(qns.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyObject(),
-              anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(candidate);
+        when(qns.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyBoolean(),
+              anyBoolean(), anyBoolean(), anyBoolean(), anyObject())).thenReturn(candidate);
         return qns;
     }
 
@@ -453,8 +453,8 @@ public class WifiConnectivityManagerTest {
      */
     @Test
     public void PnoRetryForLowRssiNetwork() {
-        when(mWifiQNS.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyObject(),
-              anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(null);
+        when(mWifiQNS.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyBoolean(),
+              anyBoolean(), anyBoolean(), anyBoolean(), anyObject())).thenReturn(null);
 
         // Set screen to off
         mWifiConnectivityManager.handleScreenStateChanged(false);
@@ -508,8 +508,8 @@ public class WifiConnectivityManagerTest {
     @Test
     public void watchdogBitePnoGoodIncrementsMetrics() {
         // Qns returns no candidate after watchdog single scan.
-        when(mWifiQNS.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyObject(),
-                anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(null);
+        when(mWifiQNS.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyBoolean(),
+                anyBoolean(), anyBoolean(), anyBoolean(), anyObject())).thenReturn(null);
 
         // Set screen to off
         mWifiConnectivityManager.handleScreenStateChanged(false);
