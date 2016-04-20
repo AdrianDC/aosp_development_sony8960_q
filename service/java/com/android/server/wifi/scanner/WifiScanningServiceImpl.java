@@ -246,7 +246,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private final ArrayMap<Messenger, ClientInfo> mClients;
 
     private ChannelHelper mChannelHelper;
-    private BackgroundScanScheduler mScheduler;
+    private BackgroundScanScheduler mBackgroundScheduler;
     private WifiNative.ScanSettings mPreviousSchedule;
 
     private WifiBackgroundScanStateMachine mBackgroundScanStateMachine;
@@ -871,7 +871,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                             mChannelHelper = mScannerImpl.getChannelHelper();
                         }
 
-                        mScheduler = new BackgroundScanScheduler(mChannelHelper);
+                        mBackgroundScheduler = new BackgroundScanScheduler(mChannelHelper);
 
                         WifiNative.ScanCapabilities capabilities =
                                 new WifiNative.ScanCapabilities();
@@ -879,8 +879,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                             loge("could not get scan capabilities");
                             return HANDLED;
                         }
-                        mScheduler.setMaxBuckets(capabilities.max_scan_buckets);
-                        mScheduler.setMaxApPerScan(capabilities.max_ap_cache_per_scan);
+                        mBackgroundScheduler.setMaxBuckets(capabilities.max_scan_buckets);
+                        mBackgroundScheduler.setMaxApPerScan(capabilities.max_ap_cache_per_scan);
 
                         Log.i(TAG, "wifi driver loaded with scan capabilities: "
                                 + "max buckets=" + capabilities.max_scan_buckets);
@@ -1091,8 +1091,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             mChannelHelper.updateChannels();
             Collection<ScanSettings> settings = mActiveBackgroundScans.getAllSettings();
 
-            mScheduler.updateSchedule(settings);
-            WifiNative.ScanSettings schedule = mScheduler.getSchedule();
+            mBackgroundScheduler.updateSchedule(settings);
+            WifiNative.ScanSettings schedule = mBackgroundScheduler.getSchedule();
 
             if (ScanScheduleUtil.scheduleEquals(mPreviousSchedule, schedule)) {
                 if (DBG) Log.d(TAG, "schedule updated with no change");
@@ -1153,7 +1153,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 ClientInfo ci = entry.clientInfo;
                 int handler = entry.handlerId;
                 ScanSettings settings = entry.settings;
-                if (mScheduler.shouldReportFullScanResultForSettings(
+                if (mBackgroundScheduler.shouldReportFullScanResultForSettings(
                                 result, bucketsScanned, settings)) {
                     ScanResult newResult = new ScanResult(result);
                     if (result.informationElements != null) {
@@ -1182,7 +1182,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 int handler = entry.handlerId;
                 ScanSettings settings = entry.settings;
                 ScanData[] resultsToDeliver =
-                        mScheduler.filterResultsForSettings(results, settings);
+                        mBackgroundScheduler.filterResultsForSettings(results, settings);
                 if (resultsToDeliver != null) {
                     logCallback("backgroundScanResults", ci, handler);
                     WifiScanner.ParcelableScanData parcelableScanData =
@@ -2473,18 +2473,20 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 pw.println("  " + toString(client.mUid, settings));
             }
         }
-        WifiNative.ScanSettings schedule = mScheduler.getSchedule();
-        if (schedule != null) {
-            pw.println("schedule:");
-            pw.println("  base period: " + schedule.base_period_ms);
-            pw.println("  max ap per scan: " + schedule.max_ap_per_scan);
-            pw.println("  batched scans: " + schedule.report_threshold_num_scans);
-            pw.println("  buckets:");
-            for (int b = 0; b < schedule.num_buckets; b++) {
-                WifiNative.BucketSettings bucket = schedule.buckets[b];
-                pw.println("    bucket " + bucket.bucket + " (" + bucket.period_ms + "ms)["
-                        + bucket.report_events + "]: "
-                        + ChannelHelper.toString(bucket));
+        if (mBackgroundScheduler != null) {
+            WifiNative.ScanSettings schedule = mBackgroundScheduler.getSchedule();
+            if (schedule != null) {
+                pw.println("schedule:");
+                pw.println("  base period: " + schedule.base_period_ms);
+                pw.println("  max ap per scan: " + schedule.max_ap_per_scan);
+                pw.println("  batched scans: " + schedule.report_threshold_num_scans);
+                pw.println("  buckets:");
+                for (int b = 0; b < schedule.num_buckets; b++) {
+                    WifiNative.BucketSettings bucket = schedule.buckets[b];
+                    pw.println("    bucket " + bucket.bucket + " (" + bucket.period_ms + "ms)["
+                            + bucket.report_events + "]: "
+                            + ChannelHelper.toString(bucket));
+                }
             }
         }
         mPnoScanStateMachine.dump(fd, pw, args);
