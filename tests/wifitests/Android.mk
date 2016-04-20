@@ -118,19 +118,37 @@ LOCAL_JAVA_LIBRARIES := \
 # from apps.
 LOCAL_JNI_SHARED_LIBRARIES := \
 	libwifi-service \
-	libc++ \
-	libLLVM \
-	libutils \
-	libunwind \
-	libhardware_legacy \
-	libbase \
-	libhardware \
-	libnl \
-	libcutils \
-	libnetutils \
+	libEGL \
+	libGLESv2 \
+	libaudioutils \
 	libbacktrace \
-	libnativehelper \
+	libbase \
+	libbinder \
+	libc++ \
+	libcamera_client \
+	libcamera_metadata \
+	libcutils \
+	libexpat \
+	libgui \
+	libhardware \
+	libhardware_legacy \
+	libicui18n \
+	libicuuc \
 	liblzma \
+	libmedia \
+	libnativehelper \
+	libnbaio \
+	libnetutils \
+	libnl \
+	libpowermanager \
+	libsonivox \
+	libspeexresampler \
+	libstagefright_foundation \
+	libstdc++ \
+	libsync \
+	libui \
+	libunwind \
+	libutils \
 
 ifdef WPA_SUPPLICANT_VERSION
 LOCAL_JNI_SHARED_LIBRARIES += libwpa_client
