@@ -80,6 +80,7 @@ public class WifiLoggerTest {
         when(mWifiNative.readKernelLog()).thenReturn("");
 
         mWifiLogger = new WifiLogger(mWsm, mWifiNative);
+        mWifiNative.enableVerboseLogging(0);
     }
 
     /**
@@ -138,14 +139,14 @@ public class WifiLoggerTest {
     }
 
     /**
-     * Verifies that, when verbose mode is not enabled, startLogging() does not
+     * Verifies that, when verbose mode is not enabled, startLogging() calls
      * startPktFateMonitoring().
      */
     @Test
-    public void startLoggingIgnoresPacketFateWithoutVerboseMode() {
+    public void startLoggingStartsPacketFateWithoutVerboseMode() {
         final boolean verbosityToggle = false;
         mWifiLogger.startLogging(verbosityToggle);
-        verify(mWifiNative, never()).startPktFateMonitoring();
+        verify(mWifiNative).startPktFateMonitoring();
     }
 
     /**
@@ -160,16 +161,16 @@ public class WifiLoggerTest {
     }
 
     /**
-     * Verifies that, when verbose mode is not enabled, reportConnectionFailure() does not
-     * fetch packet fates.
+     * Verifies that, when verbose mode is not enabled, reportConnectionFailure() still
+     * fetches packet fates.
      */
     @Test
     public void reportConnectionFailureIsIgnoredWithoutVerboseMode() {
         final boolean verbosityToggle = false;
         mWifiLogger.startLogging(verbosityToggle);
         mWifiLogger.reportConnectionFailure();
-        verify(mWifiNative, never()).getTxPktFates(anyObject());
-        verify(mWifiNative, never()).getRxPktFates(anyObject());
+        verify(mWifiNative).getTxPktFates(anyObject());
+        verify(mWifiNative).getRxPktFates(anyObject());
     }
 
     /**
@@ -266,50 +267,9 @@ public class WifiLoggerTest {
                 "--------------------------------------------------------------------"));
     }
 
-    /**
-     * Verifies that dump() shows both TX, and RX, fates.
-     */
-    @Test
-    public void dumpShowsTxAndRxFates() {
-        final boolean verbosityToggle = true;
-        mWifiLogger.startLogging(verbosityToggle);
-        when(mWifiNative.getTxPktFates(anyObject())).then(new AnswerWithArguments() {
-            public boolean answer(WifiNative.TxFateReport[] fates) {
-                fates[0] = new WifiNative.TxFateReport(
-                        WifiLoggerHal.TX_PKT_FATE_ACKED, 0, WifiLoggerHal.FRAME_TYPE_ETHERNET_II,
-                        new byte[0]
-                );
-                return true;
-            }
-        });
-        when(mWifiNative.getRxPktFates(anyObject())).then(new AnswerWithArguments() {
-            public boolean answer(WifiNative.RxFateReport[] fates) {
-                fates[0] = new WifiNative.RxFateReport(
-                        WifiLoggerHal.RX_PKT_FATE_SUCCESS, 1, WifiLoggerHal.FRAME_TYPE_ETHERNET_II,
-                        new byte[0]
-                );
-                return true;
-            }
-        });
-        mWifiLogger.reportConnectionFailure();
-
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
-
-        String fateDumpString = sw.toString();
-        assertTrue(fateDumpString.contains("Frame direction: TX"));
-        assertTrue(fateDumpString.contains("Frame direction: RX"));
-    }
-
-    /**
-     * Verifies that dump() outputs frames in timestamp order, even if the HAL provided the
-     * data out-of-order.
-     */
-    @Test
-    public void dumpIsSortedByTimestamp() {
-        final boolean verbosityToggle = true;
-        mWifiLogger.startLogging(verbosityToggle);
+    private String getDumpString(boolean verbose) {
+        mWifiLogger.startLogging(verbose);
+        mWifiNative.enableVerboseLogging(verbose ? 1 : 0);
         when(mWifiNative.getTxPktFates(anyObject())).then(new AnswerWithArguments() {
             public boolean answer(WifiNative.TxFateReport[] fates) {
                 fates[0] = new WifiNative.TxFateReport(
@@ -341,21 +301,84 @@ public class WifiLoggerTest {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         mWifiLogger.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
+        return sw.toString();
+    }
 
-        String fateDumpString = sw.toString();
-        assertTrue(fateDumpString.contains(
-                "Frame number: 1\nFrame direction: TX\nFrame timestamp: 0\n"));
-        assertTrue(fateDumpString.contains(
-                "Frame number: 2\nFrame direction: RX\nFrame timestamp: 1\n"));
-        assertTrue(fateDumpString.contains(
-                "Frame number: 3\nFrame direction: TX\nFrame timestamp: 2\n"));
-        assertTrue(fateDumpString.contains(
-                "Frame number: 4\nFrame direction: RX\nFrame timestamp: 3\n"));
+      /**
+     * Verifies that dump() shows both TX, and RX fates in only table form, when verbose
+     * logging is not enabled.
+     */
+    @Test
+    public void dumpShowsTxAndRxFates() {
+        final boolean verbosityToggle = false;
+        String dumpString = getDumpString(verbosityToggle);
+        assertTrue(dumpString.contains(WifiNative.FateReport.getTableHeader()));
+        assertTrue(dumpString.contains("0                TX"));
+        assertTrue(dumpString.contains("1                RX"));
+        assertTrue(dumpString.contains("2                TX"));
+        assertTrue(dumpString.contains("3                RX"));
+        assertFalse(dumpString.contains("VERBOSE PACKET FATE DUMP"));
+        assertFalse(dumpString.contains("Frame bytes"));
+    }
+
+    /**
+     * Verifies that dump() shows both TX, and RX fates in table and verbose forms, when verbose
+     * logging is enabled.
+     */
+    @Test
+    public void dumpShowsTxAndRxFatesVerbose() {
+        final boolean verbosityToggle = true;
+        String dumpString = getDumpString(verbosityToggle);
+        assertTrue(dumpString.contains(WifiNative.FateReport.getTableHeader()));
+        assertTrue(dumpString.contains("0                TX"));
+        assertTrue(dumpString.contains("1                RX"));
+        assertTrue(dumpString.contains("2                TX"));
+        assertTrue(dumpString.contains("3                RX"));
+        assertTrue(dumpString.contains("VERBOSE PACKET FATE DUMP"));
+        assertTrue(dumpString.contains("Frame bytes"));
+    }
+
+    /**
+     * Verifies that dump() outputs frames in timestamp order, even if the HAL provided the
+     * data out-of-order.
+     */
+    @Test
+    public void dumpIsSortedByTimestamp() {
+        final boolean verbosityToggle = true;
+        String dumpString = getDumpString(verbosityToggle);
+        assertTrue(dumpString.contains(WifiNative.FateReport.getTableHeader()));
+        int expected_index_of_frame_0 = dumpString.indexOf("0                TX");
+        int expected_index_of_frame_1 = dumpString.indexOf("1                RX");
+        int expected_index_of_frame_2 = dumpString.indexOf("2                TX");
+        int expected_index_of_frame_3 = dumpString.indexOf("3                RX");
+        assertFalse(-1 == expected_index_of_frame_0);
+        assertFalse(-1 == expected_index_of_frame_1);
+        assertFalse(-1 == expected_index_of_frame_2);
+        assertFalse(-1 == expected_index_of_frame_3);
+        assertTrue(expected_index_of_frame_0 < expected_index_of_frame_1);
+        assertTrue(expected_index_of_frame_1 < expected_index_of_frame_2);
+        assertTrue(expected_index_of_frame_2 < expected_index_of_frame_3);
+
+        int expected_index_of_verbose_frame_0 = dumpString.indexOf(
+                "Frame direction: TX\nFrame timestamp: 0\n");
+        int expected_index_of_verbose_frame_1 = dumpString.indexOf(
+                "Frame direction: RX\nFrame timestamp: 1\n");
+        int expected_index_of_verbose_frame_2 = dumpString.indexOf(
+                "Frame direction: TX\nFrame timestamp: 2\n");
+        int expected_index_of_verbose_frame_3 = dumpString.indexOf(
+                "Frame direction: RX\nFrame timestamp: 3\n");
+        assertFalse(-1 == expected_index_of_verbose_frame_0);
+        assertFalse(-1 == expected_index_of_verbose_frame_1);
+        assertFalse(-1 == expected_index_of_verbose_frame_2);
+        assertFalse(-1 == expected_index_of_verbose_frame_3);
+        assertTrue(expected_index_of_verbose_frame_0 < expected_index_of_verbose_frame_1);
+        assertTrue(expected_index_of_verbose_frame_1 < expected_index_of_verbose_frame_2);
+        assertTrue(expected_index_of_verbose_frame_2 < expected_index_of_verbose_frame_3);
     }
 
     /**
      * Verifies that, if verbose is disabled after fetching fates, the dump does not include
-     * fates.
+     * verbose fate logs.
      */
     @Test
     public void dumpOmitsFatesIfVerboseIsDisabledAfterFetch() {
@@ -391,8 +414,8 @@ public class WifiLoggerTest {
         mWifiLogger.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
 
         String fateDumpString = sw.toString();
-        assertFalse(fateDumpString.contains("Frame direction: TX"));
-        assertFalse(fateDumpString.contains("Frame direction: RX"));
+        assertFalse(fateDumpString.contains("VERBOSE PACKET FATE DUMP"));
+        assertFalse(fateDumpString.contains("Frame bytes"));
     }
 
     /** Verifies that the default size of our ring buffers is small. */

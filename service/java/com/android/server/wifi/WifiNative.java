@@ -50,6 +50,7 @@ import com.android.server.connectivity.KeepalivePacketData;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.SupplicantBridge;
 import com.android.server.wifi.hotspot2.Utils;
+import com.android.server.wifi.util.FrameParser;
 import com.android.server.wifi.util.InformationElementUtil;
 
 import libcore.util.HexEncoding;
@@ -2638,18 +2639,41 @@ public class WifiNative {
             mFrameBytes = frameBytes;
         }
 
-        @Override
-        public String toString() {
+        public String toTableRowString() {
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
+            FrameParser parser = new FrameParser(mFrameType, mFrameBytes);
+            pw.format("%-15s  %-9s  %-32s  %-12s  %s\n",
+                    mDriverTimestampUSec, directionToString(), fateToString(),
+                            parser.mMostSpecificProtocolString, parser.mTypeString);
+            return sw.toString();
+        }
+
+        public String toVerboseStringWithPiiAllowed() {
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            FrameParser parser = new FrameParser(mFrameType, mFrameBytes);
             pw.format("Frame direction: %s\n", directionToString());
             pw.format("Frame timestamp: %d\n", mDriverTimestampUSec);
             pw.format("Frame fate: %s\n", fateToString());
             pw.format("Frame type: %s\n", frameTypeToString(mFrameType));
+            pw.format("Frame protocol: %s\n", parser.mMostSpecificProtocolString);
+            pw.format("Frame protocol type: %s\n", parser.mTypeString);
             pw.format("Frame length: %d\n", mFrameBytes.length);
             pw.append("Frame bytes");
-            pw.append(HexDump.dumpHexString(mFrameBytes));
+            pw.append(HexDump.dumpHexString(mFrameBytes));  // potentially contains PII
             pw.append("\n");
+            return sw.toString();
+        }
+
+        /* Returns a header to match the output of toTableRowString(). */
+        public static String getTableHeader() {
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            pw.format("\n%-15s  %-9s  %-32s  %-12s  %s\n",
+                    "Timestamp", "Direction", "Fate", "Protocol", "Type");
+            pw.format("%-15s  %-9s  %-32s  %-12s  %s\n",
+                    "---------", "---------", "----", "--------", "----");
             return sw.toString();
         }
 

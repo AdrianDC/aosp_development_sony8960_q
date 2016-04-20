@@ -50,6 +50,68 @@ public class WifiNativeTest {
     private static final String NETWORK_EXTRAS_SERIALIZED =
             "\"%7B%22key2%22%3A%22value2%22%2C%22key1%22%3A%22value1%22%7D\"";
 
+    private static final long FATE_REPORT_DRIVER_TIMESTAMP_USEC = 12345;
+    private static final byte[] FATE_REPORT_FRAME_BYTES = new byte[] {
+            'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 0, 1, 2, 3, 4, 5, 6, 7};
+    private static final WifiNative.TxFateReport TX_FATE_REPORT = new WifiNative.TxFateReport(
+            WifiLoggerHal.TX_PKT_FATE_SENT,
+            FATE_REPORT_DRIVER_TIMESTAMP_USEC,
+            WifiLoggerHal.FRAME_TYPE_ETHERNET_II,
+            FATE_REPORT_FRAME_BYTES
+    );
+    private static final WifiNative.RxFateReport RX_FATE_REPORT = new WifiNative.RxFateReport(
+            WifiLoggerHal.RX_PKT_FATE_FW_DROP_INVALID,
+            FATE_REPORT_DRIVER_TIMESTAMP_USEC,
+            WifiLoggerHal.FRAME_TYPE_ETHERNET_II,
+            FATE_REPORT_FRAME_BYTES
+    );
+    private static final FrameTypeMapping[] FRAME_TYPE_MAPPINGS = new FrameTypeMapping[] {
+            new FrameTypeMapping(WifiLoggerHal.FRAME_TYPE_UNKNOWN, "unknown", "N/A"),
+            new FrameTypeMapping(WifiLoggerHal.FRAME_TYPE_ETHERNET_II, "data", "Ethernet"),
+            new FrameTypeMapping(WifiLoggerHal.FRAME_TYPE_80211_MGMT, "802.11 management",
+                    "802.11 Mgmt"),
+            new FrameTypeMapping((byte) 42, "42", "N/A")
+    };
+    private static final FateMapping[] TX_FATE_MAPPINGS = new FateMapping[] {
+            new FateMapping(WifiLoggerHal.TX_PKT_FATE_ACKED, "acked"),
+            new FateMapping(WifiLoggerHal.TX_PKT_FATE_SENT, "sent"),
+            new FateMapping(WifiLoggerHal.TX_PKT_FATE_FW_QUEUED, "firmware queued"),
+            new FateMapping(WifiLoggerHal.TX_PKT_FATE_FW_DROP_INVALID,
+                    "firmware dropped (invalid frame)"),
+            new FateMapping(
+                    WifiLoggerHal.TX_PKT_FATE_FW_DROP_NOBUFS,  "firmware dropped (no bufs)"),
+            new FateMapping(
+                    WifiLoggerHal.TX_PKT_FATE_FW_DROP_OTHER, "firmware dropped (other)"),
+            new FateMapping(WifiLoggerHal.TX_PKT_FATE_DRV_QUEUED, "driver queued"),
+            new FateMapping(WifiLoggerHal.TX_PKT_FATE_DRV_DROP_INVALID,
+                    "driver dropped (invalid frame)"),
+            new FateMapping(WifiLoggerHal.TX_PKT_FATE_DRV_DROP_NOBUFS,
+                    "driver dropped (no bufs)"),
+            new FateMapping(WifiLoggerHal.TX_PKT_FATE_DRV_DROP_OTHER, "driver dropped (other)"),
+            new FateMapping((byte) 42, "42")
+    };
+    private static final FateMapping[] RX_FATE_MAPPINGS = new FateMapping[] {
+            new FateMapping(WifiLoggerHal.RX_PKT_FATE_SUCCESS, "success"),
+            new FateMapping(WifiLoggerHal.RX_PKT_FATE_FW_QUEUED, "firmware queued"),
+            new FateMapping(
+                    WifiLoggerHal.RX_PKT_FATE_FW_DROP_FILTER, "firmware dropped (filter)"),
+            new FateMapping(WifiLoggerHal.RX_PKT_FATE_FW_DROP_INVALID,
+                    "firmware dropped (invalid frame)"),
+            new FateMapping(
+                    WifiLoggerHal.RX_PKT_FATE_FW_DROP_NOBUFS, "firmware dropped (no bufs)"),
+            new FateMapping(
+                    WifiLoggerHal.RX_PKT_FATE_FW_DROP_OTHER, "firmware dropped (other)"),
+            new FateMapping(WifiLoggerHal.RX_PKT_FATE_DRV_QUEUED, "driver queued"),
+            new FateMapping(
+                    WifiLoggerHal.RX_PKT_FATE_DRV_DROP_FILTER, "driver dropped (filter)"),
+            new FateMapping(WifiLoggerHal.RX_PKT_FATE_DRV_DROP_INVALID,
+                    "driver dropped (invalid frame)"),
+            new FateMapping(
+                    WifiLoggerHal.RX_PKT_FATE_DRV_DROP_NOBUFS, "driver dropped (no bufs)"),
+            new FateMapping(WifiLoggerHal.RX_PKT_FATE_DRV_DROP_OTHER, "driver dropped (other)"),
+            new FateMapping((byte) 42, "42")
+    };
+
     private WifiNative mWifiNative;
 
     @Before
@@ -89,18 +151,16 @@ public class WifiNativeTest {
      */
     @Test
     public void testTxFateReportCtorSetsFields() {
-        long driverTimestampUSec = 12345;
-        byte[] frameBytes = new byte[] {'a', 'b', 0, 'c'};
         WifiNative.TxFateReport fateReport = new WifiNative.TxFateReport(
                 WifiLoggerHal.TX_PKT_FATE_SENT,  // non-zero value
-                driverTimestampUSec,
+                FATE_REPORT_DRIVER_TIMESTAMP_USEC,
                 WifiLoggerHal.FRAME_TYPE_ETHERNET_II,  // non-zero value
-                frameBytes
+                FATE_REPORT_FRAME_BYTES
         );
         assertEquals(WifiLoggerHal.TX_PKT_FATE_SENT, fateReport.mFate);
-        assertEquals(driverTimestampUSec, fateReport.mDriverTimestampUSec);
+        assertEquals(FATE_REPORT_DRIVER_TIMESTAMP_USEC, fateReport.mDriverTimestampUSec);
         assertEquals(WifiLoggerHal.FRAME_TYPE_ETHERNET_II, fateReport.mFrameType);
-        assertArrayEquals(frameBytes, fateReport.mFrameBytes);
+        assertArrayEquals(FATE_REPORT_FRAME_BYTES, fateReport.mFrameBytes);
     }
 
     /**
@@ -108,27 +168,27 @@ public class WifiNativeTest {
      */
     @Test
     public void testRxFateReportCtorSetsFields() {
-        long driverTimestampUSec = 12345;
-        byte[] frameBytes = new byte[] {'a', 'b', 0, 'c'};
         WifiNative.RxFateReport fateReport = new WifiNative.RxFateReport(
                 WifiLoggerHal.RX_PKT_FATE_FW_DROP_INVALID,  // non-zero value
-                driverTimestampUSec,
+                FATE_REPORT_DRIVER_TIMESTAMP_USEC,
                 WifiLoggerHal.FRAME_TYPE_ETHERNET_II,  // non-zero value
-                frameBytes
+                FATE_REPORT_FRAME_BYTES
         );
         assertEquals(WifiLoggerHal.RX_PKT_FATE_FW_DROP_INVALID, fateReport.mFate);
-        assertEquals(driverTimestampUSec, fateReport.mDriverTimestampUSec);
+        assertEquals(FATE_REPORT_DRIVER_TIMESTAMP_USEC, fateReport.mDriverTimestampUSec);
         assertEquals(WifiLoggerHal.FRAME_TYPE_ETHERNET_II, fateReport.mFrameType);
-        assertArrayEquals(frameBytes, fateReport.mFrameBytes);
+        assertArrayEquals(FATE_REPORT_FRAME_BYTES, fateReport.mFrameBytes);
     }
 
     // Support classes for test{Tx,Rx}FateReportToString.
     private static class FrameTypeMapping {
         byte mTypeNumber;
-        String mExpectedText;
-        FrameTypeMapping(byte typeNumber, String expectedText) {
+        String mExpectedTypeText;
+        String mExpectedProtocolText;
+        FrameTypeMapping(byte typeNumber, String expectedTypeText, String expectedProtocolText) {
             this.mTypeNumber = typeNumber;
-            this.mExpectedText = expectedText;
+            this.mExpectedTypeText = expectedTypeText;
+            this.mExpectedProtocolText = expectedProtocolText;
         }
     }
     private static class FateMapping {
@@ -141,137 +201,173 @@ public class WifiNativeTest {
     }
 
     /**
-     * Verifies that TxFateReport.toString() includes the information we care about.
+     * Verifies that FateReport.getTableHeader() prints the right header.
      */
     @Test
-    public void testTxFateReportToString() {
-        long driverTimestampUSec = 12345;
-        byte[] frameBytes = new byte[] {
-                'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 0, 1, 2, 3, 4, 5, 6, 7};
-        WifiNative.TxFateReport fateReport = new WifiNative.TxFateReport(
-                WifiLoggerHal.TX_PKT_FATE_SENT,
-                driverTimestampUSec,
-                WifiLoggerHal.FRAME_TYPE_ETHERNET_II,
-                frameBytes
-        );
+    public void testFateReportTableHeader() {
+        String header = WifiNative.FateReport.getTableHeader();
+        assertTrue(header.contains(
+            "Timestamp        Direction  Fate                              Protocol      Type\n"));
+        assertTrue(header.contains(
+            "---------        ---------  ----                              --------      ----\n"));
+    }
 
-        String fateString = fateReport.toString();
-        assertTrue(fateString.contains("Frame direction: TX"));
-        assertTrue(fateString.contains("Frame timestamp: 12345"));
-        assertTrue(fateString.contains("Frame fate: sent"));
-        assertTrue(fateString.contains("Frame type: data"));
-        assertTrue(fateString.contains("Frame length: 16"));
-        assertTrue(fateString.contains(
-                "61 62 63 64 65 66 67 68 00 01 02 03 04 05 06 07")); // hex dump
-        // TODO(quiche): uncomment this, once b/27975149 is fixed.
-        // assertTrue(fateString.contains("abcdefgh........"));  // hex dump
+    /**
+     * Verifies that TxFateReport.toTableRowString() includes the information we care about.
+     */
+    @Test
+    public void testTxFateReportToTableRowString() {
+        WifiNative.TxFateReport fateReport = TX_FATE_REPORT;
 
-        FrameTypeMapping[] frameTypeMappings = new FrameTypeMapping[] {
-                new FrameTypeMapping(WifiLoggerHal.FRAME_TYPE_UNKNOWN, "unknown"),
-                new FrameTypeMapping(WifiLoggerHal.FRAME_TYPE_ETHERNET_II, "data"),
-                new FrameTypeMapping(WifiLoggerHal.FRAME_TYPE_80211_MGMT, "802.11 management"),
-                new FrameTypeMapping((byte) 42, "42")
-        };
-        for (FrameTypeMapping frameTypeMapping : frameTypeMappings) {
+        String tableRowFateString = fateReport.toTableRowString();
+        assertTrue(tableRowFateString.contains("" + FATE_REPORT_DRIVER_TIMESTAMP_USEC));
+        assertTrue(tableRowFateString.contains("TX"));
+        assertTrue(tableRowFateString.contains("sent"));
+        assertTrue(tableRowFateString.contains("Ethernet"));
+        assertTrue(tableRowFateString.contains("N/A"));
+
+        for (FrameTypeMapping frameTypeMapping : FRAME_TYPE_MAPPINGS) {
             fateReport = new WifiNative.TxFateReport(
                     WifiLoggerHal.TX_PKT_FATE_SENT,
-                    driverTimestampUSec,
+                    FATE_REPORT_DRIVER_TIMESTAMP_USEC,
                     frameTypeMapping.mTypeNumber,
-                    frameBytes
+                    FATE_REPORT_FRAME_BYTES
             );
-            assertTrue(fateReport.toString().contains(
-                    "Frame type: " + frameTypeMapping.mExpectedText));
+            tableRowFateString = fateReport.toTableRowString();
+            assertTrue(tableRowFateString.contains("" + FATE_REPORT_DRIVER_TIMESTAMP_USEC));
+            assertTrue(tableRowFateString.contains("TX"));
+            assertTrue(tableRowFateString.contains("sent"));
+            assertTrue(tableRowFateString.contains(frameTypeMapping.mExpectedProtocolText));
+            assertTrue(tableRowFateString.contains("N/A"));
         }
 
-        FateMapping[] fateMappings = new FateMapping[] {
-                new FateMapping(WifiLoggerHal.TX_PKT_FATE_ACKED, "acked"),
-                new FateMapping(WifiLoggerHal.TX_PKT_FATE_SENT, "sent"),
-                new FateMapping(WifiLoggerHal.TX_PKT_FATE_FW_QUEUED, "firmware queued"),
-                new FateMapping(WifiLoggerHal.TX_PKT_FATE_FW_DROP_INVALID,
-                        "firmware dropped (invalid frame)"),
-                new FateMapping(
-                        WifiLoggerHal.TX_PKT_FATE_FW_DROP_NOBUFS,  "firmware dropped (no bufs)"),
-                new FateMapping(
-                        WifiLoggerHal.TX_PKT_FATE_FW_DROP_OTHER, "firmware dropped (other)"),
-                new FateMapping(WifiLoggerHal.TX_PKT_FATE_DRV_QUEUED, "driver queued"),
-                new FateMapping(WifiLoggerHal.TX_PKT_FATE_DRV_DROP_INVALID,
-                        "driver dropped (invalid frame)"),
-                new FateMapping(WifiLoggerHal.TX_PKT_FATE_DRV_DROP_NOBUFS,
-                        "driver dropped (no bufs)"),
-                new FateMapping(WifiLoggerHal.TX_PKT_FATE_DRV_DROP_OTHER, "driver dropped (other)"),
-                new FateMapping((byte) 42, "42")
-        };
-        for (FateMapping fateMapping : fateMappings) {
+        for (FateMapping fateMapping : TX_FATE_MAPPINGS) {
             fateReport = new WifiNative.TxFateReport(
                     fateMapping.mFateNumber,
-                    driverTimestampUSec,
+                    FATE_REPORT_DRIVER_TIMESTAMP_USEC,
                     WifiLoggerHal.FRAME_TYPE_80211_MGMT,
-                    frameBytes
+                    FATE_REPORT_FRAME_BYTES
             );
-            assertTrue(fateReport.toString().contains("Frame fate: " + fateMapping.mExpectedText));
+            tableRowFateString = fateReport.toTableRowString();
+            assertTrue(tableRowFateString.contains("" + FATE_REPORT_DRIVER_TIMESTAMP_USEC));
+            assertTrue(tableRowFateString.contains("TX"));
+            assertTrue(tableRowFateString.contains(fateMapping.mExpectedText));
+            assertTrue(tableRowFateString.contains("802.11 Mgmt"));
+            assertTrue(tableRowFateString.contains("N/A"));
         }
     }
 
     /**
-     * Verifies that RxFateReport.toString() includes the information we care about.
+     * Verifies that TxFateReport.toVerboseStringWithPiiAllowed() includes the information we care
+     * about.
      */
     @Test
-    public void testRxFateReportToString() {
-        long driverTimestampUSec = 67890;
-        byte[] frameBytes = new byte[] {
-                'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 0, 1, 2, 3, 4, 5, 6, 7};
-        WifiNative.RxFateReport fateReport = new WifiNative.RxFateReport(
-                WifiLoggerHal.RX_PKT_FATE_FW_DROP_INVALID,
-                driverTimestampUSec,
-                WifiLoggerHal.FRAME_TYPE_ETHERNET_II,
-                frameBytes
-        );
+    public void testTxFateReportToVerboseStringWithPiiAllowed() {
+        WifiNative.TxFateReport fateReport = TX_FATE_REPORT;
 
-        String fateString = fateReport.toString();
-        assertTrue(fateString.contains("Frame direction: RX"));
-        assertTrue(fateString.contains("Frame timestamp: 67890"));
-        assertTrue(fateString.contains("Frame fate: firmware dropped (invalid frame)"));
-        assertTrue(fateString.contains("Frame type: data"));
-        assertTrue(fateString.contains("Frame length: 16"));
-        assertTrue(fateString.contains(
+        String verboseFateString = fateReport.toVerboseStringWithPiiAllowed();
+        assertTrue(verboseFateString.contains("Frame direction: TX"));
+        assertTrue(verboseFateString.contains("Frame timestamp: 12345"));
+        assertTrue(verboseFateString.contains("Frame fate: sent"));
+        assertTrue(verboseFateString.contains("Frame type: data"));
+        assertTrue(verboseFateString.contains("Frame protocol: Ethernet"));
+        assertTrue(verboseFateString.contains("Frame protocol type: N/A"));
+        assertTrue(verboseFateString.contains("Frame length: 16"));
+        assertTrue(verboseFateString.contains(
                 "61 62 63 64 65 66 67 68 00 01 02 03 04 05 06 07")); // hex dump
         // TODO(quiche): uncomment this, once b/27975149 is fixed.
-        // assertTrue(fateString.contains("abcdefgh........"));  // hex dump
+        // assertTrue(verboseFateString.contains("abcdefgh........"));  // hex dump
 
-        // FrameTypeMappings omitted, as they're the same as for TX.
-
-        FateMapping[] fateMappings = new FateMapping[] {
-                new FateMapping(WifiLoggerHal.RX_PKT_FATE_SUCCESS, "success"),
-                new FateMapping(WifiLoggerHal.RX_PKT_FATE_FW_QUEUED, "firmware queued"),
-                new FateMapping(
-                        WifiLoggerHal.RX_PKT_FATE_FW_DROP_FILTER, "firmware dropped (filter)"),
-                new FateMapping(WifiLoggerHal.RX_PKT_FATE_FW_DROP_INVALID,
-                        "firmware dropped (invalid frame)"),
-                new FateMapping(
-                        WifiLoggerHal.RX_PKT_FATE_FW_DROP_NOBUFS, "firmware dropped (no bufs)"),
-                new FateMapping(
-                        WifiLoggerHal.RX_PKT_FATE_FW_DROP_OTHER, "firmware dropped (other)"),
-                new FateMapping(WifiLoggerHal.RX_PKT_FATE_DRV_QUEUED, "driver queued"),
-                new FateMapping(
-                        WifiLoggerHal.RX_PKT_FATE_DRV_DROP_FILTER, "driver dropped (filter)"),
-                new FateMapping(WifiLoggerHal.RX_PKT_FATE_DRV_DROP_INVALID,
-                        "driver dropped (invalid frame)"),
-                new FateMapping(
-                        WifiLoggerHal.RX_PKT_FATE_DRV_DROP_NOBUFS, "driver dropped (no bufs)"),
-                new FateMapping(WifiLoggerHal.RX_PKT_FATE_DRV_DROP_OTHER, "driver dropped (other)"),
-                new FateMapping((byte) 42, "42")
-        };
-        for (FateMapping fateMapping : fateMappings) {
-            fateReport = new WifiNative.RxFateReport(
-                    fateMapping.mFateNumber,
-                    driverTimestampUSec,
-                    WifiLoggerHal.FRAME_TYPE_80211_MGMT,
-                    frameBytes
+        for (FrameTypeMapping frameTypeMapping : FRAME_TYPE_MAPPINGS) {
+            fateReport = new WifiNative.TxFateReport(
+                    WifiLoggerHal.TX_PKT_FATE_SENT,
+                    FATE_REPORT_DRIVER_TIMESTAMP_USEC,
+                    frameTypeMapping.mTypeNumber,
+                    FATE_REPORT_FRAME_BYTES
             );
-            assertTrue(fateReport.toString().contains("Frame fate: " + fateMapping.mExpectedText));
+            verboseFateString = fateReport.toVerboseStringWithPiiAllowed();
+            assertTrue(verboseFateString.contains("Frame type: "
+                    + frameTypeMapping.mExpectedTypeText));
+        }
+
+        for (FateMapping fateMapping : TX_FATE_MAPPINGS) {
+            fateReport = new WifiNative.TxFateReport(
+                    fateMapping.mFateNumber,
+                    FATE_REPORT_DRIVER_TIMESTAMP_USEC,
+                    WifiLoggerHal.FRAME_TYPE_80211_MGMT,
+                    FATE_REPORT_FRAME_BYTES
+            );
+            verboseFateString = fateReport.toVerboseStringWithPiiAllowed();
+            assertTrue(verboseFateString.contains("Frame fate: " + fateMapping.mExpectedText));
         }
     }
 
+    /**
+     * Verifies that RxFateReport.toTableRowString() includes the information we care about.
+     */
+    @Test
+    public void testRxFateReportToTableRowString() {
+        WifiNative.RxFateReport fateReport = RX_FATE_REPORT;
+
+        String tableRowFateString = fateReport.toTableRowString();
+        assertTrue(tableRowFateString.contains("" + FATE_REPORT_DRIVER_TIMESTAMP_USEC));
+        assertTrue(tableRowFateString.contains("RX"));
+        assertTrue(tableRowFateString.contains("firmware dropped (invalid frame)"));
+        assertTrue(tableRowFateString.contains("Ethernet"));
+        assertTrue(tableRowFateString.contains("N/A"));
+
+        // FrameTypeMappings omitted, as they're the same as for TX.
+
+        for (FateMapping fateMapping : RX_FATE_MAPPINGS) {
+            fateReport = new WifiNative.RxFateReport(
+                    fateMapping.mFateNumber,
+                    FATE_REPORT_DRIVER_TIMESTAMP_USEC,
+                    WifiLoggerHal.FRAME_TYPE_80211_MGMT,
+                    FATE_REPORT_FRAME_BYTES
+            );
+            tableRowFateString = fateReport.toTableRowString();
+            assertTrue(tableRowFateString.contains("" + FATE_REPORT_DRIVER_TIMESTAMP_USEC));
+            assertTrue(tableRowFateString.contains("RX"));
+            assertTrue(tableRowFateString.contains(fateMapping.mExpectedText));
+            assertTrue(tableRowFateString.contains("802.11 Mgmt"));
+            assertTrue(tableRowFateString.contains("N/A"));
+        }
+    }
+
+    /**
+     * Verifies that RxFateReport.toVerboseStringWithPiiAllowed() includes the information we care
+     * about.
+     */
+    @Test
+    public void testRxFateReportToVerboseStringWithPiiAllowed() {
+        WifiNative.RxFateReport fateReport = RX_FATE_REPORT;
+
+        String verboseFateString = fateReport.toVerboseStringWithPiiAllowed();
+        assertTrue(verboseFateString.contains("Frame direction: RX"));
+        assertTrue(verboseFateString.contains("Frame timestamp: 12345"));
+        assertTrue(verboseFateString.contains("Frame fate: firmware dropped (invalid frame)"));
+        assertTrue(verboseFateString.contains("Frame type: data"));
+        assertTrue(verboseFateString.contains("Frame protocol: Ethernet"));
+        assertTrue(verboseFateString.contains("Frame protocol type: N/A"));
+        assertTrue(verboseFateString.contains("Frame length: 16"));
+        assertTrue(verboseFateString.contains(
+                "61 62 63 64 65 66 67 68 00 01 02 03 04 05 06 07")); // hex dump
+        // TODO(quiche): uncomment this, once b/27975149 is fixed.
+        // assertTrue(verboseFateString.contains("abcdefgh........"));  // hex dump
+
+        // FrameTypeMappings omitted, as they're the same as for TX.
+
+        for (FateMapping fateMapping : RX_FATE_MAPPINGS) {
+            fateReport = new WifiNative.RxFateReport(
+                    fateMapping.mFateNumber,
+                    FATE_REPORT_DRIVER_TIMESTAMP_USEC,
+                    WifiLoggerHal.FRAME_TYPE_80211_MGMT,
+                    FATE_REPORT_FRAME_BYTES
+            );
+            verboseFateString = fateReport.toVerboseStringWithPiiAllowed();
+            assertTrue(verboseFateString.contains("Frame fate: " + fateMapping.mExpectedText));
+        }
+    }
 
     /**
      * Verifies that startPktFateMonitoring returns false when HAL is not started.
