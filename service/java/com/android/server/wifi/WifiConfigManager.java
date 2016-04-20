@@ -2002,6 +2002,7 @@ public class WifiConfigManager {
                 currentConfig.didSelfAdd = config.didSelfAdd;
                 currentConfig.ephemeral = config.ephemeral;
                 currentConfig.meteredHint = config.meteredHint;
+                currentConfig.useExternalScores = config.useExternalScores;
                 currentConfig.lastConnectUid = config.lastConnectUid;
                 currentConfig.lastUpdateUid = config.lastUpdateUid;
                 currentConfig.creatorUid = config.creatorUid;
