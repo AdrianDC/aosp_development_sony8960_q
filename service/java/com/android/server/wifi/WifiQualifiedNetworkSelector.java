@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.annotation.Nullable;
 import android.content.Context;
 import android.net.NetworkKey;
 import android.net.NetworkScoreManager;
@@ -34,6 +35,8 @@ import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -629,9 +632,8 @@ public class WifiQualifiedNetworkSelector {
         int currentHighestScore = Integer.MIN_VALUE;
         ScanResult scanResultCandidate = null;
         WifiConfiguration networkCandidate = null;
-        int unTrustedHighestScore = WifiNetworkScoreCache.INVALID_NETWORK_SCORE;
-        ScanResult untrustedScanResultCandidate = null;
-        WifiConfiguration unTrustedNetworkCandidate = null;
+        final ExternalScoreEvaluator externalScoreEvaluator =
+                new ExternalScoreEvaluator(mLocalLog, mDbg);
         String lastUserSelectedNetWorkKey = mWifiConfigManager.getLastSelectedConfiguration();
         WifiConfiguration lastUserSelectedNetwork =
                 mWifiConfigManager.getWifiConfiguration(lastUserSelectedNetWorkKey);
@@ -662,7 +664,7 @@ public class WifiQualifiedNetworkSelector {
                 continue;
             }
 
-            String scanId = scanResult.SSID + ":" + scanResult.BSSID;
+            final String scanId = toScanId(scanResult);
             //check whether this BSSID is blocked or not
             if (mWifiConfigManager.isBssidBlacklisted(scanResult.BSSID)
                     || isBssidDisabled(scanResult.BSSID)) {
@@ -719,27 +721,24 @@ public class WifiQualifiedNetworkSelector {
                 }
             }
 
+            // Evaluate the potentially ephemeral network as a possible candidate if untrusted
+            // connections are allowed and we have an external score for the scan result.
             if (potentiallyEphemeral) {
-                if (isUntrustedConnectionsAllowed && mNetworkScoreCache != null) {
-                    int netScore = mNetworkScoreCache.getNetworkScore(scanResult, false);
-                    //get network score (Determine if this is an 'Ephemeral' network)
-                    if (!mWifiConfigManager.wasEphemeralNetworkDeleted(scanResult.SSID)
-                            && netScore != WifiNetworkScoreCache.INVALID_NETWORK_SCORE) {
-                        localLog(scanId + "has score: " + netScore);
-                        if (netScore > unTrustedHighestScore) {
-                            unTrustedHighestScore = netScore;
-                            untrustedScanResultCandidate = scanResult;
-                            localLog(scanId + " become the new untrusted candidate");
-                        }
+                if (isUntrustedConnectionsAllowed) {
+                    Integer netScore = getNetworkScore(scanResult, false);
+                    if (netScore != null
+                        && !mWifiConfigManager.wasEphemeralNetworkDeleted(scanResult.SSID)) {
+                        externalScoreEvaluator.evalUntrustedCandidate(netScore, scanResult);
                         // scanDetail is for available ephemeral network
                         filteredScanDetails.add(Pair.create(scanDetail, filteredEphemeralConfig));
                     }
                 }
                 continue;
             }
-            // calculate the core of each scanresult whose associated network is not ephemeral. Due
-            // to one scane result can associated with more than 1 network, we need calcualte all
-            // the scores and use the highest one as the scanresults score
+
+            // calculate the score of each scanresult whose associated network is not ephemeral. Due
+            // to one scan result can associated with more than 1 network, we need calculate all
+            // the scores and use the highest one as the scanresults score.
             int highestScore = Integer.MIN_VALUE;
             int score;
             WifiConfiguration configurationCandidateForThisScan = null;
@@ -758,6 +757,15 @@ public class WifiQualifiedNetworkSelector {
                             + network.BSSID + ". Skip " + scanResult.BSSID);
                     continue;
                 }
+
+                // If the network is marked to use external scores then attempt to fetch the score.
+                // These networks will not be considered alongside the other saved networks.
+                if (network.useExternalScores) {
+                    Integer netScore = getNetworkScore(scanResult, false);
+                    externalScoreEvaluator.evalSavedCandidate(netScore, network, scanResult);
+                    continue;
+                }
+
                 score = calculateBssidScore(scanResult, network, mCurrentConnectedNetwork,
                         (mCurrentBssid == null ? false : mCurrentBssid.equals(scanResult.BSSID)),
                         (lastUserSelectedNetwork == null ? false : lastUserSelectedNetwork.networkId
@@ -825,46 +833,14 @@ public class WifiQualifiedNetworkSelector {
                     + getNetworkString(networkCandidate) + " : " + scanResultCandidate.BSSID);
         }
 
-        // if we can not find scanCadidate in saved network
-        if (scanResultCandidate == null && isUntrustedConnectionsAllowed) {
-
-            if (untrustedScanResultCandidate == null) {
-                localLog("Can not find any candidate");
-                return null;
+        // At this point none of the saved networks were good candidates so we fall back to
+        // externally scored networks if any are available.
+        if (scanResultCandidate == null) {
+            localLog("Checking the externalScoreEvaluator for candidates...");
+            networkCandidate = getExternalScoreCandidate(externalScoreEvaluator);
+            if (networkCandidate != null) {
+                scanResultCandidate = networkCandidate.getNetworkSelectionStatus().getCandidate();
             }
-
-            if (unTrustedNetworkCandidate == null) {
-                unTrustedNetworkCandidate =
-                        mWifiConfigManager.wifiConfigurationFromScanResult(
-                                untrustedScanResultCandidate);
-
-                unTrustedNetworkCandidate.ephemeral = true;
-                if (mNetworkScoreCache != null) {
-                    boolean meteredHint =
-                            mNetworkScoreCache.getMeteredHint(untrustedScanResultCandidate);
-                    unTrustedNetworkCandidate.meteredHint = meteredHint;
-                }
-                mWifiConfigManager.saveNetwork(unTrustedNetworkCandidate,
-                        WifiConfiguration.UNKNOWN_UID);
-
-
-                localLog(String.format("new ephemeral candidate %s:%s network ID:%d, "
-                                + "meteredHint=%b",
-                        untrustedScanResultCandidate.SSID, untrustedScanResultCandidate.BSSID,
-                        unTrustedNetworkCandidate.networkId,
-                        unTrustedNetworkCandidate.meteredHint));
-
-            } else {
-                localLog(String.format("choose existing ephemeral candidate %s:%s network ID:%d, "
-                                + "meteredHint=%b",
-                        untrustedScanResultCandidate.SSID, untrustedScanResultCandidate.BSSID,
-                        unTrustedNetworkCandidate.networkId,
-                        unTrustedNetworkCandidate.meteredHint));
-            }
-            unTrustedNetworkCandidate.getNetworkSelectionStatus()
-                    .setCandidate(untrustedScanResultCandidate);
-            scanResultCandidate = untrustedScanResultCandidate;
-            networkCandidate = unTrustedNetworkCandidate;
         }
 
         if (scanResultCandidate == null) {
@@ -878,7 +854,7 @@ public class WifiQualifiedNetworkSelector {
         //In passpoint, saved configuration has garbage SSID. We need update it with the SSID of
         //the scan result.
         if (networkCandidate.isPasspoint()) {
-            // This will updateb the passpoint configuration in WifiConfigManager
+            // This will update the passpoint configuration in WifiConfigManager
             networkCandidate.SSID = "\"" + scanResultCandidate.SSID + "\"";
         }
 
@@ -899,11 +875,162 @@ public class WifiQualifiedNetworkSelector {
         return networkCandidate;
     }
 
+    /**
+     * Returns the best candidate network according to the given ExternalScoreEvaluator.
+     */
+    @Nullable
+    WifiConfiguration getExternalScoreCandidate(ExternalScoreEvaluator scoreEvaluator) {
+        WifiConfiguration networkCandidate = null;
+        switch (scoreEvaluator.getBestCandidateType()) {
+            case ExternalScoreEvaluator.BestCandidateType.UNTRUSTED_NETWORK:
+                ScanResult untrustedScanResultCandidate =
+                        scoreEvaluator.getScanResultCandidate();
+                WifiConfiguration unTrustedNetworkCandidate =
+                        mWifiConfigManager.wifiConfigurationFromScanResult(
+                                untrustedScanResultCandidate);
+
+                // Mark this config as ephemeral so it isn't persisted.
+                unTrustedNetworkCandidate.ephemeral = true;
+                if (mNetworkScoreCache != null) {
+                    unTrustedNetworkCandidate.meteredHint =
+                            mNetworkScoreCache.getMeteredHint(untrustedScanResultCandidate);
+                }
+                mWifiConfigManager.saveNetwork(unTrustedNetworkCandidate,
+                        WifiConfiguration.UNKNOWN_UID);
+
+                localLog(String.format("new ephemeral candidate %s network ID:%d, "
+                                + "meteredHint=%b",
+                        toScanId(untrustedScanResultCandidate), unTrustedNetworkCandidate.networkId,
+                        unTrustedNetworkCandidate.meteredHint));
+
+                unTrustedNetworkCandidate.getNetworkSelectionStatus()
+                        .setCandidate(untrustedScanResultCandidate);
+                networkCandidate = unTrustedNetworkCandidate;
+                break;
+
+            case ExternalScoreEvaluator.BestCandidateType.SAVED_NETWORK:
+                ScanResult scanResultCandidate = scoreEvaluator.getScanResultCandidate();
+                networkCandidate = scoreEvaluator.getSavedConfig();
+                networkCandidate.getNetworkSelectionStatus().setCandidate(scanResultCandidate);
+                localLog(String.format("new scored candidate %s network ID:%d",
+                        toScanId(scanResultCandidate), networkCandidate.networkId));
+                break;
+
+            case ExternalScoreEvaluator.BestCandidateType.NONE:
+                localLog("ExternalScoreEvaluator did not see any good candidates.");
+                break;
+
+            default:
+                localLoge("Unhandled ExternalScoreEvaluator case. No candidate selected.");
+                break;
+        }
+        return networkCandidate;
+    }
+
+    /**
+     * Returns the available external network score or NULL if no score is available.
+     *
+     * @param scanResult The scan result of the network to score.
+     * @param isActiveNetwork Whether or not the network is currently connected.
+     * @return A valid external score if one is available or NULL.
+     */
+    @Nullable
+    Integer getNetworkScore(ScanResult scanResult, boolean isActiveNetwork) {
+        if (mNetworkScoreCache != null && mNetworkScoreCache.isScoredNetwork(scanResult)) {
+            int networkScore = mNetworkScoreCache.getNetworkScore(scanResult, isActiveNetwork);
+            localLog(toScanId(scanResult) + " has score: " + networkScore);
+            return networkScore;
+        }
+        return null;
+    }
+
+    /**
+     * Formats the given ScanResult as a scan ID for logging.
+     */
+    private static String toScanId(@Nullable ScanResult scanResult) {
+        return scanResult == null ? "NULL"
+                                  : String.format("%s:%s", scanResult.SSID, scanResult.BSSID);
+    }
+
     //Dump the logs
     void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("Dump of WifiQualifiedNetworkSelector");
         pw.println("WifiQualifiedNetworkSelector - Log Begin ----");
         mLocalLog.dump(fd, pw, args);
         pw.println("WifiQualifiedNetworkSelector - Log End ----");
+    }
+
+    /**
+     * Used to track and evaluate networks that are assigned external scores.
+     */
+    static class ExternalScoreEvaluator {
+        @Retention(RetentionPolicy.SOURCE)
+        @interface BestCandidateType {
+            int NONE = 0;
+            int SAVED_NETWORK = 1;
+            int UNTRUSTED_NETWORK = 2;
+        }
+        // Always set to the best known candidate.
+        private @BestCandidateType int mBestCandidateType = BestCandidateType.NONE;
+        private int mHighScore = WifiNetworkScoreCache.INVALID_NETWORK_SCORE;
+        private WifiConfiguration mSavedConfig;
+        private ScanResult mScanResultCandidate;
+        private final LocalLog mLocalLog;
+        private final boolean mDbg;
+
+        ExternalScoreEvaluator(LocalLog localLog, boolean dbg) {
+            mLocalLog = localLog;
+            mDbg = dbg;
+        }
+
+        // Determines whether or not the given scan result is the best one its seen so far.
+        void evalUntrustedCandidate(@Nullable Integer score, ScanResult scanResult) {
+            if (score != null && score > mHighScore) {
+                mHighScore = score;
+                mScanResultCandidate = scanResult;
+                mBestCandidateType = BestCandidateType.UNTRUSTED_NETWORK;
+                localLog(toScanId(scanResult) + " become the new untrusted candidate");
+            }
+        }
+
+        // Determines whether or not the given saved network is the best one its seen so far.
+        void evalSavedCandidate(@Nullable Integer score, WifiConfiguration config,
+                ScanResult scanResult) {
+            // Always take the highest score. If there's a tie and an untrusted network is currently
+            // the best then pick the saved network.
+            if (score != null
+                    && (score > mHighScore
+                        || (mBestCandidateType == BestCandidateType.UNTRUSTED_NETWORK
+                            && score == mHighScore))) {
+                mHighScore = score;
+                mSavedConfig = config;
+                mScanResultCandidate = scanResult;
+                mBestCandidateType = BestCandidateType.SAVED_NETWORK;
+                localLog(toScanId(scanResult) + " become the new externally scored saved network "
+                        + "candidate");
+            }
+        }
+
+        int getBestCandidateType() {
+            return mBestCandidateType;
+        }
+
+        int getHighScore() {
+            return mHighScore;
+        }
+
+        public ScanResult getScanResultCandidate() {
+            return mScanResultCandidate;
+        }
+
+        WifiConfiguration getSavedConfig() {
+            return mSavedConfig;
+        }
+
+        private void localLog(String log) {
+            if (mDbg) {
+                mLocalLog.log(log);
+            }
+        }
     }
 }

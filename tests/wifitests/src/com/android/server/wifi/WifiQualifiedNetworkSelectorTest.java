@@ -41,6 +41,7 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiSsid;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.util.LocalLog;
 
 import com.android.internal.R;
 import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
@@ -69,6 +70,7 @@ public class WifiQualifiedNetworkSelectorTest {
         mContext = getContext();
         mWifiConfigManager = getWifiConfigManager();
         mWifiInfo = getWifiInfo();
+        mLocalLog = getLocalLog();
 
         mWifiQualifiedNetworkSelector = new WifiQualifiedNetworkSelector(mWifiConfigManager,
                 mContext, mWifiInfo, mClock);
@@ -90,6 +92,7 @@ public class WifiQualifiedNetworkSelectorTest {
     private NetworkScoreManager mScoreManager;
     private WifiNetworkScoreCache mScoreCache;
     private WifiInfo mWifiInfo;
+    private LocalLog mLocalLog;
     private Clock mClock = mock(Clock.class);
     private static final String[] DEFAULT_SSIDS = {"\"test1\"", "\"test2\""};
     private static final String[] DEFAULT_BSSIDS = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
@@ -139,6 +142,10 @@ public class WifiQualifiedNetworkSelectorTest {
 
     WifiNetworkScoreCache getScoreCache() {
         return mock(WifiNetworkScoreCache.class);
+    }
+
+    LocalLog getLocalLog() {
+        return new LocalLog(0);
     }
 
     WifiInfo getWifiInfo() {
@@ -228,21 +235,39 @@ public class WifiQualifiedNetworkSelectorTest {
     }
 
     /**
-     * Link scan results to the saved configurations
+     * Link scan results to the saved configurations.
+     *
+     * The shorter of the 2 input params will be used to loop over so the inputs don't
+     * need to be of equal length. If there are more scan details then configs the remaining scan
+     * details will be associated with a NULL config.
      *
      * @param configs     saved configurations
      * @param scanDetails come in scan results
      */
     private void scanResultLinkConfiguration(WifiConfiguration[] configs,
                                              List<ScanDetail> scanDetails) {
+        if (scanDetails.size() <= configs.length) {
+            for (int i = 0; i < scanDetails.size(); i++) {
+                ScanDetail scanDetail = scanDetails.get(i);
+                List<WifiConfiguration> associateWithScanResult = new ArrayList<>();
+                associateWithScanResult.add(configs[i]);
+                when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetail))
+                        .thenReturn(associateWithScanResult);
+            }
+        } else {
+            for (int i = 0; i < configs.length; i++) {
+                ScanDetail scanDetail = scanDetails.get(i);
+                List<WifiConfiguration> associateWithScanResult = new ArrayList<>();
+                associateWithScanResult.add(configs[i]);
+                when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetail))
+                        .thenReturn(associateWithScanResult);
+            }
 
-        int index = 0;
-        for (WifiConfiguration config : configs) {
-            List<WifiConfiguration> associateWithScanResult = new ArrayList<WifiConfiguration>();
-            associateWithScanResult.add(config);
-            when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetails.get(index)))
-                    .thenReturn(associateWithScanResult);
-            index++;
+            // associated the remaining scan details with a NULL config.
+            for (int i = configs.length; i < scanDetails.size(); i++) {
+                when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetails.get(i)))
+                        .thenReturn(null);
+            }
         }
     }
 
@@ -267,7 +292,6 @@ public class WifiQualifiedNetworkSelectorTest {
             }
             when(mScoreCache.getMeteredHint(scanResult)).thenReturn(meteredHints[i]);
         }
-
     }
 
     /**
@@ -1640,6 +1664,7 @@ public class WifiQualifiedNetworkSelectorTest {
         WifiConfiguration.NetworkSelectionStatus selectionStatus =
                 mock(WifiConfiguration.NetworkSelectionStatus.class);
         when(unTrustedNetworkCandidate.getNetworkSelectionStatus()).thenReturn(selectionStatus);
+        when(selectionStatus.getCandidate()).thenReturn(untrustedScanResult);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
                 false /* forceSelectNetwork */,
@@ -1650,7 +1675,7 @@ public class WifiQualifiedNetworkSelectorTest {
                 true, /* isDisconnected */
                 false /* isSupplicantTransient */);
         verify(selectionStatus).setCandidate(untrustedScanResult);
-        assertSame(candidate, unTrustedNetworkCandidate);
+        assertSame(unTrustedNetworkCandidate, candidate);
         assertEquals(meteredHints[1], candidate.meteredHint);
     }
 
@@ -1861,6 +1886,7 @@ public class WifiQualifiedNetworkSelectorTest {
         WifiConfiguration.NetworkSelectionStatus selectionStatus =
                 mock(WifiConfiguration.NetworkSelectionStatus.class);
         when(unTrustedNetworkCandidate.getNetworkSelectionStatus()).thenReturn(selectionStatus);
+        when(selectionStatus.getCandidate()).thenReturn(untrustedScanResult);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
                 false /* forceSelectNetwork */,
@@ -1873,5 +1899,336 @@ public class WifiQualifiedNetworkSelectorTest {
         verify(selectionStatus).setCandidate(untrustedScanResult);
         assertSame(candidate, unTrustedNetworkCandidate);
         assertEquals(meteredHints[0], candidate.meteredHint);
+    }
+
+    /**
+     * Case #37  Choose the saved config that doesn't qualify for external scoring.
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is not connected to any network.
+     * selectQualifiedNetwork() is called with 2 scan results, test1 and test2.
+     * test1 is a saved network.
+     * test2 is a saved network with useExternalScores set to true and a very high score.
+     *
+     * expected result: return test1 because saved networks that don't request external scoring
+     *                  have a higher priority.
+     */
+    @Test
+    public void selectQualifiedNetworkPrefersSavedWithoutExternalScores() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {5200, 5200};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[ESS]"};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+        int[] levels = {-70, -70};
+        Integer[] scores = {null, 120};
+        boolean[] meteredHints = {false, true};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        configureScoreCache(scanDetails, scores, meteredHints);
+
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(DEFAULT_SSIDS, security);
+        savedConfigs[1].useExternalScores = true; // test2 is set to use external scores.
+        prepareConfigStore(savedConfigs);
+        when(mWifiConfigManager.getSavedNetworks()).thenReturn(Arrays.asList(savedConfigs));
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
+                false /* forceSelectNetwork */,
+                false /* isUntrustedConnectionsAllowed */,
+                scanDetails,
+                false, /* isLinkDebouncing */
+                false, /* isConnected */
+                true, /* isDisconnected */
+                false /* isSupplicantTransient */);
+        verifySelectedResult(scanDetails.get(0).getScanResult(), candidate);
+        assertSame(candidate, savedConfigs[0]);
+    }
+
+    /**
+     * Case #38  Choose the saved config that does qualify for external scoring when other saved
+     *           networks are not available.
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is not connected to any network.
+     * selectQualifiedNetwork() is called with 2 scan results, test1 and test2.
+     * test1 is a saved network with useExternalScores set to true and a very high score.
+     * test2 is a saved network but not in range (not included in the scan results).
+     *
+     * expected result: return test1 because there are no better saved networks within range.
+     */
+    @Test
+    public void selectQualifiedNetworkSelectsSavedWithExternalScores() {
+        String[] ssids = {"\"test1\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3"};
+        int[] frequencies = {5200};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]"};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+        int[] levels = {-70};
+        Integer[] scores = {120};
+        boolean[] meteredHints = {false};
+
+        // Scan details only contains 1 ssid, test1.
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        configureScoreCache(scanDetails, scores, meteredHints);
+
+        // The saved config contains 2 ssids, test1 & test2.
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(DEFAULT_SSIDS, security);
+        savedConfigs[0].useExternalScores = true; // test1 is set to use external scores.
+        prepareConfigStore(savedConfigs);
+        when(mWifiConfigManager.getSavedNetworks()).thenReturn(Arrays.asList(savedConfigs));
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
+                false /* forceSelectNetwork */,
+                false /* isUntrustedConnectionsAllowed */,
+                scanDetails,
+                false, /* isLinkDebouncing */
+                false, /* isConnected */
+                true, /* isDisconnected */
+                false /* isSupplicantTransient */);
+        verifySelectedResult(scanDetails.get(0).getScanResult(), candidate);
+        assertSame(candidate, savedConfigs[0]);
+    }
+
+    /**
+     * Case #39  Choose the saved config that does qualify for external scoring over the
+     *           untrusted network with the same score.
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is not connected to any network.
+     * selectQualifiedNetwork() is called with 2 scan results, test1 and test2.
+     * test1 is a saved network with useExternalScores set to true and the same score as test1.
+     * test2 is NOT saved network but in range with a good external score.
+     *
+     * expected result: return test1 because the tie goes to the saved network.
+     */
+    @Test
+    public void selectQualifiedNetworkPrefersSavedWithExternalScoresOverUntrusted() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {5200, 5200};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[ESS]"};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+        int[] levels = {-70, -70};
+        Integer[] scores = {120, 120};
+        boolean[] meteredHints = {false, true};
+
+        // Both networks are in the scan results.
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        configureScoreCache(scanDetails, scores, meteredHints);
+
+        // Set up the associated configs only for test1
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(
+                Arrays.copyOfRange(ssids, 0, 1), Arrays.copyOfRange(security, 0, 1));
+        savedConfigs[0].useExternalScores = true; // test1 is set to use external scores.
+        prepareConfigStore(savedConfigs);
+        when(mWifiConfigManager.getSavedNetworks()).thenReturn(Arrays.asList(savedConfigs));
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        WifiConfiguration unTrustedNetworkCandidate = mock(WifiConfiguration.class);
+        when(mWifiConfigManager
+                .wifiConfigurationFromScanResult(scanDetails.get(1).getScanResult()))
+                .thenReturn(unTrustedNetworkCandidate);
+
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
+                false /* forceSelectNetwork */,
+                true /* isUntrustedConnectionsAllowed */,
+                scanDetails,
+                false, /* isLinkDebouncing */
+                false, /* isConnected */
+                true, /* isDisconnected */
+                false /* isSupplicantTransient */);
+        verifySelectedResult(scanDetails.get(0).getScanResult(), candidate);
+        assertSame(candidate, savedConfigs[0]);
+    }
+
+    /**
+     * Case #40  Choose the ephemeral config over the saved config that does qualify for external
+     *           scoring because the untrusted network has a higher score.
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is not connected to any network.
+     * selectQualifiedNetwork() is called with 2 scan results, test1 and test2.
+     * test1 is a saved network with useExternalScores set to true and a low score.
+     * test2 is NOT saved network but in range with a good external score.
+     *
+     * expected result: return test2 because it has a better score.
+     */
+    @Test
+    public void selectQualifiedNetworkPrefersUntrustedOverScoredSaved() {
+        String[] ssids = DEFAULT_SSIDS;
+        String[] bssids = DEFAULT_BSSIDS;
+        int[] frequencies = {5200, 5200};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[ESS]"};
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+        int[] levels = {-70, -70};
+        Integer[] scores = {10, 120};
+        boolean[] meteredHints = {false, true};
+
+        // Both networks are in the scan results.
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        configureScoreCache(scanDetails, scores, meteredHints);
+
+        // Set up the associated configs only for test1
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(
+                Arrays.copyOfRange(ssids, 0, 1), Arrays.copyOfRange(security, 0, 1));
+        savedConfigs[0].useExternalScores = true; // test1 is set to use external scores.
+        prepareConfigStore(savedConfigs);
+        when(mWifiConfigManager.getSavedNetworks()).thenReturn(Arrays.asList(savedConfigs));
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+        WifiConfiguration unTrustedNetworkCandidate = mock(WifiConfiguration.class);
+        unTrustedNetworkCandidate.SSID = null;
+        unTrustedNetworkCandidate.networkId = WifiConfiguration.INVALID_NETWORK_ID;
+        ScanResult untrustedScanResult = scanDetails.get(1).getScanResult();
+        when(mWifiConfigManager
+                .wifiConfigurationFromScanResult(untrustedScanResult))
+                .thenReturn(unTrustedNetworkCandidate);
+        WifiConfiguration.NetworkSelectionStatus selectionStatus =
+                mock(WifiConfiguration.NetworkSelectionStatus.class);
+        when(unTrustedNetworkCandidate.getNetworkSelectionStatus()).thenReturn(selectionStatus);
+        when(selectionStatus.getCandidate()).thenReturn(untrustedScanResult);
+
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(
+                false /* forceSelectNetwork */,
+                true /* isUntrustedConnectionsAllowed */,
+                scanDetails,
+                false, /* isLinkDebouncing */
+                false, /* isConnected */
+                true, /* isDisconnected */
+                false /* isSupplicantTransient */);
+        verify(selectionStatus).setCandidate(untrustedScanResult);
+        assertSame(unTrustedNetworkCandidate, candidate);
+    }
+
+    /**
+     * Case #41 Ensure the ExternalScoreEvaluator correctly selects the untrusted network.
+     *
+     * In this test. we simulate following scenario:
+     * The ExternalScoreEvaluator is asked to evaluate 1 untrusted network and 1 saved network.
+     * The untrusted network has the higher score.
+     *
+     * expected result: The untrusted network is determined to be the best network.
+     */
+    @Test
+    public void externalScoreEvaluator_untrustedIsBest() {
+        WifiQualifiedNetworkSelector.ExternalScoreEvaluator evaluator =
+                new WifiQualifiedNetworkSelector.ExternalScoreEvaluator(mLocalLog, true);
+        ScanResult untrustedScanResult = new ScanResult();
+        int untrustedScore = 100;
+        evaluator.evalUntrustedCandidate(untrustedScore, untrustedScanResult);
+
+        ScanResult savedScanResult = new ScanResult();
+        int savedScore = 50;
+        WifiConfiguration savedConfig = new WifiConfiguration();
+        evaluator.evalSavedCandidate(savedScore, savedConfig, savedScanResult);
+        assertEquals(WifiQualifiedNetworkSelector.ExternalScoreEvaluator
+                .BestCandidateType.UNTRUSTED_NETWORK, evaluator.getBestCandidateType());
+        assertEquals(untrustedScore, evaluator.getHighScore());
+        assertSame(untrustedScanResult, evaluator.getScanResultCandidate());
+    }
+
+    /**
+     * Case #42 Ensure the ExternalScoreEvaluator correctly selects the saved network.
+     *
+     * In this test. we simulate following scenario:
+     * The ExternalScoreEvaluator is asked to evaluate 1 untrusted network and 1 saved network.
+     * The saved network has the higher score.
+     *
+     * expected result: The saved network is determined to be the best network.
+     */
+    @Test
+    public void externalScoreEvaluator_savedIsBest() {
+        WifiQualifiedNetworkSelector.ExternalScoreEvaluator evaluator =
+                new WifiQualifiedNetworkSelector.ExternalScoreEvaluator(mLocalLog, true);
+        ScanResult untrustedScanResult = new ScanResult();
+        int untrustedScore = 50;
+        evaluator.evalUntrustedCandidate(untrustedScore, untrustedScanResult);
+
+        ScanResult savedScanResult = new ScanResult();
+        int savedScore = 100;
+        WifiConfiguration savedConfig = new WifiConfiguration();
+        evaluator.evalSavedCandidate(savedScore, savedConfig, savedScanResult);
+        assertEquals(WifiQualifiedNetworkSelector.ExternalScoreEvaluator
+                .BestCandidateType.SAVED_NETWORK, evaluator.getBestCandidateType());
+        assertEquals(savedScore, evaluator.getHighScore());
+        assertSame(savedScanResult, evaluator.getScanResultCandidate());
+    }
+
+    /**
+     * Case #43 Ensure the ExternalScoreEvaluator correctly selects the saved network if a
+     *          tie occurs.
+     *
+     * In this test. we simulate following scenario:
+     * The ExternalScoreEvaluator is asked to evaluate 1 untrusted network and 1 saved network.
+     * Both networks have the same score.
+     *
+     * expected result: The saved network is determined to be the best network.
+     */
+    @Test
+    public void externalScoreEvaluator_tieScores() {
+        WifiQualifiedNetworkSelector.ExternalScoreEvaluator evaluator =
+                new WifiQualifiedNetworkSelector.ExternalScoreEvaluator(mLocalLog, true);
+        ScanResult untrustedScanResult = new ScanResult();
+        int untrustedScore = 100;
+        evaluator.evalUntrustedCandidate(untrustedScore, untrustedScanResult);
+
+        ScanResult savedScanResult = new ScanResult();
+        int savedScore = 100;
+        WifiConfiguration savedConfig = new WifiConfiguration();
+        evaluator.evalSavedCandidate(savedScore, savedConfig, savedScanResult);
+        assertEquals(WifiQualifiedNetworkSelector.ExternalScoreEvaluator
+                .BestCandidateType.SAVED_NETWORK, evaluator.getBestCandidateType());
+        assertEquals(savedScore, evaluator.getHighScore());
+        assertSame(savedScanResult, evaluator.getScanResultCandidate());
+    }
+
+    /**
+     * Case #44 Ensure the ExternalScoreEvaluator correctly selects the saved network out of
+     *          multiple options.
+     *
+     * In this test. we simulate following scenario:
+     * The ExternalScoreEvaluator is asked to evaluate 2 untrusted networks and 2 saved networks.
+     * The high scores are equal and the low scores differ.
+     *
+     * expected result: The saved network is determined to be the best network.
+     */
+    @Test
+    public void externalScoreEvaluator_multipleScores() {
+        WifiQualifiedNetworkSelector.ExternalScoreEvaluator evaluator =
+                new WifiQualifiedNetworkSelector.ExternalScoreEvaluator(mLocalLog, true);
+        ScanResult untrustedScanResult = new ScanResult();
+        int untrustedScore = 100;
+        evaluator.evalUntrustedCandidate(untrustedScore, untrustedScanResult);
+        evaluator.evalUntrustedCandidate(80, new ScanResult());
+
+        ScanResult savedScanResult = new ScanResult();
+        int savedScore = 100;
+        WifiConfiguration savedConfig = new WifiConfiguration();
+        evaluator.evalSavedCandidate(savedScore, savedConfig, savedScanResult);
+        evaluator.evalSavedCandidate(90, new WifiConfiguration(), new ScanResult());
+        assertEquals(WifiQualifiedNetworkSelector.ExternalScoreEvaluator
+                .BestCandidateType.SAVED_NETWORK, evaluator.getBestCandidateType());
+        assertEquals(savedScore, evaluator.getHighScore());
+        assertSame(savedScanResult, evaluator.getScanResultCandidate());
+    }
+
+    /**
+     * Case #45 Ensure the ExternalScoreEvaluator correctly handles NULL score inputs.
+     *
+     * In this test we simulate following scenario:
+     * The ExternalScoreEvaluator is asked to evaluate both types of candidates with NULL scores.
+     *
+     * expected result: No crashes. The best candidate type is returned as NONE.
+     */
+    @Test
+    public void externalScoreEvaluator_nullScores() {
+        WifiQualifiedNetworkSelector.ExternalScoreEvaluator evaluator =
+                new WifiQualifiedNetworkSelector.ExternalScoreEvaluator(mLocalLog, true);
+        evaluator.evalUntrustedCandidate(null, new ScanResult());
+        assertEquals(WifiQualifiedNetworkSelector.ExternalScoreEvaluator
+                .BestCandidateType.NONE, evaluator.getBestCandidateType());
+        evaluator.evalSavedCandidate(null, new WifiConfiguration(), new ScanResult());
+        assertEquals(WifiQualifiedNetworkSelector.ExternalScoreEvaluator
+                .BestCandidateType.NONE, evaluator.getBestCandidateType());
     }
 }
