@@ -103,14 +103,9 @@ public class WifiConfigStore {
         mKeyStore = keyStore;
         mBackupManagerProxy = new BackupManagerProxy();
 
-        if (sVDBG) {
-            mLocalLog = localLog;
-            mFileObserver = new WpaConfigFileObserver();
-            mFileObserver.startWatching();
-        } else {
-            mLocalLog = null;
-            mFileObserver = null;
-        }
+        mLocalLog = localLog;
+        mFileObserver = new WpaConfigFileObserver();
+        mFileObserver.startWatching();
     }
 
     private static String removeDoubleQuotes(String string) {
@@ -1332,7 +1327,7 @@ public class WifiConfigStore {
         }
     }
 
-    // TODO(rpius): Remove this.
+    // TODO(rpius): Remove this (see b/27377614).
     private class WpaConfigFileObserver extends FileObserver {
 
         WpaConfigFileObserver() {
