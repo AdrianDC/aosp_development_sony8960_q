@@ -29,6 +29,7 @@ import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.lang.StringBuilder;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -137,7 +138,7 @@ class WifiLogger extends BaseWifiLogger {
             startLoggingAllExceptPerPacketBuffers();
         }
 
-        if (verboseEnabled && !mWifiNative.startPktFateMonitoring()) {
+        if (!mWifiNative.startPktFateMonitoring()) {
             Log.e(TAG, "Failed to start packet fate monitoring");
         }
     }
@@ -178,10 +179,6 @@ class WifiLogger extends BaseWifiLogger {
 
     @Override
     synchronized void reportConnectionFailure() {
-        if (!isVerboseLoggingEnabled()) {
-            return;
-        }
-
         mPacketFatesForLastFailure = fetchPacketFates();
     }
 
@@ -631,14 +628,16 @@ class WifiLogger extends BaseWifiLogger {
     }
 
     private void dumpPacketFates(PrintWriter pw) {
-        dumpPacketFatesInternal(pw, "Last failed connection fates", mPacketFatesForLastFailure);
+        dumpPacketFatesInternal(pw, "Last failed connection fates", mPacketFatesForLastFailure,
+                isVerboseLoggingEnabled());
         if (DBG) {
-            dumpPacketFatesInternal(pw, "Latest fates", fetchPacketFates());
+            dumpPacketFatesInternal(pw, "Latest fates", fetchPacketFates(),
+                    isVerboseLoggingEnabled());
         }
     }
 
-    private static void dumpPacketFatesInternal(
-            PrintWriter pw, String description, ArrayList<WifiNative.FateReport> fates) {
+    private static void dumpPacketFatesInternal(PrintWriter pw, String description,
+            ArrayList<WifiNative.FateReport> fates, boolean verbose) {
         if (fates == null) {
             pw.format("No fates fetched for \"%s\"\n", description);
             return;
@@ -649,14 +648,25 @@ class WifiLogger extends BaseWifiLogger {
             return;
         }
 
-        int i = 0;
         pw.format("--------------------- %s ----------------------\n", description);
+
+        StringBuilder verboseOutput = new StringBuilder();
+        pw.print(WifiNative.FateReport.getTableHeader());
         for (WifiNative.FateReport fate : fates) {
-            pw.format("Frame number: %d\n", i + 1);
-            pw.print(fate);
-            pw.print("\n");
-            ++i;
+            pw.print(fate.toTableRowString());
+            if (verbose) {
+                // Important: only print Personally Identifiable Information (PII) if verbose
+                // logging is turned on.
+                verboseOutput.append(fate.toVerboseStringWithPiiAllowed());
+                verboseOutput.append("\n");
+            }
         }
+
+        if (verbose) {
+            pw.format("\n>>> VERBOSE PACKET FATE DUMP <<<\n\n");
+            pw.print(verboseOutput.toString());
+        }
+
         pw.println("--------------------------------------------------------------------");
     }
 }
