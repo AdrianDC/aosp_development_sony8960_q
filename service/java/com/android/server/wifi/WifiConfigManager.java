@@ -1294,35 +1294,30 @@ public class WifiConfigManager {
      * API. The more powerful selectNetwork()/saveNetwork() is used by the
      * state machine for connecting to a network
      *
-     * @param netId network to be enabled
+     * @param config network to be enabled
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
-    boolean enableNetwork(int netId, boolean disableOthers, int uid) {
-        WifiConfiguration config = mConfiguredNetworks.getForCurrentUser(netId);
+    boolean enableNetwork(WifiConfiguration config, boolean disableOthers, int uid) {
         if (config == null) {
             return false;
         }
+
+        updateNetworkSelectionStatus(
+                config, WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+        setLatestUserSelectedConfiguration(config);
         boolean ret = true;
         if (disableOthers) {
-            ret = selectNetworkWithoutBroadcast(netId);
+            ret = selectNetworkWithoutBroadcast(config.networkId);
             if (sVDBG) {
-                localLogNetwork("enableNetwork(disableOthers=true, uid=" + uid + ") ", netId);
+                localLogNetwork("enableNetwork(disableOthers=true, uid=" + uid + ") ",
+                        config.networkId);
             }
-            updateLastConnectUid(getWifiConfiguration(netId), uid);
-
+            updateLastConnectUid(config, uid);
             writeKnownNetworkHistory();
             sendConfiguredNetworksChangedBroadcast();
         } else {
-            if (sVDBG) localLogNetwork("enableNetwork(disableOthers=false) ", netId);
-            WifiConfiguration enabledNetwork;
-            synchronized (mConfiguredNetworks) {                     // !!! Useless synchronization!
-                enabledNetwork = mConfiguredNetworks.getForCurrentUser(netId);
-            }
-            // check just in case the network was removed by someone else.
-            if (enabledNetwork != null) {
-                sendConfiguredNetworksChangedBroadcast(enabledNetwork,
-                        WifiManager.CHANGE_REASON_CONFIG_CHANGE);
-            }
+            if (sVDBG) localLogNetwork("enableNetwork(disableOthers=false) ", config.networkId);
+            sendConfiguredNetworksChangedBroadcast(config, WifiManager.CHANGE_REASON_CONFIG_CHANGE);
         }
         return ret;
     }
