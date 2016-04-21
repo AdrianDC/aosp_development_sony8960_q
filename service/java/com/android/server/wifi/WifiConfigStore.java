@@ -94,19 +94,16 @@ public class WifiConfigStore {
     private final WpaConfigFileObserver mFileObserver;
     private final WifiNative mWifiNative;
     private final KeyStore mKeyStore;
-    private final boolean mShowNetworks;
     private final HashSet<String> mBssidBlacklist = new HashSet<String>();
 
     private final BackupManagerProxy mBackupManagerProxy;
 
-    WifiConfigStore(WifiNative wifiNative, KeyStore keyStore, LocalLog localLog,
-            boolean showNetworks, boolean verboseDebug) {
+    WifiConfigStore(WifiNative wifiNative, KeyStore keyStore, LocalLog localLog) {
         mWifiNative = wifiNative;
         mKeyStore = keyStore;
-        mShowNetworks = showNetworks;
         mBackupManagerProxy = new BackupManagerProxy();
 
-        if (mShowNetworks) {
+        if (sVDBG) {
             mLocalLog = localLog;
             mFileObserver = new WpaConfigFileObserver();
             mFileObserver.startWatching();
@@ -114,7 +111,6 @@ public class WifiConfigStore {
             mLocalLog = null;
             mFileObserver = null;
         }
-        sVDBG = verboseDebug;
     }
 
     private static String removeDoubleQuotes(String string) {
@@ -372,7 +368,7 @@ public class WifiConfigStore {
                 return lastPriority;
             }
             String[] lines = listStr.split("\n");
-            if (mShowNetworks) {
+            if (sVDBG) {
                 localLog("loadNetworks:  ");
                 for (String net : lines) {
                     localLog(net);
@@ -418,7 +414,7 @@ public class WifiConfigStore {
                 config.setIpAssignment(IpAssignment.DHCP);
                 config.setProxySettings(ProxySettings.NONE);
                 if (!WifiServiceImpl.isValid(config)) {
-                    if (mShowNetworks) {
+                    if (sVDBG) {
                         localLog("Ignoring network " + config.networkId + " because configuration "
                                 + "loaded from wpa_supplicant.conf is not valid.");
                     }
@@ -438,7 +434,7 @@ public class WifiConfigStore {
                 final WifiConfiguration duplicateConfig = configs.put(configKey, config);
                 if (duplicateConfig != null) {
                     // The network is already known. Overwrite the duplicate entry.
-                    if (mShowNetworks) {
+                    if (sVDBG) {
                         localLog("Replacing duplicate network " + duplicateConfig.networkId
                                 + " with " + config.networkId + ".");
                     }

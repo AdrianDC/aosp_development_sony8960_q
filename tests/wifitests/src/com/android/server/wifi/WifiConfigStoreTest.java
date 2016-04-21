@@ -163,8 +163,7 @@ public class WifiConfigStoreTest {
         MockitoAnnotations.initMocks(this);
 
         mMockKeyStore = new MockKeyStore();
-        mWifiConfigStore = new WifiConfigStore(mWifiNative, mMockKeyStore.createMock(), null,
-                false, true);
+        mWifiConfigStore = new WifiConfigStore(mWifiNative, mMockKeyStore.createMock(), null);
     }
 
     /**
