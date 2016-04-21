@@ -104,7 +104,8 @@ public class WifiConfigStoreTest {
         NETWORK_VARS.add(NETWORK_3_VARS);
     }
 
-    // Taken from wpa_supplicant.conf actual test device Some fields modified for privacy.
+    // Taken from wpa_supplicant.conf of an actual test device. Some fields modified for privacy
+    // reasons.
     private static final String TEST_WPA_SUPPLICANT_CONF = ""
             + "ctrl_interface=/data/misc/wifi/sockets\n"
             + "disable_scan_offload=1\n"
