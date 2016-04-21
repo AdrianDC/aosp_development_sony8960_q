@@ -5525,7 +5525,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         replyToMessage(message, message.what, FAILURE);
                         break;
                     }
-
                     // disable other only means select this network, does not mean all other
                     // networks need to be disabled
                     if (disableOthers) {
@@ -5536,11 +5535,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // Cancel auto roam requests
                     autoRoamSetBSSID(netId, "any");
 
-                    int uid = message.sendingUid;
-                    mWifiConfigManager.updateNetworkSelectionStatus(config,
-                                WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
-                    mWifiConfigManager.setLatestUserSelectedConfiguration(config);
-                    ok = mWifiConfigManager.enableNetwork(netId, disableOthers, uid);
+                    ok = mWifiConfigManager.enableNetwork(
+                            config, disableOthers, message.sendingUid);
                     if (!ok) {
                         messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
                     } else if (disableOthers) {
