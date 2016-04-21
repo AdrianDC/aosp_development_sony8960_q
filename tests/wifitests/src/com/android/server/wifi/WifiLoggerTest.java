@@ -26,6 +26,7 @@ import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -83,6 +84,48 @@ public class WifiLoggerTest {
         mWifiNative.enableVerboseLogging(0);
     }
 
+    /** Verifies that startLogging() registers a logging event handler. */
+    @Test
+    public void startLoggingRegistersLogEventHandler() throws Exception {
+        final boolean verbosityToggle = false;  // even default mode wants log events from HAL
+        mWifiLogger.startLogging(verbosityToggle);
+        verify(mWifiNative).setLoggingEventHandler(anyObject());
+    }
+
+    /**
+     * Verifies that a failure to set the logging event handler does not prevent a future
+     * startLogging() from setting the logging event handler.
+     */
+    @Test
+    public void startLoggingRegistersLogEventHandlerIfPriorAttemptFailed()
+            throws Exception {
+        final boolean verbosityToggle = false;  // even default mode wants log events from HAL
+
+        when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(false);
+        mWifiLogger.startLogging(verbosityToggle);
+        verify(mWifiNative).setLoggingEventHandler(anyObject());
+        reset(mWifiNative);
+
+        when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(true);
+        mWifiLogger.startLogging(verbosityToggle);
+        verify(mWifiNative).setLoggingEventHandler(anyObject());
+    }
+
+    /** Verifies that startLogging() does not make redundant calls to setLoggingEventHandler(). */
+    @Test
+    public void startLoggingDoesNotRegisterLogEventHandlerIfPriorAttemptSucceeded()
+            throws Exception {
+        final boolean verbosityToggle = false;  // even default mode wants log events from HAL
+
+        when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(true);
+        mWifiLogger.startLogging(verbosityToggle);
+        verify(mWifiNative).setLoggingEventHandler(anyObject());
+        reset(mWifiNative);
+
+        mWifiLogger.startLogging(verbosityToggle);
+        verify(mWifiNative, never()).setLoggingEventHandler(anyObject());
+    }
+
     /**
      * Verifies that startLogging() restarts HAL ringbuffers.
      *
@@ -100,6 +143,45 @@ public class WifiLoggerTest {
         verify(mWifiNative).startLoggingRingBuffer(
                 eq(WifiLogger.VERBOSE_NORMAL_LOG), anyInt(), anyInt(), anyInt(),
                 eq(FAKE_RING_BUFFER_NAME));
+    }
+
+    /** Verifies that, if a log handler was registered, then stopLogging() resets it. */
+    @Test
+    public void stopLoggingResetsLogHandlerIfHandlerWasRegistered() throws Exception {
+        final boolean verbosityToggle = false;  // even default mode wants log events from HAL
+
+        when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(true);
+        mWifiLogger.startLogging(verbosityToggle);
+        reset(mWifiNative);
+
+        mWifiLogger.stopLogging();
+        verify(mWifiNative).resetLogHandler();
+    }
+
+    /** Verifies that, if a log handler is not registered, stopLogging() skips resetLogHandler(). */
+    @Test
+    public void stopLoggingOnlyResetsLogHandlerIfHandlerWasRegistered() throws Exception {
+        final boolean verbosityToggle = false;  // even default mode wants log events from HAL
+        mWifiLogger.stopLogging();
+        verify(mWifiNative, never()).resetLogHandler();
+    }
+
+    /** Verifies that stopLogging() remembers that we've reset the log handler. */
+    @Test
+    public void multipleStopLoggingCallsOnlyResetLogHandlerOnce() throws Exception {
+        final boolean verbosityToggle = false;  // even default mode wants log events from HAL
+
+        when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(true);
+        mWifiLogger.startLogging(verbosityToggle);
+        reset(mWifiNative);
+
+        when(mWifiNative.resetLogHandler()).thenReturn(true);
+        mWifiLogger.stopLogging();
+        verify(mWifiNative).resetLogHandler();
+        reset(mWifiNative);
+
+        mWifiLogger.stopLogging();
+        verify(mWifiNative, never()).resetLogHandler();
     }
 
     /**

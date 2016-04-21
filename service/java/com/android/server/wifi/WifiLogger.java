@@ -97,6 +97,7 @@ class WifiLogger extends BaseWifiLogger {
             "Driver state dump";
 
     private int mLogLevel = VERBOSE_NO_LOG;
+    private boolean mIsLoggingEventHandlerRegistered;
     private WifiNative.RingBufferStatus[] mRingBuffers;
     private WifiNative.RingBufferStatus mPerPacketRingBuffer;
     private WifiStateMachine mWifiStateMachine;
@@ -107,6 +108,7 @@ class WifiLogger extends BaseWifiLogger {
             WifiStateMachine wifiStateMachine, WifiNative wifiNative) {
         mWifiStateMachine = wifiStateMachine;
         mWifiNative = wifiNative;
+        mIsLoggingEventHandlerRegistered = false;
     }
 
     @Override
@@ -115,8 +117,9 @@ class WifiLogger extends BaseWifiLogger {
         mDriverVersion = mWifiNative.getDriverVersion();
         mSupportedFeatureSet = mWifiNative.getSupportedLoggerFeatureSet();
 
-        if (mLogLevel == VERBOSE_NO_LOG)
-            mWifiNative.setLoggingEventHandler(mHandler);
+        if (!mIsLoggingEventHandlerRegistered) {
+            mIsLoggingEventHandlerRegistered = mWifiNative.setLoggingEventHandler(mHandler);
+        }
 
         if (verboseEnabled) {
             mLogLevel = VERBOSE_LOG_WITH_WAKEUP;
@@ -163,14 +166,17 @@ class WifiLogger extends BaseWifiLogger {
 
     @Override
     public synchronized void stopLogging() {
-        if (mLogLevel != VERBOSE_NO_LOG) {
-            //resetLogHandler only can be used when you terminate all logging since all handler will
-            //be removed. This also stop alert logging
-            if(!mWifiNative.resetLogHandler()) {
+        if (mIsLoggingEventHandlerRegistered) {
+            if (!mWifiNative.resetLogHandler()) {
                 Log.e(TAG, "Fail to reset log handler");
             } else {
-                if (DBG) Log.d(TAG,"Reset log handler");
+                if (DBG) Log.d(TAG, "Reset log handler");
             }
+            // Clear mIsLoggingEventHandlerRegistered even if resetLogHandler() failed, because
+            // the log handler is in an indeterminate state.
+            mIsLoggingEventHandlerRegistered = false;
+        }
+        if (mLogLevel != VERBOSE_NO_LOG) {
             stopLoggingAllBuffers();
             mRingBuffers = null;
             mLogLevel = VERBOSE_NO_LOG;
