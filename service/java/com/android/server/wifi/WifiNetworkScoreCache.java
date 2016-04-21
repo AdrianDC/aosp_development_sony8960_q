@@ -32,14 +32,13 @@ import java.util.List;
 import java.util.Map;
 
 public class WifiNetworkScoreCache extends INetworkScoreCache.Stub {
+    private static final String TAG = "WifiNetworkScoreCache";
+    private static final boolean DBG = false;
 
     // A Network scorer returns a score in the range [-128, +127]
     // We treat the lowest possible score as though there were no score, effectively allowing the
     // scorer to provide an RSSI threshold below which a network should not be used.
-    public static int INVALID_NETWORK_SCORE = Byte.MIN_VALUE;
-
-    private static String TAG = "WifiNetworkScoreCache";
-    private boolean DBG = true;
+    public static final int INVALID_NETWORK_SCORE = Byte.MIN_VALUE;
     private final Context mContext;
 
     // The key is of the form "<ssid>"<bssid>
