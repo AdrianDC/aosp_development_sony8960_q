@@ -152,7 +152,6 @@ import java.util.zip.Checksum;
  */
 public class WifiConfigManager {
     private static boolean sVDBG = false;
-    private static boolean sVVDBG = false;
     public static final String TAG = "WifiConfigManager";
     public static final int MAX_TX_PACKET_FOR_FULL_SCANS = 8;
     public static final int MAX_RX_PACKET_FOR_FULL_SCANS = 16;
@@ -407,11 +406,6 @@ public class WifiConfigManager {
         } else {
             sVDBG = false;
         }
-        if (verbose > 1) {
-            sVVDBG = true;
-        } else {
-            sVVDBG = false;
-        }
     }
 
     /**
@@ -429,7 +423,7 @@ public class WifiConfigManager {
     }
 
     boolean getVerboseLoggingEnabled() {
-        return sVDBG || sVVDBG;
+        return sVDBG;
     }
 
     /**
@@ -2288,7 +2282,7 @@ public class WifiConfigManager {
 
                     for (String abssid : getScanDetailCache(config).keySet()) {
                         for (String bbssid : linkedScanDetailCache.keySet()) {
-                            if (sVVDBG) {
+                            if (sVDBG) {
                                 logd("linkConfiguration try to link due to DBDC BSSID match "
                                         + link.SSID + " and " + config.SSID + " bssida " + abssid
                                         + " bssidb " + bbssid);
@@ -2602,7 +2596,7 @@ public class WifiConfigManager {
 
         if (scanDetailCache.size() > (MAX_NUM_SCAN_CACHE_ENTRIES + 64)) {
             long now_dbg = 0;
-            if (sVVDBG) {
+            if (sVDBG) {
                 logd(" Will trim config " + config.configKey()
                         + " size " + scanDetailCache.size());
 
@@ -2615,7 +2609,7 @@ public class WifiConfigManager {
             // Since this operation is expensive, make sure it is not performed
             // until the cache has grown significantly above the trim treshold
             scanDetailCache.trim(MAX_NUM_SCAN_CACHE_ENTRIES);
-            if (sVVDBG) {
+            if (sVDBG) {
                 long diff = SystemClock.elapsedRealtimeNanos() - now_dbg;
                 logd(" Finished trimming config, time(ns) " + diff);
                 for (ScanDetail sd : scanDetailCache.values()) {
