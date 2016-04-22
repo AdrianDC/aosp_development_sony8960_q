@@ -32,6 +32,7 @@ public class WifiInjector {
 
     private final WifiMetrics mWifiMetrics = new WifiMetrics();
     private final WifiLastResortWatchdog mWifiLastResortWatchdog = new WifiLastResortWatchdog();
+    private final Clock mClock = new Clock();
 
     public WifiMetrics getWifiMetrics() {
         return mWifiMetrics;
@@ -39,5 +40,9 @@ public class WifiInjector {
 
     public WifiLastResortWatchdog getWifiLastResortWatchdog() {
         return mWifiLastResortWatchdog;
+    }
+
+    public Clock getClock() {
+        return mClock;
     }
 }

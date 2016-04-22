@@ -198,7 +198,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
     private boolean mTemporarilyDisconnectWifi = false;
     private final String mPrimaryDeviceType;
-    private final Clock mClock = new Clock();
+    private final Clock mClock;
     private final WifiCountryCode mCountryCode;
 
     /* Scan results handling */
@@ -1019,6 +1019,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiInjector = wifiInjector;
         mWifiMetrics = mWifiInjector.getWifiMetrics();
         mWifiLastResortWatchdog = wifiInjector.getWifiLastResortWatchdog();
+        mClock = wifiInjector.getClock();
         mContext = context;
         mFacade = facade;
         mWifiNative = WifiNative.getWlanNativeInterface();

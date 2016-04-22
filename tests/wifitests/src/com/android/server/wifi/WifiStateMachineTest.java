@@ -352,6 +352,7 @@ public class WifiStateMachineTest {
         mWifiMetrics = mock(WifiMetrics.class);
         WifiInjector wifiInjector = mock(WifiInjector.class);
         when(wifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
+        when(wifiInjector.getClock()).thenReturn(mock(Clock.class));
         FrameworkFacade factory = getFrameworkFacade();
         Context context = getContext();
 
