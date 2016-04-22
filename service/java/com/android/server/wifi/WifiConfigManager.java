@@ -284,7 +284,6 @@ public class WifiConfigManager {
     private IpConfigStore mIpconfigStore;
     private DelayedDiskWrite mWriter;
     private boolean mOnlyLinkSameCredentialConfigurations;
-    private boolean mShowNetworks = false;
     private int mCurrentUserId = UserHandle.USER_SYSTEM;
 
     /* Stores a map of NetworkId to ScanCache */
@@ -346,7 +345,7 @@ public class WifiConfigManager {
         mKeyStore = keyStore;
         mUserManager = userManager;
 
-        if (mShowNetworks) {
+        if (sVDBG) {
             mLocalLog = wifiNative.getLocalLog();
         } else {
             mLocalLog = null;
@@ -411,8 +410,7 @@ public class WifiConfigManager {
         mWriter = new DelayedDiskWrite();
         mIpconfigStore = new IpConfigStore(mWriter);
         mWifiNetworkHistory = new WifiNetworkHistory(context, mLocalLog, mWriter);
-        mWifiConfigStore =
-                new WifiConfigStore(wifiNative, mKeyStore, mLocalLog, mShowNetworks, true);
+        mWifiConfigStore = new WifiConfigStore(wifiNative, mKeyStore, mLocalLog);
     }
 
     public void trimANQPCache(boolean all) {
@@ -423,7 +421,6 @@ public class WifiConfigManager {
         mEnableVerboseLogging.set(verbose);
         if (verbose > 0) {
             sVDBG = true;
-            mShowNetworks = true;
         } else {
             sVDBG = false;
         }
@@ -903,7 +900,7 @@ public class WifiConfigManager {
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
     boolean forgetNetwork(int netId) {
-        if (mShowNetworks) localLogNetwork("forgetNetwork", netId);
+        if (sVDBG) localLogNetwork("forgetNetwork", netId);
         if (!removeNetwork(netId)) {
             loge("Failed to forget network " + netId);
             return false;
@@ -928,7 +925,7 @@ public class WifiConfigManager {
             return WifiConfiguration.INVALID_NETWORK_ID;
         }
 
-        if (mShowNetworks) localLogNetwork("addOrUpdateNetwork id=", config.networkId);
+        if (sVDBG) localLogNetwork("addOrUpdateNetwork id=", config.networkId);
         if (config.isPasspoint()) {
             /* create a temporary SSID with providerFriendlyName */
             Long csum = getChecksum(config.FQDN);
@@ -1167,7 +1164,7 @@ public class WifiConfigManager {
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
     boolean removeNetwork(int netId) {
-        if (mShowNetworks) localLogNetwork("removeNetwork", netId);
+        if (sVDBG) localLogNetwork("removeNetwork", netId);
         WifiConfiguration config = mConfiguredNetworks.getForCurrentUser(netId);
         if (!removeConfigAndSendBroadcastIfNeeded(config)) {
             return false;
@@ -1256,7 +1253,7 @@ public class WifiConfigManager {
             if (app.uid != config.creatorUid || !app.packageName.equals(config.creatorName)) {
                 continue;
             }
-            if (mShowNetworks) {
+            if (sVDBG) {
                 localLog("Removing network " + config.SSID
                          + ", application \"" + app.packageName + "\" uninstalled"
                          + " from user " + UserHandle.getUserId(app.uid));
@@ -1279,7 +1276,7 @@ public class WifiConfigManager {
                 continue;
             }
             success &= removeNetwork(config.networkId);
-            if (mShowNetworks) {
+            if (sVDBG) {
                 localLog("Removing network " + config.SSID
                         + ", user " + userId + " removed");
             }
@@ -1680,7 +1677,7 @@ public class WifiConfigManager {
             final String configKey = entry.getKey();
             final WifiConfiguration config = entry.getValue();
             if (!configKey.equals(config.configKey())) {
-                if (mShowNetworks) {
+                if (sVDBG) {
                     log("Ignoring network " + config.networkId + " because the configKey loaded "
                             + "from wpa_supplicant.conf is not valid.");
                 }
@@ -1694,7 +1691,7 @@ public class WifiConfigManager {
 
         sendConfiguredNetworksChangedBroadcast();
 
-        if (mShowNetworks) {
+        if (sVDBG) {
             localLog("loadConfiguredNetworks loaded " + mConfiguredNetworks.sizeForAllUsers()
                     + " networks (for all users)");
         }
