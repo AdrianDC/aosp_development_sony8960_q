@@ -342,12 +342,7 @@ public class WifiConfigManager {
         mClock = clock;
         mKeyStore = keyStore;
         mUserManager = userManager;
-
-        if (sVDBG) {
-            mLocalLog = WifiNative.getLocalLog();
-        } else {
-            mLocalLog = null;
-        }
+        mLocalLog = wifiNative.getLocalLog();
 
         mOnlyLinkSameCredentialConfigurations = mContext.getResources().getBoolean(
                 R.bool.config_wifi_only_link_same_credential_configurations);
