@@ -226,7 +226,6 @@ public class WifiConfigManager {
     public final AtomicBoolean mEnableRssiPollWhenAssociated = new AtomicBoolean(true);
     public final AtomicInteger mThresholdSaturatedRssi5 = new AtomicInteger();
     public final AtomicInteger mThresholdQualifiedRssi24 = new AtomicInteger();
-    public final AtomicInteger mEnableVerboseLogging = new AtomicInteger(0);
     public final AtomicInteger mAlwaysEnableScansWhileAssociated = new AtomicInteger(0);
     public final AtomicInteger mMaxNumActiveChannelsForPartialScans = new AtomicInteger();
 
@@ -403,7 +402,6 @@ public class WifiConfigManager {
     }
 
     void enableVerboseLogging(int verbose) {
-        mEnableVerboseLogging.set(verbose);
         if (verbose > 0) {
             sVDBG = true;
         } else {
@@ -428,6 +426,10 @@ public class WifiConfigManager {
 
     int getConfiguredNetworksSize() {
         return mConfiguredNetworks.sizeForCurrentUser();
+    }
+
+    boolean getVerboseLoggingEnabled() {
+        return sVDBG || sVVDBG;
     }
 
     /**

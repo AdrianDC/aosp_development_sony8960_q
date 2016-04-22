@@ -4201,8 +4201,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     setFrequencyBand();
                     mWifiNative.enableSaveConfig();
                     mWifiConfigManager.loadAndEnableAllNetworks();
-                    if (mWifiConfigManager.mEnableVerboseLogging.get() > 0) {
-                        enableVerboseLogging(mWifiConfigManager.mEnableVerboseLogging.get());
+                    if (mWifiConfigManager.getVerboseLoggingEnabled()) {
+                        enableVerboseLogging(1);
                     }
                     initializeWpsDetails();
 
@@ -6457,7 +6457,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                                                    mWifiConfigManager,
                                                                    mNetworkAgent,
                                                                    mWifiScoreReport,
-                                                                   mAggressiveHandover);
+                                                                   mAggressiveHandover,
+                                                                   mVerboseLoggingLevel > 0);
                         }
                         sendMessageDelayed(obtainMessage(CMD_RSSI_POLL,
                                 mRssiPollToken, 0), POLL_RSSI_INTERVAL_MSECS);

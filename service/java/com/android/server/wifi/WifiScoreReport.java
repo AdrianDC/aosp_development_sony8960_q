@@ -97,12 +97,8 @@ public class WifiScoreReport {
                                                  WifiConfigManager wifiConfigManager,
                                                  NetworkAgent networkAgent,
                                                  WifiScoreReport lastReport,
-                                                 int aggressiveHandover) {
-        boolean debugLogging = false;
-        if (wifiConfigManager.mEnableVerboseLogging.get() > 0) {
-            debugLogging = true;
-        }
-
+                                                 int aggressiveHandover,
+                                                 boolean verboseLogging) {
         StringBuilder sb = new StringBuilder();
 
         int score = STARTING_SCORE;
@@ -258,7 +254,7 @@ public class WifiScoreReport {
                     currentConfiguration.numTicksAtNotHighRSSI));
         }
 
-        if (debugLogging) {
+        if (verboseLogging) {
             String rssiStatus = "";
             if (isBadRSSI) {
                 rssiStatus += " badRSSI ";
@@ -286,7 +282,7 @@ public class WifiScoreReport {
                 wifiInfo.linkStuckCount += 1;
             }
             sb.append(String.format(" ls+=%d", wifiInfo.linkStuckCount));
-            if (debugLogging) {
+            if (verboseLogging) {
                 Log.d(TAG, " bad link -> stuck count ="
                         + Integer.toString(wifiInfo.linkStuckCount));
             }
@@ -295,7 +291,7 @@ public class WifiScoreReport {
                 wifiInfo.linkStuckCount -= 1;
             }
             sb.append(String.format(" ls-=%d", wifiInfo.linkStuckCount));
-            if (debugLogging) {
+            if (verboseLogging) {
                 Log.d(TAG, " good link -> stuck count ="
                         + Integer.toString(wifiInfo.linkStuckCount));
             }
@@ -311,7 +307,7 @@ public class WifiScoreReport {
 
         if (isBadLinkspeed) {
             score -= BAD_LINKSPEED_PENALTY;
-            if (debugLogging) {
+            if (verboseLogging) {
                 Log.d(TAG, " isBadLinkspeed   ---> count=" + badLinkspeedcount
                         + " score=" + Integer.toString(score));
             }
@@ -338,7 +334,7 @@ public class WifiScoreReport {
         score -= wifiInfo.badRssiCount * BAD_RSSI_COUNT_PENALTY + wifiInfo.lowRssiCount;
         sb.append(String.format(",%d", score));
 
-        if (debugLogging) {
+        if (verboseLogging) {
             Log.d(TAG, " badRSSI count" + Integer.toString(wifiInfo.badRssiCount)
                     + " lowRSSI count" + Integer.toString(wifiInfo.lowRssiCount)
                     + " --> score " + Integer.toString(score));
@@ -346,7 +342,7 @@ public class WifiScoreReport {
 
         if (isHighRSSI) {
             score += 5;
-            if (debugLogging) Log.d(TAG, " isHighRSSI       ---> score=" + Integer.toString(score));
+            if (verboseLogging) Log.d(TAG, " isHighRSSI       ---> score=" + score);
         }
         sb.append(String.format(",%d]", score));
 
@@ -362,7 +358,7 @@ public class WifiScoreReport {
 
         //report score
         if (score != wifiInfo.score) {
-            if (debugLogging) {
+            if (verboseLogging) {
                 Log.d(TAG, "calculateWifiScore() report new score " + Integer.toString(score));
             }
             wifiInfo.score = score;
