@@ -19,7 +19,6 @@ package com.android.server.wifi;
 import android.net.IpConfiguration.IpAssignment;
 import android.net.IpConfiguration.ProxySettings;
 import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiConfiguration.Status;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.WpsInfo;
@@ -849,7 +848,7 @@ public class WifiConfigStore {
      * @param config Config corresponding to the network.
      * @return true if successful, false otherwise.
      */
-    public boolean selectNetwork(WifiConfiguration config, Collection<WifiConfiguration> configs) {
+    public boolean selectNetwork(WifiConfiguration config) {
         if (config == null) {
             return false;
         }
@@ -858,8 +857,6 @@ public class WifiConfigStore {
             loge("Select network in wpa_supplicant failed on " + config.networkId);
             return false;
         }
-        config.status = Status.ENABLED;
-        markAllNetworksDisabledExcept(config.networkId, configs);
         return true;
     }
 
@@ -878,7 +875,6 @@ public class WifiConfigStore {
             loge("Disable network in wpa_supplicant failed on " + config.networkId);
             return false;
         }
-        config.status = Status.DISABLED;
         return true;
     }
 
@@ -1144,21 +1140,6 @@ public class WifiConfigStore {
         return mBssidBlacklist.contains(bssid);
     }
 
-    /* Mark all networks except specified netId as disabled */
-    private void markAllNetworksDisabledExcept(int netId, Collection<WifiConfiguration> configs) {
-        for (WifiConfiguration config : configs) {
-            if (config != null && config.networkId != netId) {
-                if (config.status != Status.DISABLED) {
-                    config.status = Status.DISABLED;
-                }
-            }
-        }
-    }
-
-    private void markAllNetworksDisabled(Collection<WifiConfiguration> configs) {
-        markAllNetworksDisabledExcept(WifiConfiguration.INVALID_NETWORK_ID, configs);
-    }
-
     /**
      * Start WPS pin method configuration with pin obtained
      * from the access point
@@ -1166,12 +1147,9 @@ public class WifiConfigStore {
      * @param config WPS configuration
      * @return Wps result containing status and pin
      */
-    public WpsResult startWpsWithPinFromAccessPoint(WpsInfo config,
-            Collection<WifiConfiguration> configs) {
+    public WpsResult startWpsWithPinFromAccessPoint(WpsInfo config) {
         WpsResult result = new WpsResult();
         if (mWifiNative.startWpsRegistrar(config.BSSID, config.pin)) {
-            /* WPS leaves all networks disabled */
-            markAllNetworksDisabled(configs);
             result.status = WpsResult.Status.SUCCESS;
         } else {
             loge("Failed to start WPS pin method configuration");
@@ -1186,13 +1164,10 @@ public class WifiConfigStore {
      *
      * @return WpsResult indicating status and pin
      */
-    public WpsResult startWpsWithPinFromDevice(WpsInfo config,
-            Collection<WifiConfiguration> configs) {
+    public WpsResult startWpsWithPinFromDevice(WpsInfo config) {
         WpsResult result = new WpsResult();
         result.pin = mWifiNative.startWpsPinDisplay(config.BSSID);
-        /* WPS leaves all networks disabled */
         if (!TextUtils.isEmpty(result.pin)) {
-            markAllNetworksDisabled(configs);
             result.status = WpsResult.Status.SUCCESS;
         } else {
             loge("Failed to start WPS pin method configuration");
@@ -1207,12 +1182,9 @@ public class WifiConfigStore {
      * @param config WPS configuration
      * @return WpsResult indicating status and pin
      */
-    public WpsResult startWpsPbc(WpsInfo config,
-            Collection<WifiConfiguration> configs) {
+    public WpsResult startWpsPbc(WpsInfo config) {
         WpsResult result = new WpsResult();
         if (mWifiNative.startWpsPbc(config.BSSID)) {
-            /* WPS leaves all networks disabled */
-            markAllNetworksDisabled(configs);
             result.status = WpsResult.Status.SUCCESS;
         } else {
             loge("Failed to start WPS push button configuration");

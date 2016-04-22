@@ -432,23 +432,15 @@ public class WifiConfigManagerTest {
                         assertEquals(WifiConfiguration.Status.ENABLED, config2.status);
                     }
                 } else {
-                    // If the network configuration is visible to the current user, verify that it
-                    // was enabled and all other network configurations visible to the user were
-                    // disabled.
+                    // If the network configuration is visible to the current user, verify that
+                    // a connection attempt was made to it. This does not modify the status of
+                    // other networks.
                     assertTrue(success);
                     verify(mWifiNative).selectNetwork(config.networkId);
                     verify(mWifiNative, never()).selectNetwork(intThat(not(config.networkId)));
                     verify(mWifiNative, never()).enableNetwork(config.networkId);
                     verify(mWifiNative, never()).enableNetwork(intThat(not(config.networkId)));
-                    for (WifiConfiguration config2 : mConfiguredNetworks.valuesForAllUsers()) {
-                        if (WifiConfigurationUtil.isVisibleToAnyProfile(config2,
-                                USER_PROFILES.get(userId))
-                                && config2.networkId != config.networkId) {
-                            assertEquals(WifiConfiguration.Status.DISABLED, config2.status);
-                        } else {
-                            assertEquals(WifiConfiguration.Status.ENABLED, config2.status);
-                        }
-                    }
+                    assertEquals(WifiConfiguration.Status.ENABLED, config.status);
                 }
             }
         }
@@ -753,16 +745,20 @@ public class WifiConfigManagerTest {
         for (WifiConfiguration config : newConfigs) {
             if (oldUserOnlyConfigs.contains(config)) {
                 verify(mWifiNative).disableNetwork(config.networkId);
-                assertEquals(WifiConfiguration.Status.DISABLED, config.status);
+                assertNetworkStatus(
+                        config,
+                        WifiConfiguration.NetworkSelectionStatus.DISABLED_DUE_TO_USER_SWITCH);
             } else {
                 verify(mWifiNative, never()).disableNetwork(config.networkId);
                 if (neitherUserConfigs.contains(config)) {
-                    assertEquals(WifiConfiguration.Status.DISABLED, config.status);
+                    assertNetworkStatus(
+                            config,
+                            WifiConfiguration.NetworkSelectionStatus.DISABLED_DUE_TO_USER_SWITCH);
                 } else {
-                    // Only enabled in networkSelection.
-                    assertTrue(config.getNetworkSelectionStatus().isNetworkEnabled());
+                    assertNetworkStatus(
+                            config,
+                            WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
                 }
-
             }
         }
     }
@@ -1603,7 +1599,6 @@ public class WifiConfigManagerTest {
                 eapConfigSame.enterpriseConfig));
     }
 
-
     private void checkHasEverConnectedTrue(int networkId) {
         WifiConfiguration checkConfig = mWifiConfigManager.getWifiConfiguration(networkId);
         assertTrue("hasEverConnected expected to be true.",
@@ -1639,5 +1634,80 @@ public class WifiConfigManagerTest {
         return buf.toString();
     }
 
+    /**
+     * Test whether enableNetwork with the disableOthers flag set to false enables the
+     * input network, but does not attempt a connection.
+     */
+    @Test
+    public void testEnableNetworkWithoutDisableOthers() throws Exception {
+        addNetworks();
 
+        for (Map.Entry<Integer, List<WifiConfiguration>> entry : VISIBLE_CONFIGS.entrySet()) {
+            switchUser(entry.getKey());
+            // Iterate through all the configs for the current user and invoke |enableNetwork|
+            // on the corresponding config retrieved from WifiConfigManager.
+            for (WifiConfiguration config : entry.getValue()) {
+                WifiConfiguration retrievedConfig =
+                        mWifiConfigManager.getWifiConfiguration(config.networkId);
+                assertTrue(mWifiConfigManager.enableNetwork(retrievedConfig, false, 0));
+                assertNetworkStatus(retrievedConfig,
+                        WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+                verify(mWifiNative, never()).selectNetwork(anyInt());
+            }
+        }
+    }
+
+    /**
+     * Test whether enableNetwork without the disableOthers flag set to true enables the input
+     * network and attempts a connection to it immediately. It also checks if all the other
+     * networks are disabled.
+     */
+    @Test
+    public void testEnableNetworkWithDisableOthers() throws Exception {
+        addNetworks();
+
+        for (Map.Entry<Integer, List<WifiConfiguration>> entry : VISIBLE_CONFIGS.entrySet()) {
+            switchUser(entry.getKey());
+            // Iterate through all the configs for the current user and invoke |enableNetwork|
+            // on the corresponding config retrieved from WifiConfigManager.
+            for (WifiConfiguration config : entry.getValue()) {
+                reset(mWifiNative);
+                when(mWifiNative.selectNetwork(anyInt())).thenReturn(true);
+                WifiConfiguration retrievedConfig =
+                        mWifiConfigManager.getWifiConfiguration(config.networkId);
+                assertTrue(mWifiConfigManager.enableNetwork(retrievedConfig, true, 0));
+                assertNetworkStatus(retrievedConfig,
+                        WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+                assertAllNetworksDisabledExcept(retrievedConfig.networkId,
+                        WifiConfiguration.NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER);
+                verify(mWifiNative).selectNetwork(retrievedConfig.networkId);
+                verify(mWifiNative, never()).selectNetwork(intThat(not(retrievedConfig.networkId)));
+            }
+        }
+    }
+
+    private void assertNetworkStatus(WifiConfiguration config, int disableReason) {
+        final WifiConfiguration.NetworkSelectionStatus status = config.getNetworkSelectionStatus();
+        assertEquals(disableReason, status.getNetworkSelectionDisableReason());
+        if (disableReason
+                == WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE) {
+            assertEquals(WifiConfiguration.Status.ENABLED, config.status);
+            assertTrue(config.getNetworkSelectionStatus().isNetworkEnabled());
+        } else if (disableReason
+                < WifiConfiguration.NetworkSelectionStatus.DISABLED_TLS_VERSION_MISMATCH) {
+            assertEquals(WifiConfiguration.Status.ENABLED, config.status);
+            assertTrue(config.getNetworkSelectionStatus().isNetworkTemporaryDisabled());
+        } else {
+            assertEquals(WifiConfiguration.Status.DISABLED, config.status);
+            assertTrue(config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled());
+        }
+    }
+
+    private void assertAllNetworksDisabledExcept(int netId, int disableReason) {
+        for (WifiConfiguration config : mWifiConfigManager.getSavedNetworks()) {
+            if (config.networkId != netId) {
+                assertNetworkStatus(config, disableReason);
+            }
+        }
+    }
 }

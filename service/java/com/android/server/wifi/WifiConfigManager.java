@@ -195,10 +195,12 @@ public class WifiConfigManager {
             5,  //  threshold for DISABLED_AUTHENTICATION_FAILURE
             5,  //  threshold for DISABLED_DHCP_FAILURE
             5,  //  threshold for DISABLED_DNS_FAILURE
+            1,  //  threshold for DISABLED_WPS_START
             6,  //  threshold for DISABLED_TLS_VERSION_MISMATCH
             1,  //  threshold for DISABLED_AUTHENTICATION_NO_CREDENTIALS
             1,  //  threshold for DISABLED_NO_INTERNET
-            1   //  threshold for DISABLED_BY_WIFI_MANAGER
+            1,  //  threshold for DISABLED_BY_WIFI_MANAGER
+            1   //  threshold for DISABLED_BY_USER_SWITCH
     };
 
     /**
@@ -211,10 +213,12 @@ public class WifiConfigManager {
             5,                  // threshold for DISABLED_AUTHENTICATION_FAILURE
             5,                  // threshold for DISABLED_DHCP_FAILURE
             5,                  // threshold for DISABLED_DNS_FAILURE
+            0,                  // threshold for DISABLED_WPS_START
             Integer.MAX_VALUE,  // threshold for DISABLED_TLS_VERSION
             Integer.MAX_VALUE,  // threshold for DISABLED_AUTHENTICATION_NO_CREDENTIALS
             Integer.MAX_VALUE,  // threshold for DISABLED_NO_INTERNET
-            Integer.MAX_VALUE   // threshold for DISABLED_BY_WIFI_MANAGER
+            Integer.MAX_VALUE,  // threshold for DISABLED_BY_WIFI_MANAGER
+            Integer.MAX_VALUE   // threshold for DISABLED_BY_USER_SWITCH
     };
 
     public final AtomicBoolean mEnableAutoJoinWhenAssociated = new AtomicBoolean();
@@ -1298,20 +1302,23 @@ public class WifiConfigManager {
         if (config == null) {
             return false;
         }
-
         updateNetworkSelectionStatus(
                 config, WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
         setLatestUserSelectedConfiguration(config);
         boolean ret = true;
         if (disableOthers) {
             ret = selectNetworkWithoutBroadcast(config.networkId);
-            if (sVDBG) {
-                localLogNetwork("enableNetwork(disableOthers=true, uid=" + uid + ") ",
-                        config.networkId);
+            if (ret) {
+                if (sVDBG) {
+                    localLogNetwork("enableNetwork(disableOthers=true, uid=" + uid + ") ",
+                            config.networkId);
+                }
+                markAllNetworksDisabledExcept(config.networkId,
+                        WifiConfiguration.NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER);
+                updateLastConnectUid(config, uid);
+                writeKnownNetworkHistory();
+                sendConfiguredNetworksChangedBroadcast();
             }
-            updateLastConnectUid(config, uid);
-            writeKnownNetworkHistory();
-            sendConfiguredNetworksChangedBroadcast();
         } else {
             if (sVDBG) localLogNetwork("enableNetwork(disableOthers=false) ", config.networkId);
             sendConfiguredNetworksChangedBroadcast(config, WifiManager.CHANGE_REASON_CONFIG_CHANGE);
@@ -1320,9 +1327,7 @@ public class WifiConfigManager {
     }
 
     boolean selectNetworkWithoutBroadcast(int netId) {
-        return mWifiConfigStore.selectNetwork(
-                mConfiguredNetworks.getForCurrentUser(netId),
-                mConfiguredNetworks.valuesForCurrentUser());
+        return mWifiConfigStore.selectNetwork(mConfiguredNetworks.getForCurrentUser(netId));
     }
 
     /**
@@ -1339,13 +1344,17 @@ public class WifiConfigManager {
         mWifiConfigStore.disableAllNetworks(mConfiguredNetworks.valuesForCurrentUser());
     }
 
-    /**
-     * Disable a network. Note that there is no saveConfig operation.
-     * @param netId network to be disabled
-     * @return {@code true} if it succeeds, {@code false} otherwise
-     */
-    boolean disableNetwork(int netId) {
-        return mWifiConfigStore.disableNetwork(mConfiguredNetworks.getForCurrentUser(netId));
+    /* Mark all networks except specified netId as disabled */
+    private void markAllNetworksDisabledExcept(int netId, int disableReason) {
+        for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
+            if (config != null && config.networkId != netId) {
+                updateNetworkSelectionStatus(config, disableReason);
+            }
+        }
+    }
+
+    private void markAllNetworksDisabled(int disableReason) {
+        markAllNetworksDisabledExcept(WifiConfiguration.INVALID_NETWORK_ID, disableReason);
     }
 
     /**
@@ -1396,11 +1405,13 @@ public class WifiConfigManager {
     }
 
     /**
-     * Check the config. If it is temporarily disabled, check the disable time is expired or not, If
-     * expired, enabled it again for qualified network selection.
+     * Attempt to re-enable a network for qualified network selection, if this network was either:
+     *      a) Previously temporarily disabled, but its disable timeout has expired, or
+     *      b) Previously disabled because of a user switch, but is now visible to the current
+     *         user.
      * @param networkId the id of the network to be checked for possible unblock (due to timeout)
-     * @return true if network status has been changed
-     *         false network status is not changed
+     * @return true if the network identified by {@param networkId} was re-enabled for qualified
+     *         network selection, false otherwise.
      */
     boolean tryEnableQualifiedNetwork(int networkId) {
         WifiConfiguration config = getWifiConfiguration(networkId);
@@ -1412,11 +1423,14 @@ public class WifiConfigManager {
     }
 
     /**
-     * Check the config. If it is temporarily disabled, check the disable is expired or not, If
-     * expired, enabled it again for qualified network selection.
-     * @param config network to be checked for possible unblock (due to timeout)
-     * @return true if network status has been changed
-     *         false network status is not changed
+     * Attempt to re-enable a network for qualified network selection, if this network was either:
+     *      a) Previously temporarily disabled, but its disable timeout has expired, or
+     *      b) Previously disabled because of a user switch, but is now visible to the current
+     *         user.
+     * @param config configuration for the network to be re-enabled for network selection. The
+     *               network corresponding to the config must be visible to the current user.
+     * @return true if the network identified by {@param config} was re-enabled for qualified
+     *         network selection, false otherwise.
      */
     boolean tryEnableQualifiedNetwork(WifiConfiguration config) {
         WifiConfiguration.NetworkSelectionStatus networkStatus = config.getNetworkSelectionStatus();
@@ -1431,6 +1445,9 @@ public class WifiConfigManager {
                         networkStatus.NETWORK_SELECTION_ENABLE);
                 return true;
             }
+        } else if (networkStatus.isDisabledByReason(networkStatus.DISABLED_DUE_TO_USER_SWITCH)) {
+            updateNetworkSelectionStatus(config.networkId, networkStatus.NETWORK_SELECTION_ENABLE);
+            return true;
         }
         return false;
     }
@@ -1451,15 +1468,14 @@ public class WifiConfigManager {
         WifiConfiguration.NetworkSelectionStatus networkStatus = config.getNetworkSelectionStatus();
         if (reason < 0 || reason >= WifiConfiguration.NetworkSelectionStatus
                 .NETWORK_SELECTION_DISABLED_MAX) {
-            localLog("Invalid Network disable reason:" + reason);
+            localLog("Invalid Network disable reason: " + reason);
             return false;
         }
 
         if (reason == WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE) {
             if (networkStatus.isNetworkEnabled()) {
                 if (DBG) {
-                    localLog("Need not change Qualified network Selection status since"
-                            + " already enabled");
+                    localLog("Do nothing. Network is already enabled!");
                 }
                 return false;
             }
@@ -1470,17 +1486,13 @@ public class WifiConfigManager {
                     WifiConfiguration.NetworkSelectionStatus
                     .INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP);
             networkStatus.clearDisableReasonCounter();
-            String disableTime = DateFormat.getDateTimeInstance().format(new Date());
-            if (DBG) {
-                localLog("Re-enable network: " + config.SSID + " at " + disableTime);
-            }
+            config.status = Status.ENABLED;
             sendConfiguredNetworksChangedBroadcast(config, WifiManager.CHANGE_REASON_CONFIG_CHANGE);
         } else {
             //disable the network
             if (networkStatus.isNetworkPermanentlyDisabled()) {
-                //alreay permanent disable
                 if (DBG) {
-                    localLog("Do nothing. Alreay permanent disabled! "
+                    localLog("Do nothing. Network is already permanently disabled! Disable reason: "
                             + WifiConfiguration.NetworkSelectionStatus
                             .getNetworkDisableReasonString(reason));
                 }
@@ -1488,23 +1500,14 @@ public class WifiConfigManager {
             } else if (networkStatus.isNetworkTemporaryDisabled()
                     && reason < WifiConfiguration.NetworkSelectionStatus
                     .DISABLED_TLS_VERSION_MISMATCH) {
-                //alreay temporarily disable
                 if (DBG) {
-                    localLog("Do nothing. Already temporarily disabled! "
+                    localLog("Do nothing. Network is already temporarily disabled! Disable reason: "
                             + WifiConfiguration.NetworkSelectionStatus
                             .getNetworkDisableReasonString(reason));
                 }
                 return false;
             }
-
-            if (networkStatus.isNetworkEnabled()) {
-                disableNetworkNative(config);
-                sendConfiguredNetworksChangedBroadcast(config,
-                        WifiManager.CHANGE_REASON_CONFIG_CHANGE);
-                localLog("Disable network " + config.SSID + " reason:"
-                        + WifiConfiguration.NetworkSelectionStatus
-                        .getNetworkDisableReasonString(reason));
-            }
+            disableNetworkNative(config);
             if (reason < WifiConfiguration.NetworkSelectionStatus.DISABLED_TLS_VERSION_MISMATCH) {
                 networkStatus.setNetworkSelectionStatus(WifiConfiguration.NetworkSelectionStatus
                         .NETWORK_SELECTION_TEMPORARY_DISABLED);
@@ -1512,14 +1515,17 @@ public class WifiConfigManager {
             } else {
                 networkStatus.setNetworkSelectionStatus(WifiConfiguration.NetworkSelectionStatus
                         .NETWORK_SELECTION_PERMANENTLY_DISABLED);
+                config.status = Status.DISABLED;
+                sendConfiguredNetworksChangedBroadcast(
+                        config, WifiManager.CHANGE_REASON_CONFIG_CHANGE);
             }
             networkStatus.setNetworkSelectionDisableReason(reason);
-            if (DBG) {
-                String disableTime = DateFormat.getDateTimeInstance().format(new Date());
-                localLog("Network:" + config.SSID + "Configure new status:"
-                        + networkStatus.getNetworkStatusString() + " with reason:"
-                        + networkStatus.getNetworkDisableReasonString() + " at: " + disableTime);
-            }
+        }
+        if (DBG) {
+            String time = DateFormat.getDateTimeInstance().format(new Date());
+            localLog("Network: " + config.SSID + " Configure new status: "
+                    + networkStatus.getNetworkStatusString() + " with reason: "
+                    + networkStatus.getNetworkDisableReasonString() + " at: " + time);
         }
         return true;
     }
@@ -1539,8 +1545,12 @@ public class WifiConfigManager {
      * @return Wps result containing status and pin
      */
     WpsResult startWpsWithPinFromAccessPoint(WpsInfo config) {
-        return mWifiConfigStore.startWpsWithPinFromAccessPoint(
-                config, mConfiguredNetworks.valuesForCurrentUser());
+        WpsResult result = mWifiConfigStore.startWpsWithPinFromAccessPoint(config);
+        /* WPS leaves all networks disabled */
+        if (result.status == WpsResult.Status.SUCCESS) {
+            markAllNetworksDisabled(WifiConfiguration.NetworkSelectionStatus.DISABLED_WPS_START);
+        }
+        return result;
     }
 
     /**
@@ -1549,8 +1559,12 @@ public class WifiConfigManager {
      * @return WpsResult indicating status and pin
      */
     WpsResult startWpsWithPinFromDevice(WpsInfo config) {
-        return mWifiConfigStore.startWpsWithPinFromDevice(
-            config, mConfiguredNetworks.valuesForCurrentUser());
+        WpsResult result = mWifiConfigStore.startWpsWithPinFromDevice(config);
+        /* WPS leaves all networks disabled */
+        if (result.status == WpsResult.Status.SUCCESS) {
+            markAllNetworksDisabled(WifiConfiguration.NetworkSelectionStatus.DISABLED_WPS_START);
+        }
+        return result;
     }
 
     /**
@@ -1559,8 +1573,12 @@ public class WifiConfigManager {
      * @return WpsResult indicating status and pin
      */
     WpsResult startWpsPbc(WpsInfo config) {
-        return mWifiConfigStore.startWpsPbc(
-            config, mConfiguredNetworks.valuesForCurrentUser());
+        WpsResult result = mWifiConfigStore.startWpsPbc(config);
+        /* WPS leaves all networks disabled */
+        if (result.status == WpsResult.Status.SUCCESS) {
+            markAllNetworksDisabled(WifiConfiguration.NetworkSelectionStatus.DISABLED_WPS_START);
+        }
+        return result;
     }
 
     /**
@@ -2063,15 +2081,12 @@ public class WifiConfigManager {
         sb.append(String.format("%tm-%td %tH:%tM:%tS.%tL", c, c, c, c, c, c));
 
         if (newNetwork) {
+            // New networks start out disabled according to public API.
+            updateNetworkSelectionStatus(currentConfig,
+                    WifiConfiguration.NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER);
             currentConfig.creationTime = sb.toString();
         } else {
             currentConfig.updateTime = sb.toString();
-        }
-
-        if (currentConfig.status == WifiConfiguration.Status.ENABLED) {
-            // Make sure autojoin remain in sync with user modifying the configuration
-            updateNetworkSelectionStatus(currentConfig.networkId,
-                    WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
         }
 
         if (currentConfig.configKey().equals(getLastSelectedConfiguration())
@@ -2811,7 +2826,8 @@ public class WifiConfigManager {
         final List<WifiConfiguration> hiddenConfigurations =
                 mConfiguredNetworks.handleUserSwitch(mCurrentUserId);
         for (WifiConfiguration network : hiddenConfigurations) {
-            disableNetworkNative(network);
+            updateNetworkSelectionStatus(
+                    network, WifiConfiguration.NetworkSelectionStatus.DISABLED_DUE_TO_USER_SWITCH);
         }
         enableAllNetworks();
 
