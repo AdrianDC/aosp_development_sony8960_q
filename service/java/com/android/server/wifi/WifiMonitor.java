@@ -59,7 +59,6 @@ import java.util.regex.Pattern;
  */
 public class WifiMonitor {
 
-    private static boolean VDBG = false;
     private static final boolean DBG = false;
     private static final String TAG = "WifiMonitor";
 
@@ -536,12 +535,13 @@ public class WifiMonitor {
     }
 
     private int mRecvErrors = 0;
+    private boolean mVerboseLoggingEnabled = false;
 
     void enableVerboseLogging(int verbose) {
         if (verbose > 0) {
-            VDBG = true;
+            mVerboseLoggingEnabled = true;
         } else {
-            VDBG = false;
+            mVerboseLoggingEnabled = false;
         }
     }
 
@@ -589,7 +589,7 @@ public class WifiMonitor {
             return true;
         }
 
-        if (VDBG) Log.d(TAG, "connecting to supplicant");
+        if (mVerboseLoggingEnabled) Log.d(TAG, "connecting to supplicant");
         int connectTries = 0;
         while (true) {
             if (mWifiNative.connectToSupplicant()) {
@@ -625,7 +625,7 @@ public class WifiMonitor {
     }
 
     public synchronized void stopMonitoring(String iface) {
-        if (VDBG) Log.d(TAG, "stopMonitoring(" + iface + ")");
+        if (mVerboseLoggingEnabled) Log.d(TAG, "stopMonitoring(" + iface + ")");
         setMonitoring(iface, true);
         sendMessage(iface, SUP_DISCONNECTION_EVENT);
         setMonitoring(iface, false);
@@ -693,10 +693,14 @@ public class WifiMonitor {
                     }
                 }
             } else {
-                if (VDBG) Log.d(TAG, "Dropping event because (" + iface + ") is stopped");
+                if (mVerboseLoggingEnabled) {
+                    Log.d(TAG, "Dropping event because (" + iface + ") is stopped");
+                }
             }
         } else {
-            if (VDBG) Log.d(TAG, "Sending to all monitors because there's no matching iface");
+            if (mVerboseLoggingEnabled) {
+                Log.d(TAG, "Sending to all monitors because there's no matching iface");
+            }
             boolean firstHandler = true;
             for (Map.Entry<String, SparseArray<Set<Handler>>> entry : mHandlerMap.entrySet()) {
                 if (isMonitoring(entry.getKey())) {
@@ -730,25 +734,29 @@ public class WifiMonitor {
         }
 
         public void run() {
-            if (VDBG) {
+            if (mVerboseLoggingEnabled) {
                 Log.d(TAG, "MonitorThread start with mConnected=" + mConnected);
             }
             //noinspection InfiniteLoopStatement
             for (;;) {
                 if (!mConnected) {
-                    if (VDBG) Log.d(TAG, "MonitorThread exit because mConnected is false");
+                    if (mVerboseLoggingEnabled) {
+                        Log.d(TAG, "MonitorThread exit because mConnected is false");
+                    }
                     break;
                 }
                 String eventStr = mWifiNative.waitForEvent();
 
                 // Skip logging the common but mostly uninteresting events
                 if (!eventStr.contains(BSS_ADDED_STR) && !eventStr.contains(BSS_REMOVED_STR)) {
-                    if (VDBG) Log.d(TAG, "Event [" + eventStr + "]");
+                    if (mVerboseLoggingEnabled) Log.d(TAG, "Event [" + eventStr + "]");
                     mLocalLog.log("Event [" + eventStr + "]");
                 }
 
                 if (dispatchEvent(eventStr)) {
-                    if (VDBG) Log.d(TAG, "Disconnecting from the supplicant, no more events");
+                    if (mVerboseLoggingEnabled) {
+                        Log.d(TAG, "Disconnecting from the supplicant, no more events");
+                    }
                     break;
                 }
             }
@@ -802,7 +810,7 @@ public class WifiMonitor {
 
     /* @return true if the event was supplicant disconnection */
     private boolean dispatchEvent(String eventStr, String iface) {
-        if (VDBG) {
+        if (mVerboseLoggingEnabled) {
             // Dont log CTRL-EVENT-BSS-ADDED which are too verbose and not handled
             if (eventStr != null && !eventStr.contains("CTRL-EVENT-BSS-ADDED")) {
                 Log.d(TAG, iface + " cnt=" + Integer.toString(eventLogCounter)
@@ -855,7 +863,9 @@ public class WifiMonitor {
                     eventStr.endsWith(AUTH_TIMEOUT_STR)) {
                 sendMessage(iface, AUTHENTICATION_FAILURE_EVENT);
             } else {
-                if (VDBG) Log.w(TAG, "couldn't identify event type - " + eventStr);
+                if (mVerboseLoggingEnabled) {
+                    Log.w(TAG, "couldn't identify event type - " + eventStr);
+                }
             }
             eventLogCounter++;
             return false;
@@ -866,7 +876,9 @@ public class WifiMonitor {
         if (nameEnd != -1)
             eventName = eventName.substring(0, nameEnd);
         if (eventName.length() == 0) {
-            if (VDBG) Log.i(TAG, "Received wpa_supplicant event with empty event name");
+            if (mVerboseLoggingEnabled) {
+                Log.i(TAG, "Received wpa_supplicant event with empty event name");
+            }
             eventLogCounter++;
             return false;
         }
@@ -977,7 +989,7 @@ public class WifiMonitor {
              */
             if (eventData.startsWith(WPA_RECV_ERROR_STR)) {
                 if (++mRecvErrors > MAX_RECV_ERRORS) {
-                    if (VDBG) {
+                    if (mVerboseLoggingEnabled) {
                         Log.d(TAG, "too many recv errors, closing connection");
                     }
                 } else {
@@ -998,7 +1010,9 @@ public class WifiMonitor {
             String BSSID = "";
             int status = -1;
             if (!match.find()) {
-                if (VDBG) Log.d(TAG, "Assoc Reject: Could not parse assoc reject string");
+                if (mVerboseLoggingEnabled) {
+                    Log.d(TAG, "Assoc Reject: Could not parse assoc reject string");
+                }
             } else {
                 int groupNumber = match.groupCount();
                 int statusGroupNumber = -1;
@@ -1045,7 +1059,7 @@ public class WifiMonitor {
      * event name and &quot;&#8195;&#8212;&#8195;&quot;
      */
     private void handleEvent(int event, String remainder, String iface) {
-        if (VDBG) {
+        if (mVerboseLoggingEnabled) {
             Log.d(TAG, "handleEvent " + Integer.toString(event) + " " + remainder);
         }
         switch (event) {
@@ -1066,7 +1080,7 @@ public class WifiMonitor {
                 break;
 
             case UNKNOWN:
-                if (VDBG) {
+                if (mVerboseLoggingEnabled) {
                     Log.w(TAG, "handleEvent unknown: " + Integer.toString(event) + " " + remainder);
                 }
                 break;
@@ -1344,7 +1358,9 @@ public class WifiMonitor {
             }
 
         } else {
-            if (VDBG) Log.w(TAG, "couldn't identify request type - " + dataString);
+            if (mVerboseLoggingEnabled) {
+                Log.w(TAG, "couldn't identify request type - " + dataString);
+            }
         }
     }
 
@@ -1417,7 +1433,9 @@ public class WifiMonitor {
         if (newState == NetworkInfo.DetailedState.CONNECTED) {
             match = mConnectedEventPattern.matcher(data);
             if (!match.find()) {
-               if (VDBG) Log.d(TAG, "handleNetworkStateChange: Couldnt find BSSID in event string");
+                if (mVerboseLoggingEnabled) {
+                    Log.d(TAG, "handleNetworkStateChange: Couldnt find BSSID in event string");
+                }
             } else {
                 BSSID = match.group(1);
                 try {
@@ -1430,7 +1448,9 @@ public class WifiMonitor {
         } else if (newState == NetworkInfo.DetailedState.DISCONNECTED) {
             match = mDisconnectedEventPattern.matcher(data);
             if (!match.find()) {
-               if (VDBG) Log.d(TAG, "handleNetworkStateChange: Could not parse disconnect string");
+                if (mVerboseLoggingEnabled) {
+                    Log.d(TAG, "handleNetworkStateChange: Could not parse disconnect string");
+                }
             } else {
                 BSSID = match.group(1);
                 try {
@@ -1444,9 +1464,10 @@ public class WifiMonitor {
                     local = -1;
                 }
             }
-            if (VDBG) Log.d(TAG, "WifiMonitor notify network disconnect: "
-                    + BSSID
-                    + " reason=" + Integer.toString(reason));
+            if (mVerboseLoggingEnabled) {
+                Log.d(TAG, "WifiMonitor notify network disconnect: " + BSSID
+                        + " reason=" + Integer.toString(reason));
+            }
             sendMessage(iface, NETWORK_DISCONNECTION_EVENT, local, reason, BSSID);
         }
     }

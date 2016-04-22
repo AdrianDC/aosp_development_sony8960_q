@@ -41,8 +41,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /* Polls for traffic stats and notifies the clients */
 final class WifiTrafficPoller {
 
-    private boolean VDBG = false;
-
     private static final boolean DBG = false;
     private static final String TAG = "WifiTrafficPoller";
     /**
@@ -70,6 +68,8 @@ final class WifiTrafficPoller {
     private final TrafficHandler mTrafficHandler;
     private NetworkInfo mNetworkInfo;
     private final String mInterface;
+
+    private boolean mVerboseLoggingEnabled = false;
 
     WifiTrafficPoller(Context context, Looper looper, String iface) {
         mInterface = iface;
@@ -110,10 +110,10 @@ final class WifiTrafficPoller {
     }
 
     void enableVerboseLogging(int verbose) {
-        if (verbose > 0 ) {
-            VDBG = true;
+        if (verbose > 0) {
+            mVerboseLoggingEnabled = true;
         } else {
-            VDBG = false;
+            mVerboseLoggingEnabled = false;
         }
     }
 
@@ -126,7 +126,7 @@ final class WifiTrafficPoller {
             switch (msg.what) {
                 case ENABLE_TRAFFIC_STATS_POLL:
                     mEnableTrafficStatsPoll = (msg.arg1 == 1);
-                    if (VDBG) {
+                    if (mVerboseLoggingEnabled) {
                         Log.d(TAG, "ENABLE_TRAFFIC_STATS_POLL "
                                 + mEnableTrafficStatsPoll + " Token "
                                 + Integer.toString(mTrafficStatsPollToken));
@@ -153,7 +153,7 @@ final class WifiTrafficPoller {
                     break;
                 case ADD_CLIENT:
                     mClients.add((Messenger) msg.obj);
-                    if (VDBG) {
+                    if (mVerboseLoggingEnabled) {
                         Log.d(TAG, "ADD_CLIENT: "
                                 + Integer.toString(mClients.size()));
                     }
@@ -206,7 +206,7 @@ final class WifiTrafficPoller {
 
             if (dataActivity != mDataActivity && mScreenOn.get()) {
                 mDataActivity = dataActivity;
-                if (VDBG) {
+                if (mVerboseLoggingEnabled) {
                     Log.e(TAG, "notifying of data activity "
                             + Integer.toString(mDataActivity));
                 }

@@ -151,7 +151,6 @@ import java.util.zip.Checksum;
  *
  */
 public class WifiConfigManager {
-    private static boolean sVDBG = false;
     public static final String TAG = "WifiConfigManager";
     public static final int MAX_TX_PACKET_FOR_FULL_SCANS = 8;
     public static final int MAX_RX_PACKET_FOR_FULL_SCANS = 16;
@@ -274,6 +273,7 @@ public class WifiConfigManager {
     private final UserManager mUserManager;
     private final Object mActiveScanDetailLock = new Object();
 
+    private boolean mVerboseLoggingEnabled = false;
     private Context mContext;
     private FrameworkFacade mFacade;
     private Clock mClock;
@@ -402,10 +402,11 @@ public class WifiConfigManager {
 
     void enableVerboseLogging(int verbose) {
         if (verbose > 0) {
-            sVDBG = true;
+            mVerboseLoggingEnabled = true;
         } else {
-            sVDBG = false;
+            mVerboseLoggingEnabled = false;
         }
+        mWifiConfigStore.enableVerboseLogging(mVerboseLoggingEnabled);
     }
 
     /**
@@ -423,7 +424,7 @@ public class WifiConfigManager {
     }
 
     boolean getVerboseLoggingEnabled() {
-        return sVDBG;
+        return mVerboseLoggingEnabled;
     }
 
     /**
@@ -551,7 +552,7 @@ public class WifiConfigManager {
                 // Average the RSSI value
                 result.averageRssi(previousRssi, previousSeen,
                         WifiQualifiedNetworkSelector.SCAN_RESULT_MAXIMUNM_AGE);
-                if (sVDBG) {
+                if (mVerboseLoggingEnabled) {
                     logd("updateConfiguration freq=" + result.frequency
                             + " BSSID=" + result.BSSID
                             + " RSSI=" + result.level
@@ -632,7 +633,7 @@ public class WifiConfigManager {
      * @return false if the network id is invalid
      */
     boolean selectNetwork(WifiConfiguration config, boolean updatePriorities, int uid) {
-        if (sVDBG) localLogNetwork("selectNetwork", config.networkId);
+        if (mVerboseLoggingEnabled) localLogNetwork("selectNetwork", config.networkId);
         if (config.networkId == INVALID_NETWORK_ID) return false;
         if (!WifiConfigurationUtil.isVisibleToAnyProfile(config,
                 mUserManager.getProfiles(mCurrentUserId))) {
@@ -711,8 +712,10 @@ public class WifiConfigManager {
             return new NetworkUpdateResult(INVALID_NETWORK_ID);
         }
 
-        if (sVDBG) localLogNetwork("WifiConfigManager: saveNetwork netId", config.networkId);
-        if (sVDBG) {
+        if (mVerboseLoggingEnabled) {
+            localLogNetwork("WifiConfigManager: saveNetwork netId", config.networkId);
+        }
+        if (mVerboseLoggingEnabled) {
             logd("WifiConfigManager saveNetwork,"
                     + " size=" + Integer.toString(mConfiguredNetworks.sizeForAllUsers())
                     + " (for all users)"
@@ -722,7 +725,7 @@ public class WifiConfigManager {
         }
 
         if (mDeletedEphemeralSSIDs.remove(config.SSID)) {
-            if (sVDBG) {
+            if (mVerboseLoggingEnabled) {
                 logd("WifiConfigManager: removed from ephemeral blacklist: " + config.SSID);
             }
             // NOTE: This will be flushed to disk as part of the addOrUpdateNetworkNative call
@@ -733,18 +736,22 @@ public class WifiConfigManager {
         NetworkUpdateResult result = addOrUpdateNetworkNative(config, uid);
         int netId = result.getNetworkId();
 
-        if (sVDBG) localLogNetwork("WifiConfigManager: saveNetwork got it back netId=", netId);
+        if (mVerboseLoggingEnabled) {
+            localLogNetwork("WifiConfigManager: saveNetwork got it back netId=", netId);
+        }
 
         conf = mConfiguredNetworks.getForCurrentUser(netId);
         if (conf != null) {
             if (!conf.getNetworkSelectionStatus().isNetworkEnabled()) {
-                if (sVDBG) localLog("WifiConfigManager: re-enabling: " + conf.SSID);
+                if (mVerboseLoggingEnabled) {
+                    localLog("WifiConfigManager: re-enabling: " + conf.SSID);
+                }
 
                 // reenable autojoin, since new information has been provided
                 updateNetworkSelectionStatus(netId,
                         WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
             }
-            if (sVDBG) {
+            if (mVerboseLoggingEnabled) {
                 logd("WifiConfigManager: saveNetwork got config back netId="
                         + Integer.toString(netId)
                         + " uid=" + Integer.toString(config.creatorUid));
@@ -837,7 +844,7 @@ public class WifiConfigManager {
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
     boolean forgetNetwork(int netId) {
-        if (sVDBG) localLogNetwork("forgetNetwork", netId);
+        if (mVerboseLoggingEnabled) localLogNetwork("forgetNetwork", netId);
         if (!removeNetwork(netId)) {
             loge("Failed to forget network " + netId);
             return false;
@@ -862,7 +869,7 @@ public class WifiConfigManager {
             return WifiConfiguration.INVALID_NETWORK_ID;
         }
 
-        if (sVDBG) localLogNetwork("addOrUpdateNetwork id=", config.networkId);
+        if (mVerboseLoggingEnabled) localLogNetwork("addOrUpdateNetwork id=", config.networkId);
         if (config.isPasspoint()) {
             /* create a temporary SSID with providerFriendlyName */
             Long csum = getChecksum(config.FQDN);
@@ -1101,7 +1108,7 @@ public class WifiConfigManager {
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
     boolean removeNetwork(int netId) {
-        if (sVDBG) localLogNetwork("removeNetwork", netId);
+        if (mVerboseLoggingEnabled) localLogNetwork("removeNetwork", netId);
         WifiConfiguration config = mConfiguredNetworks.getForCurrentUser(netId);
         if (!removeConfigAndSendBroadcastIfNeeded(config)) {
             return false;
@@ -1139,7 +1146,7 @@ public class WifiConfigManager {
             return false;
         }
         String key = config.configKey();
-        if (sVDBG) {
+        if (mVerboseLoggingEnabled) {
             logd("removeNetwork " + " key=" + key + " config.id=" + config.networkId);
         }
         writeIpAndProxyConfigurations();
@@ -1190,7 +1197,7 @@ public class WifiConfigManager {
             if (app.uid != config.creatorUid || !app.packageName.equals(config.creatorName)) {
                 continue;
             }
-            if (sVDBG) {
+            if (mVerboseLoggingEnabled) {
                 localLog("Removing network " + config.SSID
                          + ", application \"" + app.packageName + "\" uninstalled"
                          + " from user " + UserHandle.getUserId(app.uid));
@@ -1213,7 +1220,7 @@ public class WifiConfigManager {
                 continue;
             }
             success &= removeNetwork(config.networkId);
-            if (sVDBG) {
+            if (mVerboseLoggingEnabled) {
                 localLog("Removing network " + config.SSID
                         + ", user " + userId + " removed");
             }
@@ -1242,7 +1249,7 @@ public class WifiConfigManager {
         if (disableOthers) {
             ret = selectNetworkWithoutBroadcast(config.networkId);
             if (ret) {
-                if (sVDBG) {
+                if (mVerboseLoggingEnabled) {
                     localLogNetwork("enableNetwork(disableOthers=true, uid=" + uid + ") ",
                             config.networkId);
                 }
@@ -1253,7 +1260,9 @@ public class WifiConfigManager {
                 sendConfiguredNetworksChangedBroadcast();
             }
         } else {
-            if (sVDBG) localLogNetwork("enableNetwork(disableOthers=false) ", config.networkId);
+            if (mVerboseLoggingEnabled) {
+                localLogNetwork("enableNetwork(disableOthers=false) ", config.networkId);
+            }
             sendConfiguredNetworksChangedBroadcast(config, WifiManager.CHANGE_REASON_CONFIG_CHANGE);
         }
         return ret;
@@ -1630,7 +1639,7 @@ public class WifiConfigManager {
             final String configKey = entry.getKey();
             final WifiConfiguration config = entry.getValue();
             if (!configKey.equals(config.configKey())) {
-                if (sVDBG) {
+                if (mVerboseLoggingEnabled) {
                     log("Ignoring network " + config.networkId + " because the configKey loaded "
                             + "from wpa_supplicant.conf is not valid.");
                 }
@@ -1644,7 +1653,7 @@ public class WifiConfigManager {
 
         sendConfiguredNetworksChangedBroadcast();
 
-        if (sVDBG) {
+        if (mVerboseLoggingEnabled) {
             localLog("loadConfiguredNetworks loaded " + mConfiguredNetworks.sizeForAllUsers()
                     + " networks (for all users)");
         }
@@ -1693,7 +1702,7 @@ public class WifiConfigManager {
         Map<String, String> data = mWifiConfigStore.readNetworkVariablesFromSupplicantFile(key);
         long end = SystemClock.elapsedRealtimeNanos();
 
-        if (sVDBG) {
+        if (mVerboseLoggingEnabled) {
             localLog("readNetworkVariableFromSupplicantFile configKey=[" + configKey + "] key="
                     + key + " duration=" + (long) (end - start));
         }
@@ -1806,7 +1815,7 @@ public class WifiConfigManager {
     }
 
     public void setAndEnableLastSelectedConfiguration(int netId) {
-        if (sVDBG) {
+        if (mVerboseLoggingEnabled) {
             logd("setLastSelectedConfiguration " + Integer.toString(netId));
         }
         if (netId == WifiConfiguration.INVALID_NETWORK_ID) {
@@ -1822,7 +1831,7 @@ public class WifiConfigManager {
                 mLastSelectedTimeStamp = mClock.elapsedRealtime();
                 updateNetworkSelectionStatus(netId,
                         WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
-                if (sVDBG) {
+                if (mVerboseLoggingEnabled) {
                     logd("setLastSelectedConfiguration now: " + mLastSelectedConfiguration);
                 }
             }
@@ -1891,7 +1900,9 @@ public class WifiConfigManager {
          * refer to an existing configuration.
          */
 
-        if (sVDBG) localLog("addOrUpdateNetworkNative " + config.getPrintableSsid());
+        if (mVerboseLoggingEnabled) {
+            localLog("addOrUpdateNetworkNative " + config.getPrintableSsid());
+        }
         if (config.isPasspoint() && !mMOManager.isEnabled()) {
             Log.e(TAG, "Passpoint is not enabled");
             return new NetworkUpdateResult(INVALID_NETWORK_ID);
@@ -2034,7 +2045,9 @@ public class WifiConfigManager {
             }
         }
 
-        if (sVDBG) log("will read network variables netId=" + Integer.toString(netId));
+        if (mVerboseLoggingEnabled) {
+            log("will read network variables netId=" + Integer.toString(netId));
+        }
 
         readNetworkVariables(currentConfig);
         // When we read back the config from wpa_supplicant, some of the default values are set
@@ -2266,7 +2279,7 @@ public class WifiConfigManager {
             if (config.defaultGwMacAddress != null && link.defaultGwMacAddress != null) {
                 // If both default GW are known, link only if they are equal
                 if (config.defaultGwMacAddress.equals(link.defaultGwMacAddress)) {
-                    if (sVDBG) {
+                    if (mVerboseLoggingEnabled) {
                         logd("linkConfiguration link due to same gw " + link.SSID
                                 + " and " + config.SSID + " GW " + config.defaultGwMacAddress);
                     }
@@ -2282,7 +2295,7 @@ public class WifiConfigManager {
 
                     for (String abssid : getScanDetailCache(config).keySet()) {
                         for (String bbssid : linkedScanDetailCache.keySet()) {
-                            if (sVDBG) {
+                            if (mVerboseLoggingEnabled) {
                                 logd("linkConfiguration try to link due to DBDC BSSID match "
                                         + link.SSID + " and " + config.SSID + " bssida " + abssid
                                         + " bssidb " + bbssid);
@@ -2311,7 +2324,7 @@ public class WifiConfigManager {
             }
 
             if (doLink) {
-                if (sVDBG) {
+                if (mVerboseLoggingEnabled) {
                     logd("linkConfiguration: will link " + link.configKey()
                             + " and " + config.configKey());
                 }
@@ -2330,7 +2343,7 @@ public class WifiConfigManager {
             } else {
                 if (link.linkedConfigurations != null
                         && (link.linkedConfigurations.get(config.configKey()) != null)) {
-                    if (sVDBG) {
+                    if (mVerboseLoggingEnabled) {
                         logd("linkConfiguration: un-link " + config.configKey()
                                 + " from " + link.configKey());
                     }
@@ -2338,7 +2351,7 @@ public class WifiConfigManager {
                 }
                 if (config.linkedConfigurations != null
                         && (config.linkedConfigurations.get(link.configKey()) != null)) {
-                    if (sVDBG) {
+                    if (mVerboseLoggingEnabled) {
                         logd("linkConfiguration: un-link " + link.configKey()
                                 + " from " + config.configKey());
                     }
@@ -2361,7 +2374,7 @@ public class WifiConfigManager {
             return null;
         }
 
-        if (sVDBG) {
+        if (mVerboseLoggingEnabled) {
             StringBuilder dbg = new StringBuilder();
             dbg.append("makeChannelList age=" + Integer.toString(age)
                     + " for " + config.configKey()
@@ -2383,7 +2396,7 @@ public class WifiConfigManager {
                 if (numChannels > mMaxNumActiveChannelsForPartialScans.get()) {
                     break;
                 }
-                if (sVDBG) {
+                if (mVerboseLoggingEnabled) {
                     boolean test = (now_ms - result.seen) < age;
                     logd("has " + result.BSSID + " freq=" + Integer.toString(result.frequency)
                             + " age=" + Long.toString(now_ms - result.seen) + " ?=" + test);
@@ -2407,7 +2420,7 @@ public class WifiConfigManager {
                 }
                 for (ScanDetail scanDetail : getScanDetailCache(linked).values()) {
                     ScanResult result = scanDetail.getScanResult();
-                    if (sVDBG) {
+                    if (mVerboseLoggingEnabled) {
                         logd("has link: " + result.BSSID
                                 + " freq=" + Integer.toString(result.frequency)
                                 + " age=" + Long.toString(now_ms - result.seen));
@@ -2596,7 +2609,7 @@ public class WifiConfigManager {
 
         if (scanDetailCache.size() > (MAX_NUM_SCAN_CACHE_ENTRIES + 64)) {
             long now_dbg = 0;
-            if (sVDBG) {
+            if (mVerboseLoggingEnabled) {
                 logd(" Will trim config " + config.configKey()
                         + " size " + scanDetailCache.size());
 
@@ -2609,7 +2622,7 @@ public class WifiConfigManager {
             // Since this operation is expensive, make sure it is not performed
             // until the cache has grown significantly above the trim treshold
             scanDetailCache.trim(MAX_NUM_SCAN_CACHE_ENTRIES);
-            if (sVDBG) {
+            if (mVerboseLoggingEnabled) {
                 long diff = SystemClock.elapsedRealtimeNanos() - now_dbg;
                 logd(" Finished trimming config, time(ns) " + diff);
                 for (ScanDetail sd : scanDetailCache.values()) {
@@ -2861,7 +2874,7 @@ public class WifiConfigManager {
         }
 
         if (ipChanged || proxyChanged || isNewNetwork) {
-            if (sVDBG) {
+            if (mVerboseLoggingEnabled) {
                 logd("writeIpAndProxyConfigurationsOnChange: " + currentConfig.SSID + " -> "
                         + newConfig.SSID + " path: " + IP_CONFIG_FILE);
             }
@@ -2888,7 +2901,7 @@ public class WifiConfigManager {
 
         config.SSID = "\"" + result.SSID + "\"";
 
-        if (sVDBG) {
+        if (mVerboseLoggingEnabled) {
             logd("WifiConfiguration from scan results "
                     + config.SSID + " cap " + result.capabilities);
         }
