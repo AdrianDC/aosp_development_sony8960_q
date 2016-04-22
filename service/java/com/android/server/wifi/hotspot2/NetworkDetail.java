@@ -24,9 +24,7 @@ import java.util.Map;
 
 public class NetworkDetail {
 
-    //turn off when SHIP
-    private static final boolean DBG = true;
-    private static final boolean VDBG = false;
+    private static final boolean DBG = false;
 
     private static final String TAG = "NetworkDetail:";
 
@@ -290,7 +288,7 @@ public class NetworkDetail {
             mMaxRate = 0;
             Log.w("WifiMode", mSSID + ", Invalid SupportedRates!!!");
         }
-        if (VDBG) {
+        if (DBG) {
             Log.d(TAG, mSSID + "ChannelWidth is: " + mChannelWidth + " PrimaryFreq: " + mPrimaryFreq
                     + " mCenterfreq0: " + mCenterfreq0 + " mCenterfreq1: " + mCenterfreq1
                     + (extendedCapabilities.is80211McRTTResponder ? "Support RTT reponder"
