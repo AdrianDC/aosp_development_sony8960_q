@@ -81,9 +81,9 @@ public class WifiConnectivityManager {
 
     // Due to b/28020168, timer based single scan will be scheduled every
     // PERIODIC_SCAN_INTERVAL_MS to provide periodic scan.
-    private static final boolean ENABLE_BACKGROUND_SCAN = true;
+    private static final boolean ENABLE_BACKGROUND_SCAN = false;
     // Flag to turn on connected PNO, when needed
-    private static final boolean ENABLE_CONNECTED_PNO_SCAN = true;
+    private static final boolean ENABLE_CONNECTED_PNO_SCAN = false;
 
     private final WifiStateMachine mStateMachine;
     private final WifiScanner mScanner;

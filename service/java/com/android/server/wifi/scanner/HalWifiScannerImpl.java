@@ -46,11 +46,8 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
         mSupplicantScannerDelegate =
                 new SupplicantWifiScannerImpl(context, wifiNative, mChannelHelper, looper);
 
-        // Check if ePNO is supported by the HAL.
-        int halFeatureSet = mWifiNative.getSupportedFeatureSet();
-        mHalBasedPnoSupported =
-                ((halFeatureSet & WifiManager.WIFI_FEATURE_HAL_EPNO)
-                        == WifiManager.WIFI_FEATURE_HAL_EPNO);
+        // We are not going to support HAL ePNO currently.
+        mHalBasedPnoSupported = false;
     }
 
     @Override
