@@ -24,9 +24,13 @@ import android.app.AlarmManager;
 import android.content.Context;
 import android.content.res.Resources;
 import android.net.wifi.ScanResult;
+import android.net.wifi.ScanResult.InformationElement;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiScanner;
+import android.net.wifi.WifiSsid;
+import android.net.wifi.WifiScanner.PnoScanListener;
+import android.net.wifi.WifiScanner.PnoSettings;
 import android.net.wifi.WifiScanner.ScanListener;
 import android.net.wifi.WifiScanner.ScanSettings;
 import android.os.WorkSource;
@@ -34,11 +38,14 @@ import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.R;
 import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
+import com.android.server.wifi.util.InformationElementUtil;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -64,6 +71,7 @@ public class WifiConnectivityManagerTest {
         mWifiConnectivityManager = new WifiConnectivityManager(mContext, mWifiStateMachine,
                 mWifiScanner, mWifiConfigManager, mWifiInfo, mWifiQNS, mWifiInjector);
         mWifiConnectivityManager.setWifiEnabled(true);
+        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis());
     }
 
     /**
@@ -83,6 +91,7 @@ public class WifiConnectivityManagerTest {
     private WifiScanner mWifiScanner;
     private WifiConfigManager mWifiConfigManager;
     private WifiInfo mWifiInfo;
+    private Clock mClock = mock(Clock.class);
     private WifiLastResortWatchdog mWifiLastResortWatchdog;
     private WifiInjector mWifiInjector;
 
@@ -120,21 +129,45 @@ public class WifiConnectivityManagerTest {
         WifiScanner scanner = mock(WifiScanner.class);
 
         // dummy scan results. QNS PeriodicScanListener bulids scanDetails from
-        // the fullScanResult and doesn't really use results.
-        WifiScanner.ScanData[] results = new WifiScanner.ScanData[1];
+        // the fullScanResult and doesn't really use results
+        final WifiScanner.ScanData[] scanDatas = new WifiScanner.ScanData[1];
 
         // do a synchronous answer for the ScanListener callbacks
         doAnswer(new AnswerWithArguments() {
                 public void answer(ScanSettings settings, ScanListener listener,
                         WorkSource workSource) throws Exception {
-                    listener.onResults(results);
+                    listener.onResults(scanDatas);
                 }}).when(scanner).startBackgroundScan(anyObject(), anyObject(), anyObject());
 
         doAnswer(new AnswerWithArguments() {
                 public void answer(ScanSettings settings, ScanListener listener,
                         WorkSource workSource) throws Exception {
-                    listener.onResults(results);
+                    listener.onResults(scanDatas);
                 }}).when(scanner).startScan(anyObject(), anyObject(), anyObject());
+
+        // This unfortunately needs to be a somewhat valid scan result, otherwise
+        // |ScanDetailUtil.toScanDetail| raises exceptions.
+        final ScanResult[] scanResults = new ScanResult[1];
+        scanResults[0] = new ScanResult(WifiSsid.createFromAsciiEncoded(CANDIDATE_SSID),
+                CANDIDATE_SSID, CANDIDATE_BSSID, 1245, 0, "some caps",
+                -78, 2450, 1025, 22, 33, 20, 0, 0, true);
+        scanResults[0].informationElements = new InformationElement[1];
+        scanResults[0].informationElements[0] = new InformationElement();
+        scanResults[0].informationElements[0].id = InformationElement.EID_SSID;
+        scanResults[0].informationElements[0].bytes =
+                CANDIDATE_SSID.getBytes(StandardCharsets.UTF_8);
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ScanSettings settings, PnoSettings pnoSettings,
+                    PnoScanListener listener) throws Exception {
+                listener.onPnoNetworkFound(scanResults);
+            }}).when(scanner).startDisconnectedPnoScan(anyObject(), anyObject(), anyObject());
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ScanSettings settings, PnoSettings pnoSettings,
+                    PnoScanListener listener) throws Exception {
+                listener.onPnoNetworkFound(scanResults);
+            }}).when(scanner).startConnectedPnoScan(anyObject(), anyObject(), anyObject());
 
         return scanner;
     }
@@ -185,6 +218,13 @@ public class WifiConnectivityManagerTest {
         wifiConfigManager.mCurrentNetworkBoost = new AtomicInteger(
                 WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD);
 
+        // Pass dummy pno network list, otherwise Pno scan requests will not be triggered.
+        PnoSettings.PnoNetwork pnoNetwork = new PnoSettings.PnoNetwork(CANDIDATE_SSID);
+        ArrayList<PnoSettings.PnoNetwork> pnoNetworkList = new ArrayList<>();
+        pnoNetworkList.add(pnoNetwork);
+        when(wifiConfigManager.retrieveDisconnectedPnoNetworkList()).thenReturn(pnoNetworkList);
+        when(wifiConfigManager.retrieveConnectedPnoNetworkList()).thenReturn(pnoNetworkList);
+
         return wifiConfigManager;
     }
 
@@ -192,6 +232,7 @@ public class WifiConnectivityManagerTest {
         WifiInjector wifiInjector = mock(WifiInjector.class);
         mWifiLastResortWatchdog = mock(WifiLastResortWatchdog.class);
         when(wifiInjector.getWifiLastResortWatchdog()).thenReturn(mWifiLastResortWatchdog);
+        when(wifiInjector.getClock()).thenReturn(mClock);
         return wifiInjector;
     }
 
@@ -251,7 +292,7 @@ public class WifiConnectivityManagerTest {
         // Set screen to on
         mWifiConnectivityManager.handleScreenStateChanged(true);
 
-        verify(mWifiStateMachine).autoConnectToNetwork(
+        verify(mWifiStateMachine, atLeastOnce()).autoConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 
@@ -271,7 +312,129 @@ public class WifiConnectivityManagerTest {
         // Set screen to on
         mWifiConnectivityManager.handleScreenStateChanged(true);
 
-        verify(mWifiStateMachine).autoConnectToNetwork(
+        verify(mWifiStateMachine, atLeastOnce()).autoConnectToNetwork(
+                CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
+    }
+
+    /**
+     * Multiple back to back connection attempts within the rate interval should be rate limited.
+     *
+     * Expected behavior: WifiConnectivityManager calls WifiStateMachine.autoConnectToNetwork()
+     * with the expected candidate network ID and BSSID for only the expected number of times within
+     * the given interval.
+     */
+    @Test
+    public void connectionAttemptRateLimitedWhenScreenOff() {
+        int maxAttemptRate = WifiConnectivityManager.MAX_CONNECTION_ATTEMPTS_RATE;
+        int timeInterval = WifiConnectivityManager.MAX_CONNECTION_ATTEMPTS_TIME_INTERVAL_MS;
+        int numAttempts = 0;
+        int connectionAttemptIntervals = timeInterval / maxAttemptRate;
+
+        mWifiConnectivityManager.handleScreenStateChanged(false);
+
+        // First attempt the max rate number of connections within the rate interval.
+        long currentTimeStamp = 0;
+        for (int attempt = 0; attempt < maxAttemptRate; attempt++) {
+            currentTimeStamp += connectionAttemptIntervals;
+            when(mClock.currentTimeMillis()).thenReturn(currentTimeStamp);
+            // Set WiFi to disconnected state to trigger PNO scan
+            mWifiConnectivityManager.handleConnectionStateChanged(
+                    WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+            numAttempts++;
+        }
+        // Now trigger another connection attempt before the rate interval, this should be
+        // skipped because we've crossed rate limit.
+        when(mClock.currentTimeMillis()).thenReturn(currentTimeStamp);
+        // Set WiFi to disconnected state to trigger PNO scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        // Verify that we attempt to connect upto the rate.
+        verify(mWifiStateMachine, times(numAttempts)).autoConnectToNetwork(
+                CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
+    }
+
+    /**
+     * Multiple back to back connection attempts outside the rate interval should not be rate
+     * limited.
+     *
+     * Expected behavior: WifiConnectivityManager calls WifiStateMachine.autoConnectToNetwork()
+     * with the expected candidate network ID and BSSID for only the expected number of times within
+     * the given interval.
+     */
+    @Test
+    public void connectionAttemptNotRateLimitedWhenScreenOff() {
+        int maxAttemptRate = WifiConnectivityManager.MAX_CONNECTION_ATTEMPTS_RATE;
+        int timeInterval = WifiConnectivityManager.MAX_CONNECTION_ATTEMPTS_TIME_INTERVAL_MS;
+        int numAttempts = 0;
+        int connectionAttemptIntervals = timeInterval / maxAttemptRate;
+
+        mWifiConnectivityManager.handleScreenStateChanged(false);
+
+        // First attempt the max rate number of connections within the rate interval.
+        long currentTimeStamp = 0;
+        for (int attempt = 0; attempt < maxAttemptRate; attempt++) {
+            currentTimeStamp += connectionAttemptIntervals;
+            when(mClock.currentTimeMillis()).thenReturn(currentTimeStamp);
+            // Set WiFi to disconnected state to trigger PNO scan
+            mWifiConnectivityManager.handleConnectionStateChanged(
+                    WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+            numAttempts++;
+        }
+        // Now trigger another connection attempt after the rate interval, this should not be
+        // skipped because we should've evicted the older attempt.
+        when(mClock.currentTimeMillis()).thenReturn(
+                currentTimeStamp + connectionAttemptIntervals * 2);
+        // Set WiFi to disconnected state to trigger PNO scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+        numAttempts++;
+
+        // Verify that all the connection attempts went through
+        verify(mWifiStateMachine, times(numAttempts)).autoConnectToNetwork(
+                CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
+    }
+
+    /**
+     * Multiple back to back connection attempts after a user selection should not be rate limited.
+     *
+     * Expected behavior: WifiConnectivityManager calls WifiStateMachine.autoConnectToNetwork()
+     * with the expected candidate network ID and BSSID for only the expected number of times within
+     * the given interval.
+     */
+    @Test
+    public void connectionAttemptNotRateLimitedWhenScreenOffAfterUserSelection() {
+        int maxAttemptRate = WifiConnectivityManager.MAX_CONNECTION_ATTEMPTS_RATE;
+        int timeInterval = WifiConnectivityManager.MAX_CONNECTION_ATTEMPTS_TIME_INTERVAL_MS;
+        int numAttempts = 0;
+        int connectionAttemptIntervals = timeInterval / maxAttemptRate;
+
+        mWifiConnectivityManager.handleScreenStateChanged(false);
+
+        // First attempt the max rate number of connections within the rate interval.
+        long currentTimeStamp = 0;
+        for (int attempt = 0; attempt < maxAttemptRate; attempt++) {
+            currentTimeStamp += connectionAttemptIntervals;
+            when(mClock.currentTimeMillis()).thenReturn(currentTimeStamp);
+            // Set WiFi to disconnected state to trigger PNO scan
+            mWifiConnectivityManager.handleConnectionStateChanged(
+                    WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+            numAttempts++;
+        }
+
+        mWifiConnectivityManager.connectToUserSelectNetwork(CANDIDATE_NETWORK_ID, false);
+
+        for (int attempt = 0; attempt < maxAttemptRate; attempt++) {
+            currentTimeStamp += connectionAttemptIntervals;
+            when(mClock.currentTimeMillis()).thenReturn(currentTimeStamp);
+            // Set WiFi to disconnected state to trigger PNO scan
+            mWifiConnectivityManager.handleConnectionStateChanged(
+                    WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+            numAttempts++;
+        }
+
+        // Verify that all the connection attempts went through
+        verify(mWifiStateMachine, times(numAttempts)).autoConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 }
