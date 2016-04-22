@@ -60,8 +60,6 @@ public class WifiQualifiedNetworkSelector {
     private WifiConfiguration mCurrentConnectedNetwork = null;
     private String mCurrentBssid = null;
 
-    // Buffer most recent scan results.
-    private List<ScanDetail> mScanDetails = null;
     // Buffer of filtered scan results (Scan results considered by network selection) & associated
     // WifiConfiguration (if any).
     private volatile List<Pair<ScanDetail, WifiConfiguration>> mFilteredScanDetails = null;
@@ -218,7 +216,6 @@ public class WifiQualifiedNetworkSelector {
      * @param currentNetwork -- current connected network
      */
     private boolean isCurrentNetworkQualified(WifiConfiguration currentNetwork) {
-
         if (currentNetwork == null) {
             localLog("No current connected network");
             return false;
@@ -285,11 +282,6 @@ public class WifiQualifiedNetworkSelector {
      */
     private boolean needQualifiedNetworkSelection(boolean isLinkDebouncing, boolean isConnected,
             boolean isDisconnected, boolean isSupplicantTransientState) {
-        if (mScanDetails.size() == 0) {
-            localLog("Empty scan result");
-            return false;
-        }
-
         // No Qualified Network Selection during the L2 link debouncing procedure.
         if (isLinkDebouncing) {
             localLog("No QNS during L2 debouncing");
@@ -475,8 +467,9 @@ public class WifiQualifiedNetworkSelector {
      *         false -- There is no change made to connection choice of any saved network.
      */
     public boolean userSelectNetwork(int netId, boolean persist) {
+        localLog("userSelectNetwork: network ID=" + netId + " persist=" + persist);
+
         WifiConfiguration selected = mWifiConfigManager.getWifiConfiguration(netId);
-        localLog("userSelectNetwork: " + netId + " persist: " + persist);
         if (selected == null || selected.SSID == null) {
             localLoge("userSelectNetwork: Invalid configuration with nid=" + netId);
             return false;
@@ -614,14 +607,20 @@ public class WifiQualifiedNetworkSelector {
      * @return Best network candidate identified. Null if no candidate available or we should
      *         stay connected to the current network.
      */
-    public WifiConfiguration selectQualifiedNetwork(boolean forceSelectNetwork ,
+    public WifiConfiguration selectQualifiedNetwork(boolean forceSelectNetwork,
             boolean isUntrustedConnectionsAllowed, boolean isLinkDebouncing,
             boolean isConnected, boolean isDisconnected, boolean isSupplicantTransient,
             List<ScanDetail>  scanDetails) {
         localLog("==========start qualified Network Selection==========");
-        mScanDetails = scanDetails;
 
-        List<Pair<ScanDetail, WifiConfiguration>>  filteredScanDetails = new ArrayList<>();
+        List<Pair<ScanDetail, WifiConfiguration>> filteredScanDetails = new ArrayList<>();
+
+        if (scanDetails.size() == 0) {
+            localLog("Empty connectivity scan result");
+            mFilteredScanDetails = filteredScanDetails;
+            return null;
+        }
+
         if (mCurrentConnectedNetwork == null) {
             mCurrentConnectedNetwork =
                     mWifiConfigManager.getWifiConfiguration(mWifiInfo.getNetworkId());
@@ -663,7 +662,7 @@ public class WifiQualifiedNetworkSelector {
         ArrayList<NetworkKey> unscoredNetworks = new ArrayList<NetworkKey>();
 
         // Iterate over all scan results to find the best candidate.
-        for (ScanDetail scanDetail : mScanDetails) {
+        for (ScanDetail scanDetail : scanDetails) {
             ScanResult scanResult = scanDetail.getScanResult();
             // Skip bad scan result.
             if (scanResult.SSID == null || TextUtils.isEmpty(scanResult.SSID)) {
