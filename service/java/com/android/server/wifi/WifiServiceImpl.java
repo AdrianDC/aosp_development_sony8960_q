@@ -386,7 +386,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                     @Override
                     public void onReceive(Context context, Intent intent) {
                         String state = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
-                        if (state.equals(IccCardConstants.INTENT_VALUE_ICC_ABSENT)) {
+                        if (IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(state)) {
                             Log.d(TAG, "resetting networks because SIM was removed");
                             mWifiStateMachine.resetSimAuthNetworks();
                             Log.d(TAG, "resetting country code because SIM is removed");
