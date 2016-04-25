@@ -3077,7 +3077,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 NetworkDetail networkDetail = resultDetail.getNetworkDetail();
                 if (networkDetail != null && networkDetail.getDtimInterval() > 0) {
                     List<WifiConfiguration> associatedWifiConfigurations =
-                            mWifiConfigManager.updateSavedNetworkWithNewScanDetail(resultDetail);
+                            mWifiConfigManager.getSavedNetworkFromScanDetail(resultDetail);
                     if (associatedWifiConfigurations != null) {
                         for (WifiConfiguration associatedConf : associatedWifiConfigurations) {
                             if (associatedConf != null) {
