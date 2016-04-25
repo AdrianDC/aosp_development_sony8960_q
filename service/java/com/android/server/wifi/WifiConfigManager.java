@@ -2710,23 +2710,51 @@ public class WifiConfigManager {
     }
 
     /**
-     * create a mapping between the scandetail and the Wificonfiguration it associated with
+     * Get saved WifiConfiguration associated with a scan detail.
+     * @param scanDetail input a scanDetail from the scan result
+     * @return WifiConfiguration WifiConfiguration associated with this scanDetail, null if none
+     */
+    public List<WifiConfiguration> getSavedNetworkFromScanDetail(ScanDetail scanDetail) {
+        ScanResult scanResult = scanDetail.getScanResult();
+        if (scanResult == null) {
+            return null;
+        }
+        List<WifiConfiguration> savedWifiConfigurations = new ArrayList<>();
+        String ssid = "\"" + scanResult.SSID + "\"";
+        for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
+            if (config.SSID == null || !config.SSID.equals(ssid)) {
+                continue;
+            }
+            if (DBG) {
+                localLog("getSavedNetworkFromScanDetail(): try " + config.configKey()
+                        + " SSID=" + config.SSID + " " + scanResult.SSID + " "
+                        + scanResult.capabilities);
+            }
+            String scanResultEncrypt = scanResult.capabilities;
+            String configEncrypt = config.configKey();
+            if (isEncryptionWep(scanResultEncrypt) && isEncryptionWep(configEncrypt)
+                    || (isEncryptionPsk(scanResultEncrypt) && isEncryptionPsk(configEncrypt))
+                    || (isEncryptionEap(scanResultEncrypt) && isEncryptionEap(configEncrypt))
+                    || (isOpenNetwork(scanResultEncrypt) && isOpenNetwork(configEncrypt))) {
+                savedWifiConfigurations.add(config);
+            }
+        }
+        return savedWifiConfigurations;
+    }
+
+    /**
+     * Create a mapping between the scandetail and the Wificonfiguration it associated with
      * because Passpoint, one BSSID can associated with multiple SSIDs
      * @param scanDetail input a scanDetail from the scan result
      * @return List<WifiConfiguration> a list of WifiConfigurations associated to this scanDetail
      */
     public List<WifiConfiguration> updateSavedNetworkWithNewScanDetail(ScanDetail scanDetail) {
-
         ScanResult scanResult = scanDetail.getScanResult();
-        NetworkDetail networkDetail = scanDetail.getNetworkDetail();
-        List<WifiConfiguration> associatedWifiConfigurations = new ArrayList<WifiConfiguration>();
-
         if (scanResult == null) {
             return null;
         }
-
-        String ssid = "\"" + scanResult.SSID + "\"";
-
+        NetworkDetail networkDetail = scanDetail.getNetworkDetail();
+        List<WifiConfiguration> associatedWifiConfigurations = new ArrayList<>();
         if (networkDetail.hasInterworking()) {
             Map<HomeSP, PasspointMatch> matches = matchPasspointNetworks(scanDetail);
             if (matches != null) {
@@ -2736,33 +2764,13 @@ public class WifiConfigManager {
                 //Network
             }
         }
-
-        for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
-            boolean found = false;
-            if (config.SSID == null || !config.SSID.equals(ssid)) {
-                continue;
-            }
-            if (DBG) {
-                localLog("updateSavedNetworkWithNewScanDetail(): try " + config.configKey()
-                        + " SSID=" + config.SSID + " " + scanResult.SSID + " "
-                        + scanResult.capabilities);
-            }
-
-            String scanResultEncrypt = scanResult.capabilities;
-            String configEncrypt = config.configKey();
-            if (isEncryptionWep(scanResultEncrypt) && isEncryptionWep(configEncrypt)
-                    || (isEncryptionPsk(scanResultEncrypt) && isEncryptionPsk(configEncrypt))
-                    || (isEncryptionEap(scanResultEncrypt) && isEncryptionEap(configEncrypt))
-                    || (isOpenNetwork(scanResultEncrypt) && isOpenNetwork(configEncrypt))) {
-                found = true;
-            }
-
-            if (found) {
+        List<WifiConfiguration> savedConfigurations = getSavedNetworkFromScanDetail(scanDetail);
+        if (savedConfigurations != null) {
+            for (WifiConfiguration config : savedConfigurations) {
                 cacheScanResultForConfig(config, scanDetail, null);
                 associatedWifiConfigurations.add(config);
             }
         }
-
         if (associatedWifiConfigurations.size() == 0) {
             return null;
         } else {
