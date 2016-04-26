@@ -2749,16 +2749,19 @@ public class WifiConfigManager {
      * Create a mapping between the scandetail and the Wificonfiguration it associated with
      * because Passpoint, one BSSID can associated with multiple SSIDs
      * @param scanDetail input a scanDetail from the scan result
+     * @param isConnectingOrConnected input a boolean to indicate if WiFi is connecting or conncted
+     * This is used for avoiding ANQP request
      * @return List<WifiConfiguration> a list of WifiConfigurations associated to this scanDetail
      */
-    public List<WifiConfiguration> updateSavedNetworkWithNewScanDetail(ScanDetail scanDetail) {
+    public List<WifiConfiguration> updateSavedNetworkWithNewScanDetail(ScanDetail scanDetail,
+            boolean isConnectingOrConnected) {
         ScanResult scanResult = scanDetail.getScanResult();
         if (scanResult == null) {
             return null;
         }
         NetworkDetail networkDetail = scanDetail.getNetworkDetail();
         List<WifiConfiguration> associatedWifiConfigurations = new ArrayList<>();
-        if (networkDetail.hasInterworking()) {
+        if (networkDetail.hasInterworking() && !isConnectingOrConnected) {
             Map<HomeSP, PasspointMatch> matches = matchPasspointNetworks(scanDetail);
             if (matches != null) {
                 cacheScanResultForPasspointConfigs(scanDetail, matches,

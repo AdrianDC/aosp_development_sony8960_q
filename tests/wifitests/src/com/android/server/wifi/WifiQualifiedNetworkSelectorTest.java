@@ -251,22 +251,22 @@ public class WifiQualifiedNetworkSelectorTest {
                 ScanDetail scanDetail = scanDetails.get(i);
                 List<WifiConfiguration> associateWithScanResult = new ArrayList<>();
                 associateWithScanResult.add(configs[i]);
-                when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetail))
-                        .thenReturn(associateWithScanResult);
+                when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(eq(scanDetail),
+                        anyBoolean())).thenReturn(associateWithScanResult);
             }
         } else {
             for (int i = 0; i < configs.length; i++) {
                 ScanDetail scanDetail = scanDetails.get(i);
                 List<WifiConfiguration> associateWithScanResult = new ArrayList<>();
                 associateWithScanResult.add(configs[i]);
-                when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetail))
-                        .thenReturn(associateWithScanResult);
+                when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(eq(scanDetail),
+                        anyBoolean())).thenReturn(associateWithScanResult);
             }
 
             // associated the remaining scan details with a NULL config.
             for (int i = configs.length; i < scanDetails.size(); i++) {
-                when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetails.get(i)))
-                        .thenReturn(null);
+                when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(eq(scanDetails.get(i)),
+                        anyBoolean())).thenReturn(null);
             }
         }
     }
@@ -1646,8 +1646,8 @@ public class WifiQualifiedNetworkSelectorTest {
         configureScoreCache(scanDetails, scores, meteredHints);
 
         // No saved networks.
-        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(any(ScanDetail.class)))
-                .thenReturn(null);
+        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(any(ScanDetail.class),
+                anyBoolean())).thenReturn(null);
 
         WifiConfiguration unTrustedNetworkCandidate = mock(WifiConfiguration.class);
         // Setup the config as an invalid candidate. This is done to workaround a Mockito issue.
@@ -1732,10 +1732,10 @@ public class WifiQualifiedNetworkSelectorTest {
         scanResultLinkConfiguration(savedConfigs, savedScanDetails);
 
         //Force mock ConfigManager to return null (and not an empty list) for "test3" & "test4"
-        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetails.get(2)))
-                    .thenReturn(null);
-        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetails.get(3)))
-                    .thenReturn(null);
+        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(eq(scanDetails.get(2)),
+                anyBoolean())).thenReturn(null);
+        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(eq(scanDetails.get(3)),
+                anyBoolean())).thenReturn(null);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
@@ -1811,10 +1811,10 @@ public class WifiQualifiedNetworkSelectorTest {
         scanResultLinkConfiguration(savedConfigs, savedScanDetails);
 
         //Force mock ConfigManager to return null (and not an empty list) for "test3" & "test4"
-        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetails.get(2)))
-                    .thenReturn(null);
-        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetails.get(3)))
-                    .thenReturn(null);
+        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(eq(scanDetails.get(2)),
+                anyBoolean())).thenReturn(null);
+        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(eq(scanDetails.get(3)),
+                anyBoolean())).thenReturn(null);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
@@ -1860,8 +1860,8 @@ public class WifiQualifiedNetworkSelectorTest {
         configureScoreCache(scanDetails, scores, meteredHints);
 
         // No saved networks.
-        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(any(ScanDetail.class)))
-                .thenReturn(null);
+        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(any(ScanDetail.class),
+                anyBoolean())).thenReturn(null);
 
         WifiConfiguration unTrustedNetworkCandidate = mock(WifiConfiguration.class);
         // Setup the config as an invalid candidate. This is done to workaround a Mockito issue.
