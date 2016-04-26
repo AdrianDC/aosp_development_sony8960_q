@@ -57,9 +57,13 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.internal.matchers.CapturingMatcher;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.regex.Pattern;
 
 /**
  * Unit tests for {@link com.android.server.wifi.scanner.WifiScanningServiceImpl}.
@@ -276,10 +280,27 @@ public class WifiScanningServiceTest {
         mLooper.dispatchAll();
     }
 
+    private String dumpService() {
+        StringWriter stringWriter = new StringWriter();
+        mWifiScanningServiceImpl.dump(new FileDescriptor(), new PrintWriter(stringWriter),
+                new String[0]);
+        return stringWriter.toString();
+    }
+
+    private void assertDumpContainsRequestLog(String type, int id) {
+        String serviceDump = dumpService();
+        Pattern logLineRegex = Pattern.compile("^.+" + type + ": ClientInfo\\[uid=\\d+\\],Id=" +
+                id + ".*$", Pattern.MULTILINE);
+        assertTrue("dump did not contain log with type=" + type + ", id=" + id +
+                " for scan request: " + serviceDump + "\n",
+                logLineRegex.matcher(serviceDump).find());
+   }
+
     @Test
     public void construct() throws Exception {
         verifyNoMoreInteractions(mWifiScannerImpl, mWifiScannerImpl,
                 mWifiScannerImplFactory, mBatteryStats);
+        dumpService(); // make sure this succeeds
     }
 
     @Test
@@ -308,6 +329,7 @@ public class WifiScanningServiceTest {
         sendBackgroundScanRequest(controlChannel, 192, generateValidScanSettings(), null);
         mLooper.dispatchAll();
         verifySuccessfulResponse(order, handler, 192);
+        assertDumpContainsRequestLog("addBackgroundScanRequest", 192);
     }
 
     @Test
@@ -349,6 +371,8 @@ public class WifiScanningServiceTest {
         verifyScanResultsRecieved(order, handler, requestId, results.getScanData());
         verifySingleScanCompletedRecieved(order, handler, requestId);
         verifyNoMoreInteractions(handler);
+        assertDumpContainsRequestLog("addSingleScanRequest", requestId);
+        assertDumpContainsRequestLog("singleScanResults", requestId);
     }
 
     /**
@@ -405,6 +429,7 @@ public class WifiScanningServiceTest {
 
         assertEquals(mWifiMetrics.getOneshotScanCount(), 1);
         assertEquals(mWifiMetrics.getScanReturnEntry(WifiMetricsProto.WifiLog.SCAN_UNKNOWN), 1);
+        assertDumpContainsRequestLog("addSingleScanRequest", requestId);
     }
 
     /**
