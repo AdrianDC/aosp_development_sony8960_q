@@ -706,7 +706,8 @@ public class WifiQualifiedNetworkSelector {
             // This local only used to store ephemeral config for filtering scan results
             WifiConfiguration filteredEphemeralConfig = null;
             List<WifiConfiguration> associatedWifiConfigurations =
-                    mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetail);
+                    mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetail,
+                            isSupplicantTransient || isConnected || isLinkDebouncing);
             if (associatedWifiConfigurations == null) {
                 potentiallyEphemeral =  true;
                 if (mDbg) {
