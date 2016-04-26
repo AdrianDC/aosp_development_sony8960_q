@@ -76,20 +76,20 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private static final int MIN_PERIOD_PER_CHANNEL_MS = 200;               // DFS needs 120 ms
     private static final int UNKNOWN_PID = -1;
 
-    private static final LocalLog mLocalLog = new LocalLog(1024);
+    private final LocalLog mLocalLog = new LocalLog(1024);
 
     private final WifiMetrics mWifiMetrics;
 
-    private static void localLog(String message) {
+    private void localLog(String message) {
         mLocalLog.log(message);
     }
 
-    private static void logw(String message) {
+    private void logw(String message) {
         Log.w(TAG, message);
         mLocalLog.log(message);
     }
 
-    private static void loge(String message) {
+    private void loge(String message) {
         Log.e(TAG, message);
         mLocalLog.log(message);
     }
@@ -307,7 +307,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         return workSource != null && workSource.size() > 0 && workSource.get(0) >= 0;
     }
 
-    private static WorkSource computeWorkSource(ClientInfo ci, WorkSource requestedWorkSource) {
+    private WorkSource computeWorkSource(ClientInfo ci, WorkSource requestedWorkSource) {
         if (requestedWorkSource != null) {
             if (isWorkSourceValid(requestedWorkSource)) {
                 // Wifi currently doesn't use names, so need to clear names out of the
@@ -328,7 +328,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
     }
 
-    private static class RequestInfo<T> {
+    private class RequestInfo<T> {
         final ClientInfo clientInfo;
         final int handlerId;
         final WorkSource workSource;
@@ -347,7 +347,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
     }
 
-    private static class RequestList<T> extends ArrayList<RequestInfo<T>> {
+    private class RequestList<T> extends ArrayList<RequestInfo<T>> {
         void addRequest(ClientInfo ci, int handler, WorkSource reqworkSource, T settings) {
             add(new RequestInfo<T>(ci, handler, reqworkSource, settings));
         }
@@ -2489,7 +2489,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 }
             }
         }
-        mPnoScanStateMachine.dump(fd, pw, args);
+        if (mPnoScanStateMachine != null) {
+            mPnoScanStateMachine.dump(fd, pw, args);
+        }
     }
 
     void logScanRequest(String request, ClientInfo ci, int id, WorkSource workSource,
