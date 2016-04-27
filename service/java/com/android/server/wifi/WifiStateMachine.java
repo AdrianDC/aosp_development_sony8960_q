@@ -77,7 +77,6 @@ import android.net.wifi.nan.WifiNanManager;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
 import android.os.Binder;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
@@ -1320,12 +1319,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiNative.setSupplicantLogLevel("DEBUG");
             setLogRecSize(ActivityManager.isLowRamDeviceStatic()
                     ? NUM_LOG_RECS_VERBOSE_LOW_MEMORY : NUM_LOG_RECS_VERBOSE);
-            configureVerboseHalLogging(true);
         } else {
             DBG = false;
             mWifiNative.setSupplicantLogLevel("INFO");
             setLogRecSize(NUM_LOG_RECS_NORMAL);
-            configureVerboseHalLogging(false);
         }
         mCountryCode.enableVerboseLogging(mVerboseLoggingLevel);
         mWifiLogger.startLogging(DBG);
@@ -1337,18 +1334,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         if (mWifiConnectivityManager != null) {
             mWifiConnectivityManager.enableVerboseLogging(mVerboseLoggingLevel);
         }
-    }
-
-    private static final String BUILD_TYPE_USER = "user";
-    private static final String SYSTEM_PROPERTY_LOG_CONTROL_WIFIHAL = "log.tag.WifiHAL";
-    private static final String LOGD_LEVEL_DEBUG = "D";
-    private static final String LOGD_LEVEL_VERBOSE = "V";
-    private void configureVerboseHalLogging(boolean enableVerbose) {
-        if (Build.TYPE == BUILD_TYPE_USER) {  // Verbose HAL logging not supported on user builds.
-            return;
-        }
-        SystemProperties.set(SYSTEM_PROPERTY_LOG_CONTROL_WIFIHAL,
-                enableVerbose ? LOGD_LEVEL_VERBOSE : LOGD_LEVEL_DEBUG);
     }
 
     long mLastScanPermissionUpdate = 0;
