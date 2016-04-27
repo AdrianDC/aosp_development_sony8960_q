@@ -255,12 +255,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
         }
     }
-    public void registerNetworkDisabled(int netId) {
-        // Initiate a connectivity scan
-        if (mWifiConnectivityManager != null) {
-            mWifiConnectivityManager.forceConnectivityScan();
-        }
-    }
 
     // Testing various network disconnect cases by sending lots of spurious
     // disconnect to supplicant
@@ -799,6 +793,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     /* Enable/Disable WifiConnectivityManager */
     static final int CMD_ENABLE_WIFI_CONNECTIVITY_MANAGER               = BASE + 166;
+
+    /* Enable/Disable AutoJoin when associated */
+    static final int CMD_ENABLE_AUTOJOIN_WHEN_ASSOCIATED                = BASE + 167;
 
     /**
      * Used to handle messages bounced between WifiStateMachine and IpManager.
@@ -1360,14 +1357,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return mWifiConfigManager.mAlwaysEnableScansWhileAssociated.get();
     }
 
+    /*
+     * Dynamically turn on/off if switching networks while connected is allowd.
+     */
     public boolean setEnableAutoJoinWhenAssociated(boolean enabled) {
-        boolean old_state = mWifiConfigManager.getEnableAutoJoinWhenAssociated();
-        mWifiConfigManager.setEnableAutoJoinWhenAssociated(enabled);
-        if (!old_state && enabled && mScreenOn && getCurrentState() == mConnectedState) {
-            if (mWifiConnectivityManager != null) {
-                mWifiConnectivityManager.forceConnectivityScan();
-            }
-        }
+        sendMessage(CMD_ENABLE_AUTOJOIN_WHEN_ASSOCIATED, enabled ? 1 : 0);
         return true;
     }
 
@@ -4848,6 +4842,17 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_ENABLE_WIFI_CONNECTIVITY_MANAGER:
                     if (mWifiConnectivityManager != null) {
                         mWifiConnectivityManager.enable(message.arg1 == 1 ? true : false);
+                    }
+                    break;
+                case CMD_ENABLE_AUTOJOIN_WHEN_ASSOCIATED:
+                    final boolean allowed = (message.arg1 > 0);
+                    boolean old_state = mWifiConfigManager.getEnableAutoJoinWhenAssociated();
+                    mWifiConfigManager.setEnableAutoJoinWhenAssociated(allowed);
+                    if (!old_state && allowed && mScreenOn
+                            && getCurrentState() == mConnectedState) {
+                        if (mWifiConnectivityManager != null) {
+                            mWifiConnectivityManager.forceConnectivityScan();
+                        }
                     }
                     break;
                 default:
