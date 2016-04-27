@@ -113,6 +113,7 @@ public class WifiConnectivityManager {
     private boolean mUntrustedConnectionAllowed = false;
     private int mScanRestartCount = 0;
     private int mSingleScanRestartCount = 0;
+    private int mTotalConnectivityAttemptsRateLimited = 0;
 
     // PNO settings
     private int mMin5GHzRssi;
@@ -473,6 +474,7 @@ public class WifiConnectivityManager {
         Long currentTimeMillis = mClock.currentTimeMillis();
         if (!mScreenOn && shouldSkipConnectionAttempt(currentTimeMillis)) {
             localLog("connectToNetwork: Too many connection attempts. Skipping this attempt!");
+            mTotalConnectivityAttemptsRateLimited++;
             return;
         }
         noteConnectionAttempt(currentTimeMillis);
@@ -883,6 +885,8 @@ public class WifiConnectivityManager {
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("Dump of WifiConnectivityManager");
         pw.println("WifiConnectivityManager - Log Begin ----");
+        pw.println("WifiConnectivityManager - Number of connectivity attempts rate limited: " +
+                mTotalConnectivityAttemptsRateLimited);
         mLocalLog.dump(fd, pw, args);
         pw.println("WifiConnectivityManager - Log End ----");
     }
