@@ -29,6 +29,8 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiScanner.PnoSettings;
 import android.net.wifi.WifiScanner.ScanSettings;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.LocalLog;
 import android.util.Log;
 
@@ -99,6 +101,7 @@ public class WifiConnectivityManager {
     private final WifiQualifiedNetworkSelector mQualifiedNetworkSelector;
     private final WifiLastResortWatchdog mWifiLastResortWatchdog;
     private final AlarmManager mAlarmManager;
+    private final Handler mEventHandler;
     private final Clock mClock;
     private final LocalLog mLocalLog =
             new LocalLog(ActivityManager.isLowRamDeviceStatic() ? 1024 : 16384);
@@ -378,7 +381,7 @@ public class WifiConnectivityManager {
     public WifiConnectivityManager(Context context, WifiStateMachine stateMachine,
                 WifiScanner scanner, WifiConfigManager configManager, WifiInfo wifiInfo,
                 WifiQualifiedNetworkSelector qualifiedNetworkSelector,
-                WifiInjector wifiInjector) {
+                WifiInjector wifiInjector, Looper looper) {
         mStateMachine = stateMachine;
         mScanner = scanner;
         mConfigManager = configManager;
@@ -386,6 +389,7 @@ public class WifiConnectivityManager {
         mQualifiedNetworkSelector = qualifiedNetworkSelector;
         mWifiLastResortWatchdog = wifiInjector.getWifiLastResortWatchdog();
         mAlarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        mEventHandler = new Handler(looper);
         mClock = wifiInjector.getClock();
         mConnectionAttemptTimeStamps = new LinkedList<>();
 
@@ -419,10 +423,10 @@ public class WifiConnectivityManager {
     private boolean shouldSkipConnectionAttempt(Long currentTimeMillis) {
         Iterator<Long> attemptIter = mConnectionAttemptTimeStamps.iterator();
         // First evict old entries from the queue.
-        while(attemptIter.hasNext()) {
+        while (attemptIter.hasNext()) {
             Long connectionAttemptTimeMillis = attemptIter.next();
-            if ((currentTimeMillis - connectionAttemptTimeMillis) >
-                    MAX_CONNECTION_ATTEMPTS_TIME_INTERVAL_MS) {
+            if ((currentTimeMillis - connectionAttemptTimeMillis)
+                    > MAX_CONNECTION_ATTEMPTS_TIME_INTERVAL_MS) {
                 attemptIter.remove();
             } else {
                 // This list is sorted by timestamps, so we can skip any more checks
@@ -672,7 +676,7 @@ public class WifiConnectivityManager {
         mAlarmManager.set(AlarmManager.RTC_WAKEUP,
                             mClock.currentTimeMillis() + WATCHDOG_INTERVAL_MS,
                             "WifiConnectivityManager Schedule Watchdog Timer",
-                            mWatchdogListener, null);
+                            mWatchdogListener, mEventHandler);
     }
 
     // Set up periodic scan timer
@@ -680,7 +684,7 @@ public class WifiConnectivityManager {
         mAlarmManager.set(AlarmManager.RTC_WAKEUP,
                             mClock.currentTimeMillis() + PERIODIC_SCAN_INTERVAL_MS,
                             "WifiConnectivityManager Schedule Periodic Scan Timer",
-                            mPeriodicScanTimerListener, null);
+                            mPeriodicScanTimerListener, mEventHandler);
     }
 
     // Set up timer to start a delayed single scan after RESTART_SCAN_DELAY_MS
@@ -690,7 +694,7 @@ public class WifiConnectivityManager {
         mAlarmManager.set(AlarmManager.RTC_WAKEUP,
                             mClock.currentTimeMillis() + RESTART_SCAN_DELAY_MS,
                             "WifiConnectivityManager Restart Single Scan",
-                            mRestartSingleScanListener, null);
+                            mRestartSingleScanListener, mEventHandler);
     }
 
     // Set up timer to start a delayed scan after RESTART_SCAN_DELAY_MS
@@ -700,7 +704,7 @@ public class WifiConnectivityManager {
         mAlarmManager.set(AlarmManager.RTC_WAKEUP,
                             mClock.currentTimeMillis() + RESTART_SCAN_DELAY_MS,
                             "WifiConnectivityManager Restart Scan",
-                            mRestartScanListener, null);
+                            mRestartScanListener, mEventHandler);
 
     }
 
