@@ -33,6 +33,7 @@ import android.net.wifi.WifiScanner.PnoScanListener;
 import android.net.wifi.WifiScanner.PnoSettings;
 import android.net.wifi.WifiScanner.ScanListener;
 import android.net.wifi.WifiScanner.ScanSettings;
+import android.os.Looper;
 import android.os.WorkSource;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -69,7 +70,8 @@ public class WifiConnectivityManagerTest {
         mWifiScanner = mockWifiScanner();
         mWifiQNS = mockWifiQualifiedNetworkSelector();
         mWifiConnectivityManager = new WifiConnectivityManager(mContext, mWifiStateMachine,
-                mWifiScanner, mWifiConfigManager, mWifiInfo, mWifiQNS, mWifiInjector);
+                mWifiScanner, mWifiConfigManager, mWifiInfo, mWifiQNS, mWifiInjector,
+                mLooper.getLooper());
         mWifiConnectivityManager.setWifiEnabled(true);
         when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis());
     }
@@ -85,6 +87,7 @@ public class WifiConnectivityManagerTest {
     private Resources mResource;
     private Context mContext;
     private AlarmManager mAlarmManager;
+    private MockLooper mLooper = new MockLooper();
     private WifiConnectivityManager mWifiConnectivityManager;
     private WifiQualifiedNetworkSelector mWifiQNS;
     private WifiStateMachine mWifiStateMachine;
