@@ -1,5 +1,6 @@
 package com.android.server.wifi.hotspot2.omadm;
 
+import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
 
@@ -418,7 +419,8 @@ public class MOManager {
                 || method.getEAPMethodID() == EAP.EAPMethodID.EAP_AKAPrim) {
 
             OMANode simNode = credentialNode.addChild(TAG_SIM, null, null, null);
-            simNode.addChild(TAG_IMSI, null, cred.getImsi().toString(), null);
+            IMSIParameter imsi = cred.getImsi();
+            simNode.addChild(TAG_IMSI, null, imsi != null ? imsi.toString() : "", null);
             simNode.addChild(TAG_EAPType, null,
                     Integer.toString(EAP.mapEAPMethod(method.getEAPMethodID())), null);
 
@@ -633,7 +635,10 @@ public class MOManager {
         }
         if (simNode != null) {
             try {
-                IMSIParameter imsi = new IMSIParameter(getString(simNode.getChild(TAG_IMSI)));
+                IMSIParameter imsi = null;
+                if (!TextUtils.isEmpty(getString(simNode.getChild(TAG_IMSI)))) {
+                    imsi = new IMSIParameter(getString(simNode.getChild(TAG_IMSI)));
+                }
 
                 EAPMethod eapMethod =
                         new EAPMethod(EAP.mapEAPMethod(getInteger(simNode.getChild(TAG_EAPType))),
