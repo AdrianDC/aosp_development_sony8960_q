@@ -4681,7 +4681,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
                 mWifiConnectivityManager = new WifiConnectivityManager(mContext,
                     WifiStateMachine.this, mWifiScanner, mWifiConfigManager, mWifiInfo,
-                    mWifiQualifiedNetworkSelector, mWifiInjector);
+                    mWifiQualifiedNetworkSelector, mWifiInjector,
+                    getHandler().getLooper());
             }
 
             mWifiLogger.startLogging(DBG);
