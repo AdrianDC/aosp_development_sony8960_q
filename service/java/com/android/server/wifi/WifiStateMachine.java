@@ -1239,6 +1239,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 sendMessage(CMD_IPV4_PROVISIONING_SUCCESS, dhcpResults);
             } else {
                 sendMessage(CMD_IPV4_PROVISIONING_FAILURE);
+                mWifiLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(getTargetSsid(),
+                        mTargetRoamBSSID,
+                        WifiLastResortWatchdog.FAILURE_CODE_DHCP);
             }
         }
 
@@ -5334,6 +5337,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_ASSOCIATION_REJECTION,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
+                    mWifiLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(getTargetSsid(),
+                            bssid,
+                            WifiLastResortWatchdog.FAILURE_CODE_ASSOCIATION);
                     break;
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                     mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_AUTH_FAILURE);
@@ -5347,6 +5353,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_AUTHENTICATION_FAILURE,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
+                    mWifiLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(getTargetSsid(),
+                            mTargetRoamBSSID,
+                            WifiLastResortWatchdog.FAILURE_CODE_AUTHENTICATION);
                     break;
                 case WifiMonitor.SSID_TEMP_DISABLED:
                     Log.e(TAG, "Supplicant SSID temporary disabled:"
@@ -5358,6 +5367,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_SSID_TEMP_DISABLED,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
+                    mWifiLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(getTargetSsid(),
+                            mTargetRoamBSSID,
+                            WifiLastResortWatchdog.FAILURE_CODE_AUTHENTICATION);
                     break;
                 case WifiMonitor.SSID_REENABLED:
                     Log.d(TAG, "Supplicant SSID reenable:"
@@ -7166,6 +7178,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             mLastDriverRoamAttempt = 0;
             mTargetNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
+            mWifiLastResortWatchdog.connectedStateTransition(true);
         }
         @Override
         public boolean processMessage(Message message) {
@@ -7430,6 +7443,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             mLastDriverRoamAttempt = 0;
             mWhiteListedSsids = null;
+            mWifiLastResortWatchdog.connectedStateTransition(false);
         }
     }
 
@@ -8316,5 +8330,17 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
         }
         mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
+    }
+
+    /**
+     * Gets the SSID from the WifiConfiguration pointed at by 'mTargetNetworkId'
+     * This should match the network config framework is attempting to connect to.
+     */
+    private String getTargetSsid() {
+        WifiConfiguration currentConfig = mWifiConfigManager.getWifiConfiguration(mTargetNetworkId);
+        if (currentConfig != null) {
+            return currentConfig.SSID;
+        }
+        return null;
     }
 }
