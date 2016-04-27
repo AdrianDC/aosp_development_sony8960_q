@@ -331,6 +331,8 @@ public class WifiStateMachineTest {
     @Mock WifiApConfigStore mApConfigStore;
     @Mock BackupManagerProxy mBackupManagerProxy;
     @Mock WifiCountryCode mCountryCode;
+    @Mock WifiInjector mWifiInjector;
+    @Mock WifiLastResortWatchdog mWifiLastResortWatchdog;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -349,10 +351,9 @@ public class WifiStateMachineTest {
 
         TestUtil.installWlanWifiNative(mWifiNative);
         mWifiMonitor = new MockWifiMonitor();
-        mWifiMetrics = mock(WifiMetrics.class);
-        WifiInjector wifiInjector = mock(WifiInjector.class);
-        when(wifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
-        when(wifiInjector.getClock()).thenReturn(mock(Clock.class));
+        when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
+        when(mWifiInjector.getClock()).thenReturn(mock(Clock.class));
+        when(mWifiInjector.getWifiLastResortWatchdog()).thenReturn(mWifiLastResortWatchdog);
         FrameworkFacade factory = getFrameworkFacade();
         Context context = getContext();
 
@@ -378,7 +379,7 @@ public class WifiStateMachineTest {
                 new UserInfo(11, "managed profile", 0)));
 
         mWsm = new WifiStateMachine(context, factory, mLooper.getLooper(),
-            mUserManager, wifiInjector, mBackupManagerProxy, mCountryCode);
+            mUserManager, mWifiInjector, mBackupManagerProxy, mCountryCode);
         mWsmThread = getWsmHandlerThread(mWsm);
 
         final AsyncChannel channel = new AsyncChannel();
