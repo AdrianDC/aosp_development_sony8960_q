@@ -145,7 +145,16 @@ public class WifiMetricsTest {
     private static final int NUM_CONNECTIVITY_WATCHDOG_PNO_BAD = 12;
     private static final int NUM_CONNECTIVITY_WATCHDOG_BACKGROUND_GOOD = 13;
     private static final int NUM_CONNECTIVITY_WATCHDOG_BACKGROUND_BAD = 14;
-
+    private static final int NUM_LAST_RESORT_WATCHDOG_TRIGGERS = 1;
+    private static final int NUM_LAST_RESORT_WATCHDOG_BAD_ASSOCIATION_NETWORKS_TOTAL = 2;
+    private static final int NUM_LAST_RESORT_WATCHDOG_BAD_AUTHENTICATION_NETWORKS_TOTAL = 3;
+    private static final int NUM_LAST_RESORT_WATCHDOG_BAD_DHCP_NETWORKS_TOTAL = 4;
+    private static final int NUM_LAST_RESORT_WATCHDOG_BAD_OTHER_NETWORKS_TOTAL = 5;
+    private static final int NUM_LAST_RESORT_WATCHDOG_AVAILABLE_NETWORKS_TOTAL = 6;
+    private static final int NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_ASSOCIATION = 7;
+    private static final int NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_AUTHENTICATION = 8;
+    private static final int NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_DHCP = 9;
+    private static final int NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_OTHER = 10;
     /**
      * Set simple metrics, increment others
      */
@@ -203,6 +212,31 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_CONNECTIVITY_WATCHDOG_BACKGROUND_BAD; i++) {
             mWifiMetrics.incrementNumConnectivityWatchdogBackgroundBad();
         }
+        for (int i = 0; i < NUM_LAST_RESORT_WATCHDOG_TRIGGERS; i++) {
+            mWifiMetrics.incrementNumLastResortWatchdogTriggers();
+        }
+        mWifiMetrics.addCountToNumLastResortWatchdogBadAssociationNetworksTotal(
+                NUM_LAST_RESORT_WATCHDOG_BAD_ASSOCIATION_NETWORKS_TOTAL);
+        mWifiMetrics.addCountToNumLastResortWatchdogBadAuthenticationNetworksTotal(
+                NUM_LAST_RESORT_WATCHDOG_BAD_AUTHENTICATION_NETWORKS_TOTAL);
+        mWifiMetrics.addCountToNumLastResortWatchdogBadDhcpNetworksTotal(
+                NUM_LAST_RESORT_WATCHDOG_BAD_DHCP_NETWORKS_TOTAL);
+        mWifiMetrics.addCountToNumLastResortWatchdogBadOtherNetworksTotal(
+                NUM_LAST_RESORT_WATCHDOG_BAD_OTHER_NETWORKS_TOTAL);
+        mWifiMetrics.addCountToNumLastResortWatchdogAvailableNetworksTotal(
+                NUM_LAST_RESORT_WATCHDOG_AVAILABLE_NETWORKS_TOTAL);
+        for (int i = 0; i < NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_ASSOCIATION; i++) {
+            mWifiMetrics.incrementNumLastResortWatchdogTriggersWithBadAssociation();
+        }
+        for (int i = 0; i < NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_AUTHENTICATION; i++) {
+            mWifiMetrics.incrementNumLastResortWatchdogTriggersWithBadAuthentication();
+        }
+        for (int i = 0; i < NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_DHCP; i++) {
+            mWifiMetrics.incrementNumLastResortWatchdogTriggersWithBadDhcp();
+        }
+        for (int i = 0; i < NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_OTHER; i++) {
+            mWifiMetrics.incrementNumLastResortWatchdogTriggersWithBadOther();
+        }
     }
 
     /**
@@ -258,6 +292,26 @@ public class WifiMetricsTest {
                 NUM_CONNECTIVITY_WATCHDOG_BACKGROUND_GOOD);
         assertEquals(mDeserializedWifiMetrics.numConnectivityWatchdogBackgroundBad,
                 NUM_CONNECTIVITY_WATCHDOG_BACKGROUND_BAD);
+        assertEquals(NUM_LAST_RESORT_WATCHDOG_TRIGGERS,
+                mDeserializedWifiMetrics.numLastResortWatchdogTriggers);
+        assertEquals(NUM_LAST_RESORT_WATCHDOG_BAD_ASSOCIATION_NETWORKS_TOTAL,
+                mDeserializedWifiMetrics.numLastResortWatchdogBadAssociationNetworksTotal);
+        assertEquals(NUM_LAST_RESORT_WATCHDOG_BAD_AUTHENTICATION_NETWORKS_TOTAL,
+                mDeserializedWifiMetrics.numLastResortWatchdogBadAuthenticationNetworksTotal);
+        assertEquals(NUM_LAST_RESORT_WATCHDOG_BAD_DHCP_NETWORKS_TOTAL,
+                mDeserializedWifiMetrics.numLastResortWatchdogBadDhcpNetworksTotal);
+        assertEquals(NUM_LAST_RESORT_WATCHDOG_BAD_OTHER_NETWORKS_TOTAL,
+                mDeserializedWifiMetrics.numLastResortWatchdogBadOtherNetworksTotal);
+        assertEquals(NUM_LAST_RESORT_WATCHDOG_AVAILABLE_NETWORKS_TOTAL,
+                mDeserializedWifiMetrics.numLastResortWatchdogAvailableNetworksTotal);
+        assertEquals(NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_ASSOCIATION,
+                mDeserializedWifiMetrics.numLastResortWatchdogTriggersWithBadAssociation);
+        assertEquals(NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_AUTHENTICATION,
+                mDeserializedWifiMetrics.numLastResortWatchdogTriggersWithBadAuthentication);
+        assertEquals(NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_DHCP,
+                mDeserializedWifiMetrics.numLastResortWatchdogTriggersWithBadDhcp);
+        assertEquals(NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_OTHER,
+                mDeserializedWifiMetrics.numLastResortWatchdogTriggersWithBadOther);
     }
 
     /**

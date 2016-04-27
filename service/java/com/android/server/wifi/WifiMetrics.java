@@ -671,6 +671,87 @@ public class WifiMetrics {
     }
 
     /**
+     * Increment number of times the Watchdog of Last Resort triggered, resetting the wifi stack
+     */
+    public void incrementNumLastResortWatchdogTriggers() {
+        synchronized (mLock) {
+            mWifiLogProto.numLastResortWatchdogTriggers++;
+        }
+    }
+    /**
+     * @param count number of networks over bad association threshold when watchdog triggered
+     */
+    public void addCountToNumLastResortWatchdogBadAssociationNetworksTotal(int count) {
+        synchronized (mLock) {
+            mWifiLogProto.numLastResortWatchdogBadAssociationNetworksTotal += count;
+        }
+    }
+    /**
+     * @param count number of networks over bad authentication threshold when watchdog triggered
+     */
+    public void addCountToNumLastResortWatchdogBadAuthenticationNetworksTotal(int count) {
+        synchronized (mLock) {
+            mWifiLogProto.numLastResortWatchdogBadAuthenticationNetworksTotal += count;
+        }
+    }
+    /**
+     * @param count number of networks over bad dhcp threshold when watchdog triggered
+     */
+    public void addCountToNumLastResortWatchdogBadDhcpNetworksTotal(int count) {
+        synchronized (mLock) {
+            mWifiLogProto.numLastResortWatchdogBadDhcpNetworksTotal += count;
+        }
+    }
+    /**
+     * @param count number of networks over bad other threshold when watchdog triggered
+     */
+    public void addCountToNumLastResortWatchdogBadOtherNetworksTotal(int count) {
+        synchronized (mLock) {
+            mWifiLogProto.numLastResortWatchdogBadOtherNetworksTotal += count;
+        }
+    }
+    /**
+     * @param count number of networks seen when watchdog triggered
+     */
+    public void addCountToNumLastResortWatchdogAvailableNetworksTotal(int count) {
+        synchronized (mLock) {
+            mWifiLogProto.numLastResortWatchdogAvailableNetworksTotal += count;
+        }
+    }
+    /**
+     * Increment count of triggers with atleast one bad association network
+     */
+    public void incrementNumLastResortWatchdogTriggersWithBadAssociation() {
+        synchronized (mLock) {
+            mWifiLogProto.numLastResortWatchdogTriggersWithBadAssociation++;
+        }
+    }
+    /**
+     * Increment count of triggers with atleast one bad authentication network
+     */
+    public void incrementNumLastResortWatchdogTriggersWithBadAuthentication() {
+        synchronized (mLock) {
+            mWifiLogProto.numLastResortWatchdogTriggersWithBadAuthentication++;
+        }
+    }
+    /**
+     * Increment count of triggers with atleast one bad dhcp network
+     */
+    public void incrementNumLastResortWatchdogTriggersWithBadDhcp() {
+        synchronized (mLock) {
+            mWifiLogProto.numLastResortWatchdogTriggersWithBadDhcp++;
+        }
+    }
+    /**
+     * Increment count of triggers with atleast one bad other network
+     */
+    public void incrementNumLastResortWatchdogTriggersWithBadOther() {
+        synchronized (mLock) {
+            mWifiLogProto.numLastResortWatchdogTriggersWithBadOther++;
+        }
+    }
+
+    /**
      * Increment number of times connectivity watchdog confirmed pno is working
      */
     public void incrementNumConnectivityWatchdogPnoGood() {
@@ -798,6 +879,26 @@ public class WifiMetrics {
                         + mWifiLogProto.numConnectivityWatchdogBackgroundGood);
                 pw.println("mWifiLogProto.numConnectivityWatchdogBackgroundBad="
                         + mWifiLogProto.numConnectivityWatchdogBackgroundBad);
+                pw.println("mWifiLogProto.numLastResortWatchdogTriggers="
+                        + mWifiLogProto.numLastResortWatchdogTriggers);
+                pw.println("mWifiLogProto.numLastResortWatchdogBadAssociationNetworksTotal="
+                        + mWifiLogProto.numLastResortWatchdogBadAssociationNetworksTotal);
+                pw.println("mWifiLogProto.numLastResortWatchdogBadAuthenticationNetworksTotal="
+                        + mWifiLogProto.numLastResortWatchdogBadAuthenticationNetworksTotal);
+                pw.println("mWifiLogProto.numLastResortWatchdogBadDhcpNetworksTotal="
+                        + mWifiLogProto.numLastResortWatchdogBadDhcpNetworksTotal);
+                pw.println("mWifiLogProto.numLastResortWatchdogBadOtherNetworksTotal="
+                        + mWifiLogProto.numLastResortWatchdogBadOtherNetworksTotal);
+                pw.println("mWifiLogProto.numLastResortWatchdogAvailableNetworksTotal="
+                        + mWifiLogProto.numLastResortWatchdogAvailableNetworksTotal);
+                pw.println("mWifiLogProto.numLastResortWatchdogTriggersWithBadAssociation="
+                        + mWifiLogProto.numLastResortWatchdogTriggersWithBadAssociation);
+                pw.println("mWifiLogProto.numLastResortWatchdogTriggersWithBadAuthentication="
+                        + mWifiLogProto.numLastResortWatchdogTriggersWithBadAuthentication);
+                pw.println("mWifiLogProto.numLastResortWatchdogTriggersWithBadDhcp="
+                        + mWifiLogProto.numLastResortWatchdogTriggersWithBadDhcp);
+                pw.println("mWifiLogProto.numLastResortWatchdogTriggersWithBadOther="
+                        + mWifiLogProto.numLastResortWatchdogTriggersWithBadOther);
             }
         }
     }
