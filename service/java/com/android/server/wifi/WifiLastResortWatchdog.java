@@ -78,6 +78,12 @@ public class WifiLastResortWatchdog {
     // successfully connecting or a new network (SSID) becomes available to connect to.
     private boolean mWatchdogAllowedToTrigger = true;
 
+    private WifiMetrics mWifiMetrics;
+
+    WifiLastResortWatchdog(WifiMetrics wifiMetrics) {
+        mWifiMetrics = wifiMetrics;
+    }
+
     /**
      * Refreshes recentAvailableNetworks with the latest available networks
      * Adds new networks, removes old ones that have timed out. Should be called after Wifi
@@ -325,11 +331,35 @@ public class WifiLastResortWatchdog {
     }
 
     /**
-     * Update WifiMetrics with various Watchdog stats (trigger counts, tracked network count)
+     * Update WifiMetrics with various Watchdog stats (trigger counts, failed network counts)
      */
     private void incrementWifiMetricsTriggerCounts() {
         if (VDBG) Log.v(TAG, "incrementWifiMetricsTriggerCounts.");
-        // <TODO>
+        mWifiMetrics.incrementNumLastResortWatchdogTriggers();
+        mWifiMetrics.addCountToNumLastResortWatchdogAvailableNetworksTotal(
+                mSsidFailureCount.size());
+        // Number of networks over each failure type threshold, present at trigger time
+        int badAuth = 0;
+        int badAssoc = 0;
+        int badDhcp = 0;
+        for (Map.Entry<String, Pair<AvailableNetworkFailureCount, Integer>> entry
+                : mSsidFailureCount.entrySet()) {
+            badAuth += (entry.getValue().first.authenticationFailure >= FAILURE_THRESHOLD) ? 1 : 0;
+            badAssoc += (entry.getValue().first.associationRejection >= FAILURE_THRESHOLD) ? 1 : 0;
+            badDhcp += (entry.getValue().first.dhcpFailure >= FAILURE_THRESHOLD) ? 1 : 0;
+        }
+        if (badAuth > 0) {
+            mWifiMetrics.addCountToNumLastResortWatchdogBadAuthenticationNetworksTotal(badAuth);
+            mWifiMetrics.incrementNumLastResortWatchdogTriggersWithBadAuthentication();
+        }
+        if (badAssoc > 0) {
+            mWifiMetrics.addCountToNumLastResortWatchdogBadAssociationNetworksTotal(badAssoc);
+            mWifiMetrics.incrementNumLastResortWatchdogTriggersWithBadAssociation();
+        }
+        if (badDhcp > 0) {
+            mWifiMetrics.addCountToNumLastResortWatchdogBadDhcpNetworksTotal(badDhcp);
+            mWifiMetrics.incrementNumLastResortWatchdogTriggersWithBadDhcp();
+        }
     }
 
     /**
