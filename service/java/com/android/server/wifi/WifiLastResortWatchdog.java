@@ -128,8 +128,10 @@ public class WifiLastResortWatchdog {
                     }
                     mSsidFailureCount.put(ssid, ssidFailsAndApCount);
                 }
-                // refresh config
-                availableNetworkFailureCount.config = config;
+                // refresh config if it is not null
+                if (config != null) {
+                    availableNetworkFailureCount.config = config;
+                }
                 // If we saw a network, set its Age to -1 here, aging iteration will set it to 0
                 availableNetworkFailureCount.age = -1;
                 mRecentAvailableNetworks.put(bssid, availableNetworkFailureCount);
@@ -185,6 +187,7 @@ public class WifiLastResortWatchdog {
 
         // Have we met conditions to trigger the Watchdog Wifi restart?
         boolean isRestartNeeded = checkTriggerCondition();
+        if (VDBG) Log.v(TAG, "isRestartNeeded = " + isRestartNeeded);
         if (isRestartNeeded) {
             // Stop the watchdog from triggering until re-enabled
             setWatchdogTriggerEnabled(false);
@@ -292,7 +295,7 @@ public class WifiLastResortWatchdog {
      * @return is the trigger condition true
      */
     private boolean checkTriggerCondition() {
-        if (VDBG) Log.v(TAG, "checkTriggerCondition:");
+        if (VDBG) Log.v(TAG, "checkTriggerCondition.");
         // Don't check Watchdog trigger if wifi is in a connected state
         // (This should not occur, but we want to protect against any race conditions)
         if (mWifiIsConnected) return false;
@@ -492,8 +495,8 @@ public class WifiLastResortWatchdog {
          */
         public int age = 0;
 
-        AvailableNetworkFailureCount(WifiConfiguration config) {
-            config = config;
+        AvailableNetworkFailureCount(WifiConfiguration configParam) {
+            this.config = configParam;
         }
 
         /**
@@ -525,7 +528,7 @@ public class WifiLastResortWatchdog {
 
         public String toString() {
             return  ssid + ", HasEverConnected: " + ((config != null)
-                    ? config.getNetworkSelectionStatus().getHasEverConnected() : false)
+                    ? config.getNetworkSelectionStatus().getHasEverConnected() : "null_config")
                     + ", Failures: {"
                     + "Assoc: " + associationRejection
                     + ", Auth: " + authenticationFailure

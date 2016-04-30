@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
 import android.net.wifi.WifiConfiguration;
@@ -1471,5 +1472,179 @@ public class WifiLastResortWatchdogTest {
         verify(mWifiMetrics, times(1)).incrementNumLastResortWatchdogTriggersWithBadAssociation();
         verify(mWifiMetrics, times(1)).addCountToNumLastResortWatchdogBadDhcpNetworksTotal(3);
         verify(mWifiMetrics, times(1)).incrementNumLastResortWatchdogTriggersWithBadDhcp();
+    }
+
+    /**
+     * Case 21: Test config updates where new config is null.
+     * Create a scan result with an associated config and update the available networks list.
+     * Repeat this with a second scan result where the config is null.
+     * Expected behavior: The stored config should not be lost overwritten.
+     */
+    @Test
+    public void testUpdateNetworkWithNullConfig() {
+        List<Pair<ScanDetail, WifiConfiguration>> candidates =
+                new ArrayList<Pair<ScanDetail, WifiConfiguration>>();
+        String ssid = mSsids[0].replaceAll("^\"+", "").replaceAll("\"+$", "");
+        ScanDetail scanDetail = new ScanDetail(WifiSsid.createFromAsciiEncoded(ssid),
+                mBssids[0], mCaps[0], mLevels[0], mFrequencies[0], System.currentTimeMillis(), 0);
+        WifiConfiguration config = mock(WifiConfiguration.class);
+        WifiConfiguration.NetworkSelectionStatus networkSelectionStatus =
+                mock(WifiConfiguration.NetworkSelectionStatus.class);
+        when(config.getNetworkSelectionStatus()).thenReturn(networkSelectionStatus);
+        when(networkSelectionStatus.getHasEverConnected())
+                .thenReturn(true);
+        candidates.add(Pair.create(scanDetail, config));
+        mLastResortWatchdog.updateAvailableNetworks(candidates);
+
+        candidates.clear();
+
+        candidates.add(Pair.create(scanDetail, null));
+        mLastResortWatchdog.updateAvailableNetworks(candidates);
+
+        boolean watchdogTriggered = false;
+        for (int i = 0; i < WifiLastResortWatchdog.FAILURE_THRESHOLD; i++) {
+            watchdogTriggered = mLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(
+                    mSsids[0], mBssids[0], WifiLastResortWatchdog.FAILURE_CODE_AUTHENTICATION);
+        }
+        assertEquals(true, watchdogTriggered);
+    }
+
+    /**
+     * Case 22: Test config updates where hasEverConnected goes from false to true.
+     * Create a scan result with an associated config and update the available networks list.
+     * Repeat this with a second scan result where the config value for hasEverConnected
+     * is true.
+     * Expected behavior: The stored config should not be lost overwritten.
+     */
+    @Test
+    public void testUpdateNetworkWithHasEverConnectedTrue() {
+        List<Pair<ScanDetail, WifiConfiguration>> candidates =
+                new ArrayList<Pair<ScanDetail, WifiConfiguration>>();
+        String ssid = mSsids[0].replaceAll("^\"+", "").replaceAll("\"+$", "");
+        ScanDetail scanDetail = new ScanDetail(WifiSsid.createFromAsciiEncoded(ssid),
+                mBssids[0], mCaps[0], mLevels[0], mFrequencies[0], System.currentTimeMillis(), 0);
+        WifiConfiguration configHasEverConnectedFalse = mock(WifiConfiguration.class);
+        WifiConfiguration.NetworkSelectionStatus networkSelectionStatusFalse =
+                mock(WifiConfiguration.NetworkSelectionStatus.class);
+        when(configHasEverConnectedFalse.getNetworkSelectionStatus())
+                .thenReturn(networkSelectionStatusFalse);
+        when(networkSelectionStatusFalse.getHasEverConnected())
+                .thenReturn(false);
+        candidates.add(Pair.create(scanDetail, configHasEverConnectedFalse));
+        mLastResortWatchdog.updateAvailableNetworks(candidates);
+
+        boolean watchdogTriggered = false;
+        for (int i = 0; i < WifiLastResortWatchdog.FAILURE_THRESHOLD; i++) {
+            watchdogTriggered = mLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(
+                    mSsids[0], mBssids[0], WifiLastResortWatchdog.FAILURE_CODE_AUTHENTICATION);
+        }
+        assertEquals(false, watchdogTriggered);
+
+        candidates.clear();
+
+        WifiConfiguration configHasEverConnectedTrue = mock(WifiConfiguration.class);
+        WifiConfiguration.NetworkSelectionStatus networkSelectionStatusTrue =
+                mock(WifiConfiguration.NetworkSelectionStatus.class);
+        when(configHasEverConnectedTrue.getNetworkSelectionStatus())
+                .thenReturn(networkSelectionStatusTrue);
+        when(networkSelectionStatusTrue.getHasEverConnected())
+                .thenReturn(true);
+        candidates.add(Pair.create(scanDetail, configHasEverConnectedTrue));
+        mLastResortWatchdog.updateAvailableNetworks(candidates);
+
+        watchdogTriggered = mLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(
+                mSsids[0], mBssids[0], WifiLastResortWatchdog.FAILURE_CODE_AUTHENTICATION);
+        assertEquals(true, watchdogTriggered);
+    }
+
+    /**
+     * Case 23: Test config updates where hasEverConnected goes from true to false.
+     * Create a scan result with an associated config and update the available networks list.
+     * Repeat this with a second scan result where hasEverConnected is false.
+     * Expected behavior: The stored config should not be lost overwritten.
+     */
+    @Test
+    public void testUpdateNetworkWithHasEverConnectedFalse() {
+        List<Pair<ScanDetail, WifiConfiguration>> candidates =
+                new ArrayList<Pair<ScanDetail, WifiConfiguration>>();
+        String ssid = mSsids[0].replaceAll("^\"+", "").replaceAll("\"+$", "");
+        ScanDetail scanDetail = new ScanDetail(WifiSsid.createFromAsciiEncoded(ssid),
+                mBssids[0], mCaps[0], mLevels[0], mFrequencies[0], System.currentTimeMillis(), 0);
+
+        WifiConfiguration configHasEverConnectedTrue = mock(WifiConfiguration.class);
+        WifiConfiguration.NetworkSelectionStatus networkSelectionStatusTrue =
+                mock(WifiConfiguration.NetworkSelectionStatus.class);
+        when(configHasEverConnectedTrue.getNetworkSelectionStatus())
+                .thenReturn(networkSelectionStatusTrue);
+        when(networkSelectionStatusTrue.getHasEverConnected())
+                .thenReturn(true);
+        candidates.add(Pair.create(scanDetail, configHasEverConnectedTrue));
+        mLastResortWatchdog.updateAvailableNetworks(candidates);
+
+        boolean watchdogTriggered = false;
+        for (int i = 0; i < WifiLastResortWatchdog.FAILURE_THRESHOLD; i++) {
+            watchdogTriggered = mLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(
+                    mSsids[0], mBssids[0], WifiLastResortWatchdog.FAILURE_CODE_AUTHENTICATION);
+        }
+        assertEquals(true, watchdogTriggered);
+
+        candidates.clear();
+
+        WifiConfiguration configHasEverConnectedFalse = mock(WifiConfiguration.class);
+        WifiConfiguration.NetworkSelectionStatus networkSelectionStatusFalse =
+                mock(WifiConfiguration.NetworkSelectionStatus.class);
+        when(configHasEverConnectedFalse.getNetworkSelectionStatus())
+                .thenReturn(networkSelectionStatusFalse);
+        when(networkSelectionStatusFalse.getHasEverConnected())
+                .thenReturn(false);
+        candidates.add(Pair.create(scanDetail, configHasEverConnectedFalse));
+        mLastResortWatchdog.updateAvailableNetworks(candidates);
+
+        for (int i = 0; i < WifiLastResortWatchdog.FAILURE_THRESHOLD; i++) {
+            watchdogTriggered = mLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(
+                    mSsids[0], mBssids[0], WifiLastResortWatchdog.FAILURE_CODE_AUTHENTICATION);
+        }
+        assertEquals(false, watchdogTriggered);
+    }
+
+    /**
+     * Case 24: Check toString method for accurate hasEverConnected value in
+     * AvailableNetworkFailureCount objects.
+     * Create an AvailableNetworkFailureCount instance and check output of toString method.
+     * Expected behavior:  String contains HasEverConnected setting or null_config if there is not
+     * an associated config.
+     */
+    @Test
+    public void testHasEverConnectedValueInAvailableNetworkFailureCountToString() {
+        // Check with HasEverConnected true
+        WifiConfiguration configHasEverConnectedTrue = mock(WifiConfiguration.class);
+        WifiConfiguration.NetworkSelectionStatus networkSelectionStatusTrue =
+                mock(WifiConfiguration.NetworkSelectionStatus.class);
+        when(configHasEverConnectedTrue.getNetworkSelectionStatus())
+                .thenReturn(networkSelectionStatusTrue);
+        when(networkSelectionStatusTrue.getHasEverConnected()).thenReturn(true);
+        WifiLastResortWatchdog.AvailableNetworkFailureCount withConfigHECTrue =
+                new WifiLastResortWatchdog.AvailableNetworkFailureCount(configHasEverConnectedTrue);
+        String output = withConfigHECTrue.toString();
+        assertTrue(output.contains("HasEverConnected: true"));
+
+        // check with HasEverConnected false
+        WifiConfiguration configHasEverConnectedFalse = mock(WifiConfiguration.class);
+        WifiConfiguration.NetworkSelectionStatus networkSelectionStatusFalse =
+                mock(WifiConfiguration.NetworkSelectionStatus.class);
+        when(configHasEverConnectedFalse.getNetworkSelectionStatus())
+                .thenReturn(networkSelectionStatusFalse);
+        when(networkSelectionStatusFalse.getHasEverConnected()).thenReturn(false);
+        WifiLastResortWatchdog.AvailableNetworkFailureCount withConfigHECFalse =
+                new WifiLastResortWatchdog.AvailableNetworkFailureCount(
+                        configHasEverConnectedFalse);
+        output = withConfigHECFalse.toString();
+        assertTrue(output.contains("HasEverConnected: false"));
+
+        // Check with a null config
+        WifiLastResortWatchdog.AvailableNetworkFailureCount withNullConfig =
+                new WifiLastResortWatchdog.AvailableNetworkFailureCount(null);
+        output = withNullConfig.toString();
+        assertTrue(output.contains("HasEverConnected: null_config"));
     }
 }
