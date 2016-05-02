@@ -18,6 +18,7 @@ package com.android.server.wifi;
 
 import static com.android.server.wifi.WifiConfigurationTestUtil.generateWifiConfig;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
 
 import android.app.AlarmManager;
@@ -441,5 +442,37 @@ public class WifiConnectivityManagerTest {
         // Verify that all the connection attempts went through
         verify(mWifiStateMachine, times(numAttempts)).autoConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
+    }
+
+    /**
+     *  PNO retry for low RSSI networks.
+     *
+     * Expected behavior: WifiConnectivityManager doubles the low RSSI
+     * network retry delay value after QNS skips the PNO scan results
+     * because of their low RSSI values.
+     */
+    @Test
+    public void PnoRetryForLowRssiNetwork() {
+        when(mWifiQNS.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyObject(),
+              anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(null);
+
+        // Set screen to off
+        mWifiConnectivityManager.handleScreenStateChanged(false);
+
+        // Get the current retry delay value
+        int lowRssiNetworkRetryDelayStartValue = mWifiConnectivityManager
+                .getLowRssiNetworkRetryDelay();
+
+        // Set WiFi to disconnected state to trigger PNO scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        // Get the retry delay value after QNS didn't select a
+        // network candicate from the PNO scan results.
+        int lowRssiNetworkRetryDelayAfterPnoValue = mWifiConnectivityManager
+                .getLowRssiNetworkRetryDelay();
+
+        assertEquals(lowRssiNetworkRetryDelayStartValue * 2,
+            lowRssiNetworkRetryDelayAfterPnoValue);
     }
 }
