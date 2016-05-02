@@ -117,6 +117,7 @@ public class WifiConnectivityManager {
     private int mScanRestartCount = 0;
     private int mSingleScanRestartCount = 0;
     private int mTotalConnectivityAttemptsRateLimited = 0;
+    private String mLastConnectionAttemptBssid = null;
 
     // PNO settings
     private int mMin5GHzRssi;
@@ -468,8 +469,15 @@ public class WifiConnectivityManager {
 
         String targetBssid = scanResultCandidate.BSSID;
         String targetAssociationId = candidate.SSID + " : " + targetBssid;
-        if (targetBssid != null && targetBssid.equals(mWifiInfo.getBSSID())
-                    && SupplicantState.isConnecting(mWifiInfo.getSupplicantState())) {
+
+        // Check if we are already connected or in the process of connecting to the target
+        // BSSID. mWifiInfo.mBSSID tracks the currently connected BSSID. This is checked just
+        // in case the firmware automatically roamed to a BSSID different from what QNS
+        // selected.
+        if (targetBssid != null
+                && (targetBssid.equals(mLastConnectionAttemptBssid)
+                    || targetBssid.equals(mWifiInfo.getBSSID()))
+                && SupplicantState.isConnecting(mWifiInfo.getSupplicantState())) {
             localLog("connectToNetwork: Either already connected "
                     + "or is connecting to " + targetAssociationId);
             return;
@@ -482,6 +490,8 @@ public class WifiConnectivityManager {
             return;
         }
         noteConnectionAttempt(currentTimeMillis);
+
+        mLastConnectionAttemptBssid = targetBssid;
 
         WifiConfiguration currentConnectedNetwork = mConfigManager
                 .getWifiConfiguration(mWifiInfo.getNetworkId());
@@ -889,8 +899,8 @@ public class WifiConnectivityManager {
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("Dump of WifiConnectivityManager");
         pw.println("WifiConnectivityManager - Log Begin ----");
-        pw.println("WifiConnectivityManager - Number of connectivity attempts rate limited: " +
-                mTotalConnectivityAttemptsRateLimited);
+        pw.println("WifiConnectivityManager - Number of connectivity attempts rate limited: "
+                + mTotalConnectivityAttemptsRateLimited);
         mLocalLog.dump(fd, pw, args);
         pw.println("WifiConnectivityManager - Log End ----");
     }
