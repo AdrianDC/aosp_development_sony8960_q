@@ -234,7 +234,7 @@ class WifiLogger extends BaseWifiLogger {
         byte[] mDriverStateDump;
         byte[] alertData;
         LimitedCircularArray<String> kernelLogLines;
-        LimitedCircularArray<String> logcatLines;
+        ArrayList<String> logcatLines;
 
         void clearVerboseLogs() {
             fwMemoryDump = null;
@@ -509,7 +509,7 @@ class WifiLogger extends BaseWifiLogger {
             }
         }
 
-        report.logcatLines = getOutput("logcat -d", 127);
+        report.logcatLines = getLogcat(127);
         report.kernelLogLines = getKernelLog(127);
 
         if (captureFWDump) {
@@ -564,28 +564,24 @@ class WifiLogger extends BaseWifiLogger {
         return result;
     }
 
-    private LimitedCircularArray<String> getOutput(String cmdLine, int maxLines) {
-        LimitedCircularArray<String> lines = new LimitedCircularArray<String>(maxLines);
+    private ArrayList<String> getLogcat(int maxLines) {
+        ArrayList<String> lines = new ArrayList<String>(maxLines);
         try {
-            if (DBG) Log.d(TAG, "Executing '" + cmdLine + "' ...");
-            Process process = Runtime.getRuntime().exec(cmdLine);
+            Process process = Runtime.getRuntime().exec(String.format("logcat -t %d", maxLines));
             BufferedReader reader = new BufferedReader(
                     new InputStreamReader(process.getInputStream()));
             String line;
             while ((line = reader.readLine()) != null) {
-                lines.addLast(line);
+                lines.add(line);
             }
             reader = new BufferedReader(
                     new InputStreamReader(process.getErrorStream()));
             while ((line = reader.readLine()) != null) {
-                lines.addLast(line);
+                lines.add(line);
             }
             process.waitFor();
-            if (DBG) Log.d(TAG, "Lines added for '" + cmdLine + "'.");
-        } catch (InterruptedException e) {
-            Log.e(TAG, "Could not wait for '" + cmdLine + "': " + e);
-        } catch (IOException e) {
-            Log.e(TAG, "Could not open '" + cmdLine + "': " + e);
+        } catch (InterruptedException|IOException e) {
+            Log.e(TAG, "Exception while capturing logcat" + e);
         }
         return lines;
     }
