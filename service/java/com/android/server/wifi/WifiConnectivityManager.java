@@ -35,6 +35,7 @@ import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.internal.R;
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.util.ScanDetailUtil;
 
 import java.io.FileDescriptor;
@@ -64,6 +65,10 @@ public class WifiConnectivityManager {
     // PNO scan interval in milli-seconds. This is the scan
     // performed when screen is off and connected.
     private static final int CONNECTED_PNO_SCAN_INTERVAL_MS = 160 * 1000; // 160 seconds
+    // When a network is found by PNO scan but gets rejected by QNS due to its
+    // low RSSI value, scan will be reschduled in an exponential back off manner.
+    private static final int LOW_RSSI_NETWORK_RETRY_START_DELAY_MS = 20 * 1000; // 20 seconds
+    private static final int LOW_RSSI_NETWORK_RETRY_MAX_DELAY_MS = 80 * 1000; // 80 seconds
     // Maximum number of retries when starting a scan failed
     private static final int MAX_SCAN_RESTART_ALLOWED = 5;
     // Number of milli-seconds to delay before retry starting
@@ -174,8 +179,11 @@ public class WifiConnectivityManager {
      * Handles 'onResult' callbacks for the Periodic, Single & Pno ScanListener.
      * Executes selection of potential network candidates, initiation of connection attempt to that
      * network.
+     *
+     * @return true - if a candidate is selected by QNS
+     *         false - if no candidate is selected by QNS
      */
-    private void handleScanResults(List<ScanDetail> scanDetails, String listenerName) {
+    private boolean handleScanResults(List<ScanDetail> scanDetails, String listenerName) {
         localLog(listenerName + " onResults: start QNS");
         WifiConfiguration candidate =
                 mQualifiedNetworkSelector.selectQualifiedNetwork(mForceSelectNetwork,
@@ -188,8 +196,10 @@ public class WifiConnectivityManager {
         if (candidate != null) {
             localLog(listenerName + ": QNS candidate-" + candidate.SSID);
             connectToNetwork(candidate);
+            return true;
+        } else {
+            return false;
         }
-
     }
 
     // Periodic scan results listener. A periodic scan is initiated when
@@ -217,7 +227,7 @@ public class WifiConnectivityManager {
 
             // reschedule the scan
             if (mScanRestartCount++ < MAX_SCAN_RESTART_ALLOWED) {
-                scheduleDelayedConnectivityScan();
+                scheduleDelayedConnectivityScan(RESTART_SCAN_DELAY_MS);
             } else {
                 mScanRestartCount = 0;
                 Log.e(TAG, "Failed to successfully start periodic scan for "
@@ -316,9 +326,22 @@ public class WifiConnectivityManager {
     // A PNO scan is initiated when screen is off.
     private class PnoScanListener implements WifiScanner.PnoScanListener {
         private List<ScanDetail> mScanDetails = new ArrayList<ScanDetail>();
+        private int mLowRssiNetworkRetryDelay =
+                LOW_RSSI_NETWORK_RETRY_START_DELAY_MS;
 
         public void clearScanDetails() {
             mScanDetails.clear();
+        }
+
+        // Reset to the start value when either a non-PNO scan is started or
+        // QNS selects a candidate from the PNO scan results.
+        public void resetLowRssiNetworkRetryDelay() {
+            mLowRssiNetworkRetryDelay = LOW_RSSI_NETWORK_RETRY_START_DELAY_MS;
+        }
+
+        @VisibleForTesting
+        public int getLowRssiNetworkRetryDelay() {
+            return mLowRssiNetworkRetryDelay;
         }
 
         @Override
@@ -337,7 +360,7 @@ public class WifiConnectivityManager {
 
             // reschedule the scan
             if (mScanRestartCount++ < MAX_SCAN_RESTART_ALLOWED) {
-                scheduleDelayedConnectivityScan();
+                scheduleDelayedConnectivityScan(RESTART_SCAN_DELAY_MS);
             } else {
                 mScanRestartCount = 0;
                 Log.e(TAG, "Failed to successfully start PNO scan for "
@@ -369,8 +392,23 @@ public class WifiConnectivityManager {
             for (ScanResult result: results) {
                 mScanDetails.add(ScanDetailUtil.toScanDetail(result));
             }
-            handleScanResults(mScanDetails, "PnoScanListener");
+
+            boolean wasConnectAttempted;
+            wasConnectAttempted = handleScanResults(mScanDetails, "PnoScanListener");
             clearScanDetails();
+
+            if (!wasConnectAttempted) {
+                // The scan results were rejected by QNS due to low RSSI values
+                if (mLowRssiNetworkRetryDelay > LOW_RSSI_NETWORK_RETRY_MAX_DELAY_MS) {
+                    mLowRssiNetworkRetryDelay = LOW_RSSI_NETWORK_RETRY_MAX_DELAY_MS;
+                }
+                scheduleDelayedConnectivityScan(mLowRssiNetworkRetryDelay);
+
+                // Set up the delay value for next retry.
+                mLowRssiNetworkRetryDelay *= 2;
+            } else {
+                resetLowRssiNetworkRetryDelay();
+            }
         }
     }
 
@@ -549,11 +587,13 @@ public class WifiConnectivityManager {
         }
     }
 
-    // Start a single scan for watchdog
+    // Start a single scan
     private void startSingleScan() {
         if (!mWifiEnabled || !mWifiConnectivityManagerEnabled) {
             return;
         }
+
+        mPnoScanListener.resetLowRssiNetworkRetryDelay();
 
         ScanSettings settings = new ScanSettings();
         settings.band = getScanBand();
@@ -580,6 +620,8 @@ public class WifiConnectivityManager {
 
     // Start a periodic scan when screen is on
     private void startPeriodicScan() {
+        mPnoScanListener.resetLowRssiNetworkRetryDelay();
+
         // Due to b/28020168, timer based single scan will be scheduled every
         // PERIODIC_SCAN_INTERVAL_MS to provide periodic scan.
         if (!ENABLE_BACKGROUND_SCAN) {
@@ -707,12 +749,12 @@ public class WifiConnectivityManager {
                             mRestartSingleScanListener, mEventHandler);
     }
 
-    // Set up timer to start a delayed scan after RESTART_SCAN_DELAY_MS
-    private void scheduleDelayedConnectivityScan() {
+    // Set up timer to start a delayed scan after msFromNow milli-seconds
+    private void scheduleDelayedConnectivityScan(int msFromNow) {
         localLog("scheduleDelayedConnectivityScan");
 
         mAlarmManager.set(AlarmManager.RTC_WAKEUP,
-                            mClock.currentTimeMillis() + RESTART_SCAN_DELAY_MS,
+                            mClock.currentTimeMillis() + msFromNow,
                             "WifiConnectivityManager Restart Scan",
                             mRestartScanListener, mEventHandler);
 
@@ -903,5 +945,10 @@ public class WifiConnectivityManager {
                 + mTotalConnectivityAttemptsRateLimited);
         mLocalLog.dump(fd, pw, args);
         pw.println("WifiConnectivityManager - Log End ----");
+    }
+
+    @VisibleForTesting
+    int getLowRssiNetworkRetryDelay() {
+        return mPnoScanListener.getLowRssiNetworkRetryDelay();
     }
 }
