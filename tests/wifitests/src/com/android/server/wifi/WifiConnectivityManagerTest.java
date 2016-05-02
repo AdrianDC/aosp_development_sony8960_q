@@ -25,6 +25,7 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.net.wifi.ScanResult;
 import android.net.wifi.ScanResult.InformationElement;
+import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiScanner;
@@ -208,6 +209,7 @@ public class WifiConnectivityManagerTest {
 
         when(wifiInfo.getNetworkId()).thenReturn(WifiConfiguration.INVALID_NETWORK_ID);
         when(wifiInfo.getBSSID()).thenReturn(null);
+        when(wifiInfo.getSupplicantState()).thenReturn(SupplicantState.DISCONNECTED);
 
         return wifiInfo;
     }
