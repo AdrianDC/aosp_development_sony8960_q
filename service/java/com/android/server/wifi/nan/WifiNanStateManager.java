@@ -682,16 +682,14 @@ public class WifiNanStateManager {
                 case NOTIFICATION_TYPE_NAN_DOWN: {
                     int reason = msg.arg2;
 
-                    onNanDownLocal(reason);
-
                     /*
-                     * Possibly also clear out all remaining Messages in queue
-                     * but they should also function correctly after this
-                     * (primarily a NOP).
+                     * TODO: b/28615938. Use reason code to determine whether or not need clean-up
+                     * local state (only needed if NAN_DOWN is due to internal firmware reason, e.g.
+                     * concurrency, rather than due to a requested shutdown).
                      */
-                    mCurrentCommand = null;
-                    mCurrentTransactionId = TRANSACTION_ID_IGNORE;
-                    transitionTo(mWaitState);
+
+                    onNanDownLocal();
+
                     break;
                 }
                 default:
@@ -998,20 +996,6 @@ public class WifiNanStateManager {
 
         if (!mUsageEnabled) {
             Log.w(TAG, "connect(): called with mUsageEnabled=false");
-            try {
-                /*
-                 * calling here explicitly (vs. a NOP) since otherwise there
-                 * will be no indication whatsoever to the caller to put it back
-                 * into an UNCONNECTED state. While theoretically they shouldn't
-                 * be calling this without checking isUsageEnabled() or waiting
-                 * for the broadcast - there is always a possibility that
-                 * between then and connect() the usage was disabled (e.g. Wi-Fi
-                 * down).
-                 */
-                callback.onNanDown(WifiNanEventCallback.REASON_REQUESTED);
-            } catch (RemoteException e) {
-                Log.w(TAG, "onNanDown: RemoteException - ignored: " + e);
-            }
             return false;
         }
 
@@ -1210,7 +1194,7 @@ public class WifiNanStateManager {
 
         mUsageEnabled = false;
         WifiNanNative.getInstance().disable((short) 0);
-        onNanDownLocal(WifiNanEventCallback.REASON_REQUESTED);
+        onNanDownLocal();
 
         sendNanStateChangedBroadcast(false);
     }
@@ -1548,19 +1532,11 @@ public class WifiNanStateManager {
         data.second.onMessageReceived(requestorInstanceId, peerMac, message, messageLength);
     }
 
-    private void onNanDownLocal(int reason) {
+    private void onNanDownLocal() {
         if (VDBG) {
-            Log.v(TAG, "onNanDown: reason=" + reason);
+            Log.v(TAG, "onNanDown");
         }
 
-        for (int i = 0; i < mClients.size(); ++i) {
-            WifiNanClientState client = mClients.valueAt(i);
-            try {
-                client.getCallback().onNanDown(reason);
-            } catch (RemoteException e) {
-                Log.w(TAG, "onNanDownLocal onNanDown(): RemoteException (FYI): " + e);
-            }
-        }
         mClients.clear();
         mCurrentNanConfiguration = null;
     }

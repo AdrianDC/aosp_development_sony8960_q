@@ -130,19 +130,18 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).disable((short) 0);
         validateCorrectNanStatusChangeBroadcast(inOrder, false);
 
-        // (3) try connecting and validate that get (another) onNanDown
+        // (3) try connecting and validate that get nothing (app should be aware of non-availability
+        // through state change broadcast and/or query API)
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onNanDown(WifiNanEventCallback.REASON_REQUESTED);
 
         verifyNoMoreInteractions(mMockContext, mMockNative, mockCallback);
     }
 
     /**
-     * Validate that when API usage is disabled while in the middle of a
-     * connection that internal state is cleaned-up and that correct callbacks
-     * (onNanDown) are dispatched, and that all subsequent operations are NOP.
-     * Then enable usage again and validate that operates correctly.
+     * Validate that when API usage is disabled while in the middle of a connection that internal
+     * state is cleaned-up, and that all subsequent operations are NOP. Then enable usage again and
+     * validate that operates correctly.
      */
     @Test
     public void testDisableUsageFlow() throws Exception {
@@ -171,14 +170,12 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
         inOrder.verify(mMockNative).disable((short) 0);
-        inOrder.verify(mockCallback).onNanDown(WifiNanEventCallback.REASON_REQUESTED);
         validateCorrectNanStatusChangeBroadcast(inOrder, false);
         validateInternalClientInfoCleanedUp(clientId);
 
         // (4) try connecting again and validate that just get an onNanDown
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onNanDown(WifiNanEventCallback.REASON_REQUESTED);
 
         // (5) disable usage again and validate that not much happens
         mDut.disableUsage();
@@ -253,11 +250,8 @@ public class WifiNanStateManagerTest {
         mDut.onNanDownNotification(reason);
         mMockLooper.dispatchAll();
 
-
         inOrder.verify(mockCallback2).onConnectSuccess();
         inOrder.verify(mockCallback2, times(2)).onIdentityChanged();
-        inOrder.verify(mockCallback1).onNanDown(reason);
-        inOrder.verify(mockCallback2).onNanDown(reason);
 
         validateInternalClientInfoCleanedUp(clientId1);
         validateInternalClientInfoCleanedUp(clientId2);
