@@ -1388,7 +1388,7 @@ static jintArray android_net_wifi_getValidChannels(JNIEnv *env, jclass cls,
 
     JNIHelper helper(env);
     wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
-    ALOGD("getting valid channels %p", handle);
+    ALOGV("getting valid channels %p", handle);
 
     static const int MaxChannels = 64;
     wifi_channel channels[64];
