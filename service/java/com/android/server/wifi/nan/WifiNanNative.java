@@ -402,6 +402,7 @@ public class WifiNanNative {
     public static final int NAN_STATUS_NAN_NOT_ALLOWED = 22;
     public static final int NAN_STATUS_NO_OTA_ACK = 23;
     public static final int NAN_STATUS_TX_FAIL = 24;
+    public static final int NAN_STATUS_ALREADY_ENABLED = 25;
 
     /* NAN Configuration Response codes */
     public static final int NAN_STATUS_INVALID_RSSI_CLOSE_VALUE = 4096;
@@ -442,6 +443,27 @@ public class WifiNanNative {
     public static final int NAN_TERMINATED_REASON_POST_DISC_ATTR_EXPIRED = 8199;
     public static final int NAN_TERMINATED_REASON_POST_DISC_LEN_EXCEEDED = 8200;
     public static final int NAN_TERMINATED_REASON_FURTHER_AVAIL_MAP_EMPTY = 8201;
+
+    /* 9000-9500 NDP Status type */
+    public static final int NAN_STATUS_NDP_UNSUPPORTED_CONCURRENCY = 9000;
+    public static final int NAN_STATUS_NDP_NAN_DATA_IFACE_CREATE_FAILED = 9001;
+    public static final int NAN_STATUS_NDP_NAN_DATA_IFACE_DELETE_FAILED = 9002;
+    public static final int NAN_STATUS_NDP_DATA_INITIATOR_REQUEST_FAILED = 9003;
+    public static final int NAN_STATUS_NDP_DATA_RESPONDER_REQUEST_FAILED = 9004;
+    public static final int NAN_STATUS_NDP_INVALID_SERVICE_INSTANCE_ID = 9005;
+    public static final int NAN_STATUS_NDP_INVALID_NDP_INSTANCE_ID = 9006;
+    public static final int NAN_STATUS_NDP_INVALID_RESPONSE_CODE = 9007;
+    public static final int NAN_STATUS_NDP_INVALID_APP_INFO_LEN = 9008;
+
+    /* OTA failures and timeouts during negotiation */
+    public static final int NAN_STATUS_NDP_MGMT_FRAME_REQUEST_FAILED = 9009;
+    public static final int NAN_STATUS_NDP_MGMT_FRAME_RESPONSE_FAILED = 9010;
+    public static final int NAN_STATUS_NDP_MGMT_FRAME_CONFIRM_FAILED = 9011;
+    public static final int NAN_STATUS_NDP_END_FAILED = 9012;
+    public static final int NAN_STATUS_NDP_MGMT_FRAME_END_REQUEST_FAILED = 9013;
+
+    /* 9500 onwards vendor specific error codes */
+    public static final int NAN_STATUS_NDP_VENDOR_SPECIFIC_ERROR = 9500;
 
     private static int translateHalStatusToNanEventCallbackReason(int halStatus) {
         switch (halStatus) {
