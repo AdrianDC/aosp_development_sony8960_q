@@ -86,6 +86,8 @@ public class WifiNanHalMock {
 
     public static native void callDisabled(String jsonArgs);
 
+    public static native void callTransmitFollowup(String jsonArgs);
+
     /**
      * initialize NAN mock
      */

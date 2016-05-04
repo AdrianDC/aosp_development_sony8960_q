@@ -593,9 +593,9 @@ public class WifiNanNative {
                 break;
             case NAN_RESPONSE_TRANSMIT_FOLLOWUP:
                 if (status == NAN_STATUS_SUCCESS) {
-                    stateMgr.onMessageSendSuccessResponse(transactionId);
+                    stateMgr.onMessageSendQueuedSuccessResponse(transactionId);
                 } else {
-                    stateMgr.onMessageSendFailResponse(transactionId,
+                    stateMgr.onMessageSendQueuedFailResponse(transactionId,
                             translateHalStatusToNanSessionCallbackReason(status));
                 }
                 break;
@@ -738,5 +738,20 @@ public class WifiNanNative {
 
         WifiNanStateManager.getInstance()
                 .onNanDownNotification(translateHalStatusToNanEventCallbackReason(status));
+    }
+
+    // callback from native
+    private static void onTransmitFollowupEvent(short transactionId, int reason) {
+        if (VDBG) {
+            Log.v(TAG, "onTransmitFollowupEvent: transactionId=" + transactionId + ", reason="
+                    + reason);
+        }
+
+        if (reason == NAN_STATUS_SUCCESS) {
+            WifiNanStateManager.getInstance().onMessageSendSuccessNotification(transactionId);
+        } else {
+            WifiNanStateManager.getInstance().onMessageSendFailNotification(transactionId,
+                    translateHalStatusToNanSessionCallbackReason(reason));
+        }
     }
 }
