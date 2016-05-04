@@ -34,6 +34,7 @@ public class WifiInjector {
     private final WifiLastResortWatchdog mWifiLastResortWatchdog =
             new WifiLastResortWatchdog(mWifiMetrics);
     private final Clock mClock = new Clock();
+    private final PropertyService mPropertyService = new SystemPropertyService();
 
     public WifiMetrics getWifiMetrics() {
         return mWifiMetrics;
@@ -45,5 +46,9 @@ public class WifiInjector {
 
     public Clock getClock() {
         return mClock;
+    }
+
+    public PropertyService getPropertyService() {
+        return mPropertyService;
     }
 }

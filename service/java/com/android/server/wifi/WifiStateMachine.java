@@ -76,6 +76,7 @@ import android.net.wifi.WpsResult.Status;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
@@ -86,7 +87,6 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemClock;
-import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.WorkSource;
@@ -199,6 +199,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private boolean mTemporarilyDisconnectWifi = false;
     private final String mPrimaryDeviceType;
     private final Clock mClock;
+    private final PropertyService mPropertyService;
     private final WifiCountryCode mCountryCode;
 
     /* Scan results handling */
@@ -1017,6 +1018,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiMetrics = mWifiInjector.getWifiMetrics();
         mWifiLastResortWatchdog = wifiInjector.getWifiLastResortWatchdog();
         mClock = wifiInjector.getClock();
+        mPropertyService = wifiInjector.getPropertyService();
         mContext = context;
         mFacade = facade;
         mWifiNative = WifiNative.getWlanNativeInterface();
@@ -1312,10 +1314,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiNative.setSupplicantLogLevel("DEBUG");
             setLogRecSize(ActivityManager.isLowRamDeviceStatic()
                     ? NUM_LOG_RECS_VERBOSE_LOW_MEMORY : NUM_LOG_RECS_VERBOSE);
+            configureVerboseHalLogging(true);
         } else {
             DBG = false;
             mWifiNative.setSupplicantLogLevel("INFO");
             setLogRecSize(NUM_LOG_RECS_NORMAL);
+            configureVerboseHalLogging(false);
         }
         mCountryCode.enableVerboseLogging(mVerboseLoggingLevel);
         mWifiLogger.startLogging(DBG);
@@ -1327,6 +1331,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         if (mWifiConnectivityManager != null) {
             mWifiConnectivityManager.enableVerboseLogging(mVerboseLoggingLevel);
         }
+    }
+
+    private static final String BUILD_TYPE_USER = "user";
+    private static final String SYSTEM_PROPERTY_LOG_CONTROL_WIFIHAL = "log.tag.WifiHAL";
+    private static final String LOGD_LEVEL_DEBUG = "D";
+    private static final String LOGD_LEVEL_VERBOSE = "V";
+    private void configureVerboseHalLogging(boolean enableVerbose) {
+        if (Build.TYPE == BUILD_TYPE_USER) {  // Verbose HAL logging not supported on user builds.
+            return;
+        }
+        mPropertyService.set(SYSTEM_PROPERTY_LOG_CONTROL_WIFIHAL,
+                enableVerbose ? LOGD_LEVEL_VERBOSE : LOGD_LEVEL_DEBUG);
     }
 
     long mLastScanPermissionUpdate = 0;
@@ -4319,23 +4335,23 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     class SupplicantStartingState extends State {
         private void initializeWpsDetails() {
             String detail;
-            detail = SystemProperties.get("ro.product.name", "");
+            detail = mPropertyService.get("ro.product.name", "");
             if (!mWifiNative.setDeviceName(detail)) {
                 loge("Failed to set device name " +  detail);
             }
-            detail = SystemProperties.get("ro.product.manufacturer", "");
+            detail = mPropertyService.get("ro.product.manufacturer", "");
             if (!mWifiNative.setManufacturer(detail)) {
                 loge("Failed to set manufacturer " + detail);
             }
-            detail = SystemProperties.get("ro.product.model", "");
+            detail = mPropertyService.get("ro.product.model", "");
             if (!mWifiNative.setModelName(detail)) {
                 loge("Failed to set model name " + detail);
             }
-            detail = SystemProperties.get("ro.product.model", "");
+            detail = mPropertyService.get("ro.product.model", "");
             if (!mWifiNative.setModelNumber(detail)) {
                 loge("Failed to set model number " + detail);
             }
-            detail = SystemProperties.get("ro.serialno", "");
+            detail = mPropertyService.get("ro.serialno", "");
             if (!mWifiNative.setSerialNumber(detail)) {
                 loge("Failed to set serial number " + detail);
             }
