@@ -2313,9 +2313,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         updateWifiMetrics();
         mWifiMetrics.dump(fd, pw, args);
         pw.println();
-        mNetworkFactory.dump(fd, pw, args);
-        mUntrustedNetworkFactory.dump(fd, pw, args);
-        pw.println();
 
         mWifiConfigManager.dump(fd, pw, args);
         pw.println();
