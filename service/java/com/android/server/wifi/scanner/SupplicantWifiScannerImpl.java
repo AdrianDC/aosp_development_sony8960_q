@@ -242,8 +242,10 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
 
         synchronized (mSettingsLock) {
             stopBatchedScan();
-            Log.d(TAG, "Starting scan num_buckets=" + settings.num_buckets + ", base_period="
+            if (DBG) {
+                Log.d(TAG, "Starting scan num_buckets=" + settings.num_buckets + ", base_period="
                     + settings.base_period_ms + " ms");
+            }
             mPendingBackgroundScanSettings = settings;
             mPendingBackgroundScanEventHandler = eventHandler;
             handleScanPeriod(); // Try to start scan immediately
@@ -427,9 +429,11 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                 boolean success = mWifiNative.scan(freqs, hiddenNetworkIdSet);
                 if (success) {
                     // TODO handle scan timeout
-                    Log.d(TAG, "Starting wifi scan for freqs=" + freqs
-                            + ", background=" + newScanSettings.backgroundScanActive
-                            + ", single=" + newScanSettings.singleScanActive);
+                    if (DBG) {
+                        Log.d(TAG, "Starting wifi scan for freqs=" + freqs
+                                + ", background=" + newScanSettings.backgroundScanActive
+                                + ", single=" + newScanSettings.singleScanActive);
+                    }
                     mLastScanSettings = newScanSettings;
                     mAlarmManager.set(AlarmManager.RTC_WAKEUP,
                             System.currentTimeMillis() + SCAN_TIMEOUT_MS,
