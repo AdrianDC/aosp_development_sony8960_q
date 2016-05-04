@@ -755,7 +755,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         mChannelHelper, resultsArray, entry.settings, -1);
                 WifiScanner.ParcelableScanData parcelableScanData =
                         new WifiScanner.ParcelableScanData(resultsToDeliver);
-                logCallback("singleScanResults",  entry.clientInfo, entry.handlerId);
+                logCallback("singleScanResults",  entry.clientInfo, entry.handlerId,
+                        describeForLog(resultsToDeliver));
                 entry.reportEvent(WifiScanner.CMD_SCAN_RESULT, 0, parcelableScanData);
                 // make sure the handler is removed
                 entry.reportEvent(WifiScanner.CMD_SINGLE_SCAN_COMPLETED, 0, null);
@@ -1184,7 +1185,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 ScanData[] resultsToDeliver =
                         mBackgroundScheduler.filterResultsForSettings(results, settings);
                 if (resultsToDeliver != null) {
-                    logCallback("backgroundScanResults", ci, handler);
+                    logCallback("backgroundScanResults", ci, handler,
+                            describeForLog(resultsToDeliver));
                     WifiScanner.ParcelableScanData parcelableScanData =
                             new WifiScanner.ParcelableScanData(resultsToDeliver);
                     ci.reportEvent(WifiScanner.CMD_SCAN_RESULT, 0, handler, parcelableScanData);
@@ -1727,7 +1729,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             for (RequestInfo<Pair<PnoSettings, ScanSettings>> entry : mActivePnoScans) {
                 ClientInfo ci = entry.clientInfo;
                 int handler = entry.handlerId;
-                logCallback("pnoNetworkFound", ci, handler);
+                logCallback("pnoNetworkFound", ci, handler, describeForLog(results));
                 ci.reportEvent(
                         WifiScanner.CMD_PNO_NETWORK_FOUND, 0, handler, parcelableScanResults);
             }
@@ -2516,14 +2518,31 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         localLog(sb.toString());
     }
 
-    void logCallback(String callback, ClientInfo ci, int id) {
+    void logCallback(String callback, ClientInfo ci, int id, String extra) {
         StringBuilder sb = new StringBuilder();
         sb.append(callback)
                 .append(": ")
                 .append(ci.toString())
                 .append(",Id=")
                 .append(id);
+        if (extra != null) {
+            sb.append(",").append(extra);
+        }
         localLog(sb.toString());
+    }
+
+    static String describeForLog(ScanData[] results) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("results=");
+        for (int i = 0; i < results.length; ++i) {
+            if (i > 0) sb.append(";");
+            sb.append(results[i].getResults().length);
+        }
+        return sb.toString();
+    }
+
+    static String describeForLog(ScanResult[] results) {
+        return "results=" + results.length;
     }
 
     static String describeTo(StringBuilder sb, ScanSettings scanSettings) {

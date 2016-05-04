@@ -292,7 +292,17 @@ public class WifiScanningServiceTest {
         Pattern logLineRegex = Pattern.compile("^.+" + type + ": ClientInfo\\[uid=\\d+\\],Id=" +
                 id + ".*$", Pattern.MULTILINE);
         assertTrue("dump did not contain log with type=" + type + ", id=" + id +
-                " for scan request: " + serviceDump + "\n",
+                ": " + serviceDump + "\n",
+                logLineRegex.matcher(serviceDump).find());
+   }
+
+    private void assertDumpContainsCallbackLog(String callback, int id, String extra) {
+        String serviceDump = dumpService();
+        String extraPattern = extra == null ? "" : "," + extra;
+        Pattern logLineRegex = Pattern.compile("^.+" + callback + ": ClientInfo\\[uid=\\d+\\],Id=" +
+                id + extraPattern + "$", Pattern.MULTILINE);
+        assertTrue("dump did not contain callback log with callback=" + callback + ", id=" + id +
+                ", extra=" + extra + ": " + serviceDump + "\n",
                 logLineRegex.matcher(serviceDump).find());
    }
 
@@ -372,7 +382,8 @@ public class WifiScanningServiceTest {
         verifySingleScanCompletedRecieved(order, handler, requestId);
         verifyNoMoreInteractions(handler);
         assertDumpContainsRequestLog("addSingleScanRequest", requestId);
-        assertDumpContainsRequestLog("singleScanResults", requestId);
+        assertDumpContainsCallbackLog("singleScanResults", requestId,
+                "results=" + results.getRawScanResults().length);
     }
 
     /**
@@ -702,6 +713,16 @@ public class WifiScanningServiceTest {
         }
         assertEquals(mWifiMetrics.getOneshotScanCount(), 3);
         assertEquals(mWifiMetrics.getScanReturnEntry(WifiMetricsProto.WifiLog.SCAN_SUCCESS), 3);
+
+        assertDumpContainsRequestLog("addSingleScanRequest", requestId1);
+        assertDumpContainsRequestLog("addSingleScanRequest", requestId2);
+        assertDumpContainsRequestLog("addSingleScanRequest", requestId3);
+        assertDumpContainsCallbackLog("singleScanResults", requestId1,
+                "results=" + results1.getRawScanResults().length);
+        assertDumpContainsCallbackLog("singleScanResults", requestId2,
+                "results=" + results2.getRawScanResults().length);
+        assertDumpContainsCallbackLog("singleScanResults", requestId3,
+                "results=" + results3.getRawScanResults().length);
     }
 
     private void doSuccessfulBackgroundScan(WifiScanner.ScanSettings requestSettings,
@@ -720,6 +741,7 @@ public class WifiScanningServiceTest {
         verifyStartBackgroundScan(order, nativeSettings);
         verifySuccessfulResponse(order, handler, 12);
         verifyNoMoreInteractions(handler);
+        assertDumpContainsRequestLog("addBackgroundScanRequest", 12);
     }
 
     /**
