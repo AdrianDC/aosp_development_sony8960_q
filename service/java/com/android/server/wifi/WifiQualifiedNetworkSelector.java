@@ -703,8 +703,8 @@ public class WifiQualifiedNetworkSelector {
 
             //check whether this scan result belong to a saved network
             boolean potentiallyEphemeral = false;
-            // This local only used to store ephemeral config for filtering scan results
-            WifiConfiguration filteredEphemeralConfig = null;
+            // Stores WifiConfiguration of potential connection candidates for scan result filtering
+            WifiConfiguration potentialEphemeralCandidate = null;
             List<WifiConfiguration> associatedWifiConfigurations =
                     mWifiConfigManager.updateSavedNetworkWithNewScanDetail(scanDetail,
                             isSupplicantTransient || isConnected || isLinkDebouncing);
@@ -717,7 +717,7 @@ public class WifiQualifiedNetworkSelector {
                 //if there are more than 1 associated network, it must be a passpoint network
                 WifiConfiguration network = associatedWifiConfigurations.get(0);
                 if (network.ephemeral) {
-                    filteredEphemeralConfig = network;
+                    potentialEphemeralCandidate = network;
                     potentiallyEphemeral =  true;
                 }
             }
@@ -731,7 +731,8 @@ public class WifiQualifiedNetworkSelector {
                         && !mWifiConfigManager.wasEphemeralNetworkDeleted(scanResult.SSID)) {
                         externalScoreEvaluator.evalUntrustedCandidate(netScore, scanResult);
                         // scanDetail is for available ephemeral network
-                        filteredScanDetails.add(Pair.create(scanDetail, filteredEphemeralConfig));
+                        filteredScanDetails.add(Pair.create(scanDetail,
+                                potentialEphemeralCandidate));
                     }
                 }
                 continue;
@@ -743,11 +744,14 @@ public class WifiQualifiedNetworkSelector {
             int highestScore = Integer.MIN_VALUE;
             int score;
             WifiConfiguration configurationCandidateForThisScan = null;
-
+            WifiConfiguration potentialCandidate = null;
             for (WifiConfiguration network : associatedWifiConfigurations) {
                 WifiConfiguration.NetworkSelectionStatus status =
                         network.getNetworkSelectionStatus();
                 status.setSeenInLastQualifiedNetworkSelection(true);
+                if (potentialCandidate == null) {
+                    potentialCandidate = network;
+                }
                 if (!status.isNetworkEnabled()) {
                     continue;
                 } else if (network.BSSID != null && !network.BSSID.equals("any")
@@ -774,6 +778,7 @@ public class WifiQualifiedNetworkSelector {
                 if (score > highestScore) {
                     highestScore = score;
                     configurationCandidateForThisScan = network;
+                    potentialCandidate = network;
                 }
                 //update the cached candidate
                 if (score > status.getCandidateScore()) {
@@ -782,7 +787,7 @@ public class WifiQualifiedNetworkSelector {
                 }
             }
             // Create potential filteredScanDetail entry
-            filteredScanDetails.add(Pair.create(scanDetail, configurationCandidateForThisScan));
+            filteredScanDetails.add(Pair.create(scanDetail, potentialCandidate));
 
             if (highestScore > currentHighestScore || (highestScore == currentHighestScore
                     && scanResultCandidate != null
