@@ -283,6 +283,19 @@ wifi_error wifi_get_driver_memory_dump_stub(wifi_interface_handle iface,
     return WIFI_ERROR_NOT_SUPPORTED;
 }
 
+wifi_error wifi_start_pkt_fate_monitoring_stub(wifi_interface_handle iface) {
+    return WIFI_ERROR_NOT_SUPPORTED;
+}
+
+wifi_error wifi_get_tx_pkt_fates_stub(wifi_interface_handle handle,
+    wifi_tx_report *tx_report_bufs, size_t n_requested_fates, size_t *n_provided_fates) {
+    return WIFI_ERROR_NOT_SUPPORTED;
+}
+
+wifi_error wifi_get_rx_pkt_fates_stub(wifi_interface_handle handle,
+    wifi_rx_report *rx_report_bufs, size_t n_requested_fates, size_t *n_provided_fates) {
+    return WIFI_ERROR_NOT_SUPPORTED;
+}
 wifi_error wifi_nan_enable_request_stub(transaction_id id,
                               wifi_interface_handle iface,
                               NanEnableRequest* msg) {
@@ -428,6 +441,9 @@ int init_wifi_stub_hal_func_table(wifi_hal_fn *hal_fn) {
     hal_fn->wifi_get_wake_reason_stats = wifi_get_wake_reason_stats_stub;
     hal_fn->wifi_configure_nd_offload = wifi_configure_nd_offload_stub;
     hal_fn->wifi_get_driver_memory_dump = wifi_get_driver_memory_dump_stub;
+    hal_fn->wifi_start_pkt_fate_monitoring = wifi_start_pkt_fate_monitoring_stub;
+    hal_fn->wifi_get_tx_pkt_fates = wifi_get_tx_pkt_fates_stub;
+    hal_fn->wifi_get_rx_pkt_fates = wifi_get_rx_pkt_fates_stub;
     hal_fn->wifi_nan_enable_request = wifi_nan_enable_request_stub;
     hal_fn->wifi_nan_disable_request = wifi_nan_disable_request_stub;
     hal_fn->wifi_nan_publish_request = wifi_nan_publish_request_stub;
