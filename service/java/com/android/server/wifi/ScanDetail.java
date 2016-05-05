@@ -84,39 +84,6 @@ public class ScanDetail {
     }
 
     /**
-     * Update the data stored in the scan result with the provided information.
-     *
-     * @param networkDetail NetworkDetail
-     * @param level int
-     * @param wssid WifiSsid
-     * @param ssid String
-     * @param flags String
-     * @param freq int
-     * @param tsf long
-     */
-    public void updateResults(NetworkDetail networkDetail, int level, WifiSsid wssid, String ssid,
-                              String flags, int freq, long tsf) {
-        mScanResult.level = level;
-        mScanResult.wifiSsid = wssid;
-        // Keep existing API
-        mScanResult.SSID = ssid;
-        mScanResult.capabilities = flags;
-        mScanResult.frequency = freq;
-        mScanResult.timestamp = tsf;
-        mSeen = System.currentTimeMillis();
-        //mScanResult.seen = mSeen;
-        mScanResult.channelWidth = networkDetail.getChannelWidth();
-        mScanResult.centerFreq0 = networkDetail.getCenterfreq0();
-        mScanResult.centerFreq1 = networkDetail.getCenterfreq1();
-        if (networkDetail.is80211McResponderSupport()) {
-            mScanResult.setFlag(ScanResult.FLAG_80211mc_RESPONDER);
-        }
-        if (networkDetail.isInterworking()) {
-            mScanResult.setFlag(ScanResult.FLAG_PASSPOINT_NETWORK);
-        }
-    }
-
-    /**
      * Store ANQ element information
      *
      * @param anqpElements Map<Constants.ANQPElementType, ANQPElement>
