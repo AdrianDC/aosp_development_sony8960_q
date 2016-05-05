@@ -54,8 +54,16 @@ import java.util.Set;
  * to QNS for it to make a recommendation on which network to connect to.
  */
 public class WifiConnectivityManager {
-    private static final String TAG = "WifiConnectivityManager";
+    public static final String WATCHDOG_TIMER_TAG =
+            "WifiConnectivityManager Schedule Watchdog Timer";
+    public static final String PERIODIC_SCAN_TIMER_TAG =
+            "WifiConnectivityManager Schedule Periodic Scan Timer";
+    public static final String RESTART_SINGLE_SCAN_TIMER_TAG =
+            "WifiConnectivityManager Restart Single Scan";
+    public static final String RESTART_CONNECTIVITY_SCAN_TIMER_TAG =
+            "WifiConnectivityManager Restart Scan";
 
+    private static final String TAG = "WifiConnectivityManager";
     // Periodic scan interval in milli-seconds. This is the scan
     // performed when screen is on.
     private static final int PERIODIC_SCAN_INTERVAL_MS = 20 * 1000; // 20 seconds
@@ -105,6 +113,7 @@ public class WifiConnectivityManager {
     private final WifiInfo mWifiInfo;
     private final WifiQualifiedNetworkSelector mQualifiedNetworkSelector;
     private final WifiLastResortWatchdog mWifiLastResortWatchdog;
+    private final WifiMetrics mWifiMetrics;
     private final AlarmManager mAlarmManager;
     private final Handler mEventHandler;
     private final Clock mClock;
@@ -150,12 +159,18 @@ public class WifiConnectivityManager {
 
     // A single scan will be rescheduled up to MAX_SCAN_RESTART_ALLOWED times
     // if the start scan command failed. An timer is used here to make it a deferred retry.
-    private final AlarmManager.OnAlarmListener mRestartSingleScanListener =
-            new AlarmManager.OnAlarmListener() {
-                public void onAlarm() {
-                    startSingleScan();
-                }
-            };
+    private class RestartSingleScanListener implements AlarmManager.OnAlarmListener {
+        private final boolean mIsWatchdogTriggered;
+
+        RestartSingleScanListener(boolean isWatchdogTriggered) {
+            mIsWatchdogTriggered = isWatchdogTriggered;
+        }
+
+        @Override
+        public void onAlarm() {
+            startSingleScan(mIsWatchdogTriggered);
+        }
+    }
 
     // As a watchdog mechanism, a single scan will be scheduled every WATCHDOG_INTERVAL_MS
     // if it is in the WIFI_STATE_DISCONNECTED state.
@@ -266,6 +281,11 @@ public class WifiConnectivityManager {
     // the system, or by the watchdog timer.
     private class SingleScanListener implements WifiScanner.ScanListener {
         private List<ScanDetail> mScanDetails = new ArrayList<ScanDetail>();
+        private final boolean mIsWatchdogTriggered;
+
+        SingleScanListener(boolean isWatchdogTriggered) {
+            mIsWatchdogTriggered = isWatchdogTriggered;
+        }
 
         public void clearScanDetails() {
             mScanDetails.clear();
@@ -287,7 +307,7 @@ public class WifiConnectivityManager {
 
             // reschedule the scan
             if (mSingleScanRestartCount++ < MAX_SCAN_RESTART_ALLOWED) {
-                scheduleDelayedSingleScan();
+                scheduleDelayedSingleScan(mIsWatchdogTriggered);
             } else {
                 mSingleScanRestartCount = 0;
                 Log.e(TAG, "Failed to successfully start single scan for "
@@ -303,8 +323,24 @@ public class WifiConnectivityManager {
 
         @Override
         public void onResults(WifiScanner.ScanData[] results) {
-            handleScanResults(mScanDetails, "SingleScanListener");
+            boolean wasConnectAttempted = handleScanResults(mScanDetails, "SingleScanListener");
             clearScanDetails();
+            // update metrics if this was a watchdog triggered single scan
+            if (mIsWatchdogTriggered) {
+                if (wasConnectAttempted) {
+                    if (mScreenOn) {
+                        mWifiMetrics.incrementNumConnectivityWatchdogBackgroundBad();
+                    } else {
+                        mWifiMetrics.incrementNumConnectivityWatchdogPnoBad();
+                    }
+                } else {
+                    if (mScreenOn) {
+                        mWifiMetrics.incrementNumConnectivityWatchdogBackgroundGood();
+                    } else {
+                        mWifiMetrics.incrementNumConnectivityWatchdogPnoGood();
+                    }
+                }
+            }
         }
 
         @Override
@@ -427,6 +463,7 @@ public class WifiConnectivityManager {
         mWifiInfo = wifiInfo;
         mQualifiedNetworkSelector = qualifiedNetworkSelector;
         mWifiLastResortWatchdog = wifiInjector.getWifiLastResortWatchdog();
+        mWifiMetrics = wifiInjector.getWifiMetrics();
         mAlarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         mEventHandler = new Handler(looper);
         mClock = wifiInjector.getClock();
@@ -572,7 +609,7 @@ public class WifiConnectivityManager {
             Log.i(TAG, "start a single scan from watchdogHandler");
 
             scheduleWatchdogTimer();
-            startSingleScan();
+            startSingleScan(true);
         }
     }
 
@@ -583,12 +620,12 @@ public class WifiConnectivityManager {
         // Schedule the next timer and start a single scan if screen is on.
         if (mScreenOn) {
             schedulePeriodicScanTimer();
-            startSingleScan();
+            startSingleScan(false);
         }
     }
 
     // Start a single scan
-    private void startSingleScan() {
+    private void startSingleScan(boolean isWatchdogTriggered) {
         if (!mWifiEnabled || !mWifiConnectivityManagerEnabled) {
             return;
         }
@@ -614,7 +651,7 @@ public class WifiConnectivityManager {
         // re-enable this when b/27695292 is fixed
         // mSingleScanListener.clearScanDetails();
         // mScanner.startScan(settings, mSingleScanListener, WIFI_WORK_SOURCE);
-        SingleScanListener singleScanListener = new SingleScanListener();
+        SingleScanListener singleScanListener = new SingleScanListener(isWatchdogTriggered);
         mScanner.startScan(settings, singleScanListener, WIFI_WORK_SOURCE);
     }
 
@@ -625,7 +662,7 @@ public class WifiConnectivityManager {
         // Due to b/28020168, timer based single scan will be scheduled every
         // PERIODIC_SCAN_INTERVAL_MS to provide periodic scan.
         if (!ENABLE_BACKGROUND_SCAN) {
-            startSingleScan();
+            startSingleScan(false);
             schedulePeriodicScanTimer();
         } else {
             ScanSettings settings = new ScanSettings();
@@ -727,7 +764,7 @@ public class WifiConnectivityManager {
 
         mAlarmManager.set(AlarmManager.RTC_WAKEUP,
                             mClock.currentTimeMillis() + WATCHDOG_INTERVAL_MS,
-                            "WifiConnectivityManager Schedule Watchdog Timer",
+                            WATCHDOG_TIMER_TAG,
                             mWatchdogListener, mEventHandler);
     }
 
@@ -735,18 +772,20 @@ public class WifiConnectivityManager {
     private void schedulePeriodicScanTimer() {
         mAlarmManager.set(AlarmManager.RTC_WAKEUP,
                             mClock.currentTimeMillis() + PERIODIC_SCAN_INTERVAL_MS,
-                            "WifiConnectivityManager Schedule Periodic Scan Timer",
+                            PERIODIC_SCAN_TIMER_TAG,
                             mPeriodicScanTimerListener, mEventHandler);
     }
 
     // Set up timer to start a delayed single scan after RESTART_SCAN_DELAY_MS
-    private void scheduleDelayedSingleScan() {
+    private void scheduleDelayedSingleScan(boolean isWatchdogTriggered) {
         localLog("scheduleDelayedSingleScan");
 
+        RestartSingleScanListener restartSingleScanListener =
+                new RestartSingleScanListener(isWatchdogTriggered);
         mAlarmManager.set(AlarmManager.RTC_WAKEUP,
                             mClock.currentTimeMillis() + RESTART_SCAN_DELAY_MS,
-                            "WifiConnectivityManager Restart Single Scan",
-                            mRestartSingleScanListener, mEventHandler);
+                            RESTART_SINGLE_SCAN_TIMER_TAG,
+                            restartSingleScanListener, mEventHandler);
     }
 
     // Set up timer to start a delayed scan after msFromNow milli-seconds
@@ -755,7 +794,7 @@ public class WifiConnectivityManager {
 
         mAlarmManager.set(AlarmManager.RTC_WAKEUP,
                             mClock.currentTimeMillis() + msFromNow,
-                            "WifiConnectivityManager Restart Scan",
+                            RESTART_CONNECTIVITY_SCAN_TIMER_TAG,
                             mRestartScanListener, mEventHandler);
 
     }
