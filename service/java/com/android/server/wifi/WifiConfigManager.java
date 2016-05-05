@@ -556,50 +556,6 @@ public class WifiConfigManager {
     }
 
     /**
-     * Fetch the list of currently saved networks (i.e. all configured networks, excluding
-     * ephemeral networks) that were recently seen.
-     *
-     * @param scanResultAgeMs The maximum age (in ms) of scan results for which we calculate the
-     * RSSI values
-     * @param copy If true, the returned list will contain copies of the configurations for the
-     * saved networks. Otherwise, the returned list will contain references to these
-     * configurations.
-     * @return List of networks
-     */
-    List<WifiConfiguration> getRecentSavedNetworks(int scanResultAgeMs, boolean copy) {
-        List<WifiConfiguration> networks = new ArrayList<WifiConfiguration>();
-
-        for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
-            if (config.ephemeral) {
-                // Do not enumerate and return this configuration to anyone (e.g. WiFi Picker);
-                // treat it as unknown instead. This configuration can still be retrieved
-                // directly by its key or networkId.
-                continue;
-            }
-
-            // Calculate the RSSI for scan results that are more recent than scanResultAgeMs.
-            ScanDetailCache cache = getScanDetailCache(config);
-            if (cache == null) {
-                continue;
-            }
-            config.setVisibility(cache.getVisibility(scanResultAgeMs));
-            if (config.visibility == null) {
-                continue;
-            }
-            if (config.visibility.rssi5 == WifiConfiguration.INVALID_RSSI
-                    && config.visibility.rssi24 == WifiConfiguration.INVALID_RSSI) {
-                continue;
-            }
-            if (copy) {
-                networks.add(new WifiConfiguration(config));
-            } else {
-                networks.add(config);
-            }
-        }
-        return networks;
-    }
-
-    /**
      *  Update the configuration and BSSID with latest RSSI value.
      */
     void updateConfiguration(WifiInfo info) {
