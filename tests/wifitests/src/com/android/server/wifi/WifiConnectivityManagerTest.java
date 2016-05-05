@@ -21,7 +21,6 @@ import static com.android.server.wifi.WifiConfigurationTestUtil.generateWifiConf
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
 
-import android.app.AlarmManager;
 import android.content.Context;
 import android.content.res.Resources;
 import android.net.wifi.ScanResult;
@@ -30,18 +29,16 @@ import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiScanner;
-import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiScanner.PnoScanListener;
 import android.net.wifi.WifiScanner.PnoSettings;
 import android.net.wifi.WifiScanner.ScanListener;
 import android.net.wifi.WifiScanner.ScanSettings;
-import android.os.Looper;
+import android.net.wifi.WifiSsid;
 import android.os.WorkSource;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.R;
 import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
-import com.android.server.wifi.util.InformationElementUtil;
 
 import org.junit.After;
 import org.junit.Before;
@@ -64,7 +61,7 @@ public class WifiConnectivityManagerTest {
     public void setUp() throws Exception {
         mWifiInjector = mockWifiInjector();
         mResource = mockResource();
-        mAlarmManager = mockAlarmManager();
+        mAlarmManager = new MockAlarmManager();
         mContext = mockContext();
         mWifiStateMachine = mockWifiStateMachine();
         mWifiConfigManager = mockWifiConfigManager();
@@ -88,7 +85,7 @@ public class WifiConnectivityManagerTest {
 
     private Resources mResource;
     private Context mContext;
-    private AlarmManager mAlarmManager;
+    private MockAlarmManager mAlarmManager;
     private MockLooper mLooper = new MockLooper();
     private WifiConnectivityManager mWifiConnectivityManager;
     private WifiQualifiedNetworkSelector mWifiQNS;
@@ -98,6 +95,7 @@ public class WifiConnectivityManagerTest {
     private WifiInfo mWifiInfo;
     private Clock mClock = mock(Clock.class);
     private WifiLastResortWatchdog mWifiLastResortWatchdog;
+    private WifiMetrics mWifiMetrics;
     private WifiInjector mWifiInjector;
 
     private static final int CANDIDATE_NETWORK_ID = 0;
@@ -114,18 +112,12 @@ public class WifiConnectivityManagerTest {
         return resource;
     }
 
-    AlarmManager mockAlarmManager() {
-        AlarmManager alarmManager = mock(AlarmManager.class);
-
-        return alarmManager;
-    }
-
     Context mockContext() {
         Context context = mock(Context.class);
 
         when(context.getResources()).thenReturn(mResource);
         when(context.getSystemService(Context.ALARM_SERVICE)).thenReturn(
-                mAlarmManager);
+                mAlarmManager.getAlarmManager());
 
         return context;
     }
@@ -237,7 +229,9 @@ public class WifiConnectivityManagerTest {
     WifiInjector mockWifiInjector() {
         WifiInjector wifiInjector = mock(WifiInjector.class);
         mWifiLastResortWatchdog = mock(WifiLastResortWatchdog.class);
+        mWifiMetrics = mock(WifiMetrics.class);
         when(wifiInjector.getWifiLastResortWatchdog()).thenReturn(mWifiLastResortWatchdog);
+        when(wifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
         when(wifiInjector.getClock()).thenReturn(mClock);
         return wifiInjector;
     }
@@ -474,5 +468,55 @@ public class WifiConnectivityManagerTest {
 
         assertEquals(lowRssiNetworkRetryDelayStartValue * 2,
             lowRssiNetworkRetryDelayAfterPnoValue);
+    }
+
+    /**
+     * Ensure that the watchdog bite increments the "Pno bad" metric.
+     *
+     * Expected behavior: WifiConnectivityManager detects that the PNO scan failed to find
+     * a candidate while watchdog single scan did.
+     */
+    @Test
+    public void watchdogBitePnoBadIncrementsMetrics() {
+        // Set screen to off
+        mWifiConnectivityManager.handleScreenStateChanged(false);
+
+        // Set WiFi to disconnected state to trigger PNO scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        // Now fire the watchdog alarm and verify the metrics were incremented.
+        mAlarmManager.dispatch(WifiConnectivityManager.WATCHDOG_TIMER_TAG);
+        mLooper.dispatchAll();
+
+        verify(mWifiMetrics).incrementNumConnectivityWatchdogPnoBad();
+        verify(mWifiMetrics, never()).incrementNumConnectivityWatchdogPnoGood();
+    }
+
+    /**
+     * Ensure that the watchdog bite increments the "Pno good" metric.
+     *
+     * Expected behavior: WifiConnectivityManager detects that the PNO scan failed to find
+     * a candidate which was the same with watchdog single scan.
+     */
+    @Test
+    public void watchdogBitePnoGoodIncrementsMetrics() {
+        // Qns returns no candidate after watchdog single scan.
+        when(mWifiQNS.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyObject(),
+                anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(null);
+
+        // Set screen to off
+        mWifiConnectivityManager.handleScreenStateChanged(false);
+
+        // Set WiFi to disconnected state to trigger PNO scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        // Now fire the watchdog alarm and verify the metrics were incremented.
+        mAlarmManager.dispatch(WifiConnectivityManager.WATCHDOG_TIMER_TAG);
+        mLooper.dispatchAll();
+
+        verify(mWifiMetrics).incrementNumConnectivityWatchdogPnoGood();
+        verify(mWifiMetrics, never()).incrementNumConnectivityWatchdogPnoBad();
     }
 }
