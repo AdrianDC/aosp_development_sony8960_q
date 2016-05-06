@@ -1555,7 +1555,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return sb.toString();
     }
 
-    WifiLinkLayerStats getWifiLinkLayerStats(boolean dbg) {
+    WifiLinkLayerStats getWifiLinkLayerStats() {
         WifiLinkLayerStats stats = null;
         if (mWifiLinkLayerStatsSupported > 0) {
             String name = "wlan0";
@@ -2917,7 +2917,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
         mScreenBroadcastReceived.set(true);
 
-        getWifiLinkLayerStats(false);
+        getWifiLinkLayerStats();
         mOnTimeScreenStateChange = mOnTime;
         lastScreenStateChangeTimeStamp = lastLinkLayerStatsUpdate;
 
@@ -3616,7 +3616,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiNative.setPowerSave(false);
 
         // Update link layer stats
-        getWifiLinkLayerStats(false);
+        getWifiLinkLayerStats();
 
         /* P2p discovery breaks dhcp, shut it down in order to get through this */
         Message msg = new Message();
@@ -4522,7 +4522,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case CMD_GET_LINK_LAYER_STATS:
-                    WifiLinkLayerStats stats = getWifiLinkLayerStats(DBG);
+                    WifiLinkLayerStats stats = getWifiLinkLayerStats();
                     if (stats == null) {
                         // When firmware doesnt support link layer stats, return an empty object
                         stats = new WifiLinkLayerStats();
@@ -6571,7 +6571,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_IP_CONFIGURATION_LOST:
                     // Get Link layer stats so that we get fresh tx packet counters.
-                    getWifiLinkLayerStats(true);
+                    getWifiLinkLayerStats();
                     handleIpConfigurationLost();
                     transitionTo(mDisconnectingState);
                     break;
@@ -6764,7 +6764,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (message.arg1 == mRssiPollToken) {
                         if (mWifiConfigManager.mEnableChipWakeUpWhenAssociated.get()) {
                             if (DBG) log(" get link layer stats " + mWifiLinkLayerStatsSupported);
-                            WifiLinkLayerStats stats = getWifiLinkLayerStats(DBG);
+                            WifiLinkLayerStats stats = getWifiLinkLayerStats();
                             if (stats != null) {
                                 // Sanity check the results provided by driver
                                 if (mWifiInfo.getRssi() != WifiInfo.INVALID_RSSI
@@ -6925,7 +6925,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 obtainingIpWatchdogCount++;
                 logd("Start Dhcp Watchdog " + obtainingIpWatchdogCount);
                 // Get Link layer stats so as we get fresh tx packet counters
-                getWifiLinkLayerStats(true);
+                getWifiLinkLayerStats();
                 sendMessageDelayed(obtainMessage(CMD_OBTAINING_IP_ADDRESS_WATCHDOG_TIMER,
                         obtainingIpWatchdogCount, 0), OBTAINING_IP_ADDRESS_GUARD_TIMER_MSEC);
             } else {
