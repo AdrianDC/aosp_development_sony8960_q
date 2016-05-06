@@ -7091,6 +7091,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         reportConnectionAttemptEnd(
                                 WifiMetrics.ConnectionEvent.FAILURE_NONE,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
+
+                        // We must clear the config BSSID, as the wifi chipset may decide to roam
+                        // from this point on and having the BSSID specified by QNS would cause
+                        // the roam to fail and the device to disconnect.
+                        // When transition from RoamingState to DisconnectingState or
+                        // DisconnectedState, the config BSSID is cleared by
+                        // handleNetworkDisconnect().
+                        clearCurrentConfigBSSID("RoamingCompleted");
+
                         // We used to transition to ObtainingIpState in an
                         // attempt to do DHCPv4 RENEWs on framework roams.
                         // DHCP can take too long to time out, and we now rely
