@@ -65,7 +65,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
     private final Handler mEventHandler;
     private final ChannelHelper mChannelHelper;
 
-    private Object mSettingsLock = new Object();
+    private final Object mSettingsLock = new Object();
 
     // Next scan settings to apply when the previous scan completes
     private WifiNative.ScanSettings mPendingBackgroundScanSettings = null;
