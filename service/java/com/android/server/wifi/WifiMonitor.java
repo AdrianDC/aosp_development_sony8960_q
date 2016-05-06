@@ -723,7 +723,7 @@ public class WifiMonitor {
     }
 
     private class MonitorThread extends Thread {
-        private final LocalLog mLocalLog = mWifiNative.getLocalLog();
+        private final LocalLog mLocalLog = WifiNative.getLocalLog();
 
         public MonitorThread() {
             super("WifiMonitor");

@@ -350,7 +350,7 @@ public class WifiConfigManager {
         mUserManager = userManager;
 
         if (sVDBG) {
-            mLocalLog = wifiNative.getLocalLog();
+            mLocalLog = WifiNative.getLocalLog();
         } else {
             mLocalLog = null;
         }
@@ -1442,11 +1442,13 @@ public class WifiConfigManager {
                     >= NETWORK_SELECTION_DISABLE_TIMEOUT[
                     networkStatus.getNetworkSelectionDisableReason()]) {
                 updateNetworkSelectionStatus(config.networkId,
-                        networkStatus.NETWORK_SELECTION_ENABLE);
+                        WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
                 return true;
             }
-        } else if (networkStatus.isDisabledByReason(networkStatus.DISABLED_DUE_TO_USER_SWITCH)) {
-            updateNetworkSelectionStatus(config.networkId, networkStatus.NETWORK_SELECTION_ENABLE);
+        } else if (networkStatus.isDisabledByReason(
+                WifiConfiguration.NetworkSelectionStatus.DISABLED_DUE_TO_USER_SWITCH)) {
+            updateNetworkSelectionStatus(config.networkId,
+                    WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
             return true;
         }
         return false;

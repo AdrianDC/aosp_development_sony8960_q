@@ -419,7 +419,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
         if (!mTargetRoamBSSID.equals("any") && bssid.equals("any")) {
             // Changing to ANY
-            if (!mWifiConfigManager.ROAM_ON_ANY) {
+            if (!WifiConfigManager.ROAM_ON_ANY) {
                 ret = false; // Nothing to do
             }
         }
@@ -1824,19 +1824,19 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     public boolean isSupplicantTransientState() {
-        SupplicantState SupplicantState = mWifiInfo.getSupplicantState();
-        if (SupplicantState == SupplicantState.ASSOCIATING
-                || SupplicantState == SupplicantState.AUTHENTICATING
-                || SupplicantState == SupplicantState.FOUR_WAY_HANDSHAKE
-                || SupplicantState == SupplicantState.GROUP_HANDSHAKE) {
+        SupplicantState supplicantState = mWifiInfo.getSupplicantState();
+        if (supplicantState == SupplicantState.ASSOCIATING
+                || supplicantState == SupplicantState.AUTHENTICATING
+                || supplicantState == SupplicantState.FOUR_WAY_HANDSHAKE
+                || supplicantState == SupplicantState.GROUP_HANDSHAKE) {
 
             if (DBG) {
-                Log.d(TAG, "Supplicant is under transient state: " + SupplicantState);
+                Log.d(TAG, "Supplicant is under transient state: " + supplicantState);
             }
             return true;
         } else {
             if (DBG) {
-                Log.d(TAG, "Supplicant is under steady state: " + SupplicantState);
+                Log.d(TAG, "Supplicant is under steady state: " + supplicantState);
             }
         }
 
@@ -2408,9 +2408,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 sb.append(mWifiConfigManager.getEnableAutoJoinWhenAssociated());
                 sb.append(" withTraffic=").append(getAllowScansWithTraffic());
                 sb.append(" tx=").append(mWifiInfo.txSuccessRate);
-                sb.append("/").append(mWifiConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS);
+                sb.append("/").append(WifiConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS);
                 sb.append(" rx=").append(mWifiInfo.rxSuccessRate);
-                sb.append("/").append(mWifiConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS);
+                sb.append("/").append(WifiConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS);
                 sb.append(" -> ").append(mConnectedModeGScanOffloadStarted);
                 break;
             case CMD_START_SCAN:
@@ -3605,7 +3605,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
              */
             // Disable the coexistence mode
             mWifiNative.setBluetoothCoexistenceMode(
-                    mWifiNative.BLUETOOTH_COEXISTENCE_MODE_DISABLED);
+                    WifiNative.BLUETOOTH_COEXISTENCE_MODE_DISABLED);
         }
 
         // Disable power save and suspend optimizations during DHCP
@@ -3637,7 +3637,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         // Set the coexistence mode back to its default value
         mWifiNative.setBluetoothCoexistenceMode(
-                mWifiNative.BLUETOOTH_COEXISTENCE_MODE_SENSE);
+                WifiNative.BLUETOOTH_COEXISTENCE_MODE_SENSE);
     }
 
     /**
@@ -6649,9 +6649,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         }
 
                         if (mWifiInfo.txSuccessRate
-                                        > mWifiConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS
+                                        > WifiConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS
                                 || mWifiInfo.rxSuccessRate
-                                        > mWifiConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS) {
+                                        > WifiConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS) {
                             // Too much traffic at the interface, hence no full band scan
                             if (DBG) {
                                 logd("CMD_START_SCAN prevent full band scan due to pkt rate");
@@ -6660,9 +6660,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         }
 
                         if (mWifiInfo.txSuccessRate
-                                        > mWifiConfigManager.MAX_TX_PACKET_FOR_PARTIAL_SCANS
+                                        > WifiConfigManager.MAX_TX_PACKET_FOR_PARTIAL_SCANS
                                 || mWifiInfo.rxSuccessRate
-                                        > mWifiConfigManager.MAX_RX_PACKET_FOR_PARTIAL_SCANS) {
+                                        > WifiConfigManager.MAX_RX_PACKET_FOR_PARTIAL_SCANS) {
                             // Don't scan if lots of packets are being sent
                             restrictChannelList = true;
                             if (mWifiConfigManager.mAlwaysEnableScansWhileAssociated.get() == 0) {
@@ -6917,7 +6917,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             if (!mWifiConfigManager.isUsingStaticIp(mLastNetworkId)) {
                 final IpManager.ProvisioningConfiguration prov =
-                        mIpManager.buildProvisioningConfiguration()
+                        IpManager.buildProvisioningConfiguration()
                             .withPreDhcpAction()
                             .withApfCapabilities(mWifiNative.getApfCapabilities())
                             .build();
@@ -6936,7 +6936,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     sendMessage(CMD_IPV4_PROVISIONING_FAILURE);
                 } else {
                     final IpManager.ProvisioningConfiguration prov =
-                            mIpManager.buildProvisioningConfiguration()
+                            IpManager.buildProvisioningConfiguration()
                                 .withStaticConfiguration(config)
                                 .withApfCapabilities(mWifiNative.getApfCapabilities())
                                 .build();
@@ -8079,13 +8079,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     rand, android.util.Base64.NO_WRAP);
 
             // Try USIM first for authentication.
-            String tmResponse = tm.getIccAuthentication(tm.APPTYPE_USIM,
-                    tm.AUTHTYPE_EAP_SIM, base64Challenge);
+            String tmResponse = tm.getIccAuthentication(TelephonyManager.APPTYPE_USIM,
+                    TelephonyManager.AUTHTYPE_EAP_SIM, base64Challenge);
             if (tmResponse == null) {
                 /* Then, in case of failure, issue may be due to sim type, retry as a simple sim
                  */
-                tmResponse = tm.getIccAuthentication(tm.APPTYPE_SIM,
-                        tm.AUTHTYPE_EAP_SIM, base64Challenge);
+                tmResponse = tm.getIccAuthentication(TelephonyManager.APPTYPE_SIM,
+                        TelephonyManager.AUTHTYPE_EAP_SIM, base64Challenge);
             }
             logv("Raw Response - " + tmResponse);
 
@@ -8179,8 +8179,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             TelephonyManager tm = (TelephonyManager)
                     mContext.getSystemService(Context.TELEPHONY_SERVICE);
             if (tm != null) {
-                tmResponse = tm.getIccAuthentication(tm.APPTYPE_USIM,
-                        tm.AUTHTYPE_EAP_AKA, base64Challenge);
+                tmResponse = tm.getIccAuthentication(TelephonyManager.APPTYPE_USIM,
+                        TelephonyManager.AUTHTYPE_EAP_AKA, base64Challenge);
                 logv("Raw Response - " + tmResponse);
             } else {
                 loge("could not get telephony manager");
