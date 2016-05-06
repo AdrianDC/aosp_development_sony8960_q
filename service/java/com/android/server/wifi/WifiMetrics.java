@@ -966,7 +966,7 @@ public class WifiMetrics {
     public byte[] toByteArray() {
         synchronized (mLock) {
             consolidateProto(false);
-            return mWifiLogProto.toByteArray(mWifiLogProto);
+            return WifiMetricsProto.WifiLog.toByteArray(mWifiLogProto);
         }
     }
 

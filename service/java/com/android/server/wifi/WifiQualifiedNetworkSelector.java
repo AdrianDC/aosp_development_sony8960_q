@@ -432,8 +432,9 @@ public class WifiQualifiedNetworkSelector {
             sbuf.append("    " + getNetworkString(network) + " " + " User Preferred BSSID:"
                     + network.BSSID + " FQDN:" + network.FQDN + " "
                     + status.getNetworkStatusString() + " Disable account: ");
-            for (int index = status.NETWORK_SELECTION_ENABLE;
-                    index < status.NETWORK_SELECTION_DISABLED_MAX; index++) {
+            for (int index = WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE;
+                    index < WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_DISABLED_MAX;
+                    index++) {
                 sbuf.append(status.getDisableReasonCounter(index) + " ");
             }
             sbuf.append("Connect Choice:" + status.getConnectChoice() + " set time:"
