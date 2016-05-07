@@ -335,24 +335,6 @@ public class WifiNative {
     }
 
     /**
-     * Create a comma separate string from integer set.
-     * @param values List of integers.
-     * @return comma separated string.
-     */
-    private static String createCSVStringFromIntegerSet(Set<Integer> values) {
-        StringBuilder list = new StringBuilder();
-        boolean first = true;
-        for (Integer value : values) {
-            if (!first) {
-                list.append(",");
-            }
-            list.append(value);
-            first = false;
-        }
-        return list.toString();
-    }
-
-    /**
      * Start a scan using wpa_supplicant for the given frequencies.
      * @param freqs list of frequencies to scan for, if null scan all supported channels.
      * @param hiddenNetworkIds List of hidden networks to be scanned for.
@@ -361,10 +343,10 @@ public class WifiNative {
         String freqList = null;
         String hiddenNetworkIdList = null;
         if (freqs != null && freqs.size() != 0) {
-            freqList = createCSVStringFromIntegerSet(freqs);
+            freqList = TextUtils.join(",", freqs);
         }
         if (hiddenNetworkIds != null && hiddenNetworkIds.size() != 0) {
-            hiddenNetworkIdList = createCSVStringFromIntegerSet(hiddenNetworkIds);
+            hiddenNetworkIdList = TextUtils.join(",", hiddenNetworkIds);
         }
         return scanWithParams(freqList, hiddenNetworkIdList);
     }
