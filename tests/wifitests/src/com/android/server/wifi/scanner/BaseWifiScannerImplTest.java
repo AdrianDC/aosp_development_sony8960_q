@@ -167,6 +167,29 @@ public abstract class BaseWifiScannerImplTest {
                 ScanResults.create(0, 5650, 5650, 5650, 5650, 5650, 5650, 5650, 5650), false);
     }
 
+    /**
+     * Tests whether the provided hidden networkId's in scan settings is truncated to max size
+     * supported by wpa_supplicant when invoking native scan.
+     */
+    @Test
+    public void singleScanSuccessWithTruncatedHiddenNetworkIds() {
+        int[] hiddenNetworkIds = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
+        WifiNative.ScanSettings settings = new NativeScanSettingsBuilder()
+                .withBasePeriod(10000)
+                .withMaxApPerScan(10)
+                .withHiddenNetworkIds(hiddenNetworkIds)
+                .addBucketWithChannels(20000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN, 5650)
+                .build();
+
+        Set<Integer> hiddenNetworkIdSet = new HashSet<Integer>();
+        for (int i = 0; i < SupplicantWifiScannerImpl.MAX_HIDDEN_NETWORK_IDS_PER_SCAN; i++) {
+            hiddenNetworkIdSet.add(hiddenNetworkIds[i]);
+        }
+        doSuccessfulSingleScanTest(settings, createFreqSet(5650),
+                hiddenNetworkIdSet,
+                ScanResults.create(0, 5650, 5650, 5650, 5650, 5650, 5650, 5650, 5650), false);
+    }
+
     @Test
     public void overlappingSingleScanFails() {
         WifiNative.ScanSettings settings = new NativeScanSettingsBuilder()
