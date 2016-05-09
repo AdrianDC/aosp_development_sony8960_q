@@ -575,7 +575,7 @@ public class WifiConfigManager {
                 result.averageRssi(previousRssi, previousSeen,
                         WifiQualifiedNetworkSelector.SCAN_RESULT_MAXIMUNM_AGE);
                 if (sVDBG) {
-                    loge("updateConfiguration freq=" + result.frequency
+                    logd("updateConfiguration freq=" + result.frequency
                             + " BSSID=" + result.BSSID
                             + " RSSI=" + result.level
                             + " " + config.configKey());
@@ -688,7 +688,7 @@ public class WifiConfigManager {
                 if (result == null) {
                     loge("Could not find scan result for " + config.BSSID);
                 } else {
-                    log("Setting SSID for " + config.networkId + " to" + result.getSSID());
+                    logd("Setting SSID for " + config.networkId + " to" + result.getSSID());
                     setSSIDNative(config, result.getSSID());
                 }
 
@@ -746,7 +746,7 @@ public class WifiConfigManager {
 
         if (mDeletedEphemeralSSIDs.remove(config.SSID)) {
             if (sVDBG) {
-                loge("WifiConfigManager: removed from ephemeral blacklist: " + config.SSID);
+                logd("WifiConfigManager: removed from ephemeral blacklist: " + config.SSID);
             }
             // NOTE: This will be flushed to disk as part of the addOrUpdateNetworkNative call
             // below, since we're creating/modifying a config.
@@ -768,7 +768,7 @@ public class WifiConfigManager {
                         WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
             }
             if (sVDBG) {
-                loge("WifiConfigManager: saveNetwork got config back netId="
+                logd("WifiConfigManager: saveNetwork got config back netId="
                         + Integer.toString(netId)
                         + " uid=" + Integer.toString(config.creatorUid));
             }
@@ -843,10 +843,10 @@ public class WifiConfigManager {
         WifiConfiguration foundConfig = mConfiguredNetworks.getEphemeralForCurrentUser(ssid);
 
         mDeletedEphemeralSSIDs.add(ssid);
-        loge("Forget ephemeral SSID " + ssid + " num=" + mDeletedEphemeralSSIDs.size());
+        logd("Forget ephemeral SSID " + ssid + " num=" + mDeletedEphemeralSSIDs.size());
 
         if (foundConfig != null) {
-            loge("Found ephemeral config in disableEphemeralNetwork: " + foundConfig.networkId);
+            logd("Found ephemeral config in disableEphemeralNetwork: " + foundConfig.networkId);
         }
 
         writeKnownNetworkHistory();
@@ -1830,7 +1830,7 @@ public class WifiConfigManager {
 
     public void setAndEnableLastSelectedConfiguration(int netId) {
         if (sVDBG) {
-            loge("setLastSelectedConfiguration " + Integer.toString(netId));
+            logd("setLastSelectedConfiguration " + Integer.toString(netId));
         }
         if (netId == WifiConfiguration.INVALID_NETWORK_ID) {
             mLastSelectedConfiguration = null;
@@ -1846,7 +1846,7 @@ public class WifiConfigManager {
                 updateNetworkSelectionStatus(netId,
                         WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
                 if (sVDBG) {
-                    loge("setLastSelectedConfiguration now: " + mLastSelectedConfiguration);
+                    logd("setLastSelectedConfiguration now: " + mLastSelectedConfiguration);
                 }
             }
         }
@@ -1899,7 +1899,7 @@ public class WifiConfigManager {
             // This is the only place the map is looked up through a (dangerous) hash-value!
 
             if (config == null || config.ephemeral) {
-                loge("configuration found for missing network, nid=" + id
+                logd("configuration found for missing network, nid=" + id
                         + ", ignored, networks.size=" + Integer.toString(networks.size()));
             } else {
                 config.setIpConfiguration(networks.valueAt(i));
@@ -1931,7 +1931,7 @@ public class WifiConfigManager {
                 config.networkId = currentConfig.networkId;
             } else {
                 if (mMOManager.getHomeSP(config.FQDN) != null) {
-                    loge("addOrUpdateNetworkNative passpoint " + config.FQDN
+                    logd("addOrUpdateNetworkNative passpoint " + config.FQDN
                             + " was found, but no network Id");
                     existingMO = true;
                 }
@@ -2250,7 +2250,7 @@ public class WifiConfigManager {
     public void linkConfiguration(WifiConfiguration config) {
         if (!WifiConfigurationUtil.isVisibleToAnyProfile(config,
                 mUserManager.getProfiles(mCurrentUserId))) {
-            loge("linkConfiguration: Attempting to link config " + config.configKey()
+            logd("linkConfiguration: Attempting to link config " + config.configKey()
                     + " that is not visible to the current user.");
             return;
         }
@@ -2290,7 +2290,7 @@ public class WifiConfigManager {
                 // If both default GW are known, link only if they are equal
                 if (config.defaultGwMacAddress.equals(link.defaultGwMacAddress)) {
                     if (sVDBG) {
-                        loge("linkConfiguration link due to same gw " + link.SSID
+                        logd("linkConfiguration link due to same gw " + link.SSID
                                 + " and " + config.SSID + " GW " + config.defaultGwMacAddress);
                     }
                     doLink = true;
@@ -2306,7 +2306,7 @@ public class WifiConfigManager {
                     for (String abssid : getScanDetailCache(config).keySet()) {
                         for (String bbssid : linkedScanDetailCache.keySet()) {
                             if (sVVDBG) {
-                                loge("linkConfiguration try to link due to DBDC BSSID match "
+                                logd("linkConfiguration try to link due to DBDC BSSID match "
                                         + link.SSID + " and " + config.SSID + " bssida " + abssid
                                         + " bssidb " + bbssid);
                             }
@@ -2335,7 +2335,7 @@ public class WifiConfigManager {
 
             if (doLink) {
                 if (sVDBG) {
-                    loge("linkConfiguration: will link " + link.configKey()
+                    logd("linkConfiguration: will link " + link.configKey()
                             + " and " + config.configKey());
                 }
                 if (link.linkedConfigurations == null) {
@@ -2354,7 +2354,7 @@ public class WifiConfigManager {
                 if (link.linkedConfigurations != null
                         && (link.linkedConfigurations.get(config.configKey()) != null)) {
                     if (sVDBG) {
-                        loge("linkConfiguration: un-link " + config.configKey()
+                        logd("linkConfiguration: un-link " + config.configKey()
                                 + " from " + link.configKey());
                     }
                     link.linkedConfigurations.remove(config.configKey());
@@ -2362,7 +2362,7 @@ public class WifiConfigManager {
                 if (config.linkedConfigurations != null
                         && (config.linkedConfigurations.get(link.configKey()) != null)) {
                     if (sVDBG) {
-                        loge("linkConfiguration: un-link " + link.configKey()
+                        logd("linkConfiguration: un-link " + link.configKey()
                                 + " from " + config.configKey());
                     }
                     config.linkedConfigurations.remove(link.configKey());
@@ -2395,7 +2395,7 @@ public class WifiConfigManager {
             if (config.linkedConfigurations != null) {
                 dbg.append(" linked=" + config.linkedConfigurations.size());
             }
-            loge(dbg.toString());
+            logd(dbg.toString());
         }
 
         int numChannels = 0;
@@ -2408,7 +2408,7 @@ public class WifiConfigManager {
                 }
                 if (sVDBG) {
                     boolean test = (now_ms - result.seen) < age;
-                    loge("has " + result.BSSID + " freq=" + Integer.toString(result.frequency)
+                    logd("has " + result.BSSID + " freq=" + Integer.toString(result.frequency)
                             + " age=" + Long.toString(now_ms - result.seen) + " ?=" + test);
                 }
                 if (((now_ms - result.seen) < age)/*||(!restrict || result.is24GHz())*/) {
@@ -2431,7 +2431,7 @@ public class WifiConfigManager {
                 for (ScanDetail scanDetail : getScanDetailCache(linked).values()) {
                     ScanResult result = scanDetail.getScanResult();
                     if (sVDBG) {
-                        loge("has link: " + result.BSSID
+                        logd("has link: " + result.BSSID
                                 + " freq=" + Integer.toString(result.frequency)
                                 + " age=" + Long.toString(now_ms - result.seen));
                     }
@@ -2620,11 +2620,11 @@ public class WifiConfigManager {
         if (scanDetailCache.size() > (MAX_NUM_SCAN_CACHE_ENTRIES + 64)) {
             long now_dbg = 0;
             if (sVVDBG) {
-                loge(" Will trim config " + config.configKey()
+                logd(" Will trim config " + config.configKey()
                         + " size " + scanDetailCache.size());
 
                 for (ScanDetail sd : scanDetailCache.values()) {
-                    loge("     " + sd.getBSSIDString() + " " + sd.getSeen());
+                    logd("     " + sd.getBSSIDString() + " " + sd.getSeen());
                 }
                 now_dbg = SystemClock.elapsedRealtimeNanos();
             }
@@ -2634,9 +2634,9 @@ public class WifiConfigManager {
             scanDetailCache.trim(MAX_NUM_SCAN_CACHE_ENTRIES);
             if (sVVDBG) {
                 long diff = SystemClock.elapsedRealtimeNanos() - now_dbg;
-                loge(" Finished trimming config, time(ns) " + diff);
+                logd(" Finished trimming config, time(ns) " + diff);
                 for (ScanDetail sd : scanDetailCache.values()) {
-                    loge("     " + sd.getBSSIDString() + " " + sd.getSeen());
+                    logd("     " + sd.getBSSIDString() + " " + sd.getSeen());
                 }
             }
         }
@@ -2912,7 +2912,7 @@ public class WifiConfigManager {
         config.SSID = "\"" + result.SSID + "\"";
 
         if (sVDBG) {
-            loge("WifiConfiguration from scan results "
+            logd("WifiConfiguration from scan results "
                     + config.SSID + " cap " + result.capabilities);
         }
 
