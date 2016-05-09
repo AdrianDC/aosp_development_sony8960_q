@@ -19,6 +19,7 @@ package com.android.server.wifi.nan;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.inOrder;
@@ -26,6 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import android.net.wifi.RttManager;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanManager;
@@ -77,6 +79,9 @@ public class WifiNanManagerTest {
 
     @Mock
     public WifiNanSubscribeSession mockSubscribeSession;
+
+    @Mock
+    public RttManager.RttListener mockRttListener;
 
     @Before
     public void setUp() throws Exception {
@@ -862,6 +867,88 @@ public class WifiNanManagerTest {
     @Test(expected = IllegalArgumentException.class)
     public void testPublishConfigBuilderNegativeTtl() {
         new PublishConfig.Builder().setTtlSec(-10);
+    }
+
+    /*
+     * Ranging tests
+     */
+
+    /**
+     * Validate ranging + success flow: (1) connect, (2) create a (publish) session, (3) start
+     * ranging, (4) ranging success callback, (5) ranging aborted callback ignored (since
+     * listener removed).
+     */
+    @Test
+    public void testRangingCallbacks() throws Exception {
+        final int clientId = 4565;
+        final int sessionId = 123;
+        final int rangingId = 3482;
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        final PublishConfig publishConfig = new PublishConfig.Builder().build();
+        final RttManager.RttParams rttParams = new RttManager.RttParams();
+        rttParams.deviceType = RttManager.RTT_PEER_NAN;
+        rttParams.bssid = Integer.toString(1234);
+        final RttManager.RttResult rttResults = new RttManager.RttResult();
+        rttResults.distance = 10;
+
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
+                eq(configRequest))).thenReturn(clientId);
+        when(mockNanService.startRanging(anyInt(), anyInt(),
+                any(RttManager.ParcelableRttParams.class))).thenReturn(rangingId);
+
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
+                mockPublishSession, mockRttListener);
+        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanEventCallback.class);
+        ArgumentCaptor<IWifiNanSessionCallback> sessionProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanSessionCallback.class);
+        ArgumentCaptor<WifiNanPublishSession> publishSession = ArgumentCaptor
+                .forClass(WifiNanPublishSession.class);
+        ArgumentCaptor<RttManager.ParcelableRttParams> rttParamCaptor = ArgumentCaptor
+                .forClass(RttManager.ParcelableRttParams.class);
+        ArgumentCaptor<RttManager.RttResult[]> rttResultsCaptor = ArgumentCaptor
+                .forClass(RttManager.RttResult[].class);
+
+        // (1) connect successfully
+        mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
+        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
+                eq(configRequest));
+        clientProxyCallback.getValue().onConnectSuccess();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
+
+        // (2) publish successfully
+        mDut.publish(publishConfig, mockSessionCallback);
+        inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
+                sessionProxyCallback.capture());
+        sessionProxyCallback.getValue().onSessionStarted(sessionId);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onPublishStarted(publishSession.capture());
+
+        // (3) start ranging
+        publishSession.getValue().startRanging(new RttManager.RttParams[]{rttParams},
+                mockRttListener);
+        inOrder.verify(mockNanService).startRanging(eq(clientId), eq(sessionId),
+                rttParamCaptor.capture());
+        collector.checkThat("RttParams.deviceType", rttParams.deviceType,
+                equalTo(rttParamCaptor.getValue().mParams[0].deviceType));
+        collector.checkThat("RttParams.bssid", rttParams.bssid,
+                equalTo(rttParamCaptor.getValue().mParams[0].bssid));
+
+        // (4) ranging success callback
+        clientProxyCallback.getValue().onRangingSuccess(rangingId,
+                new RttManager.ParcelableRttResults(new RttManager.RttResult[] { rttResults }));
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockRttListener).onSuccess(rttResultsCaptor.capture());
+        collector.checkThat("RttResult.distance", rttResults.distance,
+                equalTo(rttResultsCaptor.getValue()[0].distance));
+
+        // (5) ranging aborted callback (should be ignored since listener cleared on first callback)
+        clientProxyCallback.getValue().onRangingAborted(rangingId);
+        mMockLooper.dispatchAll();
+
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService,
+                mockPublishSession, mockRttListener);
     }
 
     /*

@@ -18,6 +18,7 @@ package com.android.server.wifi.nan;
 
 import android.content.Context;
 import android.content.Intent;
+import android.net.wifi.RttManager;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanSessionCallback;
@@ -83,6 +84,7 @@ public class WifiNanStateManager {
     private static final int COMMAND_TYPE_SEND_MESSAGE = 7;
     private static final int COMMAND_TYPE_ENABLE_USAGE = 8;
     private static final int COMMAND_TYPE_DISABLE_USAGE = 9;
+    private static final int COMMAND_TYPE_START_RANGING = 10;
 
     private static final int RESPONSE_TYPE_ON_CONFIG_SUCCESS = 0;
     private static final int RESPONSE_TYPE_ON_CONFIG_FAIL = 1;
@@ -117,6 +119,7 @@ public class WifiNanStateManager {
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_DATA = "message_data";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH = "message_length";
     private static final String MESSAGE_BUNDLE_KEY_REQ_INSTANCE_ID = "req_instance_id";
+    private static final String MESSAGE_BUNDLE_KEY_RANGING_ID = "ranging_id";
 
     /*
      * Asynchronous access with no lock
@@ -130,6 +133,7 @@ public class WifiNanStateManager {
     private Context mContext;
     private WifiNanNative.Capabilities mCapabilities;
     private WifiNanStateMachine mSm;
+    private WifiNanRttStateManager mRtt;
 
     private final SparseArray<WifiNanClientState> mClients = new SparseArray<>();
     private ConfigRequest mCurrentNanConfiguration = null;
@@ -165,6 +169,14 @@ public class WifiNanStateManager {
         mSm = new WifiNanStateMachine(TAG, looper);
         mSm.setDbg(DBG);
         mSm.start();
+    }
+
+    /**
+     * Initialize the RTT service (requires late initialization).
+     */
+    public void startLate() {
+        mRtt = new WifiNanRttStateManager();
+        mRtt.start(mContext, mSm.getHandler().getLooper());
     }
 
     /*
@@ -273,6 +285,20 @@ public class WifiNanStateManager {
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE, message);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_ID, messageId);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH, messageLength);
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Place a request to range a peer on the discovery session on the state machine queue.
+     */
+    public void startRanging(int clientId, int sessionId, RttManager.RttParams[] params,
+                             int rangingId) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_START_RANGING;
+        msg.arg2 = clientId;
+        msg.obj = params;
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_SESSION_ID, sessionId);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_RANGING_ID, rangingId);
         mSm.sendMessage(msg);
     }
 
@@ -808,6 +834,18 @@ public class WifiNanStateManager {
                     disableUsageLocal();
                     waitForResponse = false;
                     break;
+                case COMMAND_TYPE_START_RANGING: {
+                    Bundle data = msg.getData();
+
+                    int clientId = msg.arg2;
+                    RttManager.RttParams[] params = (RttManager.RttParams[]) msg.obj;
+                    int sessionId = data.getInt(MESSAGE_BUNDLE_KEY_SESSION_ID);
+                    int rangingId = data.getInt(MESSAGE_BUNDLE_KEY_RANGING_ID);
+
+                    startRangingLocal(clientId, sessionId, params, rangingId);
+                    waitForResponse = false;
+                    break;
+                }
                 default:
                     waitForResponse = false;
                     Log.wtf(TAG, "processCommand: this isn't a COMMAND -- msg=" + msg);
@@ -1198,6 +1236,46 @@ public class WifiNanStateManager {
         onNanDownLocal();
 
         sendNanStateChangedBroadcast(false);
+    }
+
+    private void startRangingLocal(int clientId, int sessionId, RttManager.RttParams[] params,
+                                   int rangingId) {
+        if (VDBG) {
+            Log.v(TAG, "startRangingLocal: clientId=" + clientId + ", sessionId=" + sessionId
+                    + ", parms=" + Arrays.toString(params) + ", rangingId=" + rangingId);
+        }
+
+        WifiNanClientState client = mClients.get(clientId);
+        if (client == null) {
+            Log.e(TAG, "startRangingLocal: no client exists for clientId=" + clientId);
+            return;
+        }
+
+        WifiNanSessionState session = client.getSession(sessionId);
+        if (session == null) {
+            Log.e(TAG, "startRangingLocal: no session exists for clientId=" + clientId
+                    + ", sessionId=" + sessionId);
+            client.onRangingFailure(rangingId, RttManager.REASON_INVALID_REQUEST,
+                    "Invalid session ID");
+            return;
+        }
+
+        for (int i = 0; i < params.length; ++i) {
+            String peerIdStr = params[i].bssid;
+            try {
+                params[i].bssid = session.getMac(Integer.parseInt(peerIdStr), ":");
+                if (params[i].bssid == null) {
+                    Log.d(TAG, "startRangingLocal: no MAC address for peer ID=" + peerIdStr);
+                    params[i].bssid = "";
+                }
+            } catch (NumberFormatException e) {
+                Log.e(TAG, "startRangingLocal: invalid peer ID specification (in bssid field): '"
+                        + peerIdStr + "'");
+                params[i].bssid = "";
+            }
+        }
+
+        mRtt.startRanging(rangingId, client, params);
     }
 
     /*
@@ -1687,6 +1765,9 @@ public class WifiNanStateManager {
                     case COMMAND_TYPE_DISABLE_USAGE:
                         sb.append("DISABLE_USAGE");
                         break;
+                    case COMMAND_TYPE_START_RANGING:
+                        sb.append("START_RANGING");
+                        break;
                     default:
                         sb.append("<unknown>");
                         break;
@@ -1746,5 +1827,6 @@ public class WifiNanStateManager {
             mClients.valueAt(i).dump(fd, pw, args);
         }
         mSm.dump(fd, pw, args);
+        mRtt.dump(fd, pw, args);
     }
 }

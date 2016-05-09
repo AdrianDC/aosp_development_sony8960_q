@@ -48,7 +48,7 @@ public class WifiNanSessionState {
     private final SparseArray<String> mMacByRequestorInstanceId = new SparseArray<>();
 
     public WifiNanSessionState(int sessionId, int pubSubId, IWifiNanSessionCallback callback,
-            boolean isPublishSession) {
+                               boolean isPublishSession) {
         mSessionId = sessionId;
         mPubSubId = pubSubId;
         mCallback = callback;
@@ -61,6 +61,19 @@ public class WifiNanSessionState {
 
     public IWifiNanSessionCallback getCallback() {
         return mCallback;
+    }
+
+    /**
+     * Return the MAC address (String) of the specified peer ID - or a null if no such address is
+     * registered.
+     */
+    public String getMac(int peerId, String sep) {
+        String mac = mMacByRequestorInstanceId.get(peerId);
+        if (mac != null && sep != null && !sep.isEmpty()) {
+            mac = new StringBuilder(mac).insert(10, sep).insert(8, sep).insert(6, sep)
+                    .insert(4, sep).insert(2, sep).toString();
+        }
+        return mac;
     }
 
     /**
