@@ -326,7 +326,7 @@ public class ConfigBuilder {
         */
 
         WifiConfiguration config = buildBaseConfiguration(homeSP);
-        config.enterpriseConfig.setPlmn(credImsi.toString());
+        config.enterpriseConfig.setPlmn(credImsi != null ? credImsi.toString() : "");
         return config;
     }
 
