@@ -45,6 +45,7 @@ import libcore.util.HexEncoding;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.Arrays;
 
 /**
  * Manages the state of the Wi-Fi NAN system service.
@@ -1494,8 +1495,9 @@ public class WifiNanStateManager {
             Log.v(TAG, "onMatch: pubSubId=" + pubSubId + ", requestorInstanceId="
                     + requestorInstanceId + ", peerMac="
                     + String.valueOf(HexEncoding.encode(peerMac)) + ", serviceSpecificInfoLength="
-                    + serviceSpecificInfoLength + ", serviceSpecificInfo=" + serviceSpecificInfo
-                    + ", matchFilterLength=" + matchFilterLength + ", matchFilter=" + matchFilter);
+                    + serviceSpecificInfoLength + ", serviceSpecificInfo="
+                    + Arrays.toString(serviceSpecificInfo) + ", matchFilterLength="
+                    + matchFilterLength + ", matchFilter=" + Arrays.toString(matchFilter));
         }
 
         Pair<WifiNanClientState, WifiNanSessionState> data = getClientSessionForPubSubId(pubSubId);

@@ -27,6 +27,8 @@ import com.android.server.wifi.WifiNative;
 
 import libcore.util.HexEncoding;
 
+import java.util.Arrays;
+
 /**
  * Native calls to access the Wi-Fi NAN HAL.
  *
@@ -685,8 +687,9 @@ public class WifiNanNative {
         if (VDBG) {
             Log.v(TAG, "onMatchEvent: pubSubId=" + pubSubId + ", requestorInstanceId="
                     + requestorInstanceId + ", mac=" + String.valueOf(HexEncoding.encode(mac))
-                    + ", serviceSpecificInfo=" + serviceSpecificInfo + ", matchFilterLength="
-                    + matchFilterLength + ", matchFilter=" + matchFilter);
+                    + ", serviceSpecificInfo=" + Arrays.toString(serviceSpecificInfo)
+                    + ", matchFilterLength=" + matchFilterLength + ", matchFilter="
+                    + Arrays.toString(matchFilter));
         }
 
         WifiNanStateManager.getInstance().onMatchNotification(pubSubId, requestorInstanceId, mac,
