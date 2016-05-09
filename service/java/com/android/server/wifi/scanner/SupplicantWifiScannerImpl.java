@@ -51,6 +51,8 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
 
     public static final String BACKGROUND_PERIOD_ALARM_TAG = TAG + " Background Scan Period";
     public static final String TIMEOUT_ALARM_TAG = TAG + " Scan Timeout";
+    // Max number of networks that can be specified to wpa_supplicant per scan request
+    public static final int MAX_HIDDEN_NETWORK_IDS_PER_SCAN = 16;
 
     private static final int SCAN_BUFFER_CAPACITY = 10;
     private static final int MAX_APS_PER_SCAN = 32;
@@ -383,7 +385,9 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
 
                         int[] hiddenNetworkIds = mBackgroundScanSettings.hiddenNetworkIds;
                         if (hiddenNetworkIds != null) {
-                            for (int i = 0; i < hiddenNetworkIds.length; i++) {
+                            int numHiddenNetworkIds = Math.min(hiddenNetworkIds.length,
+                                    MAX_HIDDEN_NETWORK_IDS_PER_SCAN);
+                            for (int i = 0; i < numHiddenNetworkIds; i++) {
                                 hiddenNetworkIdSet.add(hiddenNetworkIds[i]);
                             }
                         }
@@ -414,7 +418,9 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                         mPendingSingleScanEventHandler);
                 int[] hiddenNetworkIds = mPendingSingleScanSettings.hiddenNetworkIds;
                 if (hiddenNetworkIds != null) {
-                    for (int i = 0; i < hiddenNetworkIds.length; i++) {
+                    int numHiddenNetworkIds = Math.min(hiddenNetworkIds.length,
+                            MAX_HIDDEN_NETWORK_IDS_PER_SCAN);
+                    for (int i = 0; i < numHiddenNetworkIds; i++) {
                         hiddenNetworkIdSet.add(hiddenNetworkIds[i]);
                     }
                 }
