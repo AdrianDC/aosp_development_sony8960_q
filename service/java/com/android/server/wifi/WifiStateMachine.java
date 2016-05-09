@@ -465,9 +465,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 .getNetworkSelectionBSSID();
         if (networkSelectionBSSID != null && networkSelectionBSSID.equals(bssid)) {
             if (DBG) {
-                Log.d(TAG, "Current prefered BSSID is same as target");
-                return false;
+                Log.d(TAG, "Current preferred BSSID is the same as the target one");
             }
+            return false;
         }
 
         if (DBG) {
