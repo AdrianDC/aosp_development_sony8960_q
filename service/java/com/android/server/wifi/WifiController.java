@@ -122,9 +122,6 @@ class WifiController extends StateMachine {
     static final int CMD_AP_STOPPED                   = BASE + 15;
     static final int CMD_STA_START_FAILURE            = BASE + 16;
 
-    private static final int WIFI_DISABLED = 0;
-    private static final int WIFI_ENABLED = 1;
-
     private DefaultState mDefaultState = new DefaultState();
     private StaEnabledState mStaEnabledState = new StaEnabledState();
     private ApStaDisabledState mApStaDisabledState = new ApStaDisabledState();
@@ -467,8 +464,7 @@ class WifiController extends StateMachine {
                 case CMD_SET_AP:
                     if (msg.arg1 == 1) {
                         if (msg.arg2 == 0) { // previous wifi state has not been saved yet
-                            Settings.Global.putInt(mContext.getContentResolver(),
-                                    Settings.Global.WIFI_SAVED_STATE, WIFI_DISABLED);
+                            mSettingsStore.setWifiSavedState(WifiSettingsStore.WIFI_DISABLED);
                         }
                         mWifiStateMachine.setHostApRunning((WifiConfiguration) msg.obj,
                                 true);
@@ -552,8 +548,7 @@ class WifiController extends StateMachine {
                 case CMD_SET_AP:
                     if (msg.arg1 == 1) {
                         // remeber that we were enabled
-                        Settings.Global.putInt(mContext.getContentResolver(),
-                                Settings.Global.WIFI_SAVED_STATE, WIFI_ENABLED);
+                        mSettingsStore.setWifiSavedState(WifiSettingsStore.WIFI_ENABLED);
                         deferMessage(obtainMessage(msg.what, msg.arg1, 1, msg.obj));
                         transitionTo(mApStaDisabledState);
                     }
@@ -617,8 +612,7 @@ class WifiController extends StateMachine {
                 case CMD_SET_AP:
                     // Before starting tethering, turn off supplicant for scan mode
                     if (msg.arg1 == 1) {
-                        Settings.Global.putInt(mContext.getContentResolver(),
-                                Settings.Global.WIFI_SAVED_STATE, WIFI_DISABLED);
+                        mSettingsStore.setWifiSavedState(WifiSettingsStore.WIFI_DISABLED);
                         deferMessage(obtainMessage(msg.what, msg.arg1, 1, msg.obj));
                         transitionTo(mApStaDisabledState);
                     }
@@ -673,10 +667,8 @@ class WifiController extends StateMachine {
          * wifi state).
          */
         private State getNextWifiState() {
-            int wifiSavedState = mFacade.getIntegerSetting(mContext,
-                    Settings.Global.WIFI_SAVED_STATE, WIFI_DISABLED);
-            if (wifiSavedState == WIFI_ENABLED) {
-                return mStaEnabledState;
+            if (mSettingsStore.getWifiSavedState() == WifiSettingsStore.WIFI_ENABLED) {
+                return mDeviceActiveState;
             }
 
             if (mSettingsStore.isScanAlwaysAvailable()) {
@@ -715,7 +707,13 @@ class WifiController extends StateMachine {
                          */
                         mPendingState = getNextWifiState();
                     }
-                    transitionTo(mPendingState);
+                    if (mPendingState == mDeviceActiveState && mDeviceIdle) {
+                        checkLocksAndTransitionWhenDeviceIdle();
+                    } else {
+                        // go ahead and transition because we are not idle or we are not going
+                        // to the active state.
+                        transitionTo(mPendingState);
+                    }
                     break;
                 case CMD_EMERGENCY_CALL_STATE_CHANGED:
                 case CMD_EMERGENCY_MODE_CHANGED:
