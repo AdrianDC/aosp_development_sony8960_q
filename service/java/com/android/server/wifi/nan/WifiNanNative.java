@@ -470,7 +470,10 @@ public class WifiNanNative {
     private static int translateHalStatusToNanEventCallbackReason(int halStatus) {
         switch (halStatus) {
             case NAN_STATUS_SUCCESS:
-                return WifiNanEventCallback.REASON_REQUESTED;
+                /*
+                 * TODO: b/27914592 all of these codes will be cleaned-up/reduced.
+                 */
+                return WifiNanEventCallback.REASON_OTHER;
             case NAN_STATUS_INVALID_RSSI_CLOSE_VALUE:
             case NAN_STATUS_INVALID_RSSI_MIDDLE_VALUE:
             case NAN_STATUS_INVALID_HOP_COUNT_LIMIT:
