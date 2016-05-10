@@ -90,11 +90,11 @@ public class WifiApConfigStoreTest {
         return config;
     }
 
-    private boolean writeApConfigFile(WifiConfiguration config) throws Exception {
+    private void writeApConfigFile(WifiConfiguration config) throws Exception {
         Method m = WifiApConfigStore.class.getDeclaredMethod(
                 "writeApConfiguration", String.class, WifiConfiguration.class);
         m.setAccessible(true);
-        return (boolean) m.invoke(null, mApConfigFile.getPath(), config);
+        m.invoke(null, mApConfigFile.getPath(), config);
     }
 
     private void verifyApConfig(WifiConfiguration config1, WifiConfiguration config2) {
@@ -133,7 +133,7 @@ public class WifiApConfigStoreTest {
                 KeyMgmt.WPA_EAP,   /* key management */
                 1,                 /* AP band (5GHz) */
                 40                 /* AP channel */);
-        assertTrue(writeApConfigFile(expectedConfig));
+        writeApConfigFile(expectedConfig);
         WifiApConfigStore store = new WifiApConfigStore(
                 mContext, mBackupManagerProxy, mApConfigFile.getPath());
         verifyApConfig(expectedConfig, store.getApConfiguration());
@@ -153,7 +153,7 @@ public class WifiApConfigStoreTest {
                 KeyMgmt.WPA_EAP,   /* key management */
                 1,                 /* AP band (5GHz) */
                 40                 /* AP channel */);
-        assertTrue(writeApConfigFile(expectedConfig));
+        writeApConfigFile(expectedConfig);
         WifiApConfigStore store = new WifiApConfigStore(
                 mContext, mBackupManagerProxy, mApConfigFile.getPath());
         verifyApConfig(expectedConfig, store.getApConfiguration());
