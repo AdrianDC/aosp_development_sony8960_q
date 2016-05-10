@@ -397,9 +397,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     // Used as debug to indicate which configuration last was removed
     private WifiConfiguration lastForgetConfigurationAttempt = null;
 
-    //Random used by softAP channel Selection
-    private static Random mRandom = new Random(Calendar.getInstance().getTimeInMillis());
-
     boolean isRoaming() {
         return mAutoRoaming;
     }
@@ -3730,53 +3727,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         // Disconnect via supplicant, and let autojoin retry connecting to the network.
         mWifiNative.disconnect();
-    }
-
-    private int convertFrequencyToChannelNumber(int frequency) {
-        if (frequency >= 2412 && frequency <= 2484) {
-            return (frequency -2412) / 5 + 1;
-        } else if (frequency >= 5170  &&  frequency <=5825) {
-            //DFS is included
-            return (frequency -5170) / 5 + 34;
-        } else {
-            return 0;
-        }
-    }
-
-    private int chooseApChannel(int apBand) {
-        int apChannel;
-        int[] channel;
-
-        if (apBand == 0)  {
-            ArrayList<Integer> allowed2GChannel =
-                    mWifiApConfigStore.getAllowed2GChannel();
-            if (allowed2GChannel == null || allowed2GChannel.size() == 0) {
-                //most safe channel to use
-                if (DBG) {
-                    Log.d(TAG, "No specified 2G allowed channel list");
-                }
-                apChannel = 6;
-            } else {
-                int index = mRandom.nextInt(allowed2GChannel.size());
-                apChannel = allowed2GChannel.get(index).intValue();
-            }
-        } else {
-            //5G without DFS
-            channel = mWifiNative.getChannelsForBand(2);
-            if (channel != null && channel.length > 0) {
-                apChannel = channel[mRandom.nextInt(channel.length)];
-                apChannel = convertFrequencyToChannelNumber(apChannel);
-            } else {
-                Log.e(TAG, "SoftAp do not get available channel list");
-                apChannel = 0;
-            }
-        }
-
-        if (DBG) {
-            Log.d(TAG, "SoftAp set on channel " + apChannel);
-        }
-
-        return apChannel;
     }
 
     /* Driver/firmware setup for soft AP. */
