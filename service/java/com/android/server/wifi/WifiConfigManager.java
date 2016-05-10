@@ -2182,7 +2182,7 @@ public class WifiConfigManager {
         if (originalConfig.wepKeys != null && currentConfig.wepKeys != null) {
             if (originalConfig.wepKeys.length == currentConfig.wepKeys.length) {
                 for (int i = 0; i < originalConfig.wepKeys.length; i++) {
-                    if (originalConfig.wepKeys[i] != currentConfig.wepKeys[i]) {
+                    if (!Objects.equals(originalConfig.wepKeys[i], currentConfig.wepKeys[i])) {
                         return true;
                     }
                 }
