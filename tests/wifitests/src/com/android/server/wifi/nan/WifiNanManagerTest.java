@@ -218,61 +218,6 @@ public class WifiNanManagerTest {
     }
 
     /**
-     * Validate connect flow when NAN is shutting down: (1) connect + success
-     * (2) publish (3) NAN down (4) try updating the publish (5) connect again
-     */
-    @Test
-    public void testConnectNanDownFlow() throws Exception {
-        final int clientId = 4565;
-        final int sessionId = 123;
-        final int reason = WifiNanEventCallback.REASON_REQUESTED;
-
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                any(ConfigRequest.class))).thenReturn(clientId);
-
-        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService);
-        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
-                .forClass(IWifiNanEventCallback.class);
-        ArgumentCaptor<IWifiNanSessionCallback> sessionProxyCallback = ArgumentCaptor
-                .forClass(IWifiNanSessionCallback.class);
-        ArgumentCaptor<WifiNanPublishSession> publishSession = ArgumentCaptor
-                .forClass(WifiNanPublishSession.class);
-
-        // (1) connect + success
-        mDut.connect(mMockLooper.getLooper(), mockCallback);
-        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
-                (ConfigRequest) isNull());
-        clientProxyCallback.getValue().onConnectSuccess();
-        mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
-
-        // (2) publish - should succeed
-        PublishConfig publishConfig = new PublishConfig.Builder().build();
-        mDut.publish(publishConfig, mockSessionCallback);
-        inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
-                sessionProxyCallback.capture());
-        sessionProxyCallback.getValue().onSessionStarted(sessionId);
-        mMockLooper.dispatchAll();
-        inOrder.verify(mockSessionCallback).onPublishStarted(publishSession.capture());
-
-        // (3) NAN down
-        clientProxyCallback.getValue().onNanDown(reason);
-        mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onNanDown(reason);
-
-        // (4) try updating the publish - silent failure (already informed that
-        // NAN down)
-        publishSession.getValue().updatePublish(publishConfig);
-
-        // (5) connect - should try the service (i.e. succeed)
-        mDut.connect(mMockLooper.getLooper(), mockCallback);
-        inOrder.verify(mockNanService).connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                (ConfigRequest) isNull());
-
-        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService);
-    }
-
-    /**
      * Validate that cannot call connect on an existing connection: (1) connect
      * + success, (2) try connect again
      */
@@ -295,8 +240,10 @@ public class WifiNanManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectSuccess();
 
-        // (2) connect - fails silently
+        // (2) connect - forward to service (though will fail silently)
         mDut.connect(mMockLooper.getLooper(), mockCallback);
+        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
+                (ConfigRequest) isNull());
 
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService);
     }
