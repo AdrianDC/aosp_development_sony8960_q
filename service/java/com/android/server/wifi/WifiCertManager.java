@@ -125,9 +125,8 @@ public class WifiCertManager {
             stream.readFully(bytes);
         } catch (IOException e) {
             Log.e(TAG, "readConfigFile: failed to read " + e, e);
-        } finally {
-            return bytes;
         }
+        return bytes;
     }
 
     protected void writeConfigFile(byte[] payload) {

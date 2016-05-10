@@ -414,7 +414,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         if (bssid == null) bssid = "any";
         if (config == null) return false; // Nothing to do
 
-        if (mTargetRoamBSSID != null && bssid == mTargetRoamBSSID && bssid == config.BSSID) {
+        if (mTargetRoamBSSID != null
+                && bssid.equals(mTargetRoamBSSID) && bssid.equals(config.BSSID)) {
             return false; // We didnt change anything
         }
         if (!mTargetRoamBSSID.equals("any") && bssid.equals("any")) {
@@ -1345,7 +1346,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private static final String LOGD_LEVEL_DEBUG = "D";
     private static final String LOGD_LEVEL_VERBOSE = "V";
     private void configureVerboseHalLogging(boolean enableVerbose) {
-        if (Build.TYPE == BUILD_TYPE_USER) {  // Verbose HAL logging not supported on user builds.
+        // Verbose HAL logging not supported on user builds.
+        if (Build.TYPE.equals(BUILD_TYPE_USER)) {
             return;
         }
         mPropertyService.set(SYSTEM_PROPERTY_LOG_CONTROL_WIFIHAL,
