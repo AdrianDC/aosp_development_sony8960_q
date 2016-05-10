@@ -1,6 +1,30 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package com.android.server.wifi;
 
+import static com.android.server.wifi.WifiController.CMD_AP_STOPPED;
+import static com.android.server.wifi.WifiController.CMD_EMERGENCY_CALL_STATE_CHANGED;
+import static com.android.server.wifi.WifiController.CMD_EMERGENCY_MODE_CHANGED;
+import static com.android.server.wifi.WifiController.CMD_SET_AP;
+import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
+
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.*;
+import static org.mockito.Mockito.*;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -13,6 +37,7 @@ import com.android.internal.util.StateMachine;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -20,13 +45,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
 
-import static com.android.server.wifi.WifiController.CMD_EMERGENCY_CALL_STATE_CHANGED;
-import static com.android.server.wifi.WifiController.CMD_EMERGENCY_MODE_CHANGED;
-import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
+/**
+ * Test WifiController for changes in and out of ECM and SoftAP modes.
+ */
 @SmallTest
 public class WifiControllerTest {
 
@@ -218,59 +239,30 @@ public class WifiControllerTest {
         assertEquals("DeviceActiveState", getCurrentState().getName());
     }
 
+    /**
+     * When AP mode is enabled and wifi was previously in AP mode, we should return to
+     * DeviceActiveState after the AP is disabled.
+     * Enter DeviceActiveState, activate AP mode, disable AP mode.
+     * <p>
+     * Expected: AP should successfully start and exit, then return to DeviceActiveState.
+     */
+    @Test
+    public void testReturnToDeviceActiveStateAfterAPModeShutdown() throws Exception {
+        enableWifi();
+        assertEquals("DeviceActiveState", getCurrentState().getName());
+
+        mWifiController.obtainMessage(CMD_SET_AP, 1, 0).sendToTarget();
+        mLooper.dispatchAll();
+        assertEquals("ApEnabledState", getCurrentState().getName());
+
+        when(mSettingsStore.getWifiSavedState()).thenReturn(1);
+        mWifiController.obtainMessage(CMD_AP_STOPPED).sendToTarget();
+        mLooper.dispatchAll();
+
+        InOrder inOrder = inOrder(mWifiStateMachine);
+        inOrder.verify(mWifiStateMachine).setSupplicantRunning(true);
+        inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        inOrder.verify(mWifiStateMachine).setDriverStart(true);
+        assertEquals("DeviceActiveState", getCurrentState().getName());
+    }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
