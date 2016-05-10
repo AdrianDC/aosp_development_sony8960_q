@@ -26,6 +26,7 @@ import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
 import android.net.wifi.nan.WifiNanEventCallback;
+import android.net.wifi.nan.WifiNanSession;
 import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -332,13 +333,17 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
 
     @Override
     public void sendMessage(int clientId, int sessionId, int peerId, byte[] message,
-            int messageLength, int messageId) {
+            int messageLength, int messageId, int retryCount) {
         enforceAccessPermission();
         enforceChangePermission();
 
         if (messageLength != 0 && (message == null || message.length < messageLength)) {
             throw new IllegalArgumentException(
                     "Non-matching combination of message and messageLength");
+        }
+        if (retryCount < 0 || retryCount > WifiNanSession.MAX_SEND_RETRY_COUNT) {
+            throw new IllegalArgumentException("Invalid 'retryCount' must be non-negative "
+                    + "and <= WifiNanSession.MAX_SEND_RETRY_COUNT");
         }
 
         int uid = getMockableCallingUid();
@@ -347,10 +352,11 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             Log.v(TAG,
                     "sendMessage: sessionId=" + sessionId + ", uid=" + uid + ", clientId="
                             + clientId + ", peerId=" + peerId + ", messageLength=" + messageLength
-                            + ", messageId=" + messageId);
+                            + ", messageId=" + messageId + ", retryCount=" + retryCount);
         }
 
-        mStateManager.sendMessage(clientId, sessionId, peerId, message, messageLength, messageId);
+        mStateManager.sendMessage(clientId, sessionId, peerId, message, messageLength, messageId,
+                retryCount);
     }
 
     @Override

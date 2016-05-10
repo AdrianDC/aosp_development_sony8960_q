@@ -130,6 +130,7 @@ public class WifiNanStateManager {
     private static final String MESSAGE_BUNDLE_KEY_REQ_INSTANCE_ID = "req_instance_id";
     private static final String MESSAGE_BUNDLE_KEY_RANGING_ID = "ranging_id";
     private static final String MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME = "message_queue_time";
+    private static final String MESSAGE_BUNDLE_KEY_RETRY_COUNT = "retry_count";
 
     /*
      * Asynchronous access with no lock
@@ -286,7 +287,7 @@ public class WifiNanStateManager {
      * machine queue.
      */
     public void sendMessage(int clientId, int sessionId, int peerId, byte[] message,
-            int messageLength, int messageId) {
+            int messageLength, int messageId, int retryCount) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_SEND_MESSAGE;
         msg.arg2 = clientId;
@@ -295,6 +296,7 @@ public class WifiNanStateManager {
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE, message);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_ID, messageId);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH, messageLength);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_RETRY_COUNT, retryCount);
         mSm.sendMessage(msg);
     }
 
@@ -783,7 +785,22 @@ public class WifiNanStateManager {
                                         + " - no such queued send command");
                     } else {
                         removeSendMessageFromQueue(transactionId);
-                        onMessageSendFailLocal(queuedSendCommand, reason);
+
+                        int retryCount = queuedSendCommand.getData()
+                                .getInt(MESSAGE_BUNDLE_KEY_RETRY_COUNT);
+                        if (retryCount > 0 && reason == WifiNanSessionCallback.REASON_TX_FAIL) {
+                            if (DBG) {
+                                Log.d(TAG,
+                                        "NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL: transactionId="
+                                                + transactionId + ", reason=" + reason
+                                                + ": retransmitting - retryCount=" + retryCount);
+                            }
+                            queuedSendCommand.getData().putInt(MESSAGE_BUNDLE_KEY_RETRY_COUNT,
+                                    retryCount - 1);
+                            sendMessageAtFrontOfQueue(queuedSendCommand);
+                        } else {
+                            onMessageSendFailLocal(queuedSendCommand, reason);
+                        }
                     }
                     break;
                 }
