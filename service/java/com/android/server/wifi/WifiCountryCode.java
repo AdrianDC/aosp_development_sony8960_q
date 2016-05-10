@@ -131,7 +131,7 @@ public class WifiCountryCode {
             return;
         }
         mTelephonyCountryCode = countryCode;
-        mTelephonyCountryCode.toUpperCase();
+        mTelephonyCountryCode = mTelephonyCountryCode.toUpperCase();
         // If wpa_supplicant is ready we set the country code now, otherwise it will be
         // set once wpa_supplicant is ready.
         if (mReady) {

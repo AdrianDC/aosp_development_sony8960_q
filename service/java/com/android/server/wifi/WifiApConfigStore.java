@@ -164,13 +164,10 @@ public class WifiApConfigStore {
     /**
      * Write AP configuration to persistent storage.
      */
-    private static boolean writeApConfiguration(final String filename,
-                                                final WifiConfiguration config) {
-        DataOutputStream out = null;
-        try {
-            out = new DataOutputStream(new BufferedOutputStream(
-                        new FileOutputStream(filename)));
-
+    private static void writeApConfiguration(final String filename,
+                                             final WifiConfiguration config) {
+        try (DataOutputStream out = new DataOutputStream(new BufferedOutputStream(
+                        new FileOutputStream(filename)))) {
             out.writeInt(AP_CONFIG_FILE_VERSION);
             out.writeUTF(config.SSID);
             out.writeInt(config.apBand);
@@ -182,18 +179,7 @@ public class WifiApConfigStore {
             }
         } catch (IOException e) {
             Log.e(TAG, "Error writing hotspot configuration" + e);
-            return false;
-        } finally {
-            if (out != null) {
-                try {
-                    out.close();
-                } catch (IOException e) {
-                    Log.e(TAG, "Error closing hotspot configuration during write" + e);
-                    return false;
-                }
-            }
         }
-        return true;
     }
 
     /**
