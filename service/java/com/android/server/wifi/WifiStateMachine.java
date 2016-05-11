@@ -553,8 +553,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private UntrustedWifiNetworkFactory mUntrustedNetworkFactory;
     private WifiNetworkAgent mNetworkAgent;
 
-    private String[] mWhiteListedSsids = null;
-
     private byte[] mRssiRanges;
 
     // Keep track of various statistics, for retrieval by System Apps, i.e. under @SystemApi
@@ -2316,12 +2314,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
         pw.println("mConnectedModeGScanOffloadStarted " + mConnectedModeGScanOffloadStarted);
         pw.println("mGScanPeriodMilli " + mGScanPeriodMilli);
-        if (mWhiteListedSsids != null && mWhiteListedSsids.length > 0) {
-            pw.println("SSID whitelist :" );
-            for (int i=0; i < mWhiteListedSsids.length; i++) {
-                pw.println("       " + mWhiteListedSsids[i]);
-            }
-        }
         if (mNetworkFactory != null) {
             mNetworkFactory.dump(fd, pw, args);
         } else {
@@ -3486,30 +3478,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
 
         mWifiInfo.setBSSID(stateChangeResult.BSSID);
-
-        if (mWhiteListedSsids != null
-                && mWhiteListedSsids.length > 0
-                && stateChangeResult.wifiSsid != null) {
-            String SSID = stateChangeResult.wifiSsid.toString();
-            String currentSSID = mWifiInfo.getSSID();
-            if (SSID != null && currentSSID != null && !SSID.equals(WifiSsid.NONE)) {
-                // Remove quote before comparing
-                if (SSID.length() >= 2 && SSID.charAt(0) == '"'
-                        && SSID.charAt(SSID.length() - 1) == '"') {
-                    SSID = SSID.substring(1, SSID.length() - 1);
-                }
-                if (currentSSID.length() >= 2 && currentSSID.charAt(0) == '"'
-                        && currentSSID.charAt(currentSSID.length() - 1) == '"') {
-                    currentSSID = currentSSID.substring(1, currentSSID.length() - 1);
-                }
-                if ((!SSID.equals(currentSSID)) && (getCurrentState() == mConnectedState)) {
-                    lastConnectAttemptTimestamp = System.currentTimeMillis();
-                    targetWificonfiguration =
-                            mWifiConfigManager.getWifiConfiguration(mWifiInfo.getNetworkId());
-                    transitionTo(mRoamingState);
-                }
-            }
-        }
 
         mWifiInfo.setSSID(stateChangeResult.wifiSsid);
         mWifiInfo.setEphemeral(mWifiConfigManager.isEphemeral(mWifiInfo.getNetworkId()));
@@ -7488,7 +7456,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
 
             mLastDriverRoamAttempt = 0;
-            mWhiteListedSsids = null;
             mWifiLastResortWatchdog.connectedStateTransition(false);
         }
     }
