@@ -174,13 +174,16 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      *
      * @param s is string log
      */
+    @Override
     protected void loge(String s) {
         Log.e(getName(), s);
     }
+    @Override
     protected void logd(String s) {
         Log.d(getName(), s);
     }
-    protected void log(String s) {;
+    @Override
+    protected void log(String s) {
         Log.d(getName(), s);
     }
     private WifiLastResortWatchdog mWifiLastResortWatchdog;
@@ -1708,16 +1711,21 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
         WifiScanner.ScanListener nativeScanListener = new WifiScanner.ScanListener() {
                 // ignore all events since WifiStateMachine is registered for the supplicant events
+                @Override
                 public void onSuccess() {
                 }
+                @Override
                 public void onFailure(int reason, String description) {
                     mIsScanOngoing = false;
                     mIsFullScanOngoing = false;
                 }
+                @Override
                 public void onResults(WifiScanner.ScanData[] results) {
                 }
+                @Override
                 public void onFullResult(ScanResult fullScanResult) {
                 }
+                @Override
                 public void onPeriodChanged(int periodInMs) {
                 }
             };
@@ -2372,6 +2380,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * @param msg that was processed
      * @return information to be logged as a String
      */
+    @Override
     protected String getLogRecString(Message msg) {
         WifiConfiguration config;
         Long now;
@@ -3840,6 +3849,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             --mConnectionRequests;
         }
 
+        @Override
         public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
             pw.println("mConnectionRequests " + mConnectionRequests);
         }
@@ -3877,6 +3887,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
         }
 
+        @Override
         public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
             pw.println("mUntrustedReqCount " + mUntrustedReqCount);
         }
@@ -6205,6 +6216,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 NetworkCapabilities nc, LinkProperties lp, int score, NetworkMisc misc) {
             super(l, c, TAG, ni, nc, lp, score, misc);
         }
+
+        @Override
         protected void unwanted() {
             // Ignore if we're not the current networkAgent.
             if (this != mNetworkAgent) return;
