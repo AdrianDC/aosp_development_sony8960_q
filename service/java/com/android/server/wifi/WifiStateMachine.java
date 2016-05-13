@@ -7925,54 +7925,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return sb.toString();
     }
 
-    private static byte[] concat(byte[] array1, byte[] array2, byte[] array3) {
-
-        int len = array1.length + array2.length + array3.length;
-
-        if (array1.length != 0) {
-            len++;                      /* add another byte for size */
-        }
-
-        if (array2.length != 0) {
-            len++;                      /* add another byte for size */
-        }
-
-        if (array3.length != 0) {
-            len++;                      /* add another byte for size */
-        }
-
-        byte[] result = new byte[len];
-
-        int index = 0;
-        if (array1.length != 0) {
-            result[index] = (byte) (array1.length & 0xFF);
-            index++;
-            for (byte b : array1) {
-                result[index] = b;
-                index++;
-            }
-        }
-
-        if (array2.length != 0) {
-            result[index] = (byte) (array2.length & 0xFF);
-            index++;
-            for (byte b : array2) {
-                result[index] = b;
-                index++;
-            }
-        }
-
-        if (array3.length != 0) {
-            result[index] = (byte) (array3.length & 0xFF);
-            index++;
-            for (byte b : array3) {
-                result[index] = b;
-                index++;
-            }
-        }
-        return result;
-    }
-
     private static byte[] concatHex(byte[] array1, byte[] array2) {
 
         int len = array1.length + array2.length;
