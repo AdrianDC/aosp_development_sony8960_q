@@ -252,7 +252,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 // This value of hw has to be believed as this value is averaged and has breached
                 // the rssi thresholds and raised event to host. This would be eggregious if this
                 // value is invalid
-                mWifiInfo.setRssi((int) curRssi);
+                mWifiInfo.setRssi(curRssi);
                 updateCapabilities(getCurrentWifiConfiguration());
                 int ret = startRssiMonitoringOffload(maxRssi, minRssi);
                 Log.d(TAG, "Re-program RSSI thresholds for " + smToString(reason) +
@@ -4738,8 +4738,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mWifiNative.setBluetoothCoexistenceScanMode(mBluetoothConnectionActive);
                     break;
                 case CMD_STOP_DRIVER:
-                    int mode = message.arg1;
-
                     log("stop driver");
                     mWifiConfigManager.disableAllNetworksNative();
 
@@ -6688,7 +6686,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mWifiInfo.setBSSID((String) message.obj);
                     mLastNetworkId = message.arg1;
                     mWifiInfo.setNetworkId(mLastNetworkId);
-                    if(!mLastBssid.equals((String) message.obj)) {
+                    if(!mLastBssid.equals(message.obj)) {
                         mLastBssid = (String) message.obj;
                         sendNetworkStateChangeBroadcast(mLastBssid);
                     }
@@ -7014,7 +7012,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         // We completed the layer2 roaming part
                         mAssociated = true;
                         if (stateChangeResult.BSSID != null) {
-                            mTargetRoamBSSID = (String) stateChangeResult.BSSID;
+                            mTargetRoamBSSID = stateChangeResult.BSSID;
                         }
                     }
                     break;
@@ -7119,7 +7117,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     class ConnectedState extends State {
         @Override
         public void enter() {
-            String address;
             updateDefaultRouteMacAddress(1000);
             if (DBG) {
                 log("Enter ConnectedState "
@@ -7865,7 +7862,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     /**
      * @param wifiCredentialEventType WIFI_CREDENTIAL_SAVED or WIFI_CREDENTIAL_FORGOT
-     * @param msg Must have a WifiConfiguration obj to succeed
+     * @param config Must have a WifiConfiguration object to succeed
      */
     private void broadcastWifiCredentialChanged(int wifiCredentialEventType,
             WifiConfiguration config) {
@@ -8261,7 +8258,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     private static String getLinkPropertiesSummary(LinkProperties lp) {
-        List<String> attributes = new ArrayList(6);
+        List<String> attributes = new ArrayList<>(6);
         if (lp.hasIPv4Address()) {
             attributes.add("v4");
         }
