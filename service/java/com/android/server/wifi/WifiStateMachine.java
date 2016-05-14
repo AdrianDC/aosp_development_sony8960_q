@@ -4669,7 +4669,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (mScreenBroadcastReceived.get() == false) {
                 PowerManager powerManager = (PowerManager)mContext.getSystemService(
                         Context.POWER_SERVICE);
-                handleScreenStateChanged(powerManager.isScreenOn());
+                handleScreenStateChanged(powerManager.isInteractive());
             } else {
                 // Set the right suspend mode settings
                 mWifiNative.setSuspendOptimizations(mSuspendOptNeedsDisabled == 0
