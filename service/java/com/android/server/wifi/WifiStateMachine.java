@@ -29,7 +29,6 @@ import static android.net.wifi.WifiManager.WIFI_STATE_UNKNOWN;
 
 import android.Manifest;
 import android.app.ActivityManager;
-import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
@@ -122,12 +121,10 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -156,7 +153,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     @VisibleForTesting public static final short NUM_LOG_RECS_VERBOSE_LOW_MEMORY = 200;
     @VisibleForTesting public static final short NUM_LOG_RECS_VERBOSE = 3000;
     private static boolean DBG = false;
-    private static boolean USE_PAUSE_SCANS = false;
     private static final String TAG = "WifiStateMachine";
 
     private static final int ONE_HOUR_MILLI = 1000 * 60 * 60;
@@ -218,9 +214,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private boolean mScreenOn = false;
 
-    /* Chipset supports background scan */
-    private final boolean mBackgroundScanSupported;
-
     private final String mInterfaceName;
     /* Tethering interface could be separate from wlan interface */
     private String mTetherInterfaceName;
@@ -279,13 +272,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private boolean mSendScanResultsBroadcast = false;
 
     private final Queue<Message> mBufferedScanMsg = new LinkedList<Message>();
-    private WorkSource mScanWorkSource = null;
     private static final int UNKNOWN_SCAN_SOURCE = -1;
     private static final int SCAN_ALARM_SOURCE = -2;
     private static final int ADD_OR_UPDATE_SOURCE = -3;
-    private static final int SET_ALLOW_UNTRUSTED_SOURCE = -4;
-    private static final int ENABLE_WIFI = -5;
-    public static final int DFS_RESTRICTED_SCAN_REQUEST = -6;
 
     private static final int SCAN_REQUEST_BUFFER_MAX_SIZE = 10;
     private static final String CUSTOMIZED_SCAN_SETTING = "customized_scan_settings";
@@ -342,12 +331,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     /* Tracks sequence number on a driver time out */
     private int mDriverStartToken = 0;
-
-    /**
-     * Don't select new network when previous network selection is
-     * pending connection for this much time
-     */
-    private static final int CONNECT_TIMEOUT_MSEC = 3000;
 
     /**
      * The link properties of the wifi interface.
@@ -530,9 +513,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     private final IpManager mIpManager;
-
-    private AlarmManager mAlarmManager;
-    private PendingIntent mScanIntent;
 
     /* Tracks current frequency mode */
     private AtomicInteger mFrequencyBand = new AtomicInteger(WifiManager.WIFI_FREQUENCY_BAND_AUTO);
@@ -773,9 +753,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     static final int CMD_ACCEPT_UNVALIDATED                             = BASE + 153;
 
-    /* used to log if PNO was started */
-    static final int CMD_UPDATE_ASSOCIATED_SCAN_PERMISSION              = BASE + 158;
-
     /* used to offload sending IP packet */
     static final int CMD_START_IP_PACKET_OFFLOAD                        = BASE + 160;
 
@@ -846,16 +823,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     /* Tracks if user has enabled suspend optimizations through settings */
     private AtomicBoolean mUserWantsSuspendOpt = new AtomicBoolean(true);
-
-    /**
-     * Default framework scan interval in milliseconds. This is used in the scenario in which
-     * wifi chipset does not support background scanning to set up a
-     * periodic wake up scan so that the device can connect to a new access
-     * point on the move. {@link Settings.Global#WIFI_FRAMEWORK_SCAN_INTERVAL_MS} can
-     * override this.
-     */
-    private final int mDefaultFrameworkScanIntervalMs;
-
 
     /**
      * Scan period for the NO_NETWORKS_PERIIDOC_SCAN_FEATURE
@@ -968,8 +935,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     private final AtomicInteger mWifiApState = new AtomicInteger(WIFI_AP_STATE_DISABLED);
 
-    private static final int SCAN_REQUEST = 0;
-
     /**
      * Work source to use to blame usage on the WiFi service
      */
@@ -1001,11 +966,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     // Used for debug and stats gathering
     private static int sScanAlarmIntentCount = 0;
-
-    private static final int sFrameworkMinScanIntervalSaneValue = 10000;
-
-    private long mGScanStartTimeMilli;
-    private long mGScanPeriodMilli;
 
     private FrameworkFacade mFacade;
 
@@ -1076,21 +1036,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mIpManager = mFacade.makeIpManager(mContext, mInterfaceName, new IpManagerCallback());
         mIpManager.setMulticastFilter(true);
 
-        mAlarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
-
-        // Make sure the interval is not configured less than 10 seconds
-        int period = mContext.getResources().getInteger(
-                R.integer.config_wifi_framework_scan_interval);
-        if (period < sFrameworkMinScanIntervalSaneValue) {
-            period = sFrameworkMinScanIntervalSaneValue;
-        }
-        mDefaultFrameworkScanIntervalMs = period;
-
         mNoNetworksPeriodicScan = mContext.getResources().getInteger(
                 R.integer.config_wifi_no_network_periodic_scan_interval);
 
-        mBackgroundScanSupported = mContext.getResources().getBoolean(
-                R.bool.config_wifi_background_scan_support);
+        // TODO: remove these settings from the config file since we no longer obey them
+        // mContext.getResources().getInteger(R.integer.config_wifi_framework_scan_interval);
+        // mContext.getResources().getBoolean(R.bool.config_wifi_background_scan_support);
 
         mPrimaryDeviceType = mContext.getResources().getString(
                 R.string.config_wifi_p2p_device_type);
@@ -1350,15 +1301,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
         mPropertyService.set(SYSTEM_PROPERTY_LOG_CONTROL_WIFIHAL,
                 enableVerbose ? LOGD_LEVEL_VERBOSE : LOGD_LEVEL_DEBUG);
-    }
-
-    long mLastScanPermissionUpdate = 0;
-    boolean mConnectedModeGScanOffloadStarted = false;
-    // Don't do a G-scan enable/re-enable cycle more than once within 20seconds
-    // The function updateAssociatedScanPermission() can be called quite frequently, hence
-    // we want to throttle the GScan Stop->Start transition
-    static final long SCAN_PERMISSION_UPDATE_THROTTLE_MILLI = 20000;
-    void updateAssociatedScanPermission() {
     }
 
     private int mAggressiveHandover = 0;
@@ -2317,8 +2259,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         } else {
             pw.println("CurrentCountryCode is not initialized");
         }
-        pw.println("mConnectedModeGScanOffloadStarted " + mConnectedModeGScanOffloadStarted);
-        pw.println("mGScanPeriodMilli " + mGScanPeriodMilli);
         if (mNetworkFactory != null) {
             mNetworkFactory.dump(fd, pw, args);
         } else {
@@ -2399,20 +2339,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
         sb.append(" ").append(printTime());
         switch (msg.what) {
-            case CMD_UPDATE_ASSOCIATED_SCAN_PERMISSION:
-                sb.append(" ");
-                sb.append(Integer.toString(msg.arg1));
-                sb.append(" ");
-                sb.append(Integer.toString(msg.arg2));
-                sb.append(" autojoinAllowed=");
-                sb.append(mWifiConfigManager.getEnableAutoJoinWhenAssociated());
-                sb.append(" withTraffic=").append(getAllowScansWithTraffic());
-                sb.append(" tx=").append(mWifiInfo.txSuccessRate);
-                sb.append("/").append(WifiConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS);
-                sb.append(" rx=").append(mWifiInfo.rxSuccessRate);
-                sb.append("/").append(WifiConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS);
-                sb.append(" -> ").append(mConnectedModeGScanOffloadStarted);
-                break;
             case CMD_START_SCAN:
                 now = System.currentTimeMillis();
                 sb.append(" ");
@@ -2655,11 +2581,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 }
                 if (mWifiScoreReport != null) {
                     sb.append(mWifiScoreReport.getReport());
-                }
-                if (mConnectedModeGScanOffloadStarted) {
-                    sb.append(" offload-started periodMilli " + mGScanPeriodMilli);
-                } else {
-                    sb.append(" offload-stopped");
                 }
                 break;
             case CMD_AUTO_CONNECT:
@@ -4034,7 +3955,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_DISCONNECTING_WATCHDOG_TIMER:
                 case CMD_ROAM_WATCHDOG_TIMER:
                 case CMD_DISABLE_EPHEMERAL_NETWORK:
-                case CMD_UPDATE_ASSOCIATED_SCAN_PERMISSION:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
                 case CMD_SET_SUSPEND_OPT_ENABLED:
@@ -7160,9 +7080,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             logStateAndMessage(message, this);
 
             switch (message.what) {
-                case CMD_UPDATE_ASSOCIATED_SCAN_PERMISSION:
-                    updateAssociatedScanPermission();
-                    break;
                 case CMD_UNWANTED_NETWORK:
                     if (message.arg1 == NETWORK_STATUS_UNWANTED_DISCONNECT) {
                         mWifiConfigManager.handleBadNetworkDisconnectReport(
