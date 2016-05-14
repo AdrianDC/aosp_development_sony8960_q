@@ -215,8 +215,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private boolean mScreenOn = false;
 
     private final String mInterfaceName;
-    /* Tethering interface could be separate from wlan interface */
-    private String mTetherInterfaceName;
 
     private int mLastSignalLevel = -1;
     private String mLastBssid;
@@ -315,14 +313,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private int mSupplicantRestartCount = 0;
     /* Tracks sequence number on stop failure message */
     private int mSupplicantStopFailureToken = 0;
-
-    /**
-     * Tether state change notification time out
-     */
-    private static final int TETHER_NOTIFICATION_TIME_OUT_MSECS = 5000;
-
-    /* Tracks sequence number on a tether notification time out */
-    private int mTetherToken = 0;
 
     /**
      * Driver start time out.
