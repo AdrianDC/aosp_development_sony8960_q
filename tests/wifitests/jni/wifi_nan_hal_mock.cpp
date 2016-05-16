@@ -409,6 +409,8 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callNotifyRespon
         "body.nan_capabilities.max_ndp_sessions", &error);
     msg.body.nan_capabilities.max_app_info_len = jsonR.get_int(
         "body.nan_capabilities.max_app_info_len", &error);
+    msg.body.nan_capabilities.max_queued_transmit_followup_msgs = jsonR.get_int(
+        "body.nan_capabilities.max_queued_transmit_followup_msgs", &error);
   }
 
   if (error) {
