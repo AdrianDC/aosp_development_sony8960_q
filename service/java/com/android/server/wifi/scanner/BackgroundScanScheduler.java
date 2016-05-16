@@ -114,6 +114,7 @@ public class BackgroundScanScheduler {
         128 * PERIOD_MIN_GCD_MS, // 1280s
         64 * PERIOD_MIN_GCD_MS,  // 640s
         256 * PERIOD_MIN_GCD_MS, // 2560s
+        8 * PERIOD_MIN_GCD_MS,   // 80s
         -1,                      // place holder for exponential back off scan
     };
 
