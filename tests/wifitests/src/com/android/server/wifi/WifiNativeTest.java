@@ -207,9 +207,11 @@ public class WifiNativeTest {
     public void testFateReportTableHeader() {
         String header = WifiNative.FateReport.getTableHeader();
         assertTrue(header.contains(
-            "Timestamp        Direction  Fate                              Protocol      Type\n"));
+                "Timestamp        Direction  Fate                              "
+                        + "Protocol      Type                     Result\n"));
         assertTrue(header.contains(
-            "---------        ---------  ----                              --------      ----\n"));
+                "---------        ---------  ----                              "
+                        + "--------      ----                     ------\n"));
     }
 
     /**
@@ -218,13 +220,15 @@ public class WifiNativeTest {
     @Test
     public void testTxFateReportToTableRowString() {
         WifiNative.TxFateReport fateReport = TX_FATE_REPORT;
-
-        String tableRowFateString = fateReport.toTableRowString();
-        assertTrue(tableRowFateString.contains("" + FATE_REPORT_DRIVER_TIMESTAMP_USEC));
-        assertTrue(tableRowFateString.contains("TX"));
-        assertTrue(tableRowFateString.contains("sent"));
-        assertTrue(tableRowFateString.contains("Ethernet"));
-        assertTrue(tableRowFateString.contains("N/A"));
+        assertEquals(
+                FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
+                        + "TX "  // direction
+                        + "sent "  // fate
+                        + "Ethernet "  // type
+                        + "N/A "  // protocol
+                        + "N/A",  // result
+                fateReport.toTableRowString().replaceAll("\\s+", " ").trim()
+        );
 
         for (FrameTypeMapping frameTypeMapping : FRAME_TYPE_MAPPINGS) {
             fateReport = new WifiNative.TxFateReport(
@@ -233,12 +237,15 @@ public class WifiNativeTest {
                     frameTypeMapping.mTypeNumber,
                     FATE_REPORT_FRAME_BYTES
             );
-            tableRowFateString = fateReport.toTableRowString();
-            assertTrue(tableRowFateString.contains("" + FATE_REPORT_DRIVER_TIMESTAMP_USEC));
-            assertTrue(tableRowFateString.contains("TX"));
-            assertTrue(tableRowFateString.contains("sent"));
-            assertTrue(tableRowFateString.contains(frameTypeMapping.mExpectedProtocolText));
-            assertTrue(tableRowFateString.contains("N/A"));
+            assertEquals(
+                    FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
+                            + "TX "  // direction
+                            + "sent "  // fate
+                            + frameTypeMapping.mExpectedProtocolText + " "  // type
+                            + "N/A "  // protocol
+                            + "N/A",  // result
+                    fateReport.toTableRowString().replaceAll("\\s+", " ").trim()
+            );
         }
 
         for (FateMapping fateMapping : TX_FATE_MAPPINGS) {
@@ -248,12 +255,15 @@ public class WifiNativeTest {
                     WifiLoggerHal.FRAME_TYPE_80211_MGMT,
                     FATE_REPORT_FRAME_BYTES
             );
-            tableRowFateString = fateReport.toTableRowString();
-            assertTrue(tableRowFateString.contains("" + FATE_REPORT_DRIVER_TIMESTAMP_USEC));
-            assertTrue(tableRowFateString.contains("TX"));
-            assertTrue(tableRowFateString.contains(fateMapping.mExpectedText));
-            assertTrue(tableRowFateString.contains("802.11 Mgmt"));
-            assertTrue(tableRowFateString.contains("N/A"));
+            assertEquals(
+                    FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
+                            + "TX "  // direction
+                            + fateMapping.mExpectedText + " "  // fate
+                            + "802.11 Mgmt "  // type
+                            + "N/A "  // protocol
+                            + "N/A",  // result
+                    fateReport.toTableRowString().replaceAll("\\s+", " ").trim()
+            );
         }
     }
 
@@ -308,13 +318,15 @@ public class WifiNativeTest {
     @Test
     public void testRxFateReportToTableRowString() {
         WifiNative.RxFateReport fateReport = RX_FATE_REPORT;
-
-        String tableRowFateString = fateReport.toTableRowString();
-        assertTrue(tableRowFateString.contains("" + FATE_REPORT_DRIVER_TIMESTAMP_USEC));
-        assertTrue(tableRowFateString.contains("RX"));
-        assertTrue(tableRowFateString.contains("firmware dropped (invalid frame)"));
-        assertTrue(tableRowFateString.contains("Ethernet"));
-        assertTrue(tableRowFateString.contains("N/A"));
+        assertEquals(
+                FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
+                        + "RX "  // direction
+                        + "firmware dropped (invalid frame) "  // fate
+                        + "Ethernet "  // type
+                        + "N/A "  // protocol
+                        + "N/A", // result
+                fateReport.toTableRowString().replaceAll("\\s+", " ").trim()
+        );
 
         // FrameTypeMappings omitted, as they're the same as for TX.
 
@@ -325,12 +337,15 @@ public class WifiNativeTest {
                     WifiLoggerHal.FRAME_TYPE_80211_MGMT,
                     FATE_REPORT_FRAME_BYTES
             );
-            tableRowFateString = fateReport.toTableRowString();
-            assertTrue(tableRowFateString.contains("" + FATE_REPORT_DRIVER_TIMESTAMP_USEC));
-            assertTrue(tableRowFateString.contains("RX"));
-            assertTrue(tableRowFateString.contains(fateMapping.mExpectedText));
-            assertTrue(tableRowFateString.contains("802.11 Mgmt"));
-            assertTrue(tableRowFateString.contains("N/A"));
+            assertEquals(
+                    FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
+                            + "RX "  // direction
+                            + fateMapping.mExpectedText + " " // fate
+                            + "802.11 Mgmt "  // type
+                            + "N/A " // protocol
+                            + "N/A",  // result,
+                    fateReport.toTableRowString().replaceAll("\\s+", " ").trim()
+            );
         }
     }
 

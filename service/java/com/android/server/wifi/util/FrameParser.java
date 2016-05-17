@@ -40,6 +40,7 @@ public class FrameParser {
     /* These fields hold the information parsed from this frame. */
     public String mMostSpecificProtocolString = "N/A";
     public String mTypeString = "N/A";
+    public String mResultString = "N/A";
 
     /**
      * Parses the contents of a given network frame.
@@ -481,38 +482,58 @@ public class FrameParser {
     private static final byte IEEE_80211_FRAME_CTRL_SUBTYPE_PROBE_REQ = 0x04;
     private static final byte IEEE_80211_FRAME_CTRL_SUBTYPE_PROBE_RESP = 0x05;
     private static final byte IEEE_80211_FRAME_CTRL_SUBTYPE_AUTH = 0x0b;
+    private static final byte IEEE_80211_FRAME_CTRL_FLAG_ORDER = (byte) (1 << 7); // bit 8
+    private static final byte IEEE_80211_DURATION_LEN = 2;
+    private static final byte IEEE_80211_ADDR1_LEN = 6;
+    private static final byte IEEE_80211_ADDR2_LEN = 6;
+    private static final byte IEEE_80211_ADDR3_LEN = 6;
+    private static final byte IEEE_80211_SEQUENCE_CONTROL_LEN = 2;
+    private static final byte IEEE_80211_HT_CONTROL_LEN = 4;
 
     private static byte parseIeee80211FrameCtrlVersion(byte b) {
         return (byte) (b & 0b00000011);
     }
-    private static  byte parseIeee80211FrameCtrlType(byte b) {
+    private static byte parseIeee80211FrameCtrlType(byte b) {
         return (byte) ((b & 0b00001100) >> 2);
     }
     private static byte parseIeee80211FrameCtrlSubtype(byte b) {
         return (byte) ((b & 0b11110000) >> 4);
     }
-    private void parseManagementFrame(ByteBuffer data) {
+    private void parseManagementFrame(ByteBuffer data) {  // 802.11-2012 Sec 8.3.3.1
+        data.order(ByteOrder.LITTLE_ENDIAN);
+
         mMostSpecificProtocolString = "802.11 Mgmt";
-        byte frameControlField = data.get();
-        byte ieee80211Version = parseIeee80211FrameCtrlVersion(frameControlField);
+        byte frameControlVersionTypeSubtype = data.get();
+        byte ieee80211Version = parseIeee80211FrameCtrlVersion(frameControlVersionTypeSubtype);
         if (ieee80211Version != 0) {
             Log.e(TAG, "Unrecognized 802.11 version " + ieee80211Version);
             return;
         }
 
-        byte ieee80211FrameType = parseIeee80211FrameCtrlType(frameControlField);
+        byte ieee80211FrameType = parseIeee80211FrameCtrlType(frameControlVersionTypeSubtype);
         if (ieee80211FrameType != IEEE_80211_FRAME_CTRL_TYPE_MGMT) {
             Log.e(TAG, "Unexpected frame type " + ieee80211FrameType);
             return;
         }
 
-        byte ieee80211FrameSubtype = parseIeee80211FrameCtrlSubtype(frameControlField);
+        byte frameControlFlags = data.get();
+
+        data.position(data.position() + IEEE_80211_DURATION_LEN + IEEE_80211_ADDR1_LEN
+                + IEEE_80211_ADDR2_LEN + IEEE_80211_ADDR3_LEN + IEEE_80211_SEQUENCE_CONTROL_LEN);
+
+        if ((frameControlFlags & IEEE_80211_FRAME_CTRL_FLAG_ORDER) != 0) {
+            // Per 802.11-2012 Sec 8.2.4.1.10.
+            data.position(data.position() + IEEE_80211_HT_CONTROL_LEN);
+        }
+
+        byte ieee80211FrameSubtype = parseIeee80211FrameCtrlSubtype(frameControlVersionTypeSubtype);
         switch (ieee80211FrameSubtype) {
             case IEEE_80211_FRAME_CTRL_SUBTYPE_ASSOC_REQ:
                 mTypeString = "Association Request";
                 return;
             case IEEE_80211_FRAME_CTRL_SUBTYPE_ASSOC_RESP:
                 mTypeString = "Association Response";
+                parseAssociationResponse(data);
                 return;
             case IEEE_80211_FRAME_CTRL_SUBTYPE_PROBE_REQ:
                 mTypeString = "Probe Request";
@@ -522,10 +543,256 @@ public class FrameParser {
                 return;
             case IEEE_80211_FRAME_CTRL_SUBTYPE_AUTH:
                 mTypeString = "Authentication";
+                parseAuthenticationFrame(data);
                 return;
             default:
                 mTypeString = "Unexpected subtype " + ieee80211FrameSubtype;
                 return;
+        }
+    }
+
+    // Per 802.11-2012 Secs 8.3.3.6 and 8.4.1.
+    private static final byte IEEE_80211_CAPABILITY_INFO_LEN = 2;
+    private void parseAssociationResponse(ByteBuffer data) {
+        data.position(data.position() + IEEE_80211_CAPABILITY_INFO_LEN);
+        short resultCode = data.getShort();
+        mResultString = String.format(
+                "%d: %s", resultCode, decodeIeee80211StatusCode(resultCode));
+    }
+
+    // Per 802.11-2012 Secs 8.3.3.11 and 8.4.1.
+    private static final short IEEE_80211_AUTH_ALG_OPEN = 0;
+    private static final short IEEE_80211_AUTH_ALG_SHARED_KEY = 1;
+    private static final short IEEE_80211_AUTH_ALG_FAST_BSS_TRANSITION = 2;
+    private static final short IEEE_80211_AUTH_ALG_SIMUL_AUTH_OF_EQUALS = 3;
+    private void parseAuthenticationFrame(ByteBuffer data) {
+        short algorithm = data.getShort();
+        short sequenceNum = data.getShort();
+        boolean hasResultCode = false;
+        switch (algorithm) {
+            case IEEE_80211_AUTH_ALG_OPEN:
+            case IEEE_80211_AUTH_ALG_SHARED_KEY:
+                if (sequenceNum == 2) {
+                    hasResultCode = true;
+                }
+                break;
+            case IEEE_80211_AUTH_ALG_FAST_BSS_TRANSITION:
+                if (sequenceNum == 2 || sequenceNum == 4) {
+                    hasResultCode = true;
+                }
+                break;
+            case IEEE_80211_AUTH_ALG_SIMUL_AUTH_OF_EQUALS:
+                hasResultCode = true;
+                break;
+            default:
+                // Ignore unknown algorithm -- don't know which frames would have result codes.
+        }
+
+        if (hasResultCode) {
+            short resultCode = data.getShort();
+            mResultString = String.format(
+                    "%d: %s", resultCode, decodeIeee80211StatusCode(resultCode));
+        }
+    }
+
+    // Per 802.11-2012 Table 8-37.
+    private String decodeIeee80211StatusCode(short statusCode) {
+        switch (statusCode) {
+            case 0:
+                return "Success";
+            case 1:
+                return "Unspecified failure";
+            case 2:
+                return "TDLS wakeup schedule rejected; alternative provided";
+            case 3:
+                return "TDLS wakeup schedule rejected";
+            case 4:
+                return "Reserved";
+            case 5:
+                return "Security disabled";
+            case 6:
+                return "Unacceptable lifetime";
+            case 7:
+                return "Not in same BSS";
+            case 8:
+            case 9:
+                return "Reserved";
+            case 10:
+                return "Capabilities mismatch";
+            case 11:
+                return "Reassociation denied; could not confirm association exists";
+            case 12:
+                return "Association denied for reasons outside standard";
+            case 13:
+                return "Unsupported authentication algorithm";
+            case 14:
+                return "Authentication sequence number of of sequence";
+            case 15:
+                return "Authentication challenge failure";
+            case 16:
+                return "Authentication timeout";
+            case 17:
+                return "Association denied; too many STAs";
+            case 18:
+                return "Association denied; must support BSSBasicRateSet";
+            case 19:
+                return "Association denied; must support short preamble";
+            case 20:
+                return "Association denied; must support PBCC";
+            case 21:
+                return "Association denied; must support channel agility";
+            case 22:
+                return "Association rejected; must support spectrum management";
+            case 23:
+                return "Association rejected; unacceptable power capability";
+            case 24:
+                return "Association rejected; unacceptable supported channels";
+            case 25:
+                return "Association denied; must support short slot time";
+            case 26:
+                return "Association denied; must support DSSS-OFDM";
+            case 27:
+                return "Association denied; must support HT";
+            case 28:
+                return "R0 keyholder unreachable (802.11r)";
+            case 29:
+                return "Association denied; must support PCO transition time";
+            case 30:
+                return "Refused temporarily";
+            case 31:
+                return "Robust management frame policy violation";
+            case 32:
+                return "Unspecified QoS failure";
+            case 33:
+                return "Association denied; insufficient bandwidth for QoS";
+            case 34:
+                return "Association denied; poor channel";
+            case 35:
+                return "Association denied; must support QoS";
+            case 36:
+                return "Reserved";
+            case 37:
+                return "Declined";
+            case 38:
+                return "Invalid parameters";
+            case 39:
+                return "TS cannot be honored; changes suggested";
+            case 40:
+                return "Invalid element";
+            case 41:
+                return "Invalid group cipher";
+            case 42:
+                return "Invalid pairwise cipher";
+            case 43:
+                return "Invalid auth/key mgmt proto (AKMP)";
+            case 44:
+                return "Unsupported RSNE version";
+            case 45:
+                return "Invalid RSNE capabilities";
+            case 46:
+                return "Cipher suite rejected by policy";
+            case 47:
+                return "TS cannot be honored now; try again later";
+            case 48:
+                return "Direct link rejected by policy";
+            case 49:
+                return "Destination STA not in BSS";
+            case 50:
+                return "Destination STA not configured for QoS";
+            case 51:
+                return "Association denied; listen interval too large";
+            case 52:
+                return "Invalid fast transition action frame count";
+            case 53:
+                return "Invalid PMKID";
+            case 54:
+                return "Invalid MDE";
+            case 55:
+                return "Invalid FTE";
+            case 56:
+                return "Unsupported TCLAS";
+            case 57:
+                return "Requested TCLAS exceeds resources";
+            case 58:
+                return "TS cannot be honored; try another BSS";
+            case 59:
+                return "GAS Advertisement not supported";
+            case 60:
+                return "No outstanding GAS request";
+            case 61:
+                return "No query response from GAS server";
+            case 62:
+                return "GAS query timeout";
+            case 63:
+                return "GAS response too large";
+            case 64:
+                return "Home network does not support request";
+            case 65:
+                return "Advertisement server unreachable";
+            case 66:
+                return "Reserved";
+            case 67:
+                return "Rejected for SSP permissions";
+            case 68:
+                return "Authentication required";
+            case 69:
+            case 70:
+            case 71:
+                return "Reserved";
+            case 72:
+                return "Invalid RSNE contents";
+            case 73:
+                return "U-APSD coexistence unsupported";
+            case 74:
+                return "Requested U-APSD coex mode unsupported";
+            case 75:
+                return "Requested parameter unsupported with U-APSD coex";
+            case 76:
+                return "Auth rejected; anti-clogging token required";
+            case 77:
+                return "Auth rejected; offered group is not supported";
+            case 78:
+                return "Cannot find alternative TBTT";
+            case 79:
+                return "Transmission failure";
+            case 80:
+                return "Requested TCLAS not supported";
+            case 81:
+                return "TCLAS resources exhausted";
+            case 82:
+                return "Rejected with suggested BSS transition";
+            case 83:
+                return "Reserved";
+            case 84:
+            case 85:
+            case 86:
+            case 87:
+            case 88:
+            case 89:
+            case 90:
+            case 91:
+                return "<unspecified>";
+            case 92:
+                return "Refused due to external reason";
+            case 93:
+                return "Refused; AP out of memory";
+            case 94:
+                return "Refused; emergency services not supported";
+            case 95:
+                return "GAS query response outstanding";
+            case 96:
+            case 97:
+            case 98:
+            case 99:
+                return "Reserved";
+            case 100:
+                return "Failed; reservation conflict";
+            case 101:
+                return "Failed; exceeded MAF limit";
+            case 102:
+                return "Failed; exceeded MCCA track limit";
+            default:
+                return "Reserved";
         }
     }
 }
