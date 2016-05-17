@@ -460,7 +460,6 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
             } else if (isHwPnoScanRequired()) {
                 newScanSettings.setHwPnoScan(mPnoEventHandler);
                 if (startHwPnoScan()) {
-                    Log.d(TAG, "Starting wifi PNO scan");
                     mLastScanSettings = newScanSettings;
                 } else {
                     Log.e(TAG, "Failed to start PNO scan");
@@ -1039,10 +1038,10 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                 if (DBG) Log.d(TAG, "PNO state is already " + enable);
                 return true;
             }
-            Log.d(TAG, "Change PNO state from " + mCurrentPnoState + " to " + enable);
 
             mLastPnoChangeTimeStamp = System.currentTimeMillis();
             if (mWifiNative.setPnoScan(enable)) {
+                Log.d(TAG, "Changed PNO state from " + mCurrentPnoState + " to " + enable);
                 mCurrentPnoState = enable;
                 return true;
             } else {
