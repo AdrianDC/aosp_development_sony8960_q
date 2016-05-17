@@ -84,13 +84,16 @@ final class WifiTrafficPoller {
                 new BroadcastReceiver() {
                     @Override
                     public void onReceive(Context context, Intent intent) {
-                        if (intent.getAction().equals(
-                                WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
+                        if (intent == null) {
+                            return;
+                        }
+                        if (WifiManager.NETWORK_STATE_CHANGED_ACTION.equals(
+                                intent.getAction())) {
                             mNetworkInfo = (NetworkInfo) intent.getParcelableExtra(
                                     WifiManager.EXTRA_NETWORK_INFO);
-                        } else if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
+                        } else if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
                             mScreenOn.set(false);
-                        } else if (intent.getAction().equals(Intent.ACTION_SCREEN_ON)) {
+                        } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
                             mScreenOn.set(true);
                         }
                         evaluateTrafficStatsPolling();
