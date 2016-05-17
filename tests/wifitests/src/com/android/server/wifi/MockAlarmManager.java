@@ -90,6 +90,20 @@ public class MockAlarmManager {
         return false;
     }
 
+    /**
+     * @return trigger time of an pending alarm with the given tag
+     *         -1 if no pending alram with the given tag
+     */
+    public long getTriggerTimeMillis(String tag) {
+        for (int i = 0; i < mPendingAlarms.size(); ++i) {
+            PendingAlarm alarm = mPendingAlarms.get(i);
+            if (Objects.equals(tag, alarm.getTag())) {
+                return alarm.getTriggerTimeMillis();
+            }
+        }
+        return -1;
+    }
+
     private static class PendingAlarm {
         private final int mType;
         private final long mTriggerAtMillis;
@@ -115,6 +129,10 @@ public class MockAlarmManager {
 
         public String getTag() {
             return mTag;
+        }
+
+        public long getTriggerTimeMillis() {
+            return mTriggerAtMillis;
         }
     }
 
