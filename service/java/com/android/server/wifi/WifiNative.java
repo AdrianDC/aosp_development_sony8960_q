@@ -2643,9 +2643,9 @@ public class WifiNative {
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
             FrameParser parser = new FrameParser(mFrameType, mFrameBytes);
-            pw.format("%-15s  %-9s  %-32s  %-12s  %s\n",
+            pw.format("%-15s  %-9s  %-32s  %-12s  %-23s  %s\n",
                     mDriverTimestampUSec, directionToString(), fateToString(),
-                            parser.mMostSpecificProtocolString, parser.mTypeString);
+                    parser.mMostSpecificProtocolString, parser.mTypeString, parser.mResultString);
             return sw.toString();
         }
 
@@ -2670,10 +2670,10 @@ public class WifiNative {
         public static String getTableHeader() {
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
-            pw.format("\n%-15s  %-9s  %-32s  %-12s  %s\n",
-                    "Timestamp", "Direction", "Fate", "Protocol", "Type");
-            pw.format("%-15s  %-9s  %-32s  %-12s  %s\n",
-                    "---------", "---------", "----", "--------", "----");
+            pw.format("\n%-15s  %-9s  %-32s  %-12s  %-23s  %s\n",
+                    "Timestamp", "Direction", "Fate", "Protocol", "Type", "Result");
+            pw.format("%-15s  %-9s  %-32s  %-12s  %-23s  %s\n",
+                    "---------", "---------", "----", "--------", "----", "------");
             return sw.toString();
         }
 
