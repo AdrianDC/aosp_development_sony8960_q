@@ -102,6 +102,7 @@ public class WifiConnectivityManagerTest {
     private static final String CANDIDATE_SSID = "\"AnSsid\"";
     private static final String CANDIDATE_BSSID = "6c:f3:7f:ae:8c:f3";
     private static final String TAG = "WifiConnectivityManager Unit Test";
+    private static final long CURRENT_SYSTEM_TIME_MS = 1000;
 
     Resources mockResource() {
         Resources resource = mock(Resources.class);
@@ -518,5 +519,103 @@ public class WifiConnectivityManagerTest {
 
         verify(mWifiMetrics).incrementNumConnectivityWatchdogPnoGood();
         verify(mWifiMetrics, never()).incrementNumConnectivityWatchdogPnoBad();
+    }
+
+    /**
+     *  Verify that scan interval for screen on and wifi disconnected scenario
+     *  is in the exponential backoff fashion.
+     *
+     * Expected behavior: WifiConnectivityManager doubles periodic
+     * scan interval.
+     */
+    @Test
+    public void checkPeriodicScanIntervalWhenDisconnected() {
+        when(mClock.currentTimeMillis()).thenReturn(CURRENT_SYSTEM_TIME_MS);
+
+        // Set screen to ON
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        // Set WiFi to disconnected state to trigger periodic scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        // Get the first periodic scan interval
+        long firstIntervalMs = mAlarmManager
+                    .getTriggerTimeMillis(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG)
+                    - CURRENT_SYSTEM_TIME_MS;
+        assertEquals(firstIntervalMs, WifiConnectivityManager.PERIODIC_SCAN_INTERVAL_MS);
+
+        // Now fire the first periodic scan alarm timer
+        mAlarmManager.dispatch(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG);
+        mLooper.dispatchAll();
+
+        // Get the second periodic scan interval
+        long secondIntervalMs = mAlarmManager
+                    .getTriggerTimeMillis(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG)
+                    - CURRENT_SYSTEM_TIME_MS;
+
+        // Verify the intervals are exponential back off
+        assertEquals(firstIntervalMs * 2, secondIntervalMs);
+
+        // Make sure we eventually stay at the maximum scan interval.
+        long intervalMs = 0;
+        for (int i = 0; i < 5; i++) {
+            mAlarmManager.dispatch(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG);
+            mLooper.dispatchAll();
+            intervalMs = mAlarmManager
+                    .getTriggerTimeMillis(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG)
+                    - CURRENT_SYSTEM_TIME_MS;
+        }
+
+        assertEquals(intervalMs, WifiConnectivityManager.MAX_PERIODIC_SCAN_INTERVAL_MS);
+    }
+
+    /**
+     *  Verify that scan interval for screen on and wifi connected scenario
+     *  is in the exponential backoff fashion.
+     *
+     * Expected behavior: WifiConnectivityManager doubles periodic
+     * scan interval.
+     */
+    @Test
+    public void checkPeriodicScanIntervalWhenConnected() {
+        when(mClock.currentTimeMillis()).thenReturn(CURRENT_SYSTEM_TIME_MS);
+
+        // Set screen to ON
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        // Set WiFi to connected state to trigger periodic scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        // Get the first periodic scan interval
+        long firstIntervalMs = mAlarmManager
+                    .getTriggerTimeMillis(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG)
+                    - CURRENT_SYSTEM_TIME_MS;
+        assertEquals(firstIntervalMs, WifiConnectivityManager.PERIODIC_SCAN_INTERVAL_MS);
+
+        // Now fire the first periodic scan alarm timer
+        mAlarmManager.dispatch(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG);
+        mLooper.dispatchAll();
+
+        // Get the second periodic scan interval
+        long secondIntervalMs = mAlarmManager
+                    .getTriggerTimeMillis(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG)
+                    - CURRENT_SYSTEM_TIME_MS;
+
+        // Verify the intervals are exponential back off
+        assertEquals(firstIntervalMs * 2, secondIntervalMs);
+
+        // Make sure we eventually stay at the maximum scan interval.
+        long intervalMs = 0;
+        for (int i = 0; i < 5; i++) {
+            mAlarmManager.dispatch(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG);
+            mLooper.dispatchAll();
+            intervalMs = mAlarmManager
+                    .getTriggerTimeMillis(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG)
+                    - CURRENT_SYSTEM_TIME_MS;
+        }
+
+        assertEquals(intervalMs, WifiConnectivityManager.MAX_PERIODIC_SCAN_INTERVAL_MS);
     }
 }

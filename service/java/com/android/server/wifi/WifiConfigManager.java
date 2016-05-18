@@ -222,22 +222,16 @@ public class WifiConfigManager {
     };
 
     public final AtomicBoolean mEnableAutoJoinWhenAssociated = new AtomicBoolean();
-    public final AtomicBoolean mEnableFullBandScanWhenAssociated = new AtomicBoolean(true);
     public final AtomicBoolean mEnableChipWakeUpWhenAssociated = new AtomicBoolean(true);
     public final AtomicBoolean mEnableRssiPollWhenAssociated = new AtomicBoolean(true);
     public final AtomicInteger mThresholdSaturatedRssi5 = new AtomicInteger();
     public final AtomicInteger mThresholdQualifiedRssi24 = new AtomicInteger();
     public final AtomicInteger mEnableVerboseLogging = new AtomicInteger(0);
-    public final AtomicInteger mAssociatedFullScanBackoff =
-            new AtomicInteger(); // Will be divided by 8 by WifiStateMachine
     public final AtomicInteger mAlwaysEnableScansWhileAssociated = new AtomicInteger(0);
     public final AtomicInteger mMaxNumActiveChannelsForPartialScans = new AtomicInteger();
-    public final AtomicInteger mWifiDisconnectedShortScanIntervalMs = new AtomicInteger();
-    public final AtomicInteger mWifiAssociatedShortScanIntervalMs = new AtomicInteger();
 
     public boolean mEnableLinkDebouncing;
     public boolean mEnableWifiCellularHandoverUserTriggeredAdjustment;
-    public int mAssociatedFullScanMaxIntervalMs;
     public int mNetworkSwitchingBlackListPeriodMs;
     public int mBadLinkSpeed24;
     public int mBadLinkSpeed5;
@@ -355,18 +349,10 @@ public class WifiConfigManager {
             mLocalLog = null;
         }
 
-        mWifiAssociatedShortScanIntervalMs.set(mContext.getResources().getInteger(
-                R.integer.config_wifi_associated_short_scan_interval));
-        mWifiDisconnectedShortScanIntervalMs.set(mContext.getResources().getInteger(
-                R.integer.config_wifi_disconnected_short_scan_interval));
         mOnlyLinkSameCredentialConfigurations = mContext.getResources().getBoolean(
                 R.bool.config_wifi_only_link_same_credential_configurations);
         mMaxNumActiveChannelsForPartialScans.set(mContext.getResources().getInteger(
                 R.integer.config_wifi_framework_associated_partial_scan_max_num_active_channels));
-        mAssociatedFullScanMaxIntervalMs = mContext.getResources().getInteger(
-                R.integer.config_wifi_framework_associated_full_scan_max_interval);
-        mAssociatedFullScanBackoff.set(mContext.getResources().getInteger(
-                R.integer.config_wifi_framework_associated_full_scan_backoff));
         mEnableLinkDebouncing = mContext.getResources().getBoolean(
                 R.bool.config_wifi_enable_disconnection_debounce);
         mBandAward5Ghz.set(mContext.getResources().getInteger(
@@ -2371,7 +2357,7 @@ public class WifiConfigManager {
         }
     }
 
-    public HashSet<Integer> makeChannelList(WifiConfiguration config, int age, boolean restrict) {
+    public HashSet<Integer> makeChannelList(WifiConfiguration config, int age) {
         if (config == null) {
             return null;
         }
@@ -2411,7 +2397,7 @@ public class WifiConfigManager {
                     logd("has " + result.BSSID + " freq=" + Integer.toString(result.frequency)
                             + " age=" + Long.toString(now_ms - result.seen) + " ?=" + test);
                 }
-                if (((now_ms - result.seen) < age)/*||(!restrict || result.is24GHz())*/) {
+                if (((now_ms - result.seen) < age)) {
                     channels.add(result.frequency);
                     numChannels++;
                 }
@@ -2438,7 +2424,7 @@ public class WifiConfigManager {
                     if (numChannels > mMaxNumActiveChannelsForPartialScans.get()) {
                         break;
                     }
-                    if (((now_ms - result.seen) < age)/*||(!restrict || result.is24GHz())*/) {
+                    if (((now_ms - result.seen) < age)) {
                         channels.add(result.frequency);
                         numChannels++;
                     }

@@ -271,7 +271,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private final Queue<Message> mBufferedScanMsg = new LinkedList<Message>();
     private static final int UNKNOWN_SCAN_SOURCE = -1;
-    private static final int SCAN_ALARM_SOURCE = -2;
     private static final int ADD_OR_UPDATE_SOURCE = -3;
 
     private static final int SCAN_REQUEST_BUFFER_MAX_SIZE = 10;
@@ -825,24 +824,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * from the default config if the setting is not set
      */
     private long mSupplicantScanIntervalMs;
-
-    /**
-     * timeStamp of last full band scan we perfoemed for autojoin while connected with screen lit
-     */
-    private long lastFullBandConnectedTimeMilli;
-
-    /**
-     * time interval to the next full band scan we will perform for
-     * autojoin while connected with screen lit
-     */
-    private long fullBandConnectedTimeIntervalMilli;
-
-    /**
-     * max time interval to the next full band scan we will perform for
-     * autojoin while connected with screen lit
-     * Max time is 5 minutes
-     */
-    private static final long maxFullBandConnectedTimeIntervalMilli = 1000 * 60 * 5;
 
     /**
      * Minimum time interval between enabling all networks.
@@ -2359,8 +2340,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     for(int freq : lastScanFreqs) {
                         sb.append(freq).append(",");
                     }
-                } else {
-                    sb.append(" fiv=").append(fullBandConnectedTimeIntervalMilli);
                 }
                 report = reportOnTime();
                 if (report != null) {
@@ -3430,15 +3409,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         linkDebouncing = false;
         /* Reset roaming parameters */
         mAutoRoaming = false;
-
-        /**
-         *  fullBandConnectedTimeIntervalMilli:
-         *  - start scans at mWifiConfigManager.mWifiAssociatedShortScanIntervalMs seconds
-         *    interval
-         *  - exponentially increase to mWifiConfigManager.mAssociatedFullScanMaxIntervalMs
-         *  Initialize to sane value = 20 seconds
-         */
-        fullBandConnectedTimeIntervalMilli = 20 * 1000;
 
         setNetworkDetailedState(DetailedState.DISCONNECTED);
         if (mNetworkAgent != null) {
@@ -6261,7 +6231,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return prefix + imsi + "@wlan.mnc" + mnc + ".mcc" + mcc + ".3gppnetwork.org";
     }
 
-    boolean startScanForConfiguration(WifiConfiguration config, boolean restrictChannelList) {
+    boolean startScanForConfiguration(WifiConfiguration config) {
         if (config == null)
             return false;
 
@@ -6278,8 +6248,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             //return true but to not trigger the scan
             return true;
         }
-        HashSet<Integer> freqs = mWifiConfigManager.makeChannelList(config,
-                ONE_HOUR_MILLI, restrictChannelList);
+        HashSet<Integer> freqs = mWifiConfigManager.makeChannelList(config, ONE_HOUR_MILLI);
         if (freqs != null && freqs.size() != 0) {
             //if (DBG) {
             logd("starting scan for " + config.configKey() + " with " + freqs);
@@ -6443,147 +6412,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mWifiConfigManager.
                                 setAndEnableLastSelectedConfiguration(
                                         WifiConfiguration.INVALID_NETWORK_ID);
-                    break;
-                case CMD_START_SCAN:
-                    if (DBG) {
-                        logd("CMD_START_SCAN source " + message.arg1
-                              + " txSuccessRate="+String.format( "%.2f", mWifiInfo.txSuccessRate)
-                              + " rxSuccessRate="+String.format( "%.2f", mWifiInfo.rxSuccessRate)
-                              + " targetRoamBSSID=" + mTargetRoamBSSID
-                              + " RSSI=" + mWifiInfo.getRssi());
-                    }
-                    if (message.arg1 == SCAN_ALARM_SOURCE) {
-                        // Check if the CMD_START_SCAN message is obsolete (and thus if it should
-                        // not be processed) and restart the scan if neede
-                        if (!mWifiConfigManager.getEnableAutoJoinWhenAssociated()) {
-                            return HANDLED;
-                        }
-
-                        if (mP2pConnected.get()) {
-                            logd("L2Connected CMD_START_SCAN source "
-                                    + message.arg1
-                                    + " " + message.arg2 + ", "
-                                    + " ignore because P2P is connected");
-                            messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
-                            return HANDLED;
-                        }
-                        boolean tryFullBandScan = false;
-                        boolean restrictChannelList = false;
-                        long now_ms = System.currentTimeMillis();
-                        if (DBG) {
-                            logd("CMD_START_SCAN with age="
-                                    + Long.toString(now_ms - lastFullBandConnectedTimeMilli)
-                                    + " interval=" + fullBandConnectedTimeIntervalMilli
-                                    + " maxinterval=" + maxFullBandConnectedTimeIntervalMilli);
-                        }
-
-                        if (mWifiConfigManager.mEnableFullBandScanWhenAssociated.get()
-                                && (now_ms - lastFullBandConnectedTimeMilli)
-                                > fullBandConnectedTimeIntervalMilli) {
-                            if (DBG) {
-                                logd("CMD_START_SCAN try full band scan age="
-                                         + Long.toString(now_ms - lastFullBandConnectedTimeMilli)
-                                         + " interval=" + fullBandConnectedTimeIntervalMilli
-                                         + " maxinterval=" + maxFullBandConnectedTimeIntervalMilli);
-                            }
-                            tryFullBandScan = true;
-                        }
-
-                        if (mWifiInfo.txSuccessRate
-                                        > WifiConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS
-                                || mWifiInfo.rxSuccessRate
-                                        > WifiConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS) {
-                            // Too much traffic at the interface, hence no full band scan
-                            if (DBG) {
-                                logd("CMD_START_SCAN prevent full band scan due to pkt rate");
-                            }
-                            tryFullBandScan = false;
-                        }
-
-                        if (mWifiInfo.txSuccessRate
-                                        > WifiConfigManager.MAX_TX_PACKET_FOR_PARTIAL_SCANS
-                                || mWifiInfo.rxSuccessRate
-                                        > WifiConfigManager.MAX_RX_PACKET_FOR_PARTIAL_SCANS) {
-                            // Don't scan if lots of packets are being sent
-                            restrictChannelList = true;
-                            if (mWifiConfigManager.mAlwaysEnableScansWhileAssociated.get() == 0) {
-                                if (DBG) {
-                                    logd("CMD_START_SCAN source " + message.arg1
-                                            + " ...and ignore scans"
-                                            + " tx="
-                                            + String.format("%.2f", mWifiInfo.txSuccessRate)
-                                            + " rx="
-                                            + String.format("%.2f", mWifiInfo.rxSuccessRate));
-                                }
-                                messageHandlingStatus = MESSAGE_HANDLING_STATUS_REFUSED;
-                                return HANDLED;
-                            }
-                        }
-
-                        WifiConfiguration currentConfiguration = getCurrentWifiConfiguration();
-                        if (DBG) {
-                            logd("CMD_START_SCAN full=" +
-                                    tryFullBandScan);
-                        }
-                        if (currentConfiguration != null) {
-                            if (fullBandConnectedTimeIntervalMilli <
-                                    mWifiConfigManager.mWifiAssociatedShortScanIntervalMs.get()) {
-                                // Sanity
-                                fullBandConnectedTimeIntervalMilli =
-                                        mWifiConfigManager
-                                                .mWifiAssociatedShortScanIntervalMs.get();
-                            }
-                            if (tryFullBandScan) {
-                                lastFullBandConnectedTimeMilli = now_ms;
-                                if (fullBandConnectedTimeIntervalMilli
-                                        < mWifiConfigManager.mAssociatedFullScanMaxIntervalMs) {
-                                    // Increase the interval
-                                    fullBandConnectedTimeIntervalMilli =
-                                            fullBandConnectedTimeIntervalMilli *
-                                                    mWifiConfigManager
-                                                            .mAssociatedFullScanBackoff.get() / 8;
-
-                                    if (DBG) {
-                                        logd("CMD_START_SCAN bump interval ="
-                                        + fullBandConnectedTimeIntervalMilli);
-                                    }
-                                }
-                                handleScanRequest(message);
-                            } else {
-                                if (!startScanForConfiguration(
-                                        currentConfiguration, restrictChannelList)) {
-                                    if (DBG) {
-                                        logd("starting scan, " +
-                                                " did not find channels -> full");
-                                    }
-                                    lastFullBandConnectedTimeMilli = now_ms;
-                                    if (fullBandConnectedTimeIntervalMilli
-                                            < mWifiConfigManager
-                                            .mAssociatedFullScanMaxIntervalMs) {
-                                        // Increase the interval
-                                        fullBandConnectedTimeIntervalMilli =
-                                                fullBandConnectedTimeIntervalMilli
-                                                        * mWifiConfigManager
-                                                                .mAssociatedFullScanBackoff.get()
-                                                        / 8;
-
-                                        if (DBG) {
-                                            logd("CMD_START_SCAN bump interval ="
-                                                    + fullBandConnectedTimeIntervalMilli);
-                                        }
-                                    }
-                                    handleScanRequest(message);
-                                }
-                            }
-
-                        } else {
-                            logd("CMD_START_SCAN : connected mode and no configuration");
-                            messageHandlingStatus = MESSAGE_HANDLING_STATUS_HANDLING_ERROR;
-                        }
-                    } else {
-                        // Not scan alarm source
-                        return NOT_HANDLED;
-                    }
                     break;
                     /* Ignore connection to same network */
                 case WifiManager.CONNECT_NETWORK:
@@ -7030,10 +6858,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             updateDefaultRouteMacAddress(1000);
             if (DBG) {
                 log("Enter ConnectedState "
-                       + " mScreenOn=" + mScreenOn
-                       + " scanperiod="
-                       + Integer.toString(
-                            mWifiConfigManager.mWifiAssociatedShortScanIntervalMs.get()));
+                       + " mScreenOn=" + mScreenOn);
             }
 
             if (mWifiConnectivityManager != null) {
@@ -7164,7 +6989,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         // to reconnect, go thru the
                         // roaming cycle and enter Obtaining IP address
                         // before signalling the disconnect to ConnectivityService and L3
-                        startScanForConfiguration(getCurrentWifiConfiguration(), false);
+                        startScanForConfiguration(getCurrentWifiConfiguration());
                         linkDebouncing = true;
 
                         sendMessageDelayed(obtainMessage(CMD_DELAYED_NETWORK_DISCONNECT,
@@ -7333,9 +7158,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         public void enter() {
 
             if (DBG) {
-                logd(" Enter DisconnectingState State scan interval "
-                        + mWifiConfigManager.mWifiDisconnectedShortScanIntervalMs.get()
-                        + " screenOn=" + mScreenOn);
+                logd(" Enter DisconnectingState State screenOn=" + mScreenOn);
             }
 
             // Make sure we disconnect: we enter this state prior to connecting to a new
@@ -7397,9 +7220,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
 
             if (DBG) {
-                logd(" Enter DisconnectedState scan interval "
-                        + mWifiConfigManager.mWifiDisconnectedShortScanIntervalMs.get()
-                        + " screenOn=" + mScreenOn);
+                logd(" Enter DisconnectedState screenOn=" + mScreenOn);
             }
 
             /** clear the roaming state, if we were roaming, we failed */
@@ -7485,22 +7306,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         messageHandlingStatus = MESSAGE_HANDLING_STATUS_REFUSED;
                         return HANDLED;
                     }
-                    if (message.arg1 == SCAN_ALARM_SOURCE) {
-                        // Check if the CMD_START_SCAN message is obsolete (and thus if it should
-                        // not be processed) and restart the scan
-                        int period =
-                                mWifiConfigManager.mWifiDisconnectedShortScanIntervalMs.get();
-                        if (mP2pConnected.get()) {
-                            period = (int) mFacade.getLongSetting(mContext,
-                                    Settings.Global.WIFI_SCAN_INTERVAL_WHEN_P2P_CONNECTED_MS,
-                                    period);
-                        }
 
-                        handleScanRequest(message);
-                        ret = HANDLED;
-                    } else {
-                        ret = NOT_HANDLED;
-                    }
+                    ret = NOT_HANDLED;
                     break;
                 case WifiP2pServiceImpl.P2P_CONNECTION_CHANGED:
                     NetworkInfo info = (NetworkInfo) message.obj;
