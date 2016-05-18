@@ -102,12 +102,15 @@ class WifiLogger extends BaseWifiLogger {
     private WifiNative.RingBufferStatus mPerPacketRingBuffer;
     private WifiStateMachine mWifiStateMachine;
     private final WifiNative mWifiNative;
+    private final BuildProperties mBuildProperties;
     private int mMaxRingBufferSizeBytes = RING_BUFFER_BYTE_LIMIT_SMALL;
 
     public WifiLogger(
-            WifiStateMachine wifiStateMachine, WifiNative wifiNative) {
+            WifiStateMachine wifiStateMachine, WifiNative wifiNative,
+            BuildProperties buildProperties) {
         mWifiStateMachine = wifiStateMachine;
         mWifiNative = wifiNative;
+        mBuildProperties = buildProperties;
         mIsLoggingEventHandlerRegistered = false;
     }
 
@@ -126,7 +129,8 @@ class WifiLogger extends BaseWifiLogger {
             mMaxRingBufferSizeBytes = RING_BUFFER_BYTE_LIMIT_LARGE;
         } else {
             mLogLevel = VERBOSE_NORMAL_LOG;
-            mMaxRingBufferSizeBytes = RING_BUFFER_BYTE_LIMIT_SMALL;
+            mMaxRingBufferSizeBytes = enableVerboseLoggingForDogfood()
+                    ? RING_BUFFER_BYTE_LIMIT_LARGE : RING_BUFFER_BYTE_LIMIT_SMALL;
             clearVerboseLogs();
         }
 
@@ -488,6 +492,11 @@ class WifiLogger extends BaseWifiLogger {
 
         Log.d(TAG, "getAllRingBufferData Successfully!");
         return true;
+    }
+
+    /* STOPSHIP TODO(b/28822174): Disable before release. */
+    private boolean enableVerboseLoggingForDogfood() {
+        return mBuildProperties.isEngBuild() || mBuildProperties.isUserdebugBuild();
     }
 
     private BugReport captureBugreport(int errorCode, boolean captureFWDump) {
