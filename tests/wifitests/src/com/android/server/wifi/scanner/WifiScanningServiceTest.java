@@ -374,7 +374,7 @@ public class WifiScanningServiceTest {
         verifySuccessfulResponse(order, handler, requestId);
 
         when(mWifiScannerImpl.getLatestSingleScanResults())
-                .thenReturn(results.getScanData());
+                .thenReturn(results.getRawScanData());
         eventHandler.onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
 
         mLooper.dispatchAll();
@@ -383,7 +383,7 @@ public class WifiScanningServiceTest {
         verifyNoMoreInteractions(handler);
         assertDumpContainsRequestLog("addSingleScanRequest", requestId);
         assertDumpContainsCallbackLog("singleScanResults", requestId,
-                "results=" + results.getRawScanResults().length);
+                "results=" + results.getScanData().getResults().length);
     }
 
     /**
@@ -406,6 +406,33 @@ public class WifiScanningServiceTest {
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
         doSuccessfulSingleScan(requestSettings, computeSingleScanNativeSettings(requestSettings),
                 ScanResults.create(0, 2400, 5150, 5175));
+    }
+
+    /**
+     * Do a single scan with no results and verify that it is successful.
+     */
+    @Test
+    public void sendSingleScanRequestWithNoResults() throws Exception {
+        WifiScanner.ScanSettings requestSettings = createRequest(WifiScanner.WIFI_BAND_BOTH, 0,
+                0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        doSuccessfulSingleScan(requestSettings, computeSingleScanNativeSettings(requestSettings),
+                ScanResults.create(0, new int[0]));
+    }
+
+    /**
+     * Do a single scan with results that do not match the requested scan and verify that it is
+     * still successful (and returns no results).
+     */
+    @Test
+    public void sendSingleScanRequestWithBadRawResults() throws Exception {
+        WifiScanner.ScanSettings requestSettings = createRequest(WifiScanner.WIFI_BAND_24_GHZ, 0,
+                0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        // Create a set of scan results that has results not matching the request settings, but is
+        // limited to zero results for the expected results.
+        ScanResults results = ScanResults.createOverflowing(0, 0,
+                ScanResults.generateNativeResults(0, 5150, 5171));
+        doSuccessfulSingleScan(requestSettings, computeSingleScanNativeSettings(requestSettings),
+                results);
     }
 
     /**

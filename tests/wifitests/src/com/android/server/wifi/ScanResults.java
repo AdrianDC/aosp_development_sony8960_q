@@ -37,12 +37,14 @@ import java.util.Random;
 public class ScanResults {
     private final ArrayList<ScanDetail> mScanDetails = new ArrayList<>();
     private final ScanData mScanData;
+    private final ScanData mRawScanData;
     private final ScanResult[] mScanResults;
 
     private ScanResults(ArrayList<ScanDetail> scanDetails, ScanData scanData,
             ScanResult[] scanResults) {
         mScanDetails.addAll(scanDetails);
         mScanData = scanData;
+        mRawScanData = scanData;
         mScanResults = scanResults;
     }
 
@@ -127,7 +129,7 @@ public class ScanResults {
     /**
      * Create scan results with no IE information.
      */
-    private static ScanDetail[] generateNativeResults(int seed, int... freqs) {
+    public static ScanDetail[] generateNativeResults(int seed, int... freqs) {
         return generateNativeResults(true, seed, freqs);
     }
 
@@ -171,8 +173,9 @@ public class ScanResults {
         }
         ScanResult[] sortedScanResults = Arrays.copyOf(mScanResults, mScanResults.length);
         Arrays.sort(sortedScanResults, SCAN_RESULT_RSSI_COMPARATOR);
+        mRawScanData = new ScanData(id, 0, sortedScanResults);
         if (maxResults == -1) {
-            mScanData = new ScanData(id, 0, sortedScanResults);
+            mScanData = mRawScanData;
         } else {
             ScanResult[] reducedScanResults = Arrays.copyOf(sortedScanResults,
                     Math.min(sortedScanResults.length, maxResults));
@@ -190,5 +193,9 @@ public class ScanResults {
 
     public ScanResult[] getRawScanResults() {
         return mScanResults;
+    }
+
+    public ScanData getRawScanData() {
+        return mRawScanData;
     }
 }
