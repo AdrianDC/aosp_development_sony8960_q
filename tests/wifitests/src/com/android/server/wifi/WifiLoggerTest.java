@@ -50,6 +50,7 @@ public class WifiLoggerTest {
 
     @Mock WifiStateMachine mWsm;
     @Mock WifiNative mWifiNative;
+    @Mock BuildProperties mBuildProperties;
     WifiLogger mWifiLogger;
 
     private static final String FAKE_RING_BUFFER_NAME = "fake-ring-buffer";
@@ -79,8 +80,11 @@ public class WifiLoggerTest {
 
         when(mWifiNative.getRingBufferStatus()).thenReturn(ringBufferStatuses);
         when(mWifiNative.readKernelLog()).thenReturn("");
+        when(mBuildProperties.isEngBuild()).thenReturn(false);
+        when(mBuildProperties.isUserdebugBuild()).thenReturn(false);
+        when(mBuildProperties.isUserBuild()).thenReturn(true);
 
-        mWifiLogger = new WifiLogger(mWsm, mWifiNative);
+        mWifiLogger = new WifiLogger(mWsm, mWifiNative, mBuildProperties);
         mWifiNative.enableVerboseLogging(0);
     }
 
@@ -458,6 +462,30 @@ public class WifiLoggerTest {
         assertTrue(expected_index_of_verbose_frame_2 < expected_index_of_verbose_frame_3);
     }
 
+    /** Verifies that eng builds do not show fate detail outside of verbose mode. */
+    @Test
+    public void dumpOmitsFateDetailInEngBuildsOutsideOfVerboseMode() throws Exception {
+        final boolean verbosityToggle = false;
+        when(mBuildProperties.isEngBuild()).thenReturn(true);
+        when(mBuildProperties.isUserdebugBuild()).thenReturn(false);
+        when(mBuildProperties.isUserBuild()).thenReturn(false);
+        String dumpString = getDumpString(verbosityToggle);
+        assertFalse(dumpString.contains("VERBOSE PACKET FATE DUMP"));
+        assertFalse(dumpString.contains("Frame bytes"));
+    }
+
+    /** Verifies that userdebug builds do not show fate detail outside of verbose mode. */
+    @Test
+    public void dumpOmitsFateDetailInUserdebugBuildsOutsideOfVerboseMode() throws Exception {
+        final boolean verbosityToggle = false;
+        when(mBuildProperties.isUserdebugBuild()).thenReturn(true);
+        when(mBuildProperties.isEngBuild()).thenReturn(false);
+        when(mBuildProperties.isUserBuild()).thenReturn(false);
+        String dumpString = getDumpString(verbosityToggle);
+        assertFalse(dumpString.contains("VERBOSE PACKET FATE DUMP"));
+        assertFalse(dumpString.contains("Frame bytes"));
+    }
+
     /**
      * Verifies that, if verbose is disabled after fetching fates, the dump does not include
      * verbose fate logs.
@@ -509,6 +537,32 @@ public class WifiLoggerTest {
                 mFakeRbs, new byte[WifiLogger.RING_BUFFER_BYTE_LIMIT_SMALL + 1]);
         mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
         assertEquals(0, getLoggerRingBufferData().length);
+    }
+
+    /** Verifies that we use large ring buffers by default, on userdebug builds. */
+    @Test
+    public void ringBufferSizeIsLargeByDefaultOnUserdebugBuilds() throws Exception {
+        final boolean verbosityToggle = false;
+        when(mBuildProperties.isUserdebugBuild()).thenReturn(true);
+        when(mBuildProperties.isEngBuild()).thenReturn(false);
+        when(mBuildProperties.isUserBuild()).thenReturn(false);
+        mWifiLogger.startLogging(verbosityToggle);
+        mWifiLogger.onRingBufferData(mFakeRbs, new byte[WifiLogger.RING_BUFFER_BYTE_LIMIT_LARGE]);
+        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        assertEquals(1, getLoggerRingBufferData().length);
+    }
+
+    /** Verifies that we use large ring buffers by default, on eng builds. */
+    @Test
+    public void ringBufferSizeIsLargeByDefaultOnEngBuilds() throws Exception {
+        final boolean verbosityToggle = false;
+        when(mBuildProperties.isEngBuild()).thenReturn(true);
+        when(mBuildProperties.isUserdebugBuild()).thenReturn(false);
+        when(mBuildProperties.isUserBuild()).thenReturn(false);
+        mWifiLogger.startLogging(verbosityToggle);
+        mWifiLogger.onRingBufferData(mFakeRbs, new byte[WifiLogger.RING_BUFFER_BYTE_LIMIT_LARGE]);
+        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        assertEquals(1, getLoggerRingBufferData().length);
     }
 
     /** Verifies that we use large ring buffers when initially started in verbose mode. */

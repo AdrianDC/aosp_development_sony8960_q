@@ -19,17 +19,7 @@ package com.android.server.wifi;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyBoolean;
-import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.anyObject;
-import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.withSettings;
+import static org.mockito.Mockito.*;
 
 import android.app.ActivityManager;
 import android.content.ContentResolver;
@@ -333,6 +323,8 @@ public class WifiStateMachineTest {
     @Mock WifiCountryCode mCountryCode;
     @Mock WifiInjector mWifiInjector;
     @Mock WifiLastResortWatchdog mWifiLastResortWatchdog;
+    @Mock PropertyService mPropertyService;
+    @Mock BuildProperties mBuildProperties;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -354,7 +346,8 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
         when(mWifiInjector.getClock()).thenReturn(mock(Clock.class));
         when(mWifiInjector.getWifiLastResortWatchdog()).thenReturn(mWifiLastResortWatchdog);
-        when(mWifiInjector.getPropertyService()).thenReturn(mock(PropertyService.class));
+        when(mWifiInjector.getPropertyService()).thenReturn(mPropertyService);
+        when(mWifiInjector.getBuildProperties()).thenReturn(mBuildProperties);
         FrameworkFacade factory = getFrameworkFacade();
         Context context = getContext();
 
@@ -1119,4 +1112,36 @@ public class WifiStateMachineTest {
         assertEquals(WifiStateMachine.NUM_LOG_RECS_NORMAL, mWsm.getLogRecSize());
     }
 
+    /** Verifies that enabling verbose logging sets the hal log property in eng builds. */
+    @Test
+    public void enablingVerboseLoggingSetsHalLogPropertyInEngBuilds() {
+        reset(mPropertyService);  // Ignore calls made in setUp()
+        when(mBuildProperties.isEngBuild()).thenReturn(true);
+        when(mBuildProperties.isUserdebugBuild()).thenReturn(false);
+        when(mBuildProperties.isUserBuild()).thenReturn(false);
+        mWsm.enableVerboseLogging(1);
+        verify(mPropertyService).set("log.tag.WifiHAL", "V");
+    }
+
+    /** Verifies that enabling verbose logging sets the hal log property in userdebug builds. */
+    @Test
+    public void enablingVerboseLoggingSetsHalLogPropertyInUserdebugBuilds() {
+        reset(mPropertyService);  // Ignore calls made in setUp()
+        when(mBuildProperties.isUserdebugBuild()).thenReturn(true);
+        when(mBuildProperties.isEngBuild()).thenReturn(false);
+        when(mBuildProperties.isUserBuild()).thenReturn(false);
+        mWsm.enableVerboseLogging(1);
+        verify(mPropertyService).set("log.tag.WifiHAL", "V");
+    }
+
+    /** Verifies that enabling verbose logging does NOT set the hal log property in user builds. */
+    @Test
+    public void enablingVerboseLoggingDoeNotSetHalLogPropertyInUserBuilds() {
+        reset(mPropertyService);  // Ignore calls made in setUp()
+        when(mBuildProperties.isUserBuild()).thenReturn(true);
+        when(mBuildProperties.isEngBuild()).thenReturn(false);
+        when(mBuildProperties.isUserdebugBuild()).thenReturn(false);
+        mWsm.enableVerboseLogging(1);
+        verify(mPropertyService, never()).set(anyString(), anyString());
+    }
 }

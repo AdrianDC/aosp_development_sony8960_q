@@ -76,7 +76,6 @@ import android.net.wifi.nan.WifiNanManager;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
 import android.os.Binder;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
@@ -201,6 +200,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private final String mPrimaryDeviceType;
     private final Clock mClock;
     private final PropertyService mPropertyService;
+    private final BuildProperties mBuildProperties;
     private final WifiCountryCode mCountryCode;
 
     /* Scan results handling */
@@ -952,6 +952,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiLastResortWatchdog = wifiInjector.getWifiLastResortWatchdog();
         mClock = wifiInjector.getClock();
         mPropertyService = wifiInjector.getPropertyService();
+        mBuildProperties = wifiInjector.getBuildProperties();
         mContext = context;
         mFacade = facade;
         mWifiNative = WifiNative.getWlanNativeInterface();
@@ -981,7 +982,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 R.bool.config_wifi_enable_wifi_firmware_debugging);
 
         if (enableFirmwareLogs) {
-            mWifiLogger = facade.makeRealLogger(this, mWifiNative);
+            mWifiLogger = facade.makeRealLogger(this, mWifiNative, mBuildProperties);
         } else {
             mWifiLogger = facade.makeBaseLogger();
         }
@@ -1261,13 +1262,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    private static final String BUILD_TYPE_USER = "user";
     private static final String SYSTEM_PROPERTY_LOG_CONTROL_WIFIHAL = "log.tag.WifiHAL";
     private static final String LOGD_LEVEL_DEBUG = "D";
     private static final String LOGD_LEVEL_VERBOSE = "V";
     private void configureVerboseHalLogging(boolean enableVerbose) {
-        // Verbose HAL logging not supported on user builds.
-        if (Build.TYPE.equals(BUILD_TYPE_USER)) {
+        if (mBuildProperties.isUserBuild()) {  // Verbose HAL logging not supported on user builds.
             return;
         }
         mPropertyService.set(SYSTEM_PROPERTY_LOG_CONTROL_WIFIHAL,
