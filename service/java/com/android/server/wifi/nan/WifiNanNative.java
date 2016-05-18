@@ -88,6 +88,7 @@ public class WifiNanNative {
         public int maxNdiInterfaces;
         public int maxNdpSessions;
         public int maxAppInfoLen;
+        public int maxQueuedTransmitMessages;
 
         @Override
         public String toString() {
@@ -98,7 +99,8 @@ public class WifiNanNative {
                     + ", maxServiceSpecificInfoLen=" + maxServiceSpecificInfoLen
                     + ", maxVsaDataLen=" + maxVsaDataLen + ", maxMeshDataLen=" + maxMeshDataLen
                     + ", maxNdiInterfaces=" + maxNdiInterfaces + ", maxNdpSessions="
-                    + maxNdpSessions + ", maxAppInfoLen=" + maxAppInfoLen + "]";
+                    + maxNdpSessions + ", maxAppInfoLen=" + maxAppInfoLen
+                    + ", maxQueuedTransmitMessages=" + maxQueuedTransmitMessages + "]";
         }
     }
 
