@@ -16,6 +16,7 @@
 
 package com.android.server.wifi.nan;
 
+import android.net.wifi.RttManager;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.os.RemoteException;
@@ -37,7 +38,7 @@ import java.io.PrintWriter;
 public class WifiNanClientState {
     private static final String TAG = "WifiNanClientState";
     private static final boolean DBG = false;
-    private static final boolean VDBG = false; // STOPSHIP if true
+    private static final boolean VDBG = true; // STOPSHIP if true
 
     /* package */ static final int CLUSTER_CHANGE_EVENT_STARTED = 0;
     /* package */ static final int CLUSTER_CHANGE_EVENT_JOINED = 1;
@@ -202,6 +203,47 @@ public class WifiNanClientState {
         }
 
         return 0;
+    }
+
+    /**
+     * Called on RTT success - forwards call to client.
+     */
+    public void onRangingSuccess(int rangingId, RttManager.ParcelableRttResults results) {
+        if (VDBG) {
+            Log.v(TAG, "onRangingSuccess: rangingId=" + rangingId + ", results=" + results);
+        }
+        try {
+            mCallback.onRangingSuccess(rangingId, results);
+        } catch (RemoteException e) {
+            Log.w(TAG, "onRangingSuccess: RemoteException - ignored: " + e);
+        }
+    }
+
+    /**
+     * Called on RTT failure - forwards call to client.
+     */
+    public void onRangingFailure(int rangingId, int reason, String description) {
+        if (VDBG) {
+            Log.v(TAG, "onRangingSuccess: rangingId=" + rangingId + ", reason=" + reason
+                    + ", description=" + description);
+        }
+        try {
+            mCallback.onRangingFailure(rangingId, reason, description);
+        } catch (RemoteException e) {
+            Log.w(TAG, "onRangingFailure: RemoteException - ignored: " + e);
+        }
+    }
+
+    /**
+     * Called on RTT operation aborted - forwards call to client.
+     */
+    public void onRangingAborted(int rangingId) {
+        if (VDBG) Log.v(TAG, "onRangingSuccess: rangingId=" + rangingId);
+        try {
+            mCallback.onRangingAborted(rangingId);
+        } catch (RemoteException e) {
+            Log.w(TAG, "onRangingAborted: RemoteException - ignored: " + e);
+        }
     }
 
     /**
