@@ -33,6 +33,7 @@ import static org.mockito.Mockito.when;
 
 import android.content.Context;
 import android.content.Intent;
+import android.net.wifi.RttManager;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanSessionCallback;
@@ -71,6 +72,7 @@ public class WifiNanStateManagerTest {
     private WifiNanStateManager mDut;
     @Mock private WifiNanNative mMockNative;
     @Mock private Context mMockContext;
+    @Mock private WifiNanRttStateManager mMockNanRttStateManager;
     MockAlarmManager mAlarmManager;
 
     @Rule
@@ -89,7 +91,7 @@ public class WifiNanStateManagerTest {
 
         mMockLooper = new MockLooper();
 
-        mDut = installNewNanStateManagerAndResetState();
+        mDut = installNewNanStateManagerAndResetState(mMockNanRttStateManager);
         mDut.start(mMockContext, mMockLooper.getLooper());
         mDut.enableUsage();
         mMockLooper.dispatchAll();
@@ -1051,6 +1053,75 @@ public class WifiNanStateManagerTest {
     }
 
     /**
+     * Validate that start ranging function fills-in correct MAC addresses for peer IDs and
+     * passed along to RTT module.
+     */
+    @Test
+    public void testStartRanging() throws Exception {
+        final int clientId = 1005;
+        final int subscribeId = 15;
+        final int requestorId = 22;
+        final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
+        final String peerSsi = "some peer ssi data";
+        final String peerMatchFilter = "filter binary array represented as string";
+        final int rangingId = 18423;
+        final RttManager.RttParams[] params = new RttManager.RttParams[2];
+        params[0] = new RttManager.RttParams();
+        params[0].bssid = Integer.toString(requestorId);
+        params[1] = new RttManager.RttParams();
+        params[1].bssid = Integer.toString(requestorId + 5);
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
+
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
+        ArgumentCaptor<WifiNanClientState> clientCaptor =
+                ArgumentCaptor.forClass(WifiNanClientState.class);
+        ArgumentCaptor<RttManager.RttParams[]> rttParamsCaptor =
+                ArgumentCaptor.forClass(RttManager.RttParams[].class);
+
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative,
+                mMockNanRttStateManager);
+
+        // (1) connect
+        mDut.connect(clientId, mockCallback, configRequest);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
+                eq(true));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
+
+        // (2) subscribe & match
+        mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
+        mDut.onMatchNotification(subscribeId, requestorId, peerMac, peerSsi.getBytes(),
+                peerSsi.length(), peerMatchFilter.getBytes(), peerMatchFilter.length());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
+        inOrder.verify(mockSessionCallback).onMatch(requestorId, peerSsi.getBytes(),
+                peerSsi.length(), peerMatchFilter.getBytes(), peerMatchFilter.length());
+
+        // (3) start ranging: pass along a valid peer ID and an invalid one
+        mDut.startRanging(clientId, sessionId.getValue(), params, rangingId);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNanRttStateManager).startRanging(eq(rangingId), clientCaptor.capture(),
+                rttParamsCaptor.capture());
+        collector.checkThat("RttParams[0].bssid", "06:07:08:09:0A:0B",
+                equalTo(rttParamsCaptor.getValue()[0].bssid));
+        collector.checkThat("RttParams[1].bssid", "", equalTo(rttParamsCaptor.getValue()[1].bssid));
+
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative,
+                mMockNanRttStateManager);
+    }
+
+    /**
      * Test sequence of configuration: (1) config1, (2) config2 - incompatible,
      * (3) config3 - compatible with config1 (requiring upgrade), (4) disconnect
      * config3 (should get a downgrade), (5) disconnect config1 (should get a
@@ -1541,7 +1612,8 @@ public class WifiNanStateManagerTest {
      * Utilities
      */
 
-    private static WifiNanStateManager installNewNanStateManagerAndResetState() throws Exception {
+    private static WifiNanStateManager installNewNanStateManagerAndResetState(
+            WifiNanRttStateManager mockRtt) throws Exception {
         Constructor<WifiNanStateManager> ctr = WifiNanStateManager.class.getDeclaredConstructor();
         ctr.setAccessible(true);
         WifiNanStateManager nanStateManager = ctr.newInstance();
@@ -1549,6 +1621,10 @@ public class WifiNanStateManagerTest {
         Field field = WifiNanStateManager.class.getDeclaredField("sNanStateManagerSingleton");
         field.setAccessible(true);
         field.set(null, nanStateManager);
+
+        field = WifiNanStateManager.class.getDeclaredField("mRtt");
+        field.setAccessible(true);
+        field.set(nanStateManager, mockRtt);
 
         return WifiNanStateManager.getInstance();
     }

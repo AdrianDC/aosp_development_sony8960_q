@@ -18,6 +18,7 @@ package com.android.server.wifi.nan;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.net.wifi.RttManager;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanManager;
@@ -34,6 +35,7 @@ import android.util.SparseArray;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.Arrays;
 
 /**
  * Implementation of the IWifiNanManager AIDL interface. Performs validity
@@ -53,6 +55,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     private final SparseArray<IBinder.DeathRecipient> mDeathRecipientsByClientId =
             new SparseArray<>();
     private int mNextClientId = 1;
+    private int mNextRangingId = 1;
     private final SparseArray<Integer> mUidByClientId = new SparseArray<>();
 
     public WifiNanServiceImpl(Context context) {
@@ -80,6 +83,15 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         wifiNanThread.start();
 
         mStateManager.start(mContext, wifiNanThread.getLooper());
+    }
+
+    /**
+     * Start/initialize portions of the service which require the boot stage to be complete.
+     */
+    public void startLate() {
+        Log.i(TAG, "Late initialization of Wi-Fi NAN service");
+
+        mStateManager.startLate();
     }
 
     @Override
@@ -342,6 +354,30 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
+    public int startRanging(int clientId, int sessionId, RttManager.ParcelableRttParams params) {
+        enforceAccessPermission();
+        enforceLocationPermission();
+
+        int uid = getMockableCallingUid();
+        enforceClientValidity(uid, clientId);
+        if (VDBG) {
+            Log.v(TAG, "startRanging: clientId=" + clientId + ", sessionId=" + sessionId + ", "
+                    + ", parms=" + Arrays.toString(params.mParams));
+        }
+
+        if (params.mParams.length == 0) {
+            throw new IllegalArgumentException("Empty ranging parameters");
+        }
+
+        int rangingId;
+        synchronized (mLock) {
+            rangingId = mNextRangingId++;
+        }
+        mStateManager.startRanging(clientId, sessionId, params.mParams, rangingId);
+        return rangingId;
+    }
+
+    @Override
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         if (mContext.checkCallingOrSelfPermission(
                 android.Manifest.permission.DUMP) != PackageManager.PERMISSION_GRANTED) {
@@ -377,5 +413,10 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
 
     private void enforceChangePermission() {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.CHANGE_WIFI_STATE, TAG);
+    }
+
+    private void enforceLocationPermission() {
+        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION,
+                TAG);
     }
 }
