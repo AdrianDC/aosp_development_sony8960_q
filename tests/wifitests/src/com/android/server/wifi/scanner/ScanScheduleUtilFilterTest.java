@@ -71,7 +71,7 @@ public class ScanScheduleUtilFilterTest {
         );
 
         assertFalse(ScanScheduleUtil.shouldReportFullScanResultForSettings(mChannelHelper,
-                        createScanResult(5150), 0, settings, -1));
+                        createScanResult(5150), 0, settings, 0));
     }
 
     @Test
@@ -82,7 +82,7 @@ public class ScanScheduleUtilFilterTest {
         );
 
         assertTrue(ScanScheduleUtil.shouldReportFullScanResultForSettings(mChannelHelper,
-                        createScanResult(2400), 0, settings, -1));
+                        createScanResult(2400), 0, settings, 0));
     }
 
     @Test
@@ -93,7 +93,7 @@ public class ScanScheduleUtilFilterTest {
         );
 
         assertFalse(ScanScheduleUtil.shouldReportFullScanResultForSettings(mChannelHelper,
-                        createScanResult(5175), 0, settings, -1));
+                        createScanResult(5175), 0, settings, 0));
     }
 
     @Test
@@ -138,8 +138,20 @@ public class ScanScheduleUtilFilterTest {
         );
 
         ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
-                createScanDatas(new int[][]{ { 2450 } }), settings, -1);
+                createScanDatas(new int[][]{ { 2450 } }), settings, 0);
         assertScanDataFreqsEquals(null, results);
+    }
+
+    @Test
+    public void filterScanDataSingleNotMatchingWithDefinitlyScannedBucketIndex() {
+        ScanSettings settings = createRequest(
+                channelsToSpec(2400, 5150), 30000, 0, 20,
+                WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
+        );
+
+        ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
+                createScanDatas(new int[][]{ { 2450 } }), settings, -1);
+        assertScanDataFreqsEquals(new int[][]{ { } }, results);
     }
 
     @Test
@@ -162,7 +174,7 @@ public class ScanScheduleUtilFilterTest {
         );
 
         ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
-                createScanDatas(new int[][]{ { 2400 } }), settings, -1);
+                createScanDatas(new int[][]{ { 2400 } }), settings, 0);
 
         assertScanDataFreqsEquals(new int[][]{ { 2400 } }, results);
     }
@@ -188,7 +200,7 @@ public class ScanScheduleUtilFilterTest {
         );
 
         ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
-                createScanDatas(new int[][]{ { 2400, 2450, 5150, 5175 } }), settings, -1);
+                createScanDatas(new int[][]{ { 2400, 2450, 5150, 5175 } }), settings, 0);
 
         assertScanDataFreqsEquals(new int[][]{ { 2400, 5150 } }, results);
     }
@@ -201,7 +213,7 @@ public class ScanScheduleUtilFilterTest {
         );
 
         ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
-                createScanDatas(new int[][]{ { 2450 }, { 2450, 5175 } }), settings, -1);
+                createScanDatas(new int[][]{ { 2450 }, { 2450, 5175 } }), settings, 0);
         assertScanDataFreqsEquals(null, results);
     }
 
@@ -226,7 +238,7 @@ public class ScanScheduleUtilFilterTest {
         );
 
         ScanData[] results = ScanScheduleUtil.filterResultsForSettings(mChannelHelper,
-                createScanDatas(new int[][]{ { 2400 }, {2400, 5150} }), settings, -1);
+                createScanDatas(new int[][]{ { 2400 }, {2400, 5150} }), settings, 0);
 
         assertScanDataFreqsEquals(new int[][]{ { 2400 }, {2400, 5150} }, results);
     }
@@ -256,7 +268,7 @@ public class ScanScheduleUtilFilterTest {
                 createScanDatas(new int[][]{
                         { 2400, 2450, 5150, 5175, 2400 },
                         { 2400, 2450, 5175 },
-                        { 5175, 5175, 5150 } }), settings, -1);
+                        { 5175, 5175, 5150 } }), settings, 0);
 
         assertScanDataFreqsEquals(new int[][]{ { 2400, 5150, 2400 }, { 2400 }, { 5150 } }, results);
     }
@@ -272,7 +284,7 @@ public class ScanScheduleUtilFilterTest {
                 createScanDatas(new int[][]{
                         { 2400, 2450, 5150, 5175, 2400 },
                         { 5175 },
-                        { 5175, 5175, 5150 } }), settings, -1);
+                        { 5175, 5175, 5150 } }), settings, 0);
 
         assertScanDataFreqsEquals(new int[][]{ { 2400, 5150, 2400 }, { 5150 } }, results);
     }
@@ -288,7 +300,7 @@ public class ScanScheduleUtilFilterTest {
                 createScanDatas(new int[][]{
                         { 2400, 2450, 5150, 5175, 2400, 2400},
                         { 5175 },
-                        { 5175, 5175, 5150, 2400, 2400, 5150 } }), settings, -1);
+                        { 5175, 5175, 5150, 2400, 2400, 5150 } }), settings, 0);
 
         assertScanDataFreqsEquals(new int[][]{ { 2400, 5150, 2400 }, { 5150, 2400, 2400 } },
                 results);
