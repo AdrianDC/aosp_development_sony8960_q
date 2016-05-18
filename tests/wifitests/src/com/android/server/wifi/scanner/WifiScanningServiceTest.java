@@ -21,6 +21,8 @@ import static com.android.server.wifi.ScanTestUtil.*;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
+import android.app.test.TestAlarmManager;
+import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
@@ -32,15 +34,13 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.WorkSource;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Pair;
 
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.Protocol;
-import com.android.server.wifi.BidirectionalAsyncChannel;
-import com.android.server.wifi.MockAlarmManager;
-import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
-import com.android.server.wifi.MockLooper;
+import com.android.internal.util.test.BidirectionalAsyncChannel;
 import com.android.server.wifi.ScanResults;
 import com.android.server.wifi.TestUtil;
 import com.android.server.wifi.WifiInjector;
@@ -73,13 +73,13 @@ public class WifiScanningServiceTest {
     public static final String TAG = "WifiScanningServiceTest";
 
     @Mock Context mContext;
-    MockAlarmManager mAlarmManager;
+    TestAlarmManager mAlarmManager;
     @Mock WifiScannerImpl mWifiScannerImpl;
     @Mock WifiScannerImpl.WifiScannerImplFactory mWifiScannerImplFactory;
     @Mock IBatteryStats mBatteryStats;
     @Mock WifiInjector mWifiInjector;
     WifiMetrics mWifiMetrics;
-    MockLooper mLooper;
+    TestLooper mLooper;
     WifiScanningServiceImpl mWifiScanningServiceImpl;
 
 
@@ -87,7 +87,7 @@ public class WifiScanningServiceTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        mAlarmManager = new MockAlarmManager();
+        mAlarmManager = new TestAlarmManager();
         when(mContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
         mWifiMetrics = new WifiMetrics();
@@ -97,7 +97,7 @@ public class WifiScanningServiceTest {
                 new int[]{5150, 5175},
                 new int[]{5600, 5650, 5660});
 
-        mLooper = new MockLooper();
+        mLooper = new TestLooper();
         when(mWifiScannerImplFactory.create(any(Context.class), any(Looper.class)))
                 .thenReturn(mWifiScannerImpl);
         when(mWifiScannerImpl.getChannelHelper()).thenReturn(channelHelper);

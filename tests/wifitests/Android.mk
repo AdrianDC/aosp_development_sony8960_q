@@ -103,6 +103,7 @@ LOCAL_JACK_COVERAGE_EXCLUDE_FILTER := $(jacoco_exclude)
 LOCAL_STATIC_JAVA_LIBRARIES := \
 	android-support-test \
 	mockito-target \
+	frameworks-base-testutils \
 	services \
 	wifi-service \
 

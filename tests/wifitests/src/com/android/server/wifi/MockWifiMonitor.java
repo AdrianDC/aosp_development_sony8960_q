@@ -23,11 +23,10 @@ import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
+import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.os.Handler;
 import android.os.Message;
 import android.util.SparseArray;
-
-import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;

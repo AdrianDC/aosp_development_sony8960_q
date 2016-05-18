@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -29,8 +30,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
 
 import org.junit.Before;
 import org.junit.Test;

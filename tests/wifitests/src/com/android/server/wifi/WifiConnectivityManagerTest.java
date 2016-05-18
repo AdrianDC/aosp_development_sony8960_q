@@ -21,6 +21,8 @@ import static com.android.server.wifi.WifiConfigurationTestUtil.generateWifiConf
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
 
+import android.app.test.TestAlarmManager;
+import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
 import android.content.res.Resources;
 import android.net.wifi.ScanResult;
@@ -35,10 +37,10 @@ import android.net.wifi.WifiScanner.ScanListener;
 import android.net.wifi.WifiScanner.ScanSettings;
 import android.net.wifi.WifiSsid;
 import android.os.WorkSource;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.R;
-import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
 
 import org.junit.After;
 import org.junit.Before;
@@ -61,7 +63,7 @@ public class WifiConnectivityManagerTest {
     public void setUp() throws Exception {
         mWifiInjector = mockWifiInjector();
         mResource = mockResource();
-        mAlarmManager = new MockAlarmManager();
+        mAlarmManager = new TestAlarmManager();
         mContext = mockContext();
         mWifiStateMachine = mockWifiStateMachine();
         mWifiConfigManager = mockWifiConfigManager();
@@ -85,8 +87,8 @@ public class WifiConnectivityManagerTest {
 
     private Resources mResource;
     private Context mContext;
-    private MockAlarmManager mAlarmManager;
-    private MockLooper mLooper = new MockLooper();
+    private TestAlarmManager mAlarmManager;
+    private TestLooper mLooper = new TestLooper();
     private WifiConnectivityManager mWifiConnectivityManager;
     private WifiQualifiedNetworkSelector mWifiQNS;
     private WifiStateMachine mWifiStateMachine;

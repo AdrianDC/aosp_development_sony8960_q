@@ -32,6 +32,7 @@ import static org.mockito.Mockito.validateMockitoUsage;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
 import android.content.res.Resources;
 import android.net.NetworkScoreManager;
@@ -44,7 +45,6 @@ import android.test.suitebuilder.annotation.SmallTest;
 import android.util.LocalLog;
 
 import com.android.internal.R;
-import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
 
 import org.junit.After;
 import org.junit.Before;

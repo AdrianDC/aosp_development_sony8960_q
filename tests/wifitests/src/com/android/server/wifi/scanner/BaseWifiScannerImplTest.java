@@ -23,15 +23,15 @@ import static com.android.server.wifi.ScanTestUtil.createFreqSet;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
+import android.app.test.TestAlarmManager;
 import android.content.Context;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiScanner.ScanData;
 import android.net.wifi.WifiSsid;
 import android.os.SystemClock;
+import android.os.test.TestLooper;
 
-import com.android.server.wifi.MockAlarmManager;
-import com.android.server.wifi.MockLooper;
 import com.android.server.wifi.MockResources;
 import com.android.server.wifi.MockWifiMonitor;
 import com.android.server.wifi.ScanDetail;
@@ -58,9 +58,9 @@ import java.util.Set;
  */
 public abstract class BaseWifiScannerImplTest {
     @Mock Context mContext;
-    MockAlarmManager mAlarmManager;
+    TestAlarmManager mAlarmManager;
     MockWifiMonitor mWifiMonitor;
-    MockLooper mLooper;
+    TestLooper mLooper;
     @Mock WifiNative mWifiNative;
     MockResources mResources;
 
@@ -73,8 +73,8 @@ public abstract class BaseWifiScannerImplTest {
     public void setUpBase() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        mLooper = new MockLooper();
-        mAlarmManager = new MockAlarmManager();
+        mLooper = new TestLooper();
+        mAlarmManager = new TestAlarmManager();
         mWifiMonitor = new MockWifiMonitor();
         mResources = new MockResources();
 

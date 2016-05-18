@@ -34,6 +34,7 @@ import android.net.LinkAddress;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.INetworkManagementService;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import org.junit.Before;
@@ -61,7 +62,7 @@ public class SoftApManagerTest {
     private final ArrayList<Integer> mAllowed2GChannels =
             new ArrayList<Integer>(Arrays.asList(ALLOWED_2G_CHANNELS));
 
-    MockLooper mLooper;
+    TestLooper mLooper;
     @Mock Context mContext;
     @Mock WifiNative mWifiNative;
     @Mock INetworkManagementService mNmService;
@@ -81,7 +82,7 @@ public class SoftApManagerTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        mLooper = new MockLooper();
+        mLooper = new TestLooper();
 
         when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
         when(mNmService.getInterfaceConfig(TEST_INTERFACE_NAME))

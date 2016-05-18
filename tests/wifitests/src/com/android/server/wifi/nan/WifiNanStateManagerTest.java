@@ -31,6 +31,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import android.app.test.TestAlarmManager;
 import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.RttManager;
@@ -43,11 +44,9 @@ import android.net.wifi.nan.WifiNanEventCallback;
 import android.net.wifi.nan.WifiNanManager;
 import android.net.wifi.nan.WifiNanSessionCallback;
 import android.os.UserHandle;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
-
-import com.android.server.wifi.MockAlarmManager;
-import com.android.server.wifi.MockLooper;
 
 import libcore.util.HexEncoding;
 
@@ -68,12 +67,12 @@ import java.lang.reflect.Field;
  */
 @SmallTest
 public class WifiNanStateManagerTest {
-    private MockLooper mMockLooper;
+    private TestLooper mMockLooper;
     private WifiNanStateManager mDut;
     @Mock private WifiNanNative mMockNative;
     @Mock private Context mMockContext;
     @Mock private WifiNanRttStateManager mMockNanRttStateManager;
-    MockAlarmManager mAlarmManager;
+    TestAlarmManager mAlarmManager;
 
     @Rule
     public ErrorCollector collector = new ErrorCollector();
@@ -85,11 +84,11 @@ public class WifiNanStateManagerTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        mAlarmManager = new MockAlarmManager();
+        mAlarmManager = new TestAlarmManager();
         when(mMockContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
 
-        mMockLooper = new MockLooper();
+        mMockLooper = new TestLooper();
 
         mDut = installNewNanStateManagerAndResetState(mMockNanRttStateManager);
         mDut.start(mMockContext, mMockLooper.getLooper());

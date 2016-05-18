@@ -28,6 +28,7 @@ import static org.mockito.Mockito.*;
 
 import android.content.ContentResolver;
 import android.content.Context;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
 
@@ -73,7 +74,7 @@ public class WifiControllerTest {
         when(mSettingsStore.isScanAlwaysAvailable()).thenReturn(true);
     }
 
-    MockLooper mLooper;
+    TestLooper mLooper;
     @Mock Context mContext;
     @Mock WifiServiceImpl mService;
     @Mock FrameworkFacade mFacade;
@@ -87,7 +88,7 @@ public class WifiControllerTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        mLooper = new MockLooper();
+        mLooper = new TestLooper();
 
         initializeSettingsStore();
 

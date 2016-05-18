@@ -41,9 +41,8 @@ import android.net.wifi.nan.WifiNanSessionCallback;
 import android.net.wifi.nan.WifiNanSubscribeSession;
 import android.os.IBinder;
 import android.os.Parcel;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
-
-import com.android.server.wifi.MockLooper;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -60,7 +59,7 @@ import org.mockito.MockitoAnnotations;
 @SmallTest
 public class WifiNanManagerTest {
     private WifiNanManager mDut;
-    private MockLooper mMockLooper;
+    private TestLooper mMockLooper;
 
     @Rule
     public ErrorCollector collector = new ErrorCollector();
@@ -88,7 +87,7 @@ public class WifiNanManagerTest {
         MockitoAnnotations.initMocks(this);
 
         mDut = new WifiNanManager(mockNanService);
-        mMockLooper = new MockLooper();
+        mMockLooper = new TestLooper();
     }
 
     /*

@@ -36,7 +36,10 @@ import android.net.wifi.RttManager.ResponderConfig;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.Message;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
+
+import com.android.internal.util.test.BidirectionalAsyncChannel;
 
 import org.junit.After;
 import org.junit.Before;
@@ -60,7 +63,7 @@ public class RttServiceTest {
     Context mContext;
     @Mock
     WifiNative mWifiNative;
-    MockLooper mLooper;
+    TestLooper mLooper;
 
     RttService.RttServiceImpl mRttServiceImpl;
     ArgumentCaptor<BroadcastReceiver> mBroadcastReceiverCaptor = ArgumentCaptor
@@ -70,7 +73,7 @@ public class RttServiceTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         TestUtil.installWlanWifiNative(mWifiNative);
-        mLooper = new MockLooper();
+        mLooper = new TestLooper();
         mRttServiceImpl = new RttService.RttServiceImpl(mContext, mLooper.getLooper());
         mRttServiceImpl.startService();
     }

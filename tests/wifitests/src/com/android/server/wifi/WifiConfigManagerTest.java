@@ -34,6 +34,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
 import android.content.pm.UserInfo;
 import android.net.wifi.FakeKeys;
@@ -58,7 +59,6 @@ import android.util.Log;
 import android.util.SparseArray;
 
 import com.android.server.net.DelayedDiskWrite;
-import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
 import com.android.server.wifi.hotspot2.omadm.PasspointManagementObjectManager;
 import com.android.server.wifi.hotspot2.pps.Credential;
 import com.android.server.wifi.hotspot2.pps.HomeSP;

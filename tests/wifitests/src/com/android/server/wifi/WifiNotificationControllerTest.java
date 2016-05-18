@@ -34,6 +34,7 @@ import android.net.NetworkInfo;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.UserHandle;
+import android.os.test.TestLooper;
 import android.provider.Settings;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -79,7 +80,7 @@ public class WifiNotificationControllerTest {
         when(mFrameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON, 1)).thenReturn(1);
 
-        MockLooper mock_looper = new MockLooper();
+        TestLooper mock_looper = new TestLooper();
         mWifiNotificationController = new WifiNotificationController(
                 mContext, mock_looper.getLooper(), mWifiStateMachine, mFrameworkFacade,
                 mock(Notification.Builder.class));

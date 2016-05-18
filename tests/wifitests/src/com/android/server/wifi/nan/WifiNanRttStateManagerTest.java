@@ -31,8 +31,8 @@ import android.os.Handler;
 import android.os.Message;
 import android.test.suitebuilder.annotation.SmallTest;
 
-import com.android.server.wifi.BidirectionalAsyncChannelServer;
-import com.android.server.wifi.MockLooper;
+import com.android.internal.util.test.BidirectionalAsyncChannelServer;
+import android.os.test.TestLooper;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -49,7 +49,7 @@ import org.mockito.MockitoAnnotations;
 @SmallTest
 public class WifiNanRttStateManagerTest {
     private WifiNanRttStateManager mDut;
-    private MockLooper mMockLooper;
+    private TestLooper mTestLooper;
 
     @Mock
     private Context mMockContext;
@@ -71,12 +71,12 @@ public class WifiNanRttStateManagerTest {
         MockitoAnnotations.initMocks(this);
 
         mDut = new WifiNanRttStateManager();
-        mMockLooper = new MockLooper();
+        mTestLooper = new TestLooper();
         BidirectionalAsyncChannelServer server = new BidirectionalAsyncChannelServer(
-                mMockContext, mMockLooper.getLooper(), mMockHandler);
+                mMockContext, mTestLooper.getLooper(), mMockHandler);
         when(mMockRttService.getMessenger()).thenReturn(server.getMessenger());
 
-        mDut.startWithRttService(mMockContext, mMockLooper.getLooper(), mMockRttService);
+        mDut.startWithRttService(mMockContext, mTestLooper.getLooper(), mMockRttService);
     }
 
     /**
@@ -105,7 +105,7 @@ public class WifiNanRttStateManagerTest {
 
         // (1) start ranging
         mDut.startRanging(rangingId, mockClient, params);
-        mMockLooper.dispatchAll();
+        mTestLooper.dispatchAll();
         inOrder.verify(mMockHandler).handleMessage(messageCaptor.capture());
         Message msg = messageCaptor.getValue();
         collector.checkThat("msg.what=RttManager.CMD_OP_START_RANGING", msg.what,
@@ -120,7 +120,7 @@ public class WifiNanRttStateManagerTest {
         successMessage.arg2 = rangingId;
         successMessage.obj = results;
         msg.replyTo.send(successMessage);
-        mMockLooper.dispatchAll();
+        mTestLooper.dispatchAll();
         inOrder.verify(mockClient).onRangingSuccess(eq(rangingId), rttResultsCaptor.capture());
         collector.checkThat("ParcelableRttResults object", results,
                 equalTo(rttResultsCaptor.getValue()));
@@ -134,7 +134,7 @@ public class WifiNanRttStateManagerTest {
         failMessage.what = RttManager.CMD_OP_ABORTED;
         failMessage.arg2 = rangingId;
         msg.replyTo.send(failMessage);
-        mMockLooper.dispatchAll();
+        mTestLooper.dispatchAll();
 
         verifyNoMoreInteractions(mMockHandler, mockClient);
     }

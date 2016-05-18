@@ -22,6 +22,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
 import android.app.ActivityManager;
+import android.app.test.TestAlarmManager;
+import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -53,6 +55,7 @@ import android.os.Messenger;
 import android.os.PowerManager;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.os.test.TestLooper;
 import android.provider.Settings;
 import android.security.KeyStore;
 import android.telephony.TelephonyManager;
@@ -65,7 +68,6 @@ import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.AsyncChannel;
 import com.android.internal.util.IState;
 import com.android.internal.util.StateMachine;
-import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
@@ -229,7 +231,7 @@ public class WifiStateMachineTest {
         when(context.getSystemService(Context.POWER_SERVICE)).thenReturn(
                 new PowerManager(context, mock(IPowerManager.class), new Handler()));
 
-        mAlarmManager = new MockAlarmManager();
+        mAlarmManager = new TestAlarmManager();
         when(context.getSystemService(Context.ALARM_SERVICE)).thenReturn(
                 mAlarmManager.getAlarmManager());
 
@@ -307,10 +309,10 @@ public class WifiStateMachineTest {
     HandlerThread mP2pThread;
     HandlerThread mSyncThread;
     AsyncChannel  mWsmAsyncChannel;
-    MockAlarmManager mAlarmManager;
+    TestAlarmManager mAlarmManager;
     MockWifiMonitor mWifiMonitor;
     TestIpManager mTestIpManager;
-    MockLooper mLooper;
+    TestLooper mLooper;
     WifiConfigManager mWifiConfigManager;
 
     @Mock WifiNative mWifiNative;
@@ -334,7 +336,7 @@ public class WifiStateMachineTest {
         Log.d(TAG, "Setting up ...");
 
         // Ensure looper exists
-        mLooper = new MockLooper();
+        mLooper = new TestLooper();
 
         MockitoAnnotations.initMocks(this);
 
