@@ -94,7 +94,8 @@ public class ScanScheduleUtil {
      * Check if the specified bucket was scanned. If not all information is available then this
      * method will return true.
      *
-     * @param scheduledBucket Index of the bucket to check for, zero indexed, or -1 if unavailable
+     * @param scheduledBucket Index of the bucket to check for, zero indexed, or -1 if any scan
+     *                        should be treated as scanning this bucket.
      * @param bucketsScannedBitSet The bitset of all buckets scanned, 0 if unavailable
      */
     private static boolean isBucketMaybeScanned(int scheduledBucket, int bucketsScannedBitSet) {
@@ -109,11 +110,14 @@ public class ScanScheduleUtil {
      * Check if the specified bucket was scanned. If not all information is available then this
      * method will return false.
      *
-     * @param scheduledBucket Index of the bucket to check for, zero indexed, or -1 if unavailable
+     * @param scheduledBucket Index of the bucket to check for, zero indexed, or -1 if any scan
+     *                        should be treated as scanning this bucket.
      * @param bucketsScannedBitSet The bitset of all buckets scanned, 0 if unavailable
      */
     private static boolean isBucketDefinitlyScanned(int scheduledBucket, int bucketsScannedBitSet) {
-        if (bucketsScannedBitSet == 0 || scheduledBucket < 0) {
+        if (scheduledBucket < 0) {
+            return true;
+        } else if (bucketsScannedBitSet == 0) {
             return false;
         } else {
             return (bucketsScannedBitSet & (1 << scheduledBucket)) != 0;
