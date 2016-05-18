@@ -100,6 +100,8 @@ static void OnNanNotifyResponse(transaction_id id, NanResponseMsg* msg) {
                          (int) msg->body.nan_capabilities.max_ndp_sessions);
       helper.setIntField(data, "maxAppInfoLen",
                          (int) msg->body.nan_capabilities.max_app_info_len);
+      helper.setIntField(data, "maxQueuedTransmitMessages",
+                         (int) msg->body.nan_capabilities.max_queued_transmit_followup_msgs);
 
       helper.reportEvent(
           mCls, "onNanNotifyResponseCapabilities",

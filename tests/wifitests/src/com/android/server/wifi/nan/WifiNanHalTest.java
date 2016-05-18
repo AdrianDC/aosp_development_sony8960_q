@@ -275,6 +275,7 @@ public class WifiNanHalTest {
         final int max_ndi_interfaces = 10;
         final int max_ndp_sessions = 11;
         final int max_app_info_len = 12;
+        final int max_queued_transmit_followup_msgs = 7;
 
         ArgumentCaptor<WifiNanNative.Capabilities> capabilitiesCapture = ArgumentCaptor
                 .forClass(WifiNanNative.Capabilities.class);
@@ -298,6 +299,8 @@ public class WifiNanHalTest {
         args.putInt("body.nan_capabilities.max_ndi_interfaces", max_ndi_interfaces);
         args.putInt("body.nan_capabilities.max_ndp_sessions", max_ndp_sessions);
         args.putInt("body.nan_capabilities.max_app_info_len", max_app_info_len);
+        args.putInt("body.nan_capabilities.max_queued_transmit_followup_msgs",
+                max_queued_transmit_followup_msgs);
 
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
@@ -326,6 +329,8 @@ public class WifiNanHalTest {
                 equalTo(max_ndp_sessions));
         collector.checkThat("max_app_info_len", capabilities.maxAppInfoLen,
                 equalTo(max_app_info_len));
+        collector.checkThat("max_queued_transmit_followup_msgs",
+                capabilities.maxQueuedTransmitMessages, equalTo(max_queued_transmit_followup_msgs));
         verifyNoMoreInteractions(mNanStateManager);
     }
 
