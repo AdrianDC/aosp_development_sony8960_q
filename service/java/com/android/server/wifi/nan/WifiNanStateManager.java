@@ -944,6 +944,9 @@ public class WifiNanStateManager {
                     Log.wtf(TAG, "processTimeout: this isn't a COMMAND -- msg=" + msg);
                     /* fall-through */
             }
+
+            mCurrentCommand = null;
+            mCurrentTransactionId = TRANSACTION_ID_IGNORE;
         }
 
         @Override
