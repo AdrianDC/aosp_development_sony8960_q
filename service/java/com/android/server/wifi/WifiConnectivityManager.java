@@ -663,10 +663,11 @@ public class WifiConnectivityManager {
         boolean isFullBandScan = true;
 
         // If the WiFi traffic is heavy, only partial scan is initiated.
-        if (mWifiInfo.txSuccessRate
-                        > mConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS
-                || mWifiInfo.rxSuccessRate
-                        > mConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS) {
+        if (mWifiState == WIFI_STATE_CONNECTED
+                && (mWifiInfo.txSuccessRate
+                            > mConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS
+                    || mWifiInfo.rxSuccessRate
+                            > mConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS)) {
             localLog("No full band scan due to heavy traffic, txSuccessRate="
                         + mWifiInfo.txSuccessRate + " rxSuccessRate="
                         + mWifiInfo.rxSuccessRate);
