@@ -34,6 +34,7 @@ import org.junit.Test;
 import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiNative}.
@@ -205,13 +206,12 @@ public class WifiNativeTest {
      */
     @Test
     public void testFateReportTableHeader() {
-        String header = WifiNative.FateReport.getTableHeader();
-        assertTrue(header.contains(
-                "Timestamp        Direction  Fate                              "
-                        + "Protocol      Type                     Result\n"));
-        assertTrue(header.contains(
-                "---------        ---------  ----                              "
-                        + "--------      ----                     ------\n"));
+        final String header = WifiNative.FateReport.getTableHeader();
+        assertEquals(
+                "\nTime usec        Walltime      Direction  Fate                              "
+                + "Protocol      Type                     Result\n"
+                + "---------        --------      ---------  ----                              "
+                + "--------      ----                     ------\n", header);
     }
 
     /**
@@ -220,14 +220,16 @@ public class WifiNativeTest {
     @Test
     public void testTxFateReportToTableRowString() {
         WifiNative.TxFateReport fateReport = TX_FATE_REPORT;
-        assertEquals(
-                FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
-                        + "TX "  // direction
-                        + "sent "  // fate
-                        + "Ethernet "  // type
-                        + "N/A "  // protocol
-                        + "N/A",  // result
-                fateReport.toTableRowString().replaceAll("\\s+", " ").trim()
+        assertTrue(
+                fateReport.toTableRowString().replaceAll("\\s+", " ").trim().matches(
+                    FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
+                            + "\\d{2}:\\d{2}:\\d{2}\\.\\d{3} "  // walltime
+                            + "TX "  // direction
+                            + "sent "  // fate
+                            + "Ethernet "  // type
+                            + "N/A "  // protocol
+                            + "N/A"  // result
+                )
         );
 
         for (FrameTypeMapping frameTypeMapping : FRAME_TYPE_MAPPINGS) {
@@ -237,14 +239,16 @@ public class WifiNativeTest {
                     frameTypeMapping.mTypeNumber,
                     FATE_REPORT_FRAME_BYTES
             );
-            assertEquals(
-                    FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
-                            + "TX "  // direction
-                            + "sent "  // fate
-                            + frameTypeMapping.mExpectedProtocolText + " "  // type
-                            + "N/A "  // protocol
-                            + "N/A",  // result
-                    fateReport.toTableRowString().replaceAll("\\s+", " ").trim()
+            assertTrue(
+                    fateReport.toTableRowString().replaceAll("\\s+", " ").trim().matches(
+                            FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
+                                    + "\\d{2}:\\d{2}:\\d{2}\\.\\d{3} "  // walltime
+                                    + "TX "  // direction
+                                    + "sent "  // fate
+                                    + frameTypeMapping.mExpectedProtocolText + " "  // type
+                                    + "N/A "  // protocol
+                                    + "N/A"  // result
+                    )
             );
         }
 
@@ -255,14 +259,16 @@ public class WifiNativeTest {
                     WifiLoggerHal.FRAME_TYPE_80211_MGMT,
                     FATE_REPORT_FRAME_BYTES
             );
-            assertEquals(
-                    FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
-                            + "TX "  // direction
-                            + fateMapping.mExpectedText + " "  // fate
-                            + "802.11 Mgmt "  // type
-                            + "N/A "  // protocol
-                            + "N/A",  // result
-                    fateReport.toTableRowString().replaceAll("\\s+", " ").trim()
+            assertTrue(
+                    fateReport.toTableRowString().replaceAll("\\s+", " ").trim().matches(
+                            FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
+                                    + "\\d{2}:\\d{2}:\\d{2}\\.\\d{3} "  // walltime
+                                    + "TX "  // direction
+                                    + Pattern.quote(fateMapping.mExpectedText) + " "  // fate
+                                    + "802.11 Mgmt "  // type
+                                    + "N/A "  // protocol
+                                    + "N/A"  // result
+                    )
             );
         }
     }
@@ -318,14 +324,16 @@ public class WifiNativeTest {
     @Test
     public void testRxFateReportToTableRowString() {
         WifiNative.RxFateReport fateReport = RX_FATE_REPORT;
-        assertEquals(
-                FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
-                        + "RX "  // direction
-                        + "firmware dropped (invalid frame) "  // fate
-                        + "Ethernet "  // type
-                        + "N/A "  // protocol
-                        + "N/A", // result
-                fateReport.toTableRowString().replaceAll("\\s+", " ").trim()
+        assertTrue(
+                fateReport.toTableRowString().replaceAll("\\s+", " ").trim().matches(
+                        FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
+                                + "\\d{2}:\\d{2}:\\d{2}\\.\\d{3} "  // walltime
+                                + "RX "  // direction
+                                + Pattern.quote("firmware dropped (invalid frame) ")  // fate
+                                + "Ethernet "  // type
+                                + "N/A "  // protocol
+                                + "N/A"  // result
+                )
         );
 
         // FrameTypeMappings omitted, as they're the same as for TX.
@@ -337,14 +345,16 @@ public class WifiNativeTest {
                     WifiLoggerHal.FRAME_TYPE_80211_MGMT,
                     FATE_REPORT_FRAME_BYTES
             );
-            assertEquals(
-                    FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
-                            + "RX "  // direction
-                            + fateMapping.mExpectedText + " " // fate
-                            + "802.11 Mgmt "  // type
-                            + "N/A " // protocol
-                            + "N/A",  // result,
-                    fateReport.toTableRowString().replaceAll("\\s+", " ").trim()
+            assertTrue(
+                    fateReport.toTableRowString().replaceAll("\\s+", " ").trim().matches(
+                            FATE_REPORT_DRIVER_TIMESTAMP_USEC + " "  // timestamp
+                                    + "\\d{2}:\\d{2}:\\d{2}\\.\\d{3} "  // walltime
+                                    + "RX "  // direction
+                                    + Pattern.quote(fateMapping.mExpectedText) + " " // fate
+                                    + "802.11 Mgmt "  // type
+                                    + "N/A " // protocol
+                                    + "N/A"  // result
+                    )
             );
         }
     }
