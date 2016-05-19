@@ -641,10 +641,7 @@ class WifiLogger extends BaseWifiLogger {
     private void dumpPacketFates(PrintWriter pw) {
         dumpPacketFatesInternal(pw, "Last failed connection fates", mPacketFatesForLastFailure,
                 isVerboseLoggingEnabled());
-        if (DBG) {
-            dumpPacketFatesInternal(pw, "Latest fates", fetchPacketFates(),
-                    isVerboseLoggingEnabled());
-        }
+        dumpPacketFatesInternal(pw, "Latest fates", fetchPacketFates(), isVerboseLoggingEnabled());
     }
 
     private static void dumpPacketFatesInternal(PrintWriter pw, String description,
