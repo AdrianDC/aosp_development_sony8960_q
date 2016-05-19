@@ -68,14 +68,17 @@ import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 
 
 /**
@@ -2609,14 +2612,23 @@ public class WifiNative {
 
     @Immutable
     abstract static class FateReport {
+        final static int USEC_PER_MSEC = 1000;
+        // The driver timestamp is a 32-bit counter, in microseconds. This field holds the
+        // maximal value of a driver timestamp in milliseconds.
+        final static int MAX_DRIVER_TIMESTAMP_MSEC = (int) (0xffffffffL / 1000);
+        final static SimpleDateFormat dateFormatter = new SimpleDateFormat("HH:mm:ss.SSS");
+
         final byte mFate;
         final long mDriverTimestampUSec;
         final byte mFrameType;
         final byte[] mFrameBytes;
+        final long mEstimatedWallclockMSec;
 
         FateReport(byte fate, long driverTimestampUSec, byte frameType, byte[] frameBytes) {
             mFate = fate;
             mDriverTimestampUSec = driverTimestampUSec;
+            mEstimatedWallclockMSec =
+                    convertDriverTimestampUSecToWallclockMSec(mDriverTimestampUSec);
             mFrameType = frameType;
             mFrameBytes = frameBytes;
         }
@@ -2625,9 +2637,12 @@ public class WifiNative {
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
             FrameParser parser = new FrameParser(mFrameType, mFrameBytes);
-            pw.format("%-15s  %-9s  %-32s  %-12s  %-23s  %s\n",
-                    mDriverTimestampUSec, directionToString(), fateToString(),
-                    parser.mMostSpecificProtocolString, parser.mTypeString, parser.mResultString);
+            dateFormatter.setTimeZone(TimeZone.getDefault());
+            pw.format("%-15s  %12s  %-9s  %-32s  %-12s  %-23s  %s\n",
+                    mDriverTimestampUSec,
+                    dateFormatter.format(new Date(mEstimatedWallclockMSec)),
+                    directionToString(), fateToString(), parser.mMostSpecificProtocolString,
+                    parser.mTypeString, parser.mResultString);
             return sw.toString();
         }
 
@@ -2652,10 +2667,10 @@ public class WifiNative {
         public static String getTableHeader() {
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
-            pw.format("\n%-15s  %-9s  %-32s  %-12s  %-23s  %s\n",
-                    "Timestamp", "Direction", "Fate", "Protocol", "Type", "Result");
-            pw.format("%-15s  %-9s  %-32s  %-12s  %-23s  %s\n",
-                    "---------", "---------", "----", "--------", "----", "------");
+            pw.format("\n%-15s  %-12s  %-9s  %-32s  %-12s  %-23s  %s\n",
+                    "Time usec", "Walltime", "Direction", "Fate", "Protocol", "Type", "Result");
+            pw.format("%-15s  %-12s  %-9s  %-32s  %-12s  %-23s  %s\n",
+                    "---------", "--------", "---------", "----", "--------", "----", "------");
             return sw.toString();
         }
 
@@ -2674,6 +2689,34 @@ public class WifiNative {
                 default:
                     return Byte.toString(frameType);
             }
+        }
+
+        /**
+         * Converts a driver timestamp to a wallclock time, based on the current
+         * BOOTTIME to wallclock mapping. The driver timestamp is a 32-bit counter of
+         * microseconds, with the same base as BOOTTIME.
+         */
+        private static long convertDriverTimestampUSecToWallclockMSec(long driverTimestampUSec) {
+            final long wallclockMillisNow = System.currentTimeMillis();
+            final long boottimeMillisNow = SystemClock.elapsedRealtime();
+            final long driverTimestampMillis = driverTimestampUSec / USEC_PER_MSEC;
+
+            long boottimeTimestampMillis = boottimeMillisNow % MAX_DRIVER_TIMESTAMP_MSEC;
+            if (boottimeTimestampMillis < driverTimestampMillis) {
+                // The 32-bit microsecond count has wrapped between the time that the driver
+                // recorded the packet, and the call to this function. Adjust the BOOTTIME
+                // timestamp, to compensate.
+                //
+                // Note that overflow is not a concern here, since the result is less than
+                // 2 * MAX_DRIVER_TIMESTAMP_MSEC. (Given the modulus operation above,
+                // boottimeTimestampMillis must be less than MAX_DRIVER_TIMESTAMP_MSEC.) And, since
+                // MAX_DRIVER_TIMESTAMP_MSEC is an int, 2 * MAX_DRIVER_TIMESTAMP_MSEC must fit
+                // within a long.
+                boottimeTimestampMillis += MAX_DRIVER_TIMESTAMP_MSEC;
+            }
+
+            final long millisSincePacketTimestamp = boottimeTimestampMillis - driverTimestampMillis;
+            return wallclockMillisNow - millisSincePacketTimestamp;
         }
     }
 
