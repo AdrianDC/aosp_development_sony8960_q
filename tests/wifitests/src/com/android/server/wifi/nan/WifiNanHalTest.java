@@ -67,6 +67,8 @@ public class WifiNanHalTest {
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
 
+        resetWifiNanNative();
+
         HalMockUtils.initHalMockLibrary();
         WifiNanHalMock.initNanHalMockLibrary(mDut);
         WifiNanNative.initNanHandlersNative(WifiNative.class, WifiNative.sWlan0Index);
@@ -1193,5 +1195,11 @@ public class WifiNanHalTest {
         Field field = WifiNanStateManager.class.getDeclaredField("sNanStateManagerSingleton");
         field.setAccessible(true);
         field.set(null, nanStateManager);
+    }
+
+    private static void resetWifiNanNative() throws Exception {
+        Field field = WifiNanNative.class.getDeclaredField("sWifiNanNativeSingleton");
+        field.setAccessible(true);
+        field.set(null, null);
     }
 }

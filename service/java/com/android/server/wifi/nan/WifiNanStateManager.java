@@ -165,9 +165,10 @@ public class WifiNanStateManager {
      * handler thread: no need to use a lock.
      */
     private Context mContext;
-    WifiNanNative.Capabilities mCapabilities;
+    /* package */ WifiNanNative.Capabilities mCapabilities;
     private WifiNanStateMachine mSm;
     private WifiNanRttStateManager mRtt;
+    private WifiNanDataPathStateManager mDataPathMgr;
 
     private final SparseArray<WifiNanClientState> mClients = new SparseArray<>();
     private ConfigRequest mCurrentNanConfiguration = null;
@@ -203,13 +204,15 @@ public class WifiNanStateManager {
         mSm = new WifiNanStateMachine(TAG, looper);
         mSm.setDbg(DBG);
         mSm.start();
+
+        mRtt = new WifiNanRttStateManager();
+        mDataPathMgr = new WifiNanDataPathStateManager(this);
     }
 
     /**
-     * Initialize the RTT service (requires late initialization).
+     * Initialize the late-initialization sub-services: depend on other services already existing.
      */
     public void startLate() {
-        mRtt = new WifiNanRttStateManager();
         mRtt.start(mContext, mSm.getHandler().getLooper());
     }
 
@@ -375,7 +378,6 @@ public class WifiNanStateManager {
         msg.arg1 = COMMAND_TYPE_GET_CAPABILITIES;
         mSm.sendMessage(msg);
     }
-
 
     /**
      * Create all NAN data path interfaces which are supported by the firmware capabilities.
@@ -1182,11 +1184,11 @@ public class WifiNanStateManager {
                     }
                     break;
                 case COMMAND_TYPE_CREATE_ALL_DATA_PATH_INTERFACES:
-                    // TODO: actually create interfaces
+                    mDataPathMgr.createAllInterfaces();
                     waitForResponse = false;
                     break;
                 case COMMAND_TYPE_DELETE_ALL_DATA_PATH_INTERFACES:
-                    // TODO: actually create interfaces
+                    mDataPathMgr.deleteAllInterfaces();
                     waitForResponse = false;
                     break;
                 case COMMAND_TYPE_CREATE_DATA_PATH_INTERFACE:
@@ -1727,6 +1729,7 @@ public class WifiNanStateManager {
 
         mUsageEnabled = true;
         getCapabilities();
+        createAllDataPathInterfaces();
         sendNanStateChangedBroadcast(true);
     }
 
@@ -1740,6 +1743,7 @@ public class WifiNanStateManager {
         WifiNanNative.getInstance().deInitNan();
         onNanDownLocal();
 
+        deleteAllDataPathInterfaces();
         sendNanStateChangedBroadcast(false);
     }
 
@@ -2064,7 +2068,7 @@ public class WifiNanStateManager {
                 Log.d(TAG, "onCreateDataPathInterfaceResponseLocal: successfully created interface "
                         + command.obj);
             }
-            // TODO: do something with this
+            mDataPathMgr.onInterfaceCreated((String) command.obj);
         } else {
             Log.e(TAG,
                     "onCreateDataPathInterfaceResponseLocal: failed when trying to create "
@@ -2085,7 +2089,7 @@ public class WifiNanStateManager {
                 Log.d(TAG, "onDeleteDataPathInterfaceResponseLocal: successfully deleted interface "
                         + command.obj);
             }
-            // TODO: do something with this
+            mDataPathMgr.onInterfaceDeleted((String) command.obj);
         } else {
             Log.e(TAG,
                     "onDeleteDataPathInterfaceResponseLocal: failed when trying to delete "
@@ -2508,5 +2512,6 @@ public class WifiNanStateManager {
         }
         mSm.dump(fd, pw, args);
         mRtt.dump(fd, pw, args);
+        mDataPathMgr.dump(fd, pw, args);
     }
 }

@@ -73,6 +73,7 @@ public class WifiNanStateManagerTest {
     @Mock private WifiNanNative mMockNative;
     @Mock private Context mMockContext;
     @Mock private WifiNanRttStateManager mMockNanRttStateManager;
+    @Mock private WifiNanDataPathStateManager mMockNanDataPathStatemanager;
     MockAlarmManager mAlarmManager;
 
     @Rule
@@ -91,8 +92,9 @@ public class WifiNanStateManagerTest {
 
         mMockLooper = new MockLooper();
 
-        mDut = installNewNanStateManagerAndResetState(mMockNanRttStateManager);
+        mDut = installNewNanStateManager();
         mDut.start(mMockContext, mMockLooper.getLooper());
+        installMocksInStateManager(mDut, mMockNanRttStateManager, mMockNanDataPathStatemanager);
 
         when(mMockNative.enableAndConfigure(anyShort(), any(ConfigRequest.class), anyBoolean()))
                 .thenReturn(true);
@@ -105,7 +107,39 @@ public class WifiNanStateManagerTest {
         when(mMockNative.stopPublish(anyShort(), anyInt())).thenReturn(true);
         when(mMockNative.stopSubscribe(anyShort(), anyInt())).thenReturn(true);
 
+        // TODO (not critical): when(mMockNative.getCapabilities(anyShort())).thenReturn(true);
+        // Not critical since no other API depends on the capabilities being set. Big change
+        // since will need to add the callback and the verification flow to every single test.
+
         installMockWifiNanNative(mMockNative);
+    }
+
+    /**
+     * Validate that NAN data-path interfaces are brought up and down correctly.
+     */
+    @Test
+    public void testNanDataPathInterfaceUpDown() throws Exception {
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        InOrder inOrder = inOrder(mMockContext, mMockNative, mMockNanDataPathStatemanager);
+
+        // (1) enable usage
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        validateCorrectNanStatusChangeBroadcast(inOrder, true);
+        inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
+        inOrder.verify(mMockNanDataPathStatemanager).createAllInterfaces();
+        collector.checkThat("usage enabled", mDut.isUsageEnabled(), equalTo(true));
+
+        // (2) disable usage
+        mDut.disableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).disable((short) 0);
+        inOrder.verify(mMockNative).deInitNan();
+        validateCorrectNanStatusChangeBroadcast(inOrder, false);
+        inOrder.verify(mMockNanDataPathStatemanager).deleteAllInterfaces();
+        collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
+
+        verifyNoMoreInteractions(mMockNative, mMockNanDataPathStatemanager);
     }
 
     /**
@@ -1968,8 +2002,8 @@ public class WifiNanStateManagerTest {
      * Utilities
      */
 
-    private static WifiNanStateManager installNewNanStateManagerAndResetState(
-            WifiNanRttStateManager mockRtt) throws Exception {
+    private static WifiNanStateManager installNewNanStateManager()
+            throws Exception {
         Constructor<WifiNanStateManager> ctr = WifiNanStateManager.class.getDeclaredConstructor();
         ctr.setAccessible(true);
         WifiNanStateManager nanStateManager = ctr.newInstance();
@@ -1978,11 +2012,19 @@ public class WifiNanStateManagerTest {
         field.setAccessible(true);
         field.set(null, nanStateManager);
 
-        field = WifiNanStateManager.class.getDeclaredField("mRtt");
+        return WifiNanStateManager.getInstance();
+    }
+
+    private static void installMocksInStateManager(WifiNanStateManager nanStateManager,
+            WifiNanRttStateManager mockRtt, WifiNanDataPathStateManager mockDpMgr)
+            throws Exception {
+        Field field = WifiNanStateManager.class.getDeclaredField("mRtt");
         field.setAccessible(true);
         field.set(nanStateManager, mockRtt);
 
-        return WifiNanStateManager.getInstance();
+        field = WifiNanStateManager.class.getDeclaredField("mDataPathMgr");
+        field.setAccessible(true);
+        field.set(nanStateManager, mockDpMgr);
     }
 
     private static void installMockWifiNanNative(WifiNanNative obj) throws Exception {
