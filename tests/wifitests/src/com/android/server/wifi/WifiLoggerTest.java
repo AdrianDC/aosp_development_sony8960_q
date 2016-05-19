@@ -40,6 +40,7 @@ import org.mockito.MockitoAnnotations;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.regex.Pattern;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiLogger}.
@@ -399,10 +400,10 @@ public class WifiLoggerTest {
         final boolean verbosityToggle = false;
         String dumpString = getDumpString(verbosityToggle);
         assertTrue(dumpString.contains(WifiNative.FateReport.getTableHeader()));
-        assertTrue(dumpString.contains("0                TX"));
-        assertTrue(dumpString.contains("1                RX"));
-        assertTrue(dumpString.contains("2                TX"));
-        assertTrue(dumpString.contains("3                RX"));
+        assertTrue(Pattern.compile("0 .* TX ").matcher(dumpString).find());
+        assertTrue(Pattern.compile("1 .* RX ").matcher(dumpString).find());
+        assertTrue(Pattern.compile("2 .* TX ").matcher(dumpString).find());
+        assertTrue(Pattern.compile("3 .* RX ").matcher(dumpString).find());
         assertFalse(dumpString.contains("VERBOSE PACKET FATE DUMP"));
         assertFalse(dumpString.contains("Frame bytes"));
     }
@@ -416,34 +417,29 @@ public class WifiLoggerTest {
         final boolean verbosityToggle = true;
         String dumpString = getDumpString(verbosityToggle);
         assertTrue(dumpString.contains(WifiNative.FateReport.getTableHeader()));
-        assertTrue(dumpString.contains("0                TX"));
-        assertTrue(dumpString.contains("1                RX"));
-        assertTrue(dumpString.contains("2                TX"));
-        assertTrue(dumpString.contains("3                RX"));
+        assertTrue(Pattern.compile("0 .* TX ").matcher(dumpString).find());
+        assertTrue(Pattern.compile("1 .* RX ").matcher(dumpString).find());
+        assertTrue(Pattern.compile("2 .* TX ").matcher(dumpString).find());
+        assertTrue(Pattern.compile("3 .* RX ").matcher(dumpString).find());
         assertTrue(dumpString.contains("VERBOSE PACKET FATE DUMP"));
         assertTrue(dumpString.contains("Frame bytes"));
     }
 
     /**
-     * Verifies that dump() outputs frames in timestamp order, even if the HAL provided the
-     * data out-of-order.
+     * Verifies that dump() outputs frames in timestamp order, even though the HAL provided the
+     * data out-of-order (order is specified in getDumpString()).
      */
     @Test
     public void dumpIsSortedByTimestamp() {
         final boolean verbosityToggle = true;
         String dumpString = getDumpString(verbosityToggle);
         assertTrue(dumpString.contains(WifiNative.FateReport.getTableHeader()));
-        int expected_index_of_frame_0 = dumpString.indexOf("0                TX");
-        int expected_index_of_frame_1 = dumpString.indexOf("1                RX");
-        int expected_index_of_frame_2 = dumpString.indexOf("2                TX");
-        int expected_index_of_frame_3 = dumpString.indexOf("3                RX");
-        assertFalse(-1 == expected_index_of_frame_0);
-        assertFalse(-1 == expected_index_of_frame_1);
-        assertFalse(-1 == expected_index_of_frame_2);
-        assertFalse(-1 == expected_index_of_frame_3);
-        assertTrue(expected_index_of_frame_0 < expected_index_of_frame_1);
-        assertTrue(expected_index_of_frame_1 < expected_index_of_frame_2);
-        assertTrue(expected_index_of_frame_2 < expected_index_of_frame_3);
+        assertTrue(Pattern.compile(
+                "0 .* TX .*\n" +
+                "1 .* RX .*\n" +
+                "2 .* TX .*\n" +
+                "3 .* RX "
+        ).matcher(dumpString).find());
 
         int expected_index_of_verbose_frame_0 = dumpString.indexOf(
                 "Frame direction: TX\nFrame timestamp: 0\n");
