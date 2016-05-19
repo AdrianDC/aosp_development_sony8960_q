@@ -298,20 +298,16 @@ public class WifiLoggerTest {
         verify(mWifiNative).getRxPktFates(anyObject());
     }
 
-    /**
-     * Verifies that dump() does not synchronously fetch fates in release builds. (In debug builds,
-     * having dump() do an additional fetch makes it possible to test the feature with a fully
-     * working network.)
-     */
+    /** Verifies that dump() fetches the latest fates. */
     @Test
-    public void dumpDoesNotFetchFatesInReleaseBuild() {
-        final boolean verbosityToggle = true;
+    public void dumpFetchesFates() {
+        final boolean verbosityToggle = false;
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         mWifiLogger.startLogging(verbosityToggle);
         mWifiLogger.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
-        verify(mWifiNative, never()).getTxPktFates(anyObject());
-        verify(mWifiNative, never()).getRxPktFates(anyObject());
+        verify(mWifiNative).getTxPktFates(anyObject());
+        verify(mWifiNative).getRxPktFates(anyObject());
     }
 
     /**
@@ -340,12 +336,12 @@ public class WifiLoggerTest {
         final boolean verbosityToggle = true;
         mWifiLogger.startLogging(verbosityToggle);
         mWifiLogger.reportConnectionFailure();
+        verify(mWifiNative).getTxPktFates(anyObject());
+        verify(mWifiNative).getRxPktFates(anyObject());
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         mWifiLogger.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
-        verify(mWifiNative).getTxPktFates(anyObject());
-        verify(mWifiNative).getRxPktFates(anyObject());
 
         String fateDumpString = sw.toString();
         assertTrue(fateDumpString.contains("Last failed"));
