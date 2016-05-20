@@ -19,6 +19,7 @@ package com.android.server.wifi.scanner;
 import static com.android.server.wifi.ScanTestUtil.*;
 
 import static org.junit.Assert.*;
+import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.*;
 
 import android.content.BroadcastReceiver;
@@ -27,10 +28,12 @@ import android.content.IntentFilter;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
+import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.RemoteException;
 import android.os.WorkSource;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Pair;
@@ -356,8 +359,9 @@ public class WifiScanningServiceTest {
     }
 
     private void doSuccessfulSingleScan(WifiScanner.ScanSettings requestSettings,
-            WifiNative.ScanSettings nativeSettings, ScanResults results) {
+            WifiNative.ScanSettings nativeSettings, ScanResults results) throws RemoteException {
         int requestId = 12;
+        WorkSource workSource = new WorkSource(2292);
         startServiceAndLoadDriver();
 
         Handler handler = mock(Handler.class);
@@ -367,11 +371,12 @@ public class WifiScanningServiceTest {
         when(mWifiScannerImpl.startSingleScan(any(WifiNative.ScanSettings.class),
                         any(WifiNative.ScanEventHandler.class))).thenReturn(true);
 
-        sendSingleScanRequest(controlChannel, requestId, requestSettings, null);
+        sendSingleScanRequest(controlChannel, requestId, requestSettings, workSource);
 
         mLooper.dispatchAll();
         WifiNative.ScanEventHandler eventHandler = verifyStartSingleScan(order, nativeSettings);
         verifySuccessfulResponse(order, handler, requestId);
+        verify(mBatteryStats).noteWifiScanStartedFromSource(eq(workSource));
 
         when(mWifiScannerImpl.getLatestSingleScanResults())
                 .thenReturn(results.getRawScanData());
@@ -381,6 +386,7 @@ public class WifiScanningServiceTest {
         verifyScanResultsRecieved(order, handler, requestId, results.getScanData());
         verifySingleScanCompletedRecieved(order, handler, requestId);
         verifyNoMoreInteractions(handler);
+        verify(mBatteryStats).noteWifiScanStoppedFromSource(eq(workSource));
         assertDumpContainsRequestLog("addSingleScanRequest", requestId);
         assertDumpContainsCallbackLog("singleScanResults", requestId,
                 "results=" + results.getScanData().getResults().length);
@@ -464,6 +470,7 @@ public class WifiScanningServiceTest {
         assertSuccessfulResponse(requestId, messageCaptor.getAllValues().get(0));
         assertFailedResponse(requestId, WifiScanner.REASON_UNSPECIFIED,
                 "Failed to start single scan", messageCaptor.getAllValues().get(1));
+        verifyNoMoreInteractions(mBatteryStats);
 
         assertEquals(mWifiMetrics.getOneshotScanCount(), 1);
         assertEquals(mWifiMetrics.getScanReturnEntry(WifiMetricsProto.WifiLog.SCAN_UNKNOWN), 1);
@@ -479,6 +486,7 @@ public class WifiScanningServiceTest {
         WifiScanner.ScanSettings requestSettings = createRequest(WifiScanner.WIFI_BAND_BOTH, 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
         int requestId = 33;
+        WorkSource workSource = new WorkSource(Binder.getCallingUid()); // don't explicitly set
 
         startServiceAndLoadDriver();
 
@@ -497,6 +505,7 @@ public class WifiScanningServiceTest {
         WifiNative.ScanEventHandler eventHandler =
                 verifyStartSingleScan(order, computeSingleScanNativeSettings(requestSettings));
         verifySuccessfulResponse(order, handler, requestId);
+        verify(mBatteryStats).noteWifiScanStartedFromSource(eq(workSource));
 
         // but then fails to execute
         eventHandler.onScanStatus(WifiNative.WIFI_SCAN_FAILED);
@@ -505,6 +514,7 @@ public class WifiScanningServiceTest {
                 WifiScanner.REASON_UNSPECIFIED, "Scan failed");
         assertEquals(mWifiMetrics.getOneshotScanCount(), 1);
         assertEquals(mWifiMetrics.getScanReturnEntry(WifiMetricsProto.WifiLog.SCAN_UNKNOWN), 1);
+        verify(mBatteryStats).noteWifiScanStoppedFromSource(eq(workSource));
     }
 
     // TODO Add more single scan tests
@@ -643,25 +653,31 @@ public class WifiScanningServiceTest {
      * Verify that the first completes and the second two are merged.
      */
     @Test
-    public void sendMultipleSingleScanRequestWhilePreviousScanRunning() {
+    public void sendMultipleSingleScanRequestWhilePreviousScanRunning() throws RemoteException {
         WifiScanner.ScanSettings requestSettings1 = createRequest(channelsToSpec(2400), 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
         int requestId1 = 12;
+        WorkSource workSource1 = new WorkSource(1121);
         ScanResults results1 = ScanResults.create(0, 2400);
 
         WifiScanner.ScanSettings requestSettings2 = createRequest(channelsToSpec(2450, 5175), 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
         int requestId2 = 13;
+        WorkSource workSource2 = new WorkSource(Binder.getCallingUid()); // don't explicitly set
         ScanResults results2 = ScanResults.create(0, 2450, 5175, 2450);
 
         WifiScanner.ScanSettings requestSettings3 = createRequest(channelsToSpec(5150), 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
         int requestId3 = 15;
+        WorkSource workSource3 = new WorkSource(2292);
         ScanResults results3 = ScanResults.create(0, 5150, 5150, 5150, 5150);
 
         WifiNative.ScanSettings nativeSettings2and3 = createSingleScanNativeSettingsForChannels(
                 WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN, channelsToSpec(2450, 5175, 5150));
         ScanResults results2and3 = ScanResults.merge(results2, results3);
+        WorkSource workSource2and3 = new WorkSource();
+        workSource2and3.add(workSource2);
+        workSource2and3.add(workSource3);
 
 
         startServiceAndLoadDriver();
@@ -675,20 +691,23 @@ public class WifiScanningServiceTest {
         InOrder nativeOrder = inOrder(mWifiScannerImpl);
 
         // Run scan 1
-        sendSingleScanRequest(controlChannel, requestId1, requestSettings1, null);
+        sendSingleScanRequest(controlChannel, requestId1, requestSettings1, workSource1);
 
         mLooper.dispatchAll();
         WifiNative.ScanEventHandler eventHandler1 = verifyStartSingleScan(nativeOrder,
                 computeSingleScanNativeSettings(requestSettings1));
         verifySuccessfulResponse(handlerOrder, handler, requestId1);
+        verify(mBatteryStats).noteWifiScanStartedFromSource(eq(workSource1));
+
 
         // Queue scan 2 (will not run because previous is in progress)
+        // uses uid of calling process
         sendSingleScanRequest(controlChannel, requestId2, requestSettings2, null);
         mLooper.dispatchAll();
         verifySuccessfulResponse(handlerOrder, handler, requestId2);
 
         // Queue scan 3 (will not run because previous is in progress)
-        sendSingleScanRequest(controlChannel, requestId3, requestSettings3, null);
+        sendSingleScanRequest(controlChannel, requestId3, requestSettings3, workSource3);
         mLooper.dispatchAll();
         verifySuccessfulResponse(handlerOrder, handler, requestId3);
 
@@ -700,6 +719,8 @@ public class WifiScanningServiceTest {
         mLooper.dispatchAll();
         verifyScanResultsRecieved(handlerOrder, handler, requestId1, results1.getScanData());
         verifySingleScanCompletedRecieved(handlerOrder, handler, requestId1);
+        verify(mBatteryStats).noteWifiScanStoppedFromSource(eq(workSource1));
+        verify(mBatteryStats).noteWifiScanStartedFromSource(eq(workSource2and3));
 
         // now that the first scan completed we expect the second and third ones to start
         WifiNative.ScanEventHandler eventHandler2and3 = verifyStartSingleScan(nativeOrder,
@@ -740,6 +761,8 @@ public class WifiScanningServiceTest {
         }
         assertEquals(mWifiMetrics.getOneshotScanCount(), 3);
         assertEquals(mWifiMetrics.getScanReturnEntry(WifiMetricsProto.WifiLog.SCAN_SUCCESS), 3);
+
+        verify(mBatteryStats).noteWifiScanStoppedFromSource(eq(workSource2and3));
 
         assertDumpContainsRequestLog("addSingleScanRequest", requestId1);
         assertDumpContainsRequestLog("addSingleScanRequest", requestId2);
