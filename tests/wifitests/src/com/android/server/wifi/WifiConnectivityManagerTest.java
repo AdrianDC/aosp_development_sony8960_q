@@ -18,7 +18,7 @@ package com.android.server.wifi;
 
 import static com.android.server.wifi.WifiConfigurationTestUtil.generateWifiConfig;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 import android.content.Context;
@@ -28,6 +28,7 @@ import android.net.wifi.ScanResult.InformationElement;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiScanner.PnoScanListener;
 import android.net.wifi.WifiScanner.PnoSettings;
@@ -46,6 +47,7 @@ import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -65,7 +67,7 @@ public class WifiConnectivityManagerTest {
         mContext = mockContext();
         mWifiStateMachine = mockWifiStateMachine();
         mWifiConfigManager = mockWifiConfigManager();
-        mWifiInfo = mockWifiInfo();
+        mWifiInfo = getWifiInfo();
         mWifiScanner = mockWifiScanner();
         mWifiQNS = mockWifiQualifiedNetworkSelector();
         mWifiConnectivityManager = new WifiConnectivityManager(mContext, mWifiStateMachine,
@@ -198,12 +200,12 @@ public class WifiConnectivityManagerTest {
         return qns;
     }
 
-    WifiInfo mockWifiInfo() {
-        WifiInfo wifiInfo = mock(WifiInfo.class);
+    WifiInfo getWifiInfo() {
+        WifiInfo wifiInfo = new WifiInfo();
 
-        when(wifiInfo.getNetworkId()).thenReturn(WifiConfiguration.INVALID_NETWORK_ID);
-        when(wifiInfo.getBSSID()).thenReturn(null);
-        when(wifiInfo.getSupplicantState()).thenReturn(SupplicantState.DISCONNECTED);
+        wifiInfo.setNetworkId(WifiConfiguration.INVALID_NETWORK_ID);
+        wifiInfo.setBSSID(null);
+        wifiInfo.setSupplicantState(SupplicantState.DISCONNECTED);
 
         return wifiInfo;
     }
@@ -617,5 +619,125 @@ public class WifiConnectivityManagerTest {
         }
 
         assertEquals(intervalMs, WifiConnectivityManager.MAX_PERIODIC_SCAN_INTERVAL_MS);
+    }
+
+    /**
+     * Verify that we perform full band scan when the currently connected network's tx/rx success
+     * rate is low.
+     *
+     * Expected behavior: WifiConnectivityManager does full band scan.
+     */
+    @Test
+    public void checkSingleScanSettingsWhenConnectedWithLowDataRate() {
+        mWifiInfo.txSuccessRate = 0;
+        mWifiInfo.rxSuccessRate = 0;
+
+        final HashSet<Integer> channelList = new HashSet<>();
+        channelList.add(1);
+        channelList.add(2);
+        channelList.add(3);
+
+        when(mWifiStateMachine.getCurrentWifiConfiguration())
+                .thenReturn(new WifiConfiguration());
+        when(mWifiStateMachine.getFrequencyBand())
+                .thenReturn(WifiManager.WIFI_FREQUENCY_BAND_5GHZ);
+        when(mWifiConfigManager.makeChannelList(any(WifiConfiguration.class), anyInt()))
+                .thenReturn(channelList);
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ScanSettings settings, ScanListener listener,
+                    WorkSource workSource) throws Exception {
+                assertEquals(settings.band, WifiScanner.WIFI_BAND_5_GHZ_WITH_DFS);
+                assertNull(settings.channels);
+            }}).when(mWifiScanner).startScan(anyObject(), anyObject(), anyObject());
+
+        // Set screen to ON
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        // Set WiFi to connected state to trigger periodic scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        verify(mWifiScanner).startScan(anyObject(), anyObject(), anyObject());
+    }
+
+    /**
+     * Verify that we perform partial scan when the currently connected network's tx/rx success
+     * rate is high and when the currently connected network is present in scan
+     * cache in WifiConfigManager.
+     *
+     * Expected behavior: WifiConnectivityManager does full band scan.
+     */
+    @Test
+    public void checkSingleScanSettingsWhenConnectedWithHighDataRate() {
+        mWifiInfo.txSuccessRate = WifiConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS * 2;
+        mWifiInfo.rxSuccessRate = WifiConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS * 2;
+
+        final HashSet<Integer> channelList = new HashSet<>();
+        channelList.add(1);
+        channelList.add(2);
+        channelList.add(3);
+
+        when(mWifiStateMachine.getCurrentWifiConfiguration())
+                .thenReturn(new WifiConfiguration());
+        when(mWifiConfigManager.makeChannelList(any(WifiConfiguration.class), anyInt()))
+                .thenReturn(channelList);
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ScanSettings settings, ScanListener listener,
+                    WorkSource workSource) throws Exception {
+                assertEquals(settings.band, WifiScanner.WIFI_BAND_UNSPECIFIED);
+                assertEquals(settings.channels.length, channelList.size());
+                for (int chanIdx = 0; chanIdx < settings.channels.length; chanIdx++) {
+                    assertTrue(channelList.contains(settings.channels[chanIdx].frequency));
+                }
+            }}).when(mWifiScanner).startScan(anyObject(), anyObject(), anyObject());
+
+        // Set screen to ON
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        // Set WiFi to connected state to trigger periodic scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        verify(mWifiScanner).startScan(anyObject(), anyObject(), anyObject());
+    }
+
+    /**
+     * Verify that we fall back to full band scan when the currently connected network's tx/rx
+     * success rate is high and the currently connected network is not present in scan cache in
+     * WifiConfigManager. This is simulated by returning an empty hashset in |makeChannelList|.
+     *
+     * Expected behavior: WifiConnectivityManager does full band scan.
+     */
+    @Test
+    public void checkSingleScanSettingsWhenConnectedWithHighDataRateNotInCache() {
+        mWifiInfo.txSuccessRate = WifiConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS * 2;
+        mWifiInfo.rxSuccessRate = WifiConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS * 2;
+
+        final HashSet<Integer> channelList = new HashSet<>();
+
+        when(mWifiStateMachine.getCurrentWifiConfiguration())
+                .thenReturn(new WifiConfiguration());
+        when(mWifiStateMachine.getFrequencyBand())
+                .thenReturn(WifiManager.WIFI_FREQUENCY_BAND_5GHZ);
+        when(mWifiConfigManager.makeChannelList(any(WifiConfiguration.class), anyInt()))
+                .thenReturn(channelList);
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ScanSettings settings, ScanListener listener,
+                    WorkSource workSource) throws Exception {
+                assertEquals(settings.band, WifiScanner.WIFI_BAND_5_GHZ_WITH_DFS);
+                assertNull(settings.channels);
+            }}).when(mWifiScanner).startScan(anyObject(), anyObject(), anyObject());
+
+        // Set screen to ON
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        // Set WiFi to connected state to trigger periodic scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        verify(mWifiScanner).startScan(anyObject(), anyObject(), anyObject());
     }
 }

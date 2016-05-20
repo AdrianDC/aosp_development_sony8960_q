@@ -5227,7 +5227,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    WifiConfiguration getCurrentWifiConfiguration() {
+    /**
+     * Returns Wificonfiguration object correponding to the currently connected network, null if
+     * not connected.
+     */
+    public WifiConfiguration getCurrentWifiConfiguration() {
         if (mLastNetworkId == WifiConfiguration.INVALID_NETWORK_ID) {
             return null;
         }
