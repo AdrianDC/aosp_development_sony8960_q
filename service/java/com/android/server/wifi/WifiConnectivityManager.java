@@ -621,13 +621,13 @@ public class WifiConnectivityManager {
         }
     }
 
-    // Helper for setting the channels for connectivity scan when
-    // band is unspecified
-    private void setScanChannels(ScanSettings settings) {
+    // Helper for setting the channels for connectivity scan when band is unspecified. Returns
+    // false if we can't retrieve the info.
+    private boolean setScanChannels(ScanSettings settings) {
         WifiConfiguration config = mStateMachine.getCurrentWifiConfiguration();
 
         if (config == null) {
-            return;
+            return false;
         }
 
         HashSet<Integer> freqs = mConfigManager.makeChannelList(config, CHANNEL_LIST_AGE_MS);
@@ -638,8 +638,10 @@ public class WifiConnectivityManager {
             for (Integer freq : freqs) {
                 settings.channels[index++] = new WifiScanner.ChannelSpec(freq);
             }
+            return true;
         } else {
-            localLog("no scan channels for " + config.configKey());
+            localLog("No scan channels for " + config.configKey() + ". Perform full band scan");
+            return false;
         }
     }
 
@@ -703,10 +705,12 @@ public class WifiConnectivityManager {
         mPnoScanListener.resetLowRssiNetworkRetryDelay();
 
         ScanSettings settings = new ScanSettings();
-        settings.band = getScanBand(isFullBandScan);
         if (!isFullBandScan) {
-            setScanChannels(settings);
+            if (!setScanChannels(settings)) {
+                isFullBandScan = true;
+            }
         }
+        settings.band = getScanBand(isFullBandScan);
         settings.reportEvents = WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
                             | WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN;
         settings.numBssidsPerScan = 0;
