@@ -978,6 +978,9 @@ public class WifiNanStateManager {
                 case COMMAND_TYPE_DISABLE_USAGE:
                     Log.wtf(TAG, "processTimeout: DISABLE_USAGE - shouldn't be waiting!");
                     break;
+                case COMMAND_TYPE_START_RANGING:
+                    Log.wtf(TAG, "processTimeout: START_RANGING - shouldn't be waiting!");
+                    break;
                 default:
                     Log.wtf(TAG, "processTimeout: this isn't a COMMAND -- msg=" + msg);
                     /* fall-through */
