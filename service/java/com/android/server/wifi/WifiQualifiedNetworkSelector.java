@@ -297,7 +297,7 @@ public class WifiQualifiedNetworkSelector {
             //Do not select again if last selection is within
             //MINIMUM_QUALIFIED_NETWORK_SELECTION_INTERVAL
             if (mLastQualifiedNetworkSelectionTimeStamp != INVALID_TIME_STAMP) {
-                long gap = mClock.currentTimeMillis() - mLastQualifiedNetworkSelectionTimeStamp;
+                long gap = mClock.elapsedRealtime() - mLastQualifiedNetworkSelectionTimeStamp;
                 if (gap < MINIMUM_QUALIFIED_NETWORK_SELECTION_INTERVAL) {
                     localLog("Too short to last successful Qualified Network Selection Gap is:"
                             + gap + " ms!");
@@ -355,7 +355,7 @@ public class WifiQualifiedNetworkSelector {
 
         //last user selection award
         if (sameSelect) {
-            long timeDifference = mClock.currentTimeMillis()
+            long timeDifference = mClock.elapsedRealtime()
                     - mWifiConfigManager.getLastSelectedTimeStamp();
 
             if (timeDifference > 0) {
@@ -481,6 +481,7 @@ public class WifiQualifiedNetworkSelector {
 
         boolean change = false;
         String key = selected.configKey();
+        // This is only used for setting the connect choice timestamp for debugging purposes.
         long currentTime = mClock.currentTimeMillis();
         List<WifiConfiguration> savedNetworks = mWifiConfigManager.getSavedNetworks();
 
@@ -544,7 +545,7 @@ public class WifiQualifiedNetworkSelector {
                     status.mCounter++;
                     if (status.mCounter >= BSSID_BLACKLIST_THRESHOLD) {
                         status.mIsBlacklisted = true;
-                        status.mBlacklistedTimeStamp = mClock.currentTimeMillis();
+                        status.mBlacklistedTimeStamp = mClock.elapsedRealtime();
                         return true;
                     }
                 }
@@ -564,7 +565,7 @@ public class WifiQualifiedNetworkSelector {
         while (iter.hasNext()) {
             BssidBlacklistStatus status = iter.next();
             if (status != null && status.mIsBlacklisted) {
-                if (mClock.currentTimeMillis() - status.mBlacklistedTimeStamp
+                if (mClock.elapsedRealtime() - status.mBlacklistedTimeStamp
                             >= BSSID_BLACKLIST_EXPIRE_TIME) {
                     iter.remove();
                 }
@@ -640,7 +641,7 @@ public class WifiQualifiedNetworkSelector {
                 mWifiConfigManager.getWifiConfiguration(lastUserSelectedNetWorkKey);
         if (lastUserSelectedNetwork != null) {
             localLog("Last selection is " + lastUserSelectedNetwork.SSID + " Time to now: "
-                    + ((mClock.currentTimeMillis() - mWifiConfigManager.getLastSelectedTimeStamp())
+                    + ((mClock.elapsedRealtime() - mWifiConfigManager.getLastSelectedTimeStamp())
                             / 1000 / 60 + " minutes"));
         }
 
@@ -878,7 +879,7 @@ public class WifiQualifiedNetworkSelector {
 
         mCurrentBssid = scanResultCandidate.BSSID;
         mCurrentConnectedNetwork = networkCandidate;
-        mLastQualifiedNetworkSelectionTimeStamp = mClock.currentTimeMillis();
+        mLastQualifiedNetworkSelectionTimeStamp = mClock.elapsedRealtime();
         return networkCandidate;
     }
 

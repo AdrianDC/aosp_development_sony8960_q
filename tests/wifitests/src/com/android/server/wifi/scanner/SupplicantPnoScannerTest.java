@@ -27,9 +27,12 @@ import android.content.Context;
 import android.os.test.TestLooper;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiScanner;
+import android.os.SystemClock;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.R;
+
+import com.android.server.wifi.Clock;
 import com.android.server.wifi.MockResources;
 import com.android.server.wifi.MockWifiMonitor;
 import com.android.server.wifi.ScanResults;
@@ -59,6 +62,7 @@ public class SupplicantPnoScannerTest {
     TestLooper mLooper;
     @Mock WifiNative mWifiNative;
     MockResources mResources;
+    @Mock Clock mClock;
     SupplicantWifiScannerImpl mScanner;
 
     @Before
@@ -74,6 +78,7 @@ public class SupplicantPnoScannerTest {
         when(mContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
         when(mContext.getResources()).thenReturn(mResources);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime());
     }
 
     /**
@@ -229,12 +234,14 @@ public class SupplicantPnoScannerTest {
 
     private void createScannerWithHwPnoScanSupport() {
         mResources.setBoolean(R.bool.config_wifi_background_scan_support, true);
-        mScanner = new SupplicantWifiScannerImpl(mContext, mWifiNative, mLooper.getLooper());
+        mScanner =
+                new SupplicantWifiScannerImpl(mContext, mWifiNative, mLooper.getLooper(), mClock);
     }
 
     private void createScannerWithSwPnoScanSupport() {
         mResources.setBoolean(R.bool.config_wifi_background_scan_support, false);
-        mScanner = new SupplicantWifiScannerImpl(mContext, mWifiNative, mLooper.getLooper());
+        mScanner =
+                new SupplicantWifiScannerImpl(mContext, mWifiNative, mLooper.getLooper(), mClock);
     }
 
     private WifiNative.PnoSettings createDummyPnoSettings(boolean isConnected) {

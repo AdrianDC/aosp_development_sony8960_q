@@ -350,6 +350,7 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiLastResortWatchdog()).thenReturn(mWifiLastResortWatchdog);
         when(mWifiInjector.getPropertyService()).thenReturn(mPropertyService);
         when(mWifiInjector.getBuildProperties()).thenReturn(mBuildProperties);
+        when(mWifiInjector.getKeyStore()).thenReturn(mock(KeyStore.class));
         FrameworkFacade factory = getFrameworkFacade();
         Context context = getContext();
 

@@ -17,22 +17,8 @@
 package com.android.server.wifi;
 
 import static org.hamcrest.CoreMatchers.not;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.anyObject;
-import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.intThat;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
 
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
@@ -52,6 +38,7 @@ import android.os.Process;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.security.Credentials;
+import android.security.KeyStore;
 import android.support.test.InstrumentationRegistry;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.text.TextUtils;
@@ -154,6 +141,7 @@ public class WifiConfigManagerTest {
     private ConfigurationMap mConfiguredNetworks;
     public byte[] mNetworkHistoryBytes;
     private MockKeyStore mMockKeyStore;
+    private KeyStore mKeyStore;
 
     /**
      * Called before each test

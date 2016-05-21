@@ -21,6 +21,7 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiScanner;
 import android.os.Looper;
 
+import com.android.server.wifi.Clock;
 import com.android.server.wifi.WifiNative;
 
 import java.util.Comparator;
@@ -34,7 +35,7 @@ public abstract class WifiScannerImpl {
      * A factory that create a {@link com.android.server.wifi.scanner.WifiScannerImpl}
      */
     public static interface WifiScannerImplFactory {
-        WifiScannerImpl create(Context context, Looper looper);
+        WifiScannerImpl create(Context context, Looper looper, Clock clock);
     }
 
     /**
@@ -42,12 +43,12 @@ public abstract class WifiScannerImpl {
      * This factory should only ever be used once.
      */
     public static final WifiScannerImplFactory DEFAULT_FACTORY = new WifiScannerImplFactory() {
-            public WifiScannerImpl create(Context context, Looper looper) {
+            public WifiScannerImpl create(Context context, Looper looper, Clock clock) {
                 WifiNative wifiNative = WifiNative.getWlanNativeInterface();
                 if (wifiNative.getScanCapabilities(new WifiNative.ScanCapabilities())) {
-                    return new HalWifiScannerImpl(context, wifiNative, looper);
+                    return new HalWifiScannerImpl(context, wifiNative, looper, clock);
                 } else {
-                    return new SupplicantWifiScannerImpl(context, wifiNative, looper);
+                    return new SupplicantWifiScannerImpl(context, wifiNative, looper, clock);
                 }
             }
         };

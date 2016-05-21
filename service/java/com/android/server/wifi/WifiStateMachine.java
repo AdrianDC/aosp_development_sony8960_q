@@ -90,7 +90,6 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.WorkSource;
 import android.provider.Settings;
-import android.security.KeyStore;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
@@ -974,7 +973,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 .hasSystemFeature(PackageManager.FEATURE_WIFI_NAN);
 
         mWifiConfigManager = mFacade.makeWifiConfigManager(context, mWifiNative, facade,
-                mClock, userManager, KeyStore.getInstance());
+                mWifiInjector.getClock(), userManager, mWifiInjector.getKeyStore());
 
         mWifiMonitor = WifiMonitor.getInstance();
 
@@ -989,7 +988,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         mWifiInfo = new WifiInfo();
         mWifiQualifiedNetworkSelector = new WifiQualifiedNetworkSelector(mWifiConfigManager,
-                mContext, mWifiInfo, mClock);
+                mContext, mWifiInfo, mWifiInjector.getClock());
         mSupplicantStateTracker = mFacade.makeSupplicantStateTracker(
                 context, mWifiConfigManager, getHandler());
 

@@ -16,6 +16,8 @@
 
 package com.android.server.wifi;
 
+import android.security.KeyStore;
+
 /**
  *  WiFi dependency injector using thread-safe lazy singleton pattern. To be used for accessing
  *  various wifi class instances and as a handle for mock injection.
@@ -36,6 +38,7 @@ public class WifiInjector {
     private final Clock mClock = new Clock();
     private final PropertyService mPropertyService = new SystemPropertyService();
     private final BuildProperties mBuildProperties = new SystemBuildProperties();
+    private final KeyStore mKeyStore = KeyStore.getInstance();
 
     public WifiMetrics getWifiMetrics() {
         return mWifiMetrics;
@@ -54,4 +57,8 @@ public class WifiInjector {
     }
 
     public BuildProperties getBuildProperties() { return mBuildProperties; }
+
+    public KeyStore getKeyStore() {
+        return mKeyStore;
+    }
 }

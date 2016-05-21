@@ -21,6 +21,7 @@ import android.content.Context;
 import android.net.wifi.ScanResult;
 
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiSsid;
 import android.os.Environment;
 import android.os.Process;
@@ -69,7 +70,6 @@ public class WifiNetworkHistory {
     private static final String FREQ_KEY = "FREQ";
     private static final String DATE_KEY = "DATE";
     private static final String MILLI_KEY = "MILLI";
-    private static final String BLACKLIST_MILLI_KEY = "BLACKLIST_MILLI";
     private static final String NETWORK_ID_KEY = "ID";
     private static final String PRIORITY_KEY = "PRIORITY";
     private static final String DEFAULT_GW_KEY = "DEFAULT_GW";
@@ -146,8 +146,7 @@ public class WifiNetworkHistory {
                     else
                         loge("attempt config w/o lp");
                     */
-                    WifiConfiguration.NetworkSelectionStatus status =
-                            config.getNetworkSelectionStatus();
+                    NetworkSelectionStatus status = config.getNetworkSelectionStatus();
                     if (VDBG) {
                         int numlink = 0;
                         if (config.linkedConfigurations != null) {
@@ -376,8 +375,7 @@ public class WifiNetworkHistory {
                         }
                     }
                 } else if (config != null) {
-                    WifiConfiguration.NetworkSelectionStatus networkStatus =
-                            config.getNetworkSelectionStatus();
+                    NetworkSelectionStatus networkStatus = config.getNetworkSelectionStatus();
                     switch (key) {
                         case SSID_KEY:
                             if (config.isPasspoint()) {
@@ -432,9 +430,6 @@ public class WifiNetworkHistory {
                         case CREATOR_UID_KEY:
                             config.creatorUid = Integer.parseInt(value);
                             break;
-                        case BLACKLIST_MILLI_KEY:
-                            networkStatus.setDisableTime(Long.parseLong(value));
-                            break;
                         case SCORER_OVERRIDE_KEY:
                             config.numScorerOverride = Integer.parseInt(value);
                             break;
@@ -457,7 +452,14 @@ public class WifiNetworkHistory {
                             config.peerWifiConfiguration = value;
                             break;
                         case NETWORK_SELECTION_STATUS_KEY:
-                            networkStatus.setNetworkSelectionStatus(Integer.parseInt(value));
+                            int networkStatusValue = Integer.parseInt(value);
+                            // Reset temporarily disabled network status
+                            if (networkStatusValue ==
+                                    NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED) {
+                                networkStatusValue =
+                                        NetworkSelectionStatus.NETWORK_SELECTION_ENABLED;
+                            }
+                            networkStatus.setNetworkSelectionStatus(networkStatusValue);
                             break;
                         case NETWORK_SELECTION_DISABLE_REASON_KEY:
                             networkStatus.setNetworkSelectionDisableReason(Integer.parseInt(value));
