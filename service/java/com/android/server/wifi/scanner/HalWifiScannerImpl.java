@@ -17,13 +17,13 @@
 package com.android.server.wifi.scanner;
 
 import android.content.Context;
-import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
 
+import com.android.server.wifi.Clock;
 import com.android.server.wifi.WifiNative;
 
 /**
@@ -40,11 +40,11 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
     private final SupplicantWifiScannerImpl mSupplicantScannerDelegate;
     private final boolean mHalBasedPnoSupported;
 
-    public HalWifiScannerImpl(Context context, WifiNative wifiNative, Looper looper) {
+    public HalWifiScannerImpl(Context context, WifiNative wifiNative, Looper looper, Clock clock) {
         mWifiNative = wifiNative;
         mChannelHelper = new HalChannelHelper(wifiNative);
         mSupplicantScannerDelegate =
-                new SupplicantWifiScannerImpl(context, wifiNative, mChannelHelper, looper);
+                new SupplicantWifiScannerImpl(context, wifiNative, mChannelHelper, looper, clock);
 
         // We are not going to support HAL ePNO currently.
         mHalBasedPnoSupported = false;

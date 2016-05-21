@@ -40,6 +40,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiSsid;
+import android.os.SystemClock;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.LocalLog;
 
@@ -77,7 +78,7 @@ public class WifiQualifiedNetworkSelectorTest {
         mWifiQualifiedNetworkSelector.enableVerboseLogging(1);
         mWifiQualifiedNetworkSelector.setUserPreferredBand(1);
         mWifiQualifiedNetworkSelector.setWifiNetworkScoreCache(mScoreCache);
-        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis());
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime());
     }
 
     @After
@@ -101,7 +102,7 @@ public class WifiQualifiedNetworkSelectorTest {
     private List<ScanDetail> getScanDetails(String[] ssids, String[] bssids, int[] frequencies,
                                             String[] caps, int[] levels) {
         List<ScanDetail> scanDetailList = new ArrayList<ScanDetail>();
-        long timeStamp = System.currentTimeMillis();
+        long timeStamp = mClock.elapsedRealtime();
         for (int index = 0; index < ssids.length; index++) {
             ScanDetail scanDetail = new ScanDetail(WifiSsid.createFromAsciiEncoded(ssids[index]),
                     bssids[index], caps[index], levels[index], frequencies[index], timeStamp, 0);
@@ -883,7 +884,7 @@ public class WifiQualifiedNetworkSelectorTest {
         }
 
         //re-enable it
-        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis()
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime()
                 + WifiQualifiedNetworkSelector.BSSID_BLACKLIST_EXPIRE_TIME);
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 false, scanDetails, false, false, true, false);
@@ -921,6 +922,7 @@ public class WifiQualifiedNetworkSelectorTest {
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
 
+        when(mWifiConfigManager.tryEnableQualifiedNetwork(anyInt())).thenReturn(true);
         savedConfigs[1].getNetworkSelectionStatus().setNetworkSelectionStatus(
                 WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED);
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
@@ -1144,7 +1146,7 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
         when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
-        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime() + 11 * 1000);
 
         levels[0] = -50; // if there is QNS, test1 will be chosen
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
@@ -1187,7 +1189,7 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiInfo.getNetworkId()).thenReturn(1);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
-        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime() + 11 * 1000);
         when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
@@ -1227,7 +1229,7 @@ public class WifiQualifiedNetworkSelectorTest {
         mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
                 false, true, false);
 
-        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime() + 11 * 1000);
         when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
@@ -1271,7 +1273,7 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiInfo.is24GHz()).thenReturn(false);
         when(mWifiInfo.is5GHz()).thenReturn(true);
         when(mWifiConfigManager.isOpenNetwork(savedConfigs[1])).thenReturn(true);
-        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime() + 11 * 1000);
         when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
         levels[0] = -60;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
@@ -1322,7 +1324,7 @@ public class WifiQualifiedNetworkSelectorTest {
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
         when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
-        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime() + 11 * 1000);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
@@ -1366,7 +1368,7 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiInfo.is5GHz()).thenReturn(true);
 
         when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
-        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime() + 11 * 1000);
         levels[0] = -60;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
@@ -1415,7 +1417,7 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
         levels[0] = -60;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
-        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime() + 11 * 1000);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
@@ -1462,7 +1464,7 @@ public class WifiQualifiedNetworkSelectorTest {
         levels[0] = -80 + WifiQualifiedNetworkSelector.SAME_BSSID_AWARD / 4
                 + WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD / 4 - 1;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
-        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime() + 11 * 1000);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
@@ -1508,7 +1510,7 @@ public class WifiQualifiedNetworkSelectorTest {
         levels[0] = -80 + WifiQualifiedNetworkSelector.SAME_BSSID_AWARD / 4
                 + WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD / 4 + 1;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
-        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime() + 11 * 1000);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
@@ -1559,7 +1561,7 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
         levels[0] = -80 + WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD / 4 - 1;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
-        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime() + 11 * 1000);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
@@ -1610,7 +1612,7 @@ public class WifiQualifiedNetworkSelectorTest {
         when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
         levels[0] = -80 + WifiQualifiedNetworkSelector.SAME_BSSID_AWARD / 4 + 1;
         scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
-        when(mClock.currentTimeMillis()).thenReturn(System.currentTimeMillis() + 11 * 1000);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime() + 11 * 1000);
         scanResultLinkConfiguration(savedConfigs, scanDetails);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();

@@ -51,6 +51,7 @@ import com.android.internal.util.AsyncChannel;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
+import com.android.server.wifi.Clock;
 import com.android.server.wifi.WifiInjector;
 import com.android.server.wifi.WifiMetrics;
 import com.android.server.wifi.WifiMetricsProto;
@@ -65,7 +66,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 
 public class WifiScanningServiceImpl extends IWifiScanner.Stub {
@@ -77,8 +77,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private static final int UNKNOWN_PID = -1;
 
     private final LocalLog mLocalLog = new LocalLog(1024);
-
-    private final WifiMetrics mWifiMetrics;
 
     private void localLog(String message) {
         mLocalLog.log(message);
@@ -256,6 +254,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private ClientHandler mClientHandler;
     private final IBatteryStats mBatteryStats;
     private final AlarmManager mAlarmManager;
+    private final WifiMetrics mWifiMetrics;
+    private final Clock mClock;
 
     WifiScanningServiceImpl(Context context, Looper looper,
             WifiScannerImpl.WifiScannerImplFactory scannerImplFactory, IBatteryStats batteryStats,
@@ -267,6 +267,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         mClients = new ArrayMap<>();
         mAlarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
         mWifiMetrics = wifiInjector.getWifiMetrics();
+        mClock = wifiInjector.getClock();
 
         mPreviousSchedule = null;
     }
@@ -868,7 +869,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         // of this state machine. It is ok right now because the driver loaded event
                         // is sent to this state machine first.
                         if (mScannerImpl == null) {
-                            mScannerImpl = mScannerImplFactory.create(mContext, mLooper);
+                            mScannerImpl = mScannerImplFactory.create(mContext, mLooper, mClock);
                             mChannelHelper = mScannerImpl.getChannelHelper();
                         }
 
@@ -2166,8 +2167,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         mWifiChangeDetected = false;
                         long unchangedDelay = settings.unchangedSampleSize * settings.periodInMs;
                         mAlarmManager.cancel(mTimeoutIntent);
-                        mAlarmManager.setExact(AlarmManager.RTC_WAKEUP,
-                                System.currentTimeMillis() + unchangedDelay,
+                        mAlarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                                mClock.elapsedRealtime() + unchangedDelay,
                                 mTimeoutIntent);
                         break;
                     case WifiScanner.CMD_SCAN_RESULT:
@@ -2177,8 +2178,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                             reconfigureScan((ScanData[])msg.obj,
                                     STATIONARY_SCAN_PERIOD_MS);
                             mWifiChangeDetected = false;
-                            mAlarmManager.setExact(AlarmManager.RTC_WAKEUP,
-                                    System.currentTimeMillis() + MOVING_STATE_TIMEOUT_MS,
+                            mAlarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                                    mClock.elapsedRealtime() + MOVING_STATE_TIMEOUT_MS,
                                     mTimeoutIntent);
                             mScanResultsPending = false;
                         }
