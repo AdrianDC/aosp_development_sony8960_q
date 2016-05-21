@@ -814,7 +814,7 @@ public class WifiConfigManager {
 
     void noteRoamingFailure(WifiConfiguration config, int reason) {
         if (config == null) return;
-        config.lastRoamingFailure = System.currentTimeMillis();
+        config.lastRoamingFailure = mClock.currentTimeMillis();
         config.roamingFailureBlackListTimeMilli =
                 2 * (config.roamingFailureBlackListTimeMilli + 1000);
         if (config.roamingFailureBlackListTimeMilli > mNetworkSwitchingBlackListPeriodMs) {
@@ -1391,7 +1391,7 @@ public class WifiConfigManager {
      * @return true if network status has been changed
      *         false network status is not changed
      */
-    boolean tryEnableQualifiedNetwork(int networkId) {
+    public boolean tryEnableQualifiedNetwork(int networkId) {
         WifiConfiguration config = getWifiConfiguration(networkId);
         if (config == null) {
             localLog("updateQualifiedNetworkstatus invalid network.");
@@ -1407,12 +1407,12 @@ public class WifiConfigManager {
      * @return true if network status has been changed
      *         false network status is not changed
      */
-    boolean tryEnableQualifiedNetwork(WifiConfiguration config) {
+    private boolean tryEnableQualifiedNetwork(WifiConfiguration config) {
         WifiConfiguration.NetworkSelectionStatus networkStatus = config.getNetworkSelectionStatus();
         if (networkStatus.isNetworkTemporaryDisabled()) {
             //time difference in minutes
-            long timeDifference = (System.currentTimeMillis()
-                    - networkStatus.getDisableTime()) / 1000 / 60;
+            long timeDifference =
+                    (mClock.elapsedRealtime() - networkStatus.getDisableTime()) / 1000 / 60;
             if (timeDifference < 0 || timeDifference
                     >= NETWORK_SELECTION_DISABLE_TIMEOUT[
                     networkStatus.getNetworkSelectionDisableReason()]) {
@@ -1497,7 +1497,7 @@ public class WifiConfigManager {
             if (reason < WifiConfiguration.NetworkSelectionStatus.DISABLED_TLS_VERSION_MISMATCH) {
                 networkStatus.setNetworkSelectionStatus(WifiConfiguration.NetworkSelectionStatus
                         .NETWORK_SELECTION_TEMPORARY_DISABLED);
-                networkStatus.setDisableTime(System.currentTimeMillis());
+                networkStatus.setDisableTime(mClock.elapsedRealtime());
             } else {
                 networkStatus.setNetworkSelectionStatus(WifiConfiguration.NetworkSelectionStatus
                         .NETWORK_SELECTION_PERMANENTLY_DISABLED);
@@ -1855,7 +1855,7 @@ public class WifiConfigManager {
                 mLastSelectedTimeStamp = -1;
             } else {
                 mLastSelectedConfiguration = selected.configKey();
-                mLastSelectedTimeStamp = System.currentTimeMillis();
+                mLastSelectedTimeStamp = mClock.elapsedRealtime();
                 updateNetworkSelectionStatus(netId,
                         WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
                 if (sVDBG) {
@@ -1868,7 +1868,7 @@ public class WifiConfigManager {
     public void setLatestUserSelectedConfiguration(WifiConfiguration network) {
         if (network != null) {
             mLastSelectedConfiguration = network.configKey();
-            mLastSelectedTimeStamp = System.currentTimeMillis();
+            mLastSelectedTimeStamp = mClock.elapsedRealtime();
         }
     }
 
@@ -2048,7 +2048,7 @@ public class WifiConfigManager {
         StringBuilder sb = new StringBuilder();
         sb.append("time=");
         Calendar c = Calendar.getInstance();
-        c.setTimeInMillis(System.currentTimeMillis());
+        c.setTimeInMillis(mClock.currentTimeMillis());
         sb.append(String.format("%tm-%td %tH:%tM:%tS.%tL", c, c, c, c, c, c));
 
         if (newNetwork) {
@@ -2391,7 +2391,7 @@ public class WifiConfigManager {
         if (config == null) {
             return null;
         }
-        long now_ms = System.currentTimeMillis();
+        long now_ms = mClock.currentTimeMillis();
 
         HashSet<Integer> channels = new HashSet<Integer>();
 
@@ -3259,7 +3259,7 @@ public class WifiConfigManager {
             }
         }
         // Record last time Connectivity Service switched us away from WiFi and onto Cell
-        mLastUnwantedNetworkDisconnectTimestamp = System.currentTimeMillis();
+        mLastUnwantedNetworkDisconnectTimestamp = mClock.currentTimeMillis();
     }
 
     int getMaxDhcpRetries() {

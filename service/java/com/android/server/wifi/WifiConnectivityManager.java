@@ -510,12 +510,12 @@ public class WifiConnectivityManager {
      * should be skipped or not. This attempts to rate limit the rate of connections to
      * prevent us from flapping between networks and draining battery rapidly.
      */
-    private boolean shouldSkipConnectionAttempt(Long currentTimeMillis) {
+    private boolean shouldSkipConnectionAttempt(Long timeMillis) {
         Iterator<Long> attemptIter = mConnectionAttemptTimeStamps.iterator();
         // First evict old entries from the queue.
         while (attemptIter.hasNext()) {
             Long connectionAttemptTimeMillis = attemptIter.next();
-            if ((currentTimeMillis - connectionAttemptTimeMillis)
+            if ((timeMillis - connectionAttemptTimeMillis)
                     > MAX_CONNECTION_ATTEMPTS_TIME_INTERVAL_MS) {
                 attemptIter.remove();
             } else {
@@ -530,8 +530,8 @@ public class WifiConnectivityManager {
     /**
      * Add the current connection attempt timestamp to our queue of connection attempts.
      */
-    private void noteConnectionAttempt(Long currentTimeMillis) {
-        mConnectionAttemptTimeStamps.addLast(currentTimeMillis);
+    private void noteConnectionAttempt(Long timeMillis) {
+        mConnectionAttemptTimeStamps.addLast(timeMillis);
     }
 
     /**
@@ -572,13 +572,13 @@ public class WifiConnectivityManager {
             return;
         }
 
-        Long currentTimeMillis = mClock.currentTimeMillis();
-        if (!mScreenOn && shouldSkipConnectionAttempt(currentTimeMillis)) {
+        Long elapsedTimeMillis = mClock.elapsedRealtime();
+        if (!mScreenOn && shouldSkipConnectionAttempt(elapsedTimeMillis)) {
             localLog("connectToNetwork: Too many connection attempts. Skipping this attempt!");
             mTotalConnectivityAttemptsRateLimited++;
             return;
         }
-        noteConnectionAttempt(currentTimeMillis);
+        noteConnectionAttempt(elapsedTimeMillis);
 
         mLastConnectionAttemptBssid = targetBssid;
 
@@ -840,16 +840,16 @@ public class WifiConnectivityManager {
     private void scheduleWatchdogTimer() {
         Log.i(TAG, "scheduleWatchdogTimer");
 
-        mAlarmManager.set(AlarmManager.RTC_WAKEUP,
-                            mClock.currentTimeMillis() + WATCHDOG_INTERVAL_MS,
+        mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                            mClock.elapsedRealtime() + WATCHDOG_INTERVAL_MS,
                             WATCHDOG_TIMER_TAG,
                             mWatchdogListener, mEventHandler);
     }
 
     // Set up periodic scan timer
     private void schedulePeriodicScanTimer(int intervalMs) {
-        mAlarmManager.set(AlarmManager.RTC_WAKEUP,
-                            mClock.currentTimeMillis() + intervalMs,
+        mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                            mClock.elapsedRealtime() + intervalMs,
                             PERIODIC_SCAN_TIMER_TAG,
                             mPeriodicScanTimerListener, mEventHandler);
     }
@@ -860,8 +860,8 @@ public class WifiConnectivityManager {
 
         RestartSingleScanListener restartSingleScanListener =
                 new RestartSingleScanListener(isWatchdogTriggered, isFullBandScan);
-        mAlarmManager.set(AlarmManager.RTC_WAKEUP,
-                            mClock.currentTimeMillis() + RESTART_SCAN_DELAY_MS,
+        mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                            mClock.elapsedRealtime() + RESTART_SCAN_DELAY_MS,
                             RESTART_SINGLE_SCAN_TIMER_TAG,
                             restartSingleScanListener, mEventHandler);
     }
@@ -870,8 +870,8 @@ public class WifiConnectivityManager {
     private void scheduleDelayedConnectivityScan(int msFromNow) {
         localLog("scheduleDelayedConnectivityScan");
 
-        mAlarmManager.set(AlarmManager.RTC_WAKEUP,
-                            mClock.currentTimeMillis() + msFromNow,
+        mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                            mClock.elapsedRealtime() + msFromNow,
                             RESTART_CONNECTIVITY_SCAN_TIMER_TAG,
                             mRestartScanListener, mEventHandler);
 

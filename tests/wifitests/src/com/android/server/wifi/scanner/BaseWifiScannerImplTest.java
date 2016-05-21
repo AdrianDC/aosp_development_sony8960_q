@@ -30,6 +30,7 @@ import android.net.wifi.WifiScanner.ScanData;
 import android.net.wifi.WifiSsid;
 import android.os.SystemClock;
 
+import com.android.server.wifi.Clock;
 import com.android.server.wifi.MockAlarmManager;
 import com.android.server.wifi.MockLooper;
 import com.android.server.wifi.MockResources;
@@ -63,6 +64,7 @@ public abstract class BaseWifiScannerImplTest {
     MockLooper mLooper;
     @Mock WifiNative mWifiNative;
     MockResources mResources;
+    @Mock Clock mClock;
 
     /**
      * mScanner implementation should be filled in by derived test class
@@ -84,6 +86,7 @@ public abstract class BaseWifiScannerImplTest {
                 .thenReturn(mAlarmManager.getAlarmManager());
 
         when(mContext.getResources()).thenReturn(mResources);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime());
     }
 
     protected Set<Integer> expectedBandScanFreqs(int band) {
@@ -386,7 +389,7 @@ public abstract class BaseWifiScannerImplTest {
                         WifiScanner.WIFI_BAND_24_GHZ)
                 .build();
 
-        long approxScanStartUs = SystemClock.elapsedRealtime() * 1000;
+        long approxScanStartUs = mClock.elapsedRealtime() * 1000;
         ArrayList<ScanDetail> rawResults = new ArrayList<>(Arrays.asList(
                         new ScanDetail(WifiSsid.createFromAsciiEncoded("TEST AP 1"),
                                 "00:00:00:00:00:00", "", -70, 2450,
