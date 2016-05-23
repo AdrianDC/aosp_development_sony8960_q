@@ -535,8 +535,10 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 switch (msg.what) {
                     case WifiScanner.CMD_START_SINGLE_SCAN:
                         mWifiMetrics.incrementOneshotScanCount();
+                        int handler = msg.arg2;
                         Bundle scanParams = (Bundle) msg.obj;
                         if (scanParams == null) {
+                            logCallback("singleScanInvalidRequest",  ci, handler, "null params");
                             replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "params null");
                             return HANDLED;
                         }
@@ -545,7 +547,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                                 scanParams.getParcelable(WifiScanner.SCAN_PARAMS_SCAN_SETTINGS_KEY);
                         WorkSource workSource =
                                 scanParams.getParcelable(WifiScanner.SCAN_PARAMS_WORK_SOURCE_KEY);
-                        if (validateAndAddToScanQueue(ci, msg.arg2, scanSettings, workSource)) {
+                        if (validateAndAddToScanQueue(ci, handler, scanSettings, workSource)) {
                             replySucceeded(msg);
                             // If were not currently scanning then try to start a scan. Otherwise
                             // this scan will be scheduled when transitioning back to IdleState
@@ -554,6 +556,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                                 tryToStartNewScan();
                             }
                         } else {
+                            logCallback("singleScanInvalidRequest",  ci, handler, "bad request");
                             replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "bad request");
                             mWifiMetrics.incrementScanReturnEntry(
                                     WifiMetricsProto.WifiLog.SCAN_FAILURE_INVALID_CONFIGURATION, 1);
@@ -727,6 +730,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         void sendOpFailedToAllAndClear(RequestList<?> clientHandlers, int reason,
                 String description) {
             for (RequestInfo<?> entry : clientHandlers) {
+                logCallback("singleScanFailed",  entry.clientInfo, entry.handlerId,
+                        "reason=" + reason + ", " + description);
                 entry.reportEvent(WifiScanner.CMD_OP_FAILED, 0,
                         new WifiScanner.OperationResult(reason, description));
             }
