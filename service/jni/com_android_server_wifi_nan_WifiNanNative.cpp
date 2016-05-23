@@ -219,6 +219,7 @@ static jint android_net_wifi_nan_register_handler(JNIEnv *env, jclass cls,
     ALOGD("android_net_wifi_nan_register_handler handle=%p", handle);
 
     NanCallbackHandler handlers;
+    memset(&handlers, 0, sizeof(NanCallbackHandler));
     handlers.NotifyResponse = OnNanNotifyResponse;
     handlers.EventPublishTerminated = OnNanEventPublishTerminated;
     handlers.EventMatch = OnNanEventMatch;
