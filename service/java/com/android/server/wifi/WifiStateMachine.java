@@ -4706,6 +4706,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 // Set the right suspend mode settings
                 mWifiNative.setSuspendOptimizations(mSuspendOptNeedsDisabled == 0
                         && mUserWantsSuspendOpt.get());
+
+                // Inform WifiConnectivtyManager the screen state in case
+                // WifiConnectivityManager missed the last screen update because
+                // it was not started yet.
+                mWifiConnectivityManager.handleScreenStateChanged(mScreenOn);
             }
             mWifiNative.setPowerSave(true);
 
