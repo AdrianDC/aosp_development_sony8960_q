@@ -316,7 +316,7 @@ public class WifiNanManagerTest {
         mMockLooper.dispatchAll();
 
         inOrder.verify(mockNanService).sendMessage(eq(clientId), eq(sessionId), eq(peerId),
-                eq(string1.getBytes()), eq(string1.length()), eq(messageId));
+                eq(string1.getBytes()), eq(string1.length()), eq(messageId), eq(0));
         inOrder.verify(mockSessionCallback).onMatch(eq(peerId), eq(string1.getBytes()),
                 eq(string1.length()), eq(string2.getBytes()), eq(string2.length()));
         inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()),
@@ -454,7 +454,7 @@ public class WifiNanManagerTest {
         mMockLooper.dispatchAll();
 
         inOrder.verify(mockNanService).sendMessage(eq(clientId), eq(sessionId), eq(peerId),
-                eq(string1.getBytes()), eq(string1.length()), eq(messageId));
+                eq(string1.getBytes()), eq(string1.length()), eq(messageId), eq(0));
         inOrder.verify(mockSessionCallback).onMatch(eq(peerId), eq(string1.getBytes()),
                 eq(string1.length()), eq(string2.getBytes()), eq(string2.length()));
         inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()),

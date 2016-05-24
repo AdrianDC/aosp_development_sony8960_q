@@ -357,10 +357,10 @@ public class WifiNanServiceImplTest {
         int messageId = 2043;
         int clientId = doConnect();
 
-        mDut.sendMessage(clientId, sessionId, peerId, message, message.length, messageId);
+        mDut.sendMessage(clientId, sessionId, peerId, message, message.length, messageId, 0);
 
         verify(mNanStateManagerMock).sendMessage(clientId, sessionId, peerId, message,
-                message.length, messageId);
+                message.length, messageId, 0);
     }
 
     /**
