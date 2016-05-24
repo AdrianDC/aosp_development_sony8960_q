@@ -578,10 +578,35 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDisabled(
   mCallbackHandlers.EventDisabled(&msg);
 }
 
+extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callTransmitFollowup(
+    JNIEnv* env, jclass clazz, jstring json_args_jstring) {
+  ScopedUtfChars chars(env, json_args_jstring);
+  HalMockJsonReader jsonR(chars.c_str());
+  bool error = false;
+
+  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callTransmitFollowup: '%s'",
+        chars.c_str());
+
+  NanTransmitFollowupInd msg;
+  msg.id = (transaction_id) jsonR.get_int("id", &error);
+  msg.reason = (NanStatusType) jsonR.get_int("reason", &error);
+
+  if (error) {
+    ALOGE("Java_com_android_server_wifi_nan_WifiNanHalMock_callTransmitFollowup: "
+          "error parsing args");
+    return;
+  }
+
+  mCallbackHandlers.EventTransmitFollowup(&msg);
+}
+
 // TODO: Not currently used: add as needed
-//void (*EventUnMatch) (NanUnmatchInd* event);
+//void (*EventMatchExpired) (NanUnmatchInd* event);
 //void (*EventTca) (NanTCAInd* event);
 //void (*EventBeaconSdfPayload) (NanBeaconSdfPayloadInd* event);
+//void (*EventDataRequest)(NanDataPathRequestInd* event);
+//void (*EventDataConfirm)(NanDataPathConfirmInd* event);
+//void (*EventDataEnd)(NanDataPathEndInd* event);
 
 int init_wifi_nan_hal_func_table_mock(wifi_hal_fn *fn) {
   if (fn == NULL) {

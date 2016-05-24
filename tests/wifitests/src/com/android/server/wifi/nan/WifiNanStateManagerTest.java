@@ -136,7 +136,7 @@ public class WifiNanStateManagerTest {
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
 
-        verifyNoMoreInteractions(mMockContext, mMockNative, mockCallback);
+        verifyNoMoreInteractions(mMockNative, mockCallback);
     }
 
     /**
@@ -743,9 +743,9 @@ public class WifiNanStateManagerTest {
     }
 
     /**
-     * Validate (1) subscribe (success), (2) match (i.e. discovery), (3) message
-     * reception, (4) message transmission failed, (5) message transmission
-     * success.
+     * Validate (1) subscribe (success), (2) match (i.e. discovery), (3) message reception, (4)
+     * message queuing failed, (5) message transmission failed (after ok queuing), (6) message
+     * transmission success.
      */
     @Test
     public void testMatchAndMessages() throws Exception {
@@ -761,6 +761,7 @@ public class WifiNanStateManagerTest {
         final String peerMatchFilter = "filter binary array represented as string";
         final String peerMsg = "some message from peer";
         final int messageId = 6948;
+        final int messageId2 = 6949;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
@@ -805,25 +806,42 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mockSessionCallback).onMessageReceived(requestorId, peerMsg.getBytes(),
                 peerMsg.length());
 
-        // (4) message Tx fail
+        // (4) message Tx queuing fail
         mDut.sendMessage(clientId, sessionId.getValue(), requestorId, ssi.getBytes(), ssi.length(),
                 messageId);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(subscribeId),
                 eq(requestorId), eq(peerMac), eq(ssi.getBytes()), eq(ssi.length()));
-        mDut.onMessageSendFailResponse(transactionId.getValue(), reasonFail);
+        mDut.onMessageSendQueuedFailResponse(transactionId.getValue(), reasonFail);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onMessageSendFail(messageId, reasonFail);
 
-        // (5) message Tx success
+        // (5) message Tx successful queuing
         mDut.sendMessage(clientId, sessionId.getValue(), requestorId, ssi.getBytes(), ssi.length(),
                 messageId);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(subscribeId),
                 eq(requestorId), eq(peerMac), eq(ssi.getBytes()), eq(ssi.length()));
-        mDut.onMessageSendSuccessResponse(transactionId.getValue());
+        short tid1 = transactionId.getValue();
+        mDut.onMessageSendQueuedSuccessResponse(tid1);
         mMockLooper.dispatchAll();
-        inOrder.verify(mockSessionCallback).onMessageSendSuccess(messageId);
+
+        // (6) message Tx successful queuing
+        mDut.sendMessage(clientId, sessionId.getValue(), requestorId, ssi.getBytes(), ssi.length(),
+                messageId2);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(subscribeId),
+                eq(requestorId), eq(peerMac), eq(ssi.getBytes()), eq(ssi.length()));
+        short tid2 = transactionId.getValue();
+        mDut.onMessageSendQueuedSuccessResponse(tid2);
+        mMockLooper.dispatchAll();
+
+        // (5) and (6) final Tx results (on-air results)
+        mDut.onMessageSendFailNotification(tid1, reasonFail);
+        mDut.onMessageSendSuccessNotification(tid2);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onMessageSendFail(messageId, reasonFail);
+        inOrder.verify(mockSessionCallback).onMessageSendSuccess(messageId2);
 
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
     }
@@ -899,7 +917,8 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(publishId), eq(peerId2),
                 eq(peerMac2), eq(msgToPeer2.getBytes()), eq(msgToPeer2.length()));
         short transactionIdVal = transactionId.getValue();
-        mDut.onMessageSendSuccessResponse(transactionIdVal);
+        mDut.onMessageSendQueuedSuccessResponse(transactionIdVal);
+        mDut.onMessageSendSuccessNotification(transactionIdVal);
 
         mDut.sendMessage(clientId, sessionId.getValue(), peerId1, msgToPeer1.getBytes(),
                 msgToPeer1.length(), msgToPeerId1);
@@ -908,7 +927,8 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(publishId), eq(peerId1),
                 eq(peerMac1), eq(msgToPeer1.getBytes()), eq(msgToPeer1.length()));
         transactionIdVal = transactionId.getValue();
-        mDut.onMessageSendFailResponse(transactionIdVal, reason);
+        mDut.onMessageSendQueuedSuccessResponse(transactionIdVal);
+        mDut.onMessageSendFailNotification(transactionIdVal, reason);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onMessageSendFail(msgToPeerId1, reason);
 
@@ -975,7 +995,8 @@ public class WifiNanStateManagerTest {
                 msgFromPeer1.length());
         inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(publishId), eq(peerId),
                 eq(peerMacOrig), eq(msgToPeer1.getBytes()), eq(msgToPeer1.length()));
-        mDut.onMessageSendSuccessResponse(transactionId.getValue());
+        mDut.onMessageSendQueuedSuccessResponse(transactionId.getValue());
+        mDut.onMessageSendSuccessNotification(transactionId.getValue());
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onMessageSendSuccess(msgToPeerId1);
 
@@ -989,7 +1010,8 @@ public class WifiNanStateManagerTest {
                 msgFromPeer2.length());
         inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(publishId), eq(peerId),
                 eq(peerMacLater), eq(msgToPeer2.getBytes()), eq(msgToPeer2.length()));
-        mDut.onMessageSendSuccessResponse(transactionId.getValue());
+        mDut.onMessageSendQueuedSuccessResponse(transactionId.getValue());
+        mDut.onMessageSendSuccessNotification(transactionId.getValue());
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onMessageSendSuccess(msgToPeerId2);
 
@@ -1047,6 +1069,73 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onMessageSendFail(messageId,
                 WifiNanSessionCallback.REASON_NO_MATCH_SESSION);
+
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
+    }
+
+    /**
+     * Validate that on send message timeout correct callback is dispatched and that a later
+     * firmware notification is ignored.
+     */
+    @Test
+    public void testSendMessageTimeout() throws Exception {
+        final int clientId = 1005;
+        final String ssi = "some much longer and more arbitrary data";
+        final int subscribeId = 15;
+        final int requestorId = 22;
+        final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
+        final String peerSsi = "some peer ssi data";
+        final String peerMatchFilter = "filter binary array represented as string";
+        final int messageId = 6948;
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
+
+        IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
+        IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
+
+        // (1) connect
+        mDut.connect(clientId, mockCallback, configRequest);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
+                eq(true));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
+
+        // (2) subscribe & match
+        mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
+        mDut.onMatchNotification(subscribeId, requestorId, peerMac, peerSsi.getBytes(),
+                peerSsi.length(), peerMatchFilter.getBytes(), peerMatchFilter.length());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
+        inOrder.verify(mockSessionCallback).onMatch(requestorId, peerSsi.getBytes(),
+                peerSsi.length(), peerMatchFilter.getBytes(), peerMatchFilter.length());
+
+        // (3) send message and enqueue successfully
+        mDut.sendMessage(clientId, sessionId.getValue(), requestorId, ssi.getBytes(),
+                ssi.length(), messageId);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(subscribeId),
+                eq(requestorId), eq(peerMac), eq(ssi.getBytes()), eq(ssi.length()));
+        mDut.onMessageSendQueuedSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+
+        // (4) message send timeout
+        assertTrue(mAlarmManager.dispatch(WifiNanStateManager.HAL_SEND_MESSAGE_TIMEOUT_TAG));
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onMessageSendFail(messageId,
+                WifiNanSessionCallback.REASON_TX_FAIL);
+
+        // (5) firmware response (unlikely - but good to check)
+        mDut.onMessageSendSuccessNotification(transactionId.getValue());
+        mMockLooper.dispatchAll();
 
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
     }
@@ -1380,8 +1469,8 @@ public class WifiNanStateManagerTest {
         mDut.onConfigSuccessResponse(transactionIdConfig);
         mDut.onConfigFailedResponse(transactionIdConfig, -1);
         mDut.onSessionConfigFailResponse(transactionIdConfig, true, -1);
-        mDut.onMessageSendSuccessResponse(transactionIdConfig);
-        mDut.onMessageSendFailResponse(transactionIdConfig, -1);
+        mDut.onMessageSendQueuedSuccessResponse(transactionIdConfig);
+        mDut.onMessageSendQueuedFailResponse(transactionIdConfig, -1);
         mDut.onSessionConfigFailResponse(transactionIdConfig, false, -1);
         mDut.onMatchNotification(-1, -1, new byte[0], new byte[0], 0, new byte[0], 0);
         mDut.onSessionTerminatedNotification(-1, -1, true);

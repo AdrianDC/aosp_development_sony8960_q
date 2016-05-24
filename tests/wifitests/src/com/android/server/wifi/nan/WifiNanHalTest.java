@@ -483,7 +483,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onMessageSendSuccessResponse(transactionId);
+        verify(mNanStateManager).onMessageSendQueuedSuccessResponse(transactionId);
         verifyNoMoreInteractions(mNanStateManager);
     }
 
@@ -499,7 +499,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onMessageSendFailResponse(transactionId,
+        verify(mNanStateManager).onMessageSendQueuedFailResponse(transactionId,
                 WifiNanSessionCallback.REASON_OTHER);
         verifyNoMoreInteractions(mNanStateManager);
     }
@@ -648,6 +648,35 @@ public class WifiNanHalTest {
         WifiNanHalMock.callDisabled(HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onNanDownNotification(WifiNanEventCallback.REASON_OTHER);
+        verifyNoMoreInteractions(mNanStateManager);
+    }
+
+    @Test
+    public void testTransmitFollowupSuccess() throws JSONException {
+        final short transactionId = 123;
+
+        Bundle args = new Bundle();
+        args.putInt("id", transactionId);
+        args.putInt("reason", WifiNanNative.NAN_STATUS_SUCCESS);
+
+        WifiNanHalMock.callTransmitFollowup(HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager).onMessageSendSuccessNotification(transactionId);
+        verifyNoMoreInteractions(mNanStateManager);
+    }
+
+    @Test
+    public void testTransmitFollowupFail() throws JSONException {
+        final short transactionId = 5689;
+
+        Bundle args = new Bundle();
+        args.putInt("id", transactionId);
+        args.putInt("reason", WifiNanNative.NAN_STATUS_TX_FAIL);
+
+        WifiNanHalMock.callTransmitFollowup(HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager).onMessageSendFailNotification(transactionId,
+                WifiNanSessionCallback.REASON_TX_FAIL);
         verifyNoMoreInteractions(mNanStateManager);
     }
 

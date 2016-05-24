@@ -210,6 +210,28 @@ static void OnNanEventBeaconSdfPayload(NanBeaconSdfPayloadInd* event) {
     ALOGD("OnNanEventSdfPayload");
 }
 
+static void OnNanEventDataRequest(NanDataPathRequestInd* event) {
+  ALOGD("OnNanEventDataRequest");
+}
+
+static void OnNanEventDataConfirm(NanDataPathConfirmInd* event) {
+  ALOGD("OnNanEventDataConfirm");
+}
+
+static void OnNanEventDataEnd(NanDataPathEndInd* event) {
+  ALOGD("OnNanEventDataEnd");
+}
+
+static void OnNanEventTransmitFollowup(NanTransmitFollowupInd* event) {
+  ALOGD("OnNanEventTransmitFollowup: transaction_id=%d, reason=%d", event->id,
+        event->reason);
+
+  JNIHelper helper(mVM);
+
+  helper.reportEvent(mCls, "onTransmitFollowupEvent", "(SI)V",
+                     (short) event->id, (int) event->reason);
+}
+
 static jint android_net_wifi_nan_register_handler(JNIEnv *env, jclass cls,
                                                   jclass wifi_native_cls,
                                                   jint iface) {
@@ -230,6 +252,10 @@ static jint android_net_wifi_nan_register_handler(JNIEnv *env, jclass cls,
     handlers.EventDisabled = OnNanEventDisabled;
     handlers.EventTca = OnNanEventTca;
     handlers.EventBeaconSdfPayload = OnNanEventBeaconSdfPayload;
+    handlers.EventDataRequest = OnNanEventDataRequest;
+    handlers.EventDataConfirm = OnNanEventDataConfirm;
+    handlers.EventDataEnd = OnNanEventDataEnd;
+    handlers.EventTransmitFollowup = OnNanEventTransmitFollowup;
 
     if (mVM == NULL) {
         env->GetJavaVM(&mVM);

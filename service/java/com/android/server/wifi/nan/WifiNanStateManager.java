@@ -47,6 +47,9 @@ import libcore.util.HexEncoding;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Manages the state of the Wi-Fi NAN system service.
@@ -59,17 +62,21 @@ public class WifiNanStateManager {
     @VisibleForTesting
     public static final String HAL_COMMAND_TIMEOUT_TAG = TAG + " HAL Command Timeout";
 
+    @VisibleForTesting
+    public static final String HAL_SEND_MESSAGE_TIMEOUT_TAG = TAG + " HAL Send Message Timeout";
+
     private static WifiNanStateManager sNanStateManagerSingleton;
 
     /*
-     * State machine message types. There are sub-types for the messages (except
-     * for TIMEOUT). Format: - Message.arg1: contains message sub-type -
-     * Message.arg2: contains transaction ID for RESPONSES & TIMEOUT
+     * State machine message types. There are sub-types for the messages (except for TIMEOUT).
+     * Format: - Message.arg1: contains message sub-type - Message.arg2: contains transaction ID for
+     * RESPONSE & RESPONSE_TIMEOUT
      */
     private static final int MESSAGE_TYPE_NOTIFICATION = 1;
     private static final int MESSAGE_TYPE_COMMAND = 2;
     private static final int MESSAGE_TYPE_RESPONSE = 3;
-    private static final int MESSAGE_TYPE_TIMEOUT = 4;
+    private static final int MESSAGE_TYPE_RESPONSE_TIMEOUT = 4;
+    private static final int MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT = 5;
 
     /*
      * Message sub-types:
@@ -90,8 +97,8 @@ public class WifiNanStateManager {
     private static final int RESPONSE_TYPE_ON_CONFIG_FAIL = 1;
     private static final int RESPONSE_TYPE_ON_SESSION_CONFIG_SUCCESS = 2;
     private static final int RESPONSE_TYPE_ON_SESSION_CONFIG_FAIL = 3;
-    private static final int RESPONSE_TYPE_ON_MESSAGE_SEND_SUCCESS = 4;
-    private static final int RESPONSE_TYPE_ON_MESSAGE_SEND_FAIL = 5;
+    private static final int RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_SUCCESS = 4;
+    private static final int RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_FAIL = 5;
 
     private static final int NOTIFICATION_TYPE_CAPABILITIES_UPDATED = 0;
     private static final int NOTIFICATION_TYPE_INTERFACE_CHANGE = 1;
@@ -100,6 +107,8 @@ public class WifiNanStateManager {
     private static final int NOTIFICATION_TYPE_SESSION_TERMINATED = 4;
     private static final int NOTIFICATION_TYPE_MESSAGE_RECEIVED = 5;
     private static final int NOTIFICATION_TYPE_NAN_DOWN = 6;
+    private static final int NOTIFICATION_TYPE_ON_MESSAGE_SEND_SUCCESS = 7;
+    private static final int NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL = 8;
 
     /*
      * Keys used when passing (some) arguments to the Handler thread (too many
@@ -120,6 +129,7 @@ public class WifiNanStateManager {
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH = "message_length";
     private static final String MESSAGE_BUNDLE_KEY_REQ_INSTANCE_ID = "req_instance_id";
     private static final String MESSAGE_BUNDLE_KEY_RANGING_ID = "ranging_id";
+    private static final String MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME = "message_queue_time";
 
     /*
      * Asynchronous access with no lock
@@ -213,7 +223,7 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_TERMINATE_SESSION;
         msg.arg2 = clientId;
-        msg.obj = new Integer(sessionId);
+        msg.obj = Integer.valueOf(sessionId);
         mSm.sendMessage(msg);
     }
 
@@ -355,7 +365,7 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
         msg.arg1 = RESPONSE_TYPE_ON_CONFIG_FAIL;
         msg.arg2 = transactionId;
-        msg.obj = new Integer(reason);
+        msg.obj = Integer.valueOf(reason);
         mSm.sendMessage(msg);
     }
 
@@ -368,7 +378,7 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
         msg.arg1 = RESPONSE_TYPE_ON_SESSION_CONFIG_SUCCESS;
         msg.arg2 = transactionId;
-        msg.obj = new Integer(pubSubId);
+        msg.obj = Integer.valueOf(pubSubId);
         msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_SESSION_TYPE, isPublish);
         mSm.sendMessage(msg);
     }
@@ -381,31 +391,29 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
         msg.arg1 = RESPONSE_TYPE_ON_SESSION_CONFIG_FAIL;
         msg.arg2 = transactionId;
-        msg.obj = new Integer(reason);
+        msg.obj = Integer.valueOf(reason);
         msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_SESSION_TYPE, isPublish);
         mSm.sendMessage(msg);
     }
 
     /**
-     * Place a callback request on the state machine queue: message has been
-     * sent successfully (i.e. an ACK was received from the targeted peer).
+     * Place a callback request on the state machine queue: message has been queued successfully.
      */
-    public void onMessageSendSuccessResponse(short transactionId) {
+    public void onMessageSendQueuedSuccessResponse(short transactionId) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
-        msg.arg1 = RESPONSE_TYPE_ON_MESSAGE_SEND_SUCCESS;
+        msg.arg1 = RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_SUCCESS;
         msg.arg2 = transactionId;
         mSm.sendMessage(msg);
     }
 
     /**
-     * Place a callback request on the state machine queue: attempt to send a
-     * message has failed.
+     * Place a callback request on the state machine queue: attempt to queue the message failed.
      */
-    public void onMessageSendFailResponse(short transactionId, int reason) {
+    public void onMessageSendQueuedFailResponse(short transactionId, int reason) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
-        msg.arg1 = RESPONSE_TYPE_ON_MESSAGE_SEND_FAIL;
+        msg.arg1 = RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_FAIL;
         msg.arg2 = transactionId;
-        msg.obj = new Integer(reason);
+        msg.obj = Integer.valueOf(reason);
         mSm.sendMessage(msg);
     }
 
@@ -477,7 +485,7 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_SESSION_TERMINATED;
         msg.arg2 = pubSubId;
-        msg.obj = new Integer(reason);
+        msg.obj = Integer.valueOf(reason);
         msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_SESSION_TYPE, isPublish);
         mSm.sendMessage(msg);
     }
@@ -491,7 +499,7 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_MESSAGE_RECEIVED;
         msg.arg2 = pubSubId;
-        msg.obj = new Integer(requestorInstanceId);
+        msg.obj = Integer.valueOf(requestorInstanceId);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS, peerMac);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA, message);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH, messageLength);
@@ -505,6 +513,28 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_NAN_DOWN;
         msg.arg2 = reason;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Notification that a message has been sent successfully (i.e. an ACK has been received).
+     */
+    public void onMessageSendSuccessNotification(short transactionId) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
+        msg.arg1 = NOTIFICATION_TYPE_ON_MESSAGE_SEND_SUCCESS;
+        msg.arg2 = transactionId;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Notification that a message transmission has failed due to the indicated reason - e.g. no ACK
+     * was received.
+     */
+    public void onMessageSendFailNotification(short transactionId, int reason) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
+        msg.arg1 = NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL;
+        msg.arg2 = transactionId;
+        msg.obj = Integer.valueOf(reason);
         mSm.sendMessage(msg);
     }
 
@@ -523,6 +553,11 @@ public class WifiNanStateManager {
 
         private Message mCurrentCommand;
         private short mCurrentTransactionId = TRANSACTION_ID_IGNORE;
+
+        private static final long NAN_SEND_MESSAGE_TIMEOUT = 5_000;
+        private final Map<Short, Message> mQueuedSendMessages = new LinkedHashMap<>();
+        private WakeupMessage mSendMessageTimeoutMessage = new WakeupMessage(mContext, getHandler(),
+                HAL_SEND_MESSAGE_TIMEOUT_TAG, MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT);
 
         WifiNanStateMachine(String name, Looper looper) {
             super(name, looper);
@@ -544,6 +579,9 @@ public class WifiNanStateManager {
                 switch (msg.what) {
                     case MESSAGE_TYPE_NOTIFICATION:
                         processNotification(msg);
+                        return HANDLED;
+                    case MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT:
+                        processSendMessageTimeout();
                         return HANDLED;
                     default:
                         /* fall-through */
@@ -570,7 +608,7 @@ public class WifiNanStateManager {
                         return HANDLED;
                     case MESSAGE_TYPE_RESPONSE:
                         /* fall-through */
-                    case MESSAGE_TYPE_TIMEOUT:
+                    case MESSAGE_TYPE_RESPONSE_TIMEOUT:
                         /*
                          * remnants/delayed/out-of-sync messages - but let
                          * WaitForResponseState deal with them (identified as
@@ -593,7 +631,7 @@ public class WifiNanStateManager {
             @Override
             public void enter() {
                 mTimeoutMessage = new WakeupMessage(mContext, getHandler(), HAL_COMMAND_TIMEOUT_TAG,
-                        MESSAGE_TYPE_TIMEOUT, mCurrentCommand.arg1, mCurrentTransactionId);
+                        MESSAGE_TYPE_RESPONSE_TIMEOUT, mCurrentCommand.arg1, mCurrentTransactionId);
                 mTimeoutMessage.schedule(SystemClock.elapsedRealtime() + NAN_COMMAND_TIMEOUT);
             }
 
@@ -628,13 +666,13 @@ public class WifiNanStateManager {
                             /* no transition */
                         }
                         return HANDLED;
-                    case MESSAGE_TYPE_TIMEOUT:
+                    case MESSAGE_TYPE_RESPONSE_TIMEOUT:
                         if (msg.arg2 == mCurrentTransactionId) {
                             processTimeout(msg);
                             transitionTo(mWaitState);
                         } else {
                             Log.w(TAG, "WaitForResponseState: processMessage: non-matching "
-                                    + "transaction ID on TIMEOUT (either a non-cancelled "
+                                    + "transaction ID on RESPONSE_TIMEOUT (either a non-cancelled "
                                     + "timeout or a race condition with cancel) -- msg=" + msg);
                             /* no transition */
                         }
@@ -717,6 +755,36 @@ public class WifiNanStateManager {
 
                     onNanDownLocal();
 
+                    break;
+                }
+                case NOTIFICATION_TYPE_ON_MESSAGE_SEND_SUCCESS: {
+                    short transactionId = (short) msg.arg2;
+                    Message queuedSendCommand = mQueuedSendMessages.get(transactionId);
+                    if (queuedSendCommand == null) {
+                        Log.w(TAG,
+                                "processNotification: NOTIFICATION_TYPE_ON_MESSAGE_SEND_SUCCESS:"
+                                        + " transactionId=" + transactionId
+                                        + " - no such queued send command");
+                    } else {
+                        removeSendMessageFromQueue(transactionId);
+                        onMessageSendSuccessLocal(queuedSendCommand);
+                    }
+
+                    break;
+                }
+                case NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL: {
+                    short transactionId = (short) msg.arg2;
+                    int reason = (Integer) msg.obj;
+                    Message queuedSendCommand = mQueuedSendMessages.get(transactionId);
+                    if (queuedSendCommand == null) {
+                        Log.w(TAG,
+                                "processNotification: NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL:"
+                                        + " transactionId=" + transactionId
+                                        + " - no such queued send command");
+                    } else {
+                        removeSendMessageFromQueue(transactionId);
+                        onMessageSendFailLocal(queuedSendCommand, reason);
+                    }
                     break;
                 }
                 default:
@@ -897,10 +965,10 @@ public class WifiNanStateManager {
                     onSessionConfigFailLocal(mCurrentCommand, isPublish, reason);
                     break;
                 }
-                case RESPONSE_TYPE_ON_MESSAGE_SEND_SUCCESS:
-                    onMessageSendSuccessLocal(mCurrentCommand);
+                case RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_SUCCESS:
+                    addSendMessageToQueue((short) msg.arg2, mCurrentCommand);
                     break;
-                case RESPONSE_TYPE_ON_MESSAGE_SEND_FAIL: {
+                case RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_FAIL: {
                     int reason = (Integer) msg.obj;
 
                     onMessageSendFailLocal(mCurrentCommand, reason);
@@ -990,6 +1058,56 @@ public class WifiNanStateManager {
             mCurrentTransactionId = TRANSACTION_ID_IGNORE;
         }
 
+        private void updateSendMessageTimeout() {
+            Iterator<Message> it = mQueuedSendMessages.values().iterator();
+            if (it.hasNext()) {
+                /*
+                 * Schedule timeout based on the first message in the queue (which is the earliest
+                 * submitted message). Timeout = queuing time + timeout constant.
+                 */
+                Message msg = it.next();
+                mSendMessageTimeoutMessage.schedule(
+                        msg.getData().getLong(MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME)
+                        + NAN_SEND_MESSAGE_TIMEOUT);
+            } else {
+                mSendMessageTimeoutMessage.cancel();
+            }
+        }
+
+        private void processSendMessageTimeout() {
+            /*
+             * Note: using 'first' to always time-out (remove) at least 1 notification (partially)
+             * due to test code needs: there's no way to mock elapsedRealtime(). TODO: replace with
+             * injected getClock() once moved off of mmwd.
+             */
+            boolean first = true;
+            Iterator<Message> it = mQueuedSendMessages.values().iterator();
+            while (it.hasNext()) {
+                Message message = it.next();
+                if (first || message.getData().getLong(MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME)
+                        + NAN_SEND_MESSAGE_TIMEOUT >= SystemClock.elapsedRealtime()) {
+                    onMessageSendFailLocal(message, WifiNanSessionCallback.REASON_TX_FAIL);
+                    it.remove();
+                    first = false;
+                } else {
+                    break;
+                }
+            }
+            updateSendMessageTimeout();
+        }
+
+        private void addSendMessageToQueue(short transactionId, Message sendCommand) {
+            sendCommand.getData().putLong(MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME,
+                    SystemClock.elapsedRealtime());
+            mQueuedSendMessages.put(transactionId, sendCommand);
+            updateSendMessageTimeout();
+        }
+
+        private void removeSendMessageFromQueue(short transactionId) {
+            mQueuedSendMessages.remove(transactionId);
+            updateSendMessageTimeout();
+        }
+
         @Override
         protected String getLogRecString(Message msg) {
             StringBuffer sb = new StringBuffer(WifiNanStateManager.messageToString(msg));
@@ -1009,6 +1127,7 @@ public class WifiNanStateManager {
             pw.println("  mNextSessionId: " + mNextSessionId);
             pw.println("  mCurrentCommand: " + mCurrentCommand);
             pw.println("  mCurrentTransaction: " + mCurrentTransactionId);
+            pw.println("  mQueuedSendMessages: [" + mQueuedSendMessages + "]");
             super.dump(fd, pw, args);
         }
     }
@@ -1733,6 +1852,12 @@ public class WifiNanStateManager {
                     case NOTIFICATION_TYPE_NAN_DOWN:
                         sb.append("NAN_DOWN");
                         break;
+                    case NOTIFICATION_TYPE_ON_MESSAGE_SEND_SUCCESS:
+                        sb.append("ON_MESSAGE_SEND_SUCCESS");
+                        break;
+                    case NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL:
+                        sb.append("ON_MESSAGE_SEND_FAIL");
+                        break;
                     default:
                         sb.append("<unknown>");
                         break;
@@ -1794,11 +1919,11 @@ public class WifiNanStateManager {
                     case RESPONSE_TYPE_ON_SESSION_CONFIG_FAIL:
                         sb.append("ON_SESSION_CONFIG_FAIL");
                         break;
-                    case RESPONSE_TYPE_ON_MESSAGE_SEND_SUCCESS:
-                        sb.append("ON_MESSAGE_SEND_SUCCESS");
+                    case RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_SUCCESS:
+                        sb.append("ON_MESSAGE_SEND_QUEUED_SUCCESS");
                         break;
-                    case RESPONSE_TYPE_ON_MESSAGE_SEND_FAIL:
-                        sb.append("ON_MESSAGE_SEND_FAIL");
+                    case RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_FAIL:
+                        sb.append("ON_MESSAGE_SEND_QUEUED_FAIL");
                         break;
                     default:
                         sb.append("<unknown>");
@@ -1806,14 +1931,17 @@ public class WifiNanStateManager {
 
                 }
                 break;
-            case MESSAGE_TYPE_TIMEOUT:
-                sb.append("TIMEOUT");
+            case MESSAGE_TYPE_RESPONSE_TIMEOUT:
+                sb.append("RESPONSE_TIMEOUT");
+                break;
+            case MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT:
+                sb.append("SEND_MESSAGE_TIMEOUT");
                 break;
             default:
                 sb.append("<unknown>");
         }
 
-        if (msg.what == MESSAGE_TYPE_RESPONSE || msg.what == MESSAGE_TYPE_TIMEOUT) {
+        if (msg.what == MESSAGE_TYPE_RESPONSE || msg.what == MESSAGE_TYPE_RESPONSE_TIMEOUT) {
             sb.append(" (Transaction ID=" + msg.arg2 + ")");
         }
 
