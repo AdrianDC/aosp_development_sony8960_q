@@ -514,6 +514,7 @@ void JNIHelper::reportEvent(jclass cls, const char *method, const char *signatur
     jmethodID methodID = mEnv->GetStaticMethodID(cls, method, signature);
     if (methodID == 0) {
         ALOGE("Error in getting method ID");
+        va_end(params);
         return;
     }
 
@@ -535,6 +536,7 @@ void JNIHelper::callMethod(jobject obj, const char *method, const char *signatur
     jmethodID methodID = mEnv->GetMethodID(cls, method, signature);
     if (methodID == 0) {
         ALOGE("Error in getting method ID");
+        va_end(params);
         return;
     }
 
@@ -555,6 +557,7 @@ jboolean JNIHelper::callStaticMethod(jclass cls, const char *method, const char 
     jmethodID methodID = mEnv->GetStaticMethodID(cls, method, signature);
     if (methodID == 0) {
         ALOGE("Error in getting method ID");
+        va_end(params);
         return false;
     }
 
@@ -562,6 +565,7 @@ jboolean JNIHelper::callStaticMethod(jclass cls, const char *method, const char 
     if (mEnv->ExceptionCheck()) {
         mEnv->ExceptionDescribe();
         mEnv->ExceptionClear();
+        va_end(params);
         return false;
     }
 
@@ -582,18 +586,21 @@ JNIObject<jobject> JNIHelper::createObjectWithArgs(
     JNIObject<jclass> cls(*this, mEnv->FindClass(className));
     if (cls == NULL) {
         ALOGE("Error in finding class %s", className);
+        va_end(params);
         return JNIObject<jobject>(*this, NULL);
     }
 
     jmethodID constructor = mEnv->GetMethodID(cls, "<init>", signature);
     if (constructor == 0) {
         ALOGE("Error in constructor ID for %s", className);
+        va_end(params);
         return JNIObject<jobject>(*this, NULL);
     }
 
     JNIObject<jobject> obj(*this, mEnv->NewObjectV(cls, constructor, params));
     if (obj == NULL) {
         ALOGE("Could not create new object of %s", className);
+        va_end(params);
         return JNIObject<jobject>(*this, NULL);
     }
 
