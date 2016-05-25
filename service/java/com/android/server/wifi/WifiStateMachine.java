@@ -3504,6 +3504,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         switch (level2FailureCode) {
             case WifiMetrics.ConnectionEvent.FAILURE_NONE:
             case WifiMetrics.ConnectionEvent.FAILURE_REDUNDANT_CONNECTION_ATTEMPT:
+            case WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED:
                 // WifiLogger doesn't care about success, or pre-empted connections.
                 break;
             default:
@@ -6390,6 +6391,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // Get Link layer stats so that we get fresh tx packet counters.
                     getWifiLinkLayerStats();
                     handleIpConfigurationLost();
+                    reportConnectionAttemptEnd(
+                            WifiMetrics.ConnectionEvent.FAILURE_DHCP,
+                            WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     transitionTo(mDisconnectingState);
                     break;
                 case CMD_IP_REACHABILITY_LOST:
@@ -6656,6 +6660,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         logd("ObtainingIpAddress: Watchdog Triggered, count="
                                 + obtainingIpWatchdogCount);
                         handleIpConfigurationLost();
+                        reportConnectionAttemptEnd(
+                                WifiMetrics.ConnectionEvent.FAILURE_NETWORK_DISCONNECTION,
+                                WifiMetricsProto.ConnectionEvent.HLF_NONE);
                         transitionTo(mDisconnectingState);
                         break;
                     }
