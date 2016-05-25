@@ -78,7 +78,7 @@ public class BackgroundScanScheduler {
     /**
      * Default period to use if no buckets are being scheduled
      */
-    private static final int DEFAULT_PERIOD_MS = 40000;
+    private static final int DEFAULT_PERIOD_MS = 30000;
     /**
      * Scan report threshold percentage to assign to the schedule by default
      * @see com.android.server.wifi.WifiNative.ScanSettings#report_threshold_percent
@@ -87,7 +87,8 @@ public class BackgroundScanScheduler {
 
     /**
      * List of predefined periods (in ms) that buckets can be scheduled at. Ordered by preference
-     * if there are not enough buckets for all periods. All periods MUST be 2^N * PERIOD_MIN_GCD_MS.
+     * if there are not enough buckets for all periods. All periods MUST be an integer multiple of
+     * the next smallest bucket with the smallest bucket having a period of PERIOD_MIN_GCD_MS.
      * This requirement allows scans to be scheduled more efficiently because scan requests with
      * intersecting channels will result in those channels being scanned exactly once at the smaller
      * period and no unnecessary scan being scheduled. If this was not the case and two requests
@@ -106,15 +107,15 @@ public class BackgroundScanScheduler {
      * for each type. Regular scan requests will be packed into the remaining buckets.
      */
     private static final int[] PREDEFINED_BUCKET_PERIODS = {
-        4 * PERIOD_MIN_GCD_MS,   // 40s
-        2 * PERIOD_MIN_GCD_MS,   // 20s
-        16 * PERIOD_MIN_GCD_MS,  // 160s
-        32 * PERIOD_MIN_GCD_MS,  // 320s
+        3 * PERIOD_MIN_GCD_MS,   // 30s
+        12 * PERIOD_MIN_GCD_MS,  // 120s
+        48 * PERIOD_MIN_GCD_MS,  // 480s
         1 * PERIOD_MIN_GCD_MS,   // 10s
-        128 * PERIOD_MIN_GCD_MS, // 1280s
-        64 * PERIOD_MIN_GCD_MS,  // 640s
-        256 * PERIOD_MIN_GCD_MS, // 2560s
-        8 * PERIOD_MIN_GCD_MS,   // 80s
+        6 * PERIOD_MIN_GCD_MS,   // 60s
+        192 * PERIOD_MIN_GCD_MS, // 1920s
+        24 * PERIOD_MIN_GCD_MS,  // 240s
+        96 * PERIOD_MIN_GCD_MS,  // 960s
+        384 * PERIOD_MIN_GCD_MS, // 3840s
         -1,                      // place holder for exponential back off scan
     };
 
