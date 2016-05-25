@@ -2829,8 +2829,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * Set the frequency band from the system setting value, if any.
      */
     private void setFrequencyBand() {
-        int band = mFacade.getIntegerSetting(mContext,
-                Settings.Global.WIFI_FREQUENCY_BAND, WifiManager.WIFI_FREQUENCY_BAND_AUTO);
+        int band = WifiManager.WIFI_FREQUENCY_BAND_AUTO;
 
         if (mWifiNative.setBand(band)) {
             mFrequencyBand.set(band);
