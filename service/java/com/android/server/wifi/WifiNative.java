@@ -102,7 +102,7 @@ public class WifiNative {
      */
     public static final Object sLock = new Object();
 
-    private static final LocalLog sLocalLog = new LocalLog(16384);
+    private static final LocalLog sLocalLog = new LocalLog(8192);
 
     public static LocalLog getLocalLog() {
         return sLocalLog;
