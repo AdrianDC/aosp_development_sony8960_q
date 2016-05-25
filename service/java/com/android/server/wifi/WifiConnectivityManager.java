@@ -65,6 +65,7 @@ public class WifiConnectivityManager {
             "WifiConnectivityManager Restart Scan";
 
     private static final String TAG = "WifiConnectivityManager";
+    private static final long INVALID_TIME_STAMP = Long.MIN_VALUE;
     // Periodic scan interval in milli-seconds. This is the scan
     // performed when screen is on.
     @VisibleForTesting
@@ -142,6 +143,7 @@ public class WifiConnectivityManager {
     private int mTotalConnectivityAttemptsRateLimited = 0;
     private String mLastConnectionAttemptBssid = null;
     private int mPeriodicSingleScanInterval = PERIODIC_SCAN_INTERVAL_MS;
+    private long mLastPeriodicSingleScanTimeStamp = INVALID_TIME_STAMP;
 
     // PNO settings
     private int mMin5GHzRssi;
@@ -662,6 +664,18 @@ public class WifiConnectivityManager {
 
     // Start a single scan and set up the interval for next single scan.
     private void startPeriodicSingleScan() {
+        long currentTimeStamp = mClock.elapsedRealtime();
+
+        if (mLastPeriodicSingleScanTimeStamp != INVALID_TIME_STAMP) {
+            long msSinceLastScan = currentTimeStamp - mLastPeriodicSingleScanTimeStamp;
+            if (msSinceLastScan < PERIODIC_SCAN_INTERVAL_MS) {
+                localLog("Last periodic single scan started " + msSinceLastScan
+                        + "ms ago, defer this new scan request.");
+                schedulePeriodicScanTimer(PERIODIC_SCAN_INTERVAL_MS - (int) msSinceLastScan);
+                return;
+            }
+        }
+
         boolean isFullBandScan = true;
 
         // If the WiFi traffic is heavy, only partial scan is initiated.
@@ -676,6 +690,7 @@ public class WifiConnectivityManager {
             isFullBandScan = false;
         }
 
+        mLastPeriodicSingleScanTimeStamp = currentTimeStamp;
         startSingleScan(false, isFullBandScan);
         schedulePeriodicScanTimer(mPeriodicSingleScanInterval);
 
