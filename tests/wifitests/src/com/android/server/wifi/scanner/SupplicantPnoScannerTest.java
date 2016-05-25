@@ -78,7 +78,7 @@ public class SupplicantPnoScannerTest {
         when(mContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
         when(mContext.getResources()).thenReturn(mResources);
-        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime());
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
     }
 
     /**

@@ -769,7 +769,7 @@ public class WifiConfigManager {
 
     void noteRoamingFailure(WifiConfiguration config, int reason) {
         if (config == null) return;
-        config.lastRoamingFailure = mClock.currentTimeMillis();
+        config.lastRoamingFailure = mClock.getWallClockMillis();
         config.roamingFailureBlackListTimeMilli =
                 2 * (config.roamingFailureBlackListTimeMilli + 1000);
         if (config.roamingFailureBlackListTimeMilli > mNetworkSwitchingBlackListPeriodMs) {
@@ -1379,7 +1379,7 @@ public class WifiConfigManager {
         if (networkStatus.isNetworkTemporaryDisabled()) {
             //time difference in minutes
             long timeDifference =
-                    (mClock.elapsedRealtime() - networkStatus.getDisableTime()) / 1000 / 60;
+                    (mClock.getElapsedSinceBootMillis() - networkStatus.getDisableTime()) / 1000 / 60;
             if (timeDifference < 0 || timeDifference
                     >= NETWORK_SELECTION_DISABLE_TIMEOUT[
                     networkStatus.getNetworkSelectionDisableReason()]) {
@@ -1455,7 +1455,7 @@ public class WifiConfigManager {
             if (reason < WifiConfiguration.NetworkSelectionStatus.DISABLED_TLS_VERSION_MISMATCH) {
                 networkStatus.setNetworkSelectionStatus(WifiConfiguration.NetworkSelectionStatus
                         .NETWORK_SELECTION_TEMPORARY_DISABLED);
-                networkStatus.setDisableTime(mClock.elapsedRealtime());
+                networkStatus.setDisableTime(mClock.getElapsedSinceBootMillis());
             } else {
                 networkStatus.setNetworkSelectionStatus(WifiConfiguration.NetworkSelectionStatus
                         .NETWORK_SELECTION_PERMANENTLY_DISABLED);
@@ -1698,9 +1698,9 @@ public class WifiConfigManager {
     }
 
     private String readNetworkVariableFromSupplicantFile(String configKey, String key) {
-        long start = SystemClock.elapsedRealtimeNanos();
+        long start = mClock.getElapsedSinceBootNanos();
         Map<String, String> data = mWifiConfigStore.readNetworkVariablesFromSupplicantFile(key);
-        long end = SystemClock.elapsedRealtimeNanos();
+        long end = mClock.getElapsedSinceBootNanos();
 
         if (mVerboseLoggingEnabled) {
             localLog("readNetworkVariableFromSupplicantFile configKey=[" + configKey + "] key="
@@ -1828,7 +1828,7 @@ public class WifiConfigManager {
                 mLastSelectedTimeStamp = -1;
             } else {
                 mLastSelectedConfiguration = selected.configKey();
-                mLastSelectedTimeStamp = mClock.elapsedRealtime();
+                mLastSelectedTimeStamp = mClock.getElapsedSinceBootMillis();
                 updateNetworkSelectionStatus(netId,
                         WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
                 if (mVerboseLoggingEnabled) {
@@ -1841,7 +1841,7 @@ public class WifiConfigManager {
     public void setLatestUserSelectedConfiguration(WifiConfiguration network) {
         if (network != null) {
             mLastSelectedConfiguration = network.configKey();
-            mLastSelectedTimeStamp = mClock.elapsedRealtime();
+            mLastSelectedTimeStamp = mClock.getElapsedSinceBootMillis();
         }
     }
 
@@ -2023,7 +2023,7 @@ public class WifiConfigManager {
         StringBuilder sb = new StringBuilder();
         sb.append("time=");
         Calendar c = Calendar.getInstance();
-        c.setTimeInMillis(mClock.currentTimeMillis());
+        c.setTimeInMillis(mClock.getWallClockMillis());
         sb.append(String.format("%tm-%td %tH:%tM:%tS.%tL", c, c, c, c, c, c));
 
         if (newNetwork) {
@@ -2365,7 +2365,7 @@ public class WifiConfigManager {
         if (config == null) {
             return null;
         }
-        long now_ms = mClock.currentTimeMillis();
+        long now_ms = mClock.getWallClockMillis();
 
         HashSet<Integer> channels = new HashSet<Integer>();
 
@@ -2616,14 +2616,14 @@ public class WifiConfigManager {
                 for (ScanDetail sd : scanDetailCache.values()) {
                     logd("     " + sd.getBSSIDString() + " " + sd.getSeen());
                 }
-                now_dbg = SystemClock.elapsedRealtimeNanos();
+                now_dbg = mClock.getElapsedSinceBootNanos();
             }
             // Trim the scan result cache to MAX_NUM_SCAN_CACHE_ENTRIES entries max
             // Since this operation is expensive, make sure it is not performed
             // until the cache has grown significantly above the trim treshold
             scanDetailCache.trim(MAX_NUM_SCAN_CACHE_ENTRIES);
             if (mVerboseLoggingEnabled) {
-                long diff = SystemClock.elapsedRealtimeNanos() - now_dbg;
+                long diff = mClock.getElapsedSinceBootNanos() - now_dbg;
                 logd(" Finished trimming config, time(ns) " + diff);
                 for (ScanDetail sd : scanDetailCache.values()) {
                     logd("     " + sd.getBSSIDString() + " " + sd.getSeen());
@@ -3234,7 +3234,7 @@ public class WifiConfigManager {
             }
         }
         // Record last time Connectivity Service switched us away from WiFi and onto Cell
-        mLastUnwantedNetworkDisconnectTimestamp = mClock.currentTimeMillis();
+        mLastUnwantedNetworkDisconnectTimestamp = mClock.getWallClockMillis();
     }
 
     int getMaxDhcpRetries() {

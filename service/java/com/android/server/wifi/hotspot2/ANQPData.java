@@ -46,7 +46,7 @@ public class ANQPData {
         mClock = clock;
         mNetwork = network;
         mANQPElements = anqpElements != null ? new HashMap<>(anqpElements) : null;
-        mCtime = mClock.currentTimeMillis();
+        mCtime = mClock.getWallClockMillis();
         mRetry = 0;
         if (anqpElements == null) {
             mExpiry = mCtime + ANQP_HOLDOFF_TIME;
@@ -63,7 +63,7 @@ public class ANQPData {
         mClock = clock;
         mNetwork = network;
         mANQPElements = null;
-        mCtime = mClock.currentTimeMillis();
+        mCtime = mClock.getWallClockMillis();
         if (existing == null) {
             mRetry = 0;
             mExpiry = mCtime + ANQP_HOLDOFF_TIME;
@@ -100,7 +100,7 @@ public class ANQPData {
     }
 
     public boolean expired() {
-        return expired(mClock.currentTimeMillis());
+        return expired(mClock.getWallClockMillis());
     }
 
     public boolean expired(long at) {
@@ -120,7 +120,7 @@ public class ANQPData {
     protected boolean isValid(NetworkDetail nwk) {
         return mANQPElements != null &&
                 nwk.getAnqpDomainID() == mNetwork.getAnqpDomainID() &&
-                mExpiry > mClock.currentTimeMillis();
+                mExpiry > mClock.getWallClockMillis();
     }
 
     private int getRetry() {
@@ -136,7 +136,7 @@ public class ANQPData {
         else {
             sb.append(", ").append(mANQPElements.size()).append(" elements, ");
         }
-        long now = mClock.currentTimeMillis();
+        long now = mClock.getWallClockMillis();
         sb.append(Utils.toHMS(now-mCtime)).append(" old, expires in ").
                 append(Utils.toHMS(mExpiry-now)).append(' ');
         if (brief) {

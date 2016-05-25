@@ -86,7 +86,7 @@ public abstract class BaseWifiScannerImplTest {
                 .thenReturn(mAlarmManager.getAlarmManager());
 
         when(mContext.getResources()).thenReturn(mResources);
-        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime());
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
     }
 
     protected Set<Integer> expectedBandScanFreqs(int band) {
@@ -389,7 +389,7 @@ public abstract class BaseWifiScannerImplTest {
                         WifiScanner.WIFI_BAND_24_GHZ)
                 .build();
 
-        long approxScanStartUs = mClock.elapsedRealtime() * 1000;
+        long approxScanStartUs = mClock.getElapsedSinceBootMillis() * 1000;
         ArrayList<ScanDetail> rawResults = new ArrayList<>(Arrays.asList(
                         new ScanDetail(WifiSsid.createFromAsciiEncoded("TEST AP 1"),
                                 "00:00:00:00:00:00", "", -70, 2450,

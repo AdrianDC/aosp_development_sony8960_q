@@ -574,7 +574,7 @@ public class WifiConnectivityManager {
             return;
         }
 
-        Long elapsedTimeMillis = mClock.elapsedRealtime();
+        Long elapsedTimeMillis = mClock.getElapsedSinceBootMillis();
         if (!mScreenOn && shouldSkipConnectionAttempt(elapsedTimeMillis)) {
             localLog("connectToNetwork: Too many connection attempts. Skipping this attempt!");
             mTotalConnectivityAttemptsRateLimited++;
@@ -664,7 +664,7 @@ public class WifiConnectivityManager {
 
     // Start a single scan and set up the interval for next single scan.
     private void startPeriodicSingleScan() {
-        long currentTimeStamp = mClock.elapsedRealtime();
+        long currentTimeStamp = mClock.getElapsedSinceBootMillis();
 
         if (mLastPeriodicSingleScanTimeStamp != INVALID_TIME_STAMP) {
             long msSinceLastScan = currentTimeStamp - mLastPeriodicSingleScanTimeStamp;
@@ -856,7 +856,7 @@ public class WifiConnectivityManager {
         Log.i(TAG, "scheduleWatchdogTimer");
 
         mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                            mClock.elapsedRealtime() + WATCHDOG_INTERVAL_MS,
+                            mClock.getElapsedSinceBootMillis() + WATCHDOG_INTERVAL_MS,
                             WATCHDOG_TIMER_TAG,
                             mWatchdogListener, mEventHandler);
     }
@@ -864,7 +864,7 @@ public class WifiConnectivityManager {
     // Set up periodic scan timer
     private void schedulePeriodicScanTimer(int intervalMs) {
         mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                            mClock.elapsedRealtime() + intervalMs,
+                            mClock.getElapsedSinceBootMillis() + intervalMs,
                             PERIODIC_SCAN_TIMER_TAG,
                             mPeriodicScanTimerListener, mEventHandler);
     }
@@ -876,7 +876,7 @@ public class WifiConnectivityManager {
         RestartSingleScanListener restartSingleScanListener =
                 new RestartSingleScanListener(isWatchdogTriggered, isFullBandScan);
         mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                            mClock.elapsedRealtime() + RESTART_SCAN_DELAY_MS,
+                            mClock.getElapsedSinceBootMillis() + RESTART_SCAN_DELAY_MS,
                             RESTART_SINGLE_SCAN_TIMER_TAG,
                             restartSingleScanListener, mEventHandler);
     }
@@ -886,7 +886,7 @@ public class WifiConnectivityManager {
         localLog("scheduleDelayedConnectivityScan");
 
         mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                            mClock.elapsedRealtime() + msFromNow,
+                            mClock.getElapsedSinceBootMillis() + msFromNow,
                             RESTART_CONNECTIVITY_SCAN_TIMER_TAG,
                             mRestartScanListener, mEventHandler);
 

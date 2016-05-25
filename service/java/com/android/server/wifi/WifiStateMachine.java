@@ -1355,7 +1355,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         Bundle bundle = new Bundle();
         bundle.putParcelable(CUSTOMIZED_SCAN_SETTING, settings);
         bundle.putParcelable(CUSTOMIZED_SCAN_WORKSOURCE, workSource);
-        bundle.putLong(SCAN_REQUEST_TIME, System.currentTimeMillis());
+        bundle.putLong(SCAN_REQUEST_TIME, mClock.getWallClockMillis());
         sendMessage(CMD_START_SCAN, callingUid, scanCounter, bundle);
     }
 
@@ -1395,7 +1395,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     public long getDisconnectedTimeMilli() {
         if (getCurrentState() == mDisconnectedState
                 && mDisconnectedTimeStamp != 0) {
-            long now_ms = System.currentTimeMillis();
+            long now_ms = mClock.getWallClockMillis();
             return now_ms - mDisconnectedTimeStamp;
         }
         return 0;
@@ -1424,7 +1424,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     //TODO: this is used only to track connection attempts, however the link state and packet per
     //TODO: second logic should be folded into that
     private boolean checkOrDeferScanAllowed(Message msg) {
-        long now = System.currentTimeMillis();
+        long now = mClock.getWallClockMillis();
         if (lastConnectAttemptTimestamp != 0 && (now - lastConnectAttemptTimestamp) < 10000) {
             Message dmsg = Message.obtain(msg);
             sendMessageDelayed(dmsg, 11000 - (now - lastConnectAttemptTimestamp));
@@ -1447,7 +1447,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private long lastLinkLayerStatsUpdate = 0;
 
     String reportOnTime() {
-        long now = System.currentTimeMillis();
+        long now = mClock.getWallClockMillis();
         StringBuilder sb = new StringBuilder();
         // Report stats since last report
         int on = mOnTime - mOnTimeLastReport;
@@ -1474,7 +1474,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (name != null && stats == null && mWifiLinkLayerStatsSupported > 0) {
                 mWifiLinkLayerStatsSupported -= 1;
             } else if (stats != null) {
-                lastLinkLayerStatsUpdate = System.currentTimeMillis();
+                lastLinkLayerStatsUpdate = mClock.getWallClockMillis();
                 mOnTime = stats.on_time;
                 mTxTime = stats.tx_time;
                 mRxTime = stats.rx_time;
@@ -2278,8 +2278,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     String printTime() {
         StringBuilder sb = new StringBuilder();
-        sb.append(" rt=").append(SystemClock.uptimeMillis());
-        sb.append("/").append(SystemClock.elapsedRealtime());
+        sb.append(" rt=").append(mClock.getUptimeSinceBootMillis());
+        sb.append("/").append(mClock.getElapsedSinceBootMillis());
         return sb.toString();
     }
 
@@ -2309,7 +2309,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         sb.append(" ").append(printTime());
         switch (msg.what) {
             case CMD_START_SCAN:
-                now = System.currentTimeMillis();
+                now = mClock.getWallClockMillis();
                 sb.append(" ");
                 sb.append(Integer.toString(msg.arg1));
                 sb.append(" ");
@@ -2508,7 +2508,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                 netWorkSelectionStatus.getNetworkDisableReasonString());
                     }
                     if (config.lastConnected != 0) {
-                        now = System.currentTimeMillis();
+                        now = mClock.getWallClockMillis();
                         sb.append(" lastconn=").append(now - config.lastConnected).append("(ms)");
                     }
                     if (mLastBssid != null) {
@@ -2582,7 +2582,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 sb.append(Integer.toString(msg.arg2));
                 ScanResult result = (ScanResult) msg.obj;
                 if (result != null) {
-                    now = System.currentTimeMillis();
+                    now = mClock.getWallClockMillis();
                     sb.append(" bssid=").append(result.BSSID);
                     sb.append(" rssi=").append(result.level);
                     sb.append(" freq=").append(result.frequency);
@@ -5033,7 +5033,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (config != null) {
                 //Here we will clear all disable counters once a network is connected
                 //records how long this network is connected in future
-                config.lastConnected = System.currentTimeMillis();
+                config.lastConnected = mClock.getWallClockMillis();
                 config.numAssociation++;
                 WifiConfiguration.NetworkSelectionStatus networkSelectionStatus =
                         config.getNetworkSelectionStatus();
@@ -5051,7 +5051,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // hence record the time we were connected last
             WifiConfiguration config = mWifiConfigManager.getWifiConfiguration(mLastNetworkId);
             if (config != null) {
-                config.lastDisconnected = System.currentTimeMillis();
+                config.lastDisconnected = mClock.getWallClockMillis();
                 if (config.ephemeral) {
                     // Remove ephemeral WifiConfigurations from file
                     mWifiConfigManager.forgetNetwork(mLastNetworkId);
@@ -5317,7 +5317,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                 }
 
                                 // Remember time of last connection attempt
-                                lastConnectAttemptTimestamp = System.currentTimeMillis();
+                                lastConnectAttemptTimestamp = mClock.getWallClockMillis();
                                 mWifiConnectionStatistics.numWifiManagerJoinAttempt++;
 
                                 // As a courtesy to the caller, trigger a scan now
@@ -5378,7 +5378,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // networks need to be disabled
                     if (disableOthers) {
                         // Remember time of last connection attempt
-                        lastConnectAttemptTimestamp = System.currentTimeMillis();
+                        lastConnectAttemptTimestamp = mClock.getWallClockMillis();
                         mWifiConnectionStatistics.numWifiManagerJoinAttempt++;
                     }
                     // Cancel auto roam requests
@@ -5525,14 +5525,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case CMD_REASSOCIATE:
-                    lastConnectAttemptTimestamp = System.currentTimeMillis();
+                    lastConnectAttemptTimestamp = mClock.getWallClockMillis();
                     mWifiNative.reassociate();
                     break;
                 case CMD_RELOAD_TLS_AND_RECONNECT:
                     if (mWifiConfigManager.needsUnlockedKeyStore()) {
                         logd("Reconnecting to give a chance to un-connected TLS networks");
                         mWifiNative.disconnect();
-                        lastConnectAttemptTimestamp = System.currentTimeMillis();
+                        lastConnectAttemptTimestamp = mClock.getWallClockMillis();
                         mWifiNative.reconnect();
                     }
                     break;
@@ -5629,7 +5629,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     if (mWifiConfigManager.selectNetwork(config, /* updatePriorities = */ false,
                             lastConnectUid) && mWifiNative.reconnect()) {
-                        lastConnectAttemptTimestamp = System.currentTimeMillis();
+                        lastConnectAttemptTimestamp = mClock.getWallClockMillis();
                         targetWificonfiguration = mWifiConfigManager.getWifiConfiguration(netId);
                         config = mWifiConfigManager.getWifiConfiguration(netId);
                         if (config != null
@@ -5790,7 +5790,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             WifiMetricsProto.ConnectionEvent.ROAM_USER_SELECTED);
                     if (mWifiConfigManager.selectNetwork(config, /* updatePriorities = */ true,
                             message.sendingUid) && mWifiNative.reconnect()) {
-                        lastConnectAttemptTimestamp = System.currentTimeMillis();
+                        lastConnectAttemptTimestamp = mClock.getWallClockMillis();
                         targetWificonfiguration = mWifiConfigManager.getWifiConfiguration(netId);
 
                         /* The state tracker handles enabling networks upon completion/failure */
@@ -6968,7 +6968,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_ASSOCIATED_BSSID:
                     // ASSOCIATING to a new BSSID while already connected, indicates
                     // that driver is roaming
-                    mLastDriverRoamAttempt = System.currentTimeMillis();
+                    mLastDriverRoamAttempt = mClock.getWallClockMillis();
                     return NOT_HANDLED;
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
                     long lastRoam = 0;
@@ -6977,7 +6977,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     if (mLastDriverRoamAttempt != 0) {
                         // Calculate time since last driver roam attempt
-                        lastRoam = System.currentTimeMillis() - mLastDriverRoamAttempt;
+                        lastRoam = mClock.getWallClockMillis() - mLastDriverRoamAttempt;
                         mLastDriverRoamAttempt = 0;
                     }
                     if (unexpectedDisconnectedReason(message.arg2)) {
@@ -7109,7 +7109,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         ret = mWifiNative.reassociate();
                     }
                     if (ret) {
-                        lastConnectAttemptTimestamp = System.currentTimeMillis();
+                        lastConnectAttemptTimestamp = mClock.getWallClockMillis();
                         targetWificonfiguration = mWifiConfigManager.getWifiConfiguration(netId);
 
                         // replyToMessage(message, WifiManager.CONNECT_NETWORK_SUCCEEDED);
@@ -7257,7 +7257,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         ++mPeriodicScanToken, 0), mNoNetworksPeriodicScan);
             }
 
-            mDisconnectedTimeStamp = System.currentTimeMillis();
+            mDisconnectedTimeStamp = mClock.getWallClockMillis();
         }
         @Override
         public boolean processMessage(Message message) {

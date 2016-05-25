@@ -2173,7 +2173,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         long unchangedDelay = settings.unchangedSampleSize * settings.periodInMs;
                         mAlarmManager.cancel(mTimeoutIntent);
                         mAlarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                                mClock.elapsedRealtime() + unchangedDelay,
+                                mClock.getElapsedSinceBootMillis() + unchangedDelay,
                                 mTimeoutIntent);
                         break;
                     case WifiScanner.CMD_SCAN_RESULT:
@@ -2184,7 +2184,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                                     STATIONARY_SCAN_PERIOD_MS);
                             mWifiChangeDetected = false;
                             mAlarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                                    mClock.elapsedRealtime() + MOVING_STATE_TIMEOUT_MS,
+                                    mClock.getElapsedSinceBootMillis() + MOVING_STATE_TIMEOUT_MS,
                                     mTimeoutIntent);
                             mScanResultsPending = false;
                         }

@@ -113,7 +113,7 @@ public class AnqpCacheTest {
     private void advanceTimeAndTrimCache(long howManyMillis) {
         mCurrentTimeMillis += howManyMillis;
         Log.d(TAG, "Time set to " + mCurrentTimeMillis);
-        when(mClock.currentTimeMillis()).thenReturn(mCurrentTimeMillis);
+        when(mClock.getWallClockMillis()).thenReturn(mCurrentTimeMillis);
         mCache.clear(false, true);
     }
 
