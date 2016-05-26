@@ -343,6 +343,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mWifiStateMachineHandler = new WifiStateMachineHandler(wifiThread.getLooper());
         mWifiController = new WifiController(mContext, mWifiStateMachine,
                 mSettingsStore, mWifiLockManager, wifiThread.getLooper(), facade);
+        // Set the WifiController for WifiLastResortWatchdog
+        mWifiInjector.getWifiLastResortWatchdog().setWifiController(mWifiController);
     }
 
 
