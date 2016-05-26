@@ -85,17 +85,16 @@ public class WifiConfigStore {
 
     // Value stored by supplicant to requirePMF
     public static final int STORED_VALUE_FOR_REQUIRE_PMF = 2;
-
     private static final boolean DBG = true;
-    private static boolean sVDBG = false;
 
     private final LocalLog mLocalLog;
     private final WpaConfigFileObserver mFileObserver;
     private final WifiNative mWifiNative;
     private final KeyStore mKeyStore;
     private final HashSet<String> mBssidBlacklist = new HashSet<String>();
-
     private final BackupManagerProxy mBackupManagerProxy;
+
+    private boolean mVerboseLoggingEnabled = false;
 
     WifiConfigStore(WifiNative wifiNative, KeyStore keyStore, LocalLog localLog) {
         mWifiNative = wifiNative;
@@ -237,7 +236,7 @@ public class WifiConfigStore {
         if (config == null) {
             return;
         }
-        if (sVDBG) localLog("readNetworkVariables: " + config.networkId);
+        if (mVerboseLoggingEnabled) localLog("readNetworkVariables: " + config.networkId);
         int netId = config.networkId;
         if (netId < 0) {
             return;
@@ -362,7 +361,7 @@ public class WifiConfigStore {
                 return lastPriority;
             }
             String[] lines = listStr.split("\n");
-            if (sVDBG) {
+            if (mVerboseLoggingEnabled) {
                 localLog("loadNetworks:  ");
                 for (String net : lines) {
                     localLog(net);
@@ -408,7 +407,7 @@ public class WifiConfigStore {
                 config.setIpAssignment(IpAssignment.DHCP);
                 config.setProxySettings(ProxySettings.NONE);
                 if (!WifiServiceImpl.isValid(config)) {
-                    if (sVDBG) {
+                    if (mVerboseLoggingEnabled) {
                         localLog("Ignoring network " + config.networkId + " because configuration "
                                 + "loaded from wpa_supplicant.conf is not valid.");
                     }
@@ -428,7 +427,7 @@ public class WifiConfigStore {
                 final WifiConfiguration duplicateConfig = configs.put(configKey, config);
                 if (duplicateConfig != null) {
                     // The network is already known. Overwrite the duplicate entry.
-                    if (sVDBG) {
+                    if (mVerboseLoggingEnabled) {
                         localLog("Replacing duplicate network " + duplicateConfig.networkId
                                 + " with " + config.networkId + ".");
                     }
@@ -598,7 +597,7 @@ public class WifiConfigStore {
         if (config == null) {
             return false;
         }
-        if (sVDBG) localLog("saveNetwork: " + netId);
+        if (mVerboseLoggingEnabled) localLog("saveNetwork: " + netId);
         if (config.SSID != null && !mWifiNative.setNetworkVariable(
                 netId,
                 WifiConfiguration.ssidVarName,
@@ -782,7 +781,7 @@ public class WifiConfigStore {
         if (config == null) {
             return false;
         }
-        if (sVDBG) localLog("addOrUpdateNetwork: " + config.networkId);
+        if (mVerboseLoggingEnabled) localLog("addOrUpdateNetwork: " + config.networkId);
         int netId = config.networkId;
         boolean newNetwork = false;
         /*
@@ -828,7 +827,7 @@ public class WifiConfigStore {
         if (config == null) {
             return false;
         }
-        if (sVDBG) localLog("removeNetwork: " + config.networkId);
+        if (mVerboseLoggingEnabled) localLog("removeNetwork: " + config.networkId);
         if (!mWifiNative.removeNetwork(config.networkId)) {
             loge("Remove network in wpa_supplicant failed on " + config.networkId);
             return false;
@@ -852,7 +851,7 @@ public class WifiConfigStore {
         if (config == null) {
             return false;
         }
-        if (sVDBG) localLog("selectNetwork: " + config.networkId);
+        if (mVerboseLoggingEnabled) localLog("selectNetwork: " + config.networkId);
         if (!mWifiNative.selectNetwork(config.networkId)) {
             loge("Select network in wpa_supplicant failed on " + config.networkId);
             return false;
@@ -870,7 +869,7 @@ public class WifiConfigStore {
         if (config == null) {
             return false;
         }
-        if (sVDBG) localLog("disableNetwork: " + config.networkId);
+        if (mVerboseLoggingEnabled) localLog("disableNetwork: " + config.networkId);
         if (!mWifiNative.disableNetwork(config.networkId)) {
             loge("Disable network in wpa_supplicant failed on " + config.networkId);
             return false;
@@ -888,7 +887,7 @@ public class WifiConfigStore {
         if (config == null) {
             return false;
         }
-        if (sVDBG) localLog("setNetworkPriority: " + config.networkId);
+        if (mVerboseLoggingEnabled) localLog("setNetworkPriority: " + config.networkId);
         if (!mWifiNative.setNetworkVariable(config.networkId,
                 WifiConfiguration.priorityVarName, Integer.toString(priority))) {
             loge("Set priority of network in wpa_supplicant failed on " + config.networkId);
@@ -908,7 +907,7 @@ public class WifiConfigStore {
         if (config == null) {
             return false;
         }
-        if (sVDBG) localLog("setNetworkSSID: " + config.networkId);
+        if (mVerboseLoggingEnabled) localLog("setNetworkSSID: " + config.networkId);
         if (!mWifiNative.setNetworkVariable(config.networkId, WifiConfiguration.ssidVarName,
                 encodeSSID(ssid))) {
             loge("Set SSID of network in wpa_supplicant failed on " + config.networkId);
@@ -932,7 +931,7 @@ public class WifiConfigStore {
                 && config.SSID == null)) {
             return false;
         }
-        if (sVDBG) localLog("setNetworkBSSID: " + config.networkId);
+        if (mVerboseLoggingEnabled) localLog("setNetworkBSSID: " + config.networkId);
         if (!mWifiNative.setNetworkVariable(config.networkId, WifiConfiguration.bssidVarName,
                 bssid)) {
             loge("Set BSSID of network in wpa_supplicant failed on " + config.networkId);
@@ -958,7 +957,7 @@ public class WifiConfigStore {
      * @return true if successful, false otherwise.
      */
     public boolean disableAllNetworks(Collection<WifiConfiguration> configs) {
-        if (sVDBG) localLog("disableAllNetworks");
+        if (mVerboseLoggingEnabled) localLog("disableAllNetworks");
         boolean networkDisabled = false;
         for (WifiConfiguration enabled : configs) {
             if (disableNetwork(enabled)) {
@@ -989,16 +988,16 @@ public class WifiConfigStore {
             reader = new BufferedReader(new FileReader(SUPPLICANT_CONFIG_FILE));
             result = readNetworkVariablesFromReader(reader, key);
         } catch (FileNotFoundException e) {
-            if (sVDBG) loge("Could not open " + SUPPLICANT_CONFIG_FILE + ", " + e);
+            if (mVerboseLoggingEnabled) loge("Could not open " + SUPPLICANT_CONFIG_FILE + ", " + e);
         } catch (IOException e) {
-            if (sVDBG) loge("Could not read " + SUPPLICANT_CONFIG_FILE + ", " + e);
+            if (mVerboseLoggingEnabled) loge("Could not read " + SUPPLICANT_CONFIG_FILE + ", " + e);
         } finally {
             try {
                 if (reader != null) {
                     reader.close();
                 }
             } catch (IOException e) {
-                if (sVDBG) {
+                if (mVerboseLoggingEnabled) {
                     loge("Could not close reader for " + SUPPLICANT_CONFIG_FILE + ", " + e);
                 }
             }
@@ -1017,7 +1016,7 @@ public class WifiConfigStore {
     public Map<String, String> readNetworkVariablesFromReader(BufferedReader reader, String key)
             throws IOException {
         Map<String, String> result = new HashMap<>();
-        if (sVDBG) localLog("readNetworkVariablesFromReader key=" + key);
+        if (mVerboseLoggingEnabled) localLog("readNetworkVariablesFromReader key=" + key);
         boolean found = false;
         String configKey = null;
         String value = null;
@@ -1048,7 +1047,7 @@ public class WifiConfigStore {
                             }
                         }
                     } catch (JSONException e) {
-                        if (sVDBG) {
+                        if (mVerboseLoggingEnabled) {
                             loge("Could not get "+ WifiConfigStore.ID_STRING_KEY_CONFIG_KEY
                                     + ", " + e);
                         }
@@ -1092,7 +1091,7 @@ public class WifiConfigStore {
      * @param configs List of all the networks.
      */
     public void resetSimNetworks(Collection<WifiConfiguration> configs) {
-        if (sVDBG) localLog("resetSimNetworks");
+        if (mVerboseLoggingEnabled) localLog("resetSimNetworks");
         for (WifiConfiguration config : configs) {
             if (isSimConfig(config)) {
                 /* This configuration may have cached Pseudonym IDs; lets remove them */
@@ -1106,7 +1105,7 @@ public class WifiConfigStore {
      * Clear BSSID blacklist in wpa_supplicant.
      */
     public void clearBssidBlacklist() {
-        if (sVDBG) localLog("clearBlacklist");
+        if (mVerboseLoggingEnabled) localLog("clearBlacklist");
         mBssidBlacklist.clear();
         mWifiNative.clearBlacklist();
         mWifiNative.setBssidBlacklist(null);
@@ -1121,7 +1120,7 @@ public class WifiConfigStore {
         if (bssid == null) {
             return;
         }
-        if (sVDBG) localLog("blackListBssid: " + bssid);
+        if (mVerboseLoggingEnabled) localLog("blackListBssid: " + bssid);
         mBssidBlacklist.add(bssid);
         // Blacklist at wpa_supplicant
         mWifiNative.addToBlacklist(bssid);
@@ -1231,6 +1230,10 @@ public class WifiConfigStore {
         Log.d(TAG, s);
     }
 
+    void enableVerboseLogging(boolean verbose) {
+        mVerboseLoggingEnabled = verbose;
+    }
+
     private class SupplicantSaver implements WifiEnterpriseConfig.SupplicantSaver {
         private final int mNetId;
         private final String mSetterSSID;
@@ -1310,7 +1313,9 @@ public class WifiConfigStore {
         public void onEvent(int event, String path) {
             if (event == CLOSE_WRITE) {
                 File file = new File(SUPPLICANT_CONFIG_FILE);
-                if (sVDBG) localLog("wpa_supplicant.conf changed; new size = " + file.length());
+                if (mVerboseLoggingEnabled) {
+                    localLog("wpa_supplicant.conf changed; new size = " + file.length());
+                }
             }
         }
     }
