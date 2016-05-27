@@ -804,13 +804,13 @@ public class WifiScanningServiceTest {
      */
     @Test
     public void sendBackgroundScanBandRequest() throws Exception {
-        WifiScanner.ScanSettings requestSettings = createRequest(WifiScanner.WIFI_BAND_BOTH, 20000,
+        WifiScanner.ScanSettings requestSettings = createRequest(WifiScanner.WIFI_BAND_BOTH, 30000,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
         WifiNative.ScanSettings nativeSettings = new NativeScanSettingsBuilder()
-                .withBasePeriod(20000)
+                .withBasePeriod(30000)
                 .withMaxApPerScan(MAX_AP_PER_SCAN)
                 .withMaxScansToCache(BackgroundScanScheduler.DEFAULT_MAX_SCANS_TO_BATCH)
-                .addBucketWithBand(20000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN,
+                .addBucketWithBand(30000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN,
                         WifiScanner.WIFI_BAND_BOTH)
                 .build();
         doSuccessfulBackgroundScan(requestSettings, nativeSettings);
@@ -822,13 +822,13 @@ public class WifiScanningServiceTest {
      */
     @Test
     public void sendBackgroundScanChannelsRequest() throws Exception {
-        WifiScanner.ScanSettings requestSettings = createRequest(channelsToSpec(5150), 20000,
+        WifiScanner.ScanSettings requestSettings = createRequest(channelsToSpec(5150), 30000,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
         WifiNative.ScanSettings nativeSettings = new NativeScanSettingsBuilder()
-                .withBasePeriod(20000)
+                .withBasePeriod(30000)
                 .withMaxApPerScan(MAX_AP_PER_SCAN)
                 .withMaxScansToCache(BackgroundScanScheduler.DEFAULT_MAX_SCANS_TO_BATCH)
-                .addBucketWithChannels(20000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN, 5150)
+                .addBucketWithChannels(30000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN, 5150)
                 .build();
         doSuccessfulBackgroundScan(requestSettings, nativeSettings);
     }
@@ -836,13 +836,13 @@ public class WifiScanningServiceTest {
     private Pair<WifiScanner.ScanSettings, WifiNative.ScanSettings> createScanSettingsForHwPno()
             throws Exception {
         WifiScanner.ScanSettings requestSettings = createRequest(
-                channelsToSpec(0, 2400, 5150, 5175), 20000, 0, 20,
+                channelsToSpec(0, 2400, 5150, 5175), 30000, 0, 20,
                 WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
         WifiNative.ScanSettings nativeSettings = new NativeScanSettingsBuilder()
-                .withBasePeriod(20000)
+                .withBasePeriod(30000)
                 .withMaxApPerScan(MAX_AP_PER_SCAN)
                 .withMaxScansToCache(BackgroundScanScheduler.DEFAULT_MAX_SCANS_TO_BATCH)
-                .addBucketWithChannels(20000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN,
+                .addBucketWithChannels(30000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN,
                         0, 2400, 5150, 5175)
                 .build();
         return Pair.create(requestSettings, nativeSettings);
