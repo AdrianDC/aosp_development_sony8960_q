@@ -16,7 +16,10 @@
 
 package com.android.server.wifi;
 
+import static android.net.wifi.WifiManager.WIFI_MODE_FULL;
+
 import static com.android.server.wifi.WifiController.CMD_AP_STOPPED;
+import static com.android.server.wifi.WifiController.CMD_DEVICE_IDLE;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_CALL_STATE_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_MODE_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
@@ -28,6 +31,7 @@ import static org.mockito.Mockito.*;
 
 import android.content.ContentResolver;
 import android.content.Context;
+import android.os.WorkSource;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
@@ -80,7 +84,7 @@ public class WifiControllerTest {
     @Mock FrameworkFacade mFacade;
     @Mock WifiSettingsStore mSettingsStore;
     @Mock WifiStateMachine mWifiStateMachine;
-    @Mock WifiServiceImpl.LockList mLockList;
+    @Mock WifiLockManager mWifiLockManager;
 
     WifiController mWifiController;
 
@@ -95,7 +99,7 @@ public class WifiControllerTest {
         when(mContext.getContentResolver()).thenReturn(mock(ContentResolver.class));
 
         mWifiController = new WifiController(mContext, mWifiStateMachine,
-                mSettingsStore, mLockList, mLooper.getLooper(), mFacade);
+                mSettingsStore, mWifiLockManager, mLooper.getLooper(), mFacade);
 
         mWifiController.start();
         mLooper.dispatchAll();
@@ -265,5 +269,39 @@ public class WifiControllerTest {
         inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
         inOrder.verify(mWifiStateMachine).setDriverStart(true);
         assertEquals("DeviceActiveState", getCurrentState().getName());
+    }
+
+    /**
+     * When the wifi device is idle, AP mode is enabled and disabled
+     * we should return to the appropriate Idle state.
+     * Enter DeviceActiveState, indicate idle device, activate AP mode, disable AP mode.
+     * <p>
+     * Expected: AP should successfully start and exit, then return to a device idle state.
+     */
+    @Test
+    public void testReturnToDeviceIdleStateAfterAPModeShutdown() throws Exception {
+        enableWifi();
+        assertEquals("DeviceActiveState", getCurrentState().getName());
+
+        // make sure mDeviceIdle is set to true
+        when(mWifiLockManager.getStrongestLockMode()).thenReturn(WIFI_MODE_FULL);
+        when(mWifiLockManager.createMergedWorkSource()).thenReturn(new WorkSource());
+        mWifiController.sendMessage(CMD_DEVICE_IDLE);
+        mLooper.dispatchAll();
+        assertEquals("FullLockHeldState", getCurrentState().getName());
+
+        mWifiController.obtainMessage(CMD_SET_AP, 1, 0).sendToTarget();
+        mLooper.dispatchAll();
+        assertEquals("ApEnabledState", getCurrentState().getName());
+
+        when(mSettingsStore.getWifiSavedState()).thenReturn(1);
+        mWifiController.obtainMessage(CMD_AP_STOPPED).sendToTarget();
+        mLooper.dispatchAll();
+
+        InOrder inOrder = inOrder(mWifiStateMachine);
+        inOrder.verify(mWifiStateMachine).setSupplicantRunning(true);
+        inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        inOrder.verify(mWifiStateMachine).setDriverStart(true);
+        assertEquals("FullLockHeldState", getCurrentState().getName());
     }
 }

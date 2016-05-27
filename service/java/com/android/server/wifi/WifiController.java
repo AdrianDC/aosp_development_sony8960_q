@@ -18,6 +18,7 @@ package com.android.server.wifi;
 
 import static android.net.wifi.WifiManager.WIFI_MODE_FULL;
 import static android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF;
+import static android.net.wifi.WifiManager.WIFI_MODE_NO_LOCKS_HELD;
 import static android.net.wifi.WifiManager.WIFI_MODE_SCAN_ONLY;
 
 import android.app.AlarmManager;
@@ -42,12 +43,15 @@ import android.util.Slog;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
-import com.android.server.wifi.WifiServiceImpl.LockList;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 
-class WifiController extends StateMachine {
+/**
+ * WifiController is the class used to manage on/off state of WifiStateMachine for various operating
+ * modes (normal, airplane, wifi hotspot, etc.).
+ */
+public class WifiController extends StateMachine {
     private static final String TAG = "WifiController";
     private static final boolean DBG = false;
     private Context mContext;
@@ -89,9 +93,9 @@ class WifiController extends StateMachine {
             "com.android.server.WifiManager.action.DEVICE_IDLE";
 
     /* References to values tracked in WifiService */
-    final WifiStateMachine mWifiStateMachine;
-    final WifiSettingsStore mSettingsStore;
-    final LockList mLocks;
+    private final WifiStateMachine mWifiStateMachine;
+    private final WifiSettingsStore mSettingsStore;
+    private final WifiLockManager mWifiLockManager;
 
     /**
      * Temporary for computing UIDS that are responsible for starting WIFI.
@@ -135,14 +139,14 @@ class WifiController extends StateMachine {
     private NoLockHeldState mNoLockHeldState = new NoLockHeldState();
     private EcmState mEcmState = new EcmState();
 
-    WifiController(Context context, WifiStateMachine wsm,
-                   WifiSettingsStore wss, LockList locks, Looper looper, FrameworkFacade f) {
+    WifiController(Context context, WifiStateMachine wsm, WifiSettingsStore wss,
+            WifiLockManager wifiLockManager, Looper looper, FrameworkFacade f) {
         super(TAG, looper);
         mFacade = f;
         mContext = context;
         mWifiStateMachine = wsm;
         mSettingsStore = wss;
-        mLocks = locks;
+        mWifiLockManager = wifiLockManager;
 
         mAlarmManager = (AlarmManager)mContext.getSystemService(Context.ALARM_SERVICE);
         Intent idleIntent = new Intent(ACTION_DEVICE_IDLE, null);
@@ -336,7 +340,7 @@ class WifiController extends StateMachine {
     private void updateBatteryWorkSource() {
         mTmpWorkSource.clear();
         if (mDeviceIdle) {
-            mLocks.updateWorkSource(mTmpWorkSource);
+            mTmpWorkSource.add(mWifiLockManager.createMergedWorkSource());
         }
         mWifiStateMachine.updateBatteryWorkSource(mTmpWorkSource);
     }
@@ -882,26 +886,23 @@ class WifiController extends StateMachine {
     }
 
     private void checkLocksAndTransitionWhenDeviceIdle() {
-        if (mLocks.hasLocks()) {
-            switch (mLocks.getStrongestLockMode()) {
-                case WIFI_MODE_FULL:
-                    transitionTo(mFullLockHeldState);
-                    break;
-                case WIFI_MODE_FULL_HIGH_PERF:
-                    transitionTo(mFullHighPerfLockHeldState);
-                    break;
-                case WIFI_MODE_SCAN_ONLY:
+        switch (mWifiLockManager.getStrongestLockMode()) {
+            case WIFI_MODE_NO_LOCKS_HELD:
+                if (mSettingsStore.isScanAlwaysAvailable()) {
                     transitionTo(mScanOnlyLockHeldState);
-                    break;
-                default:
-                    loge("Illegal lock " + mLocks.getStrongestLockMode());
-            }
-        } else {
-            if (mSettingsStore.isScanAlwaysAvailable()) {
+                } else {
+                    transitionTo(mNoLockHeldState);
+                }
+                break;
+            case WIFI_MODE_FULL:
+                transitionTo(mFullLockHeldState);
+                break;
+            case WIFI_MODE_FULL_HIGH_PERF:
+                transitionTo(mFullHighPerfLockHeldState);
+                break;
+            case WIFI_MODE_SCAN_ONLY:
                 transitionTo(mScanOnlyLockHeldState);
-            } else {
-                transitionTo(mNoLockHeldState);
-            }
+                break;
         }
     }
 
