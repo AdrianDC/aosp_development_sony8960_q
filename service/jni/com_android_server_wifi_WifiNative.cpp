@@ -39,7 +39,7 @@
 #include "jni_helper.h"
 #include "rtt.h"
 #include "wifi_hal_stub.h"
-#define REPLY_BUF_SIZE 4096 + 1         // wpa_supplicant's maximum size + 1 for nul
+#define REPLY_BUF_SIZE (4096 + 1)         // wpa_supplicant's maximum size + 1 for nul
 #define EVENT_BUF_SIZE 2048
 #define WAKE_REASON_TYPE_MAX 10
 
