@@ -1044,6 +1044,7 @@ public class WifiConnectivityManager {
 
         if (!mWifiEnabled) {
             stopConnectivityScan();
+            mLastPeriodicSingleScanTimeStamp = INVALID_TIME_STAMP;
         }
     }
 
