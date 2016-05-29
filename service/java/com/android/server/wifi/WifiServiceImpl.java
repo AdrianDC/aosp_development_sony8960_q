@@ -1706,6 +1706,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         enforceAccessPermission();
         mWifiStateMachine.enableVerboseLogging(verbose);
         mWifiLockManager.enableVerboseLogging(verbose);
+        mWifiInjector.getWifiLastResortWatchdog().enableVerboseLogging(verbose);
     }
 
     @Override
