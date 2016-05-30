@@ -2,20 +2,20 @@
 
 MAKEVER:=$(shell make --version | ruby -n0e 'puts $$_[/Make (\d)/,1]')
 
-ifeq ($(MAKEVER),4)
+# GNU make 3.82 has this feature though.
+ifeq ($(MAKEVER),3)
 
-# GNU make 4 escapes $(SHELL).
 test:
 	echo test skipped
 
 else
 
-export FOO=-x
-
-override SHELL := PS4="cmd: " /bin/bash $${FOO}
 $(info $(shell echo foo))
-
+override SHELL := echo
+$(info $(shell echo bar))
+.POSIX:
+$(info $(shell echo baz))
 test:
-	@echo baz
+	foobar
 
 endif
