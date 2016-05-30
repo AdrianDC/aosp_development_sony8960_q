@@ -61,6 +61,7 @@ class Evaluator {
   void Error(const string& msg);
 
   void set_is_bootstrap(bool b) { is_bootstrap_ = b; }
+  void set_is_commandline(bool c) { is_commandline_ = c; }
 
   void set_current_scope(Vars* v) { current_scope_ = v; }
 
@@ -89,6 +90,10 @@ class Evaluator {
     eval_depth_--;
   }
 
+  string GetShell();
+  string GetShellFlag();
+  string GetShellAndFlag();
+
  private:
   Var* EvalRHS(Symbol lhs, Value* rhs, StringPiece orig_rhs, AssignOp op,
                bool is_override = false);
@@ -105,6 +110,7 @@ class Evaluator {
 
   Loc loc_;
   bool is_bootstrap_;
+  bool is_commandline_;
 
   bool avoid_io_;
   // This value tracks the nest level of make expressions. For
@@ -114,6 +120,9 @@ class Evaluator {
   // Commands which should run at ninja-time (i.e., info, warning, and
   // error).
   vector<string> delayed_output_commands_;
+
+  Symbol posix_sym_;
+  bool is_posix_;
 
   static unordered_set<Symbol> used_undefined_vars_;
 };
