@@ -52,6 +52,7 @@ class StampChecker {
   };
 
   struct ShellResult {
+    string shell;
     string cmd;
     string result;
     vector<string> missing_dirs;
@@ -230,6 +231,7 @@ class StampChecker {
     for (int i = 0; i < num_crs; i++) {
       ShellResult* sr = new ShellResult;
       commands_.push_back(sr);
+      LOAD_STRING(fp, &sr->shell);
       LOAD_STRING(fp, &sr->cmd);
       LOAD_STRING(fp, &sr->result);
       sr->has_condition = LOAD_INT(fp);
@@ -261,7 +263,6 @@ class StampChecker {
     COLLECT_STATS("glob time (regen)");
     vector<string>* files;
     Glob(gr->pat.c_str(), &files);
-    sort(files->begin(), files->end());
     bool needs_regen = files->size() != gr->result.size();
     for (size_t i = 0; i < gr->result.size(); i++) {
       if (!needs_regen) {
@@ -339,7 +340,7 @@ class StampChecker {
 
     COLLECT_STATS_WITH_SLOW_REPORT("shell time (regen)", sr->cmd.c_str());
     string result;
-    RunCommand("/bin/sh", sr->cmd, RedirectStderr::DEV_NULL, &result);
+    RunCommand(sr->shell, sr->cmd, RedirectStderr::DEV_NULL, &result);
     FormatForCommandSubstitution(&result);
     if (sr->result != result) {
       if (g_flags.dump_kati_stamp) {
