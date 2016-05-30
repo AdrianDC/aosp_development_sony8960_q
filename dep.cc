@@ -25,6 +25,7 @@
 
 #include "eval.h"
 #include "fileutil.h"
+#include "flags.h"
 #include "log.h"
 #include "rule.h"
 #include "stats.h"
@@ -214,6 +215,8 @@ struct RuleMerger {
       if (r == primary_rule)
         continue;
       FillDepNodeFromRule(output, r, n);
+      if (n->loc.filename == NULL)
+        n->loc = r->loc;
     }
   }
 };
@@ -287,7 +290,6 @@ class DepBuilder {
       ".EXPORT_ALL_VARIABLES",
       ".NOTPARALLEL",
       ".ONESHELL",
-      ".POSIX",
       NULL
     };
     for (const char** p = kUnsupportedBuiltinTargets; *p; p++) {

@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# coding: binary
 #
 # Copyright 2015 Google Inc. All rights reserved
 #
@@ -15,6 +16,10 @@
 # limitations under the License.
 
 require 'fileutils'
+
+# suppress GNU make jobserver magic when calling "make"
+ENV.delete('MAKEFLAGS')
+ENV.delete('MAKELEVEL')
 
 while true
   if ARGV[0] == '-s'
@@ -104,29 +109,38 @@ def normalize_ninja_log(log, mk)
             '*** No rule to make target \\1.')
   log.gsub!(/^ninja: warning: multiple rules generate (.*)\. builds involving this target will not be correct.*$/,
             'ninja: warning: multiple rules generate \\1.')
+
   if mk =~ /err_error_in_recipe.mk/
     # This test expects ninja fails. Strip ninja specific error logs.
-    log.gsub!(/^FAILED: .*\n/, '')
-    log.gsub!(/^ninja: .*\n/, '')
+    ninja_failed_subst = ''
   elsif mk =~ /\/fail_/
     # Recipes in these tests fail.
-    log.gsub!(/^FAILED: .*/, '*** [test] Error 1')
+    ninja_failed_subst = "*** [test] Error 1\n"
+  end
+  if ninja_failed_subst
+    log.gsub!(/^FAILED: (.*\n\/bin\/bash)?.*\n/, ninja_failed_subst)
     log.gsub!(/^ninja: .*\n/, '')
   end
   log
 end
 
+def normalize_quotes(log)
+  log.gsub!(/[`'"]/, '"')
+  # For recent GNU find, which uses Unicode characters.
+  log.gsub!(/(\xe2\x80\x98|\xe2\x80\x99)/, '"')
+  log
+end
+
 def normalize_make_log(expected, mk, via_ninja)
+  expected = normalize_quotes(expected)
   expected.gsub!(/^make(?:\[\d+\])?: (Entering|Leaving) directory.*\n/, '')
   expected.gsub!(/^make(?:\[\d+\])?: /, '')
   expected = move_circular_dep(expected)
 
   # Normalizations for old/new GNU make.
-  expected.gsub!(/[`'"]/, '"')
-  expected.gsub!(/ (?:commands|recipe) for target /,
-                 ' commands for target ')
-  expected.gsub!(/ (?:commands|recipe) commences /,
-                 ' commands commence ')
+  expected.gsub!(' recipe for target ', ' commands for target ')
+  expected.gsub!(' recipe commences ', ' commands commence ')
+  expected.gsub!('missing rule before recipe.', 'missing rule before commands.')
   expected.gsub!(' (did you mean TAB instead of 8 spaces?)', '')
   expected.gsub!('Extraneous text after', 'extraneous text after')
   # Not sure if this is useful.
@@ -134,7 +148,7 @@ def normalize_make_log(expected, mk, via_ninja)
   # GNU make 4.0 has this output.
   expected.gsub!(/Makefile:\d+: commands for target ".*?" failed\n/, '')
   # We treat some warnings as errors.
-  expected.gsub!(/^\/bin\/sh: line 0: /, '')
+  expected.gsub!(/^\/bin\/(ba)?sh: line 0: /, '')
   # We print out some ninja warnings in some tests to match what we expect
   # ninja to produce. Remove them if we're not testing ninja.
   if !via_ninja
@@ -147,11 +161,12 @@ def normalize_make_log(expected, mk, via_ninja)
 end
 
 def normalize_kati_log(output)
+  output = normalize_quotes(output)
   output = move_circular_dep(output)
+
   # kati specific log messages.
   output.gsub!(/^\*kati\*.*\n/, '')
   output.gsub!(/^c?kati: /, '')
-  output.gsub!(/[`'"]/, '"')
   output.gsub!(/\/bin\/sh: ([^:]*): command not found/,
                "\\1: Command not found")
   output.gsub!(/.*: warning for parse error in an unevaluated line: .*\n/, '')
@@ -164,6 +179,8 @@ def normalize_kati_log(output)
                "\\1\\2: N\\3")
   output
 end
+
+bash_var = ' SHELL=/bin/bash'
 
 run_make_test = proc do |mk|
   c = File.read(mk)
@@ -181,6 +198,9 @@ run_make_test = proc do |mk|
         expected_failure = true
       end
       if todos.include?('c-ninja') && ckati && via_ninja
+        expected_failure = true
+      end
+      if todos.include?('c-exec') && ckati && !via_ninja
         expected_failure = true
       end
       if todos.include?('ninja') && via_ninja
@@ -213,8 +233,9 @@ run_make_test = proc do |mk|
       if via_ninja || is_silent_test
         cmd += ' -s'
       end
+      cmd += bash_var
       cmd += " #{tc} 2>&1"
-      res = `#{cmd}`
+      res = IO.popen(cmd, 'r:binary', &:read)
       res = normalize_make_log(res, mk, via_ninja)
       expected += "=== #{tc} ===\n" + res
       expected_files = get_output_filenames
@@ -240,6 +261,7 @@ run_make_test = proc do |mk|
       if is_silent_test
         cmd += ' -s'
       end
+      cmd += bash_var
       if !gen_all_targets || mk =~ /makecmdgoals/
         cmd += " #{tc}"
       end
@@ -322,6 +344,7 @@ run_shell_test = proc do |sh|
     if is_ninja_test
       cmd += ' -s'
     end
+    cmd += bash_var
     expected = IO.popen(cmd, 'r:binary', &:read)
     cleanup
 
@@ -338,6 +361,7 @@ run_shell_test = proc do |sh|
         cmd = "sh ../../#{sh} ../../kati --use_cache -log_dir=."
       end
     end
+    cmd += bash_var
 
     output = IO.popen(cmd, 'r:binary', &:read)
 
