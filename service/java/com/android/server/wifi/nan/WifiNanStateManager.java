@@ -92,6 +92,7 @@ public class WifiNanStateManager {
     private static final int COMMAND_TYPE_ENABLE_USAGE = 8;
     private static final int COMMAND_TYPE_DISABLE_USAGE = 9;
     private static final int COMMAND_TYPE_START_RANGING = 10;
+    private static final int COMMAND_TYPE_GET_CAPABILITIES = 11;
 
     private static final int RESPONSE_TYPE_ON_CONFIG_SUCCESS = 0;
     private static final int RESPONSE_TYPE_ON_CONFIG_FAIL = 1;
@@ -99,8 +100,8 @@ public class WifiNanStateManager {
     private static final int RESPONSE_TYPE_ON_SESSION_CONFIG_FAIL = 3;
     private static final int RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_SUCCESS = 4;
     private static final int RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_FAIL = 5;
+    private static final int RESPONSE_TYPE_ON_CAPABILITIES_UPDATED = 6;
 
-    private static final int NOTIFICATION_TYPE_CAPABILITIES_UPDATED = 0;
     private static final int NOTIFICATION_TYPE_INTERFACE_CHANGE = 1;
     private static final int NOTIFICATION_TYPE_CLUSTER_CHANGE = 2;
     private static final int NOTIFICATION_TYPE_MATCH = 3;
@@ -344,6 +345,15 @@ public class WifiNanStateManager {
         return mUsageEnabled;
     }
 
+    /**
+     * Get the capabilities of the current NAN firmware.
+     */
+    public void getCapabilities() {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_GET_CAPABILITIES;
+        mSm.sendMessage(msg);
+    }
+
     /*
      * RESPONSES
      */
@@ -419,21 +429,22 @@ public class WifiNanStateManager {
         mSm.sendMessage(msg);
     }
 
-    /*
-     * NOTIFICATIONS
-     */
-
     /**
      * Place a callback request on the state machine queue: update vendor
-     * capabilities of the NAN stack. This is actually a RESPONSE from the HAL -
-     * but treated as a NOTIFICATION.
+     * capabilities of the NAN stack.
      */
-    public void onCapabilitiesUpdateNotification(WifiNanNative.Capabilities capabilities) {
-        Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
-        msg.arg1 = NOTIFICATION_TYPE_CAPABILITIES_UPDATED;
+    public void onCapabilitiesUpdateResponse(short transactionId,
+            WifiNanNative.Capabilities capabilities) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
+        msg.arg1 = RESPONSE_TYPE_ON_CAPABILITIES_UPDATED;
+        msg.arg2 = transactionId;
         msg.obj = capabilities;
         mSm.sendMessage(msg);
     }
+
+    /*
+     * NOTIFICATIONS
+     */
 
     /**
      * Place a callback request on the state machine queue: the discovery
@@ -693,11 +704,6 @@ public class WifiNanStateManager {
             }
 
             switch (msg.arg1) {
-                case NOTIFICATION_TYPE_CAPABILITIES_UPDATED: {
-                    WifiNanNative.Capabilities capabilities = (WifiNanNative.Capabilities) msg.obj;
-                    onCapabilitiesUpdatedLocal(capabilities);
-                    break;
-                }
                 case NOTIFICATION_TYPE_INTERFACE_CHANGE: {
                     byte[] mac = (byte[]) msg.obj;
 
@@ -931,6 +937,18 @@ public class WifiNanStateManager {
                     waitForResponse = false;
                     break;
                 }
+                case COMMAND_TYPE_GET_CAPABILITIES:
+                    if (mCapabilities == null) {
+                        waitForResponse = WifiNanNative.getInstance().getCapabilities(
+                                mCurrentTransactionId);
+                    } else {
+                        if (VDBG) {
+                            Log.v(TAG, "COMMAND_TYPE_GET_CAPABILITIES: already have capabilities - "
+                                    + "skipping");
+                        }
+                        waitForResponse = false;
+                    }
+                    break;
                 default:
                     waitForResponse = false;
                     Log.wtf(TAG, "processCommand: this isn't a COMMAND -- msg=" + msg);
@@ -989,6 +1007,10 @@ public class WifiNanStateManager {
                     int reason = (Integer) msg.obj;
 
                     onMessageSendFailLocal(mCurrentCommand, reason);
+                    break;
+                }
+                case RESPONSE_TYPE_ON_CAPABILITIES_UPDATED: {
+                    onCapabilitiesUpdatedResponseLocal((WifiNanNative.Capabilities) msg.obj);
                     break;
                 }
                 default:
@@ -1065,6 +1087,11 @@ public class WifiNanStateManager {
                     break;
                 case COMMAND_TYPE_START_RANGING:
                     Log.wtf(TAG, "processTimeout: START_RANGING - shouldn't be waiting!");
+                    break;
+                case COMMAND_TYPE_GET_CAPABILITIES:
+                    Log.e(TAG,
+                            "processTimeout: GET_CAPABILITIES timed-out - strange, will try again"
+                                    + " when next enabled!?");
                     break;
                 default:
                     Log.wtf(TAG, "processTimeout: this isn't a COMMAND -- msg=" + msg);
@@ -1365,6 +1392,7 @@ public class WifiNanStateManager {
         }
 
         mUsageEnabled = true;
+        getCapabilities();
         sendNanStateChangedBroadcast(true);
     }
 
@@ -1645,17 +1673,17 @@ public class WifiNanStateManager {
         }
     }
 
-    /*
-     * NOTIFICATIONS
-     */
-
-    private void onCapabilitiesUpdatedLocal(WifiNanNative.Capabilities capabilities) {
+    private void onCapabilitiesUpdatedResponseLocal(WifiNanNative.Capabilities capabilities) {
         if (VDBG) {
-            Log.v(TAG, "onCapabilitiesUpdatedLocal: capabilites=" + capabilities);
+            Log.v(TAG, "onCapabilitiesUpdatedResponseLocal: capabilites=" + capabilities);
         }
 
         mCapabilities = capabilities;
     }
+
+    /*
+     * NOTIFICATIONS
+     */
 
     private void onInterfaceAddressChangeLocal(byte[] mac) {
         if (VDBG) {
@@ -1848,9 +1876,6 @@ public class WifiNanStateManager {
             case MESSAGE_TYPE_NOTIFICATION:
                 sb.append("NOTIFICATION/");
                 switch (msg.arg1) {
-                    case NOTIFICATION_TYPE_CAPABILITIES_UPDATED:
-                        sb.append("CAPABILITIES_UPDATED");
-                        break;
                     case NOTIFICATION_TYPE_INTERFACE_CHANGE:
                         sb.append("INTERFACE_CHANGE");
                         break;
@@ -1916,6 +1941,9 @@ public class WifiNanStateManager {
                     case COMMAND_TYPE_START_RANGING:
                         sb.append("START_RANGING");
                         break;
+                    case COMMAND_TYPE_GET_CAPABILITIES:
+                        sb.append("GET_CAPABILITIES");
+                        break;
                     default:
                         sb.append("<unknown>");
                         break;
@@ -1941,6 +1969,9 @@ public class WifiNanStateManager {
                         break;
                     case RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_FAIL:
                         sb.append("ON_MESSAGE_SEND_QUEUED_FAIL");
+                        break;
+                    case RESPONSE_TYPE_ON_CAPABILITIES_UPDATED:
+                        sb.append("ON_CAPABILITIES_UDPATED");
                         break;
                     default:
                         sb.append("<unknown>");

@@ -261,7 +261,7 @@ public class WifiNanHalTest {
     }
 
     @Test
-    public void testNotifyCapabilities() throws JSONException {
+    public void testRespondWithCapabilities() throws JSONException {
         final short transactionId = 23;
         final int max_concurrent_nan_clusters = 1;
         final int max_publishes = 2;
@@ -305,7 +305,8 @@ public class WifiNanHalTest {
         WifiNanHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onCapabilitiesUpdateNotification(capabilitiesCapture.capture());
+        verify(mNanStateManager).onCapabilitiesUpdateResponse(eq(transactionId),
+                capabilitiesCapture.capture());
         WifiNanNative.Capabilities capabilities = capabilitiesCapture.getValue();
         collector.checkThat("max_concurrent_nan_clusters", capabilities.maxConcurrentNanClusters,
                 equalTo(max_concurrent_nan_clusters));

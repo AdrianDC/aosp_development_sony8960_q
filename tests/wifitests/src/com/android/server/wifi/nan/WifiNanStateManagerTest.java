@@ -93,8 +93,6 @@ public class WifiNanStateManagerTest {
 
         mDut = installNewNanStateManagerAndResetState(mMockNanRttStateManager);
         mDut.start(mMockContext, mMockLooper.getLooper());
-        mDut.enableUsage();
-        mMockLooper.dispatchAll();
 
         when(mMockNative.enableAndConfigure(anyShort(), any(ConfigRequest.class), anyBoolean()))
                 .thenReturn(true);
@@ -121,8 +119,12 @@ public class WifiNanStateManagerTest {
         IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
         InOrder inOrder = inOrder(mMockContext, mMockNative, mockCallback);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+
         // (1) check initial state
         validateCorrectNanStatusChangeBroadcast(inOrder, true);
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
         collector.checkThat("usage enabled", mDut.isUsageEnabled(), equalTo(true));
 
         // (2) disable usage and validate state
@@ -154,8 +156,12 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mMockContext, mMockNative, mockCallback);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+
         // (1) check initial state
         validateCorrectNanStatusChangeBroadcast(inOrder, true);
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
         collector.checkThat("usage enabled", mDut.isUsageEnabled(), equalTo(true));
 
         // (2) connect (successfully)
@@ -189,6 +195,10 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         collector.checkThat("usage enabled", mDut.isUsageEnabled(), equalTo(true));
         validateCorrectNanStatusChangeBroadcast(inOrder, true);
+
+        // note: this is called a second time (which it shouldn't if capabilties were obtained
+        // at first) because this test case does not provide a capabilities response.
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (7) connect (should be successful)
         mDut.connect(clientId, mockCallback, configRequest);
@@ -228,6 +238,10 @@ public class WifiNanStateManagerTest {
         IWifiNanEventCallback mockCallback2 = mock(IWifiNanEventCallback.class);
         ArgumentCaptor<Short> transactionIdCapture = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback1, mockCallback2, mMockNative);
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect 1st and 2nd clients
         mDut.connect(clientId1, mockCallback1, configRequest1);
@@ -278,6 +292,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (1) connect (successfully)
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -325,6 +343,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (0) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -368,6 +390,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (0) connect
         mDut.connect(clientId, mockCallback, configRequest);
@@ -432,6 +458,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (0) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -495,6 +525,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (0) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -543,6 +577,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (0) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -586,6 +624,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (0) connect
         mDut.connect(clientId, mockCallback, configRequest);
@@ -648,6 +690,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (0) connect
         mDut.connect(clientId, mockCallback, configRequest);
@@ -712,6 +758,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (0) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -775,6 +825,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (0) connect
         mDut.connect(clientId, mockCallback, configRequest);
@@ -883,6 +937,10 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (1) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -969,6 +1027,10 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (1) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -1043,6 +1105,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (1) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -1097,6 +1163,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
         mDut.connect(clientId, mockCallback, configRequest);
@@ -1165,6 +1235,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
         mDut.connect(clientId, mockCallback, configRequest);
@@ -1240,6 +1314,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
         mDut.connect(clientId, mockCallback, configRequest);
@@ -1326,6 +1404,10 @@ public class WifiNanStateManagerTest {
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative,
                 mMockNanRttStateManager);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (1) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -1399,6 +1481,10 @@ public class WifiNanStateManagerTest {
         IWifiNanEventCallback mockCallback3 = mock(IWifiNanEventCallback.class);
 
         InOrder inOrder = inOrder(mMockNative, mockCallback1, mockCallback2, mockCallback3);
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) config1 (valid)
         mDut.connect(clientId1, mockCallback1, configRequest1);
@@ -1483,6 +1569,10 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (1) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -1548,6 +1638,10 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockPublishSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockPublishSessionCallback);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (1) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -1581,6 +1675,10 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (1) connect (no response)
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -1605,6 +1703,10 @@ public class WifiNanStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback);
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect and succeed
         mDut.connect(clientId, mockCallback, configRequest);
@@ -1652,6 +1754,10 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (1) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -1697,6 +1803,10 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (1) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -1740,6 +1850,10 @@ public class WifiNanStateManagerTest {
         IWifiNanSessionCallback mockSessionCallback = mock(IWifiNanSessionCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback, mockSessionCallback);
 
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(anyShort());
+
         // (1) connect
         mDut.connect(clientId, mockCallback, configRequest);
         mMockLooper.dispatchAll();
@@ -1782,7 +1896,7 @@ public class WifiNanStateManagerTest {
      *
      * @param clientId The ID of the client which should be deleted.
      */
-    public void validateInternalClientInfoCleanedUp(int clientId) throws Exception {
+    private void validateInternalClientInfoCleanedUp(int clientId) throws Exception {
         WifiNanClientState client = getInternalClientState(mDut, clientId);
         collector.checkThat("Client record not cleared up for clientId=" + clientId, client,
                 nullValue());
@@ -1796,7 +1910,8 @@ public class WifiNanStateManagerTest {
      * @param clientId The ID of the client containing the session.
      * @param sessionId The ID of the terminated session.
      */
-    public void validateInternalSessionInfoCleanedUp(int clientId, int sessionId) throws Exception {
+    private void validateInternalSessionInfoCleanedUp(int clientId, int sessionId)
+            throws Exception {
         WifiNanClientState client = getInternalClientState(mDut, clientId);
         collector.checkThat("Client record exists clientId=" + clientId, client, notNullValue());
         WifiNanSessionState session = getInternalSessionState(client, sessionId);
@@ -1811,7 +1926,7 @@ public class WifiNanStateManagerTest {
      *
      * @param clientId The ID of the client which we want to check.
      */
-    public void validateInternalNoSessions(int clientId) throws Exception {
+    private void validateInternalNoSessions(int clientId) throws Exception {
         WifiNanClientState client = getInternalClientState(mDut, clientId);
         collector.checkThat("Client record exists clientId=" + clientId, client, notNullValue());
 
@@ -1831,7 +1946,7 @@ public class WifiNanStateManagerTest {
      * @param expectedEnabled The expected change status - i.e. are we expected
      *            to announce that NAN is enabled (true) or disabled (false).
      */
-    public void validateCorrectNanStatusChangeBroadcast(InOrder inOrder, boolean expectedEnabled) {
+    private void validateCorrectNanStatusChangeBroadcast(InOrder inOrder, boolean expectedEnabled) {
         ArgumentCaptor<Intent> intent = ArgumentCaptor.forClass(Intent.class);
 
         inOrder.verify(mMockContext).sendBroadcastAsUser(intent.capture(), eq(UserHandle.ALL));
