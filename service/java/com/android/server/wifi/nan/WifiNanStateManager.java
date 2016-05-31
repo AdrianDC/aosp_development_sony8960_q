@@ -81,35 +81,35 @@ public class WifiNanStateManager {
     /*
      * Message sub-types:
      */
-    private static final int COMMAND_TYPE_CONNECT = 0;
-    private static final int COMMAND_TYPE_DISCONNECT = 1;
-    private static final int COMMAND_TYPE_TERMINATE_SESSION = 2;
-    private static final int COMMAND_TYPE_PUBLISH = 3;
-    private static final int COMMAND_TYPE_UPDATE_PUBLISH = 4;
-    private static final int COMMAND_TYPE_SUBSCRIBE = 5;
-    private static final int COMMAND_TYPE_UPDATE_SUBSCRIBE = 6;
-    private static final int COMMAND_TYPE_SEND_MESSAGE = 7;
-    private static final int COMMAND_TYPE_ENABLE_USAGE = 8;
-    private static final int COMMAND_TYPE_DISABLE_USAGE = 9;
-    private static final int COMMAND_TYPE_START_RANGING = 10;
-    private static final int COMMAND_TYPE_GET_CAPABILITIES = 11;
+    private static final int COMMAND_TYPE_CONNECT = 100;
+    private static final int COMMAND_TYPE_DISCONNECT = 101;
+    private static final int COMMAND_TYPE_TERMINATE_SESSION = 102;
+    private static final int COMMAND_TYPE_PUBLISH = 103;
+    private static final int COMMAND_TYPE_UPDATE_PUBLISH = 104;
+    private static final int COMMAND_TYPE_SUBSCRIBE = 105;
+    private static final int COMMAND_TYPE_UPDATE_SUBSCRIBE = 106;
+    private static final int COMMAND_TYPE_SEND_MESSAGE = 107;
+    private static final int COMMAND_TYPE_ENABLE_USAGE = 108;
+    private static final int COMMAND_TYPE_DISABLE_USAGE = 109;
+    private static final int COMMAND_TYPE_START_RANGING = 110;
+    private static final int COMMAND_TYPE_GET_CAPABILITIES = 111;
 
-    private static final int RESPONSE_TYPE_ON_CONFIG_SUCCESS = 0;
-    private static final int RESPONSE_TYPE_ON_CONFIG_FAIL = 1;
-    private static final int RESPONSE_TYPE_ON_SESSION_CONFIG_SUCCESS = 2;
-    private static final int RESPONSE_TYPE_ON_SESSION_CONFIG_FAIL = 3;
-    private static final int RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_SUCCESS = 4;
-    private static final int RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_FAIL = 5;
-    private static final int RESPONSE_TYPE_ON_CAPABILITIES_UPDATED = 6;
+    private static final int RESPONSE_TYPE_ON_CONFIG_SUCCESS = 200;
+    private static final int RESPONSE_TYPE_ON_CONFIG_FAIL = 201;
+    private static final int RESPONSE_TYPE_ON_SESSION_CONFIG_SUCCESS = 202;
+    private static final int RESPONSE_TYPE_ON_SESSION_CONFIG_FAIL = 203;
+    private static final int RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_SUCCESS = 204;
+    private static final int RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_FAIL = 205;
+    private static final int RESPONSE_TYPE_ON_CAPABILITIES_UPDATED = 206;
 
-    private static final int NOTIFICATION_TYPE_INTERFACE_CHANGE = 1;
-    private static final int NOTIFICATION_TYPE_CLUSTER_CHANGE = 2;
-    private static final int NOTIFICATION_TYPE_MATCH = 3;
-    private static final int NOTIFICATION_TYPE_SESSION_TERMINATED = 4;
-    private static final int NOTIFICATION_TYPE_MESSAGE_RECEIVED = 5;
-    private static final int NOTIFICATION_TYPE_NAN_DOWN = 6;
-    private static final int NOTIFICATION_TYPE_ON_MESSAGE_SEND_SUCCESS = 7;
-    private static final int NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL = 8;
+    private static final int NOTIFICATION_TYPE_INTERFACE_CHANGE = 301;
+    private static final int NOTIFICATION_TYPE_CLUSTER_CHANGE = 302;
+    private static final int NOTIFICATION_TYPE_MATCH = 303;
+    private static final int NOTIFICATION_TYPE_SESSION_TERMINATED = 304;
+    private static final int NOTIFICATION_TYPE_MESSAGE_RECEIVED = 305;
+    private static final int NOTIFICATION_TYPE_NAN_DOWN = 306;
+    private static final int NOTIFICATION_TYPE_ON_MESSAGE_SEND_SUCCESS = 307;
+    private static final int NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL = 308;
 
     /*
      * Keys used when passing (some) arguments to the Handler thread (too many
@@ -225,7 +225,7 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_TERMINATE_SESSION;
         msg.arg2 = clientId;
-        msg.obj = Integer.valueOf(sessionId);
+        msg.obj = sessionId;
         mSm.sendMessage(msg);
     }
 
@@ -377,7 +377,7 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
         msg.arg1 = RESPONSE_TYPE_ON_CONFIG_FAIL;
         msg.arg2 = transactionId;
-        msg.obj = Integer.valueOf(reason);
+        msg.obj = reason;
         mSm.sendMessage(msg);
     }
 
@@ -390,7 +390,7 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
         msg.arg1 = RESPONSE_TYPE_ON_SESSION_CONFIG_SUCCESS;
         msg.arg2 = transactionId;
-        msg.obj = Integer.valueOf(pubSubId);
+        msg.obj = pubSubId;
         msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_SESSION_TYPE, isPublish);
         mSm.sendMessage(msg);
     }
@@ -403,7 +403,7 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
         msg.arg1 = RESPONSE_TYPE_ON_SESSION_CONFIG_FAIL;
         msg.arg2 = transactionId;
-        msg.obj = Integer.valueOf(reason);
+        msg.obj = reason;
         msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_SESSION_TYPE, isPublish);
         mSm.sendMessage(msg);
     }
@@ -425,7 +425,7 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
         msg.arg1 = RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_FAIL;
         msg.arg2 = transactionId;
-        msg.obj = Integer.valueOf(reason);
+        msg.obj = reason;
         mSm.sendMessage(msg);
     }
 
@@ -498,7 +498,7 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_SESSION_TERMINATED;
         msg.arg2 = pubSubId;
-        msg.obj = Integer.valueOf(reason);
+        msg.obj = reason;
         msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_SESSION_TYPE, isPublish);
         mSm.sendMessage(msg);
     }
@@ -512,7 +512,7 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_MESSAGE_RECEIVED;
         msg.arg2 = pubSubId;
-        msg.obj = Integer.valueOf(requestorInstanceId);
+        msg.obj = requestorInstanceId;
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS, peerMac);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA, message);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH, messageLength);
@@ -547,7 +547,7 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL;
         msg.arg2 = transactionId;
-        msg.obj = Integer.valueOf(reason);
+        msg.obj = reason;
         mSm.sendMessage(msg);
     }
 
@@ -1154,11 +1154,11 @@ public class WifiNanStateManager {
 
         @Override
         protected String getLogRecString(Message msg) {
-            StringBuffer sb = new StringBuffer(WifiNanStateManager.messageToString(msg));
+            StringBuilder sb = new StringBuilder(WifiNanStateManager.messageToString(msg));
 
             if (msg.what == MESSAGE_TYPE_COMMAND
                     && mCurrentTransactionId != TRANSACTION_ID_IGNORE) {
-                sb.append(" (Transaction ID=" + mCurrentTransactionId + ")");
+                sb.append(" (Transaction ID=").append(mCurrentTransactionId).append(")");
             }
 
             return sb.toString();
@@ -1430,18 +1430,18 @@ public class WifiNanStateManager {
             return;
         }
 
-        for (int i = 0; i < params.length; ++i) {
-            String peerIdStr = params[i].bssid;
+        for (RttManager.RttParams param : params) {
+            String peerIdStr = param.bssid;
             try {
-                params[i].bssid = session.getMac(Integer.parseInt(peerIdStr), ":");
-                if (params[i].bssid == null) {
+                param.bssid = session.getMac(Integer.parseInt(peerIdStr), ":");
+                if (param.bssid == null) {
                     Log.d(TAG, "startRangingLocal: no MAC address for peer ID=" + peerIdStr);
-                    params[i].bssid = "";
+                    param.bssid = "";
                 }
             } catch (NumberFormatException e) {
                 Log.e(TAG, "startRangingLocal: invalid peer ID specification (in bssid field): '"
                         + peerIdStr + "'");
-                params[i].bssid = "";
+                param.bssid = "";
             }
         }
 
@@ -1725,7 +1725,7 @@ public class WifiNanStateManager {
             int matchFilterLength) {
         if (VDBG) {
             Log.v(TAG, "onMatch: pubSubId=" + pubSubId + ", requestorInstanceId="
-                    + requestorInstanceId + ", peerMac="
+                    + requestorInstanceId + ", peerDiscoveryMac="
                     + String.valueOf(HexEncoding.encode(peerMac)) + ", serviceSpecificInfoLength="
                     + serviceSpecificInfoLength + ", serviceSpecificInfo="
                     + Arrays.toString(serviceSpecificInfo) + ", matchFilterLength="
@@ -1768,7 +1768,7 @@ public class WifiNanStateManager {
         if (VDBG) {
             Log.v(TAG,
                     "onMessageReceivedLocal: pubSubId=" + pubSubId + ", requestorInstanceId="
-                            + requestorInstanceId + ", peerMac="
+                            + requestorInstanceId + ", peerDiscoveryMac="
                             + String.valueOf(HexEncoding.encode(peerMac)) + ", messageLength="
                             + messageLength);
         }
@@ -1990,7 +1990,7 @@ public class WifiNanStateManager {
         }
 
         if (msg.what == MESSAGE_TYPE_RESPONSE || msg.what == MESSAGE_TYPE_RESPONSE_TIMEOUT) {
-            sb.append(" (Transaction ID=" + msg.arg2 + ")");
+            sb.append(" (Transaction ID=").append(msg.arg2).append(")");
         }
 
         return sb.toString();
