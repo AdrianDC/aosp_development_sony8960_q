@@ -90,6 +90,21 @@ wifi_error wifi_nan_register_handler_mock(wifi_interface_handle iface,
 wifi_error wifi_nan_get_version_mock(wifi_handle handle, NanVersion* version);
 wifi_error wifi_nan_get_capabilities_mock(transaction_id id,
                                 wifi_interface_handle iface);
+wifi_error wifi_nan_data_interface_create_mock(transaction_id id,
+                                               wifi_interface_handle iface,
+                                               char* iface_name);
+wifi_error wifi_nan_data_interface_delete_mock(transaction_id id,
+                                               wifi_interface_handle iface,
+                                               char* iface_name);
+wifi_error wifi_nan_data_request_initiator_mock(
+    transaction_id id, wifi_interface_handle iface,
+    NanDataPathInitiatorRequest* msg);
+wifi_error wifi_nan_data_indication_response_mock(
+    transaction_id id, wifi_interface_handle iface,
+    NanDataPathIndicationResponse* msg);
+wifi_error wifi_nan_data_end_mock(transaction_id id,
+                                  wifi_interface_handle iface,
+                                  NanDataPathEndRequest* msg);
 
 }  // namespace android
 

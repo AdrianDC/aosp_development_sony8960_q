@@ -93,6 +93,13 @@ public class WifiNanStateManager {
     private static final int COMMAND_TYPE_DISABLE_USAGE = 109;
     private static final int COMMAND_TYPE_START_RANGING = 110;
     private static final int COMMAND_TYPE_GET_CAPABILITIES = 111;
+    private static final int COMMAND_TYPE_CREATE_ALL_DATA_PATH_INTERFACES = 112;
+    private static final int COMMAND_TYPE_DELETE_ALL_DATA_PATH_INTERFACES = 113;
+    private static final int COMMAND_TYPE_CREATE_DATA_PATH_INTERFACE = 114;
+    private static final int COMMAND_TYPE_DELETE_DATA_PATH_INTERFACE = 115;
+    private static final int COMMAND_TYPE_INITIATE_DATA_PATH_SETUP = 116;
+    private static final int COMMAND_TYPE_RESPOND_TO_DATA_PATH_SETUP_REQUEST = 117;
+    private static final int COMMAND_TYPE_END_DATA_PATH = 118;
 
     private static final int RESPONSE_TYPE_ON_CONFIG_SUCCESS = 200;
     private static final int RESPONSE_TYPE_ON_CONFIG_FAIL = 201;
@@ -101,6 +108,12 @@ public class WifiNanStateManager {
     private static final int RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_SUCCESS = 204;
     private static final int RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_FAIL = 205;
     private static final int RESPONSE_TYPE_ON_CAPABILITIES_UPDATED = 206;
+    private static final int RESPONSE_TYPE_ON_CREATE_INTERFACE = 207;
+    private static final int RESPONSE_TYPE_ON_DELETE_INTERFACE = 208;
+    private static final int RESPONSE_TYPE_ON_INITIATE_DATA_PATH_SUCCESS = 209;
+    private static final int RESPONSE_TYPE_ON_INITIATE_DATA_PATH_FAIL = 210;
+    private static final int RESPONSE_TYPE_ON_RESPOND_TO_DATA_PATH_SETUP_REQUEST = 211;
+    private static final int RESPONSE_TYPE_ON_END_DATA_PATH = 212;
 
     private static final int NOTIFICATION_TYPE_INTERFACE_CHANGE = 301;
     private static final int NOTIFICATION_TYPE_CLUSTER_CHANGE = 302;
@@ -110,6 +123,9 @@ public class WifiNanStateManager {
     private static final int NOTIFICATION_TYPE_NAN_DOWN = 306;
     private static final int NOTIFICATION_TYPE_ON_MESSAGE_SEND_SUCCESS = 307;
     private static final int NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL = 308;
+    private static final int NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST = 309;
+    private static final int NOTIFICATION_TYPE_ON_DATA_PATH_CONFIRM = 310;
+    private static final int NOTIFICATION_TYPE_ON_DATA_PATH_END = 311;
 
     /*
      * Keys used when passing (some) arguments to the Handler thread (too many
@@ -132,6 +148,12 @@ public class WifiNanStateManager {
     private static final String MESSAGE_BUNDLE_KEY_RANGING_ID = "ranging_id";
     private static final String MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME = "message_queue_time";
     private static final String MESSAGE_BUNDLE_KEY_RETRY_COUNT = "retry_count";
+    private static final String MESSAGE_BUNDLE_KEY_SUCCESS_FLAG = "success_flag";
+    private static final String MESSAGE_BUNDLE_KEY_STATUS_CODE = "status_code";
+    private static final String MESSAGE_BUNDLE_KEY_INTERFACE_NAME = "interface_name";
+    private static final String MESSAGE_BUNDLE_KEY_PUB_SUB_ID = "pub_sub_id";
+    private static final String MESSAGE_BUNDLE_KEY_CHANNEL_REQ_TYPE = "channel_request_type";
+    private static final String MESSAGE_BUNDLE_KEY_CHANNEL = "channel";
 
     /*
      * Asynchronous access with no lock
@@ -143,7 +165,7 @@ public class WifiNanStateManager {
      * handler thread: no need to use a lock.
      */
     private Context mContext;
-    private WifiNanNative.Capabilities mCapabilities;
+    WifiNanNative.Capabilities mCapabilities;
     private WifiNanStateMachine mSm;
     private WifiNanRttStateManager mRtt;
 
@@ -354,6 +376,86 @@ public class WifiNanStateManager {
         mSm.sendMessage(msg);
     }
 
+
+    /**
+     * Create all NAN data path interfaces which are supported by the firmware capabilities.
+     */
+    public void createAllDataPathInterfaces() {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_CREATE_ALL_DATA_PATH_INTERFACES;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * delete all NAN data path interfaces.
+     */
+    public void deleteAllDataPathInterfaces() {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_DELETE_ALL_DATA_PATH_INTERFACES;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Create the specified data-path interface. Doesn't actually creates a data-path.
+     */
+    public void createDataPathInterface(String interfaceName) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_CREATE_DATA_PATH_INTERFACE;
+        msg.obj = interfaceName;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Deletes the specified data-path interface.
+     */
+    public void deleteDataPathInterface(String interfaceName) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_DELETE_DATA_PATH_INTERFACE;
+        msg.obj = interfaceName;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Command to initiate a data-path (executed by the initiator).
+     */
+    public void initiateDataPathSetup(String networkSpecifier, int pubSubId, int channelRequestType,
+            int channel, byte[] peer, String interfaceName, String token) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_INITIATE_DATA_PATH_SETUP;
+        msg.obj = networkSpecifier;
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_PUB_SUB_ID, pubSubId);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_CHANNEL_REQ_TYPE, channelRequestType);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_CHANNEL, channel);
+        msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS, peer);
+        msg.getData().putString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME, interfaceName);
+        msg.getData().putString(MESSAGE_BUNDLE_KEY_MESSAGE, token);
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Command to respond to the data-path request (executed by the responder).
+     */
+    public void respondToDataPathRequest(boolean accept, int ndpId, String interfaceName,
+            String token) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_RESPOND_TO_DATA_PATH_SETUP_REQUEST;
+        msg.arg2 = ndpId;
+        msg.obj = accept;
+        msg.getData().putString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME, interfaceName);
+        msg.getData().putString(MESSAGE_BUNDLE_KEY_MESSAGE, token);
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Command to terminate the specified data-path.
+     */
+    public void endDataPath(int ndpId) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_END_DATA_PATH;
+        msg.arg2 = ndpId;
+        mSm.sendMessage(msg);
+    }
+
     /*
      * RESPONSES
      */
@@ -439,6 +541,84 @@ public class WifiNanStateManager {
         msg.arg1 = RESPONSE_TYPE_ON_CAPABILITIES_UPDATED;
         msg.arg2 = transactionId;
         msg.obj = capabilities;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Places a callback request on the state machine queue: data-path interface creation command
+     * completed.
+     */
+    public void onCreateDataPathInterfaceResponse(short transactionId, boolean success,
+            int reasonOnFailure) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
+        msg.arg1 = RESPONSE_TYPE_ON_CREATE_INTERFACE;
+        msg.arg2 = transactionId;
+        msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG, success);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_STATUS_CODE, reasonOnFailure);
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Places a callback request on the state machine queue: data-path interface deletion command
+     * completed.
+     */
+    public void onDeleteDataPathInterfaceResponse(short transactionId, boolean success,
+            int reasonOnFailure) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
+        msg.arg1 = RESPONSE_TYPE_ON_DELETE_INTERFACE;
+        msg.arg2 = transactionId;
+        msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG, success);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_STATUS_CODE, reasonOnFailure);
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Response from firmware to {@link #initiateDataPathSetup(String, int, int, int, byte[],
+     * String, String)}. Indicates that command has started succesfully (not completed!).
+     */
+    public void onInitiateDataPathResponseSuccess(short transactionId, int ndpId) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
+        msg.arg1 = RESPONSE_TYPE_ON_INITIATE_DATA_PATH_SUCCESS;
+        msg.arg2 = transactionId;
+        msg.obj = ndpId;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Response from firmware to
+     * {@link #initiateDataPathSetup(String, int, int, int, byte[], String, String)}. Indicates
+     * that command has failed.
+     */
+    public void onInitiateDataPathResponseFail(short transactionId, int reason) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
+        msg.arg1 = RESPONSE_TYPE_ON_INITIATE_DATA_PATH_FAIL;
+        msg.arg2 = transactionId;
+        msg.obj = reason;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Response from firmware to {@link #respondToDataPathRequest(boolean, int, String, String)}.
+     */
+    public void onRespondToDataPathSetupRequestResponse(short transactionId, boolean success,
+            int reasonOnFailure) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
+        msg.arg1 = RESPONSE_TYPE_ON_RESPOND_TO_DATA_PATH_SETUP_REQUEST;
+        msg.arg2 = transactionId;
+        msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG, success);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_STATUS_CODE, reasonOnFailure);
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Response from firmware to {@link #endDataPath(int)}.
+     */
+    public void onEndDataPathResponse(short transactionId, boolean success, int reasonOnFailure) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
+        msg.arg1 = RESPONSE_TYPE_ON_END_DATA_PATH;
+        msg.arg2 = transactionId;
+        msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG, success);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_STATUS_CODE, reasonOnFailure);
         mSm.sendMessage(msg);
     }
 
@@ -548,6 +728,49 @@ public class WifiNanStateManager {
         msg.arg1 = NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL;
         msg.arg2 = transactionId;
         msg.obj = reason;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Place a callback request on the state machine queue: data-path request (from peer) received.
+     */
+    public void onDataPathRequestNotification(int pubSubId, byte[] mac, int ndpId, byte[] message,
+            int messageLength) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
+        msg.arg1 = NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST;
+        msg.arg2 = pubSubId;
+        msg.obj = ndpId;
+        msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS, mac);
+        msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA, message);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH, messageLength);
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Place a callback request on the state machine queue: data-path confirmation received - i.e.
+     * data-path is now up.
+     */
+    public void onDataPathConfirmNotification(int ndpId, byte[] mac, boolean accept, int reason,
+            byte[] message, int messageLength) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
+        msg.arg1 = NOTIFICATION_TYPE_ON_DATA_PATH_CONFIRM;
+        msg.arg2 = ndpId;
+        msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS, mac);
+        msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG, accept);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_STATUS_CODE, reason);
+        msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA, message);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH, messageLength);
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Place a callback request on the state machine queue: the specified data-path has been
+     * terminated.
+     */
+    public void onDataPathEndNotification(int ndpId) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
+        msg.arg1 = NOTIFICATION_TYPE_ON_DATA_PATH_END;
+        msg.arg2 = ndpId;
         mSm.sendMessage(msg);
     }
 
@@ -810,6 +1033,15 @@ public class WifiNanStateManager {
                     }
                     break;
                 }
+                case NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST:
+                    // TODO: do something with this
+                    break;
+                case NOTIFICATION_TYPE_ON_DATA_PATH_CONFIRM:
+                    // TODO: do something with this
+                    break;
+                case NOTIFICATION_TYPE_ON_DATA_PATH_END:
+                    // TODO: do something with this
+                    break;
                 default:
                     Log.wtf(TAG, "processNotification: this isn't a NOTIFICATION -- msg=" + msg);
                     return;
@@ -949,6 +1181,52 @@ public class WifiNanStateManager {
                         waitForResponse = false;
                     }
                     break;
+                case COMMAND_TYPE_CREATE_ALL_DATA_PATH_INTERFACES:
+                    // TODO: actually create interfaces
+                    waitForResponse = false;
+                    break;
+                case COMMAND_TYPE_DELETE_ALL_DATA_PATH_INTERFACES:
+                    // TODO: actually create interfaces
+                    waitForResponse = false;
+                    break;
+                case COMMAND_TYPE_CREATE_DATA_PATH_INTERFACE:
+                    waitForResponse = WifiNanNative.getInstance().createNanNetworkInterface(
+                            mCurrentTransactionId, (String) msg.obj);
+                    break;
+                case COMMAND_TYPE_DELETE_DATA_PATH_INTERFACE:
+                    waitForResponse = WifiNanNative.getInstance().deleteNanNetworkInterface(
+                            mCurrentTransactionId, (String) msg.obj);
+                    break;
+                case COMMAND_TYPE_INITIATE_DATA_PATH_SETUP: {
+                    Bundle data = msg.getData();
+
+                    int pubSubId = data.getInt(MESSAGE_BUNDLE_KEY_PUB_SUB_ID);
+                    int channelRequestType = data.getInt(MESSAGE_BUNDLE_KEY_CHANNEL_REQ_TYPE);
+                    int channel = data.getInt(MESSAGE_BUNDLE_KEY_CHANNEL);
+                    byte[] peer = data.getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS);
+                    String interfaceName = data.getString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME);
+                    String token = data.getString(MESSAGE_BUNDLE_KEY_MESSAGE);
+
+                    waitForResponse = initiateDataPathSetupLocal(mCurrentTransactionId, pubSubId,
+                            channelRequestType, channel, peer, interfaceName, token);
+                    break;
+                }
+                case COMMAND_TYPE_RESPOND_TO_DATA_PATH_SETUP_REQUEST: {
+                    Bundle data = msg.getData();
+
+                    int ndpId = msg.arg2;
+                    boolean accept = (boolean) msg.obj;
+                    String interfaceName = data.getString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME);
+                    String token = data.getString(MESSAGE_BUNDLE_KEY_MESSAGE);
+
+                    waitForResponse = respondToDataPathRequestLocal(mCurrentTransactionId, accept,
+                            ndpId, interfaceName, token);
+
+                    break;
+                }
+                case COMMAND_TYPE_END_DATA_PATH:
+                    waitForResponse = endDataPathLocal(mCurrentTransactionId, msg.arg2);
+                    break;
                 default:
                     waitForResponse = false;
                     Log.wtf(TAG, "processCommand: this isn't a COMMAND -- msg=" + msg);
@@ -1013,6 +1291,32 @@ public class WifiNanStateManager {
                     onCapabilitiesUpdatedResponseLocal((WifiNanNative.Capabilities) msg.obj);
                     break;
                 }
+                case RESPONSE_TYPE_ON_CREATE_INTERFACE:
+                    onCreateDataPathInterfaceResponseLocal(mCurrentCommand,
+                            msg.getData().getBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG),
+                            msg.getData().getInt(MESSAGE_BUNDLE_KEY_STATUS_CODE));
+                    break;
+                case RESPONSE_TYPE_ON_DELETE_INTERFACE:
+                    onDeleteDataPathInterfaceResponseLocal(mCurrentCommand,
+                            msg.getData().getBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG),
+                            msg.getData().getInt(MESSAGE_BUNDLE_KEY_STATUS_CODE));
+                    break;
+                case RESPONSE_TYPE_ON_INITIATE_DATA_PATH_SUCCESS:
+                    onInitiateDataPathResponseSuccessLocal(mCurrentCommand, (int) msg.obj);
+                    break;
+                case RESPONSE_TYPE_ON_INITIATE_DATA_PATH_FAIL:
+                    onInitiateDataPathResponseFailLocal(mCurrentCommand, (int) msg.obj);
+                    break;
+                case RESPONSE_TYPE_ON_RESPOND_TO_DATA_PATH_SETUP_REQUEST:
+                    onRespondToDataPathSetupRequestResponseLocal(mCurrentCommand,
+                            msg.getData().getBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG),
+                            msg.getData().getInt(MESSAGE_BUNDLE_KEY_STATUS_CODE));
+                    break;
+                case RESPONSE_TYPE_ON_END_DATA_PATH:
+                    onEndPathEndResponseLocal(mCurrentCommand,
+                            msg.getData().getBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG),
+                            msg.getData().getInt(MESSAGE_BUNDLE_KEY_STATUS_CODE));
+                    break;
                 default:
                     Log.wtf(TAG, "processResponse: this isn't a RESPONSE -- msg=" + msg);
                     mCurrentCommand = null;
@@ -1092,6 +1396,36 @@ public class WifiNanStateManager {
                     Log.e(TAG,
                             "processTimeout: GET_CAPABILITIES timed-out - strange, will try again"
                                     + " when next enabled!?");
+                    break;
+                case COMMAND_TYPE_CREATE_ALL_DATA_PATH_INTERFACES:
+                    Log.wtf(TAG,
+                            "processTimeout: CREATE_ALL_DATA_PATH_INTERFACES - shouldn't be "
+                                    + "waiting!");
+                    break;
+                case COMMAND_TYPE_DELETE_ALL_DATA_PATH_INTERFACES:
+                    Log.wtf(TAG,
+                            "processTimeout: DELETE_ALL_DATA_PATH_INTERFACES - shouldn't be "
+                                    + "waiting!");
+                    break;
+                case COMMAND_TYPE_CREATE_DATA_PATH_INTERFACE:
+                    // TODO: fix status: timeout
+                    onCreateDataPathInterfaceResponseLocal(mCurrentCommand, false, 0);
+                    break;
+                case COMMAND_TYPE_DELETE_DATA_PATH_INTERFACE:
+                    // TODO: fix status: timeout
+                    onDeleteDataPathInterfaceResponseLocal(mCurrentCommand, false, 0);
+                    break;
+                case COMMAND_TYPE_INITIATE_DATA_PATH_SETUP:
+                    // TODO: fix status: timeout
+                    onInitiateDataPathResponseFailLocal(mCurrentCommand, 0);
+                    break;
+                case COMMAND_TYPE_RESPOND_TO_DATA_PATH_SETUP_REQUEST:
+                    // TODO: fix status: timeout
+                    onRespondToDataPathSetupRequestResponseLocal(mCurrentCommand, false, 0);
+                    break;
+                case COMMAND_TYPE_END_DATA_PATH:
+                    // TODO: fix status: timeout
+                    onEndPathEndResponseLocal(mCurrentCommand, false, 0);
                     break;
                 default:
                     Log.wtf(TAG, "processTimeout: this isn't a COMMAND -- msg=" + msg);
@@ -1449,6 +1783,42 @@ public class WifiNanStateManager {
         mRtt.startRanging(rangingId, client, params);
     }
 
+    private boolean initiateDataPathSetupLocal(short transactionId, int pubSubId,
+            int channelRequestType, int channel, byte[] peer, String interfaceName, String token) {
+        if (VDBG) {
+            Log.v(TAG,
+                    "initiateDataPathSetupLocal(): transactionId=" + transactionId + ", pubSubId="
+                            + pubSubId + ", channelRequestType=" + channelRequestType + ", channel="
+                            + channel + ", peer=" + String.valueOf(HexEncoding.encode(peer))
+                            + ", interfaceName=" + interfaceName + ", token=" + token);
+        }
+
+        return WifiNanNative.getInstance().initiateDataPath(transactionId, pubSubId,
+                channelRequestType, channel, peer, interfaceName, token.getBytes(), token.length());
+    }
+
+    private boolean respondToDataPathRequestLocal(short transactionId, boolean accept,
+            int ndpId, String interfaceName, String token) {
+        if (VDBG) {
+            Log.v(TAG,
+                    "respondToDataPathRequestLocal(): transactionId=" + transactionId + ", accept="
+                            + accept + ", ndpId=" + ndpId + ", interfaceName=" + interfaceName
+                            + ", token=" + token);
+        }
+
+        return WifiNanNative.getInstance().respondToDataPathRequest(transactionId, accept, ndpId,
+                interfaceName, token.getBytes(), token.length());
+    }
+
+    private boolean endDataPathLocal(short transactionId, int ndpId) {
+        if (VDBG) {
+            Log.v(TAG,
+                    "endDataPathLocal: transactionId=" + transactionId + ", ndpId=" + ndpId);
+        }
+
+        return WifiNanNative.getInstance().endDataPath(transactionId, ndpId);
+    }
+
     /*
      * RESPONSES
      */
@@ -1682,6 +2052,85 @@ public class WifiNanStateManager {
         mCapabilities = capabilities;
     }
 
+    private void onCreateDataPathInterfaceResponseLocal(Message command, boolean success,
+            int reasonOnFailure) {
+        if (VDBG) {
+            Log.v(TAG, "onCreateDataPathInterfaceResponseLocal: command=" + command + ", success="
+                    + success + ", reasonOnFailure=" + reasonOnFailure);
+        }
+
+        if (success) {
+            if (DBG) {
+                Log.d(TAG, "onCreateDataPathInterfaceResponseLocal: successfully created interface "
+                        + command.obj);
+            }
+            // TODO: do something with this
+        } else {
+            Log.e(TAG,
+                    "onCreateDataPathInterfaceResponseLocal: failed when trying to create "
+                            + "interface "
+                            + command.obj + ". Reason code=" + reasonOnFailure);
+        }
+    }
+
+    private void onDeleteDataPathInterfaceResponseLocal(Message command, boolean success,
+            int reasonOnFailure) {
+        if (VDBG) {
+            Log.v(TAG, "onDeleteDataPathInterfaceResponseLocal: command=" + command + ", success="
+                    + success + ", reasonOnFailure=" + reasonOnFailure);
+        }
+
+        if (success) {
+            if (DBG) {
+                Log.d(TAG, "onDeleteDataPathInterfaceResponseLocal: successfully deleted interface "
+                        + command.obj);
+            }
+            // TODO: do something with this
+        } else {
+            Log.e(TAG,
+                    "onDeleteDataPathInterfaceResponseLocal: failed when trying to delete "
+                            + "interface "
+                            + command.obj + ". Reason code=" + reasonOnFailure);
+        }
+    }
+
+    private void onInitiateDataPathResponseSuccessLocal(Message command, int ndpId) {
+        if (VDBG) {
+            Log.v(TAG, "onInitiateDataPathResponseSuccessLocal: command=" + command + ", ndpId="
+                    + ndpId);
+        }
+
+        // TODO: do something with this
+    }
+
+    private void onInitiateDataPathResponseFailLocal(Message command, int reason) {
+        if (VDBG) {
+            Log.v(TAG, "onInitiateDataPathResponseFailLocal: command=" + command + ", reason="
+                    + reason);
+        }
+
+        // TODO: do something with this
+    }
+
+    private void onRespondToDataPathSetupRequestResponseLocal(Message command, boolean success,
+            int reasonOnFailure) {
+        if (VDBG) {
+            Log.v(TAG, "onRespondToDataPathSetupRequestResponseLocal: command=" + command
+                    + ", success=" + success + ", reasonOnFailure=" + reasonOnFailure);
+        }
+
+        // TODO: do something with this
+    }
+
+    private void onEndPathEndResponseLocal(Message command, boolean success, int reasonOnFailure) {
+        if (VDBG) {
+            Log.v(TAG, "onEndPathEndResponseLocal: command=" + command
+                    + ", success=" + success + ", reasonOnFailure=" + reasonOnFailure);
+        }
+
+        // TODO: do something with this
+    }
+
     /*
      * NOTIFICATIONS
      */
@@ -1901,6 +2350,15 @@ public class WifiNanStateManager {
                     case NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL:
                         sb.append("ON_MESSAGE_SEND_FAIL");
                         break;
+                    case NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST:
+                        sb.append("ON_DATA_PATH_REQUEST");
+                        break;
+                    case NOTIFICATION_TYPE_ON_DATA_PATH_CONFIRM:
+                        sb.append("ON_DATA_PATH_CONFIRM");
+                        break;
+                    case NOTIFICATION_TYPE_ON_DATA_PATH_END:
+                        sb.append("ON_DATA_PATH_END");
+                        break;
                     default:
                         sb.append("<unknown>");
                         break;
@@ -1945,6 +2403,27 @@ public class WifiNanStateManager {
                     case COMMAND_TYPE_GET_CAPABILITIES:
                         sb.append("GET_CAPABILITIES");
                         break;
+                    case COMMAND_TYPE_CREATE_ALL_DATA_PATH_INTERFACES:
+                        sb.append("CREATE_ALL_DATA_PATH_INTERFACES");
+                        break;
+                    case COMMAND_TYPE_DELETE_ALL_DATA_PATH_INTERFACES:
+                        sb.append("DELETE_ALL_DATA_PATH_INTERFACES");
+                        break;
+                    case COMMAND_TYPE_CREATE_DATA_PATH_INTERFACE:
+                        sb.append("CREATE_DATA_PATH_INTERFACE");
+                        break;
+                    case COMMAND_TYPE_DELETE_DATA_PATH_INTERFACE:
+                        sb.append("DELETE_DATA_PATH_INTERFACE");
+                        break;
+                    case COMMAND_TYPE_INITIATE_DATA_PATH_SETUP:
+                        sb.append("INITIATE_DATA_PATH_SETUP");
+                        break;
+                    case COMMAND_TYPE_RESPOND_TO_DATA_PATH_SETUP_REQUEST:
+                        sb.append("RESPOND_TO_DATA_PATH_SETUP_REQUEST");
+                        break;
+                    case COMMAND_TYPE_END_DATA_PATH:
+                        sb.append("END_DATA_PATH");
+                        break;
                     default:
                         sb.append("<unknown>");
                         break;
@@ -1973,6 +2452,24 @@ public class WifiNanStateManager {
                         break;
                     case RESPONSE_TYPE_ON_CAPABILITIES_UPDATED:
                         sb.append("ON_CAPABILITIES_UDPATED");
+                        break;
+                    case RESPONSE_TYPE_ON_CREATE_INTERFACE:
+                        sb.append("ON_CREATE_INTERFACE");
+                        break;
+                    case RESPONSE_TYPE_ON_DELETE_INTERFACE:
+                        sb.append("ON_DELETE_INTERFACE");
+                        break;
+                    case RESPONSE_TYPE_ON_INITIATE_DATA_PATH_SUCCESS:
+                        sb.append("ON_INITIATE_DATA_PATH_SUCCESS");
+                        break;
+                    case RESPONSE_TYPE_ON_INITIATE_DATA_PATH_FAIL:
+                        sb.append("ON_INITIATE_DATA_PATH_FAIL");
+                        break;
+                    case RESPONSE_TYPE_ON_RESPOND_TO_DATA_PATH_SETUP_REQUEST:
+                        sb.append("ON_RESPOND_TO_DATA_PATH_SETUP_REQUEST");
+                        break;
+                    case RESPONSE_TYPE_ON_END_DATA_PATH:
+                        sb.append("DATA_PATH_END_RESPONSE");
                         break;
                     default:
                         sb.append("<unknown>");
