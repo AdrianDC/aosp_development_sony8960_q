@@ -3472,13 +3472,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         // Update link layer stats
         getWifiLinkLayerStats();
 
-        /* P2p discovery breaks dhcp, shut it down in order to get through this */
-        Message msg = new Message();
-        msg.what = WifiP2pServiceImpl.BLOCK_DISCOVERY;
-        msg.arg1 = WifiP2pServiceImpl.ENABLED;
-        msg.arg2 = DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE;
-        msg.obj = WifiStateMachine.this;
-        mWifiP2pChannel.sendMessage(msg);
+        if (mWifiP2pChannel != null) {
+            /* P2p discovery breaks dhcp, shut it down in order to get through this */
+            Message msg = new Message();
+            msg.what = WifiP2pServiceImpl.BLOCK_DISCOVERY;
+            msg.arg1 = WifiP2pServiceImpl.ENABLED;
+            msg.arg2 = DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE;
+            msg.obj = WifiStateMachine.this;
+            mWifiP2pChannel.sendMessage(msg);
+        }
     }
 
     void handlePostDhcpSetup() {
@@ -3486,8 +3488,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         setSuspendOptimizationsNative(SUSPEND_DUE_TO_DHCP, true);
         mWifiNative.setPowerSave(true);
 
-        mWifiP2pChannel.sendMessage(WifiP2pServiceImpl.BLOCK_DISCOVERY,
-                WifiP2pServiceImpl.DISABLED);
+        p2pSendMessage(WifiP2pServiceImpl.BLOCK_DISCOVERY, WifiP2pServiceImpl.DISABLED);
 
         // Set the coexistence mode back to its default value
         mWifiNative.setBluetoothCoexistenceMode(
@@ -3805,7 +3806,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     AsyncChannel ac = (AsyncChannel) message.obj;
                     if (ac == mWifiP2pChannel) {
                         if (message.arg1 == AsyncChannel.STATUS_SUCCESSFUL) {
-                            mWifiP2pChannel.sendMessage(AsyncChannel.CMD_CHANNEL_FULL_CONNECTION);
+                            p2pSendMessage(AsyncChannel.CMD_CHANNEL_FULL_CONNECTION);
                         } else {
                             loge("WifiP2pService connection failure, error=" + message.arg1);
                         }
@@ -4055,7 +4056,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         public void enter() {
             mWifiNative.stopHal();
             mWifiNative.unloadDriver();
-            if (mWifiP2pChannel == null) {
+            if (mWifiP2pChannel == null && mWifiP2pServiceImpl != null) {
                 mWifiP2pChannel = new AsyncChannel();
                 mWifiP2pChannel.connect(mContext, getHandler(),
                     mWifiP2pServiceImpl.getP2pStateMachineMessenger());
@@ -4562,7 +4563,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             if (mP2pSupported) {
                 if (mOperationalMode == CONNECT_MODE) {
-                    mWifiP2pChannel.sendMessage(WifiStateMachine.CMD_ENABLE_P2P);
+                    p2pSendMessage(WifiStateMachine.CMD_ENABLE_P2P);
                 } else {
                     // P2P statemachine starts in disabled state, and is not enabled until
                     // CMD_ENABLE_P2P is sent from here; so, nothing needs to be done to
@@ -4745,7 +4746,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mTransitionToState = mDriverStoppingState;
                     break;
             }
-            mWifiP2pChannel.sendMessage(WifiStateMachine.CMD_DISABLE_P2P_REQ);
+            p2pSendMessage(WifiStateMachine.CMD_DISABLE_P2P_REQ);
         }
         @Override
         public boolean processMessage(Message message) {
@@ -4855,7 +4856,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             // Load and re-enable networks when going back to enabled state
                             // This is essential for networks to show up after restore
                             mWifiConfigManager.loadAndEnableAllNetworks();
-                            mWifiP2pChannel.sendMessage(CMD_ENABLE_P2P);
+                            p2pSendMessage(CMD_ENABLE_P2P);
                         } else {
                             mWifiConfigManager.enableAllNetworks();
                         }
@@ -7229,7 +7230,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // We dont scan frequently if this is a temporary disconnect
             // due to p2p
             if (mTemporarilyDisconnectWifi) {
-                mWifiP2pChannel.sendMessage(WifiP2pServiceImpl.DISCONNECT_WIFI_RESPONSE);
+                p2pSendMessage(WifiP2pServiceImpl.DISCONNECT_WIFI_RESPONSE);
                 return;
             }
 
@@ -7290,7 +7291,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mOperationalMode = message.arg1;
                         mWifiConfigManager.disableAllNetworksNative();
                         if (mOperationalMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
-                            mWifiP2pChannel.sendMessage(CMD_DISABLE_P2P_REQ);
+                            p2pSendMessage(CMD_DISABLE_P2P_REQ);
                             setWifiState(WIFI_STATE_DISABLED);
                         }
                         transitionTo(mScanModeState);
@@ -7995,5 +7996,17 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             return currentConfig.SSID;
         }
         return null;
+    }
+
+    private void p2pSendMessage(int what) {
+        if (mWifiP2pChannel != null) {
+            mWifiP2pChannel.sendMessage(what);
+        }
+    }
+
+    private void p2pSendMessage(int what, int arg1) {
+        if (mWifiP2pChannel != null) {
+            mWifiP2pChannel.sendMessage(what, arg1);
+        }
     }
 }
