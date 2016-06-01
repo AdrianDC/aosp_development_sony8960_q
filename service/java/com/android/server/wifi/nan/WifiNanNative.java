@@ -183,13 +183,17 @@ public class WifiNanNative {
                     ret = enableAndConfigureNative(transactionId, WifiNative.class,
                             WifiNative.sWlan0Index, configRequest);
                 }
-                if (DBG) Log.d(TAG, "enableAndConfigureNative: ret=" + ret);
+                if (ret != WIFI_SUCCESS) {
+                    Log.w(TAG, "enableAndConfigureNative: HAL API returned non-success -- " + ret);
+                }
             } else {
                 synchronized (WifiNative.sLock) {
                     ret = updateConfigurationNative(transactionId, WifiNative.class,
                             WifiNative.sWlan0Index, configRequest);
                 }
-                if (DBG) Log.d(TAG, "updateConfigurationNative: ret=" + ret);
+                if (ret != WIFI_SUCCESS) {
+                    Log.w(TAG, "updateConfigurationNative: HAL API returned non-success -- " + ret);
+                }
             }
             return ret == WIFI_SUCCESS;
         } else {
@@ -213,7 +217,9 @@ public class WifiNanNative {
             synchronized (WifiNative.sLock) {
                 ret = disableNative(transactionId, WifiNative.class, WifiNative.sWlan0Index);
             }
-            if (DBG) Log.d(TAG, "disableNative: ret=" + ret);
+            if (ret != WIFI_SUCCESS) {
+                Log.w(TAG, "disableNative: HAL API returned non-success -- " + ret);
+            }
             return ret == WIFI_SUCCESS;
         } else {
             Log.w(TAG, "disable: cannot initialize NAN");
@@ -244,7 +250,9 @@ public class WifiNanNative {
                 ret = publishNative(transactionId, publishId, WifiNative.class,
                         WifiNative.sWlan0Index, publishConfig);
             }
-            if (DBG) Log.d(TAG, "publishNative: ret=" + ret);
+            if (ret != WIFI_SUCCESS) {
+                Log.w(TAG, "publishNative: HAL API returned non-success -- " + ret);
+            }
             return ret == WIFI_SUCCESS;
         } else {
             Log.w(TAG, "publish: cannot initialize NAN");
@@ -276,7 +284,9 @@ public class WifiNanNative {
                 ret = subscribeNative(transactionId, subscribeId, WifiNative.class,
                         WifiNative.sWlan0Index, subscribeConfig);
             }
-            if (DBG) Log.d(TAG, "subscribeNative: ret=" + ret);
+            if (ret != WIFI_SUCCESS) {
+                Log.w(TAG, "subscribeNative: HAL API returned non-success -- " + ret);
+            }
             return ret == WIFI_SUCCESS;
         } else {
             Log.w(TAG, "subscribe: cannot initialize NAN");
@@ -317,7 +327,9 @@ public class WifiNanNative {
                 ret = sendMessageNative(transactionId, WifiNative.class, WifiNative.sWlan0Index,
                         pubSubId, requestorInstanceId, dest, message, messageLength);
             }
-            if (DBG) Log.d(TAG, "sendMessageNative: ret=" + ret);
+            if (ret != WIFI_SUCCESS) {
+                Log.w(TAG, "sendMessageNative: HAL API returned non-success -- " + ret);
+            }
             return ret == WIFI_SUCCESS;
         } else {
             Log.w(TAG, "sendMessage: cannot initialize NAN");
@@ -347,7 +359,9 @@ public class WifiNanNative {
                 ret = stopPublishNative(transactionId, WifiNative.class, WifiNative.sWlan0Index,
                         pubSubId);
             }
-            if (DBG) Log.d(TAG, "stopPublishNative: ret=" + ret);
+            if (ret != WIFI_SUCCESS) {
+                Log.w(TAG, "stopPublishNative: HAL API returned non-success -- " + ret);
+            }
             return ret == WIFI_SUCCESS;
         } else {
             Log.w(TAG, "stopPublish: cannot initialize NAN");
@@ -377,7 +391,9 @@ public class WifiNanNative {
                 ret = stopSubscribeNative(transactionId, WifiNative.class, WifiNative.sWlan0Index,
                         pubSubId);
             }
-            if (DBG) Log.d(TAG, "stopSubscribeNative: ret=" + ret);
+            if (ret != WIFI_SUCCESS) {
+                Log.w(TAG, "stopSubscribeNative: HAL API returned non-success -- " + ret);
+            }
             return ret == WIFI_SUCCESS;
         } else {
             Log.w(TAG, "stopSubscribe: cannot initialize NAN");
