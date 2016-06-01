@@ -106,9 +106,6 @@ public class WifiNanNative {
 
     /* package */ static native int initNanHandlersNative(Class<WifiNative> cls, int iface);
 
-    private static native int getCapabilitiesNative(short transactionId, Class<WifiNative> cls,
-            int iface);
-
     private boolean isNanInit() {
         synchronized (WifiNative.sLock) {
             if (!WifiNative.getWlanNativeInterface().isHalStarted()) {
@@ -123,12 +120,6 @@ public class WifiNanNative {
                 if (DBG) Log.d(TAG, "initNanHandlersNative: res=" + ret);
                 mNanNativeInit = ret == WIFI_SUCCESS;
 
-                if (mNanNativeInit) {
-                    ret = getCapabilitiesNative((short) 0, WifiNative.class,
-                            WifiNative.sWlan0Index);
-                    if (DBG) Log.d(TAG, "getCapabilitiesNative: res=" + ret);
-                }
-
                 return mNanNativeInit;
             } else {
                 return true;
@@ -138,6 +129,33 @@ public class WifiNanNative {
 
     private WifiNanNative() {
         // do nothing
+    }
+
+    private static native int getCapabilitiesNative(short transactionId, Class<WifiNative> cls,
+            int iface);
+
+    /**
+     * Query the NAN firmware's capabilities.
+     *
+     * @param transactionId Transaction ID for the transaction - used in the async callback to
+     *                      match with the original request.
+     */
+    public boolean getCapabilities(short transactionId) {
+        if (VDBG) Log.d(TAG, "getCapabilities");
+        if (isNanInit()) {
+            int ret;
+            synchronized (WifiNative.sLock) {
+                ret = getCapabilitiesNative(transactionId, WifiNative.class,
+                        WifiNative.sWlan0Index);
+            }
+            if (ret != WIFI_SUCCESS) {
+                Log.w(TAG, "getCapabilities: HAL API returned non-success -- " + ret);
+            }
+            return ret == WIFI_SUCCESS;
+        } else {
+            Log.w(TAG, "getCapabilities: cannot initialize NAN");
+            return false;
+        }
     }
 
     private static native int enableAndConfigureNative(short transactionId, Class<WifiNative> cls,
@@ -649,12 +667,13 @@ public class WifiNanNative {
     private static void onNanNotifyResponseCapabilities(short transactionId, int status, int value,
             Capabilities capabilities) {
         if (VDBG) {
-            Log.v(TAG, "onNanNotifyResponsePublishSubscribe: transactionId=" + transactionId
+            Log.v(TAG, "onNanNotifyResponseCapabilities: transactionId=" + transactionId
                     + ", status=" + status + ", value=" + value + ", capabilities=" + capabilities);
         }
 
         if (status == NAN_STATUS_SUCCESS) {
-            WifiNanStateManager.getInstance().onCapabilitiesUpdateNotification(capabilities);
+            WifiNanStateManager.getInstance().onCapabilitiesUpdateResponse(transactionId,
+                    capabilities);
         } else {
             Log.e(TAG,
                     "onNanNotifyResponseCapabilities: error status=" + status + ", value=" + value);
