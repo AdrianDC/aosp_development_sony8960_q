@@ -154,6 +154,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private final WifiCertManager mCertManager;
 
     private final WifiInjector mWifiInjector;
+    /* Backup/Restore Module */
+    private final WifiBackupRestore mWifiBackupRestore;
+
     /**
      * Asynchronous channel to WifiStateMachine
      */
@@ -345,6 +348,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 mSettingsStore, mWifiLockManager, wifiThread.getLooper(), facade);
         // Set the WifiController for WifiLastResortWatchdog
         mWifiInjector.getWifiLastResortWatchdog().setWifiController(mWifiController);
+        mWifiBackupRestore = new WifiBackupRestore();
     }
 
 
@@ -1939,5 +1943,55 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public void enableWifiConnectivityManager(boolean enabled) {
         enforceConnectivityInternalPermission();
         mWifiStateMachine.enableWifiConnectivityManager(enabled);
+    }
+
+    /**
+     * Retrieve the data to be backed to save the current state.
+     * @return  Raw byte stream of the data to be backed up.
+     */
+    @Override
+    public byte[] retrieveBackupData() {
+        enforceReadCredentialPermission();
+        enforceAccessPermission();
+        if (mWifiStateMachineChannel == null) {
+            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
+            return null;
+        }
+
+        Slog.d(TAG, "Retrieve backup data");
+        List<WifiConfiguration> wifiConfigurations =
+                mWifiStateMachine.syncGetPrivilegedConfiguredNetwork(mWifiStateMachineChannel);
+        return mWifiBackupRestore.retrieveBackupDataFromConfigurations(wifiConfigurations);
+    }
+
+    /**
+     * Restore state from the backed up data.
+     * @param data Raw byte stream of the backed up data.
+     */
+    @Override
+    public void restoreBackupData(byte[] data) {
+        enforceChangePermission();
+        if (mWifiStateMachineChannel == null) {
+            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
+            return;
+        }
+
+        Slog.d(TAG, "Restore backup data");
+        List<WifiConfiguration> wifiConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromBackupData(data);
+        if (wifiConfigurations == null) {
+            Slog.e(TAG, "Backup data parse failed");
+            return;
+        }
+
+        for (WifiConfiguration configuration : wifiConfigurations) {
+            int networkId =
+                    mWifiStateMachine.syncAddOrUpdateNetwork(
+                            mWifiStateMachineChannel, configuration);
+            if (networkId == WifiConfiguration.INVALID_NETWORK_ID) {
+                Slog.e(TAG, "Restore network failed: " + configuration.configKey());
+            }
+            mWifiStateMachine.syncEnableNetwork(mWifiStateMachineChannel, networkId, false);
+        }
     }
 }
