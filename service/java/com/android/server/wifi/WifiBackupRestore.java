@@ -118,6 +118,11 @@ public class WifiBackupRestore {
      * @return Raw byte stream of XML that needs to be backed up.
      */
     public byte[] retrieveBackupDataFromConfigurations(List<WifiConfiguration> configurations) {
+        if (configurations == null) {
+            Log.e(TAG, "Invalid configuration list received");
+            return null;
+        }
+
         try {
             final XmlSerializer out = new FastXmlSerializer();
             final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -309,6 +314,11 @@ public class WifiBackupRestore {
      * @return list of networks retrieved from the backed up data.
      */
     public List<WifiConfiguration> retrieveConfigurationsFromBackupData(byte[] data) {
+        if (data == null || data.length == 0) {
+            Log.e(TAG, "Invalid backup data received");
+            return null;
+        }
+
         try {
             if (mVerboseLoggingEnabled) logBackupData(data, "restoreBackupData");
 
@@ -641,6 +651,7 @@ public class WifiBackupRestore {
          */
         @VisibleForTesting
         public static final String SUPPLICANT_KEY_SSID = WifiConfiguration.ssidVarName;
+        public static final String SUPPLICANT_KEY_HIDDEN = WifiConfiguration.hiddenSSIDVarName;
         public static final String SUPPLICANT_KEY_KEY_MGMT = WifiConfiguration.KeyMgmt.varName;
         public static final String SUPPLICANT_KEY_CLIENT_CERT = WifiEnterpriseConfig.CLIENT_CERT_KEY;
         public static final String SUPPLICANT_KEY_CA_CERT = WifiEnterpriseConfig.CA_CERT_KEY;
@@ -660,6 +671,7 @@ public class WifiBackupRestore {
         static class SupplicantNetwork {
             final ArrayList<String> rawLines = new ArrayList<String>();
             String ssid;
+            String hidden;
             String key_mgmt;
             String psk;
             String[] wepKeys = new String[4];
@@ -701,6 +713,8 @@ public class WifiBackupRestore {
                 // lines for procesing later.
                 if (line.startsWith(SUPPLICANT_KEY_SSID)) {
                     ssid = line;
+                } else if (line.startsWith(SUPPLICANT_KEY_HIDDEN)) {
+                    hidden = line;
                 } else if (line.startsWith(SUPPLICANT_KEY_KEY_MGMT)) {
                     key_mgmt = line;
                     if (line.contains("EAP")) {
@@ -753,6 +767,11 @@ public class WifiBackupRestore {
                 WifiConfiguration configuration = new WifiConfiguration();
                 configuration.SSID = ssid.substring(ssid.indexOf('=') + 1);
 
+                if (hidden != null) {
+                    // Can't use Boolean.valueOf() because it works only for true/false.
+                    configuration.hiddenSSID =
+                            Integer.parseInt(hidden.substring(hidden.indexOf('=') + 1)) != 0;
+                }
                 if (key_mgmt == null) {
                     // no key_mgmt specified; this is defined as equivalent to "WPA-PSK WPA-EAP"
                     configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);

@@ -87,12 +87,41 @@ public class WifiBackupRestoreTest {
     }
 
     /**
+     * Verify that a single open hidden network configuration is serialized & deserialized
+     * correctly.
+     */
+    @Test
+    public void testSingleOpenHiddenNetworkBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createOpenHiddenNetwork(0));
+
+        byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
      * Verify that a single PSK network configuration is serialized & deserialized correctly.
      */
     @Test
     public void testSinglePskNetworkBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
         configurations.add(createPskNetwork(0));
+
+        byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
+     * Verify that a single PSK hidden network configuration is serialized & deserialized correctly.
+     */
+    @Test
+    public void testSinglePskHiddenNetworkBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createPskHiddenNetwork(0));
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
@@ -283,6 +312,23 @@ public class WifiBackupRestoreTest {
     }
 
     /**
+     * Verify that a single open hidden network configuration is serialized & deserialized
+     * correctly from old backups.
+     */
+    @Test
+    public void testSingleOpenHiddenNetworkSupplicantBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createOpenHiddenNetwork(0));
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        byte[] ipConfigData = createIpConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, ipConfigData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
      * Verify that a single PSK network configuration is serialized & deserialized correctly from
      * old backups.
      */
@@ -290,6 +336,23 @@ public class WifiBackupRestoreTest {
     public void testSinglePskNetworkSupplicantBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
         configurations.add(createPskNetwork(0));
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        byte[] ipConfigData = createIpConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, ipConfigData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
+     * Verify that a single PSK hidden network configuration is serialized & deserialized correctly
+     * from old backups.
+     */
+    @Test
+    public void testSinglePskHiddenNetworkSupplicantBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createPskHiddenNetwork(0));
 
         byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
         byte[] ipConfigData = createIpConfBackupData(configurations);
@@ -381,6 +444,16 @@ public class WifiBackupRestoreTest {
                 WifiConfigurationTestUtil.SECURITY_NONE);
     }
 
+    private WifiConfiguration createOpenHiddenNetwork(int id) {
+        String ssid = "\"" + TEST_SSID + id + "\"";
+        WifiConfiguration config =
+                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
+                true, true, null, null,
+                WifiConfigurationTestUtil.SECURITY_NONE);
+        config.hiddenSSID = true;
+        return config;
+    }
+
     private WifiConfiguration createPskNetwork(int id) {
         String ssid = "\"" + TEST_SSID + id + "\"";
         WifiConfiguration configuration =
@@ -388,6 +461,17 @@ public class WifiBackupRestoreTest {
                         true, true, null, null,
                         WifiConfigurationTestUtil.SECURITY_PSK);
         configuration.preSharedKey = TEST_PSK;
+        return configuration;
+    }
+
+    private WifiConfiguration createPskHiddenNetwork(int id) {
+        String ssid = "\"" + TEST_SSID + id + "\"";
+        WifiConfiguration configuration =
+                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
+                        true, true, null, null,
+                        WifiConfigurationTestUtil.SECURITY_PSK);
+        configuration.preSharedKey = TEST_PSK;
+        configuration.hiddenSSID = true;
         return configuration;
     }
 
@@ -495,6 +579,9 @@ public class WifiBackupRestoreTest {
         out.write("network={\n");
         out.write("        " + "ssid=" + configuration.SSID + "\n");
         String allowedKeyManagement = "";
+        if (configuration.hiddenSSID) {
+            out.write("        " + "scan_ssid=1" + "\n");
+        }
         if (configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)) {
             allowedKeyManagement += "NONE";
         }
