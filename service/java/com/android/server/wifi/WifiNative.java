@@ -45,6 +45,7 @@ import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.internal.annotations.Immutable;
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.HexDump;
 import com.android.server.connectivity.KeepalivePacketData;
 import com.android.server.wifi.hotspot2.NetworkDetail;
@@ -389,17 +390,26 @@ public class WifiNative {
     }
 
     public boolean setNetworkExtra(int netId, String name, Map<String, String> values) {
+        String encoded = createNetworkExtra(values);
+        if (encoded == null) {
+            return false;
+        }
+        return setNetworkVariable(netId, name, "\"" + encoded + "\"");
+    }
+
+    @VisibleForTesting
+    public static String createNetworkExtra(Map<String, String> values) {
         final String encoded;
         try {
             encoded = URLEncoder.encode(new JSONObject(values).toString(), "UTF-8");
         } catch (NullPointerException e) {
             Log.e(TAG, "Unable to serialize networkExtra: " + e.toString());
-            return false;
+            return null;
         } catch (UnsupportedEncodingException e) {
             Log.e(TAG, "Unable to serialize networkExtra: " + e.toString());
-            return false;
+            return null;
         }
-        return setNetworkVariable(netId, name, "\"" + encoded + "\"");
+        return encoded;
     }
 
     public boolean setNetworkVariable(int netId, String name, String value) {
@@ -413,12 +423,16 @@ public class WifiNative {
     }
 
     public Map<String, String> getNetworkExtra(int netId, String name) {
-        final String wrapped = getNetworkVariable(netId, name);
-        if (wrapped == null || !wrapped.startsWith("\"") || !wrapped.endsWith("\"")) {
+        final String extraString = getNetworkVariable(netId, name);
+        return parseNetworkExtra(extraString);
+    }
+
+    public static Map<String, String> parseNetworkExtra(String extraSting) {
+        if (extraSting == null || !extraSting.startsWith("\"") || !extraSting.endsWith("\"")) {
             return null;
         }
         try {
-            final String encoded = wrapped.substring(1, wrapped.length() - 1);
+            final String encoded = extraSting.substring(1, extraSting.length() - 1);
             // This method reads a JSON dictionary that was written by setNetworkExtra(). However,
             // on devices that upgraded from Marshmallow, it may encounter a legacy value instead -
             // an FQDN stored as a plain string. If such a value is encountered, the JSONObject
