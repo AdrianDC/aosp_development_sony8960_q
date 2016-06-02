@@ -43,7 +43,7 @@ public class WifiNanNative {
 
     private static WifiNanNative sWifiNanNativeSingleton;
 
-    private boolean mNanNativeInit = false;
+    private boolean mNativeHandlersIsInitialized = false;
 
     private static native int registerNanNatives();
 
@@ -113,18 +113,25 @@ public class WifiNanNative {
                  * We should never start the HAL - that's done at a higher level
                  * by the Wi-Fi state machine.
                  */
-                mNanNativeInit = false;
+                mNativeHandlersIsInitialized = false;
                 return false;
-            } else if (!mNanNativeInit) {
+            } else if (!mNativeHandlersIsInitialized) {
                 int ret = initNanHandlersNative(WifiNative.class, WifiNative.sWlan0Index);
                 if (DBG) Log.d(TAG, "initNanHandlersNative: res=" + ret);
-                mNanNativeInit = ret == WIFI_SUCCESS;
+                mNativeHandlersIsInitialized = ret == WIFI_SUCCESS;
 
-                return mNanNativeInit;
+                return mNativeHandlersIsInitialized;
             } else {
                 return true;
             }
         }
+    }
+
+    /**
+     * Tell the NAN JNI to re-initialize the NAN callback pointers next time it starts up.
+     */
+    public void deInitNan() {
+        mNativeHandlersIsInitialized = false;
     }
 
     private WifiNanNative() {

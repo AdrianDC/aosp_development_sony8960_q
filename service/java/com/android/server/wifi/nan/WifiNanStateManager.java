@@ -1403,6 +1403,7 @@ public class WifiNanStateManager {
 
         mUsageEnabled = false;
         WifiNanNative.getInstance().disable((short) 0);
+        WifiNanNative.getInstance().deInitNan();
         onNanDownLocal();
 
         sendNanStateChangedBroadcast(false);
