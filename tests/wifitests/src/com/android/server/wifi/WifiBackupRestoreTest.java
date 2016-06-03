@@ -30,12 +30,17 @@ import android.util.Log;
 
 import com.android.server.net.IpConfigStore;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
+import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -69,8 +74,27 @@ public class WifiBackupRestoreTest {
     private static final String TEST_STATIC_PROXY_EXCLUSION_LIST = "";
     private static final String TEST_PAC_PROXY_LOCATION = "http://";
 
-
     private final WifiBackupRestore mWifiBackupRestore = new WifiBackupRestore();
+    private boolean mCheckDump = true;
+
+    @Before
+    public void setUp() throws Exception {
+        // Enable verbose logging before tests to check the backup data dumps.
+        mWifiBackupRestore.enableVerboseLogging(1);
+    }
+
+    @After
+    public void cleanUp() throws Exception {
+        if (mCheckDump) {
+            StringWriter stringWriter = new StringWriter();
+            mWifiBackupRestore.dump(
+                    new FileDescriptor(), new PrintWriter(stringWriter), new String[0]);
+            // Ensure that the SSID was dumped out.
+            assertTrue(stringWriter.toString().contains(TEST_SSID));
+            // Ensure that the password wasn't dumped out.
+            assertFalse(stringWriter.toString().contains(TEST_PSK));
+        }
+    }
 
     /**
      * Verify that a single open network configuration is serialized & deserialized correctly.
@@ -155,6 +179,8 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
         assertTrue(retrievedConfigurations.isEmpty());
+        // No valid data to check in dump.
+        mCheckDump = false;
     }
 
     /**
@@ -435,6 +461,8 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
         assertNull(retrievedConfigurations);
+        // No valid data to check in dump.
+        mCheckDump = false;
     }
 
     private WifiConfiguration createOpenNetwork(int id) {

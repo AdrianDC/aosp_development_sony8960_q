@@ -39,6 +39,7 @@ public class WifiInjector {
     private final PropertyService mPropertyService = new SystemPropertyService();
     private final BuildProperties mBuildProperties = new SystemBuildProperties();
     private final KeyStore mKeyStore = KeyStore.getInstance();
+    private final WifiBackupRestore mWifiBackupRestore = new WifiBackupRestore();
 
     public WifiMetrics getWifiMetrics() {
         return mWifiMetrics;
@@ -60,5 +61,9 @@ public class WifiInjector {
 
     public KeyStore getKeyStore() {
         return mKeyStore;
+    }
+
+    public WifiBackupRestore getWifiBackupRestore() {
+        return mWifiBackupRestore;
     }
 }
