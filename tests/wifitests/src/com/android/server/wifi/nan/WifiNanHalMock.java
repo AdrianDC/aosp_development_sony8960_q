@@ -94,7 +94,7 @@ public class WifiNanHalMock {
     private static native int initNanHalMock();
 
     public static void initNanHalMockLibrary(WifiNanNative instance) throws Exception {
-        Field field = WifiNanNative.class.getDeclaredField("mNanNativeInit");
+        Field field = WifiNanNative.class.getDeclaredField("mNativeHandlersIsInitialized");
         field.setAccessible(true);
         field.setBoolean(instance, true);
 
