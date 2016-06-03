@@ -45,8 +45,8 @@ import java.util.Arrays;
 public class WifiNanRttStateManager {
     private static final String TAG = "WifiNanRttStateManager";
 
-    private static final boolean DBG = true;
-    private static final boolean VDBG = true; // STOPSHIP if true
+    private static final boolean DBG = false;
+    private static final boolean VDBG = false; // STOPSHIP if true
 
     private final SparseArray<WifiNanClientState> mPendingOperations = new SparseArray<>();
     private AsyncChannel mAsyncChannel;
