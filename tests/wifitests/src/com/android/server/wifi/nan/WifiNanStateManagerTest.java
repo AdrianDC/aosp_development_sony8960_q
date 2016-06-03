@@ -132,6 +132,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
         inOrder.verify(mMockNative).disable((short) 0);
+        inOrder.verify(mMockNative).deInitNan();
         validateCorrectNanStatusChangeBroadcast(inOrder, false);
 
         // (3) try connecting and validate that get nothing (app should be aware of non-availability
@@ -178,6 +179,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
         inOrder.verify(mMockNative).disable((short) 0);
+        inOrder.verify(mMockNative).deInitNan();
         validateCorrectNanStatusChangeBroadcast(inOrder, false);
         validateInternalClientInfoCleanedUp(clientId);
 
