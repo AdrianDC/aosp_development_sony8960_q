@@ -240,10 +240,20 @@ public class WifiQualifiedNetworkSelector {
         }
 
         // Does the current network band match the user preference?
-        if (mWifiInfo.is24GHz() && (mUserPreferedBand != WifiManager.WIFI_FREQUENCY_BAND_2GHZ)) {
-            localLog("Current band does not match user preference: "
+        //
+        // Note, here the check for 2.4GHz band is different from the one for 5GHz band
+        // such that 5GHz band is always favored.
+        // When the current network is 2.4GHz, it is considered as not qualified as long
+        // as the band preference set by user is not 2.4GHz only. This gives QNS an
+        // opportunity to recommend a 5GHz network if one is available.
+        // When the current network is 5GHz, it's considered as not qualified only if
+        // the band preference set by user is 2.4GHz only.
+        if ((mWifiInfo.is24GHz() && (mUserPreferedBand != WifiManager.WIFI_FREQUENCY_BAND_2GHZ))
+                || (mWifiInfo.is5GHz()
+                     && (mUserPreferedBand == WifiManager.WIFI_FREQUENCY_BAND_2GHZ))) {
+            localLog("Current network band does not match user preference: "
                     + "current network band=" + (mWifiInfo.is24GHz() ? "2.4GHz" : "5GHz")
-                    + ", user preferred band=" + mUserPreferedBand);
+                    + ", however user preferred band=" + mUserPreferedBand);
             return false;
         }
 
@@ -298,7 +308,8 @@ public class WifiQualifiedNetworkSelector {
             // Do not select again if last selection is within
             // MINIMUM_QUALIFIED_NETWORK_SELECTION_INTERVAL_MS.
             if (mLastQualifiedNetworkSelectionTimeStamp != INVALID_TIME_STAMP) {
-                long gap = mClock.getElapsedSinceBootMillis() - mLastQualifiedNetworkSelectionTimeStamp;
+                long gap = mClock.getElapsedSinceBootMillis()
+                            - mLastQualifiedNetworkSelectionTimeStamp;
                 if (gap < MINIMUM_QUALIFIED_NETWORK_SELECTION_INTERVAL_MS) {
                     localLog("Too short from last successful Qualified Network Selection. Gap is:"
                             + gap + " ms!");
@@ -637,8 +648,8 @@ public class WifiQualifiedNetworkSelector {
                 mWifiConfigManager.getWifiConfiguration(lastUserSelectedNetWorkKey);
         if (lastUserSelectedNetwork != null) {
             localLog("Last selection is " + lastUserSelectedNetwork.SSID + " Time to now: "
-                    + ((mClock.getElapsedSinceBootMillis() - mWifiConfigManager.getLastSelectedTimeStamp())
-                            / 1000 / 60 + " minutes"));
+                    + ((mClock.getElapsedSinceBootMillis()
+                    - mWifiConfigManager.getLastSelectedTimeStamp()) / 1000 / 60 + " minutes"));
         }
 
         updateSavedNetworkSelectionStatus();
@@ -647,6 +658,7 @@ public class WifiQualifiedNetworkSelector {
         StringBuffer lowSignalScan = new StringBuffer();
         StringBuffer notSavedScan = new StringBuffer();
         StringBuffer noValidSsid = new StringBuffer();
+        StringBuffer unwantedBand = new StringBuffer();
         StringBuffer scoreHistory =  new StringBuffer();
         ArrayList<NetworkKey> unscoredNetworks = new ArrayList<NetworkKey>();
 
@@ -678,6 +690,21 @@ public class WifiQualifiedNetworkSelector {
                     lowSignalScan.append(scanId).append("(")
                         .append(scanResult.is24GHz() ? "2.4GHz" : "5GHz")
                         .append(")").append(scanResult.level).append(" / ");
+                }
+                continue;
+            }
+
+            // Skip network not matching band preference set by user.
+            // WifiConnectivityManager schedules scan according to the user band prefrence. This is
+            // a check for the ScanResults generated from the old settings.
+            if ((scanResult.is24GHz()
+                    && (mUserPreferedBand == WifiManager.WIFI_FREQUENCY_BAND_5GHZ))
+                    || (scanResult.is5GHz()
+                        && (mUserPreferedBand == WifiManager.WIFI_FREQUENCY_BAND_2GHZ))) {
+                if (mDbg) {
+                    unwantedBand.append(scanId).append("(")
+                        .append(scanResult.is24GHz() ? "2.4GHz" : "5GHz")
+                        .append(")").append(" / ");
                 }
                 continue;
             }
@@ -812,6 +839,9 @@ public class WifiQualifiedNetworkSelector {
             }
             if (noValidSsid.length() != 0) {
                 localLog(noValidSsid + " skipped due to invalid SSID");
+            }
+            if (unwantedBand.length() != 0) {
+                localLog(unwantedBand + " skipped due to user band preference");
             }
             localLog(scoreHistory.toString());
         }
