@@ -16,6 +16,12 @@
 
 package com.android.server.wifi;
 
+import android.net.IpConfiguration;
+import android.net.LinkAddress;
+import android.net.NetworkUtils;
+import android.net.ProxyInfo;
+import android.net.RouteInfo;
+import android.net.StaticIpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.util.Log;
 import android.util.Xml;
@@ -31,10 +37,15 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.Inet4Address;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
+
+import static android.net.IpConfiguration.IpAssignment;
+import static android.net.IpConfiguration.ProxySettings;
 
 /**
  * Class used to backup/restore data using the SettingsBackupAgent.
@@ -62,9 +73,9 @@ public class WifiBackupRestore {
      * List of XML tags in the backed up data
      */
     private static final String XML_TAG_DOCUMENT_HEADER = "WifiBackupData";
+    private static final String XML_TAG_VERSION = "Version";
     private static final String XML_TAG_SECTION_HEADER_CONFIGURATION_LIST = "ConfigurationList";
     private static final String XML_TAG_SECTION_HEADER_CONFIGURATION = "Configuration";
-    private static final String XML_TAG_VERSION = "Version";
     private static final String XML_TAG_CONFIGURATION_SSID = "SSID";
     private static final String XML_TAG_CONFIGURATION_BSSID = "BSSID";
     private static final String XML_TAG_CONFIGURATION_CONFIG_KEY = "ConfigKey";
@@ -77,6 +88,17 @@ public class WifiBackupRestore {
     private static final String XML_TAG_CONFIGURATION_ALLOWED_AUTH_ALGOS = "AllowedAuthAlgos";
     private static final String XML_TAG_CONFIGURATION_SHARED = "Shared";
     private static final String XML_TAG_CONFIGURATION_CREATOR_UID = "CreatorUid";
+    private static final String XML_TAG_SECTION_HEADER_IP_CONFIGURATION = "IpConfiguration";
+    private static final String XML_TAG_IP_CONFIGURATION_IP_ASSIGNMENT = "IpAssignment";
+    private static final String XML_TAG_IP_CONFIGURATION_LINK_ADDRESS = "LinkAddress";
+    private static final String XML_TAG_IP_CONFIGURATION_LINK_PREFIX_LENGTH = "LinkPrefixLength";
+    private static final String XML_TAG_IP_CONFIGURATION_GATEWAY_ADDRESS = "GatewayAddress";
+    private static final String XML_TAG_IP_CONFIGURATION_DNS_SERVER_ADDRESSES = "DNSServers";
+    private static final String XML_TAG_IP_CONFIGURATION_PROXY_SETTINGS = "ProxySettings";
+    private static final String XML_TAG_IP_CONFIGURATION_PROXY_HOST = "ProxyHost";
+    private static final String XML_TAG_IP_CONFIGURATION_PROXY_PORT = "ProxyPort";
+    private static final String XML_TAG_IP_CONFIGURATION_PROXY_PAC_FILE = "ProxyPac";
+    private static final String XML_TAG_IP_CONFIGURATION_PROXY_EXCLUSION_LIST = "ProxyExclusionList";
 
     private boolean mVerboseLoggingEnabled = true;
 
@@ -98,7 +120,7 @@ public class WifiBackupRestore {
 
             XmlUtil.writeNextValue(out, XML_TAG_VERSION, CURRENT_BACKUP_DATA_VERSION);
 
-            writeConfigurationsToXml(out, configurations);
+            writeWifiConfigurationsToXml(out, configurations);
 
             XmlUtil.writeDocumentEnd(out, XML_TAG_DOCUMENT_HEADER);
 
@@ -117,7 +139,7 @@ public class WifiBackupRestore {
     /**
      * Write the list of configurations to the XML stream.
      */
-    private void writeConfigurationsToXml(
+    private void writeWifiConfigurationsToXml(
             XmlSerializer out, List<WifiConfiguration> configurations)
             throws XmlPullParserException, IOException {
         XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_CONFIGURATION_LIST);
@@ -129,7 +151,7 @@ public class WifiBackupRestore {
             }
             // Write this configuration data now.
             XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_CONFIGURATION);
-            writeConfigurationToXml(out, configuration);
+            writeWifiConfigurationToXml(out, configuration);
             XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_CONFIGURATION);
         }
         XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_CONFIGURATION_LIST);
@@ -141,7 +163,7 @@ public class WifiBackupRestore {
      * are null. XmlUtils serialization doesn't handle this array of nulls well .
      * So, write null if the keys are not initialized.
      */
-    private void writeWepKeys(XmlSerializer out, String[] wepKeys)
+    private void writeWepKeysToXml(XmlSerializer out, String[] wepKeys)
             throws XmlPullParserException, IOException {
         if (wepKeys[0] != null) {
             XmlUtil.writeNextValue(out, XML_TAG_CONFIGURATION_WEP_KEYS, wepKeys);
@@ -154,14 +176,14 @@ public class WifiBackupRestore {
      * Write the configuration data elements from the provided Configuration to the XML stream.
      * Uses XmlUtils to write the values of each element.
      */
-    private void writeConfigurationToXml(XmlSerializer out, WifiConfiguration configuration)
+    private void writeWifiConfigurationToXml(XmlSerializer out, WifiConfiguration configuration)
             throws XmlPullParserException, IOException {
         XmlUtil.writeNextValue(out, XML_TAG_CONFIGURATION_CONFIG_KEY, configuration.configKey());
         XmlUtil.writeNextValue(out, XML_TAG_CONFIGURATION_SSID, configuration.SSID);
         XmlUtil.writeNextValue(out, XML_TAG_CONFIGURATION_BSSID, configuration.BSSID);
         XmlUtil.writeNextValue(
                 out, XML_TAG_CONFIGURATION_PRE_SHARED_KEY, configuration.preSharedKey);
-        writeWepKeys(out, configuration.wepKeys);
+        writeWepKeysToXml(out, configuration.wepKeys);
         XmlUtil.writeNextValue(
                 out, XML_TAG_CONFIGURATION_WEP_TX_KEY_INDEX, configuration.wepTxKeyIndex);
         XmlUtil.writeNextValue(out, XML_TAG_CONFIGURATION_HIDDEN_SSID, configuration.hiddenSSID);
@@ -176,6 +198,100 @@ public class WifiBackupRestore {
                 configuration.allowedAuthAlgorithms.toByteArray());
         XmlUtil.writeNextValue(out, XML_TAG_CONFIGURATION_SHARED, configuration.shared);
         XmlUtil.writeNextValue(out, XML_TAG_CONFIGURATION_CREATOR_UID, configuration.creatorUid);
+
+        if (configuration.getIpConfiguration() != null) {
+            XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_IP_CONFIGURATION);
+            writeIpConfigurationToXml(out, configuration.getIpConfiguration());
+            XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_IP_CONFIGURATION);
+        }
+    }
+
+    /**
+     * Write the static IP configuration data elements to XML stream
+     */
+    private void writeStaticIpConfigurationToXml(XmlSerializer out,
+            StaticIpConfiguration staticIpConfiguration)
+            throws XmlPullParserException, IOException {
+        if (staticIpConfiguration.ipAddress != null) {
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_IP_CONFIGURATION_LINK_ADDRESS,
+                    staticIpConfiguration.ipAddress.getAddress().getHostAddress());
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_IP_CONFIGURATION_LINK_PREFIX_LENGTH,
+                    staticIpConfiguration.ipAddress.getPrefixLength());
+        } else {
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_IP_CONFIGURATION_LINK_ADDRESS, null);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_IP_CONFIGURATION_LINK_PREFIX_LENGTH, null);
+        }
+        if (staticIpConfiguration.gateway != null) {
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_IP_CONFIGURATION_GATEWAY_ADDRESS,
+                    staticIpConfiguration.gateway.getHostAddress());
+        } else {
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_IP_CONFIGURATION_GATEWAY_ADDRESS, null);
+
+        }
+        if (staticIpConfiguration.dnsServers != null) {
+            // Create a string array of DNS server addresses
+            String[] dnsServers = new String[staticIpConfiguration.dnsServers.size()];
+            int dnsServerIdx = 0;
+            for (InetAddress inetAddr : staticIpConfiguration.dnsServers) {
+                dnsServers[dnsServerIdx++] = inetAddr.getHostAddress();
+            }
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_IP_CONFIGURATION_DNS_SERVER_ADDRESSES, dnsServers);
+        } else {
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_IP_CONFIGURATION_DNS_SERVER_ADDRESSES, null);
+        }
+    }
+
+    /**
+     * Write the IP configuration data elements from the provided Configuration to the XML stream.
+     * Uses XmlUtils to write the values of each element.
+     */
+    private void writeIpConfigurationToXml(XmlSerializer out, IpConfiguration ipConfiguration)
+            throws XmlPullParserException, IOException {
+
+        // Write IP assignment settings
+        XmlUtil.writeNextValue(
+                out, XML_TAG_IP_CONFIGURATION_IP_ASSIGNMENT,
+                ipConfiguration.ipAssignment.toString());
+        switch (ipConfiguration.ipAssignment) {
+            case STATIC:
+                writeStaticIpConfigurationToXml(out, ipConfiguration.getStaticIpConfiguration());
+                break;
+            default:
+                break;
+        }
+
+        // Write proxy settings
+        XmlUtil.writeNextValue(
+                out, XML_TAG_IP_CONFIGURATION_PROXY_SETTINGS,
+                ipConfiguration.proxySettings.toString());
+        switch (ipConfiguration.proxySettings) {
+            case STATIC:
+                XmlUtil.writeNextValue(
+                        out, XML_TAG_IP_CONFIGURATION_PROXY_HOST,
+                        ipConfiguration.httpProxy.getHost());
+                XmlUtil.writeNextValue(
+                        out, XML_TAG_IP_CONFIGURATION_PROXY_PORT,
+                        ipConfiguration.httpProxy.getPort());
+                XmlUtil.writeNextValue(
+                        out, XML_TAG_IP_CONFIGURATION_PROXY_EXCLUSION_LIST,
+                        ipConfiguration.httpProxy.getExclusionListAsString());
+                break;
+            case PAC:
+                XmlUtil.writeNextValue(
+                        out, XML_TAG_IP_CONFIGURATION_PROXY_PAC_FILE,
+                        ipConfiguration.httpProxy.getPacFileUrl().toString());
+                break;
+            default:
+                break;
+        }
     }
 
     /**
@@ -194,7 +310,7 @@ public class WifiBackupRestore {
 
             // Start parsing the XML stream.
             XmlUtil.gotoDocumentStart(in, XML_TAG_DOCUMENT_HEADER);
-            int rootDepth = in.getDepth();
+            int rootTagDepth = in.getDepth();
 
             int version = (int) XmlUtil.readNextValue(in, XML_TAG_VERSION);
             if (version < INITIAL_BACKUP_DATA_VERSION || version > CURRENT_BACKUP_DATA_VERSION) {
@@ -202,7 +318,7 @@ public class WifiBackupRestore {
                 return null;
             }
 
-            return parseConfigurationsFromXml(in, rootDepth, version);
+            return parseWifiConfigurationsFromXml(in, rootTagDepth, version);
         } catch (XmlPullParserException e) {
             Log.e(TAG, "Error parsing the backup data: " + e);
         } catch (IOException e) {
@@ -214,26 +330,28 @@ public class WifiBackupRestore {
     /**
      * Parses the list of configurations from the provided XML stream.
      *
-     * @param in          XmlPullParser instance pointing to the XML stream.
-     * @param outerDepth  depth of the outer tag of the document.
-     * @param dataVersion version number parsed from incoming data.
+     * @param in            XmlPullParser instance pointing to the XML stream.
+     * @param outerTagDepth depth of the outer tag in the XML document.
+     * @param dataVersion   version number parsed from incoming data.
      * @return List<WifiConfiguration> object if parsing is successful, null otherwise.
      */
-    private List<WifiConfiguration> parseConfigurationsFromXml(
-            XmlPullParser in, int outerDepth, int dataVersion)
+    private List<WifiConfiguration> parseWifiConfigurationsFromXml(
+            XmlPullParser in, int outerTagDepth, int dataVersion)
             throws XmlPullParserException, IOException {
         // Find the configuration list section.
         if (!XmlUtil.gotoNextSection(
-                in, XML_TAG_SECTION_HEADER_CONFIGURATION_LIST, outerDepth)) {
+                in, XML_TAG_SECTION_HEADER_CONFIGURATION_LIST, outerTagDepth)) {
             Log.e(TAG, "Error parsing the backup data. Did not find configuration list");
             // Malformed XML input, bail out.
             return null;
         }
         // Find all the configurations within the configuration list section.
-        int confListDepth = outerDepth + 1;
+        int confListTagDepth = outerTagDepth + 1;
         List<WifiConfiguration> configurations = new ArrayList<>();
-        while (XmlUtil.gotoNextSection(in, XML_TAG_SECTION_HEADER_CONFIGURATION, confListDepth)) {
-            WifiConfiguration configuration = parseConfigurationFromXml(in, dataVersion);
+        while (XmlUtil.gotoNextSection(
+                in, XML_TAG_SECTION_HEADER_CONFIGURATION, confListTagDepth)) {
+            WifiConfiguration configuration =
+                    parseWifiConfigurationFromXml(in, dataVersion, confListTagDepth);
             if (configuration != null) {
                 if (mVerboseLoggingEnabled) {
                     Log.d(TAG, "Parsed Configuration: " + configuration.configKey());
@@ -248,7 +366,7 @@ public class WifiBackupRestore {
      * Parse WepKeys from the XML stream.
      * Populate wepKeys array only if they were present in the backup data.
      */
-    private void parseWepKeys(XmlPullParser in, String[] wepKeys)
+    private void parseWepKeysFromXml(XmlPullParser in, String[] wepKeys)
             throws XmlPullParserException, IOException {
         String[] wepKeysInData =
                 (String[]) XmlUtil.readNextValue(in, XML_TAG_CONFIGURATION_WEP_KEYS);
@@ -262,11 +380,13 @@ public class WifiBackupRestore {
     /**
      * Parses the configuration data elements from the provided XML stream to a Configuration.
      *
-     * @param in          XmlPullParser instance pointing to the XML stream.
-     * @param dataVersion version number parsed from incoming data.
+     * @param in            XmlPullParser instance pointing to the XML stream.
+     * @param outerTagDepth depth of the outer tag in the XML document.
+     * @param dataVersion   version number parsed from incoming data.
      * @return WifiConfiguration object if parsing is successful, null otherwise.
      */
-    private WifiConfiguration parseConfigurationFromXml(XmlPullParser in, int dataVersion)
+    private WifiConfiguration parseWifiConfigurationFromXml(XmlPullParser in, int dataVersion,
+            int outerTagDepth)
             throws XmlPullParserException, IOException {
 
         // Any version migration needs to be handled here in future.
@@ -280,7 +400,7 @@ public class WifiBackupRestore {
                     (String) XmlUtil.readNextValue(in, XML_TAG_CONFIGURATION_BSSID);
             configuration.preSharedKey =
                     (String) XmlUtil.readNextValue(in, XML_TAG_CONFIGURATION_PRE_SHARED_KEY);
-            parseWepKeys(in, configuration.wepKeys);
+            parseWepKeysFromXml(in, configuration.wepKeys);
             configuration.wepTxKeyIndex =
                     (int) XmlUtil.readNextValue(in, XML_TAG_CONFIGURATION_WEP_TX_KEY_INDEX);
             configuration.hiddenSSID =
@@ -307,7 +427,128 @@ public class WifiBackupRestore {
                         + "Calculated: " + configKeyCalculated);
                 return null;
             }
+            // Now retrieve any IP configuration info if present.
+            int confTagDepth = outerTagDepth + 1;
+            if (XmlUtil.gotoNextSection(
+                    in, XML_TAG_SECTION_HEADER_IP_CONFIGURATION, confTagDepth)) {
+                IpConfiguration ipConfiguration = parseIpConfigurationFromXml(in, dataVersion);
+                configuration.setIpConfiguration(ipConfiguration);
+            }
             return configuration;
+        }
+        return null;
+    }
+
+    /**
+     * Parse out the static IP configuration from the XML stream.
+     */
+    private StaticIpConfiguration parseStaticIpConfigurationFromXml(XmlPullParser in)
+            throws XmlPullParserException, IOException {
+
+        StaticIpConfiguration staticIpConfiguration = new StaticIpConfiguration();
+        String linkAddressString =
+                (String) XmlUtil.readNextValue(in, XML_TAG_IP_CONFIGURATION_LINK_ADDRESS);
+        Integer linkPrefixLength =
+                (Integer) XmlUtil.readNextValue(in, XML_TAG_IP_CONFIGURATION_LINK_PREFIX_LENGTH);
+        if (linkAddressString != null && linkPrefixLength != null) {
+            LinkAddress linkAddress = new LinkAddress(
+                    NetworkUtils.numericToInetAddress(linkAddressString),
+                    linkPrefixLength);
+            if (linkAddress.getAddress() instanceof Inet4Address) {
+                staticIpConfiguration.ipAddress = linkAddress;
+            } else {
+                Log.w(TAG, "Non-IPv4 address: " + linkAddress);
+            }
+        }
+        String gatewayAddressString =
+                (String) XmlUtil.readNextValue(in, XML_TAG_IP_CONFIGURATION_GATEWAY_ADDRESS);
+        if (gatewayAddressString != null) {
+            LinkAddress dest = null;
+            InetAddress gateway =
+                    NetworkUtils.numericToInetAddress(gatewayAddressString);
+            RouteInfo route = new RouteInfo(dest, gateway);
+            if (route.isIPv4Default()) {
+                staticIpConfiguration.gateway = gateway;
+            } else {
+                Log.w(TAG, "Non-IPv4 default route: " + route);
+            }
+        }
+        String[] dnsServerAddressesString =
+                (String[]) XmlUtil.readNextValue(in, XML_TAG_IP_CONFIGURATION_DNS_SERVER_ADDRESSES);
+        if (dnsServerAddressesString != null) {
+            for (String dnsServerAddressString : dnsServerAddressesString) {
+                InetAddress dnsServerAddress =
+                        NetworkUtils.numericToInetAddress(dnsServerAddressString);
+                staticIpConfiguration.dnsServers.add(dnsServerAddress);
+            }
+        }
+        return staticIpConfiguration;
+    }
+
+    /**
+     * Parses the IP configuration data elements from the provided XML stream to a IpConfiguration.
+     *
+     * @param in          XmlPullParser instance pointing to the XML stream.
+     * @param dataVersion version number parsed from incoming data.
+     * @return IpConfiguration object if parsing is successful, null otherwise.
+     */
+    private IpConfiguration parseIpConfigurationFromXml(XmlPullParser in, int dataVersion)
+            throws XmlPullParserException, IOException {
+
+        // Any version migration needs to be handled here in future.
+        if (dataVersion == INITIAL_BACKUP_DATA_VERSION) {
+            IpConfiguration ipConfiguration = new IpConfiguration();
+
+            // Parse out the IP assignment info first.
+            String ipAssignmentString =
+                    (String) XmlUtil.readNextValue(in, XML_TAG_IP_CONFIGURATION_IP_ASSIGNMENT);
+            IpAssignment ipAssignment = IpAssignment.valueOf(ipAssignmentString);
+            ipConfiguration.setIpAssignment(ipAssignment);
+            switch (ipAssignment) {
+                case STATIC:
+                    StaticIpConfiguration staticIpConfiguration =
+                            parseStaticIpConfigurationFromXml(in);
+                    ipConfiguration.setStaticIpConfiguration(staticIpConfiguration);
+                    break;
+                case DHCP:
+                case UNASSIGNED:
+                    break;
+                default:
+                    Log.wtf(TAG, "Unknown ip assignment type: " + ipAssignment);
+                    return null;
+            }
+
+            // Parse out the proxy settings next.
+            String proxySettingsString =
+                    (String) XmlUtil.readNextValue(in, XML_TAG_IP_CONFIGURATION_PROXY_SETTINGS);
+            ProxySettings proxySettings = ProxySettings.valueOf(proxySettingsString);
+            ipConfiguration.setProxySettings(proxySettings);
+            switch (proxySettings) {
+                case STATIC:
+                    String proxyHost =
+                            (String) XmlUtil.readNextValue(in, XML_TAG_IP_CONFIGURATION_PROXY_HOST);
+                    int proxyPort =
+                            (int) XmlUtil.readNextValue(in, XML_TAG_IP_CONFIGURATION_PROXY_PORT);
+                    String proxyExclusionList =
+                            (String) XmlUtil.readNextValue(in,
+                                    XML_TAG_IP_CONFIGURATION_PROXY_EXCLUSION_LIST);
+                    ipConfiguration.setHttpProxy(
+                            new ProxyInfo(proxyHost, proxyPort, proxyExclusionList));
+                    break;
+                case PAC:
+                    String proxyPacFile =
+                            (String) XmlUtil.readNextValue(in,
+                                    XML_TAG_IP_CONFIGURATION_PROXY_PAC_FILE);
+                    ipConfiguration.setHttpProxy(new ProxyInfo(proxyPacFile));
+                    break;
+                case NONE:
+                case UNASSIGNED:
+                    break;
+                default:
+                    Log.wtf(TAG, "Unknown proxy settings type: " + proxySettings);
+                    return null;
+            }
+            return ipConfiguration;
         }
         return null;
     }
