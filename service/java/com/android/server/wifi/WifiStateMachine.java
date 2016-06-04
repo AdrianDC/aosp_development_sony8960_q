@@ -7091,6 +7091,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     config = getCurrentWifiConfiguration();
                     if (config != null) {
                         config.noInternetAccessExpected = accept;
+                        mWifiConfigManager.writeKnownNetworkHistory();
                     }
                     return HANDLED;
                 case CMD_TEST_NETWORK_DISCONNECT:
