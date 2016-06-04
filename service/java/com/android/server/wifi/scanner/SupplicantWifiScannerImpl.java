@@ -353,46 +353,44 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                     mPendingBackgroundScanEventHandler = null;
                     mBackgroundScanPeriodPending = true;
                 }
-                if (mBackgroundScanPeriodPending) {
-                    if (mBackgroundScanSettings != null) {
-                        int reportEvents = WifiScanner.REPORT_EVENT_NO_BATCH; // default to no batch
-                        for (int bucket_id = 0; bucket_id < mBackgroundScanSettings.num_buckets;
-                                ++bucket_id) {
-                            WifiNative.BucketSettings bucket =
-                                    mBackgroundScanSettings.buckets[bucket_id];
-                            if (mNextBackgroundScanPeriod % (bucket.period_ms
-                                            / mBackgroundScanSettings.base_period_ms) == 0) {
-                                if ((bucket.report_events
-                                                & WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN) != 0) {
-                                    reportEvents |= WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN;
-                                }
-                                if ((bucket.report_events
-                                                & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT) != 0) {
-                                    reportEvents |= WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT;
-                                }
-                                // only no batch if all buckets specify it
-                                if ((bucket.report_events
-                                                & WifiScanner.REPORT_EVENT_NO_BATCH) == 0) {
-                                    reportEvents &= ~WifiScanner.REPORT_EVENT_NO_BATCH;
-                                }
-
-                                allFreqs.addChannels(bucket);
+                if (mBackgroundScanPeriodPending && mBackgroundScanSettings != null) {
+                    int reportEvents = WifiScanner.REPORT_EVENT_NO_BATCH; // default to no batch
+                    for (int bucket_id = 0; bucket_id < mBackgroundScanSettings.num_buckets;
+                            ++bucket_id) {
+                        WifiNative.BucketSettings bucket =
+                                mBackgroundScanSettings.buckets[bucket_id];
+                        if (mNextBackgroundScanPeriod % (bucket.period_ms
+                                        / mBackgroundScanSettings.base_period_ms) == 0) {
+                            if ((bucket.report_events
+                                            & WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN) != 0) {
+                                reportEvents |= WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN;
                             }
-                        }
-                        if (!allFreqs.isEmpty()) {
-                            newScanSettings.setBackgroundScan(mNextBackgroundScanId++,
-                                    mBackgroundScanSettings.max_ap_per_scan, reportEvents,
-                                    mBackgroundScanSettings.report_threshold_num_scans,
-                                    mBackgroundScanSettings.report_threshold_percent);
-                        }
-
-                        int[] hiddenNetworkIds = mBackgroundScanSettings.hiddenNetworkIds;
-                        if (hiddenNetworkIds != null) {
-                            int numHiddenNetworkIds = Math.min(hiddenNetworkIds.length,
-                                    MAX_HIDDEN_NETWORK_IDS_PER_SCAN);
-                            for (int i = 0; i < numHiddenNetworkIds; i++) {
-                                hiddenNetworkIdSet.add(hiddenNetworkIds[i]);
+                            if ((bucket.report_events
+                                            & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT) != 0) {
+                                reportEvents |= WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT;
                             }
+                            // only no batch if all buckets specify it
+                            if ((bucket.report_events
+                                            & WifiScanner.REPORT_EVENT_NO_BATCH) == 0) {
+                                reportEvents &= ~WifiScanner.REPORT_EVENT_NO_BATCH;
+                            }
+
+                            allFreqs.addChannels(bucket);
+                        }
+                    }
+                    if (!allFreqs.isEmpty()) {
+                        newScanSettings.setBackgroundScan(mNextBackgroundScanId++,
+                                mBackgroundScanSettings.max_ap_per_scan, reportEvents,
+                                mBackgroundScanSettings.report_threshold_num_scans,
+                                mBackgroundScanSettings.report_threshold_percent);
+                    }
+
+                    int[] hiddenNetworkIds = mBackgroundScanSettings.hiddenNetworkIds;
+                    if (hiddenNetworkIds != null) {
+                        int numHiddenNetworkIds = Math.min(hiddenNetworkIds.length,
+                                MAX_HIDDEN_NETWORK_IDS_PER_SCAN);
+                        for (int i = 0; i < numHiddenNetworkIds; i++) {
+                            hiddenNetworkIdSet.add(hiddenNetworkIds[i]);
                         }
                     }
 
