@@ -1949,6 +1949,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     /**
      * Retrieve the data to be backed to save the current state.
+     *
      * @return  Raw byte stream of the data to be backed up.
      */
     @Override
@@ -1970,6 +1971,28 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
+     * Helper method to restore networks retrieved from backup data.
+     *
+     * @param configurations list of WifiConfiguration objects parsed from the backup data.
+     */
+    private void restoreNetworks(List<WifiConfiguration> configurations) {
+        if (configurations == null) {
+            Slog.e(TAG, "Backup data parse failed");
+            return;
+        }
+        for (WifiConfiguration configuration : configurations) {
+            int networkId = mWifiStateMachine.syncAddOrUpdateNetwork(
+                    mWifiStateMachineChannel, configuration);
+            if (networkId == WifiConfiguration.INVALID_NETWORK_ID) {
+                Slog.e(TAG, "Restore network failed: " + configuration.configKey());
+                continue;
+            }
+            // Enable all networks restored.
+            mWifiStateMachine.syncEnableNetwork(mWifiStateMachineChannel, networkId, false);
+        }
+    }
+
+    /**
      * Restore state from the backed up data.
      *
      * @param data Raw byte stream of the backed up data.
@@ -1985,20 +2008,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         Slog.d(TAG, "Restoring backup data");
         List<WifiConfiguration> wifiConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(data);
-        if (wifiConfigurations == null) {
-            Slog.e(TAG, "Backup data parse failed");
-            return;
-        }
-
-        for (WifiConfiguration configuration : wifiConfigurations) {
-            int networkId =
-                    mWifiStateMachine.syncAddOrUpdateNetwork(
-                            mWifiStateMachineChannel, configuration);
-            if (networkId == WifiConfiguration.INVALID_NETWORK_ID) {
-                Slog.e(TAG, "Restore network failed: " + configuration.configKey());
-            }
-            mWifiStateMachine.syncEnableNetwork(mWifiStateMachineChannel, networkId, false);
-        }
+        restoreNetworks(wifiConfigurations);
         Slog.d(TAG, "Restored backup data");
     }
 
@@ -2008,7 +2018,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *
      * @param supplicantData Raw byte stream of wpa_supplicant.conf
      * @param ipConfigData Raw byte stream of ipconfig.txt
-     * @hide
      */
     public void restoreSupplicantBackupData(byte[] supplicantData, byte[] ipConfigData) {
         enforceChangePermission();
@@ -2021,20 +2030,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         List<WifiConfiguration> wifiConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
                         supplicantData, ipConfigData);
-        if (wifiConfigurations == null) {
-            Slog.e(TAG, "Backup data parse failed");
-            return;
-        }
-
-        for (WifiConfiguration configuration : wifiConfigurations) {
-            int networkId =
-                    mWifiStateMachine.syncAddOrUpdateNetwork(
-                            mWifiStateMachineChannel, configuration);
-            if (networkId == WifiConfiguration.INVALID_NETWORK_ID) {
-                Slog.e(TAG, "Restore network failed: " + configuration.configKey());
-            }
-            mWifiStateMachine.syncEnableNetwork(mWifiStateMachineChannel, networkId, false);
-        }
+        restoreNetworks(wifiConfigurations);
         Slog.d(TAG, "Restored supplicant backup data");
     }
 }
