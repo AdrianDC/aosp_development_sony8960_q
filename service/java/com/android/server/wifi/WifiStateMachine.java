@@ -2795,12 +2795,16 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
         enableRssiPolling(screenOn);
         if (mUserWantsSuspendOpt.get()) {
+            int shouldReleaseWakeLock = 0;
             if (screenOn) {
-                sendMessage(CMD_SET_SUSPEND_OPT_ENABLED, 0, 0);
+                sendMessage(CMD_SET_SUSPEND_OPT_ENABLED, 0, shouldReleaseWakeLock);
             } else {
-                // Allow 2s for suspend optimizations to be set
-                mSuspendWakeLock.acquire(2000);
-                sendMessage(CMD_SET_SUSPEND_OPT_ENABLED, 1, 0);
+                if (isConnected()) {
+                    // Allow 2s for suspend optimizations to be set
+                    mSuspendWakeLock.acquire(2000);
+                    shouldReleaseWakeLock = 1;
+                }
+                sendMessage(CMD_SET_SUSPEND_OPT_ENABLED, 1, shouldReleaseWakeLock);
             }
         }
         mScreenBroadcastReceived.set(true);
@@ -3918,7 +3922,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_SET_SUSPEND_OPT_ENABLED:
                     if (message.arg1 == 1) {
-                        mSuspendWakeLock.release();
+                        if (message.arg2 == 1) {
+                            mSuspendWakeLock.release();
+                        }
                         setSuspendOptimizations(SUSPEND_DUE_TO_SCREEN, true);
                     } else {
                         setSuspendOptimizations(SUSPEND_DUE_TO_SCREEN, false);
@@ -4646,7 +4652,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_SET_SUSPEND_OPT_ENABLED:
                     if (message.arg1 == 1) {
                         setSuspendOptimizationsNative(SUSPEND_DUE_TO_SCREEN, true);
-                        mSuspendWakeLock.release();
+                        if (message.arg2 == 1) {
+                            mSuspendWakeLock.release();
+                        }
                     } else {
                         setSuspendOptimizationsNative(SUSPEND_DUE_TO_SCREEN, false);
                     }
