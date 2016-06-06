@@ -687,30 +687,12 @@ public class WifiBackupRestoreTest {
             for (WifiConfiguration actualConfiguration : actual) {
                 String actualConfigKey = actualConfiguration.configKey();
                 if (actualConfigKey.equals(expectedConfigKey)) {
-                    assertConfigurationEqual(expectedConfiguration, actualConfiguration);
+                    WifiConfigurationTestUtil.assertConfigurationEqual(
+                            expectedConfiguration, actualConfiguration);
                     didCompare = true;
                 }
             }
             assertTrue(didCompare);
         }
-    }
-
-    /**
-     * Asserts that the 2 WifiConfigurations are equal
-     */
-    private void assertConfigurationEqual(
-            WifiConfiguration expected, WifiConfiguration actual) {
-        assertEquals(expected.SSID, actual.SSID);
-        assertEquals(expected.BSSID, actual.BSSID);
-        assertEquals(expected.preSharedKey, actual.preSharedKey);
-        assertEquals(expected.wepKeys, actual.wepKeys);
-        assertEquals(expected.wepTxKeyIndex, actual.wepTxKeyIndex);
-        assertEquals(expected.hiddenSSID, actual.hiddenSSID);
-        assertEquals(expected.allowedKeyManagement, actual.allowedKeyManagement);
-        assertEquals(expected.allowedProtocols, actual.allowedProtocols);
-        assertEquals(expected.allowedAuthAlgorithms, actual.allowedAuthAlgorithms);
-        assertEquals(expected.shared, actual.shared);
-        assertEquals(expected.creatorUid, actual.creatorUid);
-        assertEquals(expected.getIpConfiguration(), actual.getIpConfiguration());
     }
 }
