@@ -65,6 +65,10 @@ public class FrameworkFacade {
         return Settings.Global.getLong(context.getContentResolver(), name, def);
     }
 
+    public boolean setStringSetting(Context context, String name, String def) {
+        return Settings.Global.putString(context.getContentResolver(), name, def);
+    }
+
     public String getStringSetting(Context context, String name) {
         return Settings.Global.getString(context.getContentResolver(), name);
     }
