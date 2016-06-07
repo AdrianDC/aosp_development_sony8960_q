@@ -30,12 +30,17 @@ import android.util.Log;
 
 import com.android.server.net.IpConfigStore;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
+import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -69,8 +74,27 @@ public class WifiBackupRestoreTest {
     private static final String TEST_STATIC_PROXY_EXCLUSION_LIST = "";
     private static final String TEST_PAC_PROXY_LOCATION = "http://";
 
-
     private final WifiBackupRestore mWifiBackupRestore = new WifiBackupRestore();
+    private boolean mCheckDump = true;
+
+    @Before
+    public void setUp() throws Exception {
+        // Enable verbose logging before tests to check the backup data dumps.
+        mWifiBackupRestore.enableVerboseLogging(1);
+    }
+
+    @After
+    public void cleanUp() throws Exception {
+        if (mCheckDump) {
+            StringWriter stringWriter = new StringWriter();
+            mWifiBackupRestore.dump(
+                    new FileDescriptor(), new PrintWriter(stringWriter), new String[0]);
+            // Ensure that the SSID was dumped out.
+            assertTrue(stringWriter.toString().contains(TEST_SSID));
+            // Ensure that the password wasn't dumped out.
+            assertFalse(stringWriter.toString().contains(TEST_PSK));
+        }
+    }
 
     /**
      * Verify that a single open network configuration is serialized & deserialized correctly.
@@ -87,12 +111,41 @@ public class WifiBackupRestoreTest {
     }
 
     /**
+     * Verify that a single open hidden network configuration is serialized & deserialized
+     * correctly.
+     */
+    @Test
+    public void testSingleOpenHiddenNetworkBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createOpenHiddenNetwork(0));
+
+        byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
      * Verify that a single PSK network configuration is serialized & deserialized correctly.
      */
     @Test
     public void testSinglePskNetworkBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
         configurations.add(createPskNetwork(0));
+
+        byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
+     * Verify that a single PSK hidden network configuration is serialized & deserialized correctly.
+     */
+    @Test
+    public void testSinglePskHiddenNetworkBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createPskHiddenNetwork(0));
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
@@ -126,6 +179,8 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
         assertTrue(retrievedConfigurations.isEmpty());
+        // No valid data to check in dump.
+        mCheckDump = false;
     }
 
     /**
@@ -283,6 +338,23 @@ public class WifiBackupRestoreTest {
     }
 
     /**
+     * Verify that a single open hidden network configuration is serialized & deserialized
+     * correctly from old backups.
+     */
+    @Test
+    public void testSingleOpenHiddenNetworkSupplicantBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createOpenHiddenNetwork(0));
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        byte[] ipConfigData = createIpConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, ipConfigData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
      * Verify that a single PSK network configuration is serialized & deserialized correctly from
      * old backups.
      */
@@ -290,6 +362,23 @@ public class WifiBackupRestoreTest {
     public void testSinglePskNetworkSupplicantBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
         configurations.add(createPskNetwork(0));
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        byte[] ipConfigData = createIpConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, ipConfigData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
+     * Verify that a single PSK hidden network configuration is serialized & deserialized correctly
+     * from old backups.
+     */
+    @Test
+    public void testSinglePskHiddenNetworkSupplicantBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createPskHiddenNetwork(0));
 
         byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
         byte[] ipConfigData = createIpConfBackupData(configurations);
@@ -372,6 +461,8 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
         assertNull(retrievedConfigurations);
+        // No valid data to check in dump.
+        mCheckDump = false;
     }
 
     private WifiConfiguration createOpenNetwork(int id) {
@@ -381,6 +472,16 @@ public class WifiBackupRestoreTest {
                 WifiConfigurationTestUtil.SECURITY_NONE);
     }
 
+    private WifiConfiguration createOpenHiddenNetwork(int id) {
+        String ssid = "\"" + TEST_SSID + id + "\"";
+        WifiConfiguration config =
+                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
+                true, true, null, null,
+                WifiConfigurationTestUtil.SECURITY_NONE);
+        config.hiddenSSID = true;
+        return config;
+    }
+
     private WifiConfiguration createPskNetwork(int id) {
         String ssid = "\"" + TEST_SSID + id + "\"";
         WifiConfiguration configuration =
@@ -388,6 +489,17 @@ public class WifiBackupRestoreTest {
                         true, true, null, null,
                         WifiConfigurationTestUtil.SECURITY_PSK);
         configuration.preSharedKey = TEST_PSK;
+        return configuration;
+    }
+
+    private WifiConfiguration createPskHiddenNetwork(int id) {
+        String ssid = "\"" + TEST_SSID + id + "\"";
+        WifiConfiguration configuration =
+                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
+                        true, true, null, null,
+                        WifiConfigurationTestUtil.SECURITY_PSK);
+        configuration.preSharedKey = TEST_PSK;
+        configuration.hiddenSSID = true;
         return configuration;
     }
 
@@ -495,6 +607,9 @@ public class WifiBackupRestoreTest {
         out.write("network={\n");
         out.write("        " + "ssid=" + configuration.SSID + "\n");
         String allowedKeyManagement = "";
+        if (configuration.hiddenSSID) {
+            out.write("        " + "scan_ssid=1" + "\n");
+        }
         if (configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)) {
             allowedKeyManagement += "NONE";
         }

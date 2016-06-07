@@ -1259,6 +1259,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         if (mWifiConnectivityManager != null) {
             mWifiConnectivityManager.enableVerboseLogging(mVerboseLoggingLevel);
         }
+        mWifiInjector.getWifiBackupRestore().enableVerboseLogging(mVerboseLoggingLevel);
     }
 
     private static final String SYSTEM_PROPERTY_LOG_CONTROL_WIFIHAL = "log.tag.WifiHAL";

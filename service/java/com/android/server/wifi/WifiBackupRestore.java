@@ -41,14 +41,15 @@ import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.CharArrayReader;
+import java.io.FileDescriptor;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -108,7 +109,25 @@ public class WifiBackupRestore {
     private static final String XML_TAG_IP_CONFIGURATION_PROXY_PAC_FILE = "ProxyPac";
     private static final String XML_TAG_IP_CONFIGURATION_PROXY_EXCLUSION_LIST = "ProxyExclusionList";
 
-    private boolean mVerboseLoggingEnabled = true;
+    /**
+     * Regex to mask out passwords in backup data dump.
+     */
+    private static final String PASSWORD_MASK_SEARCH_PATTERN =
+            "(<.*" + XML_TAG_CONFIGURATION_PRE_SHARED_KEY + ".*>)(.*)(<.*>)";
+    private static final String PASSWORD_MASK_REPLACE_PATTERN = "$1*$3";
+
+    /**
+     * Verbose logging flag.
+     */
+    private boolean mVerboseLoggingEnabled = false;
+
+    /**
+     * Store the dump of the backup/restore data for debugging. This is only stored when verbose
+     * logging is enabled in developer options.
+     */
+    private byte[] mDebugLastBackupDataRetrieved;
+    private byte[] mDebugLastBackupDataRestored;
+    private byte[] mDebugLastSupplicantBackupDataRestored;
 
     /**
      * Retrieve an XML byte stream representing the data that needs to be backed up from the
@@ -118,6 +137,11 @@ public class WifiBackupRestore {
      * @return Raw byte stream of XML that needs to be backed up.
      */
     public byte[] retrieveBackupDataFromConfigurations(List<WifiConfiguration> configurations) {
+        if (configurations == null) {
+            Log.e(TAG, "Invalid configuration list received");
+            return null;
+        }
+
         try {
             final XmlSerializer out = new FastXmlSerializer();
             final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -133,7 +157,10 @@ public class WifiBackupRestore {
             XmlUtil.writeDocumentEnd(out, XML_TAG_DOCUMENT_HEADER);
 
             byte[] data = outputStream.toByteArray();
-            if (mVerboseLoggingEnabled) logBackupData(data, "retrieveBackupData");
+
+            if (mVerboseLoggingEnabled) {
+                mDebugLastBackupDataRetrieved = data;
+            }
 
             return data;
         } catch (XmlPullParserException e) {
@@ -309,8 +336,15 @@ public class WifiBackupRestore {
      * @return list of networks retrieved from the backed up data.
      */
     public List<WifiConfiguration> retrieveConfigurationsFromBackupData(byte[] data) {
+        if (data == null || data.length == 0) {
+            Log.e(TAG, "Invalid backup data received");
+            return null;
+        }
+
         try {
-            if (mVerboseLoggingEnabled) logBackupData(data, "restoreBackupData");
+            if (mVerboseLoggingEnabled) {
+                mDebugLastBackupDataRestored = data;
+            }
 
             final XmlPullParser in = Xml.newPullParser();
             ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
@@ -361,9 +395,7 @@ public class WifiBackupRestore {
             WifiConfiguration configuration =
                     parseWifiConfigurationFromXml(in, dataVersion, confListTagDepth);
             if (configuration != null) {
-                if (mVerboseLoggingEnabled) {
-                    Log.d(TAG, "Parsed Configuration: " + configuration.configKey());
-                }
+                Log.v(TAG, "Parsed Configuration: " + configuration.configKey());
                 configurations.add(configuration);
             }
         }
@@ -562,17 +594,19 @@ public class WifiBackupRestore {
     }
 
     /**
-     * Log the backup data in XML format with the preShared key masked.
+     * Create log dump of the backup data in XML format with the preShared
+     * key masked.
      */
-    private void logBackupData(byte[] data, String logString) {
+    private String createLogFromBackupData(byte[] data) {
         String xmlString;
         try {
             xmlString = new String(data, StandardCharsets.UTF_8.name());
-            // TODO(b/29051876): Mask passwords.
+            xmlString = xmlString.replaceAll(
+                    PASSWORD_MASK_SEARCH_PATTERN, PASSWORD_MASK_REPLACE_PATTERN);
         } catch (UnsupportedEncodingException e) {
-            return;
+            return "";
         }
-        Log.d(TAG, logString + ": " + xmlString);
+        return xmlString;
     }
 
     /**
@@ -591,20 +625,20 @@ public class WifiBackupRestore {
             return null;
         }
 
+        if (mVerboseLoggingEnabled) {
+            mDebugLastSupplicantBackupDataRestored = supplicantData;
+        }
+
         SupplicantBackupMigration.SupplicantNetworks supplicantNetworks =
                 new SupplicantBackupMigration.SupplicantNetworks();
         // Incorporate the networks present in the backup data.
-        char[] restoredAsBytes = new char[supplicantData.length];
+        char[] restoredAsChars = new char[supplicantData.length];
         for (int i = 0; i < supplicantData.length; i++) {
-            restoredAsBytes[i] = (char) supplicantData[i];
+            restoredAsChars[i] = (char) supplicantData[i];
         }
 
-        BufferedReader in = new BufferedReader(new CharArrayReader(restoredAsBytes));
+        BufferedReader in = new BufferedReader(new CharArrayReader(restoredAsChars));
         supplicantNetworks.readNetworksFromStream(in);
-        if (mVerboseLoggingEnabled) {
-            Log.d(TAG, "Final network list from old backup:");
-            supplicantNetworks.dump();
-        }
 
         // Retrieve corresponding WifiConfiguration objects.
         List<WifiConfiguration> configurations = supplicantNetworks.retrieveWifiConfigurations();
@@ -630,6 +664,44 @@ public class WifiBackupRestore {
     }
 
     /**
+     * Enable verbose logging.
+     *
+     * @param verbose verbosity level.
+     */
+    public void enableVerboseLogging(int verbose) {
+        mVerboseLoggingEnabled = (verbose > 0);
+        if (!mVerboseLoggingEnabled) {
+            mDebugLastBackupDataRetrieved = null;
+            mDebugLastBackupDataRestored = null;
+            mDebugLastSupplicantBackupDataRestored = null;
+        }
+    }
+
+    /**
+     * Dump out the last backup/restore data if verbose logging is enabled.
+     *
+     * @param fd   unused
+     * @param pw   PrintWriter for writing dump to
+     * @param args unused
+     */
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        pw.println("Dump of WifiBackupRestore");
+        if (mDebugLastBackupDataRetrieved != null) {
+            pw.println("Last backup data retrieved: " +
+                    createLogFromBackupData(mDebugLastBackupDataRetrieved));
+        }
+        if (mDebugLastBackupDataRestored != null) {
+            pw.println("Last backup data restored: " +
+                    createLogFromBackupData(mDebugLastBackupDataRestored));
+        }
+        if (mDebugLastSupplicantBackupDataRestored != null) {
+            pw.println("Last old backup data restored: " +
+                    SupplicantBackupMigration.createLogFromBackupData(
+                            mDebugLastSupplicantBackupDataRestored));
+        }
+    }
+
+    /**
      * These sub classes contain the logic to parse older backups and restore wifi state from it.
      * Most of the code here has been migrated over from BackupSettingsAgent.
      * This is kind of ugly text parsing, but it is needed to support the migration of this data.
@@ -641,6 +713,7 @@ public class WifiBackupRestore {
          */
         @VisibleForTesting
         public static final String SUPPLICANT_KEY_SSID = WifiConfiguration.ssidVarName;
+        public static final String SUPPLICANT_KEY_HIDDEN = WifiConfiguration.hiddenSSIDVarName;
         public static final String SUPPLICANT_KEY_KEY_MGMT = WifiConfiguration.KeyMgmt.varName;
         public static final String SUPPLICANT_KEY_CLIENT_CERT = WifiEnterpriseConfig.CLIENT_CERT_KEY;
         public static final String SUPPLICANT_KEY_CA_CERT = WifiEnterpriseConfig.CA_CERT_KEY;
@@ -655,11 +728,18 @@ public class WifiBackupRestore {
         public static final String SUPPLICANT_KEY_ID_STR = WifiConfigStore.ID_STRING_VAR_NAME;
 
         /**
+         * Regex to mask out passwords in backup data dump.
+         */
+        private static final String PASSWORD_MASK_SEARCH_PATTERN =
+                "(.*" + SUPPLICANT_KEY_PSK + ".*=)(.*)";
+        private static final String PASSWORD_MASK_REPLACE_PATTERN = "$1*";
+
+        /**
          * Class for capturing a network definition from the wifi supplicant config file.
          */
         static class SupplicantNetwork {
-            final ArrayList<String> rawLines = new ArrayList<String>();
             String ssid;
+            String hidden;
             String key_mgmt;
             String psk;
             String[] wepKeys = new String[4];
@@ -695,12 +775,13 @@ public class WifiBackupRestore {
                 // Can't rely on particular whitespace patterns so strip leading/trailing.
                 line = line.trim();
                 if (line.isEmpty()) return; // only whitespace; drop the line.
-                rawLines.add(line);
 
                 // Now parse the network block within wpa_supplicant.conf and store the important
                 // lines for procesing later.
                 if (line.startsWith(SUPPLICANT_KEY_SSID)) {
                     ssid = line;
+                } else if (line.startsWith(SUPPLICANT_KEY_HIDDEN)) {
+                    hidden = line;
                 } else if (line.startsWith(SUPPLICANT_KEY_KEY_MGMT)) {
                     key_mgmt = line;
                     if (line.contains("EAP")) {
@@ -732,17 +813,6 @@ public class WifiBackupRestore {
             }
 
             /**
-             * Raw dump of wpa_supplicant.conf lines.
-             */
-            public void dump() {
-                Log.v(TAG, "network={");
-                for (String line : rawLines) {
-                    Log.v(TAG, "   " + line);
-                }
-                Log.v(TAG, "}");
-            }
-
-            /**
              * Create WifiConfiguration object from the parsed data for this network.
              */
             public WifiConfiguration createWifiConfiguration() {
@@ -753,6 +823,11 @@ public class WifiBackupRestore {
                 WifiConfiguration configuration = new WifiConfiguration();
                 configuration.SSID = ssid.substring(ssid.indexOf('=') + 1);
 
+                if (hidden != null) {
+                    // Can't use Boolean.valueOf() because it works only for true/false.
+                    configuration.hiddenSSID =
+                            Integer.parseInt(hidden.substring(hidden.indexOf('=') + 1)) != 0;
+                }
                 if (key_mgmt == null) {
                     // no key_mgmt specified; this is defined as equivalent to "WPA-PSK WPA-EAP"
                     configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
@@ -822,8 +897,6 @@ public class WifiBackupRestore {
          * blocks and eliminating duplicates
          */
         static class SupplicantNetworks {
-            // One for fast lookup, one for maintaining ordering
-            final HashSet<SupplicantNetwork> mKnownNetworks = new HashSet<>();
             final ArrayList<SupplicantNetwork> mNetworks = new ArrayList<>(8);
 
             /**
@@ -840,12 +913,10 @@ public class WifiBackupRestore {
                                 SupplicantNetwork net = SupplicantNetwork.readNetworkFromStream(in);
                                 // Don't propagate EAP network definitions
                                 if (net.isEap) {
-                                    Log.v(TAG, "Skipping EAP network " + net.ssid + " / "
+                                    Log.d(TAG, "Skipping EAP network " + net.ssid + " / "
                                             + net.key_mgmt);
                                     continue;
                                 }
-                                Log.v(TAG, "Adding " + net.ssid + " / " + net.key_mgmt);
-                                mKnownNetworks.add(net);
                                 mNetworks.add(net);
                             }
                         }
@@ -877,20 +948,28 @@ public class WifiBackupRestore {
                     }
                     WifiConfiguration wifiConfiguration = net.createWifiConfiguration();
                     if (wifiConfiguration != null) {
+                        Log.v(TAG, "Parsed Configuration: " + wifiConfiguration.configKey());
                         wifiConfigurations.add(wifiConfiguration);
                     }
                 }
                 return wifiConfigurations;
             }
+        }
 
-            /**
-             * Raw dump of wpa_supplicant.conf lines.
-             */
-            public void dump() {
-                for (SupplicantNetwork net : mNetworks) {
-                    net.dump();
-                }
+        /**
+         * Create log dump of the backup data in wpa_supplicant.conf format with the preShared
+         * key masked.
+         */
+        public static String createLogFromBackupData(byte[] data) {
+            String supplicantConfString;
+            try {
+                supplicantConfString = new String(data, StandardCharsets.UTF_8.name());
+                supplicantConfString = supplicantConfString.replaceAll(
+                        PASSWORD_MASK_SEARCH_PATTERN, PASSWORD_MASK_REPLACE_PATTERN);
+            } catch (UnsupportedEncodingException e) {
+                return "";
             }
+            return supplicantConfString;
         }
     }
 }

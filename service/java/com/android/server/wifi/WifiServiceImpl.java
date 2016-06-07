@@ -351,7 +351,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 mSettingsStore, mWifiLockManager, wifiThread.getLooper(), mFacade);
         // Set the WifiController for WifiLastResortWatchdog
         mWifiInjector.getWifiLastResortWatchdog().setWifiController(mWifiController);
-        mWifiBackupRestore = new WifiBackupRestore();
+        mWifiBackupRestore = mWifiInjector.getWifiBackupRestore();
     }
 
 
@@ -1563,6 +1563,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             pw.println();
             mWifiStateMachine.dump(fd, pw, args);
             pw.println();
+            mWifiBackupRestore.dump(fd, pw, args);
+            pw.println();
         }
     }
 
@@ -1966,10 +1968,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             return null;
         }
 
-        Slog.d(TAG, "Retrieve backup data");
+        Slog.d(TAG, "Retrieving backup data");
         List<WifiConfiguration> wifiConfigurations =
                 mWifiStateMachine.syncGetPrivilegedConfiguredNetwork(mWifiStateMachineChannel);
-        return mWifiBackupRestore.retrieveBackupDataFromConfigurations(wifiConfigurations);
+        byte[] backupData =
+                mWifiBackupRestore.retrieveBackupDataFromConfigurations(wifiConfigurations);
+        Slog.d(TAG, "Retrieved backup data");
+        return backupData;
     }
 
     /**
@@ -1985,7 +1990,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             return;
         }
 
-        Slog.d(TAG, "Restore backup data");
+        Slog.d(TAG, "Restoring backup data");
         List<WifiConfiguration> wifiConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(data);
         if (wifiConfigurations == null) {
@@ -2002,6 +2007,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             }
             mWifiStateMachine.syncEnableNetwork(mWifiStateMachineChannel, networkId, false);
         }
+        Slog.d(TAG, "Restored backup data");
     }
 
     /**
@@ -2019,7 +2025,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             return;
         }
 
-        Slog.d(TAG, "Restore supplicant backup data");
+        Slog.d(TAG, "Restoring supplicant backup data");
         List<WifiConfiguration> wifiConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
                         supplicantData, ipConfigData);
@@ -2037,5 +2043,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             }
             mWifiStateMachine.syncEnableNetwork(mWifiStateMachineChannel, networkId, false);
         }
+        Slog.d(TAG, "Restored supplicant backup data");
     }
 }
