@@ -36,14 +36,19 @@ public class WifiCountryCode {
     private String mTelephonyCountryCode = null;
     private String mCurrentCountryCode = null;
 
-    public WifiCountryCode(WifiNative wifiNative, String defaultCountryCode,
+    public WifiCountryCode(
+            WifiNative wifiNative,
+            String oemDefaultCountryCode,
+            String persistentCountryCode,
             boolean revertCountryCodeOnCellularLoss) {
+
         mWifiNative = wifiNative;
         mRevertCountryCodeOnCellularLoss = revertCountryCodeOnCellularLoss;
 
-        if (!TextUtils.isEmpty(defaultCountryCode)) {
-            mDefaultCountryCode = defaultCountryCode;
-            mDefaultCountryCode = mDefaultCountryCode.toUpperCase();
+        if (!TextUtils.isEmpty(persistentCountryCode)) {
+            mDefaultCountryCode = persistentCountryCode.toUpperCase();
+        } else if (!TextUtils.isEmpty(oemDefaultCountryCode)) {
+            mDefaultCountryCode = oemDefaultCountryCode.toUpperCase();
         } else {
             if (mRevertCountryCodeOnCellularLoss) {
                 Log.w(TAG, "config_wifi_revert_country_code_on_cellular_loss is set, "
@@ -122,21 +127,25 @@ public class WifiCountryCode {
      * @param countryCode The country code intended to set.
      * This is supposed to be from Telephony service.
      * otherwise we think it is from other applications.
+     * @return Returns true if the country code passed in is acceptable.
      */
-    public synchronized void setCountryCode(String countryCode) {
+    public synchronized boolean setCountryCode(String countryCode, boolean persist) {
         if (DBG) Log.d(TAG, "Receive set country code request: " + countryCode);
         // Ignore empty country code.
-        if (countryCode.length() == 0) {
+        if (TextUtils.isEmpty(countryCode)) {
             if (DBG) Log.d(TAG, "Ignore empty country code");
-            return;
+            return false;
         }
-        mTelephonyCountryCode = countryCode;
-        mTelephonyCountryCode = mTelephonyCountryCode.toUpperCase();
+        if (persist) {
+            mDefaultCountryCode = countryCode;
+        }
+        mTelephonyCountryCode = countryCode.toUpperCase();
         // If wpa_supplicant is ready we set the country code now, otherwise it will be
         // set once wpa_supplicant is ready.
         if (mReady) {
             updateCountryCode();
         }
+        return true;
     }
 
     /**
