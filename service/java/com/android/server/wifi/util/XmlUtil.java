@@ -61,7 +61,7 @@ public class XmlUtil {
     /**
      * Ensure that the XML stream is at a start tag or the end of document.
      *
-     * @throws {XmlPullParserException}, if parsing errors occur.
+     * @throws XmlPullParserException if parsing errors occur.
      */
     private static void gotoStartTag(XmlPullParser in)
             throws XmlPullParserException, IOException {
@@ -74,7 +74,7 @@ public class XmlUtil {
     /**
      * Ensure that the XML stream is at an end tag or the end of document.
      *
-     * @throws {XmlPullParserException}, if parsing errors occur.
+     * @throws XmlPullParserException if parsing errors occur.
      */
     private static void gotoEndTag(XmlPullParser in)
             throws XmlPullParserException, IOException {
@@ -89,7 +89,7 @@ public class XmlUtil {
      *
      * @param in         XmlPullParser instance pointing to the XML stream.
      * @param headerName expected name for the start tag.
-     * @throws {XmlPullParserException}, if parsing errors occur.
+     * @throws XmlPullParserException if parsing errors occur.
      */
     public static void gotoDocumentStart(XmlPullParser in, String headerName)
             throws XmlPullParserException, IOException {
@@ -104,7 +104,7 @@ public class XmlUtil {
      * @param headerName expected name for the start tag.
      * @param outerDepth Find section within this depth.
      * @return {@code true} if a start tag with the provided name is found, {@code false} otherwise
-     * @throws {XmlPullParserException}, if parsing errors occur.
+     * @throws XmlPullParserException if parsing errors occur.
      */
     public static boolean gotoNextSection(XmlPullParser in, String headerName, int outerDepth)
             throws XmlPullParserException, IOException {
@@ -123,15 +123,11 @@ public class XmlUtil {
      * @param in           XmlPullParser instance pointing to the XML stream.
      * @param sectionDepth depth of the start tag of this section. Used to match the end tag.
      * @return {@code true} if a end tag at the provided depth is found, {@code false} otherwise
-     * @throws {XmlPullParserException}, if parsing errors occur.
+     * @throws XmlPullParserException if parsing errors occur.
      */
     public static boolean isNextSectionEnd(XmlPullParser in, int sectionDepth)
             throws XmlPullParserException, IOException {
-        if (in.nextTag() == XmlPullParser.END_TAG && in.getDepth() == sectionDepth) {
-            return true;
-        } else {
-            return false;
-        }
+        return (in.nextTag() == XmlPullParser.END_TAG && in.getDepth() == sectionDepth);
     }
 
     /**
@@ -145,7 +141,7 @@ public class XmlUtil {
      * @param valueName An array of one string, used to return the name attribute
      *                  of the value's tag.
      * @return value retrieved from the XML stream.
-     * @throws {XmlPullParserException}, if parsing errors occur.
+     * @throws XmlPullParserException if parsing errors occur.
      */
     public static Object readCurrentValue(XmlPullParser in, String[] valueName)
             throws XmlPullParserException, IOException {
@@ -165,8 +161,8 @@ public class XmlUtil {
      *
      * @param in XmlPullParser instance pointing to the XML stream.
      * @return value retrieved from the XML stream.
-     * @throws {XmlPullParserException}, if the value read does not match |expectedName|,
-     *                                   or if parsing errors occur.
+     * @throws XmlPullParserException if the value read does not match |expectedName|,
+     *                                or if parsing errors occur.
      */
     public static Object readNextValueWithName(XmlPullParser in, String expectedName)
             throws XmlPullParserException, IOException {
