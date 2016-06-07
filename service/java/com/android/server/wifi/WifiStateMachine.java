@@ -4485,10 +4485,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_GET_LINK_LAYER_STATS:
                     WifiLinkLayerStats stats = getWifiLinkLayerStats(DBG);
-                    if (stats == null) {
-                        // When firmware doesnt support link layer stats, return an empty object
-                        stats = new WifiLinkLayerStats();
-                    }
                     replyToMessage(message, message.what, stats);
                     break;
                 case CMD_RESET_SIM_NETWORKS:
