@@ -6013,8 +6013,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
                     mWifiInfo.setBSSID(mLastBssid);
                     mWifiInfo.setNetworkId(mLastNetworkId);
-                    mWifiQualifiedNetworkSelector
-                            .enableBssidForQualityNetworkSelection(mLastBssid, true);
+                    if (mWifiConnectivityManager != null) {
+                        mWifiConnectivityManager.trackBssid(mLastBssid, true);
+                    }
                     sendNetworkStateChangeBroadcast(mLastBssid);
                     transitionTo(mObtainingIpState);
                     break;
