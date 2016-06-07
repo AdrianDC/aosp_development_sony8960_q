@@ -2966,17 +2966,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
 
         synchronized (mScanResultsLock) {
-            ScanDetail activeScanDetail = null;
             mScanResults = scanResults;
             mNumScanResultsReturned = mScanResults.size();
             for (ScanDetail resultDetail : mScanResults) {
-                if (connected && resultDetail.getNetworkDetail().getBSSID() == activeBssid) {
-                    if (activeScanDetail == null
-                            || activeScanDetail.getNetworkDetail().getBSSID() != activeBssid
-                            || activeScanDetail.getNetworkDetail().getANQPElements() == null) {
-                        activeScanDetail = resultDetail;
-                    }
-                }
                 // Cache DTIM values parsed from the beacon frame Traffic Indication Map (TIM)
                 // Information Element (IE), into the associated WifiConfigurations. Most of the
                 // time there is no TIM IE in the scan result (Probe Response instead of Beacon
@@ -2995,7 +2987,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                 }
             }
-            mWifiConfigManager.setActiveScanDetail(activeScanDetail);
         }
 
         if (linkDebouncing) {

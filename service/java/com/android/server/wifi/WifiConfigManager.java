@@ -276,7 +276,6 @@ public class WifiConfigManager {
     private final boolean mEnableOsuQueries;
     private final SIMAccessor mSIMAccessor;
     private final UserManager mUserManager;
-    private final Object mActiveScanDetailLock = new Object();
 
     private boolean mVerboseLoggingEnabled = false;
     private Context mContext;
@@ -310,7 +309,8 @@ public class WifiConfigManager {
      */
     private HashSet<String> mLostConfigsDbg = new HashSet<String>();
 
-    private ScanDetail mActiveScanDetail;   // ScanDetail associated with active network
+    // NetworkDetail associated with the last selected Passpoint network.
+    private NetworkDetail mSelectedPasspointNetwork;
 
     private class SupplicantBridgeCallbacks implements SupplicantBridge.SupplicantBridgeCallbacks {
         @Override
@@ -663,6 +663,7 @@ public class WifiConfigManager {
             setNetworkPriorityNative(config, ++mLastPriority);
         }
 
+        NetworkDetail selectedPasspointNetwork = null;
         if (config.isPasspoint()) {
             /* need to slap on the SSID of selected bssid to work */
             if (getScanDetailCache(config).size() != 0) {
@@ -671,6 +672,7 @@ public class WifiConfigManager {
                     loge("Could not find scan result for " + config.BSSID);
                 } else {
                     logd("Setting SSID for " + config.networkId + " to" + result.getSSID());
+                    selectedPasspointNetwork = result.getNetworkDetail();
                     setSSIDNative(config, result.getSSID());
                 }
 
@@ -678,6 +680,7 @@ public class WifiConfigManager {
                 loge("Could not find bssid for " + config);
             }
         }
+        mSelectedPasspointNetwork = selectedPasspointNetwork;
 
         mWifiConfigStore.enableHS20(config.isPasspoint());
 
@@ -799,6 +802,7 @@ public class WifiConfigManager {
                             WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
                     break;
                 case DISCONNECTED:
+                    mSelectedPasspointNetwork = null;
                     //If network is already disabled, keep the status
                     if (config.status == Status.CURRENT) {
                         config.status = Status.ENABLED;
@@ -918,11 +922,8 @@ public class WifiConfigManager {
     }
 
     public int matchProviderWithCurrentNetwork(String fqdn) {
-        ScanDetail scanDetail = null;
-        synchronized (mActiveScanDetailLock) {
-            scanDetail = mActiveScanDetail;
-        }
-        if (scanDetail == null) {
+        NetworkDetail selectedPasspointNetwork = mSelectedPasspointNetwork;
+        if (selectedPasspointNetwork == null) {
             return PasspointMatch.None.ordinal();
         }
         HomeSP homeSP = mMOManager.getHomeSP(fqdn);
@@ -930,12 +931,15 @@ public class WifiConfigManager {
             return PasspointMatch.None.ordinal();
         }
 
-        ANQPData anqpData = mAnqpCache.getEntry(scanDetail.getNetworkDetail());
+        Map<Constants.ANQPElementType, ANQPElement> anqpElements
+                = selectedPasspointNetwork.getANQPElements();
 
-        Map<Constants.ANQPElementType, ANQPElement> anqpElements =
-                anqpData != null ? anqpData.getANQPElements() : null;
+        if (anqpElements == null || anqpElements.isEmpty()) {
+            ANQPData anqpData = mAnqpCache.getEntry(selectedPasspointNetwork);
+            anqpElements = anqpData != null ? anqpData.getANQPElements() : null;
+        }
 
-        return homeSP.match(scanDetail.getNetworkDetail(), anqpElements, mSIMAccessor).ordinal();
+        return homeSP.match(selectedPasspointNetwork, anqpElements, mSIMAccessor).ordinal();
     }
 
     /**
@@ -3265,12 +3269,6 @@ public class WifiConfigManager {
 
     public void setEnableAutoJoinWhenAssociated(boolean enabled) {
         mEnableAutoJoinWhenAssociated.set(enabled);
-    }
-
-    public void setActiveScanDetail(ScanDetail activeScanDetail) {
-        synchronized (mActiveScanDetailLock) {
-            mActiveScanDetail = activeScanDetail;
-        }
     }
 
     /**
