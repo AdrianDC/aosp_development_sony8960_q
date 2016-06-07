@@ -65,7 +65,11 @@ public class WifiConnectivityManager {
             "WifiConnectivityManager Restart Scan";
 
     private static final String TAG = "WifiConnectivityManager";
-    private static final long INVALID_TIME_STAMP = Long.MIN_VALUE;
+    private static final long RESET_TIME_STAMP = Long.MIN_VALUE;
+    // Constants to indicate whether a scan should start immediately or
+    // it should comply to the minimum scan interval rule.
+    private static final boolean SCAN_IMMEDIATELY = true;
+    private static final boolean SCAN_ON_SCHEDULE = false;
     // Periodic scan interval in milli-seconds. This is the scan
     // performed when screen is on.
     @VisibleForTesting
@@ -134,7 +138,6 @@ public class WifiConnectivityManager {
     private boolean mDbg = false;
     private boolean mWifiEnabled = false;
     private boolean mWifiConnectivityManagerEnabled = true;
-    private boolean mForceSelectNetwork = false;
     private boolean mScreenOn = false;
     private int mWifiState = WIFI_STATE_UNKNOWN;
     private boolean mUntrustedConnectionAllowed = false;
@@ -143,7 +146,7 @@ public class WifiConnectivityManager {
     private int mTotalConnectivityAttemptsRateLimited = 0;
     private String mLastConnectionAttemptBssid = null;
     private int mPeriodicSingleScanInterval = PERIODIC_SCAN_INTERVAL_MS;
-    private long mLastPeriodicSingleScanTimeStamp = INVALID_TIME_STAMP;
+    private long mLastPeriodicSingleScanTimeStamp = RESET_TIME_STAMP;
 
     // PNO settings
     private int mMin5GHzRssi;
@@ -165,7 +168,7 @@ public class WifiConnectivityManager {
     private final AlarmManager.OnAlarmListener mRestartScanListener =
             new AlarmManager.OnAlarmListener() {
                 public void onAlarm() {
-                    startConnectivityScan(mForceSelectNetwork);
+                    startConnectivityScan(SCAN_IMMEDIATELY);
                 }
             };
 
@@ -215,7 +218,7 @@ public class WifiConnectivityManager {
     private boolean handleScanResults(List<ScanDetail> scanDetails, String listenerName) {
         localLog(listenerName + " onResults: start QNS");
         WifiConfiguration candidate =
-                mQualifiedNetworkSelector.selectQualifiedNetwork(mForceSelectNetwork,
+                mQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 mUntrustedConnectionAllowed, mStateMachine.isLinkDebouncing(),
                 mStateMachine.isConnected(), mStateMachine.isDisconnected(),
                 mStateMachine.isSupplicantTransientState(), scanDetails);
@@ -665,7 +668,7 @@ public class WifiConnectivityManager {
     private void startPeriodicSingleScan() {
         long currentTimeStamp = mClock.getElapsedSinceBootMillis();
 
-        if (mLastPeriodicSingleScanTimeStamp != INVALID_TIME_STAMP) {
+        if (mLastPeriodicSingleScanTimeStamp != RESET_TIME_STAMP) {
             long msSinceLastScan = currentTimeStamp - mLastPeriodicSingleScanTimeStamp;
             if (msSinceLastScan < PERIODIC_SCAN_INTERVAL_MS) {
                 localLog("Last periodic single scan started " + msSinceLastScan
@@ -698,6 +701,12 @@ public class WifiConnectivityManager {
         if (mPeriodicSingleScanInterval >  MAX_PERIODIC_SCAN_INTERVAL_MS) {
             mPeriodicSingleScanInterval = MAX_PERIODIC_SCAN_INTERVAL_MS;
         }
+    }
+
+    // Reset the last periodic single scan time stamp so that the next periodic single
+    // scan can start immediately.
+    private void resetLastPeriodicSingleScanTimeStamp() {
+        mLastPeriodicSingleScanTimeStamp = RESET_TIME_STAMP;
     }
 
     // Periodic scan timer handler
@@ -748,12 +757,15 @@ public class WifiConnectivityManager {
     }
 
     // Start a periodic scan when screen is on
-    private void startPeriodicScan() {
+    private void startPeriodicScan(boolean scanImmediately) {
         mPnoScanListener.resetLowRssiNetworkRetryDelay();
 
         // Due to b/28020168, timer based single scan will be scheduled
         // to provide periodic scan in an exponential backoff fashion.
         if (!ENABLE_BACKGROUND_SCAN) {
+            if (scanImmediately) {
+                resetLastPeriodicSingleScanTimeStamp();
+            }
             mPeriodicSingleScanInterval = PERIODIC_SCAN_INTERVAL_MS;
             startPeriodicSingleScan();
         } else {
@@ -893,10 +905,10 @@ public class WifiConnectivityManager {
 
     // Start a connectivity scan. The scan method is chosen according to
     // the current screen state and WiFi state.
-    private void startConnectivityScan(boolean forceSelectNetwork) {
+    private void startConnectivityScan(boolean scanImmediately) {
         localLog("startConnectivityScan: screenOn=" + mScreenOn
                         + " wifiState=" + mWifiState
-                        + " forceSelectNetwork=" + forceSelectNetwork
+                        + " scanImmediately=" + scanImmediately
                         + " wifiEnabled=" + mWifiEnabled
                         + " wifiConnectivityManagerEnabled="
                         + mWifiConnectivityManagerEnabled);
@@ -914,10 +926,8 @@ public class WifiConnectivityManager {
             return;
         }
 
-        mForceSelectNetwork = forceSelectNetwork;
-
         if (mScreenOn) {
-            startPeriodicScan();
+            startPeriodicScan(scanImmediately);
         } else { // screenOff
             if (mWifiState == WIFI_STATE_CONNECTED) {
                 startConnectedPnoScan();
@@ -948,7 +958,7 @@ public class WifiConnectivityManager {
 
         mScreenOn = screenOn;
 
-        startConnectivityScan(false);
+        startConnectivityScan(SCAN_ON_SCHEDULE);
     }
 
     /**
@@ -964,7 +974,7 @@ public class WifiConnectivityManager {
             scheduleWatchdogTimer();
         }
 
-        startConnectivityScan(false);
+        startConnectivityScan(SCAN_ON_SCHEDULE);
     }
 
     /**
@@ -975,7 +985,7 @@ public class WifiConnectivityManager {
 
         if (mUntrustedConnectionAllowed != allowed) {
             mUntrustedConnectionAllowed = allowed;
-            startConnectivityScan(false);
+            startConnectivityScan(SCAN_IMMEDIATELY);
         }
     }
 
@@ -989,10 +999,6 @@ public class WifiConnectivityManager {
         mQualifiedNetworkSelector.userSelectNetwork(netId, persistent);
 
         clearConnectionAttemptTimeStamps();
-
-        // Initiate a scan which will trigger the connection to the user selected
-        // network when scan result is available.
-        startConnectivityScan(true);
     }
 
     /**
@@ -1001,7 +1007,7 @@ public class WifiConnectivityManager {
     public void forceConnectivityScan() {
         Log.i(TAG, "forceConnectivityScan");
 
-        startConnectivityScan(false);
+        startConnectivityScan(SCAN_IMMEDIATELY);
     }
 
     /**
@@ -1017,7 +1023,7 @@ public class WifiConnectivityManager {
             // Disabling a BSSID can happen when the AP candidate to connect to has
             // no capacity for new stations. We start another scan immediately so that QNS
             // can give us another candidate to connect to.
-            startConnectivityScan(false);
+            startConnectivityScan(SCAN_IMMEDIATELY);
         }
 
         return ret;
@@ -1030,7 +1036,7 @@ public class WifiConnectivityManager {
         Log.i(TAG, "User band preference: " + band);
 
         mQualifiedNetworkSelector.setUserPreferredBand(band);
-        startConnectivityScan(false);
+        startConnectivityScan(SCAN_IMMEDIATELY);
     }
 
     /**
@@ -1043,7 +1049,7 @@ public class WifiConnectivityManager {
 
         if (!mWifiEnabled) {
             stopConnectivityScan();
-            mLastPeriodicSingleScanTimeStamp = INVALID_TIME_STAMP;
+            resetLastPeriodicSingleScanTimeStamp();
         }
     }
 
@@ -1057,6 +1063,7 @@ public class WifiConnectivityManager {
 
         if (!mWifiConnectivityManagerEnabled) {
             stopConnectivityScan();
+            resetLastPeriodicSingleScanTimeStamp();
         }
     }
 
@@ -1082,5 +1089,10 @@ public class WifiConnectivityManager {
     @VisibleForTesting
     int getLowRssiNetworkRetryDelay() {
         return mPnoScanListener.getLowRssiNetworkRetryDelay();
+    }
+
+    @VisibleForTesting
+    long getLastPeriodicSingleScanTimeStamp() {
+        return mLastPeriodicSingleScanTimeStamp;
     }
 }

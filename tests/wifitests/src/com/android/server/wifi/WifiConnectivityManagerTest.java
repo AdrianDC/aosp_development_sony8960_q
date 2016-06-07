@@ -697,6 +697,47 @@ public class WifiConnectivityManagerTest {
     }
 
     /**
+     *  When screen on trigger a connection state change event and a forced connectivity
+     *  scan event back to back to verify that the minimum scan interval is not applied
+     *  in this scenario.
+     *
+     * Expected behavior: WifiConnectivityManager starts the second periodic single
+     * scan immediately.
+     */
+    @Test
+    public void checkMinimumPeriodicScanIntervalNotEnforced() {
+        long currentTimeStamp = CURRENT_SYSTEM_TIME_MS;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
+
+        // Set screen to ON
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        // Wait for MAX_PERIODIC_SCAN_INTERVAL_MS so that any impact triggered
+        // by screen state change can settle
+        currentTimeStamp += WifiConnectivityManager.MAX_PERIODIC_SCAN_INTERVAL_MS;
+        long firstScanTimeStamp = currentTimeStamp;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
+
+        // Set WiFi to connected state to trigger the periodic scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        // Set the second scan attempt time stamp
+        currentTimeStamp += 2000;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
+
+        // Force a connectivity scan
+        mWifiConnectivityManager.forceConnectivityScan();
+
+        // Get the second periodic scan actual time stamp. Note, this scan is not
+        // started from the AlarmManager.
+        long secondScanTimeStamp = mWifiConnectivityManager.getLastPeriodicSingleScanTimeStamp();
+
+        // Verify that the second scan is fired immediately
+        assertEquals(secondScanTimeStamp, currentTimeStamp);
+    }
+
+    /**
      * Verify that we perform full band scan when the currently connected network's tx/rx success
      * rate is low.
      *
