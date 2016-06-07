@@ -179,18 +179,25 @@ public class SupplicantBridge {
         }
 
         if (scanDetail == null) {
+            // Icon queries are not held on the request map, so a null scanDetail is very likely
+            // the result of an Icon query. Notify the OSU app if the query was unsuccessful,
+            // else bail out.
             if (!success) {
                 mCallbacks.notifyIconFailed(bssid);
             }
             return;
+        } else if (!success) {
+            // If there is an associated ScanDetail, notify of a failed regular ANQP query.
+            mCallbacks.notifyANQPResponse(scanDetail, null);
+            return;
         }
 
         String bssData = mSupplicantHook.scanResult(scanDetail.getBSSIDString());
+        Map<Constants.ANQPElementType, ANQPElement> elements = null;
         try {
-            Map<Constants.ANQPElementType, ANQPElement> elements = parseWPSData(bssData);
-            Log.d(Utils.hs2LogTag(getClass()), String.format("%s ANQP response for %012x: %s",
-                    success ? "successful" : "failed", bssid, elements));
-            mCallbacks.notifyANQPResponse(scanDetail, success ? elements : null);
+            elements = parseWPSData(bssData);
+            Log.d(Utils.hs2LogTag(getClass()),
+                    String.format("Successful ANQP response for %012x: %s", bssid, elements));
         }
         catch (IOException ioe) {
             Log.e(Utils.hs2LogTag(getClass()), "Failed to parse ANQP: " +
@@ -200,7 +207,7 @@ public class SupplicantBridge {
             Log.e(Utils.hs2LogTag(getClass()), "Failed to parse ANQP: " +
                     rte.toString() + ": " + bssData, rte);
         }
-        mCallbacks.notifyANQPResponse(scanDetail, null);
+        mCallbacks.notifyANQPResponse(scanDetail, elements);
     }
 
     private static String escapeSSID(NetworkDetail networkDetail) {
