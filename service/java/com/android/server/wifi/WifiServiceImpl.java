@@ -128,6 +128,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     final WifiStateMachine mWifiStateMachine;
 
     private final Context mContext;
+    private final FrameworkFacade mFacade;
 
     final LockList mLocks = new LockList();
     // some wifi lock statistics
@@ -320,7 +321,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public WifiServiceImpl(Context context) {
         mContext = context;
         mWifiInjector = WifiInjector.getInstance();
-        FrameworkFacade facade = new FrameworkFacade();
+        mFacade = new FrameworkFacade();
         HandlerThread wifiThread = new HandlerThread("WifiService");
         wifiThread.start();
         mWifiMetrics = mWifiInjector.getWifiMetrics();
@@ -329,11 +330,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mUserManager = UserManager.get(mContext);
         HandlerThread wifiStateMachineThread = new HandlerThread("WifiStateMachine");
         wifiStateMachineThread.start();
-        mCountryCode = new WifiCountryCode(WifiNative.getWlanNativeInterface(),
+        mCountryCode = new WifiCountryCode(
+                WifiNative.getWlanNativeInterface(),
                 SystemProperties.get(BOOT_DEFAULT_WIFI_COUNTRY_CODE),
+                mFacade.getStringSetting(mContext, Settings.Global.WIFI_COUNTRY_CODE),
                 mContext.getResources().getBoolean(
                         R.bool.config_wifi_revert_country_code_on_cellular_loss));
-        mWifiStateMachine = new WifiStateMachine(mContext, facade,
+        mWifiStateMachine = new WifiStateMachine(mContext, mFacade,
             wifiStateMachineThread.getLooper(), mUserManager, mWifiInjector,
             new BackupManagerProxy(), mCountryCode);
         mSettingsStore = new WifiSettingsStore(mContext);
@@ -344,12 +347,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mCertManager = new WifiCertManager(mContext);
 
         mNotificationController = new WifiNotificationController(mContext,
-                wifiThread.getLooper(), mWifiStateMachine, facade, null);
+                wifiThread.getLooper(), mWifiStateMachine, mFacade, null);
 
         mClientHandler = new ClientHandler(wifiThread.getLooper());
         mWifiStateMachineHandler = new WifiStateMachineHandler(wifiThread.getLooper());
         mWifiController = new WifiController(mContext, mWifiStateMachine,
-                mSettingsStore, mLocks, wifiThread.getLooper(), facade);
+                mSettingsStore, mLocks, wifiThread.getLooper(), mFacade);
     }
 
 
@@ -1113,7 +1116,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         enforceConnectivityInternalPermission();
         final long token = Binder.clearCallingIdentity();
         try {
-            mCountryCode.setCountryCode(countryCode);
+            if (mCountryCode.setCountryCode(countryCode, persist) && persist) {
+                // Save this country code to persistent storage
+                mFacade.setStringSetting(mContext,
+                        Settings.Global.WIFI_COUNTRY_CODE,
+                        countryCode);
+            }
         } finally {
             Binder.restoreCallingIdentity(token);
         }
