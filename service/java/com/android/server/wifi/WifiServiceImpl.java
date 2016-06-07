@@ -1974,6 +1974,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     /**
      * Restore state from the backed up data.
+     *
      * @param data Raw byte stream of the backed up data.
      */
     @Override
@@ -1987,6 +1988,41 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         Slog.d(TAG, "Restore backup data");
         List<WifiConfiguration> wifiConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(data);
+        if (wifiConfigurations == null) {
+            Slog.e(TAG, "Backup data parse failed");
+            return;
+        }
+
+        for (WifiConfiguration configuration : wifiConfigurations) {
+            int networkId =
+                    mWifiStateMachine.syncAddOrUpdateNetwork(
+                            mWifiStateMachineChannel, configuration);
+            if (networkId == WifiConfiguration.INVALID_NETWORK_ID) {
+                Slog.e(TAG, "Restore network failed: " + configuration.configKey());
+            }
+            mWifiStateMachine.syncEnableNetwork(mWifiStateMachineChannel, networkId, false);
+        }
+    }
+
+    /**
+     * Restore state from the older supplicant back up data.
+     * The old backup data was essentially a backup of wpa_supplicant.conf & ipconfig.txt file.
+     *
+     * @param supplicantData Raw byte stream of wpa_supplicant.conf
+     * @param ipConfigData Raw byte stream of ipconfig.txt
+     * @hide
+     */
+    public void restoreSupplicantBackupData(byte[] supplicantData, byte[] ipConfigData) {
+        enforceChangePermission();
+        if (mWifiStateMachineChannel == null) {
+            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
+            return;
+        }
+
+        Slog.d(TAG, "Restore supplicant backup data");
+        List<WifiConfiguration> wifiConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, ipConfigData);
         if (wifiConfigurations == null) {
             Slog.e(TAG, "Backup data parse failed");
             return;

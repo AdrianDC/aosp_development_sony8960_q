@@ -23,18 +23,24 @@ import android.net.ProxyInfo;
 import android.net.RouteInfo;
 import android.net.StaticIpConfiguration;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.util.Log;
+import android.util.SparseArray;
 import android.util.Xml;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.FastXmlSerializer;
+import com.android.server.net.IpConfigStore;
 import com.android.server.wifi.util.XmlUtil;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.CharArrayReader;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.Inet4Address;
@@ -42,7 +48,9 @@ import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 import static android.net.IpConfiguration.IpAssignment;
 import static android.net.IpConfiguration.ProxySettings;
@@ -423,8 +431,8 @@ public class WifiBackupRestore {
             // configKey stored in the XML data.
             String configKeyCalculated = configuration.configKey();
             if (!configKeyInData.equals(configKeyCalculated)) {
-                Log.e(TAG, "Configuration key does not match. InData: " + configKeyInData
-                        + "Calculated: " + configKeyCalculated);
+                Log.e(TAG, "Configuration key does not match. Retrieved: " + configKeyInData
+                        + ", Calculated: " + configKeyCalculated);
                 return null;
             }
             // Now retrieve any IP configuration info if present.
@@ -565,5 +573,324 @@ public class WifiBackupRestore {
             return;
         }
         Log.d(TAG, logString + ": " + xmlString);
+    }
+
+    /**
+     * Restore state from the older supplicant back up data.
+     * The old backup data was essentially a backup of wpa_supplicant.conf & ipconfig.txt file.
+     *
+     * @param supplicantData Raw byte stream of wpa_supplicant.conf
+     * @param ipConfigData   Raw byte stream of ipconfig.txt
+     * @return list of networks retrieved from the backed up data.
+     */
+    public List<WifiConfiguration> retrieveConfigurationsFromSupplicantBackupData(
+            byte[] supplicantData, byte[] ipConfigData) {
+        if (supplicantData == null || ipConfigData == null
+                || supplicantData.length == 0 || ipConfigData.length == 0) {
+            Log.e(TAG, "Invalid supplicant backup data received");
+            return null;
+        }
+
+        SupplicantBackupMigration.SupplicantNetworks supplicantNetworks =
+                new SupplicantBackupMigration.SupplicantNetworks();
+        // Incorporate the networks present in the backup data.
+        char[] restoredAsBytes = new char[supplicantData.length];
+        for (int i = 0; i < supplicantData.length; i++) {
+            restoredAsBytes[i] = (char) supplicantData[i];
+        }
+
+        BufferedReader in = new BufferedReader(new CharArrayReader(restoredAsBytes));
+        supplicantNetworks.readNetworksFromStream(in);
+        if (mVerboseLoggingEnabled) {
+            Log.d(TAG, "Final network list from old backup:");
+            supplicantNetworks.dump();
+        }
+
+        // Retrieve corresponding WifiConfiguration objects.
+        List<WifiConfiguration> configurations = supplicantNetworks.retrieveWifiConfigurations();
+
+        // Now retrieve all the IpConfiguration objects and set in the corresponding
+        // WifiConfiguration objects.
+        SparseArray<IpConfiguration> networks =
+                IpConfigStore.readIpAndProxyConfigurations(new ByteArrayInputStream(ipConfigData));
+        if (networks != null) {
+            for (int i = 0; i < networks.size(); i++) {
+                int id = networks.keyAt(i);
+                for (WifiConfiguration configuration : configurations) {
+                    // This is a dangerous lookup, but that's how it is currently written.
+                    if (configuration.configKey().hashCode() == id) {
+                        configuration.setIpConfiguration(networks.valueAt(i));
+                    }
+                }
+            }
+        } else {
+            Log.e(TAG, "Invalid Ip config data");
+        }
+        return configurations;
+    }
+
+    /**
+     * These sub classes contain the logic to parse older backups and restore wifi state from it.
+     * Most of the code here has been migrated over from BackupSettingsAgent.
+     * This is kind of ugly text parsing, but it is needed to support the migration of this data.
+     */
+    public static class SupplicantBackupMigration {
+        /**
+         * List of keys to look out for in wpa_supplicant.conf parsing.
+         * These key values are declared in different parts of the wifi codebase today.
+         */
+        @VisibleForTesting
+        public static final String SUPPLICANT_KEY_SSID = WifiConfiguration.ssidVarName;
+        public static final String SUPPLICANT_KEY_KEY_MGMT = WifiConfiguration.KeyMgmt.varName;
+        public static final String SUPPLICANT_KEY_CLIENT_CERT = WifiEnterpriseConfig.CLIENT_CERT_KEY;
+        public static final String SUPPLICANT_KEY_CA_CERT = WifiEnterpriseConfig.CA_CERT_KEY;
+        public static final String SUPPLICANT_KEY_CA_PATH = WifiEnterpriseConfig.CA_PATH_KEY;
+        public static final String SUPPLICANT_KEY_EAP = WifiEnterpriseConfig.EAP_KEY;
+        public static final String SUPPLICANT_KEY_PSK = WifiConfiguration.pskVarName;
+        public static final String SUPPLICANT_KEY_WEP_KEY0 = WifiConfiguration.wepKeyVarNames[0];
+        public static final String SUPPLICANT_KEY_WEP_KEY1 = WifiConfiguration.wepKeyVarNames[1];
+        public static final String SUPPLICANT_KEY_WEP_KEY2 = WifiConfiguration.wepKeyVarNames[2];
+        public static final String SUPPLICANT_KEY_WEP_KEY3 = WifiConfiguration.wepKeyVarNames[3];
+        public static final String SUPPLICANT_KEY_WEP_KEY_IDX = WifiConfiguration.wepTxKeyIdxVarName;
+        public static final String SUPPLICANT_KEY_ID_STR = WifiConfigStore.ID_STRING_VAR_NAME;
+
+        /**
+         * Class for capturing a network definition from the wifi supplicant config file.
+         */
+        static class SupplicantNetwork {
+            final ArrayList<String> rawLines = new ArrayList<String>();
+            String ssid;
+            String key_mgmt;
+            String psk;
+            String[] wepKeys = new String[4];
+            String wepTxKeyIdx;
+            String id_str;
+            boolean certUsed = false;
+            boolean isEap = false;
+
+            /**
+             * Read lines from wpa_supplicant.conf stream for this network.
+             */
+            public static SupplicantNetwork readNetworkFromStream(BufferedReader in) {
+                final SupplicantNetwork n = new SupplicantNetwork();
+                String line;
+                try {
+                    while (in.ready()) {
+                        line = in.readLine();
+                        if (line == null || line.startsWith("}")) {
+                            break;
+                        }
+                        n.parseLine(line);
+                    }
+                } catch (IOException e) {
+                    return null;
+                }
+                return n;
+            }
+
+            /**
+             * Parse a line from wpa_supplicant.conf stream for this network.
+             */
+            void parseLine(String line) {
+                // Can't rely on particular whitespace patterns so strip leading/trailing.
+                line = line.trim();
+                if (line.isEmpty()) return; // only whitespace; drop the line.
+                rawLines.add(line);
+
+                // Now parse the network block within wpa_supplicant.conf and store the important
+                // lines for procesing later.
+                if (line.startsWith(SUPPLICANT_KEY_SSID)) {
+                    ssid = line;
+                } else if (line.startsWith(SUPPLICANT_KEY_KEY_MGMT)) {
+                    key_mgmt = line;
+                    if (line.contains("EAP")) {
+                        isEap = true;
+                    }
+                } else if (line.startsWith(SUPPLICANT_KEY_CLIENT_CERT)) {
+                    certUsed = true;
+                } else if (line.startsWith(SUPPLICANT_KEY_CA_CERT)) {
+                    certUsed = true;
+                } else if (line.startsWith(SUPPLICANT_KEY_CA_PATH)) {
+                    certUsed = true;
+                } else if (line.startsWith(SUPPLICANT_KEY_EAP)) {
+                    isEap = true;
+                } else if (line.startsWith(SUPPLICANT_KEY_PSK)) {
+                    psk = line;
+                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY0)) {
+                    wepKeys[0] = line;
+                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY1)) {
+                    wepKeys[1] = line;
+                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY2)) {
+                    wepKeys[2] = line;
+                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY3)) {
+                    wepKeys[3] = line;
+                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY_IDX)) {
+                    wepTxKeyIdx = line;
+                } else if (line.startsWith(SUPPLICANT_KEY_ID_STR)) {
+                    id_str = line;
+                }
+            }
+
+            /**
+             * Raw dump of wpa_supplicant.conf lines.
+             */
+            public void dump() {
+                Log.v(TAG, "network={");
+                for (String line : rawLines) {
+                    Log.v(TAG, "   " + line);
+                }
+                Log.v(TAG, "}");
+            }
+
+            /**
+             * Create WifiConfiguration object from the parsed data for this network.
+             */
+            public WifiConfiguration createWifiConfiguration() {
+                if (ssid == null) {
+                    // No SSID => malformed network definition
+                    return null;
+                }
+                WifiConfiguration configuration = new WifiConfiguration();
+                configuration.SSID = ssid.substring(ssid.indexOf('=') + 1);
+
+                if (key_mgmt == null) {
+                    // no key_mgmt specified; this is defined as equivalent to "WPA-PSK WPA-EAP"
+                    configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
+                    configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_EAP);
+                } else {
+                    // Need to parse the key_mgmt line
+                    final String bareKeyMgmt = key_mgmt.substring(key_mgmt.indexOf('=') + 1);
+                    String[] typeStrings = bareKeyMgmt.split("\\s+");
+
+                    // Parse out all the key management regimes permitted for this network.
+                    // The literal strings here are the standard values permitted in
+                    // wpa_supplicant.conf.
+                    for (int i = 0; i < typeStrings.length; i++) {
+                        final String ktype = typeStrings[i];
+                        if (ktype.equals("NONE")) {
+                            configuration.allowedKeyManagement.set(
+                                    WifiConfiguration.KeyMgmt.NONE);
+                        } else if (ktype.equals("WPA-PSK")) {
+                            configuration.allowedKeyManagement.set(
+                                    WifiConfiguration.KeyMgmt.WPA_PSK);
+                        } else if (ktype.equals("WPA-EAP")) {
+                            configuration.allowedKeyManagement.set(
+                                    WifiConfiguration.KeyMgmt.WPA_EAP);
+                        } else if (ktype.equals("IEEE8021X")) {
+                            configuration.allowedKeyManagement.set(
+                                    WifiConfiguration.KeyMgmt.IEEE8021X);
+                        }
+                    }
+                }
+                if (psk != null) {
+                    configuration.preSharedKey = psk.substring(psk.indexOf('=') + 1);
+                }
+                if (wepKeys[0] != null) {
+                    configuration.wepKeys[0] = wepKeys[0].substring(wepKeys[0].indexOf('=') + 1);
+                }
+                if (wepKeys[1] != null) {
+                    configuration.wepKeys[1] = wepKeys[1].substring(wepKeys[1].indexOf('=') + 1);
+                }
+                if (wepKeys[2] != null) {
+                    configuration.wepKeys[2] = wepKeys[2].substring(wepKeys[2].indexOf('=') + 1);
+                }
+                if (wepKeys[3] != null) {
+                    configuration.wepKeys[3] = wepKeys[3].substring(wepKeys[3].indexOf('=') + 1);
+                }
+                if (wepTxKeyIdx != null) {
+                    configuration.wepTxKeyIndex =
+                            Integer.valueOf(wepTxKeyIdx.substring(wepTxKeyIdx.indexOf('=') + 1));
+                }
+                if (id_str != null) {
+                    String id_string = id_str.substring(id_str.indexOf('=') + 1);
+                    Map<String, String> extras = WifiNative.parseNetworkExtra(id_string);
+                    configuration.creatorUid =
+                            Integer.valueOf(extras.get(WifiConfigStore.ID_STRING_KEY_CREATOR_UID));
+                    String configKey = extras.get(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY);
+                    if (!configKey.equals(configuration.configKey())) {
+                        Log.e(TAG, "Configuration key does not match. Retrieved: " + configKey
+                                + ", Calculated: " + configuration.configKey());
+                        return null;
+                    }
+                }
+                return configuration;
+            }
+        }
+
+        /**
+         * Ingest multiple wifi config fragments from wpa_supplicant.conf, looking for network={}
+         * blocks and eliminating duplicates
+         */
+        static class SupplicantNetworks {
+            // One for fast lookup, one for maintaining ordering
+            final HashSet<SupplicantNetwork> mKnownNetworks = new HashSet<>();
+            final ArrayList<SupplicantNetwork> mNetworks = new ArrayList<>(8);
+
+            /**
+             * Parse the wpa_supplicant.conf file stream and add networks.
+             */
+            public void readNetworksFromStream(BufferedReader in) {
+                try {
+                    String line;
+                    while (in.ready()) {
+                        line = in.readLine();
+                        if (line != null) {
+                            // Parse out 'network=' decls so we can ignore duplicates
+                            if (line.startsWith("network")) {
+                                SupplicantNetwork net = SupplicantNetwork.readNetworkFromStream(in);
+                                // Don't propagate EAP network definitions
+                                if (net.isEap) {
+                                    Log.v(TAG, "Skipping EAP network " + net.ssid + " / "
+                                            + net.key_mgmt);
+                                    continue;
+                                }
+                                Log.v(TAG, "Adding " + net.ssid + " / " + net.key_mgmt);
+                                mKnownNetworks.add(net);
+                                mNetworks.add(net);
+                            }
+                        }
+                    }
+                } catch (IOException e) {
+                    // whatever happened, we're done now
+                }
+            }
+
+            /**
+             * Retrieve a list of WifiConfiguration objects parsed from wpa_supplicant.conf
+             *
+             * @return
+             */
+            public List<WifiConfiguration> retrieveWifiConfigurations() {
+                ArrayList<WifiConfiguration> wifiConfigurations = new ArrayList<>();
+                for (SupplicantNetwork net : mNetworks) {
+                    if (net.certUsed) {
+                        // Networks that use certificates for authentication can't be restored
+                        // because the certificates they need don't get restored (because they
+                        // are stored in keystore, and can't be restored)
+                        continue;
+                    }
+
+                    if (net.isEap) {
+                        // Similarly, omit EAP network definitions to avoid propagating
+                        // controlled enterprise network definitions.
+                        continue;
+                    }
+                    WifiConfiguration wifiConfiguration = net.createWifiConfiguration();
+                    if (wifiConfiguration != null) {
+                        wifiConfigurations.add(wifiConfiguration);
+                    }
+                }
+                return wifiConfigurations;
+            }
+
+            /**
+             * Raw dump of wpa_supplicant.conf lines.
+             */
+            public void dump() {
+                for (SupplicantNetwork net : mNetworks) {
+                    net.dump();
+                }
+            }
+        }
     }
 }

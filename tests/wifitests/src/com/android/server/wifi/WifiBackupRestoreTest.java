@@ -28,11 +28,19 @@ import android.net.wifi.WifiConfiguration;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
 
+import com.android.server.net.IpConfigStore;
+
 import org.junit.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 /**
@@ -55,7 +63,7 @@ public class WifiBackupRestoreTest {
     private static final int TEST_STATIC_IP_LINK_PREFIX_LENGTH = 8;
     private static final String TEST_STATIC_IP_GATEWAY_ADDRESS = "192.168.48.1";
     private static final String[] TEST_STATIC_IP_DNS_SERVER_ADDRESSES =
-            new String[] { "192.168.48.1", "192.168.48.10" };
+            new String[]{"192.168.48.1", "192.168.48.10"};
     private static final String TEST_STATIC_PROXY_HOST = "192.168.48.1";
     private static final int TEST_STATIC_PROXY_PORT = 8000;
     private static final String TEST_STATIC_PROXY_EXCLUSION_LIST = "";
@@ -258,6 +266,101 @@ public class WifiBackupRestoreTest {
     }
 
     /**
+     * Verify that a single open network configuration is serialized & deserialized correctly from
+     * old backups.
+     */
+    @Test
+    public void testSingleOpenNetworkSupplicantBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createOpenNetwork(0));
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        byte[] ipConfigData = createIpConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, ipConfigData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
+     * Verify that a single PSK network configuration is serialized & deserialized correctly from
+     * old backups.
+     */
+    @Test
+    public void testSinglePskNetworkSupplicantBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createPskNetwork(0));
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        byte[] ipConfigData = createIpConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, ipConfigData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
+     * Verify that a single WEP network configuration is serialized & deserialized correctly from
+     * old backups.
+     */
+    @Test
+    public void testSingleWepNetworkSupplicantBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createWepNetwork(0));
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        byte[] ipConfigData = createIpConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, ipConfigData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
+     * Verify that a single enterprise network configuration is not serialized from old backups.
+     */
+    @Test
+    public void testSingleEnterpriseNetworkNotSupplicantBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createEapNetwork(0));
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        byte[] ipConfigData = createIpConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, ipConfigData);
+        assertTrue(retrievedConfigurations.isEmpty());
+    }
+
+    /**
+     * Verify that multiple networks with different credential types and IpConfiguration types are
+     * serialized and deserialized correctly from old backups
+     */
+    @Test
+    public void testMultipleNetworksWithDifferentIpConfigurationsAllSupplicantBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+
+        WifiConfiguration wepNetwork = createWepNetwork(0);
+        wepNetwork.setIpConfiguration(createDHCPIpConfigurationWithPacProxy());
+        configurations.add(wepNetwork);
+
+        WifiConfiguration pskNetwork = createPskNetwork(1);
+        pskNetwork.setIpConfiguration(createStaticIpConfigurationWithPacProxy());
+        configurations.add(pskNetwork);
+
+        WifiConfiguration openNetwork = createOpenNetwork(2);
+        openNetwork.setIpConfiguration(createStaticIpConfigurationWithStaticProxy());
+        configurations.add(openNetwork);
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        byte[] ipConfigData = createIpConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, ipConfigData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
      * Verify that any corrupted data provided by Backup/Restore is ignored correctly.
      */
     @Test
@@ -272,27 +375,27 @@ public class WifiBackupRestoreTest {
     }
 
     private WifiConfiguration createOpenNetwork(int id) {
-        String ssid = TEST_SSID + id;
+        String ssid = "\"" + TEST_SSID + id + "\"";
         return WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                false, false, null, null,
+                true, true, null, null,
                 WifiConfigurationTestUtil.SECURITY_NONE);
     }
 
     private WifiConfiguration createPskNetwork(int id) {
-        String ssid = TEST_SSID + id;
+        String ssid = "\"" + TEST_SSID + id + "\"";
         WifiConfiguration configuration =
                 WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                        false, false, null, null,
+                        true, true, null, null,
                         WifiConfigurationTestUtil.SECURITY_PSK);
         configuration.preSharedKey = TEST_PSK;
         return configuration;
     }
 
     private WifiConfiguration createWepNetwork(int id) {
-        String ssid = TEST_SSID + id;
+        String ssid = "\"" + TEST_SSID + id + "\"";
         WifiConfiguration configuration =
                 WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                        false, false, null, null,
+                        true, true, null, null,
                         WifiConfigurationTestUtil.SECURITY_WEP);
         configuration.wepKeys = TEST_WEP_KEYS;
         configuration.wepTxKeyIndex = TEST_WEP_TX_KEY_INDEX;
@@ -300,10 +403,10 @@ public class WifiBackupRestoreTest {
     }
 
     private WifiConfiguration createEapNetwork(int id) {
-        String ssid = TEST_SSID + id;
+        String ssid = "\"" + TEST_SSID + id + "\"";
         WifiConfiguration configuration =
                 WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                        false, false, TEST_FQDN, TEST_PROVIDER_FRIENDLY_NAME,
+                        true, true, TEST_FQDN, TEST_PROVIDER_FRIENDLY_NAME,
                         WifiConfigurationTestUtil.SECURITY_EAP);
         return configuration;
     }
@@ -362,6 +465,99 @@ public class WifiBackupRestoreTest {
         ProxyInfo proxyInfo = new ProxyInfo(TEST_PAC_PROXY_LOCATION);
         return new IpConfiguration(IpConfiguration.IpAssignment.DHCP,
                 IpConfiguration.ProxySettings.PAC, null, proxyInfo);
+    }
+
+    /**
+     * Helper method to write a list of networks in wpa_supplicant.conf format to the output stream.
+     */
+    private byte[] createWpaSupplicantConfBackupData(List<WifiConfiguration> configurations) {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        OutputStreamWriter out = new OutputStreamWriter(bos);
+        try {
+            for (WifiConfiguration configuration : configurations) {
+                writeConfigurationToWpaSupplicantConf(out, configuration);
+            }
+            out.flush();
+            return bos.toByteArray();
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Helper method to write a network in wpa_supplicant.conf format to the output stream.
+     * This was created using a sample wpa_supplicant.conf file. Using the raw key strings here
+     * (instead of consts in WifiBackupRestore).
+     */
+    private void writeConfigurationToWpaSupplicantConf(
+            OutputStreamWriter out, WifiConfiguration configuration)
+            throws IOException {
+        out.write("network={\n");
+        out.write("        " + "ssid=" + configuration.SSID + "\n");
+        String allowedKeyManagement = "";
+        if (configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)) {
+            allowedKeyManagement += "NONE";
+        }
+        if (configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
+            allowedKeyManagement += "WPA-PSK ";
+        }
+        if (configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP)) {
+            allowedKeyManagement += "WPA-EAP ";
+        }
+        if (configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
+            allowedKeyManagement += "IEEE8021X ";
+        }
+        out.write("        " + "key_mgmt=" + allowedKeyManagement + "\n");
+        if (configuration.preSharedKey != null) {
+            out.write("        " + "psk=" + configuration.preSharedKey + "\n");
+        }
+        if (configuration.wepKeys[0] != null) {
+            out.write("        " + "wep_key0=" + configuration.wepKeys[0] + "\n");
+        }
+        if (configuration.wepKeys[1] != null) {
+            out.write("        " + "wep_key1=" + configuration.wepKeys[1] + "\n");
+        }
+        if (configuration.wepKeys[2] != null) {
+            out.write("        " + "wep_key2=" + configuration.wepKeys[2] + "\n");
+        }
+        if (configuration.wepKeys[3] != null) {
+            out.write("        " + "wep_key3=" + configuration.wepKeys[3] + "\n");
+        }
+        if (configuration.wepKeys[0] != null || configuration.wepKeys[1] != null
+                || configuration.wepKeys[2] != null || configuration.wepKeys[3] != null) {
+            out.write("        " + "wep_tx_keyidx=" + configuration.wepTxKeyIndex + "\n");
+        }
+        Map<String, String> extras = new HashMap<>();
+        extras.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, configuration.configKey());
+        extras.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+                Integer.toString(configuration.creatorUid));
+        String idString = WifiNative.createNetworkExtra(extras);
+        if (idString != null) {
+            idString = "\"" + idString + "\"";
+            out.write("        " + "id_str=" + idString + "\n");
+        }
+        out.write("}\n");
+        out.write("\n");
+    }
+
+    /**
+     * Helper method to write a list of networks in ipconfig.txt format to the output stream.
+     */
+    private byte[] createIpConfBackupData(List<WifiConfiguration> configurations) {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(bos);
+        try {
+            // write version first.
+            out.writeInt(2);
+            for (WifiConfiguration configuration : configurations) {
+                IpConfigStore.writeConfig(out, configuration.configKey().hashCode(),
+                        configuration.getIpConfiguration());
+            }
+            out.flush();
+            return bos.toByteArray();
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     /**
