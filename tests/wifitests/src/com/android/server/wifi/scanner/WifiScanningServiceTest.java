@@ -22,8 +22,8 @@ import static org.junit.Assert.*;
 import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.*;
 
-import android.app.test.TestAlarmManager;
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
+import android.app.test.TestAlarmManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
@@ -82,6 +82,7 @@ public class WifiScanningServiceTest {
     @Mock WifiScannerImpl.WifiScannerImplFactory mWifiScannerImplFactory;
     @Mock IBatteryStats mBatteryStats;
     @Mock WifiInjector mWifiInjector;
+    @Mock Clock mClock;
     WifiMetrics mWifiMetrics;
     TestLooper mLooper;
     WifiScanningServiceImpl mWifiScanningServiceImpl;
@@ -94,7 +95,7 @@ public class WifiScanningServiceTest {
         mAlarmManager = new TestAlarmManager();
         when(mContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
-        mWifiMetrics = new WifiMetrics();
+        mWifiMetrics = new WifiMetrics(mClock);
 
         ChannelHelper channelHelper = new PresetKnownBandsChannelHelper(
                 new int[]{2400, 2450},
