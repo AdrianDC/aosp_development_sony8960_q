@@ -181,7 +181,7 @@ public class WifiBackupRestore {
         for (WifiConfiguration configuration : configurations) {
             // We don't want to backup/restore enterprise/passpoint configurations.
             if (configuration.isEnterprise() || configuration.isPasspoint()) {
-                Log.d(TAG, "Skipping enterprise config for backup: " + configuration.configKey());
+                Log.d(TAG, "Skipping enterprise network for backup: " + configuration.configKey());
                 continue;
             }
             // Write this configuration data now.
@@ -908,13 +908,16 @@ public class WifiBackupRestore {
                     while (in.ready()) {
                         line = in.readLine();
                         if (line != null) {
-                            // Parse out 'network=' decls so we can ignore duplicates
                             if (line.startsWith("network")) {
                                 SupplicantNetwork net = SupplicantNetwork.readNetworkFromStream(in);
-                                // Don't propagate EAP network definitions
-                                if (net.isEap) {
-                                    Log.d(TAG, "Skipping EAP network " + net.ssid + " / "
-                                            + net.key_mgmt);
+                                // Networks that use certificates for authentication can't be
+                                // restored because the certificates they need don't get restored
+                                // (because they are stored in keystore, and can't be restored).
+                                // Similarly, omit EAP network definitions to avoid propagating
+                                // controlled enterprise network definitions.
+                                if (net.isEap || net.certUsed) {
+                                    Log.d(TAG, "Skipping enterprise network for restore: "
+                                            + net.ssid + " / " + net.key_mgmt);
                                     continue;
                                 }
                                 mNetworks.add(net);
@@ -928,24 +931,10 @@ public class WifiBackupRestore {
 
             /**
              * Retrieve a list of WifiConfiguration objects parsed from wpa_supplicant.conf
-             *
-             * @return
              */
             public List<WifiConfiguration> retrieveWifiConfigurations() {
                 ArrayList<WifiConfiguration> wifiConfigurations = new ArrayList<>();
                 for (SupplicantNetwork net : mNetworks) {
-                    if (net.certUsed) {
-                        // Networks that use certificates for authentication can't be restored
-                        // because the certificates they need don't get restored (because they
-                        // are stored in keystore, and can't be restored)
-                        continue;
-                    }
-
-                    if (net.isEap) {
-                        // Similarly, omit EAP network definitions to avoid propagating
-                        // controlled enterprise network definitions.
-                        continue;
-                    }
                     WifiConfiguration wifiConfiguration = net.createWifiConfiguration();
                     if (wifiConfiguration != null) {
                         Log.v(TAG, "Parsed Configuration: " + wifiConfiguration.configKey());
