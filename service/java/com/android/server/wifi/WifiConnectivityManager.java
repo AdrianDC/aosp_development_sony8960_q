@@ -761,6 +761,12 @@ public class WifiConnectivityManager {
     private void startPeriodicScan(boolean scanImmediately) {
         mPnoScanListener.resetLowRssiNetworkRetryDelay();
 
+        // No connectivity scan if auto roaming is disabled.
+        if (mWifiState == WIFI_STATE_CONNECTED
+                && !mConfigManager.getEnableAutoJoinWhenAssociated()) {
+            return;
+        }
+
         // Due to b/28020168, timer based single scan will be scheduled
         // to provide periodic scan in an exponential backoff fashion.
         if (!ENABLE_BACKGROUND_SCAN) {
