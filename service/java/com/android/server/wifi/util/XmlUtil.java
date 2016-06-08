@@ -263,13 +263,25 @@ public class XmlUtil {
         /**
          * Write WepKeys to the XML stream.
          * WepKeys array is intialized in WifiConfiguration constructor, but all of the elements
-         * are null. XmlUtils serialization doesn't handle this array of nulls well .
-         * So, write null if the keys are not initialized.
+         * are set to null. User may chose to set any one of the key elements in WifiConfiguration.
+         * XmlUtils serialization doesn't handle this array of nulls well .
+         * So, write empty strings if some of the keys are not initialized and null if all of
+         * the elements are empty.
          */
         private static void writeWepKeysToXml(XmlSerializer out, String[] wepKeys)
                 throws XmlPullParserException, IOException {
-            if (wepKeys[0] != null) {
-                XmlUtil.writeNextValue(out, XML_TAG_WEP_KEYS, wepKeys);
+            String[] wepKeysToWrite = new String[wepKeys.length];
+            boolean hasWepKey = false;
+            for (int i = 0; i < wepKeys.length; i++) {
+                if (wepKeys[i] == null) {
+                    wepKeysToWrite[i] = new String();
+                } else {
+                    wepKeysToWrite[i] = wepKeys[i];
+                    hasWepKey = true;
+                }
+            }
+            if (hasWepKey) {
+                XmlUtil.writeNextValue(out, XML_TAG_WEP_KEYS, wepKeysToWrite);
             } else {
                 XmlUtil.writeNextValue(out, XML_TAG_WEP_KEYS, null);
             }
@@ -331,13 +343,23 @@ public class XmlUtil {
         }
 
         /**
-         * Populate wepKeys array only if they were non-null in the backup data.
+         * Populate wepKeys array elements only if they were non-empty in the backup data.
+         * @throws XmlPullParserException if parsing errors occur.
          */
         private static void populateWepKeysFromXmlValue(Object value, String[] wepKeys)
                 throws XmlPullParserException, IOException {
             String[] wepKeysInData = (String[]) value;
-            if (wepKeysInData != null) {
-                for (int i = 0; i < wepKeys.length; i++) {
+            if (wepKeysInData == null) {
+                return;
+            }
+            if (wepKeysInData.length != wepKeys.length) {
+                throw new XmlPullParserException(
+                        "Invalid Wep Keys length: " + wepKeysInData.length);
+            }
+            for (int i = 0; i < wepKeys.length; i++) {
+                if (wepKeysInData[i].isEmpty()) {
+                    wepKeys[i] = null;
+                } else {
                     wepKeys[i] = wepKeysInData[i];
                 }
             }
