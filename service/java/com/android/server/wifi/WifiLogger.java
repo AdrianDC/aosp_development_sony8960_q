@@ -494,9 +494,8 @@ class WifiLogger extends BaseWifiLogger {
         return true;
     }
 
-    /* STOPSHIP TODO(b/28822174): Disable before release. */
     private boolean enableVerboseLoggingForDogfood() {
-        return mBuildProperties.isEngBuild() || mBuildProperties.isUserdebugBuild();
+        return false;
     }
 
     private BugReport captureBugreport(int errorCode, boolean captureFWDump) {

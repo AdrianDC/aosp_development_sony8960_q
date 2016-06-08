@@ -530,30 +530,32 @@ public class WifiLoggerTest {
         assertEquals(0, getLoggerRingBufferData().length);
     }
 
-    /** Verifies that we use large ring buffers by default, on userdebug builds. */
+    /** Verifies that we use small ring buffers by default, on userdebug builds. */
     @Test
-    public void ringBufferSizeIsLargeByDefaultOnUserdebugBuilds() throws Exception {
+    public void ringBufferSizeIsSmallByDefaultOnUserdebugBuilds() throws Exception {
         final boolean verbosityToggle = false;
         when(mBuildProperties.isUserdebugBuild()).thenReturn(true);
         when(mBuildProperties.isEngBuild()).thenReturn(false);
         when(mBuildProperties.isUserBuild()).thenReturn(false);
         mWifiLogger.startLogging(verbosityToggle);
-        mWifiLogger.onRingBufferData(mFakeRbs, new byte[WifiLogger.RING_BUFFER_BYTE_LIMIT_LARGE]);
+        mWifiLogger.onRingBufferData(
+                mFakeRbs, new byte[WifiLogger.RING_BUFFER_BYTE_LIMIT_SMALL + 1]);
         mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
-        assertEquals(1, getLoggerRingBufferData().length);
+        assertEquals(0, getLoggerRingBufferData().length);
     }
 
-    /** Verifies that we use large ring buffers by default, on eng builds. */
+    /** Verifies that we use small ring buffers by default, on eng builds. */
     @Test
-    public void ringBufferSizeIsLargeByDefaultOnEngBuilds() throws Exception {
+    public void ringBufferSizeIsSmallByDefaultOnEngBuilds() throws Exception {
         final boolean verbosityToggle = false;
         when(mBuildProperties.isEngBuild()).thenReturn(true);
         when(mBuildProperties.isUserdebugBuild()).thenReturn(false);
         when(mBuildProperties.isUserBuild()).thenReturn(false);
         mWifiLogger.startLogging(verbosityToggle);
-        mWifiLogger.onRingBufferData(mFakeRbs, new byte[WifiLogger.RING_BUFFER_BYTE_LIMIT_LARGE]);
+        mWifiLogger.onRingBufferData(
+                mFakeRbs, new byte[WifiLogger.RING_BUFFER_BYTE_LIMIT_SMALL + 1]);
         mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
-        assertEquals(1, getLoggerRingBufferData().length);
+        assertEquals(0, getLoggerRingBufferData().length);
     }
 
     /** Verifies that we use large ring buffers when initially started in verbose mode. */
