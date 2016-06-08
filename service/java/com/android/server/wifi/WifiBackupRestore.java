@@ -382,16 +382,16 @@ public class WifiBackupRestore {
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("Dump of WifiBackupRestore");
         if (mDebugLastBackupDataRetrieved != null) {
-            pw.println("Last backup data retrieved: " +
-                    createLogFromBackupData(mDebugLastBackupDataRetrieved));
+            pw.println("Last backup data retrieved: "
+                    + createLogFromBackupData(mDebugLastBackupDataRetrieved));
         }
         if (mDebugLastBackupDataRestored != null) {
-            pw.println("Last backup data restored: " +
-                    createLogFromBackupData(mDebugLastBackupDataRestored));
+            pw.println("Last backup data restored: "
+                    + createLogFromBackupData(mDebugLastBackupDataRestored));
         }
         if (mDebugLastSupplicantBackupDataRestored != null) {
-            pw.println("Last old backup data restored: " +
-                    SupplicantBackupMigration.createLogFromBackupData(
+            pw.println("Last old backup data restored: "
+                    + SupplicantBackupMigration.createLogFromBackupData(
                             mDebugLastSupplicantBackupDataRestored));
         }
     }
@@ -409,7 +409,8 @@ public class WifiBackupRestore {
         public static final String SUPPLICANT_KEY_SSID = WifiConfiguration.ssidVarName;
         public static final String SUPPLICANT_KEY_HIDDEN = WifiConfiguration.hiddenSSIDVarName;
         public static final String SUPPLICANT_KEY_KEY_MGMT = WifiConfiguration.KeyMgmt.varName;
-        public static final String SUPPLICANT_KEY_CLIENT_CERT = WifiEnterpriseConfig.CLIENT_CERT_KEY;
+        public static final String SUPPLICANT_KEY_CLIENT_CERT =
+                WifiEnterpriseConfig.CLIENT_CERT_KEY;
         public static final String SUPPLICANT_KEY_CA_CERT = WifiEnterpriseConfig.CA_CERT_KEY;
         public static final String SUPPLICANT_KEY_CA_PATH = WifiEnterpriseConfig.CA_PATH_KEY;
         public static final String SUPPLICANT_KEY_EAP = WifiEnterpriseConfig.EAP_KEY;
@@ -418,7 +419,8 @@ public class WifiBackupRestore {
         public static final String SUPPLICANT_KEY_WEP_KEY1 = WifiConfiguration.wepKeyVarNames[1];
         public static final String SUPPLICANT_KEY_WEP_KEY2 = WifiConfiguration.wepKeyVarNames[2];
         public static final String SUPPLICANT_KEY_WEP_KEY3 = WifiConfiguration.wepKeyVarNames[3];
-        public static final String SUPPLICANT_KEY_WEP_KEY_IDX = WifiConfiguration.wepTxKeyIdxVarName;
+        public static final String SUPPLICANT_KEY_WEP_KEY_IDX =
+                WifiConfiguration.wepTxKeyIdxVarName;
         public static final String SUPPLICANT_KEY_ID_STR = WifiConfigStore.ID_STRING_VAR_NAME;
 
         /**
@@ -448,15 +450,15 @@ public class WifiBackupRestore {
          * Class for capturing a network definition from the wifi supplicant config file.
          */
         static class SupplicantNetwork {
-            String ssid;
-            String hidden;
-            String key_mgmt;
-            String psk;
-            String[] wepKeys = new String[4];
-            String wepTxKeyIdx;
-            String id_str;
-            boolean certUsed = false;
-            boolean isEap = false;
+            private String mParsedSSIDLine;
+            private String mParsedHiddenLine;
+            private String mParsedKeyMgmtLine;
+            private String mParsedPskLine;
+            private String[] mParsedWepKeyLines = new String[4];
+            private String mParsedWepTxKeyIdxLine;
+            private String mParsedIdStrLine;
+            public boolean certUsed = false;
+            public boolean isEap = false;
 
             /**
              * Read lines from wpa_supplicant.conf stream for this network.
@@ -489,11 +491,11 @@ public class WifiBackupRestore {
                 // Now parse the network block within wpa_supplicant.conf and store the important
                 // lines for procesing later.
                 if (line.startsWith(SUPPLICANT_KEY_SSID)) {
-                    ssid = line;
+                    mParsedSSIDLine = line;
                 } else if (line.startsWith(SUPPLICANT_KEY_HIDDEN)) {
-                    hidden = line;
+                    mParsedHiddenLine = line;
                 } else if (line.startsWith(SUPPLICANT_KEY_KEY_MGMT)) {
-                    key_mgmt = line;
+                    mParsedKeyMgmtLine = line;
                     if (line.contains("EAP")) {
                         isEap = true;
                     }
@@ -506,19 +508,19 @@ public class WifiBackupRestore {
                 } else if (line.startsWith(SUPPLICANT_KEY_EAP)) {
                     isEap = true;
                 } else if (line.startsWith(SUPPLICANT_KEY_PSK)) {
-                    psk = line;
+                    mParsedPskLine = line;
                 } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY0)) {
-                    wepKeys[0] = line;
+                    mParsedWepKeyLines[0] = line;
                 } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY1)) {
-                    wepKeys[1] = line;
+                    mParsedWepKeyLines[1] = line;
                 } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY2)) {
-                    wepKeys[2] = line;
+                    mParsedWepKeyLines[2] = line;
                 } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY3)) {
-                    wepKeys[3] = line;
+                    mParsedWepKeyLines[3] = line;
                 } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY_IDX)) {
-                    wepTxKeyIdx = line;
+                    mParsedWepTxKeyIdxLine = line;
                 } else if (line.startsWith(SUPPLICANT_KEY_ID_STR)) {
-                    id_str = line;
+                    mParsedIdStrLine = line;
                 }
             }
 
@@ -526,25 +528,28 @@ public class WifiBackupRestore {
              * Create WifiConfiguration object from the parsed data for this network.
              */
             public WifiConfiguration createWifiConfiguration() {
-                if (ssid == null) {
+                if (mParsedSSIDLine == null) {
                     // No SSID => malformed network definition
                     return null;
                 }
                 WifiConfiguration configuration = new WifiConfiguration();
-                configuration.SSID = ssid.substring(ssid.indexOf('=') + 1);
+                configuration.SSID = mParsedSSIDLine.substring(mParsedSSIDLine.indexOf('=') + 1);
 
-                if (hidden != null) {
+                if (mParsedHiddenLine != null) {
                     // Can't use Boolean.valueOf() because it works only for true/false.
                     configuration.hiddenSSID =
-                            Integer.parseInt(hidden.substring(hidden.indexOf('=') + 1)) != 0;
+                            Integer.parseInt(mParsedHiddenLine.substring(
+                                    mParsedHiddenLine.indexOf('=') + 1)) != 0;
                 }
-                if (key_mgmt == null) {
-                    // no key_mgmt specified; this is defined as equivalent to "WPA-PSK WPA-EAP"
+                if (mParsedKeyMgmtLine == null) {
+                    // no key_mgmt line specified; this is defined as equivalent to
+                    // "WPA-PSK WPA-EAP".
                     configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
                     configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_EAP);
                 } else {
-                    // Need to parse the key_mgmt line
-                    final String bareKeyMgmt = key_mgmt.substring(key_mgmt.indexOf('=') + 1);
+                    // Need to parse the mParsedKeyMgmtLine line
+                    final String bareKeyMgmt =
+                            mParsedKeyMgmtLine.substring(mParsedKeyMgmtLine.indexOf('=') + 1);
                     String[] typeStrings = bareKeyMgmt.split("\\s+");
 
                     // Parse out all the key management regimes permitted for this network.
@@ -567,28 +572,35 @@ public class WifiBackupRestore {
                         }
                     }
                 }
-                if (psk != null) {
-                    configuration.preSharedKey = psk.substring(psk.indexOf('=') + 1);
+                if (mParsedPskLine != null) {
+                    configuration.preSharedKey =
+                            mParsedPskLine.substring(mParsedPskLine.indexOf('=') + 1);
                 }
-                if (wepKeys[0] != null) {
-                    configuration.wepKeys[0] = wepKeys[0].substring(wepKeys[0].indexOf('=') + 1);
+                if (mParsedWepKeyLines[0] != null) {
+                    configuration.wepKeys[0] =
+                            mParsedWepKeyLines[0].substring(mParsedWepKeyLines[0].indexOf('=') + 1);
                 }
-                if (wepKeys[1] != null) {
-                    configuration.wepKeys[1] = wepKeys[1].substring(wepKeys[1].indexOf('=') + 1);
+                if (mParsedWepKeyLines[1] != null) {
+                    configuration.wepKeys[1] =
+                            mParsedWepKeyLines[1].substring(mParsedWepKeyLines[1].indexOf('=') + 1);
                 }
-                if (wepKeys[2] != null) {
-                    configuration.wepKeys[2] = wepKeys[2].substring(wepKeys[2].indexOf('=') + 1);
+                if (mParsedWepKeyLines[2] != null) {
+                    configuration.wepKeys[2] =
+                            mParsedWepKeyLines[2].substring(mParsedWepKeyLines[2].indexOf('=') + 1);
                 }
-                if (wepKeys[3] != null) {
-                    configuration.wepKeys[3] = wepKeys[3].substring(wepKeys[3].indexOf('=') + 1);
+                if (mParsedWepKeyLines[3] != null) {
+                    configuration.wepKeys[3] =
+                            mParsedWepKeyLines[3].substring(mParsedWepKeyLines[3].indexOf('=') + 1);
                 }
-                if (wepTxKeyIdx != null) {
+                if (mParsedWepTxKeyIdxLine != null) {
                     configuration.wepTxKeyIndex =
-                            Integer.valueOf(wepTxKeyIdx.substring(wepTxKeyIdx.indexOf('=') + 1));
+                            Integer.valueOf(mParsedWepTxKeyIdxLine.substring(
+                                    mParsedWepTxKeyIdxLine.indexOf('=') + 1));
                 }
-                if (id_str != null) {
-                    String id_string = id_str.substring(id_str.indexOf('=') + 1);
-                    Map<String, String> extras = WifiNative.parseNetworkExtra(id_string);
+                if (mParsedIdStrLine != null) {
+                    String idString =
+                            mParsedIdStrLine.substring(mParsedIdStrLine.indexOf('=') + 1);
+                    Map<String, String> extras = WifiNative.parseNetworkExtra(idString);
                     configuration.creatorUid =
                             Integer.valueOf(extras.get(WifiConfigStore.ID_STRING_KEY_CREATOR_UID));
                     String configKey = extras.get(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY);
@@ -627,7 +639,7 @@ public class WifiBackupRestore {
                                 // controlled enterprise network definitions.
                                 if (net.isEap || net.certUsed) {
                                     Log.d(TAG, "Skipping enterprise network for restore: "
-                                            + net.ssid + " / " + net.key_mgmt);
+                                            + net.mParsedSSIDLine + " / " + net.mParsedKeyMgmtLine);
                                     continue;
                                 }
                                 mNetworks.add(net);
