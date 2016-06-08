@@ -144,7 +144,7 @@ public class FrameworkFacade {
             String countryCode, ArrayList<Integer> allowed2GChannels,
             SoftApManager.Listener listener) {
         return new SoftApManager(
-                context, looper, wifiNative, nmService, cm, countryCode,
+                looper, wifiNative, nmService, countryCode,
                 allowed2GChannels, listener);
     }
 
