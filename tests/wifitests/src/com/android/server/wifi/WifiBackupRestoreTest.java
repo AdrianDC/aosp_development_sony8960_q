@@ -173,6 +173,21 @@ public class WifiBackupRestoreTest {
     }
 
     /**
+     * Verify that a single WEP network configuration with only 1 key is serialized & deserialized
+     * correctly.
+     */
+    @Test
+    public void testSingleWepNetworkWithSingleKeyBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createWepNetworkWithSingleKey(0));
+
+        byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
      * Verify that a single enterprise network configuration is not serialized.
      */
     @Test
@@ -411,6 +426,23 @@ public class WifiBackupRestoreTest {
     }
 
     /**
+     * Verify that a single WEP network configuration with only 1 key is serialized & deserialized
+     * correctly from old backups.
+     */
+    @Test
+    public void testSingleWepNetworkWithSingleKeySupplicantBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createWepNetworkWithSingleKey(0));
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        byte[] ipConfigData = createIpConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, ipConfigData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
      * Verify that a single enterprise network configuration is not serialized from old backups.
      */
     @Test
@@ -451,6 +483,46 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
                         supplicantData, ipConfigData);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
+     * Verify that a single open network configuration is serialized & deserialized correctly from
+     * old backups with no ipconfig data.
+     */
+    @Test
+    public void testSingleOpenNetworkSupplicantBackupRestoreWithNoIpConfigData() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createOpenNetwork(0));
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, null);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
+     * Verify that multiple networks with different credential types are serialized and
+     * deserialized correctly from old backups with no ipconfig data.
+     */
+    @Test
+    public void testMultipleNetworksAllSupplicantBackupRestoreWithNoIpConfigData() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+
+        WifiConfiguration wepNetwork = createWepNetwork(0);
+        configurations.add(wepNetwork);
+
+        WifiConfiguration pskNetwork = createPskNetwork(1);
+        configurations.add(pskNetwork);
+
+        WifiConfiguration openNetwork = createOpenNetwork(2);
+        configurations.add(openNetwork);
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, null);
         assertConfigurationsEqual(configurations, retrievedConfigurations);
     }
 
@@ -516,6 +588,17 @@ public class WifiBackupRestoreTest {
                         WifiConfigurationTestUtil.SECURITY_WEP);
         configuration.wepKeys = TEST_WEP_KEYS;
         configuration.wepTxKeyIndex = TEST_WEP_TX_KEY_INDEX;
+        return configuration;
+    }
+
+    private WifiConfiguration createWepNetworkWithSingleKey(int id) {
+        String ssid = "\"" + TEST_SSID + id + "\"";
+        WifiConfiguration configuration =
+                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
+                        true, true, null, null,
+                        WifiConfigurationTestUtil.SECURITY_WEP);
+        configuration.wepKeys[0] = TEST_WEP_KEYS[0];
+        configuration.wepTxKeyIndex = 0;
         return configuration;
     }
 
