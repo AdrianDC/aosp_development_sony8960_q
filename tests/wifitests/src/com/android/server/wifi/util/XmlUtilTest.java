@@ -23,6 +23,7 @@ import android.net.ProxyInfo;
 import android.net.StaticIpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.util.Pair;
 import android.util.Xml;
 
 import com.android.internal.util.FastXmlSerializer;
@@ -286,7 +287,7 @@ public class XmlUtilTest {
         return outputStream.toByteArray();
     }
 
-    private WifiConfiguration deserializeWifiConfiguration(byte[] data)
+    private Pair<String, WifiConfiguration> deserializeWifiConfiguration(byte[] data)
             throws IOException, XmlPullParserException {
         // Deserialize the configuration object.
         final XmlPullParser in = Xml.newPullParser();
@@ -301,18 +302,22 @@ public class XmlUtilTest {
      */
     private void serializeDeserializeWifiConfiguration(WifiConfiguration configuration)
             throws IOException, XmlPullParserException {
-        WifiConfiguration retrievedConfiguration;
+        Pair<String, WifiConfiguration> retrieved;
         // Test serialization/deserialization for backup first.
-        retrievedConfiguration =
+        retrieved =
                 deserializeWifiConfiguration(
                         serializeWifiConfigurationForBackup(configuration));
-        WifiConfigurationTestUtil.assertConfigurationEqual(configuration, retrievedConfiguration);
+        assertEquals(retrieved.first, retrieved.second.configKey());
+        WifiConfigurationTestUtil.assertConfigurationEqualForBackup(
+                configuration, retrieved.second);
 
         // Test serialization/deserialization for config store.
-        retrievedConfiguration =
+        retrieved =
                 deserializeWifiConfiguration(
                         serializeWifiConfigurationForConfigStore(configuration));
-        WifiConfigurationTestUtil.assertConfigurationEqual(configuration, retrievedConfiguration);
+        assertEquals(retrieved.first, retrieved.second.configKey());
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigStore(
+                configuration, retrieved.second);
     }
 
     private void serializeDeserializeIpConfiguration(IpConfiguration configuration)

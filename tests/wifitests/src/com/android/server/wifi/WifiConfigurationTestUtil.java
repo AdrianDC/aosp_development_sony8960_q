@@ -96,9 +96,10 @@ public class WifiConfigurationTestUtil {
     }
 
     /**
-     * Asserts that the 2 WifiConfigurations are equal
+     * Asserts that the 2 WifiConfigurations are equal in the elements saved for both backup/restore
+     * and config store.
      */
-    public static void assertConfigurationEqual(
+    private static void assertCommonConfigurationElementsEqual(
             WifiConfiguration expected, WifiConfiguration actual) {
         assertEquals(expected.SSID, actual.SSID);
         assertEquals(expected.BSSID, actual.BSSID);
@@ -110,7 +111,26 @@ public class WifiConfigurationTestUtil {
         assertEquals(expected.allowedProtocols, actual.allowedProtocols);
         assertEquals(expected.allowedAuthAlgorithms, actual.allowedAuthAlgorithms);
         assertEquals(expected.shared, actual.shared);
-        assertEquals(expected.creatorUid, actual.creatorUid);
         assertEquals(expected.getIpConfiguration(), actual.getIpConfiguration());
+    }
+
+    /**
+     * Asserts that the 2 WifiConfigurations are equal. This only compares the elements saved
+     * fpr backup/restore.
+     */
+    public static void assertConfigurationEqualForBackup(
+            WifiConfiguration expected, WifiConfiguration actual) {
+        assertCommonConfigurationElementsEqual(expected, actual);
+    }
+
+    /**
+     * Asserts that the 2 WifiConfigurations are equal. This compares all the elements saved for
+     * config store.
+     */
+    public static void assertConfigurationEqualForConfigStore(
+            WifiConfiguration expected, WifiConfiguration actual) {
+        assertCommonConfigurationElementsEqual(expected, actual);
+        assertEquals(expected.creatorUid, actual.creatorUid);
+        assertEquals(expected.creatorName, actual.creatorName);
     }
 }

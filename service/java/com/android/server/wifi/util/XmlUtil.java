@@ -26,6 +26,7 @@ import android.net.RouteInfo;
 import android.net.StaticIpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.util.Log;
+import android.util.Pair;
 
 import com.android.internal.util.XmlUtils;
 
@@ -259,6 +260,7 @@ public class XmlUtil {
         public static final String XML_TAG_ALLOWED_AUTH_ALGOS = "AllowedAuthAlgos";
         public static final String XML_TAG_SHARED = "Shared";
         public static final String XML_TAG_CREATOR_UID = "CreatorUid";
+        public static final String XML_TAG_CREATOR_NAME = "CreatorName";
 
         /**
          * Write WepKeys to the XML stream.
@@ -314,7 +316,6 @@ public class XmlUtil {
                     out, XML_TAG_ALLOWED_AUTH_ALGOS,
                     configuration.allowedAuthAlgorithms.toByteArray());
             XmlUtil.writeNextValue(out, XML_TAG_SHARED, configuration.shared);
-            XmlUtil.writeNextValue(out, XML_TAG_CREATOR_UID, configuration.creatorUid);
         }
 
         /**
@@ -340,10 +341,13 @@ public class XmlUtil {
                 throws XmlPullParserException, IOException {
             writeCommonWifiConfigurationElementsToXml(out, configuration);
             // TODO: Will need to add more elements which needs to be persisted.
+            XmlUtil.writeNextValue(out, XML_TAG_CREATOR_UID, configuration.creatorUid);
+            XmlUtil.writeNextValue(out, XML_TAG_CREATOR_NAME, configuration.creatorName);
         }
 
         /**
          * Populate wepKeys array elements only if they were non-empty in the backup data.
+         *
          * @throws XmlPullParserException if parsing errors occur.
          */
         private static void populateWepKeysFromXmlValue(Object value, String[] wepKeys)
@@ -372,10 +376,11 @@ public class XmlUtil {
          *
          * @param in            XmlPullParser instance pointing to the XML stream.
          * @param outerTagDepth depth of the outer tag in the XML document.
-         * @return WifiConfiguration object if parsing is successful, null otherwise.
+         * @return Pair<Config key, WifiConfiguration object> if parsing is successful,
+         * null otherwise.
          */
-        public static WifiConfiguration parseWifiConfigurationFromXml(XmlPullParser in,
-                int outerTagDepth)
+        public static Pair<String, WifiConfiguration> parseWifiConfigurationFromXml(
+                XmlPullParser in, int outerTagDepth)
                 throws XmlPullParserException, IOException {
             WifiConfiguration configuration = new WifiConfiguration();
             String configKeyInData = null;
@@ -428,20 +433,15 @@ public class XmlUtil {
                     case XML_TAG_CREATOR_UID:
                         configuration.creatorUid = (int) value;
                         break;
+                    case XML_TAG_CREATOR_NAME:
+                        configuration.creatorName = (String) value;
+                        break;
                     default:
                         Log.e(TAG, "Unknown value name found: " + valueName[0]);
                         return null;
                 }
             }
-            // We should now have all the data to calculate the configKey. Compare it against the
-            // configKey stored in the XML data.
-            String configKeyCalculated = configuration.configKey();
-            if (configKeyInData == null || !configKeyInData.equals(configKeyCalculated)) {
-                Log.e(TAG, "Configuration key does not match. Retrieved: " + configKeyInData
-                        + ", Calculated: " + configKeyCalculated);
-                return null;
-            }
-            return configuration;
+            return Pair.create(configKeyInData, configuration);
         }
     }
 
