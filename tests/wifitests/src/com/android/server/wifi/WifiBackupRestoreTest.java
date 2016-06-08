@@ -487,6 +487,46 @@ public class WifiBackupRestoreTest {
     }
 
     /**
+     * Verify that a single open network configuration is serialized & deserialized correctly from
+     * old backups with no ipconfig data.
+     */
+    @Test
+    public void testSingleOpenNetworkSupplicantBackupRestoreWithNoIpConfigData() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createOpenNetwork(0));
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, null);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
+     * Verify that multiple networks with different credential types are serialized and
+     * deserialized correctly from old backups with no ipconfig data.
+     */
+    @Test
+    public void testMultipleNetworksAllSupplicantBackupRestoreWithNoIpConfigData() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+
+        WifiConfiguration wepNetwork = createWepNetwork(0);
+        configurations.add(wepNetwork);
+
+        WifiConfiguration pskNetwork = createPskNetwork(1);
+        configurations.add(pskNetwork);
+
+        WifiConfiguration openNetwork = createOpenNetwork(2);
+        configurations.add(openNetwork);
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, null);
+        assertConfigurationsEqual(configurations, retrievedConfigurations);
+    }
+
+    /**
      * Verify that any corrupted data provided by Backup/Restore is ignored correctly.
      */
     @Test

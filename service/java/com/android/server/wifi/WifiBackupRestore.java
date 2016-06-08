@@ -327,7 +327,7 @@ public class WifiBackupRestore {
                     line = line.replaceAll(
                             WEP_KEYS_MASK_SEARCH_PATTERN, WEP_KEYS_MASK_REPLACE_PATTERN);
                 }
-                sb.append(line + "\n");
+                sb.append(line).append("\n");
             }
         } catch (UnsupportedEncodingException e) {
             return "";
@@ -345,8 +345,7 @@ public class WifiBackupRestore {
      */
     public List<WifiConfiguration> retrieveConfigurationsFromSupplicantBackupData(
             byte[] supplicantData, byte[] ipConfigData) {
-        if (supplicantData == null || ipConfigData == null
-                || supplicantData.length == 0 || ipConfigData.length == 0) {
+        if (supplicantData == null || supplicantData.length == 0) {
             Log.e(TAG, "Invalid supplicant backup data received");
             return null;
         }
@@ -370,21 +369,26 @@ public class WifiBackupRestore {
         List<WifiConfiguration> configurations = supplicantNetworks.retrieveWifiConfigurations();
 
         // Now retrieve all the IpConfiguration objects and set in the corresponding
-        // WifiConfiguration objects.
-        SparseArray<IpConfiguration> networks =
-                IpConfigStore.readIpAndProxyConfigurations(new ByteArrayInputStream(ipConfigData));
-        if (networks != null) {
-            for (int i = 0; i < networks.size(); i++) {
-                int id = networks.keyAt(i);
-                for (WifiConfiguration configuration : configurations) {
-                    // This is a dangerous lookup, but that's how it is currently written.
-                    if (configuration.configKey().hashCode() == id) {
-                        configuration.setIpConfiguration(networks.valueAt(i));
+        // WifiConfiguration objects if ipconfig data is present.
+        if (ipConfigData != null && ipConfigData.length != 0) {
+            SparseArray<IpConfiguration> networks =
+                    IpConfigStore.readIpAndProxyConfigurations(
+                            new ByteArrayInputStream(ipConfigData));
+            if (networks != null) {
+                for (int i = 0; i < networks.size(); i++) {
+                    int id = networks.keyAt(i);
+                    for (WifiConfiguration configuration : configurations) {
+                        // This is a dangerous lookup, but that's how it is currently written.
+                        if (configuration.configKey().hashCode() == id) {
+                            configuration.setIpConfiguration(networks.valueAt(i));
+                        }
                     }
                 }
+            } else {
+                Log.e(TAG, "Failed to parse ipconfig data");
             }
         } else {
-            Log.e(TAG, "Invalid Ip config data");
+            Log.e(TAG, "Invalid ipconfig backup data received");
         }
         return configurations;
     }
@@ -494,7 +498,7 @@ public class WifiBackupRestore {
                         line = line.replaceAll(
                                 WEP_KEYS_MASK_SEARCH_PATTERN, WEP_KEYS_MASK_REPLACE_PATTERN);
                     }
-                    sb.append(line + "\n");
+                    sb.append(line).append("\n");
                 }
             } catch (UnsupportedEncodingException e) {
                 return "";
