@@ -217,6 +217,7 @@ public class WifiConnectivityManagerTest {
         WifiConfigManager wifiConfigManager = mock(WifiConfigManager.class);
 
         when(wifiConfigManager.getWifiConfiguration(anyInt())).thenReturn(null);
+        when(wifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
         wifiConfigManager.mThresholdSaturatedRssi24 = new AtomicInteger(
                 WifiQualifiedNetworkSelector.RSSI_SATURATION_2G_BAND);
         wifiConfigManager.mCurrentNetworkBoost = new AtomicInteger(
@@ -319,6 +320,30 @@ public class WifiConnectivityManagerTest {
         mWifiConnectivityManager.handleScreenStateChanged(true);
 
         verify(mWifiStateMachine, atLeastOnce()).autoConnectToNetwork(
+                CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
+    }
+
+    /**
+     *  Screen turned on while WiFi in connected state but
+     *  auto roaming is disabled.
+     *
+     * Expected behavior: WifiConnectivityManager doesn't invoke
+     * WifiStateMachine.autoConnectToNetwork() because roaming
+     * is turned off.
+     */
+    @Test
+    public void turnScreenOnWhenWifiInConnectedStateRoamingDisabled() {
+        // Set WiFi to connected state
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        // Turn off auto roaming
+        when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(false);
+
+        // Set screen to on
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        verify(mWifiStateMachine, times(0)).autoConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 
