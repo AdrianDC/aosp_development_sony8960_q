@@ -81,9 +81,17 @@ public class WifiBackupRestore {
     /**
      * Regex to mask out passwords in backup data dump.
      */
-    private static final String PASSWORD_MASK_SEARCH_PATTERN =
+    private static final String PSK_MASK_LINE_MATCH_PATTERN =
+            "<.*" + WifiConfigurationXmlUtil.XML_TAG_PRE_SHARED_KEY + ".*>.*<.*>";
+    private static final String PSK_MASK_SEARCH_PATTERN =
             "(<.*" + WifiConfigurationXmlUtil.XML_TAG_PRE_SHARED_KEY + ".*>)(.*)(<.*>)";
-    private static final String PASSWORD_MASK_REPLACE_PATTERN = "$1*$3";
+    private static final String PSK_MASK_REPLACE_PATTERN = "$1*$3";
+
+    private static final String WEP_KEYS_MASK_LINE_START_MATCH_PATTERN =
+            "<string-array.*" + WifiConfigurationXmlUtil.XML_TAG_WEP_KEYS + ".*num=\"[0-9]\">";
+    private static final String WEP_KEYS_MASK_LINE_END_MATCH_PATTERN = "</string-array>";
+    private static final String WEP_KEYS_MASK_SEARCH_PATTERN = "(<.*=)(.*)(/>)";
+    private static final String WEP_KEYS_MASK_REPLACE_PATTERN = "$1*$3";
 
     /**
      * Verbose logging flag.
@@ -289,19 +297,42 @@ public class WifiBackupRestore {
     }
 
     /**
-     * Create log dump of the backup data in XML format with the preShared
-     * key masked.
+     * Create log dump of the backup data in XML format with the preShared & WEP key masked.
+     *
+     * PSK keys are written in the following format in XML:
+     * <string name="PreSharedKey">WifiBackupRestorePsk</string>
+     *
+     * WEP Keys are written in following format in XML:
+     * <string-array name="WEPKeys" num="4">
+     *  <item value="WifiBackupRestoreWep1" />
+     *  <item value="WifiBackupRestoreWep2" />
+     *  <item value="WifiBackupRestoreWep3" />
+     *  <item value="WifiBackupRestoreWep3" />
+     * </string-array>
      */
     private String createLogFromBackupData(byte[] data) {
-        String xmlString;
+        StringBuilder sb = new StringBuilder();
         try {
-            xmlString = new String(data, StandardCharsets.UTF_8.name());
-            xmlString = xmlString.replaceAll(
-                    PASSWORD_MASK_SEARCH_PATTERN, PASSWORD_MASK_REPLACE_PATTERN);
+            String xmlString = new String(data, StandardCharsets.UTF_8.name());
+            boolean wepKeysLine = false;
+            for (String line : xmlString.split("\n")) {
+                if (line.matches(PSK_MASK_LINE_MATCH_PATTERN)) {
+                    line = line.replaceAll(PSK_MASK_SEARCH_PATTERN, PSK_MASK_REPLACE_PATTERN);
+                }
+                if (line.matches(WEP_KEYS_MASK_LINE_START_MATCH_PATTERN)) {
+                    wepKeysLine = true;
+                } else if (line.matches(WEP_KEYS_MASK_LINE_END_MATCH_PATTERN)) {
+                    wepKeysLine = false;
+                } else if (wepKeysLine) {
+                    line = line.replaceAll(
+                            WEP_KEYS_MASK_SEARCH_PATTERN, WEP_KEYS_MASK_REPLACE_PATTERN);
+                }
+                sb.append(line + "\n");
+            }
         } catch (UnsupportedEncodingException e) {
             return "";
         }
-        return xmlString;
+        return sb.toString();
     }
 
     /**
@@ -426,24 +457,49 @@ public class WifiBackupRestore {
         /**
          * Regex to mask out passwords in backup data dump.
          */
-        private static final String PASSWORD_MASK_SEARCH_PATTERN =
+        private static final String PSK_MASK_LINE_MATCH_PATTERN =
+                ".*" + SUPPLICANT_KEY_PSK + ".*=.*";
+        private static final String PSK_MASK_SEARCH_PATTERN =
                 "(.*" + SUPPLICANT_KEY_PSK + ".*=)(.*)";
-        private static final String PASSWORD_MASK_REPLACE_PATTERN = "$1*";
+        private static final String PSK_MASK_REPLACE_PATTERN = "$1*";
+
+        private static final String WEP_KEYS_MASK_LINE_MATCH_PATTERN =
+                ".*" + SUPPLICANT_KEY_WEP_KEY0.replace("0", "") + ".*=.*";
+        private static final String WEP_KEYS_MASK_SEARCH_PATTERN =
+                "(.*" + SUPPLICANT_KEY_WEP_KEY0.replace("0", "") + ".*=)(.*)";
+        private static final String WEP_KEYS_MASK_REPLACE_PATTERN = "$1*";
 
         /**
-         * Create log dump of the backup data in wpa_supplicant.conf format with the preShared
-         * key masked.
+         * Create log dump of the backup data in wpa_supplicant.conf format with the preShared &
+         * WEP key masked.
+         *
+         * PSK keys are written in the following format in wpa_supplicant.conf:
+         *  psk=WifiBackupRestorePsk
+         *
+         * WEP Keys are written in following format in wpa_supplicant.conf:
+         *  wep_keys0=WifiBackupRestoreWep0
+         *  wep_keys1=WifiBackupRestoreWep1
+         *  wep_keys2=WifiBackupRestoreWep2
+         *  wep_keys3=WifiBackupRestoreWep3
          */
         public static String createLogFromBackupData(byte[] data) {
-            String supplicantConfString;
+            StringBuilder sb = new StringBuilder();
             try {
-                supplicantConfString = new String(data, StandardCharsets.UTF_8.name());
-                supplicantConfString = supplicantConfString.replaceAll(
-                        PASSWORD_MASK_SEARCH_PATTERN, PASSWORD_MASK_REPLACE_PATTERN);
+                String supplicantConfString = new String(data, StandardCharsets.UTF_8.name());
+                for (String line : supplicantConfString.split("\n")) {
+                    if (line.matches(PSK_MASK_LINE_MATCH_PATTERN)) {
+                        line = line.replaceAll(PSK_MASK_SEARCH_PATTERN, PSK_MASK_REPLACE_PATTERN);
+                    }
+                    if (line.matches(WEP_KEYS_MASK_LINE_MATCH_PATTERN)) {
+                        line = line.replaceAll(
+                                WEP_KEYS_MASK_SEARCH_PATTERN, WEP_KEYS_MASK_REPLACE_PATTERN);
+                    }
+                    sb.append(line + "\n");
+                }
             } catch (UnsupportedEncodingException e) {
                 return "";
             }
-            return supplicantConfString;
+            return sb.toString();
         }
 
         /**
