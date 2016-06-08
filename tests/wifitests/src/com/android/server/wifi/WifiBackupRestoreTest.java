@@ -89,10 +89,15 @@ public class WifiBackupRestoreTest {
             StringWriter stringWriter = new StringWriter();
             mWifiBackupRestore.dump(
                     new FileDescriptor(), new PrintWriter(stringWriter), new String[0]);
+            String dumpString = stringWriter.toString();
             // Ensure that the SSID was dumped out.
-            assertTrue(stringWriter.toString().contains(TEST_SSID));
+            assertTrue("Dump: " + dumpString, dumpString.contains(TEST_SSID));
             // Ensure that the password wasn't dumped out.
-            assertFalse(stringWriter.toString().contains(TEST_PSK));
+            assertFalse("Dump: " + dumpString, dumpString.contains(TEST_PSK));
+            assertFalse("Dump: " + dumpString, dumpString.contains(TEST_WEP_KEYS[0]));
+            assertFalse("Dump: " + dumpString, dumpString.contains(TEST_WEP_KEYS[1]));
+            assertFalse("Dump: " + dumpString, dumpString.contains(TEST_WEP_KEYS[2]));
+            assertFalse("Dump: " + dumpString, dumpString.contains(TEST_WEP_KEYS[3]));
         }
     }
 
