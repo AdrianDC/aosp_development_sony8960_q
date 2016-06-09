@@ -183,6 +183,9 @@ message WifiLog {
 
   // Count of times connectivity watchdog found background scan not working
   optional int32 num_connectivity_watchdog_background_bad = 33;
+
+  // The time duration represented by this wifi log, from start to end of capture
+  optional int32 record_duration_sec = 34;
 }
 
 // Information that gets logged for every WiFi connection.

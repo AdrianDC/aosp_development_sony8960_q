@@ -17,8 +17,7 @@ package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
@@ -29,6 +28,8 @@ import com.android.server.wifi.hotspot2.NetworkDetail;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
@@ -43,12 +44,14 @@ public class WifiMetricsTest {
 
     WifiMetrics mWifiMetrics;
     WifiMetricsProto.WifiLog mDeserializedWifiMetrics;
-
+    @Mock Clock mClock;
 
     @Before
     public void setUp() throws Exception {
+        MockitoAnnotations.initMocks(this);
         mDeserializedWifiMetrics = null;
-        mWifiMetrics = new WifiMetrics();
+        when(mClock.getElapsedSinceBootMillis()).thenReturn((long) 0);
+        mWifiMetrics = new WifiMetrics(mClock);
     }
 
     /**
@@ -74,6 +77,9 @@ public class WifiMetricsTest {
                 WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
     }
 
+    private static final long TEST_RECORD_DURATION_SEC = 12 * 60 * 60;
+    private static final long TEST_RECORD_DURATION_MILLIS = TEST_RECORD_DURATION_SEC * 1000;
+
     /**
      * Simulate how dumpsys gets the proto from mWifiMetrics, filter the proto bytes out and
      * deserialize them into mDeserializedWifiMetrics
@@ -82,6 +88,8 @@ public class WifiMetricsTest {
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         PrintWriter writer = new PrintWriter(stream);
         String[] args = new String[0];
+
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(TEST_RECORD_DURATION_MILLIS);
         //Test proto dump, by passing in proto arg option
         args = new String[]{WifiMetrics.PROTO_DUMP_ARG};
         mWifiMetrics.dump(null, writer, args);
@@ -94,15 +102,6 @@ public class WifiMetricsTest {
         String protoByteString = matcher.group(1);
         byte[] protoBytes = Base64.decode(protoByteString, Base64.DEFAULT);
         mDeserializedWifiMetrics = WifiMetricsProto.WifiLog.parseFrom(protoBytes);
-    }
-
-    /**
-     * Test WifiMetrics can be serialized and de-serialized
-     */
-    public void serializeDeserialize() throws Exception {
-        byte[] serializedWifiMetrics = mWifiMetrics.toByteArray();
-        mDeserializedWifiMetrics = WifiMetricsProto.WifiLog.parseFrom(
-                serializedWifiMetrics);
     }
 
     @Test
@@ -312,6 +311,8 @@ public class WifiMetricsTest {
                 mDeserializedWifiMetrics.numLastResortWatchdogTriggersWithBadDhcp);
         assertEquals(NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_OTHER,
                 mDeserializedWifiMetrics.numLastResortWatchdogTriggersWithBadOther);
+        assertEquals(TEST_RECORD_DURATION_SEC,
+                mDeserializedWifiMetrics.recordDurationSec);
     }
 
     /**
@@ -349,10 +350,10 @@ public class WifiMetricsTest {
     public void setMetricsSerializeDeserializeAssertMetricsSame() throws Exception {
         setAndIncrementMetrics();
         startAndEndConnectionEventSucceeds();
-        serializeDeserialize();
+        dumpProtoAndDeserialize();
         assertDeserializedMetricsCorrect();
         assertEquals("mDeserializedWifiMetrics.connectionEvent.length",
-                3, mDeserializedWifiMetrics.connectionEvent.length);
+                2, mDeserializedWifiMetrics.connectionEvent.length);
         //<TODO> test individual connectionEvents for correctness,
         // check scanReturnEntries & wifiSystemStateEntries counts and individual elements
         // pending their implementation</TODO>

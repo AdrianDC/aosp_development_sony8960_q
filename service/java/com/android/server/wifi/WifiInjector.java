@@ -32,10 +32,10 @@ public class WifiInjector {
         return LazyHolder.sInstance;
     }
 
-    private final WifiMetrics mWifiMetrics = new WifiMetrics();
+    private final Clock mClock = new Clock();
+    private final WifiMetrics mWifiMetrics = new WifiMetrics(mClock);
     private final WifiLastResortWatchdog mWifiLastResortWatchdog =
             new WifiLastResortWatchdog(mWifiMetrics);
-    private final Clock mClock = new Clock();
     private final PropertyService mPropertyService = new SystemPropertyService();
     private final BuildProperties mBuildProperties = new SystemBuildProperties();
     private final KeyStore mKeyStore = KeyStore.getInstance();
