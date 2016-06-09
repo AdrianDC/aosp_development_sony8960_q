@@ -41,6 +41,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
@@ -53,11 +54,14 @@ public class XmlUtilTest {
 
     private static final int TEST_NETWORK_ID = -1;
     private static final int TEST_UID = 1;
+    private static final String TEST_PACKAGE_NAME = "XmlUtilPackage";
     private static final String TEST_SSID = "\"XmlUtilSSID\"";
     private static final String TEST_PSK = "XmlUtilPsk";
     private static final String[] TEST_WEP_KEYS =
             {"XmlUtilWep1", "XmlUtilWep2", "XmlUtilWep3", "XmlUtilWep3"};
     private static final int TEST_WEP_TX_KEY_INDEX = 1;
+    private static final String TEST_FQDN = "XmlUtilFQDN";
+    private static final String TEST_PROVIDER_FRIENDLY_NAME = "XmlUtilFriendlyName";
     private static final String TEST_STATIC_IP_LINK_ADDRESS = "192.168.48.2";
     private static final int TEST_STATIC_IP_LINK_PREFIX_LENGTH = 8;
     private static final String TEST_STATIC_IP_GATEWAY_ADDRESS = "192.168.48.1";
@@ -67,6 +71,7 @@ public class XmlUtilTest {
     private static final int TEST_STATIC_PROXY_PORT = 8000;
     private static final String TEST_STATIC_PROXY_EXCLUSION_LIST = "";
     private static final String TEST_PAC_PROXY_LOCATION = "http://";
+    private static final String TEST_DUMMY_CONFIG_KEY = "XmlUtilDummyConfigKey";
     private final String mXmlDocHeader = "XmlUtilTest";
 
     /**
@@ -106,12 +111,22 @@ public class XmlUtilTest {
     }
 
     /**
-     * Verify that a psk hidden WifiConfiguration is serialized & deserialized correctly.
+     * Verify that a WEP WifiConfiguration is serialized & deserialized correctly.
      */
     @Test
     public void testWepWifiConfigurationSerializeDeserialize()
             throws IOException, XmlPullParserException {
         serializeDeserializeWifiConfiguration(createWepNetwork());
+    }
+
+    /**
+     * Verify that a EAP WifiConfiguration is serialized & deserialized correctly only for
+     * ConfigStore.
+     */
+    @Test
+    public void testEapWifiConfigurationSerializeDeserialize()
+            throws IOException, XmlPullParserException {
+        serializeDeserializeWifiConfigurationForConfigStore(createEapNetwork());
     }
 
     /**
@@ -162,6 +177,30 @@ public class XmlUtilTest {
         serializeDeserializeIpConfiguration(createDHCPIpConfigurationWithStaticProxy());
     }
 
+    /**
+     * Verify that a EAP WifiConfiguration is serialized & deserialized correctly for config store.
+     * This basically exercises all the elements being serialized in config store.
+     */
+    @Test
+    public void testEapWifiConfigurationSerializeDeserializeForConfigStore()
+            throws IOException, XmlPullParserException {
+        WifiConfiguration configuration = createEapNetwork();
+        configuration.linkedConfigurations = new HashMap<>();
+        configuration.linkedConfigurations.put(TEST_DUMMY_CONFIG_KEY, Integer.valueOf(1));
+        configuration.defaultGwMacAddress = TEST_STATIC_IP_GATEWAY_ADDRESS;
+        configuration.validatedInternetAccess = true;
+        configuration.noInternetAccessExpected = true;
+        configuration.userApproved = WifiConfiguration.USER_UNSPECIFIED;
+        configuration.meteredHint = true;
+        configuration.useExternalScores = true;
+        configuration.numAssociation = 5;
+        configuration.lastUpdateUid = configuration.lastConnectUid = configuration.creatorUid;
+        configuration.creatorName = configuration.lastUpdateName = TEST_PACKAGE_NAME;
+        configuration.creationTime = "04-04-2016";
+
+        serializeDeserializeWifiConfigurationForConfigStore(configuration);
+    }
+
     private WifiConfiguration createOpenNetwork() {
         return WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, TEST_SSID,
                 true, true, null, null,
@@ -196,6 +235,14 @@ public class XmlUtilTest {
                         WifiConfigurationTestUtil.SECURITY_WEP);
         configuration.wepKeys = TEST_WEP_KEYS;
         configuration.wepTxKeyIndex = TEST_WEP_TX_KEY_INDEX;
+        return configuration;
+    }
+
+    private WifiConfiguration createEapNetwork() {
+        WifiConfiguration configuration =
+                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, TEST_SSID,
+                        true, true, TEST_FQDN, TEST_PROVIDER_FRIENDLY_NAME,
+                        WifiConfigurationTestUtil.SECURITY_EAP);
         return configuration;
     }
 
@@ -298,19 +345,28 @@ public class XmlUtilTest {
     }
 
     /**
-     * This helper method tests both the serialization for backup/restore and config store.
+     * This helper method tests the serialization for backup/restore.
      */
-    private void serializeDeserializeWifiConfiguration(WifiConfiguration configuration)
+    private void serializeDeserializeWifiConfigurationForBackupRestore(
+            WifiConfiguration configuration)
             throws IOException, XmlPullParserException {
         Pair<String, WifiConfiguration> retrieved;
-        // Test serialization/deserialization for backup first.
+        // Test serialization/deserialization for config store.
         retrieved =
                 deserializeWifiConfiguration(
                         serializeWifiConfigurationForBackup(configuration));
         assertEquals(retrieved.first, retrieved.second.configKey());
         WifiConfigurationTestUtil.assertConfigurationEqualForBackup(
                 configuration, retrieved.second);
+    }
 
+    /**
+     * This helper method tests the serialization for config store.
+     */
+    private void serializeDeserializeWifiConfigurationForConfigStore(
+            WifiConfiguration configuration)
+            throws IOException, XmlPullParserException {
+        Pair<String, WifiConfiguration> retrieved;
         // Test serialization/deserialization for config store.
         retrieved =
                 deserializeWifiConfiguration(
@@ -318,6 +374,19 @@ public class XmlUtilTest {
         assertEquals(retrieved.first, retrieved.second.configKey());
         WifiConfigurationTestUtil.assertConfigurationEqualForConfigStore(
                 configuration, retrieved.second);
+    }
+
+    /**
+     * This helper method tests both the serialization for backup/restore and config store.
+     */
+    private void serializeDeserializeWifiConfiguration(WifiConfiguration configuration)
+            throws IOException, XmlPullParserException {
+        Pair<String, WifiConfiguration> retrieved;
+        // Test serialization/deserialization for backup first.
+        serializeDeserializeWifiConfigurationForBackupRestore(configuration);
+
+        // Test serialization/deserialization for config store.
+        serializeDeserializeWifiConfigurationForConfigStore(configuration);
     }
 
     private void serializeDeserializeIpConfiguration(IpConfiguration configuration)

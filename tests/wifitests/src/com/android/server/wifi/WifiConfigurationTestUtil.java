@@ -130,7 +130,21 @@ public class WifiConfigurationTestUtil {
     public static void assertConfigurationEqualForConfigStore(
             WifiConfiguration expected, WifiConfiguration actual) {
         assertCommonConfigurationElementsEqual(expected, actual);
+        assertEquals(expected.FQDN, actual.FQDN);
+        assertEquals(expected.providerFriendlyName, actual.providerFriendlyName);
+        assertEquals(expected.linkedConfigurations, actual.linkedConfigurations);
+        assertEquals(expected.defaultGwMacAddress, actual.defaultGwMacAddress);
+        assertEquals(expected.validatedInternetAccess, actual.validatedInternetAccess);
+        assertEquals(expected.noInternetAccessExpected, actual.noInternetAccessExpected);
+        assertEquals(expected.userApproved, actual.userApproved);
+        assertEquals(expected.meteredHint, actual.meteredHint);
+        assertEquals(expected.useExternalScores, actual.useExternalScores);
+        assertEquals(expected.numAssociation, actual.numAssociation);
         assertEquals(expected.creatorUid, actual.creatorUid);
         assertEquals(expected.creatorName, actual.creatorName);
+        assertEquals(expected.creationTime, actual.creationTime);
+        assertEquals(expected.lastUpdateUid, actual.lastUpdateUid);
+        assertEquals(expected.lastUpdateName, actual.lastUpdateName);
+        assertEquals(expected.lastConnectUid, actual.lastConnectUid);
     }
 }

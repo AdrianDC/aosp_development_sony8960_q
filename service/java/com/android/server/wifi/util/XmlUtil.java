@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.util.BitSet;
+import java.util.HashMap;
 
 /**
  * Utils for manipulating XML data. This is essentially a wrapper over XmlUtils provided by core.
@@ -259,8 +260,22 @@ public class XmlUtil {
         public static final String XML_TAG_ALLOWED_PROTOCOLS = "AllowedProtocols";
         public static final String XML_TAG_ALLOWED_AUTH_ALGOS = "AllowedAuthAlgos";
         public static final String XML_TAG_SHARED = "Shared";
+        public static final String XML_TAG_FQDN = "FQDN";
+        public static final String XML_TAG_PROVIDER_FRIENDLY_NAME = "ProviderFriendlyName";
+        public static final String XML_TAG_LINKED_NETWORKS_LIST = "LinkedNetworksList";
+        public static final String XML_TAG_DEFAULT_GW_MAC_ADDRESS = "DefaultGwMacAddress";
+        public static final String XML_TAG_VALIDATED_INTERNET_ACCESS = "ValidatedInternetAccess";
+        public static final String XML_TAG_NO_INTERNET_ACCESS_EXPECTED = "NoInternetAccessExpected";
+        public static final String XML_TAG_USER_APPROVED = "UserApproved";
+        public static final String XML_TAG_METERED_HINT = "MeteredHint";
+        public static final String XML_TAG_USE_EXTERNAL_SCORES = "UseExternalScores";
+        public static final String XML_TAG_NUM_ASSOCIATION = "NumAssociation";
         public static final String XML_TAG_CREATOR_UID = "CreatorUid";
         public static final String XML_TAG_CREATOR_NAME = "CreatorName";
+        public static final String XML_TAG_CREATION_TIME = "CreationTime";
+        public static final String XML_TAG_LAST_UPDATE_UID = "LastUpdateUid";
+        public static final String XML_TAG_LAST_UPDATE_NAME = "LastUpdateName";
+        public static final String XML_TAG_LAST_CONNECT_UID = "LastConnectUid";
 
         /**
          * Write WepKeys to the XML stream.
@@ -341,8 +356,29 @@ public class XmlUtil {
                 throws XmlPullParserException, IOException {
             writeCommonWifiConfigurationElementsToXml(out, configuration);
             // TODO: Will need to add more elements which needs to be persisted.
+            XmlUtil.writeNextValue(out, XML_TAG_FQDN, configuration.FQDN);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_PROVIDER_FRIENDLY_NAME, configuration.providerFriendlyName);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_LINKED_NETWORKS_LIST, configuration.linkedConfigurations);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_DEFAULT_GW_MAC_ADDRESS, configuration.defaultGwMacAddress);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_VALIDATED_INTERNET_ACCESS, configuration.validatedInternetAccess);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_NO_INTERNET_ACCESS_EXPECTED,
+                    configuration.noInternetAccessExpected);
+            XmlUtil.writeNextValue(out, XML_TAG_USER_APPROVED, configuration.userApproved);
+            XmlUtil.writeNextValue(out, XML_TAG_METERED_HINT, configuration.meteredHint);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_USE_EXTERNAL_SCORES, configuration.useExternalScores);
+            XmlUtil.writeNextValue(out, XML_TAG_NUM_ASSOCIATION, configuration.numAssociation);
             XmlUtil.writeNextValue(out, XML_TAG_CREATOR_UID, configuration.creatorUid);
             XmlUtil.writeNextValue(out, XML_TAG_CREATOR_NAME, configuration.creatorName);
+            XmlUtil.writeNextValue(out, XML_TAG_CREATION_TIME, configuration.creationTime);
+            XmlUtil.writeNextValue(out, XML_TAG_LAST_UPDATE_UID, configuration.lastUpdateUid);
+            XmlUtil.writeNextValue(out, XML_TAG_LAST_UPDATE_NAME, configuration.lastUpdateName);
+            XmlUtil.writeNextValue(out, XML_TAG_LAST_CONNECT_UID, configuration.lastConnectUid);
         }
 
         /**
@@ -430,11 +466,53 @@ public class XmlUtil {
                     case XML_TAG_SHARED:
                         configuration.shared = (boolean) value;
                         break;
+                    case XML_TAG_FQDN:
+                        configuration.FQDN = (String) value;
+                        break;
+                    case XML_TAG_PROVIDER_FRIENDLY_NAME:
+                        configuration.providerFriendlyName = (String) value;
+                        break;
+                    case XML_TAG_LINKED_NETWORKS_LIST:
+                        configuration.linkedConfigurations = (HashMap<String, Integer>) value;
+                        break;
+                    case XML_TAG_DEFAULT_GW_MAC_ADDRESS:
+                        configuration.defaultGwMacAddress = (String) value;
+                        break;
+                    case XML_TAG_VALIDATED_INTERNET_ACCESS:
+                        configuration.validatedInternetAccess = (boolean) value;
+                        break;
+                    case XML_TAG_NO_INTERNET_ACCESS_EXPECTED:
+                        configuration.noInternetAccessExpected = (boolean) value;
+                        break;
+                    case XML_TAG_USER_APPROVED:
+                        configuration.userApproved = (int) value;
+                        break;
+                    case XML_TAG_METERED_HINT:
+                        configuration.meteredHint = (boolean) value;
+                        break;
+                    case XML_TAG_USE_EXTERNAL_SCORES:
+                        configuration.useExternalScores = (boolean) value;
+                        break;
+                    case XML_TAG_NUM_ASSOCIATION:
+                        configuration.numAssociation = (int) value;
+                        break;
                     case XML_TAG_CREATOR_UID:
                         configuration.creatorUid = (int) value;
                         break;
                     case XML_TAG_CREATOR_NAME:
                         configuration.creatorName = (String) value;
+                        break;
+                    case XML_TAG_CREATION_TIME:
+                        configuration.creationTime = (String) value;
+                        break;
+                    case XML_TAG_LAST_UPDATE_UID:
+                        configuration.lastUpdateUid = (int) value;
+                        break;
+                    case XML_TAG_LAST_UPDATE_NAME:
+                        configuration.lastUpdateName = (String) value;
+                        break;
+                    case XML_TAG_LAST_CONNECT_UID:
+                        configuration.lastConnectUid = (int) value;
                         break;
                     default:
                         Log.e(TAG, "Unknown value name found: " + valueName[0]);
