@@ -2373,12 +2373,16 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
 
         private void trackSignificantWifiChange(WifiScanner.WifiChangeSettings settings) {
-            mScannerImpl.untrackSignificantWifiChange();
-            mScannerImpl.trackSignificantWifiChange(settings, this);
+            if (mScannerImpl != null) {
+                mScannerImpl.untrackSignificantWifiChange();
+                mScannerImpl.trackSignificantWifiChange(settings, this);
+            }
         }
 
         private void untrackSignificantWifiChange() {
-            mScannerImpl.untrackSignificantWifiChange();
+            if (mScannerImpl != null) {
+                mScannerImpl.untrackSignificantWifiChange();
+            }
         }
 
         private void addWifiChangeHandler(ClientInfo ci, int handler) {
