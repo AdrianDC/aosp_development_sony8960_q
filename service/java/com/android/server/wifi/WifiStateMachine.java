@@ -4408,7 +4408,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             switch(message.what) {
                case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                     SupplicantState state = handleSupplicantStateChange(message);
-                    /* If suplicant is exiting out of INTERFACE_DISABLED state into
+                    /* If supplicant is exiting out of INTERFACE_DISABLED state into
                      * a state that indicates driver has started, it is ready to
                      * receive driver commands
                      */
@@ -4512,11 +4512,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 // Status pulls in the current supplicant state and network connection state
                 // events over the monitor connection. This helps framework sync up with
                 // current supplicant state
-                // TODO: actually check th supplicant status string and make sure the supplicant
+                // TODO: actually check the supplicant status string and make sure the supplicant
                 // is in disconnecte4d state.
                 mWifiNative.status();
                 // Transitioning to Disconnected state will trigger a scan and subsequently AutoJoin
-                transitionTo(mDisconnectedState);
                 transitionTo(mDisconnectedState);
             }
 
@@ -4541,7 +4540,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 if (mOperationalMode == CONNECT_MODE) {
                     p2pSendMessage(WifiStateMachine.CMD_ENABLE_P2P);
                 } else {
-                    // P2P statemachine starts in disabled state, and is not enabled until
+                    // P2P state machine starts in disabled state, and is not enabled until
                     // CMD_ENABLE_P2P is sent from here; so, nothing needs to be done to
                     // keep it disabled.
                 }
@@ -4685,9 +4684,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
             return HANDLED;
         }
+
         @Override
         public void exit() {
-
             mWifiLogger.stopLogging();
 
             mIsRunning = false;
