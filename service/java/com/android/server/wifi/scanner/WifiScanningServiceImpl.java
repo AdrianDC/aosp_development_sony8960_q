@@ -1095,6 +1095,10 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
 
         private boolean updateSchedule() {
+            if (mChannelHelper == null || mBackgroundScheduler == null || mScannerImpl == null) {
+                loge("Failed to update schedule because WifiScanningService is not initialized");
+                return false;
+            }
             mChannelHelper.updateChannels();
             Collection<ScanSettings> settings = mActiveBackgroundScans.getAllSettings();
 
@@ -1221,6 +1225,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
 
         private void resetHotlist() {
+            if (mScannerImpl == null) {
+                loge("Failed to update hotlist because WifiScanningService is not initialized");
+                return;
+            }
+
             Collection<WifiScanner.HotlistSettings> settings =
                     mActiveHotlistSettings.getAllSettings();
             int num_hotlist_ap = 0;

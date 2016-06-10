@@ -262,6 +262,10 @@ public class WifiScanningServiceTest {
     private static final int MAX_AP_PER_SCAN = 16;
     private void startServiceAndLoadDriver() {
         mWifiScanningServiceImpl.startService();
+        setupAndLoadDriver();
+    }
+
+    private void setupAndLoadDriver() {
         when(mWifiScannerImpl.getScanCapabilities(any(WifiNative.ScanCapabilities.class)))
                 .thenAnswer(new AnswerWithArguments() {
                         public boolean answer(WifiNative.ScanCapabilities capabilities) {
@@ -332,6 +336,17 @@ public class WifiScanningServiceTest {
     }
 
     @Test
+    public void disconnectClientBeforeWifiEnabled() throws Exception {
+        mWifiScanningServiceImpl.startService();
+
+        BidirectionalAsyncChannel controlChannel = connectChannel(mock(Handler.class));
+        mLooper.dispatchAll();
+
+        controlChannel.disconnect();
+        mLooper.dispatchAll();
+    }
+
+    @Test
     public void loadDriver() throws Exception {
         startServiceAndLoadDriver();
         verify(mWifiScannerImplFactory, times(1))
@@ -346,6 +361,29 @@ public class WifiScanningServiceTest {
         mLooper.dispatchAll();
         verifySuccessfulResponse(order, handler, 192);
         assertDumpContainsRequestLog("addBackgroundScanRequest", 192);
+    }
+
+    @Test
+    public void disconnectClientAfterStartingWifi() throws Exception {
+        mWifiScanningServiceImpl.startService();
+
+        BidirectionalAsyncChannel controlChannel = connectChannel(mock(Handler.class));
+        mLooper.dispatchAll();
+
+        setupAndLoadDriver();
+
+        controlChannel.disconnect();
+        mLooper.dispatchAll();
+    }
+
+    @Test
+    public void connectAndDisconnectClientAfterStartingWifi() throws Exception {
+        startServiceAndLoadDriver();
+
+        BidirectionalAsyncChannel controlChannel = connectChannel(mock(Handler.class));
+        mLooper.dispatchAll();
+        controlChannel.disconnect();
+        mLooper.dispatchAll();
     }
 
     @Test
