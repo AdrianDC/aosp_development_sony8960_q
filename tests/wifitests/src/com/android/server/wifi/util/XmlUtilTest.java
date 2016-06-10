@@ -22,6 +22,7 @@ import android.net.NetworkUtils;
 import android.net.ProxyInfo;
 import android.net.StaticIpConfiguration;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Pair;
 import android.util.Xml;
@@ -29,6 +30,7 @@ import android.util.Xml;
 import com.android.internal.util.FastXmlSerializer;
 import com.android.server.wifi.WifiConfigurationTestUtil;
 import com.android.server.wifi.util.XmlUtil.IpConfigurationXmlUtil;
+import com.android.server.wifi.util.XmlUtil.NetworkSelectionStatusXmlUtil;
 import com.android.server.wifi.util.XmlUtil.WifiConfigurationXmlUtil;
 
 import org.junit.Test;
@@ -199,6 +201,37 @@ public class XmlUtilTest {
         configuration.creationTime = "04-04-2016";
 
         serializeDeserializeWifiConfigurationForConfigStore(configuration);
+    }
+
+    /**
+     * Verify that an enabled network selection status object is serialized & deserialized
+     * correctly.
+     */
+    @Test
+    public void testEnabledNetworkSelectionStatusSerializeDeserialize()
+            throws IOException, XmlPullParserException {
+        NetworkSelectionStatus status = new NetworkSelectionStatus();
+        status.setNetworkSelectionStatus(NetworkSelectionStatus.NETWORK_SELECTION_ENABLED);
+        status.setNetworkSelectionDisableReason(NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+        status.setConnectChoice(TEST_DUMMY_CONFIG_KEY);
+        status.setConnectChoiceTimestamp(867889);
+        status.setHasEverConnected(true);
+        serializeDeserializeNetworkSelectionStatus(status);
+    }
+
+    /**
+     * Verify that a temporarily disabled network selection status object is serialized &
+     * deserialized correctly.
+     */
+    @Test
+    public void testTemporarilyDisabledNetworkSelectionStatusSerializeDeserialize()
+            throws IOException, XmlPullParserException {
+        NetworkSelectionStatus status = new NetworkSelectionStatus();
+        status.setNetworkSelectionStatus(
+                NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED);
+        status.setNetworkSelectionDisableReason(
+                NetworkSelectionStatus.DISABLED_ASSOCIATION_REJECTION);
+        serializeDeserializeNetworkSelectionStatus(status);
     }
 
     private WifiConfiguration createOpenNetwork() {
@@ -391,23 +424,42 @@ public class XmlUtilTest {
 
     private void serializeDeserializeIpConfiguration(IpConfiguration configuration)
             throws IOException, XmlPullParserException {
-        String docHeader = "XmlUtilTest";
-
         // Serialize the configuration object.
         final XmlSerializer out = new FastXmlSerializer();
         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         out.setOutput(outputStream, StandardCharsets.UTF_8.name());
-        XmlUtil.writeDocumentStart(out, docHeader);
+        XmlUtil.writeDocumentStart(out, mXmlDocHeader);
         IpConfigurationXmlUtil.writeIpConfigurationToXml(out, configuration);
-        XmlUtil.writeDocumentEnd(out, docHeader);
+        XmlUtil.writeDocumentEnd(out, mXmlDocHeader);
 
         // Deserialize the configuration object.
         final XmlPullParser in = Xml.newPullParser();
         ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
         in.setInput(inputStream, StandardCharsets.UTF_8.name());
-        XmlUtil.gotoDocumentStart(in, docHeader);
+        XmlUtil.gotoDocumentStart(in, mXmlDocHeader);
         IpConfiguration retrievedConfiguration =
                 IpConfigurationXmlUtil.parseIpConfigurationFromXml(in, in.getDepth());
         assertEquals(configuration, retrievedConfiguration);
+    }
+
+    private void serializeDeserializeNetworkSelectionStatus(NetworkSelectionStatus status)
+            throws IOException, XmlPullParserException {
+        // Serialize the configuration object.
+        final XmlSerializer out = new FastXmlSerializer();
+        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        out.setOutput(outputStream, StandardCharsets.UTF_8.name());
+        XmlUtil.writeDocumentStart(out, mXmlDocHeader);
+        NetworkSelectionStatusXmlUtil.writeNetworkSelectionStatusToXml(out, status);
+        XmlUtil.writeDocumentEnd(out, mXmlDocHeader);
+
+        // Deserialize the configuration object.
+        final XmlPullParser in = Xml.newPullParser();
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
+        in.setInput(inputStream, StandardCharsets.UTF_8.name());
+        XmlUtil.gotoDocumentStart(in, mXmlDocHeader);
+        NetworkSelectionStatus retrievedStatus =
+                NetworkSelectionStatusXmlUtil.parseNetworkSelectionStatusFromXml(in, in.getDepth());
+        WifiConfigurationTestUtil.assertNetworkSelectionStatusEqualForConfigStore(
+                status, retrievedStatus);
     }
 }

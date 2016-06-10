@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
 
 import static org.junit.Assert.*;
@@ -146,5 +147,29 @@ public class WifiConfigurationTestUtil {
         assertEquals(expected.lastUpdateUid, actual.lastUpdateUid);
         assertEquals(expected.lastUpdateName, actual.lastUpdateName);
         assertEquals(expected.lastConnectUid, actual.lastConnectUid);
+        assertNetworkSelectionStatusEqualForConfigStore(
+                expected.getNetworkSelectionStatus(), actual.getNetworkSelectionStatus());
+    }
+
+    /**
+     * Assert that the 2 NetworkSelectionStatus's are equal. This compares all the elements saved
+     * for config store.
+     */
+    public static void assertNetworkSelectionStatusEqualForConfigStore(
+            NetworkSelectionStatus expected, NetworkSelectionStatus actual) {
+        if (expected.isNetworkTemporaryDisabled()) {
+            // Temporarily disabled networks are enabled when persisted.
+            assertEquals(
+                    NetworkSelectionStatus.NETWORK_SELECTION_ENABLED,
+                    actual.getNetworkSelectionStatus());
+        } else {
+            assertEquals(expected.getNetworkSelectionStatus(), actual.getNetworkSelectionStatus());
+        }
+        assertEquals(
+                expected.getNetworkSelectionDisableReason(),
+                actual.getNetworkSelectionDisableReason());
+        assertEquals(expected.getConnectChoice(), actual.getConnectChoice());
+        assertEquals(expected.getConnectChoiceTimestamp(), actual.getConnectChoiceTimestamp());
+        assertEquals(expected.getHasEverConnected(), actual.getHasEverConnected());
     }
 }
