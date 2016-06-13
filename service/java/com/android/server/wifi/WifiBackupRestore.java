@@ -20,6 +20,7 @@ import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.util.Log;
+import android.util.Pair;
 import android.util.SparseArray;
 import android.util.Xml;
 
@@ -259,6 +260,36 @@ public class WifiBackupRestore {
     }
 
     /**
+     * Helper method to parse the WifiConfiguration object and validate the configKey parsed.
+     */
+    private WifiConfiguration parseWifiConfigurationFromXmlAndValidateConfigKey(
+            XmlPullParser in, int outerTagDepth)
+            throws XmlPullParserException, IOException {
+        Pair<String, WifiConfiguration> parsedConfig =
+                WifiConfigurationXmlUtil.parseWifiConfigurationFromXml(in, outerTagDepth);
+        if (parsedConfig == null || parsedConfig.first == null || parsedConfig.second == null) {
+            return null;
+        }
+        String configKeyParsed = parsedConfig.first;
+        WifiConfiguration configuration = parsedConfig.second;
+        String configKeyCalculated = configuration.configKey();
+        if (!configKeyParsed.equals(configKeyCalculated)) {
+            String configKeyMismatchLog =
+                    "Configuration key does not match. Retrieved: " + configKeyParsed
+                            + ", Calculated: " + configKeyCalculated;
+            if (configuration.shared) {
+                Log.e(TAG, configKeyMismatchLog);
+                return null;
+            } else {
+                // ConfigKey mismatches are expected for private networks because the
+                // UID is not preserved across backup/restore.
+                Log.w(TAG, configKeyMismatchLog);
+            }
+        }
+       return configuration;
+    }
+
+    /**
      * Parses the configuration data elements from the provided XML stream to a Configuration.
      *
      * @param in            XmlPullParser instance pointing to the XML stream.
@@ -278,7 +309,7 @@ public class WifiBackupRestore {
                     in, XML_TAG_SECTION_HEADER_WIFI_CONFIGURATION, networkTagDepth)) {
                 int configTagDepth = networkTagDepth + 1;
                 configuration =
-                        WifiConfigurationXmlUtil.parseWifiConfigurationFromXml(in, configTagDepth);
+                        parseWifiConfigurationFromXmlAndValidateConfigKey(in, configTagDepth);
                 if (configuration == null) {
                     return null;
                 }
@@ -661,13 +692,12 @@ public class WifiBackupRestore {
                     String idString =
                             mParsedIdStrLine.substring(mParsedIdStrLine.indexOf('=') + 1);
                     Map<String, String> extras = WifiNative.parseNetworkExtra(idString);
-                    configuration.creatorUid =
-                            Integer.valueOf(extras.get(WifiConfigStore.ID_STRING_KEY_CREATOR_UID));
                     String configKey = extras.get(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY);
                     if (!configKey.equals(configuration.configKey())) {
-                        Log.e(TAG, "Configuration key does not match. Retrieved: " + configKey
+                        // ConfigKey mismatches are expected for private networks because the
+                        // UID is not preserved across backup/restore.
+                        Log.w(TAG, "Configuration key does not match. Retrieved: " + configKey
                                 + ", Calculated: " + configuration.configKey());
-                        return null;
                     }
                 }
                 return configuration;

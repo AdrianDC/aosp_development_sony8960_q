@@ -775,7 +775,7 @@ public class WifiBackupRestoreTest {
             for (WifiConfiguration actualConfiguration : actual) {
                 String actualConfigKey = actualConfiguration.configKey();
                 if (actualConfigKey.equals(expectedConfigKey)) {
-                    WifiConfigurationTestUtil.assertConfigurationEqual(
+                    WifiConfigurationTestUtil.assertConfigurationEqualForBackup(
                             expectedConfiguration, actualConfiguration);
                     didCompare = true;
                 }
