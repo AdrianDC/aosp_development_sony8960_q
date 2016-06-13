@@ -166,7 +166,6 @@ public class WifiConfigStoreNew {
      * @param forceSync boolean to force write the config stores now. if false, the writes are
      *                  buffered and written after the configured interval.
      * @param storeData The entire data to be stored across all the config store files.
-     * @throws IOException if an error occurs.
      */
     public void write(boolean forceSync, WifiConfigStoreData storeData)
             throws XmlPullParserException, IOException {
@@ -212,7 +211,6 @@ public class WifiConfigStoreNew {
     /**
      * Helper method to actually perform the writes to the file. This flushes out any write data
      * being buffered in the respective stores and cancels any pending buffer write alarms.
-     * @throws IOException if an error occurs.
      */
     private void writeBufferedData() throws IOException {
         stopBufferedWriteAlarm();
@@ -227,9 +225,8 @@ public class WifiConfigStoreNew {
      * Also retrieves other global data like blacklists, etc.
      *
      * @return storeData The entire data retrieved across all the config store files.
-     * @throws IOException if an error occurs.
      */
-    public WifiConfigStoreData read() throws IOException {
+    public WifiConfigStoreData read() throws XmlPullParserException, IOException {
         byte[] sharedDataBytes = mSharedStore.readRawData();
         byte[] userDataBytes = mUserStore.readRawData();
 
@@ -241,7 +238,6 @@ public class WifiConfigStoreNew {
      *
      * @param userStore StoreFile instance pointing to the user specific store file. This should
      *                  be retrieved using {@link #createUserFile(int)} method.
-     * @throws IOException if an error occurs.
      */
     public void handleUserSwitch(StoreFile userStore) throws IOException {
         // Flush out any stored data if present before switching the user stores.

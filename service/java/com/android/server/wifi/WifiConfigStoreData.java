@@ -21,6 +21,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.util.Pair;
+import android.util.Xml;
 
 import com.android.internal.util.FastXmlSerializer;
 import com.android.server.wifi.util.XmlUtil;
@@ -33,10 +34,12 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -121,15 +124,35 @@ public class WifiConfigStoreData {
     /**
      * Create a new instance of the store data parsed from the store file data.
      *
+     * Note: If any of the raw data is null or empty, will create an empty corresponding store data.
+     * This is to handle fresh install devices where these stores are not yet created.
+     *
      * @param sharedDataBytes raw data retrieved from the shared store file.
      * @param userDataBytes   raw data retrieved from the user store file.
      * @return new instance of store data.
      */
-    public static WifiConfigStoreData parseRawData(byte[] sharedDataBytes, byte[] userDataBytes) {
-        SharedData sharedData = SharedData.parseRawData(sharedDataBytes);
-        UserData userData = UserData.parseRawData(userDataBytes);
-
-        return getStoreData(sharedData, userData);
+    public static WifiConfigStoreData parseRawData(byte[] sharedDataBytes, byte[] userDataBytes)
+            throws XmlPullParserException, IOException {
+        SharedData sharedData;
+        UserData userData;
+        try {
+            if (sharedDataBytes != null && sharedDataBytes.length > 0) {
+                sharedData = SharedData.parseRawData(sharedDataBytes);
+            } else {
+                sharedData = new SharedData(new ArrayList<WifiConfiguration>(), 0);
+            }
+            if (userDataBytes != null && userDataBytes.length > 0) {
+                userData = UserData.parseRawData(userDataBytes);
+            } else {
+                userData =
+                        new UserData(
+                                new ArrayList<WifiConfiguration>(), new HashSet<String>(),
+                                new HashSet<String>());
+            }
+            return getStoreData(sharedData, userData);
+        } catch (ClassCastException e) {
+            throw new XmlPullParserException("Wrong value type parsed: " + e);
+        }
     }
 
     /**
@@ -306,6 +329,24 @@ public class WifiConfigStoreData {
     }
 
     /**
+     * Parse the document start and version from the XML stream.
+     * This is used for both the shared and user config store data.
+     *
+     * @param in XmlPullParser instance pointing to the XML stream.
+     * @return version number retrieved from the Xml stream.
+     */
+    private static int parseDocumentStartAndVersionFromXml(XmlPullParser in)
+            throws XmlPullParserException, IOException {
+        XmlUtil.gotoDocumentStart(in, XML_TAG_DOCUMENT_HEADER);
+        int version = (int) XmlUtil.readNextValueWithName(in, XML_TAG_VERSION);
+        if (version < INITIAL_CONFIG_STORE_DATA_VERSION
+                || version > CURRENT_CONFIG_STORE_DATA_VERSION) {
+            throw new XmlPullParserException("Invalid version of data: " + version);
+        }
+        return version;
+    }
+
+    /**
      * Create raw byte array to be stored in the share store file.
      * This method serializes the data to a byte array in XML format.
      *
@@ -385,8 +426,24 @@ public class WifiConfigStoreData {
          * @param sharedDataBytes raw data retrieved from the shared store file.
          * @return new instance of store data.
          */
-        public static SharedData parseRawData(byte[] sharedDataBytes) {
-            return new SharedData(null, 0);
+        public static SharedData parseRawData(byte[] sharedDataBytes)
+                throws XmlPullParserException, IOException{
+            final XmlPullParser in = Xml.newPullParser();
+            final ByteArrayInputStream inputStream = new ByteArrayInputStream(sharedDataBytes);
+            in.setInput(inputStream, StandardCharsets.UTF_8.name());
+
+            // Start parsing the XML stream.
+            int rootTagDepth = in.getDepth() + 1;
+            int version = parseDocumentStartAndVersionFromXml(in);
+
+            List<WifiConfiguration> configurations =
+                    parseNetworksFromXml(in, rootTagDepth, version);
+
+            XmlUtil.gotoNextSectionWithName(
+                    in, XML_TAG_SECTION_HEADER_LAST_NETWORK_ID, rootTagDepth);
+            int lastNetworkID = (int) XmlUtil.readNextValueWithName(in, XML_TAG_ID);
+
+            return new SharedData(configurations, lastNetworkID);
         }
 
         /**
@@ -452,8 +509,30 @@ public class WifiConfigStoreData {
          * @param userDataBytes raw data retrieved from the user store file.
          * @return new instance of store data.
          */
-        public static UserData parseRawData(byte[] userDataBytes) {
-            return new UserData(null, null, null);
+        public static UserData parseRawData(byte[] userDataBytes)
+            throws XmlPullParserException, IOException {
+            final XmlPullParser in = Xml.newPullParser();
+            final ByteArrayInputStream inputStream = new ByteArrayInputStream(userDataBytes);
+            in.setInput(inputStream, StandardCharsets.UTF_8.name());
+
+            // Start parsing the XML stream.
+            int rootTagDepth = in.getDepth() + 1;
+            int version = parseDocumentStartAndVersionFromXml(in);
+
+            List<WifiConfiguration> configurations =
+                    parseNetworksFromXml(in, rootTagDepth, version);
+
+            XmlUtil.gotoNextSectionWithName(
+                    in, XML_TAG_SECTION_HEADER_BSSID_BLACKLIST, rootTagDepth);
+            Set<String> blacklist =
+                    (Set<String>) XmlUtil.readNextValueWithName(in, XML_TAG_BSSID_LIST);
+
+            XmlUtil.gotoNextSectionWithName(
+                    in, XML_TAG_SECTION_HEADER_DELETED_EPHEMERAL_SSID_LIST, rootTagDepth);
+            Set<String> deletedEphemralList =
+                    (Set<String>) XmlUtil.readNextValueWithName(in, XML_TAG_SSID_LIST);
+
+            return new UserData(configurations, blacklist, deletedEphemralList);
         }
 
         /**
