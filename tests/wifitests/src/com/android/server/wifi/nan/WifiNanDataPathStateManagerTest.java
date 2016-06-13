@@ -23,11 +23,10 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import android.app.test.TestAlarmManager;
 import android.content.Context;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
-
-import com.android.server.wifi.MockAlarmManager;
-import com.android.server.wifi.MockLooper;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -49,11 +48,11 @@ import java.util.Arrays;
 public class WifiNanDataPathStateManagerTest {
     private static final String sNanInterfacePrefix = "nan";
 
-    private MockLooper mMockLooper;
+    private TestLooper mMockLooper;
     private WifiNanStateManager mDut;
     @Mock private WifiNanNative mMockNative;
     @Mock private Context mMockContext;
-    MockAlarmManager mAlarmManager;
+    TestAlarmManager mAlarmManager;
 
     @Rule
     public ErrorCollector collector = new ErrorCollector();
@@ -65,11 +64,11 @@ public class WifiNanDataPathStateManagerTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        mAlarmManager = new MockAlarmManager();
+        mAlarmManager = new TestAlarmManager();
         when(mMockContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
 
-        mMockLooper = new MockLooper();
+        mMockLooper = new TestLooper();
 
         mDut = installNewNanStateManagerAndResetState();
         mDut.start(mMockContext, mMockLooper.getLooper());
