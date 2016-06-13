@@ -23,6 +23,7 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.util.Pair;
 import android.util.Xml;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.FastXmlSerializer;
 import com.android.server.wifi.util.XmlUtil;
 import com.android.server.wifi.util.XmlUtil.IpConfigurationXmlUtil;
@@ -83,7 +84,11 @@ public class WifiConfigStoreData {
     private static final String XML_TAG_SECTION_HEADER_DELETED_EPHEMERAL_SSID_LIST =
             "DeletedEphemeralSSIDList";
     private static final String XML_TAG_SECTION_HEADER_LAST_NETWORK_ID = "LastNetworkId";
-
+    /**
+     * First network ID to be assigned on a fresh device.
+     */
+    @VisibleForTesting
+    public static final int NETWORK_ID_START = 0;
     /**
      * List of saved networks visible to the current user to be stored (includes shared & private).
      */
@@ -139,7 +144,7 @@ public class WifiConfigStoreData {
             if (sharedDataBytes != null && sharedDataBytes.length > 0) {
                 sharedData = SharedData.parseRawData(sharedDataBytes);
             } else {
-                sharedData = new SharedData(new ArrayList<WifiConfiguration>(), 0);
+                sharedData = new SharedData(new ArrayList<WifiConfiguration>(), NETWORK_ID_START);
             }
             if (userDataBytes != null && userDataBytes.length > 0) {
                 userData = UserData.parseRawData(userDataBytes);

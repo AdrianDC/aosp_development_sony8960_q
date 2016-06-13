@@ -16,11 +16,20 @@
 
 package com.android.server.wifi;
 
+import static org.junit.Assert.*;
+
+import android.net.IpConfiguration;
+import android.net.LinkAddress;
+import android.net.NetworkUtils;
+import android.net.ProxyInfo;
+import android.net.StaticIpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.text.TextUtils;
 
-import static org.junit.Assert.*;
+import java.net.InetAddress;
+import java.util.List;
 
 /**
  * Helper for creating and populating WifiConfigurations in unit tests.
@@ -34,6 +43,16 @@ public class WifiConfigurationTestUtil {
     public static final int SECURITY_WEP =  1 << 0;
     public static final int SECURITY_PSK =  1 << 1;
     public static final int SECURITY_EAP =  1 << 2;
+
+    /**
+     * These values are used to describe ip configuration parameters for a network.
+     */
+    public static final int STATIC_IP_ASSIGNMENT = 0;
+    public static final int DHCP_IP_ASSIGNMENT = 1;
+    public static final int STATIC_PROXY_SETTING = 0;
+    public static final int PAC_PROXY_SETTING = 1;
+    public static final int NONE_PROXY_SETTING = 2;
+
 
     /**
      * Construct a {@link android.net.wifi.WifiConfiguration}.
@@ -94,6 +113,70 @@ public class WifiConfigurationTestUtil {
             }
         }
         return config;
+    }
+
+    /**
+     * Construct a {@link android.net.IpConfiguration }.
+     * @param ipAssignmentType One of {@link #STATIC_IP_ASSIGNMENT} or {@link #DHCP_IP_ASSIGNMENT}.
+     * @param proxySettingType One of {@link #STATIC_PROXY_SETTING} or {@link #PAC_PROXY_SETTING} or
+     *                        {@link #NONE_PROXY_SETTING}.
+     * @param linkAddress static ip address string.
+     * @param linkPrefixLength static ip address prefix length.
+     * @param gatewayAddress static gateway address.
+     * @param dnsServerAddresses list of dns servers for static ip configuration.
+     * @param proxyHost Static proxy server address.
+     * @param proxyPort Static proxy server port.
+     * @param proxyExclusionList Static proxy exclusion list.
+     * @param pacProxyPath Pac proxy server path.
+     * @return the constructed {@link android.net.IpConfiguration}
+     */
+    public static IpConfiguration generateIpConfig(
+            int ipAssignmentType, int proxySettingType, String linkAddress, int linkPrefixLength,
+            String gatewayAddress, String[] dnsServerAddresses, String proxyHost,
+            int proxyPort, String proxyExclusionList, String pacProxyPath) {
+        StaticIpConfiguration staticIpConfiguration = null;
+        ProxyInfo proxyInfo = null;
+        IpConfiguration.IpAssignment ipAssignment = IpConfiguration.IpAssignment.UNASSIGNED;
+        IpConfiguration.ProxySettings proxySettings = IpConfiguration.ProxySettings.UNASSIGNED;
+
+        if (ipAssignmentType == STATIC_IP_ASSIGNMENT) {
+            staticIpConfiguration = new StaticIpConfiguration();
+            if (!TextUtils.isEmpty(linkAddress)) {
+                LinkAddress linkAddr =
+                        new LinkAddress(
+                                NetworkUtils.numericToInetAddress(linkAddress), linkPrefixLength);
+                staticIpConfiguration.ipAddress = linkAddr;
+            }
+
+            if (!TextUtils.isEmpty(gatewayAddress)) {
+                InetAddress gatewayAddr =
+                        NetworkUtils.numericToInetAddress(gatewayAddress);
+                staticIpConfiguration.gateway = gatewayAddr;
+            }
+            if (dnsServerAddresses != null) {
+                for (String dnsServerAddress : dnsServerAddresses) {
+                    if (!TextUtils.isEmpty(dnsServerAddress)) {
+                        staticIpConfiguration.dnsServers.add(
+                                NetworkUtils.numericToInetAddress(dnsServerAddress));
+                    }
+
+                }
+            }
+            ipAssignment = IpConfiguration.IpAssignment.STATIC;
+        } else if (ipAssignmentType == DHCP_IP_ASSIGNMENT) {
+            ipAssignment = IpConfiguration.IpAssignment.DHCP;
+        }
+
+        if (proxySettingType == STATIC_PROXY_SETTING) {
+            proxyInfo = new ProxyInfo(proxyHost, proxyPort, proxyExclusionList);
+            proxySettings = IpConfiguration.ProxySettings.STATIC;
+        } else if (proxySettingType == PAC_PROXY_SETTING) {
+            proxyInfo = new ProxyInfo(pacProxyPath);
+            proxySettings = IpConfiguration.ProxySettings.PAC;
+        } else if (proxySettingType == NONE_PROXY_SETTING) {
+            proxySettings = IpConfiguration.ProxySettings.NONE;
+        }
+        return new IpConfiguration(ipAssignment, proxySettings, staticIpConfiguration, proxyInfo);
     }
 
     /**
@@ -207,5 +290,49 @@ public class WifiConfigurationTestUtil {
                 actual.getFieldValue(WifiEnterpriseConfig.CA_PATH_KEY, ""));
         assertEquals(expected.getEapMethod(), actual.getEapMethod());
         assertEquals(expected.getPhase2Method(), actual.getPhase2Method());
+    }
+
+    /**
+     * Asserts that the 2 lists of WifiConfigurations are equal. This compares all the elements
+     * saved for backup/restore.
+     */
+    public static void assertConfigurationsEqualForBackup(
+            List<WifiConfiguration> expected, List<WifiConfiguration> actual) {
+        assertEquals(expected.size(), actual.size());
+        for (WifiConfiguration expectedConfiguration : expected) {
+            String expectedConfigKey = expectedConfiguration.configKey();
+            boolean didCompare = false;
+            for (WifiConfiguration actualConfiguration : actual) {
+                String actualConfigKey = actualConfiguration.configKey();
+                if (actualConfigKey.equals(expectedConfigKey)) {
+                    assertConfigurationEqualForBackup(
+                            expectedConfiguration, actualConfiguration);
+                    didCompare = true;
+                }
+            }
+            assertTrue(didCompare);
+        }
+    }
+
+    /**
+     * Asserts that the 2 lists of WifiConfigurations are equal. This compares all the elements
+     * saved for config store.
+     */
+    public static void assertConfigurationsEqualForConfigStore(
+            List<WifiConfiguration> expected, List<WifiConfiguration> actual) {
+        assertEquals(expected.size(), actual.size());
+        for (WifiConfiguration expectedConfiguration : expected) {
+            String expectedConfigKey = expectedConfiguration.configKey();
+            boolean didCompare = false;
+            for (WifiConfiguration actualConfiguration : actual) {
+                String actualConfigKey = actualConfiguration.configKey();
+                if (actualConfigKey.equals(expectedConfigKey)) {
+                    assertConfigurationEqualForConfigStore(
+                            expectedConfiguration, actualConfiguration);
+                    didCompare = true;
+                }
+            }
+            assertTrue(didCompare);
+        }
     }
 }

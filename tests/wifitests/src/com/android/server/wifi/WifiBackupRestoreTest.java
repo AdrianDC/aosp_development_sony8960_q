@@ -26,7 +26,6 @@ import android.net.ProxyInfo;
 import android.net.StaticIpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.test.suitebuilder.annotation.SmallTest;
-import android.util.Log;
 
 import com.android.server.net.IpConfigStore;
 
@@ -112,7 +111,8 @@ public class WifiBackupRestoreTest {
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -127,7 +127,8 @@ public class WifiBackupRestoreTest {
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -141,7 +142,8 @@ public class WifiBackupRestoreTest {
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -155,7 +157,8 @@ public class WifiBackupRestoreTest {
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -169,7 +172,8 @@ public class WifiBackupRestoreTest {
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -184,7 +188,8 @@ public class WifiBackupRestoreTest {
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -217,7 +222,8 @@ public class WifiBackupRestoreTest {
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -234,7 +240,8 @@ public class WifiBackupRestoreTest {
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -251,7 +258,8 @@ public class WifiBackupRestoreTest {
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -268,7 +276,8 @@ public class WifiBackupRestoreTest {
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -285,7 +294,8 @@ public class WifiBackupRestoreTest {
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -311,7 +321,8 @@ public class WifiBackupRestoreTest {
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
-        assertConfigurationsEqual(expectedConfigurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                expectedConfigurations, retrievedConfigurations);
     }
 
     /**
@@ -337,7 +348,8 @@ public class WifiBackupRestoreTest {
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -354,7 +366,8 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
                         supplicantData, ipConfigData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -371,7 +384,8 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
                         supplicantData, ipConfigData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -388,7 +402,8 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
                         supplicantData, ipConfigData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -405,7 +420,8 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
                         supplicantData, ipConfigData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -422,7 +438,8 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
                         supplicantData, ipConfigData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -439,7 +456,8 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
                         supplicantData, ipConfigData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -483,7 +501,8 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
                         supplicantData, ipConfigData);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -499,7 +518,8 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
                         supplicantData, null);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -523,7 +543,8 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> retrievedConfigurations =
                 mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
                         supplicantData, null);
-        assertConfigurationsEqual(configurations, retrievedConfigurations);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                configurations, retrievedConfigurations);
     }
 
     /**
@@ -760,27 +781,6 @@ public class WifiBackupRestoreTest {
             return bos.toByteArray();
         } catch (IOException e) {
             return null;
-        }
-    }
-
-    /**
-     * Asserts that the 2 lists of configurations are equal
-     */
-    private void assertConfigurationsEqual(
-            List<WifiConfiguration> expected, List<WifiConfiguration> actual) {
-        assertEquals(expected.size(), actual.size());
-        for (WifiConfiguration expectedConfiguration : expected) {
-            String expectedConfigKey = expectedConfiguration.configKey();
-            boolean didCompare = false;
-            for (WifiConfiguration actualConfiguration : actual) {
-                String actualConfigKey = actualConfiguration.configKey();
-                if (actualConfigKey.equals(expectedConfigKey)) {
-                    WifiConfigurationTestUtil.assertConfigurationEqualForBackup(
-                            expectedConfiguration, actualConfiguration);
-                    didCompare = true;
-                }
-            }
-            assertTrue(didCompare);
         }
     }
 }
