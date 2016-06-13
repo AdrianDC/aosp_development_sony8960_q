@@ -45,7 +45,6 @@ import android.net.wifi.WpsInfo;
 import android.net.wifi.WpsResult;
 import android.os.Environment;
 import android.os.RemoteException;
-import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
@@ -426,10 +425,6 @@ public class WifiConfigManager {
 
     int getConfiguredNetworksSize() {
         return mConfiguredNetworks.sizeForCurrentUser();
-    }
-
-    boolean getVerboseLoggingEnabled() {
-        return mVerboseLoggingEnabled;
     }
 
     /**

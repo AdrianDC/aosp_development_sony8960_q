@@ -85,7 +85,6 @@ import android.os.Messenger;
 import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
-import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.WorkSource;
@@ -150,14 +149,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     @VisibleForTesting public static final short NUM_LOG_RECS_NORMAL = 100;
     @VisibleForTesting public static final short NUM_LOG_RECS_VERBOSE_LOW_MEMORY = 200;
     @VisibleForTesting public static final short NUM_LOG_RECS_VERBOSE = 3000;
-    private static boolean DBG = false;
     private static final String TAG = "WifiStateMachine";
 
     private static final int ONE_HOUR_MILLI = 1000 * 60 * 60;
 
     private static final String GOOGLE_OUI = "DA-A1-19";
 
-    private int mVerboseLoggingLevel = 0;
+    private boolean mVerboseLoggingEnabled = false;
+
     /* debug flag, indicating if handling of ASSOCIATION_REJECT ended up blacklisting
      * the corresponding BSSID.
      */
@@ -222,7 +221,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     @Override
     public void onRssiThresholdBreached(byte curRssi) {
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             Log.e(TAG, "onRssiThresholdBreach event. Cur Rssi = " + curRssi);
         }
         sendMessage(CMD_RSSI_THRESHOLD_BREACH, curRssi);
@@ -397,12 +396,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
         if (config.BSSID != null) {
             bssid = config.BSSID;
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 Log.d(TAG, "force BSSID to " + bssid + "due to config");
             }
         }
 
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             logd("autoRoamSetBSSID " + bssid + " key=" + config.configKey());
         }
         mTargetRoamBSSID = bssid;
@@ -424,7 +423,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         if (config.BSSID != null) {
             bssid = config.BSSID;
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 Log.d(TAG, "force BSSID to " + bssid + "due to config");
             }
         }
@@ -436,13 +435,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         String networkSelectionBSSID = config.getNetworkSelectionStatus()
                 .getNetworkSelectionBSSID();
         if (networkSelectionBSSID != null && networkSelectionBSSID.equals(bssid)) {
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 Log.d(TAG, "Current preferred BSSID is the same as the target one");
             }
             return false;
         }
 
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             Log.d(TAG, "target set to " + config.SSID + ":" + bssid);
         }
         mTargetRoamBSSID = bssid;
@@ -1146,10 +1145,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
         intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_DISABLED);
         mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
-
-        mVerboseLoggingLevel = mFacade.getIntegerSetting(
-                mContext, Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, 0);
-        updateLoggingLevel();
     }
 
     class IpManagerCallback extends IpManager.Callback {
@@ -1225,41 +1220,29 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return mFacade.getBroadcast(mContext, requestCode, intent, 0);
     }
 
-    int getVerboseLoggingLevel() {
-        return mVerboseLoggingLevel;
-    }
-
     void enableVerboseLogging(int verbose) {
-        mVerboseLoggingLevel = verbose;
-        mFacade.setIntegerSetting(
-                mContext, Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, verbose);
-        updateLoggingLevel();
-    }
-
-    void updateLoggingLevel() {
-        if (mVerboseLoggingLevel > 0) {
-            DBG = true;
+        if (verbose > 0) {
+            mVerboseLoggingEnabled = true;
             mWifiNative.setSupplicantLogLevel("DEBUG");
             setLogRecSize(ActivityManager.isLowRamDeviceStatic()
                     ? NUM_LOG_RECS_VERBOSE_LOW_MEMORY : NUM_LOG_RECS_VERBOSE);
             configureVerboseHalLogging(true);
         } else {
-            DBG = false;
+            mVerboseLoggingEnabled = false;
             mWifiNative.setSupplicantLogLevel("INFO");
             setLogRecSize(NUM_LOG_RECS_NORMAL);
             configureVerboseHalLogging(false);
         }
-        mCountryCode.enableVerboseLogging(mVerboseLoggingLevel);
-        mWifiLogger.startLogging(DBG);
-        mWifiMonitor.enableVerboseLogging(mVerboseLoggingLevel);
-        mWifiNative.enableVerboseLogging(mVerboseLoggingLevel);
-        mWifiConfigManager.enableVerboseLogging(mVerboseLoggingLevel);
-        mSupplicantStateTracker.enableVerboseLogging(mVerboseLoggingLevel);
-        mWifiQualifiedNetworkSelector.enableVerboseLogging(mVerboseLoggingLevel);
+        mCountryCode.enableVerboseLogging(verbose);
+        mWifiLogger.startLogging(mVerboseLoggingEnabled);
+        mWifiMonitor.enableVerboseLogging(verbose);
+        mWifiNative.enableVerboseLogging(verbose);
+        mWifiConfigManager.enableVerboseLogging(verbose);
+        mSupplicantStateTracker.enableVerboseLogging(verbose);
+        mWifiQualifiedNetworkSelector.enableVerboseLogging(verbose);
         if (mWifiConnectivityManager != null) {
-            mWifiConnectivityManager.enableVerboseLogging(mVerboseLoggingLevel);
+            mWifiConnectivityManager.enableVerboseLogging(verbose);
         }
-        mWifiInjector.getWifiBackupRestore().enableVerboseLogging(mVerboseLoggingLevel);
     }
 
     private static final String SYSTEM_PROPERTY_LOG_CONTROL_WIFIHAL = "log.tag.WifiHAL";
@@ -1747,12 +1730,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 || supplicantState == SupplicantState.FOUR_WAY_HANDSHAKE
                 || supplicantState == SupplicantState.GROUP_HANDSHAKE) {
 
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 Log.d(TAG, "Supplicant is under transient state: " + supplicantState);
             }
             return true;
         } else {
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 Log.d(TAG, "Supplicant is under steady state: " + supplicantState);
             }
         }
@@ -1798,7 +1781,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * TODO: doc
      */
     public void setOperationalMode(int mode) {
-        if (DBG) log("setting operational mode to " + String.valueOf(mode));
+        if (mVerboseLoggingEnabled) log("setting operational mode to " + String.valueOf(mode));
         sendMessage(CMD_SET_OPERATIONAL_MODE, mode, 0);
     }
 
@@ -2269,7 +2252,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private void logStateAndMessage(Message message, State state) {
         messageHandlingStatus = 0;
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             logd(" " + state.getClass().getSimpleName() + " " + getLogRecString(message));
         }
     }
@@ -2788,7 +2771,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private void handleScreenStateChanged(boolean screenOn) {
         mScreenOn = screenOn;
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             logd(" handleScreenStateChanged Enter: screenOn=" + screenOn
                     + " mUserWantsSuspendOpt=" + mUserWantsSuspendOpt
                     + " state " + getCurrentState().getName()
@@ -2820,7 +2803,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiConnectivityManager.handleScreenStateChanged(screenOn);
         }
 
-        if (DBG) log("handleScreenStateChanged Exit: " + screenOn);
+        if (mVerboseLoggingEnabled) log("handleScreenStateChanged Exit: " + screenOn);
     }
 
     private void checkAndSetConnectivityInstance() {
@@ -2841,7 +2824,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (mWifiConnectivityManager != null) {
                 mWifiConnectivityManager.setUserPreferredBand(band);
             }
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 logd("done set frequency band " + band);
             }
         } else {
@@ -2850,7 +2833,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     private void setSuspendOptimizationsNative(int reason, boolean enabled) {
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             log("setSuspendOptimizationsNative: " + reason + " " + enabled
                     + " -want " + mUserWantsSuspendOpt.get()
                     + " stack:" + Thread.currentThread().getStackTrace()[2].getMethodName()
@@ -2864,7 +2847,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mSuspendOptNeedsDisabled &= ~reason;
             /* None of dhcp, screen or highperf need it disabled and user wants it enabled */
             if (mSuspendOptNeedsDisabled == 0 && mUserWantsSuspendOpt.get()) {
-                if (DBG) {
+                if (mVerboseLoggingEnabled) {
                     log("setSuspendOptimizationsNative do it " + reason + " " + enabled
                             + " stack:" + Thread.currentThread().getStackTrace()[2].getMethodName()
                             + " - " + Thread.currentThread().getStackTrace()[3].getMethodName()
@@ -2880,13 +2863,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     private void setSuspendOptimizations(int reason, boolean enabled) {
-        if (DBG) log("setSuspendOptimizations: " + reason + " " + enabled);
+        if (mVerboseLoggingEnabled) log("setSuspendOptimizations: " + reason + " " + enabled);
         if (enabled) {
             mSuspendOptNeedsDisabled &= ~reason;
         } else {
             mSuspendOptNeedsDisabled |= reason;
         }
-        if (DBG) log("mSuspendOptNeedsDisabled " + mSuspendOptNeedsDisabled);
+        if (mVerboseLoggingEnabled) log("mSuspendOptNeedsDisabled " + mSuspendOptNeedsDisabled);
     }
 
     private void setWifiState(int wifiState) {
@@ -2904,7 +2887,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         mWifiState.set(wifiState);
 
-        if (DBG) log("setWifiState: " + syncGetWifiStateByName());
+        if (mVerboseLoggingEnabled) log("setWifiState: " + syncGetWifiStateByName());
 
         final Intent intent = new Intent(WifiManager.WIFI_STATE_CHANGED_ACTION);
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
@@ -2929,7 +2912,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         // Update state
         mWifiApState.set(wifiApState);
 
-        if (DBG) log("setWifiApState: " + syncGetWifiApStateByName());
+        if (mVerboseLoggingEnabled) log("setWifiApState: " + syncGetWifiApStateByName());
 
         final Intent intent = new Intent(WifiManager.WIFI_AP_STATE_CHANGED_ACTION);
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
@@ -3029,7 +3012,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
         }
 
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             logd("fetchRssiLinkSpeedAndFrequencyNative rssi=" + newRssi +
                  " linkspeed=" + newLinkSpeed + " freq=" + newFrequency);
         }
@@ -3122,7 +3105,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     private void updateLinkProperties(LinkProperties newLp) {
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             log("Link configuration changed for netId: " + mLastNetworkId
                     + " old: " + mLinkProperties + " new: " + newLp);
         }
@@ -3138,7 +3121,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             sendLinkConfigurationChangedBroadcast();
         }
 
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             StringBuilder sb = new StringBuilder();
             sb.append("updateLinkProperties nid: " + mLastNetworkId);
             sb.append(" state: " + getNetworkDetailedState());
@@ -3177,7 +3160,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (route.isDefaultRoute() && route.hasGateway()) {
                 InetAddress gateway = route.getGateway();
                 if (gateway instanceof Inet4Address) {
-                    if (DBG) {
+                    if (mVerboseLoggingEnabled) {
                         logd("updateDefaultRouteMacAddress found Ipv4 default :"
                                 + gateway.getHostAddress());
                     }
@@ -3195,7 +3178,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             if (reachable == true) {
 
                                 address = macAddressFromRoute(gateway.getHostAddress());
-                                if (DBG) {
+                                if (mVerboseLoggingEnabled) {
                                     logd("updateDefaultRouteMacAddress reachable (tried again) :"
                                             + gateway.getHostAddress() + " found " + address);
                                 }
@@ -3309,7 +3292,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             //
             hidden = true;
         }
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             log("setDetailed state, old ="
                     + mNetworkInfo.getDetailedState() + " and new state=" + state
                     + " hidden=" + hidden);
@@ -3318,7 +3301,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 && !mWifiInfo.getSSID().equals(WifiSsid.NONE)) {
             // Always indicate that SSID has changed
             if (!mNetworkInfo.getExtraInfo().equals(mWifiInfo.getSSID())) {
-                if (DBG) {
+                if (mVerboseLoggingEnabled) {
                     log("setDetailed state send new extra info" + mWifiInfo.getSSID());
                 }
                 mNetworkInfo.setExtraInfo(mWifiInfo.getSSID());
@@ -3384,11 +3367,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * using the interface, stopping DHCP & disabling interface
      */
     private void handleNetworkDisconnect() {
-        if (DBG) log("handleNetworkDisconnect: Stopping DHCP and clearing IP"
-                + " stack:" + Thread.currentThread().getStackTrace()[2].getMethodName()
-                + " - " + Thread.currentThread().getStackTrace()[3].getMethodName()
-                + " - " + Thread.currentThread().getStackTrace()[4].getMethodName()
-                + " - " + Thread.currentThread().getStackTrace()[5].getMethodName());
+        if (mVerboseLoggingEnabled) {
+            log("handleNetworkDisconnect: Stopping DHCP and clearing IP"
+                    + " stack:" + Thread.currentThread().getStackTrace()[2].getMethodName()
+                    + " - " + Thread.currentThread().getStackTrace()[3].getMethodName()
+                    + " - " + Thread.currentThread().getStackTrace()[4].getMethodName()
+                    + " - " + Thread.currentThread().getStackTrace()[5].getMethodName());
+        }
 
         stopRssiMonitoringOffload();
 
@@ -3509,7 +3494,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     private void handleIPv4Success(DhcpResults dhcpResults) {
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             logd("handleIPv4Success <" + dhcpResults.toString() + ">");
             logd("link address " + dhcpResults.ipAddress);
         }
@@ -3568,7 +3553,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         // TODO: Move this to provisioning failure, not DHCP failure.
         // DHCPv4 failure is expected on an IPv6-only network.
         mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_DHCP_FAILURE);
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             int count = -1;
             WifiConfiguration config = getCurrentWifiConfiguration();
             if (config != null) {
@@ -3585,7 +3570,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                  mDhcpResults.clear();
              }
         }
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             logd("handleIPv4Failure");
         }
     }
@@ -3628,12 +3613,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 return false;
             }
         } else {
-            if (DBG) Log.d(TAG, "No interfaces to bring down");
+            if (mVerboseLoggingEnabled) Log.d(TAG, "No interfaces to bring down");
         }
 
         try {
             mNwService.wifiFirmwareReload(mInterfaceName, "AP");
-            if (DBG) Log.d(TAG, "Firmware reloaded in AP mode");
+            if (mVerboseLoggingEnabled) Log.d(TAG, "Firmware reloaded in AP mode");
         } catch (Exception e) {
             Log.e(TAG, "Failed to reload AP firmware " + e);
         }
@@ -4115,7 +4100,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
                         if (mWifiNative.startSupplicant(mP2pSupported)) {
                             setWifiState(WIFI_STATE_ENABLING);
-                            if (DBG) log("Supplicant start successful");
+                            if (mVerboseLoggingEnabled) log("Supplicant start successful");
                             mWifiMonitor.startMonitoring(mInterfaceName);
                             transitionTo(mSupplicantStartingState);
                         } else {
@@ -4184,7 +4169,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             switch(message.what) {
                 case WifiMonitor.SUP_CONNECTION_EVENT:
-                    if (DBG) log("Supplicant connection established");
+                    if (mVerboseLoggingEnabled) log("Supplicant connection established");
                     setWifiState(WIFI_STATE_ENABLED);
                     mSupplicantRestartCount = 0;
                     /* Reset the supplicant state to indicate the supplicant
@@ -4200,9 +4185,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     setFrequencyBand();
                     mWifiNative.enableSaveConfig();
                     mWifiConfigManager.loadAndEnableAllNetworks();
-                    if (mWifiConfigManager.getVerboseLoggingEnabled()) {
-                        enableVerboseLogging(1);
-                    }
                     initializeWpsDetails();
 
                     sendSupplicantConnectionChangedBroadcast(true);
@@ -4382,7 +4364,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     loge("Supplicant connection received while stopping");
                     break;
                 case WifiMonitor.SUP_DISCONNECTION_EVENT:
-                    if (DBG) log("Supplicant connection lost");
+                    if (mVerboseLoggingEnabled) log("Supplicant connection lost");
                     handleSupplicantConnectionLoss(false);
                     transitionTo(mInitialState);
                     break;
@@ -4484,7 +4466,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     class DriverStartedState extends State {
         @Override
         public void enter() {
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 logd("DriverStartedState enter");
             }
 
@@ -4499,7 +4481,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     getHandler().getLooper());
             }
 
-            mWifiLogger.startLogging(DBG);
+            mWifiLogger.startLogging(mVerboseLoggingEnabled);
             mIsRunning = true;
             updateBatteryWorkSource(null);
             /**
@@ -4595,16 +4577,16 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_SET_FREQUENCY_BAND:
                     int band =  message.arg1;
-                    if (DBG) log("set frequency band " + band);
+                    if (mVerboseLoggingEnabled) log("set frequency band " + band);
                     if (mWifiNative.setBand(band)) {
 
-                        if (DBG)  logd("did set frequency band " + band);
+                        if (mVerboseLoggingEnabled)  logd("did set frequency band " + band);
 
                         mFrequencyBand.set(band);
                         // Flush old data - like scan results
                         mWifiNative.bssFlush();
 
-                        if (DBG)  logd("done set frequency band " + band);
+                        if (mVerboseLoggingEnabled)  logd("done set frequency band " + band);
 
                     } else {
                         loge("Failed to set frequency band " + band);
@@ -4876,7 +4858,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                     SupplicantState state = handleSupplicantStateChange(message);
-                    if (DBG) log("SupplicantState= " + state);
+                    if (mVerboseLoggingEnabled) log("SupplicantState= " + state);
                     break;
                 default:
                     return NOT_HANDLED;
@@ -5246,7 +5228,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // disconnected, we need to handle a disconnection
                     if (!linkDebouncing && state == SupplicantState.DISCONNECTED &&
                             mNetworkInfo.getState() != NetworkInfo.State.DISCONNECTED) {
-                        if (DBG) log("Missed CTRL-EVENT-DISCONNECTED, disconnect");
+                        if (mVerboseLoggingEnabled) {
+                            log("Missed CTRL-EVENT-DISCONNECTED, disconnect");
+                        }
                         handleNetworkDisconnect();
                         transitionTo(mDisconnectedState);
                     }
@@ -5425,7 +5409,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_SAVE_CONFIG:
                     ok = mWifiConfigManager.saveConfig();
 
-                    if (DBG) logd("did save config " + ok);
+                    if (mVerboseLoggingEnabled) logd("did save config " + ok);
                     replyToMessage(message, CMD_SAVE_CONFIG, ok ? SUCCESS : FAILURE);
 
                     // Inform the backup manager about a data change
@@ -5885,7 +5869,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         replyToMessage(message, WifiManager.SAVE_NETWORK_SUCCEEDED);
                         broadcastWifiCredentialChanged(WifiManager.WIFI_CREDENTIAL_SAVED, config);
 
-                        if (DBG) {
+                        if (mVerboseLoggingEnabled) {
                            logd("Success save network nid="
                                     + Integer.toString(result.getNetworkId()));
                         }
@@ -6007,7 +5991,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     return NOT_HANDLED;
                 case WifiMonitor.NETWORK_CONNECTION_EVENT:
-                    if (DBG) log("Network connection established");
+                    if (mVerboseLoggingEnabled) log("Network connection established");
                     mLastNetworkId = message.arg1;
                     mLastBssid = (String) message.obj;
 
@@ -6029,7 +6013,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // The side effect of calling handleNetworkDisconnect twice is that a bunch of
                     // idempotent commands are executed twice (stopping Dhcp, enabling the SPS mode
                     // at the chip etc...
-                    if (DBG) log("ConnectModeState: Network connection lost ");
+                    if (mVerboseLoggingEnabled) log("ConnectModeState: Network connection lost ");
                     handleNetworkDisconnect();
                     transitionTo(mDisconnectedState);
                     break;
@@ -6104,8 +6088,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         protected void unwanted() {
             // Ignore if we're not the current networkAgent.
             if (this != mNetworkAgent) return;
-            if (DBG) log("WifiNetworkAgent -> Wifi unwanted score "
-                    + Integer.toString(mWifiInfo.score));
+            if (mVerboseLoggingEnabled) {
+                log("WifiNetworkAgent -> Wifi unwanted score " + Integer.toString(mWifiInfo.score));
+            }
             unwantedNetwork(NETWORK_STATUS_UNWANTED_DISCONNECT);
         }
 
@@ -6113,11 +6098,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         protected void networkStatus(int status, String redirectUrl) {
             if (this != mNetworkAgent) return;
             if (status == NetworkAgent.INVALID_NETWORK) {
-                if (DBG) log("WifiNetworkAgent -> Wifi networkStatus invalid, score="
-                        + Integer.toString(mWifiInfo.score));
+                if (mVerboseLoggingEnabled) {
+                    log("WifiNetworkAgent -> Wifi networkStatus invalid, score="
+                            + Integer.toString(mWifiInfo.score));
+                }
                 unwantedNetwork(NETWORK_STATUS_UNWANTED_VALIDATION_FAILED);
             } else if (status == NetworkAgent.VALID_NETWORK) {
-                if (DBG) {
+                if (mVerboseLoggingEnabled) {
                     log("WifiNetworkAgent -> Wifi networkStatus valid, score= "
                             + Integer.toString(mWifiInfo.score));
                 }
@@ -6255,7 +6242,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
         HashSet<Integer> freqs = mWifiConfigManager.makeChannelList(config, ONE_HOUR_MILLI);
         if (freqs != null && freqs.size() != 0) {
-            //if (DBG) {
+            //if (mVerboseLoggingEnabled) {
             logd("starting scan for " + config.configKey() + " with " + freqs);
             //}
             Set<Integer> hiddenNetworkIds = new HashSet<>();
@@ -6271,7 +6258,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
             return true;
         } else {
-            if (DBG) logd("no channels for " + config.configKey());
+            if (mVerboseLoggingEnabled) logd("no channels for " + config.configKey());
             return false;
         }
     }
@@ -6286,12 +6273,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     void clearConfigBSSID(WifiConfiguration config, String dbg) {
         if (config == null)
             return;
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
             logd(dbg + " " + mTargetRoamBSSID + " config " + config.configKey()
                     + " config.NetworkSelectionStatus.mNetworkSelectionBSSID "
                     + config.getNetworkSelectionStatus().getNetworkSelectionBSSID());
         }
-        if (DBG) {
+        if (mVerboseLoggingEnabled) {
            logd(dbg + " " + config.SSID
                     + " nid=" + Integer.toString(config.networkId));
         }
@@ -6332,7 +6319,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // For paranoia's sake, call handleNetworkDisconnect
             // only if BSSID is null or last networkId
             // is not invalid.
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 StringBuilder sb = new StringBuilder();
                 sb.append("leaving L2ConnectedState state nid=" + Integer.toString(mLastNetworkId));
                 if (mLastBssid !=null) {
@@ -6394,7 +6381,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     transitionTo(mDisconnectingState);
                     break;
                 case CMD_IP_REACHABILITY_LOST:
-                    if (DBG && message.obj != null) log((String) message.obj);
+                    if (mVerboseLoggingEnabled && message.obj != null) log((String) message.obj);
                     handleIpReachabilityLost();
                     transitionTo(mDisconnectingState);
                     break;
@@ -6440,7 +6427,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_RSSI_POLL:
                     if (message.arg1 == mRssiPollToken) {
                         if (mWifiConfigManager.mEnableChipWakeUpWhenAssociated.get()) {
-                            if (DBG) log(" get link layer stats " + mWifiLinkLayerStatsSupported);
+                            if (mVerboseLoggingEnabled) {
+                                log(" get link layer stats " + mWifiLinkLayerStatsSupported);
+                            }
                             WifiLinkLayerStats stats = getWifiLinkLayerStats();
                             if (stats != null) {
                                 // Sanity check the results provided by driver
@@ -6459,11 +6448,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                                                    mNetworkAgent,
                                                                    mWifiScoreReport,
                                                                    mAggressiveHandover,
-                                                                   mVerboseLoggingLevel > 0);
+                                                                   mVerboseLoggingEnabled);
                         }
                         sendMessageDelayed(obtainMessage(CMD_RSSI_POLL,
                                 mRssiPollToken, 0), POLL_RSSI_INTERVAL_MSECS);
-                        if (DBG) sendRssiChangeBroadcast(mWifiInfo.getRssi());
+                        if (mVerboseLoggingEnabled) sendRssiChangeBroadcast(mWifiInfo.getRssi());
                     } else {
                         // Polling has completed
                     }
@@ -6552,7 +6541,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     class ObtainingIpState extends State {
         @Override
         public void enter() {
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 String key = "";
                 if (getCurrentWifiConfiguration() != null) {
                     key = getCurrentWifiConfiguration().configKey();
@@ -6680,14 +6669,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         if (mWifiConfigManager.isLastSelectedConfiguration(config)) {
             boolean prompt =
                     mWifiConfigManager.checkConfigOverridePermission(config.lastConnectUid);
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 log("Network selected by UID " + config.lastConnectUid + " prompt=" + prompt);
             }
             if (prompt) {
                 // Selected by the user via Settings or QuickSettings. If this network has Internet
                 // access, switch to it. Otherwise, switch to it only if the user confirms that they
                 // really want to switch, or has already confirmed and selected "Don't ask again".
-                if (DBG) {
+                if (mVerboseLoggingEnabled) {
                     log("explictlySelected acceptUnvalidated=" + config.noInternetAccessExpected);
                 }
                 mNetworkAgent.explicitlySelected(config.noInternetAccessExpected);
@@ -6703,7 +6692,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         boolean mAssociated;
         @Override
         public void enter() {
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 log("RoamingState Enter"
                         + " mScreenOn=" + mScreenOn );
             }
@@ -6729,7 +6718,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     return NOT_HANDLED;
                 case CMD_UNWANTED_NETWORK:
-                    if (DBG) log("Roaming and CS doesnt want the network -> ignore");
+                    if (mVerboseLoggingEnabled) {
+                        log("Roaming and CS doesnt want the network -> ignore");
+                    }
                     return HANDLED;
                 case CMD_SET_OPERATIONAL_MODE:
                     if (message.arg1 != CONNECT_MODE) {
@@ -6748,7 +6739,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (stateChangeResult.state == SupplicantState.DISCONNECTED
                             || stateChangeResult.state == SupplicantState.INACTIVE
                             || stateChangeResult.state == SupplicantState.INTERFACE_DISABLED) {
-                        if (DBG) {
+                        if (mVerboseLoggingEnabled) {
                             log("STATE_CHANGE_EVENT in roaming state "
                                     + stateChangeResult.toString() );
                         }
@@ -6768,7 +6759,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_ROAM_WATCHDOG_TIMER:
                     if (roamWatchdogCount == message.arg1) {
-                        if (DBG) log("roaming watchdog! -> disconnect");
+                        if (mVerboseLoggingEnabled) log("roaming watchdog! -> disconnect");
                         mWifiMetrics.endConnectionEvent(
                                 WifiMetrics.ConnectionEvent.FAILURE_ROAM_TIMEOUT,
                                 WifiMetricsProto.ConnectionEvent.HLF_NONE);
@@ -6780,7 +6771,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case WifiMonitor.NETWORK_CONNECTION_EVENT:
                     if (mAssociated) {
-                        if (DBG) log("roaming and Network connection established");
+                        if (mVerboseLoggingEnabled) {
+                            log("roaming and Network connection established");
+                        }
                         mLastNetworkId = message.arg1;
                         mLastBssid = (String) message.obj;
                         mWifiInfo.setBSSID(mLastBssid);
@@ -6868,7 +6861,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         @Override
         public void enter() {
             updateDefaultRouteMacAddress(1000);
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 log("Enter ConnectedState "
                        + " mScreenOn=" + mScreenOn);
             }
@@ -7007,7 +7000,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
                         sendMessageDelayed(obtainMessage(CMD_DELAYED_NETWORK_DISCONNECT,
                                 0, mLastNetworkId), LINK_FLAPPING_DEBOUNCE_MSEC);
-                        if (DBG) {
+                        if (mVerboseLoggingEnabled) {
                             log("NETWORK_DISCONNECTION_EVENT in connected state"
                                     + " BSSID=" + mWifiInfo.getBSSID()
                                     + " RSSI=" + mWifiInfo.getRssi()
@@ -7017,7 +7010,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         }
                         return HANDLED;
                     } else {
-                        if (DBG) {
+                        if (mVerboseLoggingEnabled) {
                             log("NETWORK_DISCONNECTION_EVENT in connected state"
                                     + " BSSID=" + mWifiInfo.getBSSID()
                                     + " RSSI=" + mWifiInfo.getRssi()
@@ -7170,7 +7163,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         @Override
         public void enter() {
 
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 logd(" Enter DisconnectingState State screenOn=" + mScreenOn);
             }
 
@@ -7200,7 +7193,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     return HANDLED;
                 case CMD_DISCONNECTING_WATCHDOG_TIMER:
                     if (disconnectingWatchdogCount == message.arg1) {
-                        if (DBG) log("disconnecting watchdog! -> disconnect");
+                        if (mVerboseLoggingEnabled) log("disconnecting watchdog! -> disconnect");
                         handleNetworkDisconnect();
                         transitionTo(mDisconnectedState);
                     }
@@ -7232,7 +7225,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 return;
             }
 
-            if (DBG) {
+            if (mVerboseLoggingEnabled) {
                 logd(" Enter DisconnectedState screenOn=" + mScreenOn);
             }
 
@@ -7304,7 +7297,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                     StateChangeResult stateChangeResult = (StateChangeResult) message.obj;
-                    if (DBG) {
+                    if (mVerboseLoggingEnabled) {
                         logd("SUPPLICANT_STATE_CHANGE_EVENT state=" + stateChangeResult.state +
                                 " -> state= " + WifiInfo.getDetailedStateOf(stateChangeResult.state)
                                 + " debouncing=" + linkDebouncing);
@@ -7333,7 +7326,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                 defaultInterval);
                         mWifiNative.setScanInterval((int) scanIntervalMs/1000);
                     } else if (mWifiConfigManager.getSavedNetworks().size() == 0) {
-                        if (DBG) log("Turn on scanning after p2p disconnected");
+                        if (mVerboseLoggingEnabled) log("Turn on scanning after p2p disconnected");
                         sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
                                     ++mPeriodicScanToken, 0), mNoNetworksPeriodicScan);
                     }
@@ -7404,7 +7397,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mSourceMessage = null;
                         transitionTo(mDisconnectedState);
                     } else {
-                        if (DBG) log("Ignore unspecified fail event during WPS connection");
+                        if (mVerboseLoggingEnabled) {
+                            log("Ignore unspecified fail event during WPS connection");
+                        }
                     }
                     break;
                 case WifiMonitor.WPS_TIMEOUT_EVENT:
@@ -7446,18 +7441,20 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     return HANDLED;
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
-                    if (DBG) log("Network connection lost");
+                    if (mVerboseLoggingEnabled) log("Network connection lost");
                     handleNetworkDisconnect();
                     break;
                 case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
-                    if (DBG) log("Ignore Assoc reject event during WPS Connection");
+                    if (mVerboseLoggingEnabled) {
+                        log("Ignore Assoc reject event during WPS Connection");
+                    }
                     break;
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                     // Disregard auth failure events during WPS connection. The
                     // EAP sequence is retried several times, and there might be
                     // failures (especially for wps pin). We will get a WPS_XXX
                     // event at the end of the sequence anyway.
-                    if (DBG) log("Ignore auth failure during WPS connection");
+                    if (mVerboseLoggingEnabled) log("Ignore auth failure during WPS connection");
                     break;
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                     // Throw away supplicant state changes when WPS is running.

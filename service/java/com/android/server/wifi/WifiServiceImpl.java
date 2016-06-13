@@ -352,6 +352,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         // Set the WifiController for WifiLastResortWatchdog
         mWifiInjector.getWifiLastResortWatchdog().setWifiController(mWifiController);
         mWifiBackupRestore = mWifiInjector.getWifiBackupRestore();
+
+        enableVerboseLoggingInternal(getVerboseLoggingLevel());
     }
 
 
@@ -1718,15 +1720,23 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void enableVerboseLogging(int verbose) {
         enforceAccessPermission();
+        mFacade.setIntegerSetting(
+                mContext, Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, verbose);
+        enableVerboseLoggingInternal(verbose);
+    }
+
+    private void enableVerboseLoggingInternal(int verbose) {
         mWifiStateMachine.enableVerboseLogging(verbose);
         mWifiLockManager.enableVerboseLogging(verbose);
         mWifiInjector.getWifiLastResortWatchdog().enableVerboseLogging(verbose);
+        mWifiInjector.getWifiBackupRestore().enableVerboseLogging(verbose);
     }
 
     @Override
     public int getVerboseLoggingLevel() {
         enforceAccessPermission();
-        return mWifiStateMachine.getVerboseLoggingLevel();
+        return mFacade.getIntegerSetting(
+                mContext, Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, 0);
     }
 
     @Override
