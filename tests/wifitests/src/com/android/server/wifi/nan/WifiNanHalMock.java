@@ -67,6 +67,26 @@ public class WifiNanHalMock {
         throw new IllegalStateException("Please mock this class!");
     }
 
+    public void createNanNetworkInterfaceMockNative(short transactionId, String jsonArgs) {
+        throw new IllegalStateException("Please mock this class!");
+    }
+
+    public void deleteNanNetworkInterfaceMockNative(short transactionId, String jsonArgs) {
+        throw new IllegalStateException("Please mock this class!");
+    }
+
+    public void initiateDataPathMockNative(short transactionId, String jsonArgs) {
+        throw new IllegalStateException("Please mock this class!");
+    }
+
+    public void respondToDataPathRequestMockNative(short transactionId, String jsonArgs) {
+        throw new IllegalStateException("Please mock this class!");
+    }
+
+    public void endDataPathMockNative(short transactionId, String jsonArgs) {
+        throw new IllegalStateException("Please mock this class!");
+    }
+
     /*
      * trigger callbacks - called by test harness with arguments passed by JSON
      * string.
@@ -87,6 +107,12 @@ public class WifiNanHalMock {
     public static native void callDisabled(String jsonArgs);
 
     public static native void callTransmitFollowup(String jsonArgs);
+
+    public static native void callDataPathRequest(String jsonArgs);
+
+    public static native void callDataPathConfirm(String jsonArgs);
+
+    public static native void callDataPathEnd(String jsonArgs);
 
     /**
      * initialize NAN mock

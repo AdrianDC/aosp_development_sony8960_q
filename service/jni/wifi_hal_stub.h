@@ -156,6 +156,20 @@ wifi_error wifi_nan_get_version_stub(wifi_handle handle,
                            NanVersion* version);
 wifi_error wifi_nan_get_capabilities_stub(transaction_id id,
                                 wifi_interface_handle iface);
+wifi_error wifi_nan_data_interface_create_stub(transaction_id id,
+                                          wifi_interface_handle iface,
+                                          char *iface_name);
+wifi_error wifi_nan_data_interface_delete_stub(transaction_id id,
+                                          wifi_interface_handle iface,
+                                          char *iface_name);
+wifi_error wifi_nan_data_request_initiator_stub(transaction_id id,
+                                           wifi_interface_handle iface,
+                                           NanDataPathInitiatorRequest *msg);
+wifi_error wifi_nan_data_indication_response_stub(
+    transaction_id id, wifi_interface_handle iface,
+    NanDataPathIndicationResponse *msg);
+wifi_error wifi_nan_data_end_stub(transaction_id id, wifi_interface_handle iface,
+                             NanDataPathEndRequest *msg);
 wifi_error wifi_get_packet_filter_capabilities_stub(wifi_interface_handle handle,
                                           u32 *version, u32 *max_len);
 wifi_error wifi_set_packet_filter_stub(wifi_interface_handle handle,

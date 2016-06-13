@@ -376,6 +376,35 @@ wifi_error wifi_nan_get_capabilities_stub(transaction_id id,
   return WIFI_ERROR_NOT_SUPPORTED;
 }
 
+wifi_error wifi_nan_data_interface_create_stub(transaction_id id,
+                                          wifi_interface_handle iface,
+                                          char *iface_name) {
+  return WIFI_ERROR_NOT_SUPPORTED;
+}
+
+wifi_error wifi_nan_data_interface_delete_stub(transaction_id id,
+                                          wifi_interface_handle iface,
+                                          char *iface_name) {
+  return WIFI_ERROR_NOT_SUPPORTED;
+}
+
+wifi_error wifi_nan_data_request_initiator_stub(transaction_id id,
+                                           wifi_interface_handle iface,
+                                           NanDataPathInitiatorRequest *msg) {
+  return WIFI_ERROR_NOT_SUPPORTED;
+}
+
+wifi_error wifi_nan_data_indication_response_stub(
+    transaction_id id, wifi_interface_handle iface,
+    NanDataPathIndicationResponse *msg) {
+  return WIFI_ERROR_NOT_SUPPORTED;
+}
+
+wifi_error wifi_nan_data_end_stub(transaction_id id, wifi_interface_handle iface,
+                             NanDataPathEndRequest *msg) {
+  return WIFI_ERROR_NOT_SUPPORTED;
+}
+
 wifi_error wifi_get_packet_filter_capabilities_stub(wifi_interface_handle handle,
                                           u32 *version, u32 *max_len) {
   return WIFI_ERROR_NOT_SUPPORTED;
@@ -457,6 +486,12 @@ int init_wifi_stub_hal_func_table(wifi_hal_fn *hal_fn) {
     hal_fn->wifi_nan_beacon_sdf_payload_request = wifi_nan_beacon_sdf_payload_request_stub;
     hal_fn->wifi_nan_register_handler = wifi_nan_register_handler_stub;
     hal_fn->wifi_nan_get_version = wifi_nan_get_version_stub;
+    hal_fn->wifi_nan_get_capabilities = wifi_nan_get_capabilities_stub;
+    hal_fn->wifi_nan_data_interface_create = wifi_nan_data_interface_create_stub;
+    hal_fn->wifi_nan_data_interface_delete = wifi_nan_data_interface_delete_stub;
+    hal_fn->wifi_nan_data_request_initiator = wifi_nan_data_request_initiator_stub;
+    hal_fn->wifi_nan_data_indication_response = wifi_nan_data_indication_response_stub;
+    hal_fn->wifi_nan_data_end = wifi_nan_data_end_stub;
     hal_fn->wifi_get_packet_filter_capabilities = wifi_get_packet_filter_capabilities_stub;
     hal_fn->wifi_set_packet_filter = wifi_set_packet_filter_stub;
 

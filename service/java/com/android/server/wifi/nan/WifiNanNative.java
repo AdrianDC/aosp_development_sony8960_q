@@ -408,6 +408,205 @@ public class WifiNanNative {
         }
     }
 
+    private static native int createNanNetworkInterfaceNative(short transactionId,
+                                                              Class<WifiNative> cls, int iface,
+                                                              String interfaceName);
+
+    /**
+     * Create a NAN network interface. This only creates the Linux interface - it doesn't actually
+     * create the data connection.
+     *
+     * @param transactionId Transaction ID for the transaction - used in the async callback to
+     *                      match with the original request.
+     * @param interfaceName The name of the interface, e.g. "nan0".
+     */
+    public boolean createNanNetworkInterface(short transactionId, String interfaceName) {
+        if (VDBG) {
+            Log.v(TAG, "createNanNetworkInterface: transactionId=" + transactionId + ", "
+                    + "interfaceName=" + interfaceName);
+        }
+
+        if (isNanInit()) {
+            int ret;
+            synchronized (WifiNative.sLock) {
+                ret = createNanNetworkInterfaceNative(transactionId, WifiNative.class, WifiNative
+                        .sWlan0Index, interfaceName);
+            }
+            if (ret != WIFI_SUCCESS) {
+                Log.w(TAG,
+                        "createNanNetworkInterfaceNative: HAL API returned non-success -- " + ret);
+            }
+            return ret == WIFI_SUCCESS;
+        } else {
+            Log.w(TAG, "createNanNetworkInterface: cannot initialize NAN");
+            return false;
+        }
+    }
+
+    private static native int deleteNanNetworkInterfaceNative(short transactionId,
+                                                              Class<WifiNative> cls, int iface,
+                                                              String interfaceName);
+
+    /**
+     * Deletes a NAN network interface. The data connection can (should?) be torn down previously.
+     *
+     * @param transactionId Transaction ID for the transaction - used in the async callback to
+     *                      match with the original request.
+     * @param interfaceName The name of the interface, e.g. "nan0".
+     */
+    public boolean deleteNanNetworkInterface(short transactionId, String interfaceName) {
+        if (VDBG) {
+            Log.v(TAG, "deleteNanNetworkInterface: transactionId=" + transactionId + ", "
+                    + "interfaceName=" + interfaceName);
+        }
+
+        if (isNanInit()) {
+            int ret;
+            synchronized (WifiNative.sLock) {
+                ret = deleteNanNetworkInterfaceNative(transactionId, WifiNative.class, WifiNative
+                        .sWlan0Index, interfaceName);
+            }
+            if (ret != WIFI_SUCCESS) {
+                Log.w(TAG,
+                        "deleteNanNetworkInterfaceNative: HAL API returned non-success -- " + ret);
+            }
+            return ret == WIFI_SUCCESS;
+        } else {
+            Log.w(TAG, "deleteNanNetworkInterface: cannot initialize NAN");
+            return false;
+        }
+    }
+
+    private static native int initiateDataPathNative(short transactionId, Class<WifiNative> cls,
+                                                     int iface, int pubSubId, int
+                                                             channelRequestType, int channel,
+                                                     byte[] peer, String interfaceName, byte[]
+                                                             message, int messageLength);
+
+    public static final int CHANNEL_REQUEST_TYPE_NONE = 0;
+    public static final int CHANNEL_REQUEST_TYPE_REQUESTED = 1;
+    public static final int CHANNEL_REQUEST_TYPE_REQUIRED = 2;
+
+    /**
+     * Initiates setting up a data-path between device and peer.
+     *
+     * @param transactionId      Transaction ID for the transaction - used in the async callback to
+     *                           match with the original request.
+     * @param pubSubId           ID of the publish/subscribe session to associate the data path
+     *                           with. A value of 0 indicates that not associated with an
+     *                           existing session.
+     * @param channelRequestType Indicates whether the specified channel is available, if available
+     *                           requested or forced (resulting in failure if cannot be
+     *                           accommodated).
+     * @param channel            The channel on which to set up the data-path.
+     * @param peer               The MAC address of the peer to create a connection with.
+     * @param interfaceName      The interface on which to create the data connection.
+     * @param message An arbitrary byte array to forward to the peer as part of the data path
+     *                request.
+     * @param messageLength The size of the message.
+     */
+    public boolean initiateDataPath(short transactionId, int pubSubId, int channelRequestType,
+                                    int channel, byte[] peer, String interfaceName, byte[]
+                                            message, int messageLength) {
+        if (VDBG) {
+            Log.v(TAG, "initiateDataPath: transactionId=" + transactionId + ", pubSubId=" + pubSubId
+                    + ", channelRequestType=" + channelRequestType + ", channel=" + channel
+                    + ", peer=" + String.valueOf(HexEncoding.encode(peer)) + ", interfaceName="
+                    + interfaceName + ", " + "messageLength=" + messageLength);
+        }
+
+        if (isNanInit()) {
+            int ret;
+            synchronized (WifiNative.sLock) {
+                ret = initiateDataPathNative(transactionId, WifiNative.class, WifiNative
+                        .sWlan0Index, pubSubId, channelRequestType, channel, peer, interfaceName,
+                        message, messageLength);
+            }
+            if (ret != WIFI_SUCCESS) {
+                Log.w(TAG, "initiateDataPathNative: HAL API returned non-success -- " + ret);
+            }
+            return ret == WIFI_SUCCESS;
+        } else {
+            Log.w(TAG, "initiateDataPath: cannot initialize NAN");
+            return false;
+        }
+    }
+
+    private static native int respondToDataPathRequestNative(short transactionId,
+                                                             Class<WifiNative> cls, int iface,
+                                                             boolean accept, int ndpId, String
+                                                                     interfaceName, byte[]
+                                                                     message, int messageLength);
+
+    /**
+     * Responds to a data request from a peer.
+     *
+     * @param transactionId Transaction ID for the transaction - used in the async callback to
+     *                      match with the original request.
+     * @param accept Accept (true) or reject (false) the original call.
+     * @param ndpId The NDP (NAN data path) ID. Obtained from the request callback.
+     * @param interfaceName The interface on which the data path will be setup. Obtained from the
+     *                      request callback.
+     * @param message An arbitrary byte array to forward to the peer in the respond message.
+     * @param messageLength The length of the message array.
+     */
+    public boolean respondToDataPathRequest(short transactionId, boolean accept, int ndpId,
+                                            String interfaceName, byte[] message, int
+                                                    messageLength) {
+        if (VDBG) {
+            Log.v(TAG, "respondToDataPathRequest: transactionId=" + transactionId + ", accept="
+                    + accept + ", int ndpId=" + ndpId + ", interfaceName=" + interfaceName + ", "
+                    + "messageLength=" + messageLength);
+        }
+
+        if (isNanInit()) {
+            int ret;
+            synchronized (WifiNative.sLock) {
+                ret = respondToDataPathRequestNative(transactionId, WifiNative.class, WifiNative
+                        .sWlan0Index, accept, ndpId, interfaceName, message, messageLength);
+            }
+            if (ret != WIFI_SUCCESS) {
+                Log.w(TAG,
+                        "respondToDataPathRequestNative: HAL API returned non-success -- " + ret);
+            }
+            return ret == WIFI_SUCCESS;
+        } else {
+            Log.w(TAG, "respondToDataPathRequest: cannot initialize NAN");
+            return false;
+        }
+    }
+
+    private static native int endDataPathNative(short transactionId, Class<WifiNative> cls,
+            int iface, int ndpId);
+
+    /**
+     * Terminate an existing data-path (does not delete the interface).
+     *
+     * @param transactionId Transaction ID for the transaction - used in the async callback to
+     *                      match with the original request.
+     * @param ndpId The NDP (NAN data path) ID to be terminated.
+     */
+    public boolean endDataPath(short transactionId, int ndpId) {
+        if (VDBG) {
+            Log.v(TAG, "endDataPath: transactionId=" + transactionId + ", ndpId=" + ndpId);
+        }
+
+        if (isNanInit()) {
+            int ret;
+            synchronized (WifiNative.sLock) {
+                ret = endDataPathNative(transactionId, WifiNative.class, WifiNative.sWlan0Index,
+                        ndpId);
+            }
+            if (ret != WIFI_SUCCESS) {
+                Log.w(TAG, "endDataPathNative: HAL API returned non-success -- " + ret);
+            }
+            return ret == WIFI_SUCCESS;
+        } else {
+            Log.w(TAG, "endDataPath: cannot initialize NAN");
+            return false;
+        }
+    }
+
     // EVENTS
 
     // NanResponseType for API responses: will add values as needed
@@ -419,6 +618,11 @@ public class WifiNanNative {
     public static final int NAN_RESPONSE_SUBSCRIBE_CANCEL = 6;
     public static final int NAN_RESPONSE_CONFIG = 8;
     public static final int NAN_RESPONSE_GET_CAPABILITIES = 12;
+    public static final int NAN_RESPONSE_DP_INTERFACE_CREATE = 13;
+    public static final int NAN_RESPONSE_DP_INTERFACE_DELETE = 14;
+    public static final int NAN_RESPONSE_DP_INITIATOR_RESPONSE = 15;
+    public static final int NAN_RESPONSE_DP_RESPONDER_RESPONSE = 16;
+    public static final int NAN_RESPONSE_DP_END = 17;
 
     // direct copy from wifi_nan.h: need to keep in sync
     /* NAN Protocol Response Codes */
@@ -646,6 +850,41 @@ public class WifiNanNative {
                             + status + ", value=" + value);
                 }
                 break;
+            case NAN_RESPONSE_DP_INTERFACE_CREATE:
+                if (status != NAN_STATUS_SUCCESS) {
+                    Log.e(TAG,
+                            "onNanNotifyResponse: NAN_RESPONSE_DP_INTERFACE_CREATE error - status="
+                                    + status + ", value=" + value);
+                }
+                stateMgr.onCreateDataPathInterfaceResponse(transactionId,
+                        status == NAN_STATUS_SUCCESS, status);
+                break;
+            case NAN_RESPONSE_DP_INTERFACE_DELETE:
+                if (status != NAN_STATUS_SUCCESS) {
+                    Log.e(TAG,
+                            "onNanNotifyResponse: NAN_RESPONSE_DP_INTERFACE_DELETE error - status="
+                                    + status + ", value=" + value);
+                }
+                stateMgr.onDeleteDataPathInterfaceResponse(transactionId,
+                        status == NAN_STATUS_SUCCESS, status);
+                break;
+            case NAN_RESPONSE_DP_RESPONDER_RESPONSE:
+                if (status != NAN_STATUS_SUCCESS) {
+                    Log.e(TAG,
+                            "onNanNotifyResponse: NAN_RESPONSE_DP_RESPONDER_RESPONSE error - "
+                                    + "status=" + status + ", value=" + value);
+                }
+                stateMgr.onRespondToDataPathSetupRequestResponse(transactionId,
+                        status == NAN_STATUS_SUCCESS, status);
+                break;
+            case NAN_RESPONSE_DP_END:
+                if (status != NAN_STATUS_SUCCESS) {
+                    Log.e(TAG, "onNanNotifyResponse: NAN_RESPONSE_DP_END error - status=" + status
+                            + ", value=" + value);
+                }
+                stateMgr.onEndDataPathResponse(transactionId, status == NAN_STATUS_SUCCESS,
+                        status);
+                break;
             default:
                 Log.e(TAG, "onNanNotifyResponse: unclassified responseType=" + responseType);
                 break;
@@ -700,6 +939,21 @@ public class WifiNanNative {
         } else {
             Log.e(TAG,
                     "onNanNotifyResponseCapabilities: error status=" + status + ", value=" + value);
+        }
+    }
+
+    private static void onNanNotifyResponseDataPathInitiate(short transactionId, int status,
+            int value, int ndpId) {
+        if (VDBG) {
+            Log.v(TAG,
+                    "onNanNotifyResponseDataPathInitiate: transactionId=" + transactionId
+                            + ", status=" + status + ", value=" + value + ", ndpId=" + ndpId);
+        }
+        if (status == NAN_STATUS_SUCCESS) {
+            WifiNanStateManager.getInstance().onInitiateDataPathResponseSuccess(transactionId,
+                    ndpId);
+        } else {
+            WifiNanStateManager.getInstance().onInitiateDataPathResponseFail(transactionId, status);
         }
     }
 
@@ -795,5 +1049,37 @@ public class WifiNanNative {
             WifiNanStateManager.getInstance().onMessageSendFailNotification(transactionId,
                     translateHalStatusToNanSessionCallbackReason(reason));
         }
+    }
+
+    private static void onDataPathRequest(int pubSubId, byte[] mac, int ndpId, byte[] message, int
+            messageLength) {
+        if (VDBG) {
+            Log.v(TAG, "onDataPathRequest: pubSubId=" + pubSubId + ", mac=" + String.valueOf(
+                    HexEncoding.encode(mac)) + ", ndpId=" + ndpId + ", messageLength="
+                    + messageLength);
+        }
+
+        WifiNanStateManager.getInstance()
+                .onDataPathRequestNotification(pubSubId, mac, ndpId, message, messageLength);
+    }
+
+    private static void onDataPathConfirm(int ndpId, byte[] mac, boolean accept, int reason, byte[]
+            message, int messageLength) {
+        if (VDBG) {
+            Log.v(TAG, "onDataPathConfirm: ndpId=" + ndpId + ", mac=" + String.valueOf(HexEncoding
+                    .encode(mac)) + ", accept=" + accept + ", reason=" + reason + ", "
+                    + "messageLength=" + messageLength);
+        }
+
+        WifiNanStateManager.getInstance()
+                .onDataPathConfirmNotification(ndpId, mac, accept, reason, message, messageLength);
+    }
+
+    private static void onDataPathEnd(int ndpId) {
+        if (VDBG) {
+            Log.v(TAG, "onDataPathEndNotification: ndpId=" + ndpId);
+        }
+
+        WifiNanStateManager.getInstance().onDataPathEndNotification(ndpId);
     }
 }

@@ -18,6 +18,7 @@ package com.android.server.wifi.nan;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -506,6 +507,111 @@ public class WifiNanHalTest {
     }
 
     @Test
+    public void testNotifyResponseCreateDataPath() throws JSONException {
+        final short transactionId = 48;
+        final int reason  = WifiNanNative.NAN_STATUS_TIMEOUT;
+
+        Bundle args = new Bundle();
+        args.putInt("status", reason);
+        args.putInt("value", 0);
+        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_DP_INTERFACE_CREATE);
+
+        WifiNanHalMock.callNotifyResponse(transactionId,
+                HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager).onCreateDataPathInterfaceResponse(transactionId, false, reason);
+        verifyNoMoreInteractions(mNanStateManager);
+    }
+
+    @Test
+    public void testNotifyResponseDeleteDataPath() throws JSONException {
+        final short transactionId = 49;
+        final int reason  = WifiNanNative.NAN_STATUS_DE_FAILURE;
+
+        Bundle args = new Bundle();
+        args.putInt("status", reason);
+        args.putInt("value", 0);
+        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_DP_INTERFACE_DELETE);
+
+        WifiNanHalMock.callNotifyResponse(transactionId,
+                HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager).onDeleteDataPathInterfaceResponse(transactionId, false, reason);
+        verifyNoMoreInteractions(mNanStateManager);
+    }
+
+    @Test
+    public void testNotifyResponseInitiateDataPathSuccess() throws JSONException {
+        final short transactionId = 49;
+        final int ndpId = 1234;
+
+        Bundle args = new Bundle();
+        args.putInt("status", WifiNanNative.NAN_STATUS_SUCCESS);
+        args.putInt("value", 0);
+        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_DP_INITIATOR_RESPONSE);
+        args.putInt("body.data_request_response.ndp_instance_id", ndpId);
+
+        WifiNanHalMock.callNotifyResponse(transactionId,
+                HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager).onInitiateDataPathResponseSuccess(transactionId, ndpId);
+        verifyNoMoreInteractions(mNanStateManager);
+    }
+
+    @Test
+    public void testNotifyResponseInitiateDataPathFail() throws JSONException {
+        final short transactionId = 49;
+        final int reason  = WifiNanNative.NAN_STATUS_NDP_DATA_INITIATOR_REQUEST_FAILED;
+
+        Bundle args = new Bundle();
+        args.putInt("status", reason);
+        args.putInt("value", 0);
+        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_DP_INITIATOR_RESPONSE);
+        args.putInt("body.data_request_response.ndp_instance_id", 5555); // NOP
+
+        WifiNanHalMock.callNotifyResponse(transactionId,
+                HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager).onInitiateDataPathResponseFail(transactionId, reason);
+        verifyNoMoreInteractions(mNanStateManager);
+    }
+
+    @Test
+    public void testNotifyResponseRespondToDataPathSetupRequest() throws JSONException {
+        final short transactionId = 50;
+        final int reason  = WifiNanNative.NAN_STATUS_DISABLE_IN_PROGRESS;
+
+        Bundle args = new Bundle();
+        args.putInt("status", reason);
+        args.putInt("value", 0);
+        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_DP_RESPONDER_RESPONSE);
+
+        WifiNanHalMock.callNotifyResponse(transactionId,
+                HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager).onRespondToDataPathSetupRequestResponse(transactionId, false,
+                reason);
+        verifyNoMoreInteractions(mNanStateManager);
+    }
+
+    @Test
+    public void testNotifyResponseEndDataPath() throws JSONException {
+        final short transactionId = 50;
+        final int reason  = WifiNanNative.NAN_STATUS_NDP_END_FAILED;
+
+        Bundle args = new Bundle();
+        args.putInt("status", reason);
+        args.putInt("value", 0);
+        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_DP_END);
+
+        WifiNanHalMock.callNotifyResponse(transactionId,
+                HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager).onEndDataPathResponse(transactionId, false, reason);
+        verifyNoMoreInteractions(mNanStateManager);
+    }
+
+    @Test
     public void testNotifyResponseUnknown() throws JSONException {
         final int invalidTransactionId = 99999;
         final short transactionId = 46;
@@ -679,6 +785,175 @@ public class WifiNanHalTest {
         verify(mNanStateManager).onMessageSendFailNotification(transactionId,
                 WifiNanSessionCallback.REASON_TX_FAIL);
         verifyNoMoreInteractions(mNanStateManager);
+    }
+
+    @Test
+    public void testCreateNanNetworkInterface() throws JSONException {
+        final short transactionId = 10;
+        final String interfaceName = "nan0";
+
+        mDut.createNanNetworkInterface(transactionId, interfaceName);
+
+        verify(mNanHalMock).createNanNetworkInterfaceMockNative(eq(transactionId), mArgs.capture());
+
+        Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
+
+        collector.checkThat("iface_name", new String(argsData
+                .getByteArray("iface_name")), equalTo(interfaceName));
+    }
+
+    @Test
+    public void testDeleteNanNetworkInterface() throws JSONException {
+        final short transactionId = 10;
+        final String interfaceName = "nan0";
+
+        mDut.deleteNanNetworkInterface(transactionId, interfaceName);
+
+        verify(mNanHalMock).deleteNanNetworkInterfaceMockNative(eq(transactionId), mArgs.capture());
+
+        Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
+
+        collector.checkThat("iface_name", new String(argsData.getByteArray("iface_name")),
+                equalTo(interfaceName));
+    }
+
+    @Test
+    public void testInitiateDataPath() throws JSONException {
+        final short transactionId = 123;
+        final int pubSubId = 55;
+        final int channelRequestType = 0;
+        final int channel = 2437;
+        final byte[] peer = HexEncoding.decode("0A0B0C0D0E0F".toCharArray(), false);
+        final String interfaceName = "nan1";
+        final String msg = "let me talk!";
+
+        mDut.initiateDataPath(transactionId, pubSubId, channelRequestType, channel, peer,
+                interfaceName, msg.getBytes(), msg.length());
+
+        verify(mNanHalMock).initiateDataPathMockNative(eq(transactionId), mArgs.capture());
+
+        Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
+
+        collector.checkThat("service_instance_id", argsData.getInt("service_instance_id"),
+                equalTo(pubSubId));
+        collector.checkThat("channel_request_type", argsData.getInt("channel_request_type"),
+                equalTo(channelRequestType));
+        collector.checkThat("channel", argsData.getInt("channel"), equalTo(channel));
+        collector.checkThat("peer_disc_mac_addr", argsData.getByteArray("peer_disc_mac_addr"),
+                equalTo(peer));
+        collector.checkThat("ndp_iface", new String(argsData.getByteArray("ndp_iface")),
+                equalTo(interfaceName));
+        collector.checkThat("ndp_cfg.security_cfg", argsData.getInt("ndp_cfg.security_cfg"),
+                equalTo(0));
+        collector.checkThat("ndp_cfg.qos_cfg", argsData.getInt("ndp_cfg.qos_cfg"), equalTo(0));
+        collector.checkThat("app_info.ndp_app_info_len",
+                argsData.getInt("app_info.ndp_app_info_len"), equalTo(msg.length()));
+        collector.checkThat("app_info.ndp_app_info", argsData.getByteArray("app_info.ndp_app_info"),
+                equalTo(msg.getBytes()));
+    }
+
+    @Test
+    public void testRespondToDataPathRequest() throws JSONException {
+        final short transactionId = 123;
+        final boolean accept = true;
+        final int ndpId = 523;
+        final String interfaceName = "nan1";
+        final String msg = "fine - you can talk ...";
+
+        mDut.respondToDataPathRequest(transactionId, accept, ndpId, interfaceName, msg
+                .getBytes(), msg.length());
+
+        verify(mNanHalMock).respondToDataPathRequestMockNative(eq(transactionId), mArgs.capture());
+
+        Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
+
+        collector.checkThat("ndp_instance_id", argsData.getInt("ndp_instance_id"), equalTo(ndpId));
+        collector.checkThat("ndp_iface", new String(argsData
+                .getByteArray("ndp_iface")), equalTo(interfaceName));
+        collector.checkThat("ndp_cfg.security_cfg", argsData
+                .getInt("ndp_cfg.security_cfg"), equalTo(0));
+        collector.checkThat("ndp_cfg.qos_cfg", argsData.getInt("ndp_cfg.qos_cfg"), equalTo(0));
+        collector.checkThat("app_info.ndp_app_info_len", argsData
+                .getInt("app_info.ndp_app_info_len"), equalTo(msg.length()));
+        collector.checkThat("app_info.ndp_app_info", argsData
+                .getByteArray("app_info.ndp_app_info"), equalTo(msg.getBytes()));
+        collector.checkThat("rsp_code", argsData.getInt("rsp_code"), equalTo(accept ? 0 : 1));
+    }
+
+    @Test
+    public void testEndDataPath() throws JSONException {
+        final short transactionId = 123;
+        final int ndpId = 523;
+
+        mDut.endDataPath(transactionId, ndpId);
+
+        verify(mNanHalMock).endDataPathMockNative(eq(transactionId), mArgs.capture());
+
+        Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
+
+        collector.checkThat("num_ndp_instances", argsData.getInt("num_ndp_instances"), equalTo(1));
+        collector.checkThat("ndp_instance_id", argsData.getInt("ndp_instance_id"), equalTo(ndpId));
+    }
+
+    @Test
+    public void testOnDataRequest() throws JSONException {
+        final int pubSubId = 1234;
+        final byte[] peer = HexEncoding.decode("0A0B0C0D0E0F".toCharArray(), false);
+        final int ndpId = 752;
+        final String msg = "some request or other - doesn't have to be a String!";
+
+        Bundle args = new Bundle();
+        args.putInt("service_instance_id", pubSubId);
+        args.putByteArray("peer_disc_mac_addr", peer);
+        args.putInt("ndp_instance_id", ndpId);
+        args.putInt("ndp_cfg.security_cfg", 0);
+        args.putInt("ndp_cfg.qos_cfg", 0);
+        args.putInt("app_info.ndp_app_info_len", msg.length());
+        args.putByteArray("app_info.ndp_app_info", msg.getBytes());
+
+        WifiNanHalMock.callDataPathRequest(HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager).onDataPathRequestNotification(pubSubId, peer, ndpId,
+                msg.getBytes(), msg.length());
+        verifyNoMoreInteractions(mNanStateManager);
+    }
+
+    @Test
+    public void testOnDataConfirm() throws JSONException {
+        final int ndpId = 752;
+        final byte[] peer = HexEncoding.decode("0A0B0C0D0E0F".toCharArray(), false);
+        final String msg = "some request or other - doesn't have to be a String!";
+        final boolean accept = true;
+        final int reason = 13412;
+
+        Bundle args = new Bundle();
+        args.putInt("ndp_instance_id", ndpId);
+        args.putByteArray("peer_ndi_mac_addr", peer);
+        args.putInt("app_info.ndp_app_info_len", msg.length());
+        args.putByteArray("app_info.ndp_app_info", msg.getBytes());
+        args.putInt("rsp_code", accept ? 0 : 1);
+        args.putInt("reason_code", reason);
+
+        WifiNanHalMock.callDataPathConfirm(HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager).onDataPathConfirmNotification(ndpId, peer, accept, reason,
+                msg.getBytes(), msg.length());
+        verifyNoMoreInteractions(mNanStateManager);
+    }
+
+    @Test
+    public void testOnDataEnd() throws JSONException {
+        testOnDataEndMultiples(1, 752);
+    }
+
+    @Test
+    public void testOnDataEndMultiples() throws JSONException {
+        testOnDataEndMultiples(5, 842);
+    }
+
+    @Test
+    public void testOnDataEndZero() throws JSONException {
+        testOnDataEndMultiples(0, 2134);
     }
 
     /*
@@ -892,6 +1167,25 @@ public class WifiNanHalTest {
                 equalTo(0));
         collector.checkThat("recv_indication_cfg", argsData.getInt("recv_indication_cfg"),
                 equalTo(enableTerminateNotification ? 0x0 : 0x1));
+    }
+
+    private void testOnDataEndMultiples(int numInstances, int ndpIdBase) throws JSONException {
+        ArgumentCaptor<Integer> ndpIdsCaptor = ArgumentCaptor.forClass(Integer.class);
+
+        Bundle args = new Bundle();
+        args.putInt("num_ndp_instances", numInstances);
+        args.putInt("ndp_instance_id", ndpIdBase);
+
+        WifiNanHalMock.callDataPathEnd(HalMockUtils.convertBundleToJson(args).toString());
+
+        verify(mNanStateManager, times(numInstances)).onDataPathEndNotification(
+                ndpIdsCaptor.capture());
+        verifyNoMoreInteractions(mNanStateManager);
+
+        for (int i = 0; i < numInstances; ++i) {
+            collector.checkThat("ndp id #" + i, ndpIdsCaptor.getAllValues().get(i),
+                    equalTo(ndpIdBase + i));
+        }
     }
 
     private static void installMockNanStateManager(WifiNanStateManager nanStateManager)

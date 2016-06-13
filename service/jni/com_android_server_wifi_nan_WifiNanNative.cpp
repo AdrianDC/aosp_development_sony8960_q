@@ -107,6 +107,11 @@ static void OnNanNotifyResponse(transaction_id id, NanResponseMsg* msg) {
           (short) id, (int) msg->status, (int) msg->value, data.get());
       break;
     }
+    case NAN_DP_INITIATOR_RESPONSE:
+      helper.reportEvent(mCls, "onNanNotifyResponseDataPathInitiate", "(SIII)V", (short) id,
+                         (int) msg->status, (int) msg->value,
+                         msg->body.data_request_response.ndp_instance_id);
+      break;
     default:
       helper.reportEvent(mCls, "onNanNotifyResponse", "(SIII)V", (short) id,
                          (int) msg->response_type, (int) msg->status,
@@ -212,14 +217,49 @@ static void OnNanEventBeaconSdfPayload(NanBeaconSdfPayloadInd* event) {
 
 static void OnNanEventDataRequest(NanDataPathRequestInd* event) {
   ALOGD("OnNanEventDataRequest");
+  JNIHelper helper(mVM);
+
+  JNIObject<jbyteArray> peerBytes = helper.newByteArray(6);
+  helper.setByteArrayRegion(peerBytes, 0, 6,
+                            (jbyte *)event->peer_disc_mac_addr);
+
+  JNIObject<jbyteArray> msgBytes =
+      helper.newByteArray(event->app_info.ndp_app_info_len);
+  helper.setByteArrayRegion(msgBytes, 0, event->app_info.ndp_app_info_len,
+                            (jbyte *)event->app_info.ndp_app_info);
+
+  helper.reportEvent(mCls, "onDataPathRequest", "(I[BI[BI)V",
+                     event->service_instance_id, peerBytes.get(),
+                     event->ndp_instance_id, msgBytes.get(),
+                     event->app_info.ndp_app_info_len);
 }
 
 static void OnNanEventDataConfirm(NanDataPathConfirmInd* event) {
   ALOGD("OnNanEventDataConfirm");
+  JNIHelper helper(mVM);
+
+  JNIObject<jbyteArray> peerBytes = helper.newByteArray(6);
+  helper.setByteArrayRegion(peerBytes, 0, 6, (jbyte *)event->peer_ndi_mac_addr);
+
+  JNIObject<jbyteArray> msgBytes =
+      helper.newByteArray(event->app_info.ndp_app_info_len);
+  helper.setByteArrayRegion(msgBytes, 0, event->app_info.ndp_app_info_len,
+                            (jbyte *)event->app_info.ndp_app_info);
+
+  helper.reportEvent(
+      mCls, "onDataPathConfirm", "(I[BZI[BI)V", event->ndp_instance_id,
+      peerBytes.get(), event->rsp_code == NAN_DP_REQUEST_ACCEPT,
+      event->reason_code, msgBytes.get(), event->app_info.ndp_app_info_len);
 }
 
 static void OnNanEventDataEnd(NanDataPathEndInd* event) {
   ALOGD("OnNanEventDataEnd");
+  JNIHelper helper(mVM);
+
+  for (int i = 0; i < event->num_ndp_instances; ++i) {
+    helper.reportEvent(mCls, "onDataPathEnd", "(I)V",
+                       event->ndp_instance_id[i]);
+  }
 }
 
 static void OnNanEventTransmitFollowup(NanTransmitFollowupInd* event) {
@@ -552,6 +592,142 @@ static jint android_net_wifi_nan_stop_subscribe(JNIEnv *env, jclass cls,
     return hal_fn.wifi_nan_subscribe_cancel_request(transaction_id, handle, &msg);
 }
 
+static jint android_net_wifi_nan_create_nan_network_interface(
+    JNIEnv *env, jclass cls, jshort transaction_id, jclass wifi_native_cls,
+    jint iface, jstring interface_name) {
+  JNIHelper helper(env);
+  wifi_interface_handle handle = getIfaceHandle(helper, wifi_native_cls, iface);
+
+  ALOGD("android_net_wifi_nan_create_nan_network_interface handle=%p, id=%d",
+        handle, transaction_id);
+
+  ScopedUtfChars chars(env, interface_name);
+  if (chars.c_str() == NULL) {
+    return 0;
+  }
+
+  return hal_fn.wifi_nan_data_interface_create(transaction_id, handle,
+                                               (char*) chars.c_str());
+}
+
+static jint android_net_wifi_nan_delete_nan_network_interface(
+    JNIEnv *env, jclass cls, jshort transaction_id, jclass wifi_native_cls,
+    jint iface, jstring interface_name) {
+  JNIHelper helper(env);
+  wifi_interface_handle handle = getIfaceHandle(helper, wifi_native_cls, iface);
+
+  ALOGD("android_net_wifi_nan_delete_nan_network_interface handle=%p, id=%d",
+        handle, transaction_id);
+
+  ScopedUtfChars chars(env, interface_name);
+  if (chars.c_str() == NULL) {
+    return 0;
+  }
+
+  return hal_fn.wifi_nan_data_interface_delete(transaction_id, handle,
+                                               (char*) chars.c_str());
+}
+
+static jint android_net_wifi_nan_initiate_nan_data_path(
+    JNIEnv *env, jclass cls, jshort transaction_id, jclass wifi_native_cls,
+    jint iface, jint pub_sub_id, jint channel_request_type, jint channel,
+    jbyteArray peer, jstring interface_name, jbyteArray message,
+    jint message_length) {
+  JNIHelper helper(env);
+  wifi_interface_handle handle = getIfaceHandle(helper, wifi_native_cls, iface);
+
+  ALOGD("android_net_wifi_nan_initiate_nan_data_path handle=%p, id=%d", handle,
+        transaction_id);
+
+  NanDataPathInitiatorRequest msg;
+  memset(&msg, 0, sizeof(NanDataPathInitiatorRequest));
+
+  msg.service_instance_id = pub_sub_id;
+  msg.channel_request_type = (NanDataPathChannelCfg) channel_request_type;
+  msg.channel = channel;
+
+  ScopedBytesRO peerBytes(env, peer);
+  memcpy(msg.peer_disc_mac_addr, (byte *)peerBytes.get(), 6);
+
+  ScopedUtfChars chars(env, interface_name);
+  if (chars.c_str() == NULL) {
+    return 0;
+  }
+  strcpy(msg.ndp_iface, chars.c_str());
+
+  // TODO: b/26564544: add security configuration
+  msg.ndp_cfg.security_cfg = NAN_DP_CONFIG_NO_SECURITY;
+
+  // TODO: b/29065317: add QoS configuration
+  msg.ndp_cfg.qos_cfg = NAN_DP_CONFIG_NO_QOS;
+
+  msg.app_info.ndp_app_info_len = message_length;
+
+  ScopedBytesRO messageBytes(env, message);
+  memcpy(msg.app_info.ndp_app_info, (byte *)messageBytes.get(), message_length);
+
+  return hal_fn.wifi_nan_data_request_initiator(transaction_id, handle, &msg);
+}
+
+static jint android_net_wifi_nan_respond_nan_data_path_request(
+    JNIEnv *env, jclass cls, jshort transaction_id, jclass wifi_native_cls,
+    jint iface, jboolean accept, jint ndp_id, jstring interface_name,
+    jbyteArray message, jint message_length) {
+  JNIHelper helper(env);
+  wifi_interface_handle handle = getIfaceHandle(helper, wifi_native_cls, iface);
+
+  ALOGD("android_net_wifi_nan_respond_nan_data_path_request handle=%p, id=%d",
+        handle, transaction_id);
+
+  NanDataPathIndicationResponse msg;
+  memset(&msg, 0, sizeof(NanDataPathIndicationResponse));
+
+  msg.ndp_instance_id = ndp_id;
+
+  ScopedUtfChars chars(env, interface_name);
+  if (chars.c_str() == NULL) {
+    return 0;
+  }
+  strcpy(msg.ndp_iface, chars.c_str());
+
+  // TODO: b/26564544: add security configuration
+  msg.ndp_cfg.security_cfg = NAN_DP_CONFIG_NO_SECURITY;
+
+  // TODO: b/29065317: add QoS configuration
+  msg.ndp_cfg.qos_cfg = NAN_DP_CONFIG_NO_QOS;
+
+  msg.app_info.ndp_app_info_len = message_length;
+
+  ScopedBytesRO messageBytes(env, message);
+  memcpy(msg.app_info.ndp_app_info, (byte *)messageBytes.get(), message_length);
+
+  msg.rsp_code = accept ? NAN_DP_REQUEST_ACCEPT : NAN_DP_REQUEST_REJECT;
+
+  return hal_fn.wifi_nan_data_indication_response(transaction_id, handle, &msg);
+}
+
+static jint android_net_wifi_nan_end_nan_data_path(JNIEnv *env, jclass cls,
+                                                   jshort transaction_id,
+                                                   jclass wifi_native_cls,
+                                                   jint iface, jint ndp_id) {
+  JNIHelper helper(env);
+  wifi_interface_handle handle = getIfaceHandle(helper, wifi_native_cls, iface);
+
+  ALOGD("android_net_wifi_nan_end_nan_data_path handle=%p, id=%d", handle,
+        transaction_id);
+
+  NanDataPathEndRequest* msg = (NanDataPathEndRequest*)malloc(sizeof(NanDataPathEndRequest) + sizeof(NanDataPathId));
+
+  msg->num_ndp_instances = 1;
+  msg->ndp_instance_id[0] = ndp_id;
+
+  jint status = hal_fn.wifi_nan_data_end(transaction_id, handle, msg);
+
+  free(msg);
+
+  return status;
+}
+
 // ----------------------------------------------------------------------------
 
 /*
@@ -570,6 +746,11 @@ static JNINativeMethod gWifiNanMethods[] = {
     {"sendMessageNative", "(SLjava/lang/Class;III[B[BI)I", (void*)android_net_wifi_nan_send_message },
     {"stopPublishNative", "(SLjava/lang/Class;II)I", (void*)android_net_wifi_nan_stop_publish },
     {"stopSubscribeNative", "(SLjava/lang/Class;II)I", (void*)android_net_wifi_nan_stop_subscribe },
+    {"createNanNetworkInterfaceNative", "(SLjava/lang/Class;ILjava/lang/String;)I", (void*)android_net_wifi_nan_create_nan_network_interface },
+    {"deleteNanNetworkInterfaceNative", "(SLjava/lang/Class;ILjava/lang/String;)I", (void*)android_net_wifi_nan_delete_nan_network_interface },
+    {"initiateDataPathNative", "(SLjava/lang/Class;IIII[BLjava/lang/String;[BI)I", (void*)android_net_wifi_nan_initiate_nan_data_path },
+    {"respondToDataPathRequestNative", "(SLjava/lang/Class;IZILjava/lang/String;[BI)I", (void*)android_net_wifi_nan_respond_nan_data_path_request },
+    {"endDataPathNative", "(SLjava/lang/Class;II)I", (void*)android_net_wifi_nan_end_nan_data_path },
 };
 
 /* User to register native functions */
