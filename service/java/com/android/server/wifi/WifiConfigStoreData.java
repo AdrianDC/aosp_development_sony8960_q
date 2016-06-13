@@ -22,6 +22,7 @@ import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.util.Pair;
 
+import com.android.internal.util.FastXmlSerializer;
 import com.android.server.wifi.util.XmlUtil;
 import com.android.server.wifi.util.XmlUtil.IpConfigurationXmlUtil;
 import com.android.server.wifi.util.XmlUtil.NetworkSelectionStatusXmlUtil;
@@ -32,7 +33,9 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -291,13 +294,24 @@ public class WifiConfigStoreData {
     }
 
     /**
+     * Write the document start and version to the XML stream.
+     * This is used for both the shared and user config store data.
+     *
+     * @param out XmlSerializer instance pointing to the XML stream.
+     */
+    private static void writeDocumentStartAndVersionToXml(XmlSerializer out)
+            throws XmlPullParserException, IOException {
+        XmlUtil.writeDocumentStart(out, XML_TAG_DOCUMENT_HEADER);
+        XmlUtil.writeNextValue(out, XML_TAG_VERSION, CURRENT_CONFIG_STORE_DATA_VERSION);
+    }
+
+    /**
      * Create raw byte array to be stored in the share store file.
      * This method serializes the data to a byte array in XML format.
      *
-     * @return pair of byte array with the serialized output. The first element is the shared
-     * raw data and the second element is the user raw data.
+     * @return byte array with the serialized output.
      */
-    public byte[] createSharedRawData() {
+    public byte[] createSharedRawData() throws XmlPullParserException, IOException {
         SharedData sharedData = getSharedData();
         return sharedData.createRawData();
     }
@@ -308,7 +322,7 @@ public class WifiConfigStoreData {
      *
      * @return byte array with the serialized output.
      */
-    public byte[] createUserRawData() {
+    public byte[] createUserRawData() throws XmlPullParserException, IOException {
         UserData userData = getUserData();
         return userData.createRawData();
     }
@@ -347,6 +361,8 @@ public class WifiConfigStoreData {
      * Class to encapsulate all the data to be stored in the shared store.
      */
     public static class SharedData {
+        private static final String XML_TAG_ID = "Id";
+
         public List<WifiConfiguration> configurations;
         public int lastNetworkId;
 
@@ -379,8 +395,27 @@ public class WifiConfigStoreData {
          *
          * @return byte array with the serialized output.
          */
-        public static byte[] createRawData() {
-            return null;
+        public byte[] createRawData() throws XmlPullParserException, IOException  {
+            final XmlSerializer out = new FastXmlSerializer();
+            final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            out.setOutput(outputStream, StandardCharsets.UTF_8.name());
+
+            // Start writing the XML stream.
+            writeDocumentStartAndVersionToXml(out);
+
+            // Write all the shared network configurations.
+            writeNetworksToXml(out, configurations);
+
+            // Write the last network ID allocated.
+            XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_LAST_NETWORK_ID);
+            XmlUtil.writeNextValue(out, XML_TAG_ID, lastNetworkId);
+            XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_LAST_NETWORK_ID);
+
+            XmlUtil.writeDocumentEnd(out, XML_TAG_DOCUMENT_HEADER);
+
+            byte[] data = outputStream.toByteArray();
+
+            return data;
         }
     }
 
@@ -388,6 +423,9 @@ public class WifiConfigStoreData {
      * Class to encapsulate all the data to be stored in the user specific store.
      */
     public static class UserData {
+        private static final String XML_TAG_SSID_LIST = "SSIDList";
+        private static final String XML_TAG_BSSID_LIST = "BSSIDList";
+
         public List<WifiConfiguration> configurations;
         public Set<String> blackListBSSIDs;
         public Set<String> deletedEphemeralSSIDs;
@@ -424,8 +462,32 @@ public class WifiConfigStoreData {
          *
          * @return byte array with the serialized output.
          */
-        public static byte[] createRawData() {
-            return null;
+        public byte[] createRawData() throws XmlPullParserException, IOException {
+            final XmlSerializer out = new FastXmlSerializer();
+            final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            out.setOutput(outputStream, StandardCharsets.UTF_8.name());
+
+            // Start writing the XML stream.
+            writeDocumentStartAndVersionToXml(out);
+
+            // Write all the user network configurations.
+            writeNetworksToXml(out, configurations);
+
+            // Write the bssid blacklist & deleted ephemeral ssid list.
+            XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_BSSID_BLACKLIST);
+            XmlUtil.writeNextValue(out, XML_TAG_BSSID_LIST, blackListBSSIDs);
+            XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_BSSID_BLACKLIST);
+
+            XmlUtil.writeNextSectionStart(
+                    out, XML_TAG_SECTION_HEADER_DELETED_EPHEMERAL_SSID_LIST);
+            XmlUtil.writeNextValue(out, XML_TAG_SSID_LIST, deletedEphemeralSSIDs);
+            XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_DELETED_EPHEMERAL_SSID_LIST);
+
+            XmlUtil.writeDocumentEnd(out, XML_TAG_DOCUMENT_HEADER);
+
+            byte[] data = outputStream.toByteArray();
+
+            return data;
         }
     }
 }
