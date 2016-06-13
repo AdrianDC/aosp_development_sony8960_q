@@ -26,6 +26,7 @@ import android.net.RouteInfo;
 import android.net.StaticIpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.util.Log;
 import android.util.Pair;
 
@@ -403,6 +404,9 @@ public class XmlUtil {
         /**
          * Write the Configuration data elements for config store from the provided Configuration
          * to the XML stream.
+         *
+         * @param out           XmlSerializer instance pointing to the XML stream.
+         * @param configuration WifiConfiguration object to be serialized.
          */
         public static void writeToXmlForConfigStore(
                 XmlSerializer out, WifiConfiguration configuration)
@@ -642,6 +646,9 @@ public class XmlUtil {
         /**
          * Write the IP configuration data elements from the provided Configuration to the XML
          * stream.
+         *
+         * @param out             XmlSerializer instance pointing to the XML stream.
+         * @param ipConfiguration IpConfiguration object to be serialized.
          */
         public static void writeToXml(XmlSerializer out, IpConfiguration ipConfiguration)
                 throws XmlPullParserException, IOException {
@@ -808,6 +815,9 @@ public class XmlUtil {
         /**
          * Write the NetworkSelectionStatus data elements from the provided status to the XML
          * stream.
+         *
+         * @param out    XmlSerializer instance pointing to the XML stream.
+         * @param status NetworkSelectionStatus object to be serialized.
          */
         public static void writeToXml(XmlSerializer out, NetworkSelectionStatus status)
                 throws XmlPullParserException, IOException {
@@ -868,6 +878,149 @@ public class XmlUtil {
                 }
             }
             return status;
+        }
+    }
+
+    /**
+     * Utility class to serialize and deseriaize {@link WifiEnterpriseConfig} object to XML &
+     * vice versa. This is used by {@link com.android.server.wifi.WifiConfigStore} module.
+     */
+    public static class WifiEnterpriseConfigXmlUtil {
+
+        /**
+         * List of XML tags corresponding to WifiEnterpriseConfig object elements.
+         */
+        public static final String XML_TAG_IDENTITY = "Identity";
+        public static final String XML_TAG_ANON_IDENTITY = "AnonIdentity";
+        public static final String XML_TAG_PASSWORD = "Password";
+        public static final String XML_TAG_CLIENT_CERT = "ClientCert";
+        public static final String XML_TAG_CA_CERT = "CaCert";
+        public static final String XML_TAG_SUBJECT_MATCH = "SubjectMatch";
+        public static final String XML_TAG_ENGINE = "Engine";
+        public static final String XML_TAG_ENGINE_ID = "EngineId";
+        public static final String XML_TAG_PRIVATE_KEY_ID = "PrivateKeyId";
+        public static final String XML_TAG_ALT_SUBJECT_MATCH = "AltSubjectMatch";
+        public static final String XML_TAG_DOM_SUFFIX_MATCH = "DomSuffixMatch";
+        public static final String XML_TAG_CA_PATH = "CaPath";
+        public static final String XML_TAG_EAP_METHOD = "EapMethod";
+        public static final String XML_TAG_PHASE2_METHOD = "Phase2Method";
+
+        /**
+         * Write the WifiEnterpriseConfig data elements from the provided config to the XML
+         * stream.
+         *
+         * @param out              XmlSerializer instance pointing to the XML stream.
+         * @param enterpriseConfig WifiEnterpriseConfig object to be serialized.
+         */
+        public static void writeToXml(XmlSerializer out, WifiEnterpriseConfig enterpriseConfig)
+                throws XmlPullParserException, IOException {
+            XmlUtil.writeNextValue(out, XML_TAG_IDENTITY,
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.IDENTITY_KEY, ""));
+            XmlUtil.writeNextValue(out, XML_TAG_ANON_IDENTITY,
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ANON_IDENTITY_KEY, ""));
+            XmlUtil.writeNextValue(out, XML_TAG_PASSWORD,
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.PASSWORD_KEY, ""));
+            XmlUtil.writeNextValue(out, XML_TAG_CLIENT_CERT,
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CLIENT_CERT_KEY, ""));
+            XmlUtil.writeNextValue(out, XML_TAG_CA_CERT,
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CA_CERT_KEY, ""));
+            XmlUtil.writeNextValue(out, XML_TAG_SUBJECT_MATCH,
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.SUBJECT_MATCH_KEY, ""));
+            XmlUtil.writeNextValue(out, XML_TAG_ENGINE,
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ENGINE_KEY, ""));
+            XmlUtil.writeNextValue(out, XML_TAG_ENGINE_ID,
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ENGINE_ID_KEY, ""));
+            XmlUtil.writeNextValue(out, XML_TAG_PRIVATE_KEY_ID,
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY, ""));
+            XmlUtil.writeNextValue(out, XML_TAG_ALT_SUBJECT_MATCH,
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY, ""));
+            XmlUtil.writeNextValue(out, XML_TAG_DOM_SUFFIX_MATCH,
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY, ""));
+            XmlUtil.writeNextValue(out, XML_TAG_CA_PATH,
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CA_PATH_KEY, ""));
+            XmlUtil.writeNextValue(out, XML_TAG_EAP_METHOD, enterpriseConfig.getEapMethod());
+            XmlUtil.writeNextValue(out, XML_TAG_PHASE2_METHOD, enterpriseConfig.getPhase2Method());
+        }
+
+        /**
+         * Parses the data elements from the provided XML stream to a WifiEnterpriseConfig object.
+         *
+         * @param in            XmlPullParser instance pointing to the XML stream.
+         * @param outerTagDepth depth of the outer tag in the XML document.
+         * @return WifiEnterpriseConfig object if parsing is successful, null otherwise.
+         */
+        public static WifiEnterpriseConfig parseFromXml(XmlPullParser in, int outerTagDepth)
+                throws XmlPullParserException, IOException {
+            WifiEnterpriseConfig enterpriseConfig = new WifiEnterpriseConfig();
+
+            // Loop through and parse out all the elements from the stream within this section.
+            while (!XmlUtil.isNextSectionEnd(in, outerTagDepth)) {
+                String[] valueName = new String[1];
+                Object value = XmlUtil.readCurrentValue(in, valueName);
+                if (valueName[0] == null) {
+                    throw new XmlPullParserException("Missing value name");
+                }
+                switch (valueName[0]) {
+                    case XML_TAG_IDENTITY:
+                        enterpriseConfig.setFieldValue(
+                                WifiEnterpriseConfig.IDENTITY_KEY, (String) value);
+                        break;
+                    case XML_TAG_ANON_IDENTITY:
+                        enterpriseConfig.setFieldValue(
+                                WifiEnterpriseConfig.ANON_IDENTITY_KEY, (String) value);
+                        break;
+                    case XML_TAG_PASSWORD:
+                        enterpriseConfig.setFieldValue(
+                                WifiEnterpriseConfig.PASSWORD_KEY, (String) value);
+                        break;
+                    case XML_TAG_CLIENT_CERT:
+                        enterpriseConfig.setFieldValue(
+                                WifiEnterpriseConfig.CLIENT_CERT_KEY, (String) value);
+                        break;
+                    case XML_TAG_CA_CERT:
+                        enterpriseConfig.setFieldValue(
+                                WifiEnterpriseConfig.CA_CERT_KEY, (String) value);
+                        break;
+                    case XML_TAG_SUBJECT_MATCH:
+                        enterpriseConfig.setFieldValue(
+                                WifiEnterpriseConfig.SUBJECT_MATCH_KEY, (String) value);
+                        break;
+                    case XML_TAG_ENGINE:
+                        enterpriseConfig.setFieldValue(
+                                WifiEnterpriseConfig.ENGINE_KEY, (String) value);
+                        break;
+                    case XML_TAG_ENGINE_ID:
+                        enterpriseConfig.setFieldValue(
+                                WifiEnterpriseConfig.ENGINE_ID_KEY, (String) value);
+                        break;
+                    case XML_TAG_PRIVATE_KEY_ID:
+                        enterpriseConfig.setFieldValue(
+                                WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY, (String) value);
+                        break;
+                    case XML_TAG_ALT_SUBJECT_MATCH:
+                        enterpriseConfig.setFieldValue(
+                                WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY, (String) value);
+                        break;
+                    case XML_TAG_DOM_SUFFIX_MATCH:
+                        enterpriseConfig.setFieldValue(
+                                WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY, (String) value);
+                        break;
+                    case XML_TAG_CA_PATH:
+                        enterpriseConfig.setFieldValue(
+                                WifiEnterpriseConfig.CA_PATH_KEY, (String) value);
+                        break;
+                    case XML_TAG_EAP_METHOD:
+                        enterpriseConfig.setEapMethod((int) value);
+                        break;
+                    case XML_TAG_PHASE2_METHOD:
+                        enterpriseConfig.setPhase2Method((int) value);
+                        break;
+                    default:
+                        throw new XmlPullParserException(
+                                "Unknown value name found: " + valueName[0]);
+                }
+            }
+            return enterpriseConfig;
         }
     }
 }
