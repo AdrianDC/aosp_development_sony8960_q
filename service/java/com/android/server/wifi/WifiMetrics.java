@@ -18,7 +18,6 @@ package com.android.server.wifi;
 
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
-import android.os.SystemClock;
 import android.util.Base64;
 import android.util.Log;
 import android.util.SparseIntArray;
@@ -45,7 +44,7 @@ public class WifiMetrics {
     private static final boolean DBG = false;
     private final Object mLock = new Object();
     private static final int MAX_CONNECTION_EVENTS = 256;
-
+    private Clock mClock;
     private boolean mScreenOn;
     private int mWifiState;
     /**
@@ -72,6 +71,11 @@ public class WifiMetrics {
      * combination. Indexed by WifiLog.WifiState * (1 + screenOn)
      */
     private SparseIntArray mWifiSystemStateEntries;
+    /**
+     * Records the elapsedRealtime (in seconds) that represents the beginning of data
+     * capture for for this WifiMetricsProto
+     */
+    private long mRecordStartTimeSec;
 
     class RouterFingerPrint {
         private WifiMetricsProto.RouterFingerPrint mRouterFingerPrintProto;
@@ -298,7 +302,8 @@ public class WifiMetrics {
         }
     }
 
-    public WifiMetrics() {
+    public WifiMetrics(Clock clock) {
+        mClock = clock;
         mWifiLogProto = new WifiMetricsProto.WifiLog();
         mConnectionEventList = new ArrayList<>();
         mScanReturnEntries = new SparseIntArray();
@@ -306,6 +311,7 @@ public class WifiMetrics {
         mCurrentConnectionEvent = null;
         mScreenOn = true;
         mWifiState = WifiMetricsProto.WifiLog.WIFI_DISABLED;
+        mRecordStartTimeSec = mClock.elapsedRealtime() / 1000;
     }
 
     // Values used for indexing SystemStateEntries
@@ -348,12 +354,12 @@ public class WifiMetrics {
             }
             mCurrentConnectionEvent = new ConnectionEvent();
             mCurrentConnectionEvent.mConnectionEvent.startTimeMillis =
-                    System.currentTimeMillis();
+                    mClock.currentTimeMillis();
             mCurrentConnectionEvent.mConfigBssid = targetBSSID;
             mCurrentConnectionEvent.mConnectionEvent.roamType = roamType;
             mCurrentConnectionEvent.mRouterFingerPrint.updateFromWifiConfiguration(config);
             mCurrentConnectionEvent.mConfigBssid = "any";
-            mCurrentConnectionEvent.mRealStartTime = SystemClock.elapsedRealtime();
+            mCurrentConnectionEvent.mRealStartTime = mClock.elapsedRealtime();
             mCurrentConnectionEvent.mWifiState = mWifiState;
             mCurrentConnectionEvent.mScreenOn = mScreenOn;
             mConnectionEventList.add(mCurrentConnectionEvent);
@@ -406,7 +412,7 @@ public class WifiMetrics {
                 boolean result = (level2FailureCode == 1)
                         && (connectivityFailureCode == WifiMetricsProto.ConnectionEvent.HLF_NONE);
                 mCurrentConnectionEvent.mConnectionEvent.connectionResult = result ? 1 : 0;
-                mCurrentConnectionEvent.mRealEndTime = SystemClock.elapsedRealtime();
+                mCurrentConnectionEvent.mRealEndTime = mClock.elapsedRealtime();
                 mCurrentConnectionEvent.mConnectionEvent.durationTakenToConnectMillis = (int)
                         (mCurrentConnectionEvent.mRealEndTime
                         - mCurrentConnectionEvent.mRealStartTime);
@@ -899,6 +905,8 @@ public class WifiMetrics {
                         + mWifiLogProto.numLastResortWatchdogTriggersWithBadDhcp);
                 pw.println("mWifiLogProto.numLastResortWatchdogTriggersWithBadOther="
                         + mWifiLogProto.numLastResortWatchdogTriggersWithBadOther);
+                pw.println("mWifiLogProto.recordDurationSec="
+                        + ((mClock.elapsedRealtime() / 1000) - mRecordStartTimeSec));
             }
         }
     }
@@ -954,19 +962,8 @@ public class WifiMetrics {
                 mWifiLogProto.wifiSystemStateEntries[i].isScreenOn =
                         (mWifiSystemStateEntries.keyAt(i) % 2) > 0;
             }
-        }
-    }
-
-    /**
-     * Serializes all of WifiMetrics to WifiLog proto, and returns the byte array.
-     * Does not count as taking an automatic bug report
-     *
-     * @return byte array of the deserialized & consolidated Proto
-     */
-    public byte[] toByteArray() {
-        synchronized (mLock) {
-            consolidateProto(false);
-            return mWifiLogProto.toByteArray(mWifiLogProto);
+            mWifiLogProto.recordDurationSec = (int) ((mClock.elapsedRealtime() / 1000)
+                    - mRecordStartTimeSec);
         }
     }
 
@@ -981,6 +978,7 @@ public class WifiMetrics {
             }
             mScanReturnEntries.clear();
             mWifiSystemStateEntries.clear();
+            mRecordStartTimeSec = mClock.elapsedRealtime() / 1000;
             mWifiLogProto.clear();
         }
     }

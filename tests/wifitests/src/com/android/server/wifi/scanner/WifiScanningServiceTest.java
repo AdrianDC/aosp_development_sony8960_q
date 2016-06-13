@@ -82,6 +82,7 @@ public class WifiScanningServiceTest {
     @Mock WifiScannerImpl.WifiScannerImplFactory mWifiScannerImplFactory;
     @Mock IBatteryStats mBatteryStats;
     @Mock WifiInjector mWifiInjector;
+    @Mock Clock mClock;
     WifiMetrics mWifiMetrics;
     MockLooper mLooper;
     WifiScanningServiceImpl mWifiScanningServiceImpl;
@@ -94,7 +95,7 @@ public class WifiScanningServiceTest {
         mAlarmManager = new MockAlarmManager();
         when(mContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
-        mWifiMetrics = new WifiMetrics();
+        mWifiMetrics = new WifiMetrics(mClock);
 
         ChannelHelper channelHelper = new PresetKnownBandsChannelHelper(
                 new int[]{2400, 2450},
