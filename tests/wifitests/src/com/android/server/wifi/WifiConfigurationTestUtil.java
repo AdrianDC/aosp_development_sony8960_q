@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
 
 import static org.junit.Assert.*;
@@ -130,7 +131,45 @@ public class WifiConfigurationTestUtil {
     public static void assertConfigurationEqualForConfigStore(
             WifiConfiguration expected, WifiConfiguration actual) {
         assertCommonConfigurationElementsEqual(expected, actual);
+        assertEquals(expected.FQDN, actual.FQDN);
+        assertEquals(expected.providerFriendlyName, actual.providerFriendlyName);
+        assertEquals(expected.linkedConfigurations, actual.linkedConfigurations);
+        assertEquals(expected.defaultGwMacAddress, actual.defaultGwMacAddress);
+        assertEquals(expected.validatedInternetAccess, actual.validatedInternetAccess);
+        assertEquals(expected.noInternetAccessExpected, actual.noInternetAccessExpected);
+        assertEquals(expected.userApproved, actual.userApproved);
+        assertEquals(expected.meteredHint, actual.meteredHint);
+        assertEquals(expected.useExternalScores, actual.useExternalScores);
+        assertEquals(expected.numAssociation, actual.numAssociation);
         assertEquals(expected.creatorUid, actual.creatorUid);
         assertEquals(expected.creatorName, actual.creatorName);
+        assertEquals(expected.creationTime, actual.creationTime);
+        assertEquals(expected.lastUpdateUid, actual.lastUpdateUid);
+        assertEquals(expected.lastUpdateName, actual.lastUpdateName);
+        assertEquals(expected.lastConnectUid, actual.lastConnectUid);
+        assertNetworkSelectionStatusEqualForConfigStore(
+                expected.getNetworkSelectionStatus(), actual.getNetworkSelectionStatus());
+    }
+
+    /**
+     * Assert that the 2 NetworkSelectionStatus's are equal. This compares all the elements saved
+     * for config store.
+     */
+    public static void assertNetworkSelectionStatusEqualForConfigStore(
+            NetworkSelectionStatus expected, NetworkSelectionStatus actual) {
+        if (expected.isNetworkTemporaryDisabled()) {
+            // Temporarily disabled networks are enabled when persisted.
+            assertEquals(
+                    NetworkSelectionStatus.NETWORK_SELECTION_ENABLED,
+                    actual.getNetworkSelectionStatus());
+        } else {
+            assertEquals(expected.getNetworkSelectionStatus(), actual.getNetworkSelectionStatus());
+        }
+        assertEquals(
+                expected.getNetworkSelectionDisableReason(),
+                actual.getNetworkSelectionDisableReason());
+        assertEquals(expected.getConnectChoice(), actual.getConnectChoice());
+        assertEquals(expected.getConnectChoiceTimestamp(), actual.getConnectChoiceTimestamp());
+        assertEquals(expected.getHasEverConnected(), actual.getHasEverConnected());
     }
 }

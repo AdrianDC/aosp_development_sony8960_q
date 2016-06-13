@@ -25,6 +25,7 @@ import android.net.ProxyInfo;
 import android.net.RouteInfo;
 import android.net.StaticIpConfiguration;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.util.Log;
 import android.util.Pair;
 
@@ -38,6 +39,7 @@ import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.util.BitSet;
+import java.util.HashMap;
 
 /**
  * Utils for manipulating XML data. This is essentially a wrapper over XmlUtils provided by core.
@@ -236,9 +238,10 @@ public class XmlUtil {
     }
 
     /**
-     * Utility class to serialize and deseriaize WifConfiguration object to XML & vice versa.
-     * This is used by both #com.android.server.wifi.WifiConfigStore &
-     * #com.android.server.wifi.WifiBackupRestore modules.
+     * Utility class to serialize and deseriaize {@link WifiConfiguration} object to XML &
+     * vice versa.
+     * This is used by both {@link com.android.server.wifi.WifiConfigStore} &
+     * {@link com.android.server.wifi.WifiBackupRestore} modules.
      * The |writeConfigurationToXml| has 2 versions, one for backup and one for config store.
      * There is only 1 version of |parseXmlToConfiguration| for both backup & config store.
      * The parse method is written so that any element added/deleted in future revisions can
@@ -259,8 +262,22 @@ public class XmlUtil {
         public static final String XML_TAG_ALLOWED_PROTOCOLS = "AllowedProtocols";
         public static final String XML_TAG_ALLOWED_AUTH_ALGOS = "AllowedAuthAlgos";
         public static final String XML_TAG_SHARED = "Shared";
+        public static final String XML_TAG_FQDN = "FQDN";
+        public static final String XML_TAG_PROVIDER_FRIENDLY_NAME = "ProviderFriendlyName";
+        public static final String XML_TAG_LINKED_NETWORKS_LIST = "LinkedNetworksList";
+        public static final String XML_TAG_DEFAULT_GW_MAC_ADDRESS = "DefaultGwMacAddress";
+        public static final String XML_TAG_VALIDATED_INTERNET_ACCESS = "ValidatedInternetAccess";
+        public static final String XML_TAG_NO_INTERNET_ACCESS_EXPECTED = "NoInternetAccessExpected";
+        public static final String XML_TAG_USER_APPROVED = "UserApproved";
+        public static final String XML_TAG_METERED_HINT = "MeteredHint";
+        public static final String XML_TAG_USE_EXTERNAL_SCORES = "UseExternalScores";
+        public static final String XML_TAG_NUM_ASSOCIATION = "NumAssociation";
         public static final String XML_TAG_CREATOR_UID = "CreatorUid";
         public static final String XML_TAG_CREATOR_NAME = "CreatorName";
+        public static final String XML_TAG_CREATION_TIME = "CreationTime";
+        public static final String XML_TAG_LAST_UPDATE_UID = "LastUpdateUid";
+        public static final String XML_TAG_LAST_UPDATE_NAME = "LastUpdateName";
+        public static final String XML_TAG_LAST_CONNECT_UID = "LastConnectUid";
 
         /**
          * Write WepKeys to the XML stream.
@@ -341,8 +358,29 @@ public class XmlUtil {
                 throws XmlPullParserException, IOException {
             writeCommonWifiConfigurationElementsToXml(out, configuration);
             // TODO: Will need to add more elements which needs to be persisted.
+            XmlUtil.writeNextValue(out, XML_TAG_FQDN, configuration.FQDN);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_PROVIDER_FRIENDLY_NAME, configuration.providerFriendlyName);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_LINKED_NETWORKS_LIST, configuration.linkedConfigurations);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_DEFAULT_GW_MAC_ADDRESS, configuration.defaultGwMacAddress);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_VALIDATED_INTERNET_ACCESS, configuration.validatedInternetAccess);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_NO_INTERNET_ACCESS_EXPECTED,
+                    configuration.noInternetAccessExpected);
+            XmlUtil.writeNextValue(out, XML_TAG_USER_APPROVED, configuration.userApproved);
+            XmlUtil.writeNextValue(out, XML_TAG_METERED_HINT, configuration.meteredHint);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_USE_EXTERNAL_SCORES, configuration.useExternalScores);
+            XmlUtil.writeNextValue(out, XML_TAG_NUM_ASSOCIATION, configuration.numAssociation);
             XmlUtil.writeNextValue(out, XML_TAG_CREATOR_UID, configuration.creatorUid);
             XmlUtil.writeNextValue(out, XML_TAG_CREATOR_NAME, configuration.creatorName);
+            XmlUtil.writeNextValue(out, XML_TAG_CREATION_TIME, configuration.creationTime);
+            XmlUtil.writeNextValue(out, XML_TAG_LAST_UPDATE_UID, configuration.lastUpdateUid);
+            XmlUtil.writeNextValue(out, XML_TAG_LAST_UPDATE_NAME, configuration.lastUpdateName);
+            XmlUtil.writeNextValue(out, XML_TAG_LAST_CONNECT_UID, configuration.lastConnectUid);
         }
 
         /**
@@ -370,7 +408,8 @@ public class XmlUtil {
         }
 
         /**
-         * Parses the configuration data elements from the provided XML stream to a Configuration.
+         * Parses the configuration data elements from the provided XML stream to a
+         * WifiConfiguration object.
          * Note: This is used for parsing both backup data and config store data. Looping through
          * the tags make it easy to add or remove elements in the future versions if needed.
          *
@@ -430,11 +469,53 @@ public class XmlUtil {
                     case XML_TAG_SHARED:
                         configuration.shared = (boolean) value;
                         break;
+                    case XML_TAG_FQDN:
+                        configuration.FQDN = (String) value;
+                        break;
+                    case XML_TAG_PROVIDER_FRIENDLY_NAME:
+                        configuration.providerFriendlyName = (String) value;
+                        break;
+                    case XML_TAG_LINKED_NETWORKS_LIST:
+                        configuration.linkedConfigurations = (HashMap<String, Integer>) value;
+                        break;
+                    case XML_TAG_DEFAULT_GW_MAC_ADDRESS:
+                        configuration.defaultGwMacAddress = (String) value;
+                        break;
+                    case XML_TAG_VALIDATED_INTERNET_ACCESS:
+                        configuration.validatedInternetAccess = (boolean) value;
+                        break;
+                    case XML_TAG_NO_INTERNET_ACCESS_EXPECTED:
+                        configuration.noInternetAccessExpected = (boolean) value;
+                        break;
+                    case XML_TAG_USER_APPROVED:
+                        configuration.userApproved = (int) value;
+                        break;
+                    case XML_TAG_METERED_HINT:
+                        configuration.meteredHint = (boolean) value;
+                        break;
+                    case XML_TAG_USE_EXTERNAL_SCORES:
+                        configuration.useExternalScores = (boolean) value;
+                        break;
+                    case XML_TAG_NUM_ASSOCIATION:
+                        configuration.numAssociation = (int) value;
+                        break;
                     case XML_TAG_CREATOR_UID:
                         configuration.creatorUid = (int) value;
                         break;
                     case XML_TAG_CREATOR_NAME:
                         configuration.creatorName = (String) value;
+                        break;
+                    case XML_TAG_CREATION_TIME:
+                        configuration.creationTime = (String) value;
+                        break;
+                    case XML_TAG_LAST_UPDATE_UID:
+                        configuration.lastUpdateUid = (int) value;
+                        break;
+                    case XML_TAG_LAST_UPDATE_NAME:
+                        configuration.lastUpdateName = (String) value;
+                        break;
+                    case XML_TAG_LAST_CONNECT_UID:
+                        configuration.lastConnectUid = (int) value;
                         break;
                     default:
                         Log.e(TAG, "Unknown value name found: " + valueName[0]);
@@ -446,9 +527,9 @@ public class XmlUtil {
     }
 
     /**
-     * Utility class to serialize and deseriaize IpConfiguration object to XML & vice versa.
-     * This is used by both #com.android.server.wifi.WifiConfigStore &
-     * #com.android.server.wifi.WifiBackupRestore modules.
+     * Utility class to serialize and deseriaize {@link IpConfiguration} object to XML & vice versa.
+     * This is used by both {@link com.android.server.wifi.WifiConfigStore} &
+     * {@link com.android.server.wifi.WifiBackupRestore} modules.
      */
     public static class IpConfigurationXmlUtil {
 
@@ -601,8 +682,8 @@ public class XmlUtil {
         }
 
         /**
-         * Parses the IP configuration data elements from the provided XML stream to a
-         * IpConfiguration.
+         * Parses the IP configuration data elements from the provided XML stream to an
+         * IpConfiguration object.
          *
          * @param in            XmlPullParser instance pointing to the XML stream.
          * @param outerTagDepth depth of the outer tag in the XML document.
@@ -660,6 +741,90 @@ public class XmlUtil {
                     return null;
             }
             return ipConfiguration;
+        }
+    }
+
+    /**
+     * Utility class to serialize and deseriaize {@link NetworkSelectionStatus} object to XML &
+     * vice versa. This is used by {@link com.android.server.wifi.WifiConfigStore} module.
+     */
+    public static class NetworkSelectionStatusXmlUtil {
+
+        /**
+         * List of XML tags corresponding to NetworkSelectionStatus object elements.
+         */
+        public static final String XML_TAG_SELECTION_STATUS = "SelectionStatus";
+        public static final String XML_TAG_DISABLE_REASON = "DisableReason";
+        public static final String XML_TAG_CONNECT_CHOICE = "ConnectChoice";
+        public static final String XML_TAG_CONNECT_CHOICE_TIMESTAMP = "ConnectChoiceTimeStamp";
+        public static final String XML_TAG_HAS_EVER_CONNECTED = "HasEverConnected";
+
+        /**
+         * Write the NetworkSelectionStatus data elements from the provided status to the XML
+         * stream.
+         */
+        public static void writeNetworkSelectionStatusToXml(XmlSerializer out,
+                NetworkSelectionStatus status)
+                throws XmlPullParserException, IOException {
+            // Don't persist blacklists across reboots. So, if the status is temporarily disabled,
+            // store the status as enabled. This will ensure that when the device reboots, it is
+            // still considered for network selection.
+            int selectionStatus = status.getNetworkSelectionStatus();
+            if (selectionStatus == NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED) {
+                selectionStatus = NetworkSelectionStatus.NETWORK_SELECTION_ENABLED;
+            }
+            XmlUtil.writeNextValue(out, XML_TAG_SELECTION_STATUS, selectionStatus);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_DISABLE_REASON, status.getNetworkSelectionDisableReason());
+            XmlUtil.writeNextValue(out, XML_TAG_CONNECT_CHOICE, status.getConnectChoice());
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_CONNECT_CHOICE_TIMESTAMP, status.getConnectChoiceTimestamp());
+            XmlUtil.writeNextValue(out, XML_TAG_HAS_EVER_CONNECTED, status.getHasEverConnected());
+        }
+
+        /**
+         * Parses the NetworkSelectionStatus data elements from the provided XML stream to a
+         * NetworkSelectionStatus object.
+         *
+         * @param in            XmlPullParser instance pointing to the XML stream.
+         * @param outerTagDepth depth of the outer tag in the XML document.
+         * @return NetworkSelectionStatus object if parsing is successful, null otherwise.
+         */
+        public static NetworkSelectionStatus parseNetworkSelectionStatusFromXml(XmlPullParser in,
+                int outerTagDepth)
+                throws XmlPullParserException, IOException {
+            NetworkSelectionStatus status = new NetworkSelectionStatus();
+
+            // Loop through and parse out all the elements from the stream within this section.
+            while (!XmlUtil.isNextSectionEnd(in, outerTagDepth)) {
+                String[] valueName = new String[1];
+                Object value = XmlUtil.readCurrentValue(in, valueName);
+                if (valueName[0] == null) {
+                    Log.e(TAG, "Missing value name");
+                    return null;
+                }
+                switch (valueName[0]) {
+                    case XML_TAG_SELECTION_STATUS:
+                        status.setNetworkSelectionStatus((int) value);
+                        break;
+                    case XML_TAG_DISABLE_REASON:
+                        status.setNetworkSelectionDisableReason((int) value);
+                        break;
+                    case XML_TAG_CONNECT_CHOICE:
+                        status.setConnectChoice((String) value);
+                        break;
+                    case XML_TAG_CONNECT_CHOICE_TIMESTAMP:
+                        status.setConnectChoiceTimestamp((long) value);
+                        break;
+                    case XML_TAG_HAS_EVER_CONNECTED:
+                        status.setHasEverConnected((boolean) value);
+                        break;
+                    default:
+                        Log.e(TAG, "Unknown value name found: " + valueName[0]);
+                        return null;
+                }
+            }
+            return status;
         }
     }
 }
