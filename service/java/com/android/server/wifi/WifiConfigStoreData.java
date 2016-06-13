@@ -16,8 +16,23 @@
 
 package com.android.server.wifi;
 
+import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
+import android.net.wifi.WifiEnterpriseConfig;
+import android.util.Pair;
 
+import com.android.server.wifi.util.XmlUtil;
+import com.android.server.wifi.util.XmlUtil.IpConfigurationXmlUtil;
+import com.android.server.wifi.util.XmlUtil.NetworkSelectionStatusXmlUtil;
+import com.android.server.wifi.util.XmlUtil.WifiConfigurationXmlUtil;
+import com.android.server.wifi.util.XmlUtil.WifiEnterpriseConfigXmlUtil;
+
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+import org.xmlpull.v1.XmlSerializer;
+
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -25,23 +40,58 @@ import java.util.Set;
 /**
  * Class to encapsulate all the data to be stored across all the stores. This is a snapshot
  * of all the settings passed from {@link WifiConfigManager} to persistent store.
- * Instances of this class is passed around for writing/parsing data to/from the stores.
+ * Instances of this class are passed from/to WifiConfigManager and WifiConfigStore for
+ * writing/parsing data to/from the store files.
+ *
+ * Note: Nesting of objects during serialization makes it hard to deserialize data especially
+ * when we have elements added to the parent object in future revisions. So, when we serialize
+ * {@link WifiConfiguration} objects (representing saved networks), we add separate sections in the
+ * XML for each nested object (such as {@link IpConfiguration} and {@link NetworkSelectionStatus})
+ * within WifiConfiguration object.
  */
 public class WifiConfigStoreData {
     /**
-     * list of saved networks visible to the current user to be stored (includes shared & private).
+     * Current config store data version. This will be incremented for any additions.
+     */
+    private static final int CURRENT_CONFIG_STORE_DATA_VERSION = 1;
+
+    /** This list of older versions will be used to restore data from older config store. */
+    /**
+     * First version of the config store data format.
+     */
+    private static final int INITIAL_CONFIG_STORE_DATA_VERSION = 1;
+
+    /**
+     * List of XML section header tags in the config store data.
+     */
+    private static final String XML_TAG_DOCUMENT_HEADER = "WifiConfigStoreData";
+    private static final String XML_TAG_VERSION = "Version";
+    private static final String XML_TAG_SECTION_HEADER_NETWORK_LIST = "NetworkList";
+    private static final String XML_TAG_SECTION_HEADER_NETWORK = "Network";
+    private static final String XML_TAG_SECTION_HEADER_WIFI_CONFIGURATION = "WifiConfiguration";
+    private static final String XML_TAG_SECTION_HEADER_NETWORK_STATUS = "NetworkStatus";
+    private static final String XML_TAG_SECTION_HEADER_IP_CONFIGURATION = "IpConfiguration";
+    private static final String XML_TAG_SECTION_HEADER_WIFI_ENTERPRISE_CONFIGURATION =
+            "WifiEnterpriseConfiguration";
+    private static final String XML_TAG_SECTION_HEADER_BSSID_BLACKLIST = "BSSIDBlacklist";
+    private static final String XML_TAG_SECTION_HEADER_DELETED_EPHEMERAL_SSID_LIST =
+            "DeletedEphemeralSSIDList";
+    private static final String XML_TAG_SECTION_HEADER_LAST_NETWORK_ID = "LastNetworkId";
+
+    /**
+     * List of saved networks visible to the current user to be stored (includes shared & private).
      */
     public List<WifiConfiguration> configurations;
     /**
-     * list of blacklist bssids to be stored.
+     * List of blacklist bssids to be stored.
      */
     public Set<String> blackListBSSIDs;
     /**
-     * list of deleted ephemeral ssids to be stored.
+     * List of deleted ephemeral ssids to be stored.
      */
     public Set<String> deletedEphemeralSSIDs;
     /**
-     * last network ID assigned.
+     * Last network ID assigned.
      */
     public int lastNetworkId;
 
@@ -90,6 +140,154 @@ public class WifiConfigStoreData {
                 configurations, userData.blackListBSSIDs,
                 userData.deletedEphemeralSSIDs, sharedData.lastNetworkId);
 
+    }
+
+    /**
+     * Write the list of networks to the XML stream.
+     *
+     * @param out            XmlSerializer instance pointing to the XML stream.
+     * @param configurations list of WifiConfiguration objects corresponding to the networks.
+     */
+    private static void writeNetworksToXml(
+            XmlSerializer out, List<WifiConfiguration> configurations)
+            throws XmlPullParserException, IOException {
+        XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_NETWORK_LIST);
+        for (WifiConfiguration configuration : configurations) {
+            // Write this configuration data now.
+            XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_NETWORK);
+            writeNetworkToXml(out, configuration);
+            XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_NETWORK);
+        }
+        XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_NETWORK_LIST);
+    }
+
+    /**
+     * Write a network to the XML stream.
+     * Nested objects within the provided WifiConfiguration object are written into separate XML
+     * sections.
+     *
+     * @param out           XmlSerializer instance pointing to the XML stream.
+     * @param configuration WifiConfiguration object corresponding to the network.
+     */
+    private static void writeNetworkToXml(
+            XmlSerializer out, WifiConfiguration configuration)
+            throws XmlPullParserException, IOException {
+        XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_WIFI_CONFIGURATION);
+        WifiConfigurationXmlUtil.writeToXmlForConfigStore(out, configuration);
+        XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_WIFI_CONFIGURATION);
+
+        XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_NETWORK_STATUS);
+        NetworkSelectionStatusXmlUtil.writeToXml(out, configuration.getNetworkSelectionStatus());
+        XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_NETWORK_STATUS);
+
+        XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_IP_CONFIGURATION);
+        IpConfigurationXmlUtil.writeToXml(out, configuration.getIpConfiguration());
+        XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_IP_CONFIGURATION);
+
+        // Store the enterprise configuration for enterprise networks.
+        if (configuration.isEnterprise()) {
+            XmlUtil.writeNextSectionStart(
+                    out, XML_TAG_SECTION_HEADER_WIFI_ENTERPRISE_CONFIGURATION);
+            WifiEnterpriseConfigXmlUtil.writeToXml(out, configuration.enterpriseConfig);
+            XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_WIFI_ENTERPRISE_CONFIGURATION);
+        }
+    }
+
+    /**
+     * Parses the list of networks from the provided XML stream.
+     *
+     * @param in            XmlPullParser instance pointing to the XML stream.
+     * @param outerTagDepth depth of the outer tag in the XML document.
+     * @param dataVersion   version number parsed from incoming data.
+     * @return list of WifiConfiguration objects corresponding to the networks if parsing is
+     * successful, null otherwise.
+     */
+    private static List<WifiConfiguration> parseNetworksFromXml(
+            XmlPullParser in, int outerTagDepth, int dataVersion)
+            throws XmlPullParserException, IOException {
+        // Find the configuration list section.
+        XmlUtil.gotoNextSectionWithName(in, XML_TAG_SECTION_HEADER_NETWORK_LIST, outerTagDepth);
+        // Find all the configurations within the configuration list section.
+        int networkListTagDepth = outerTagDepth + 1;
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        while (XmlUtil.gotoNextSectionWithNameOrEnd(
+                in, XML_TAG_SECTION_HEADER_NETWORK, networkListTagDepth)) {
+            WifiConfiguration configuration =
+                    parseNetworkFromXml(in, networkListTagDepth, dataVersion);
+            if (configuration != null) {
+                configurations.add(configuration);
+            }
+        }
+        return configurations;
+    }
+
+    /**
+     * Helper method to parse the WifiConfiguration object and validate the configKey parsed.
+     */
+    private static WifiConfiguration parseWifiConfigurationFromXmlAndValidateConfigKey(
+            XmlPullParser in, int outerTagDepth)
+            throws XmlPullParserException, IOException {
+        Pair<String, WifiConfiguration> parsedConfig =
+                WifiConfigurationXmlUtil.parseFromXml(in, outerTagDepth);
+        if (parsedConfig == null || parsedConfig.first == null || parsedConfig.second == null) {
+            throw new XmlPullParserException("XML parsing of wifi configuration failed");
+        }
+        String configKeyParsed = parsedConfig.first;
+        WifiConfiguration configuration = parsedConfig.second;
+        String configKeyCalculated = configuration.configKey();
+        if (!configKeyParsed.equals(configKeyCalculated)) {
+            throw new XmlPullParserException(
+                    "Configuration key does not match. Retrieved: " + configKeyParsed
+                            + ", Calculated: " + configKeyCalculated);
+        }
+        return configuration;
+    }
+
+    /**
+     * Parses a network from the provided XML stream.
+     *
+     * @param in            XmlPullParser instance pointing to the XML stream.
+     * @param outerTagDepth depth of the outer tag in the XML document.
+     * @param dataVersion   version number parsed from incoming data.
+     * @return WifiConfiguration object corresponding to the network if parsing is successful,
+     * null otherwise.
+     */
+    private static WifiConfiguration parseNetworkFromXml(
+            XmlPullParser in, int outerTagDepth, int dataVersion)
+            throws XmlPullParserException, IOException {
+        // Any version migration needs to be handled here in future.
+        if (dataVersion == INITIAL_CONFIG_STORE_DATA_VERSION) {
+            WifiConfiguration configuration = null;
+
+            int networkTagDepth = outerTagDepth + 1;
+            XmlUtil.gotoNextSectionWithName(
+                    in, XML_TAG_SECTION_HEADER_WIFI_CONFIGURATION, networkTagDepth);
+            int configTagDepth = networkTagDepth + 1;
+            configuration = parseWifiConfigurationFromXmlAndValidateConfigKey(in, configTagDepth);
+
+            XmlUtil.gotoNextSectionWithName(
+                    in, XML_TAG_SECTION_HEADER_NETWORK_STATUS, networkTagDepth);
+            NetworkSelectionStatus status =
+                    NetworkSelectionStatusXmlUtil.parseFromXml(in, configTagDepth);
+            configuration.setNetworkSelectionStatus(status);
+
+            XmlUtil.gotoNextSectionWithName(
+                    in, XML_TAG_SECTION_HEADER_IP_CONFIGURATION, networkTagDepth);
+            IpConfiguration ipConfiguration =
+                    IpConfigurationXmlUtil.parseFromXml(in, configTagDepth);
+            configuration.setIpConfiguration(ipConfiguration);
+
+            // Check if there is an enterprise configuration section.
+            if (XmlUtil.gotoNextSectionWithNameOrEnd(
+                    in, XML_TAG_SECTION_HEADER_WIFI_ENTERPRISE_CONFIGURATION, networkTagDepth)) {
+                WifiEnterpriseConfig enterpriseConfig =
+                        WifiEnterpriseConfigXmlUtil.parseFromXml(in, configTagDepth);
+                configuration.enterpriseConfig = enterpriseConfig;
+            }
+
+            return configuration;
+        }
+        return null;
     }
 
     /**
@@ -147,8 +345,6 @@ public class WifiConfigStoreData {
 
     /**
      * Class to encapsulate all the data to be stored in the shared store.
-     * Instances of this class is passed around for writing/parsing data to/from the XML store
-     * file.
      */
     public static class SharedData {
         public List<WifiConfiguration> configurations;
@@ -190,8 +386,6 @@ public class WifiConfigStoreData {
 
     /**
      * Class to encapsulate all the data to be stored in the user specific store.
-     * Instances of this class is passed around for writing/parsing data to/from the XML store
-     * file.
      */
     public static class UserData {
         public List<WifiConfiguration> configurations;
