@@ -350,7 +350,7 @@ public class XmlUtilTest {
         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         out.setOutput(outputStream, StandardCharsets.UTF_8.name());
         XmlUtil.writeDocumentStart(out, mXmlDocHeader);
-        WifiConfigurationXmlUtil.writeWifiConfigurationToXmlForBackup(out, configuration);
+        WifiConfigurationXmlUtil.writeToXmlForBackup(out, configuration);
         XmlUtil.writeDocumentEnd(out, mXmlDocHeader);
         return outputStream.toByteArray();
     }
@@ -362,7 +362,7 @@ public class XmlUtilTest {
         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         out.setOutput(outputStream, StandardCharsets.UTF_8.name());
         XmlUtil.writeDocumentStart(out, mXmlDocHeader);
-        WifiConfigurationXmlUtil.writeWifiConfigurationToXmlForConfigStore(out, configuration);
+        WifiConfigurationXmlUtil.writeToXmlForConfigStore(out, configuration);
         XmlUtil.writeDocumentEnd(out, mXmlDocHeader);
         return outputStream.toByteArray();
     }
@@ -374,7 +374,7 @@ public class XmlUtilTest {
         ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
         in.setInput(inputStream, StandardCharsets.UTF_8.name());
         XmlUtil.gotoDocumentStart(in, mXmlDocHeader);
-        return WifiConfigurationXmlUtil.parseWifiConfigurationFromXml(in, in.getDepth());
+        return WifiConfigurationXmlUtil.parseFromXml(in, in.getDepth());
     }
 
     /**
@@ -429,7 +429,7 @@ public class XmlUtilTest {
         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         out.setOutput(outputStream, StandardCharsets.UTF_8.name());
         XmlUtil.writeDocumentStart(out, mXmlDocHeader);
-        IpConfigurationXmlUtil.writeIpConfigurationToXml(out, configuration);
+        IpConfigurationXmlUtil.writeToXml(out, configuration);
         XmlUtil.writeDocumentEnd(out, mXmlDocHeader);
 
         // Deserialize the configuration object.
@@ -438,7 +438,7 @@ public class XmlUtilTest {
         in.setInput(inputStream, StandardCharsets.UTF_8.name());
         XmlUtil.gotoDocumentStart(in, mXmlDocHeader);
         IpConfiguration retrievedConfiguration =
-                IpConfigurationXmlUtil.parseIpConfigurationFromXml(in, in.getDepth());
+                IpConfigurationXmlUtil.parseFromXml(in, in.getDepth());
         assertEquals(configuration, retrievedConfiguration);
     }
 
@@ -449,7 +449,7 @@ public class XmlUtilTest {
         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         out.setOutput(outputStream, StandardCharsets.UTF_8.name());
         XmlUtil.writeDocumentStart(out, mXmlDocHeader);
-        NetworkSelectionStatusXmlUtil.writeNetworkSelectionStatusToXml(out, status);
+        NetworkSelectionStatusXmlUtil.writeToXml(out, status);
         XmlUtil.writeDocumentEnd(out, mXmlDocHeader);
 
         // Deserialize the configuration object.
@@ -458,7 +458,7 @@ public class XmlUtilTest {
         in.setInput(inputStream, StandardCharsets.UTF_8.name());
         XmlUtil.gotoDocumentStart(in, mXmlDocHeader);
         NetworkSelectionStatus retrievedStatus =
-                NetworkSelectionStatusXmlUtil.parseNetworkSelectionStatusFromXml(in, in.getDepth());
+                NetworkSelectionStatusXmlUtil.parseFromXml(in, in.getDepth());
         WifiConfigurationTestUtil.assertNetworkSelectionStatusEqualForConfigStore(
                 status, retrievedStatus);
     }

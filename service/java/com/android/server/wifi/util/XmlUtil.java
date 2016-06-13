@@ -100,23 +100,75 @@ public class XmlUtil {
     }
 
     /**
-     * Move the XML stream to the next section header. The provided outerDepth is used to find
-     * sub sections within that depth.
+     * Move the XML stream to the next section header or indicate if there are no more sections.
+     * The provided outerDepth is used to find sub sections within that depth.
+     *
+     * Use this to move across sections if the ordering of sections are variable. The returned name
+     * can be used to decide what section is next.
      *
      * @param in         XmlPullParser instance pointing to the XML stream.
-     * @param headerName expected name for the start tag.
+     * @param headerName An array of one string, used to return the name of the next section.
      * @param outerDepth Find section within this depth.
-     * @return {@code true} if a start tag with the provided name is found, {@code false} otherwise
+     * @return {@code true} if a next section is found, {@code false} if there are no more sections.
      * @throws XmlPullParserException if parsing errors occur.
      */
-    public static boolean gotoNextSection(XmlPullParser in, String headerName, int outerDepth)
+    public static boolean gotoNextSectionOrEnd(
+            XmlPullParser in, String[] headerName, int outerDepth)
             throws XmlPullParserException, IOException {
-        while (XmlUtils.nextElementWithin(in, outerDepth)) {
-            if (in.getName().equals(headerName)) {
-                return true;
-            }
+        if (XmlUtils.nextElementWithin(in, outerDepth)) {
+            headerName[0] = in.getName();
+            return true;
         }
         return false;
+    }
+
+    /**
+     * Move the XML stream to the next section header or indicate if there are no more sections.
+     * If a section, exists ensure that the name matches the provided name.
+     * The provided outerDepth is used to find sub sections within that depth.
+     *
+     * Use this to move across repeated sections until the end.
+     *
+     * @param in           XmlPullParser instance pointing to the XML stream.
+     * @param expectedName expected name for the section header.
+     * @param outerDepth   Find section within this depth.
+     * @return {@code true} if a next section is found, {@code false} if there are no more sections.
+     * @throws XmlPullParserException if the section header name does not match |expectedName|,
+     *                                or if parsing errors occur.
+     */
+    public static boolean gotoNextSectionWithNameOrEnd(
+            XmlPullParser in, String expectedName, int outerDepth)
+            throws XmlPullParserException, IOException {
+        String[] headerName = new String[1];
+        if (gotoNextSectionOrEnd(in, headerName, outerDepth)) {
+            if (headerName[0].equals(expectedName)) {
+                return true;
+            }
+            throw new XmlPullParserException(
+                    "Next section name does not match expected name: " + expectedName);
+        }
+        return false;
+    }
+
+    /**
+     * Move the XML stream to the next section header and ensure that the name matches the provided
+     * name.
+     * The provided outerDepth is used to find sub sections within that depth.
+     *
+     * Use this to move across sections if the ordering of sections are fixed.
+     *
+     * @param in           XmlPullParser instance pointing to the XML stream.
+     * @param expectedName expected name for the section header.
+     * @param outerDepth   Find section within this depth.
+     * @throws XmlPullParserException if the section header name does not match |expectedName|,
+     *                                there are no more sections or if parsing errors occur.
+     */
+    public static void gotoNextSectionWithName(
+            XmlPullParser in, String expectedName, int outerDepth)
+            throws XmlPullParserException, IOException {
+        if (!gotoNextSectionWithNameOrEnd(in, expectedName, outerDepth)) {
+            throw new XmlPullParserException("Section not found. Expected: " + expectedName);
+        }
     }
 
     /**
@@ -130,7 +182,7 @@ public class XmlUtil {
      */
     public static boolean isNextSectionEnd(XmlPullParser in, int sectionDepth)
             throws XmlPullParserException, IOException {
-        return (in.nextTag() == XmlPullParser.END_TAG && in.getDepth() == sectionDepth);
+        return !XmlUtils.nextElementWithin(in, sectionDepth);
     }
 
     /**
@@ -313,8 +365,8 @@ public class XmlUtil {
          * @param out           XmlSerializer instance pointing to the XML stream.
          * @param configuration WifiConfiguration object to be serialized.
          */
-        public static void writeCommonWifiConfigurationElementsToXml(XmlSerializer out,
-                WifiConfiguration configuration)
+        public static void writeCommonElementsToXml(
+                XmlSerializer out, WifiConfiguration configuration)
                 throws XmlPullParserException, IOException {
             XmlUtil.writeNextValue(out, XML_TAG_CONFIG_KEY, configuration.configKey());
             XmlUtil.writeNextValue(out, XML_TAG_SSID, configuration.SSID);
@@ -343,21 +395,19 @@ public class XmlUtil {
          * @param out           XmlSerializer instance pointing to the XML stream.
          * @param configuration WifiConfiguration object to be serialized.
          */
-        public static void writeWifiConfigurationToXmlForBackup(XmlSerializer out,
-                WifiConfiguration configuration)
+        public static void writeToXmlForBackup(XmlSerializer out, WifiConfiguration configuration)
                 throws XmlPullParserException, IOException {
-            writeCommonWifiConfigurationElementsToXml(out, configuration);
+            writeCommonElementsToXml(out, configuration);
         }
 
         /**
          * Write the Configuration data elements for config store from the provided Configuration
          * to the XML stream.
          */
-        public static void writeWifiConfigurationToXmlForConfigStore(XmlSerializer out,
-                WifiConfiguration configuration)
+        public static void writeToXmlForConfigStore(
+                XmlSerializer out, WifiConfiguration configuration)
                 throws XmlPullParserException, IOException {
-            writeCommonWifiConfigurationElementsToXml(out, configuration);
-            // TODO: Will need to add more elements which needs to be persisted.
+            writeCommonElementsToXml(out, configuration);
             XmlUtil.writeNextValue(out, XML_TAG_FQDN, configuration.FQDN);
             XmlUtil.writeNextValue(
                     out, XML_TAG_PROVIDER_FRIENDLY_NAME, configuration.providerFriendlyName);
@@ -418,7 +468,7 @@ public class XmlUtil {
          * @return Pair<Config key, WifiConfiguration object> if parsing is successful,
          * null otherwise.
          */
-        public static Pair<String, WifiConfiguration> parseWifiConfigurationFromXml(
+        public static Pair<String, WifiConfiguration> parseFromXml(
                 XmlPullParser in, int outerTagDepth)
                 throws XmlPullParserException, IOException {
             WifiConfiguration configuration = new WifiConfiguration();
@@ -429,8 +479,7 @@ public class XmlUtil {
                 String[] valueName = new String[1];
                 Object value = XmlUtil.readCurrentValue(in, valueName);
                 if (valueName[0] == null) {
-                    Log.e(TAG, "Missing value name");
-                    return null;
+                    throw new XmlPullParserException("Missing value name");
                 }
                 switch (valueName[0]) {
                     case XML_TAG_CONFIG_KEY:
@@ -518,8 +567,8 @@ public class XmlUtil {
                         configuration.lastConnectUid = (int) value;
                         break;
                     default:
-                        Log.e(TAG, "Unknown value name found: " + valueName[0]);
-                        return null;
+                        throw new XmlPullParserException(
+                                "Unknown value name found: " + valueName[0]);
                 }
             }
             return Pair.create(configKeyInData, configuration);
@@ -550,8 +599,8 @@ public class XmlUtil {
         /**
          * Write the static IP configuration data elements to XML stream.
          */
-        private static void writeStaticIpConfigurationToXml(XmlSerializer out,
-                StaticIpConfiguration staticIpConfiguration)
+        private static void writeStaticIpConfigurationToXml(
+                XmlSerializer out, StaticIpConfiguration staticIpConfiguration)
                 throws XmlPullParserException, IOException {
             if (staticIpConfiguration.ipAddress != null) {
                 XmlUtil.writeNextValue(
@@ -594,8 +643,7 @@ public class XmlUtil {
          * Write the IP configuration data elements from the provided Configuration to the XML
          * stream.
          */
-        public static void writeIpConfigurationToXml(XmlSerializer out,
-                IpConfiguration ipConfiguration)
+        public static void writeToXml(XmlSerializer out, IpConfiguration ipConfiguration)
                 throws XmlPullParserException, IOException {
             // Write IP assignment settings
             XmlUtil.writeNextValue(out, XML_TAG_IP_ASSIGNMENT,
@@ -689,8 +737,7 @@ public class XmlUtil {
          * @param outerTagDepth depth of the outer tag in the XML document.
          * @return IpConfiguration object if parsing is successful, null otherwise.
          */
-        public static IpConfiguration parseIpConfigurationFromXml(XmlPullParser in,
-                int outerTagDepth)
+        public static IpConfiguration parseFromXml(XmlPullParser in, int outerTagDepth)
                 throws XmlPullParserException, IOException {
             IpConfiguration ipConfiguration = new IpConfiguration();
 
@@ -707,8 +754,7 @@ public class XmlUtil {
                 case UNASSIGNED:
                     break;
                 default:
-                    Log.wtf(TAG, "Unknown ip assignment type: " + ipAssignment);
-                    return null;
+                    throw new XmlPullParserException("Unknown ip assignment type: " + ipAssignment);
             }
 
             // Parse out the proxy settings next.
@@ -737,8 +783,8 @@ public class XmlUtil {
                 case UNASSIGNED:
                     break;
                 default:
-                    Log.wtf(TAG, "Unknown proxy settings type: " + proxySettings);
-                    return null;
+                    throw new XmlPullParserException(
+                            "Unknown proxy settings type: " + proxySettings);
             }
             return ipConfiguration;
         }
@@ -763,8 +809,7 @@ public class XmlUtil {
          * Write the NetworkSelectionStatus data elements from the provided status to the XML
          * stream.
          */
-        public static void writeNetworkSelectionStatusToXml(XmlSerializer out,
-                NetworkSelectionStatus status)
+        public static void writeToXml(XmlSerializer out, NetworkSelectionStatus status)
                 throws XmlPullParserException, IOException {
             // Don't persist blacklists across reboots. So, if the status is temporarily disabled,
             // store the status as enabled. This will ensure that when the device reboots, it is
@@ -790,8 +835,7 @@ public class XmlUtil {
          * @param outerTagDepth depth of the outer tag in the XML document.
          * @return NetworkSelectionStatus object if parsing is successful, null otherwise.
          */
-        public static NetworkSelectionStatus parseNetworkSelectionStatusFromXml(XmlPullParser in,
-                int outerTagDepth)
+        public static NetworkSelectionStatus parseFromXml(XmlPullParser in, int outerTagDepth)
                 throws XmlPullParserException, IOException {
             NetworkSelectionStatus status = new NetworkSelectionStatus();
 
@@ -800,8 +844,7 @@ public class XmlUtil {
                 String[] valueName = new String[1];
                 Object value = XmlUtil.readCurrentValue(in, valueName);
                 if (valueName[0] == null) {
-                    Log.e(TAG, "Missing value name");
-                    return null;
+                    throw new XmlPullParserException("Missing value name");
                 }
                 switch (valueName[0]) {
                     case XML_TAG_SELECTION_STATUS:
@@ -820,8 +863,8 @@ public class XmlUtil {
                         status.setHasEverConnected((boolean) value);
                         break;
                     default:
-                        Log.e(TAG, "Unknown value name found: " + valueName[0]);
-                        return null;
+                        throw new XmlPullParserException(
+                                "Unknown value name found: " + valueName[0]);
                 }
             }
             return status;
