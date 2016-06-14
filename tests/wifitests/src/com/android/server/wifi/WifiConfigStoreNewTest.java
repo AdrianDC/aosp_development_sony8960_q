@@ -16,26 +16,26 @@
 
 package com.android.server.wifi;
 
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
-import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.app.test.TestAlarmManager;
 import android.content.Context;
+import android.net.wifi.WifiConfiguration;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.server.wifi.WifiConfigStoreNew.StoreFile;
 
+import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
-
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiConfigStoreNew}.
@@ -67,6 +67,7 @@ public class WifiConfigStoreNewTest {
     @Mock private Context mContext;
     private TestAlarmManager mAlarmManager;
     private TestLooper mLooper;
+    @Mock private Clock mClock;
     private MockStoreFile mSharedStore;
     private MockStoreFile mUserStore;
 
@@ -96,17 +97,91 @@ public class WifiConfigStoreNewTest {
         setupMocks();
 
         mWifiConfigStore =
-                new WifiConfigStoreNew(mContext, mLooper.getLooper(), mSharedStore, mUserStore);
+                new WifiConfigStoreNew(
+                        mContext, mLooper.getLooper(), mClock, mSharedStore, mUserStore);
 
         // Enable verbose logging before tests.
         mWifiConfigStore.enableVerboseLogging(1);
     }
 
     /**
+     * Called after each test
+     */
+    @After
+    public void cleanup() {
+        validateMockitoUsage();
+    }
+
+    /**
+     * Tests the write API with the force flag set to true.
+     * Expected behavior: This should trigger an immediate write to the store files and no alarms
+     * should be started.
+     */
+    @Test
+    public void testForceWrite() throws Exception {
+        mWifiConfigStore.write(true, getEmptyStoreData());
+
+        assertFalse(mAlarmManager.isPending(WifiConfigStoreNew.BUFFERED_WRITE_ALARM_TAG));
+        assertTrue(mSharedStore.isStoreWritten());
+        assertTrue(mUserStore.isStoreWritten());
+    }
+
+    /**
+     * Tests the write API with the force flag set to false.
+     * Expected behavior: This should set an alarm to write to the store files.
+     */
+    @Test
+    public void testBufferedWrite() throws Exception {
+        mWifiConfigStore.write(false, getEmptyStoreData());
+
+        assertTrue(mAlarmManager.isPending(WifiConfigStoreNew.BUFFERED_WRITE_ALARM_TAG));
+        assertFalse(mSharedStore.isStoreWritten());
+        assertFalse(mUserStore.isStoreWritten());
+
+        // Now send the alarm and ensure that the writes happen.
+        mAlarmManager.dispatch(WifiConfigStoreNew.BUFFERED_WRITE_ALARM_TAG);
+        mLooper.dispatchAll();
+        assertTrue(mSharedStore.isStoreWritten());
+        assertTrue(mUserStore.isStoreWritten());
+    }
+
+    /**
+     * Tests the force write after a buffered write.
+     * Expected behaviour: The force write should override the previous buffered write and stop the
+     * buffer write alarms.
+     * TODO: Veirfy the buffer contents to ensure that the force write contents where written.
+     */
+    @Test
+    public void testForceWriteAfterBufferedWrite() throws Exception {
+        mWifiConfigStore.write(false, getEmptyStoreData());
+
+        assertTrue(mAlarmManager.isPending(WifiConfigStoreNew.BUFFERED_WRITE_ALARM_TAG));
+        assertFalse(mSharedStore.isStoreWritten());
+        assertFalse(mUserStore.isStoreWritten());
+
+        // Now send a force write and ensure that the writes have been performed and alarms have
+        // been stopped.
+        mWifiConfigStore.write(true, getEmptyStoreData());
+
+        assertFalse(mAlarmManager.isPending(WifiConfigStoreNew.BUFFERED_WRITE_ALARM_TAG));
+        assertTrue(mSharedStore.isStoreWritten());
+        assertTrue(mUserStore.isStoreWritten());
+    }
+
+    /**
+     * Returns an empty store data object.
+     */
+    private WifiConfigStoreData getEmptyStoreData() {
+        return new WifiConfigStoreData(
+                new ArrayList<WifiConfiguration>(), new HashSet<String>(),
+                new HashSet<String>(), 0);
+    }
+
+    /**
      * Mock Store File to redirect all file writes from WifiConfigStoreNew to local buffers.
      * This can be used to examine the data output by WifiConfigStoreNew.
      */
-    public class MockStoreFile extends StoreFile {
+    private class MockStoreFile extends StoreFile {
         private byte[] mStoreBytes;
         private boolean mStoreWritten;
 
