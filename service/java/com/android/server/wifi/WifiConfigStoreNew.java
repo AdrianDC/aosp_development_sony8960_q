@@ -30,6 +30,7 @@ import com.android.internal.os.AtomicFile;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
@@ -222,7 +223,6 @@ public class WifiConfigStoreNew {
      * API to read the store data from the config stores.
      * The method reads the user specific configurations from user specific config store and the
      * shared configurations from the shared config store.
-     * Also retrieves other global data like blacklists, etc.
      *
      * @return storeData The entire data retrieved across all the config store files.
      */
@@ -277,12 +277,16 @@ public class WifiConfigStoreNew {
         /**
          * Read the entire raw data from the store file and return in a byte array.
          *
-         * @return raw data read from the file.
+         * @return raw data read from the file or null if the file is not found.
          * @throws IOException if an error occurs. The input stream is always closed by the method
          * even when an exception is encountered.
          */
         public byte[] readRawData() throws IOException {
-            return mAtomicFile.readFully();
+            try {
+                return mAtomicFile.readFully();
+            } catch (FileNotFoundException e) {
+                return null;
+            }
         }
 
         /**

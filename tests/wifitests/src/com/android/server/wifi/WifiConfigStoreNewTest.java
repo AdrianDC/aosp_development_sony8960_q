@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import static com.android.server.wifi.WifiConfigStoreDataTest.assertConfigStoreDataEqual;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
@@ -163,9 +164,33 @@ public class WifiConfigStoreNewTest {
                 WifiConfigStoreData.parseRawData(
                         mSharedStore.getStoreBytes(), mUserStore.getStoreBytes());
 
-        assertEquals(1, retrievedStoreData.configurations.size());
-        WifiConfigurationTestUtil.assertConfigurationEqualForConfigStore(
-                forcedStoreData.configurations.get(0), retrievedStoreData.configurations.get(0));
+        assertConfigStoreDataEqual(forcedStoreData, retrievedStoreData);
+    }
+
+    /**
+     * Tests the read API behaviour when there is no file on the device.
+     * Expected behaviour: The read should return an empty store data instance when the file not
+     * found exception is raised.
+     */
+    @Test
+    public void testReadWithNoStoreFile() throws Exception {
+        // Reading the mock store without a write should simulate the file not found case because
+        // |readRawData| would return null.
+        WifiConfigStoreData readData = mWifiConfigStore.read();
+        assertConfigStoreDataEqual(getEmptyStoreData(), readData);
+    }
+
+    /**
+     * Tests the read API behaviour after a write to the store file.
+     * Expected behaviour: The read should return the same data that was last written.
+     */
+    @Test
+    public void testReadAfterWrite() throws Exception {
+        WifiConfigStoreData writeData = getSingleOpenNetworkStoreData();
+        mWifiConfigStore.write(true, writeData);
+        WifiConfigStoreData readData = mWifiConfigStore.read();
+
+        assertConfigStoreDataEqual(writeData, readData);
     }
 
     /**
@@ -174,7 +199,7 @@ public class WifiConfigStoreNewTest {
     private WifiConfigStoreData getEmptyStoreData() {
         return new WifiConfigStoreData(
                 new ArrayList<WifiConfiguration>(), new HashSet<String>(),
-                new HashSet<String>(), 0);
+                new HashSet<String>(), WifiConfigStoreData.NETWORK_ID_START);
     }
 
     /**

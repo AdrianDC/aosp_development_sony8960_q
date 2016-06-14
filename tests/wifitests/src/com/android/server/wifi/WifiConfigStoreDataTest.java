@@ -540,7 +540,7 @@ public class WifiConfigStoreDataTest {
     /**
      * Asserts that the 2 config store data are equal.
      */
-    private void assertConfigStoreDataEqual(
+    public static void assertConfigStoreDataEqual(
             WifiConfigStoreData expected, WifiConfigStoreData actual) {
         WifiConfigurationTestUtil.assertConfigurationsEqualForConfigStore(
                 expected.configurations, actual.configurations);
