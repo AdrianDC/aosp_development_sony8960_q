@@ -1147,7 +1147,7 @@ static void onRttResults(wifi_request_id id, unsigned num_results, wifi_rtt_resu
         helper.setIntField( rttResult, "status",                   result->status);
         helper.setIntField( rttResult, "measurementType",          result->type);
         helper.setIntField(rttResult, "retryAfterDuration",       result->retry_after_duration);
-        helper.setLongField(rttResult, "ts",                       result->ts / 100);
+        helper.setLongField(rttResult, "ts",                       result->ts);
         helper.setIntField( rttResult, "rssi",                     result->rssi);
         helper.setIntField( rttResult, "rssiSpread",               result->rssi_spread);
         helper.setIntField( rttResult, "txRate",                   result->tx_rate.bitrate);
