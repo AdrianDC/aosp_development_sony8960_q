@@ -34,7 +34,7 @@
 #include <limits>
 #include <vector>
 
-#include "wifi.h"
+#include "wifi_system/wifi.h"
 #include "wifi_hal.h"
 #include "jni_helper.h"
 #include "rtt.h"

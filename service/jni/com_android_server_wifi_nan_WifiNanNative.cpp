@@ -27,7 +27,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <linux/if.h>
-#include "wifi.h"
+#include "wifi_system/wifi.h"
 #include "wifi_hal.h"
 #include "jni_helper.h"
 

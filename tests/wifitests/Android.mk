@@ -48,10 +48,10 @@ LOCAL_SHARED_LIBRARIES += \
 	libcutils \
 	libutils \
 	libhardware \
-	libhardware_legacy \
 	libnl \
 	libdl \
-	libwifi-service
+	libwifi-service \
+	libwifi-system
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -129,7 +129,6 @@ LOCAL_JNI_SHARED_LIBRARIES := \
 	libexpat \
 	libgui \
 	libhardware \
-	libhardware_legacy \
 	libicui18n \
 	libicuuc \
 	liblzma \
@@ -144,6 +143,7 @@ LOCAL_JNI_SHARED_LIBRARIES := \
 	libstagefright_foundation \
 	libstdc++ \
 	libsync \
+	libwifi-system \
 	libui \
 	libunwind \
 	libutils \

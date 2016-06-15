@@ -80,7 +80,7 @@ endif
 # ============================================================
 include $(CLEAR_VARS)
 
-LOCAL_REQUIRED_MODULES := libhardware_legacy
+LOCAL_REQUIRED_MODULES := libwifi-system
 
 LOCAL_CFLAGS += -Wall -Werror -Wextra -Wno-unused-parameter -Wno-unused-function \
                 -Wunused-variable -Winit-self -Wwrite-strings -Wshadow
@@ -97,9 +97,9 @@ LOCAL_SHARED_LIBRARIES += \
 	libcutils \
 	libutils \
 	libhardware \
-	libhardware_legacy \
 	libnl \
-	libdl
+	libdl \
+	libwifi-system
 
 LOCAL_STATIC_LIBRARIES += libwifi-hal-stub
 LOCAL_STATIC_LIBRARIES += $(LIB_WIFI_HAL)
