@@ -177,14 +177,11 @@ public class WifiBackupRestore {
     private void writeNetworkConfigurationToXml(XmlSerializer out, WifiConfiguration configuration)
             throws XmlPullParserException, IOException {
         XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_WIFI_CONFIGURATION);
-        WifiConfigurationXmlUtil.writeWifiConfigurationToXmlForBackup(out, configuration);
+        WifiConfigurationXmlUtil.writeToXmlForBackup(out, configuration);
         XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_WIFI_CONFIGURATION);
-        if (configuration.getIpConfiguration() != null) {
-            XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_IP_CONFIGURATION);
-            IpConfigurationXmlUtil.writeIpConfigurationToXml(
-                    out, configuration.getIpConfiguration());
-            XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_IP_CONFIGURATION);
-        }
+        XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_IP_CONFIGURATION);
+        IpConfigurationXmlUtil.writeToXml(out, configuration.getIpConfiguration());
+        XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_IP_CONFIGURATION);
     }
 
     /**
@@ -239,16 +236,12 @@ public class WifiBackupRestore {
             XmlPullParser in, int outerTagDepth, int dataVersion)
             throws XmlPullParserException, IOException {
         // Find the configuration list section.
-        if (!XmlUtil.gotoNextSection(
-                in, XML_TAG_SECTION_HEADER_NETWORK_LIST, outerTagDepth)) {
-            Log.e(TAG, "Error parsing the backup data. Did not find network list");
-            // Malformed XML input, bail out.
-            return null;
-        }
+        XmlUtil.gotoNextSectionWithName(in, XML_TAG_SECTION_HEADER_NETWORK_LIST, outerTagDepth);
         // Find all the configurations within the configuration list section.
         int networkListTagDepth = outerTagDepth + 1;
         List<WifiConfiguration> configurations = new ArrayList<>();
-        while (XmlUtil.gotoNextSection(in, XML_TAG_SECTION_HEADER_NETWORK, networkListTagDepth)) {
+        while (XmlUtil.gotoNextSectionWithNameOrEnd(
+                in, XML_TAG_SECTION_HEADER_NETWORK, networkListTagDepth)) {
             WifiConfiguration configuration =
                     parseNetworkConfigurationFromXml(in, dataVersion, networkListTagDepth);
             if (configuration != null) {
@@ -266,7 +259,7 @@ public class WifiBackupRestore {
             XmlPullParser in, int outerTagDepth)
             throws XmlPullParserException, IOException {
         Pair<String, WifiConfiguration> parsedConfig =
-                WifiConfigurationXmlUtil.parseWifiConfigurationFromXml(in, outerTagDepth);
+                WifiConfigurationXmlUtil.parseFromXml(in, outerTagDepth);
         if (parsedConfig == null || parsedConfig.first == null || parsedConfig.second == null) {
             return null;
         }
@@ -305,23 +298,19 @@ public class WifiBackupRestore {
             WifiConfiguration configuration = null;
             int networkTagDepth = outerTagDepth + 1;
             // Retrieve WifiConfiguration object first.
-            if (XmlUtil.gotoNextSection(
-                    in, XML_TAG_SECTION_HEADER_WIFI_CONFIGURATION, networkTagDepth)) {
-                int configTagDepth = networkTagDepth + 1;
-                configuration =
-                        parseWifiConfigurationFromXmlAndValidateConfigKey(in, configTagDepth);
-                if (configuration == null) {
-                    return null;
-                }
+            XmlUtil.gotoNextSectionWithName(
+                    in, XML_TAG_SECTION_HEADER_WIFI_CONFIGURATION, networkTagDepth);
+            int configTagDepth = networkTagDepth + 1;
+            configuration = parseWifiConfigurationFromXmlAndValidateConfigKey(in, configTagDepth);
+            if (configuration == null) {
+                return null;
             }
-            // Now retrieve any IP configuration info if present.
-            if (XmlUtil.gotoNextSection(
-                    in, XML_TAG_SECTION_HEADER_IP_CONFIGURATION, networkTagDepth)) {
-                int configTagDepth = networkTagDepth + 1;
-                IpConfiguration ipConfiguration =
-                        IpConfigurationXmlUtil.parseIpConfigurationFromXml(in, configTagDepth);
-                configuration.setIpConfiguration(ipConfiguration);
-            }
+            // Now retrieve any IP configuration info.
+            XmlUtil.gotoNextSectionWithName(
+                    in, XML_TAG_SECTION_HEADER_IP_CONFIGURATION, networkTagDepth);
+            IpConfiguration ipConfiguration =
+                    IpConfigurationXmlUtil.parseFromXml(in, configTagDepth);
+            configuration.setIpConfiguration(ipConfiguration);
             return configuration;
         }
         return null;

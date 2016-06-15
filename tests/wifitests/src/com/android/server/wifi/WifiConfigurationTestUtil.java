@@ -149,6 +149,8 @@ public class WifiConfigurationTestUtil {
         assertEquals(expected.lastConnectUid, actual.lastConnectUid);
         assertNetworkSelectionStatusEqualForConfigStore(
                 expected.getNetworkSelectionStatus(), actual.getNetworkSelectionStatus());
+        assertWifiEnterpriseConfigEqualForConfigStore(
+                expected.enterpriseConfig, actual.enterpriseConfig);
     }
 
     /**
@@ -171,5 +173,39 @@ public class WifiConfigurationTestUtil {
         assertEquals(expected.getConnectChoice(), actual.getConnectChoice());
         assertEquals(expected.getConnectChoiceTimestamp(), actual.getConnectChoiceTimestamp());
         assertEquals(expected.getHasEverConnected(), actual.getHasEverConnected());
+    }
+
+    /**
+     * Assert that the 2 WifiEnterpriseConfig's are equal. This compares all the elements saved
+     * for config store.
+     */
+    public static void assertWifiEnterpriseConfigEqualForConfigStore(
+            WifiEnterpriseConfig expected, WifiEnterpriseConfig actual) {
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.IDENTITY_KEY, ""),
+                actual.getFieldValue(WifiEnterpriseConfig.IDENTITY_KEY, ""));
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.ANON_IDENTITY_KEY, ""),
+                actual.getFieldValue(WifiEnterpriseConfig.ANON_IDENTITY_KEY, ""));
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.PASSWORD_KEY, ""),
+                actual.getFieldValue(WifiEnterpriseConfig.PASSWORD_KEY, ""));
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.CLIENT_CERT_KEY, ""),
+                actual.getFieldValue(WifiEnterpriseConfig.CLIENT_CERT_KEY, ""));
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.CA_CERT_KEY, ""),
+                actual.getFieldValue(WifiEnterpriseConfig.CA_CERT_KEY, ""));
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.SUBJECT_MATCH_KEY, ""),
+                actual.getFieldValue(WifiEnterpriseConfig.SUBJECT_MATCH_KEY, ""));
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.ENGINE_KEY, ""),
+                actual.getFieldValue(WifiEnterpriseConfig.ENGINE_KEY, ""));
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.ENGINE_ID_KEY, ""),
+                actual.getFieldValue(WifiEnterpriseConfig.ENGINE_ID_KEY, ""));
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY, ""),
+                actual.getFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY, ""));
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY, ""),
+                actual.getFieldValue(WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY, ""));
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY, ""),
+                actual.getFieldValue(WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY, ""));
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.CA_PATH_KEY, ""),
+                actual.getFieldValue(WifiEnterpriseConfig.CA_PATH_KEY, ""));
+        assertEquals(expected.getEapMethod(), actual.getEapMethod());
+        assertEquals(expected.getPhase2Method(), actual.getPhase2Method());
     }
 }

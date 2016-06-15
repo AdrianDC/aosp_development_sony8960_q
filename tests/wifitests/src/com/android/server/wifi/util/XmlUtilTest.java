@@ -23,6 +23,7 @@ import android.net.ProxyInfo;
 import android.net.StaticIpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Pair;
 import android.util.Xml;
@@ -32,6 +33,7 @@ import com.android.server.wifi.WifiConfigurationTestUtil;
 import com.android.server.wifi.util.XmlUtil.IpConfigurationXmlUtil;
 import com.android.server.wifi.util.XmlUtil.NetworkSelectionStatusXmlUtil;
 import com.android.server.wifi.util.XmlUtil.WifiConfigurationXmlUtil;
+import com.android.server.wifi.util.XmlUtil.WifiEnterpriseConfigXmlUtil;
 
 import org.junit.Test;
 import org.xmlpull.v1.XmlPullParser;
@@ -74,6 +76,20 @@ public class XmlUtilTest {
     private static final String TEST_STATIC_PROXY_EXCLUSION_LIST = "";
     private static final String TEST_PAC_PROXY_LOCATION = "http://";
     private static final String TEST_DUMMY_CONFIG_KEY = "XmlUtilDummyConfigKey";
+    private static final String TEST_IDENTITY = "XmlUtilTestIdentity";
+    private static final String TEST_ANON_IDENTITY = "XmlUtilTestAnonIdentity";
+    private static final String TEST_PASSWORD = "XmlUtilTestPassword";
+    private static final String TEST_CLIENT_CERT = "XmlUtilTestClientCert";
+    private static final String TEST_CA_CERT = "XmlUtilTestCaCert";
+    private static final String TEST_SUBJECT_MATCH = "XmlUtilTestSubjectMatch";
+    private static final String TEST_ENGINE = "XmlUtilTestEngine";
+    private static final String TEST_ENGINE_ID = "XmlUtilTestEngineId";
+    private static final String TEST_PRIVATE_KEY_ID = "XmlUtilTestPrivateKeyId";
+    private static final String TEST_ALTSUBJECT_MATCH = "XmlUtilTestAltSubjectMatch";
+    private static final String TEST_DOM_SUFFIX_MATCH = "XmlUtilTestDomSuffixMatch";
+    private static final String TEST_CA_PATH = "XmlUtilTestCaPath";
+    private static final int TEST_EAP_METHOD = WifiEnterpriseConfig.Eap.PEAP;
+    private static final int TEST_PHASE2_METHOD = WifiEnterpriseConfig.Phase2.MSCHAPV2;
     private final String mXmlDocHeader = "XmlUtilTest";
 
     /**
@@ -234,6 +250,30 @@ public class XmlUtilTest {
         serializeDeserializeNetworkSelectionStatus(status);
     }
 
+    /**
+     * Verify that a WifiEnterpriseConfig object is serialized & deserialized correctly.
+     */
+    @Test
+    public void testWifiEnterpriseConfigSerializeDeserialize()
+            throws IOException, XmlPullParserException {
+        WifiEnterpriseConfig config = new WifiEnterpriseConfig();
+        config.setFieldValue(WifiEnterpriseConfig.IDENTITY_KEY, TEST_IDENTITY);
+        config.setFieldValue(WifiEnterpriseConfig.ANON_IDENTITY_KEY, TEST_ANON_IDENTITY);
+        config.setFieldValue(WifiEnterpriseConfig.PASSWORD_KEY, TEST_PASSWORD);
+        config.setFieldValue(WifiEnterpriseConfig.CLIENT_CERT_KEY, TEST_CLIENT_CERT);
+        config.setFieldValue(WifiEnterpriseConfig.CA_CERT_KEY, TEST_CA_CERT);
+        config.setFieldValue(WifiEnterpriseConfig.SUBJECT_MATCH_KEY, TEST_SUBJECT_MATCH);
+        config.setFieldValue(WifiEnterpriseConfig.ENGINE_KEY, TEST_ENGINE);
+        config.setFieldValue(WifiEnterpriseConfig.ENGINE_ID_KEY, TEST_ENGINE_ID);
+        config.setFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY, TEST_PRIVATE_KEY_ID);
+        config.setFieldValue(WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY, TEST_ALTSUBJECT_MATCH);
+        config.setFieldValue(WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY, TEST_DOM_SUFFIX_MATCH);
+        config.setFieldValue(WifiEnterpriseConfig.CA_PATH_KEY, TEST_CA_CERT);
+        config.setEapMethod(TEST_EAP_METHOD);
+        config.setPhase2Method(TEST_PHASE2_METHOD);
+        serializeDeserializeWifiEnterpriseConfig(config);
+    }
+
     private WifiConfiguration createOpenNetwork() {
         return WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, TEST_SSID,
                 true, true, null, null,
@@ -350,7 +390,7 @@ public class XmlUtilTest {
         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         out.setOutput(outputStream, StandardCharsets.UTF_8.name());
         XmlUtil.writeDocumentStart(out, mXmlDocHeader);
-        WifiConfigurationXmlUtil.writeWifiConfigurationToXmlForBackup(out, configuration);
+        WifiConfigurationXmlUtil.writeToXmlForBackup(out, configuration);
         XmlUtil.writeDocumentEnd(out, mXmlDocHeader);
         return outputStream.toByteArray();
     }
@@ -362,7 +402,7 @@ public class XmlUtilTest {
         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         out.setOutput(outputStream, StandardCharsets.UTF_8.name());
         XmlUtil.writeDocumentStart(out, mXmlDocHeader);
-        WifiConfigurationXmlUtil.writeWifiConfigurationToXmlForConfigStore(out, configuration);
+        WifiConfigurationXmlUtil.writeToXmlForConfigStore(out, configuration);
         XmlUtil.writeDocumentEnd(out, mXmlDocHeader);
         return outputStream.toByteArray();
     }
@@ -374,7 +414,7 @@ public class XmlUtilTest {
         ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
         in.setInput(inputStream, StandardCharsets.UTF_8.name());
         XmlUtil.gotoDocumentStart(in, mXmlDocHeader);
-        return WifiConfigurationXmlUtil.parseWifiConfigurationFromXml(in, in.getDepth());
+        return WifiConfigurationXmlUtil.parseFromXml(in, in.getDepth());
     }
 
     /**
@@ -399,6 +439,8 @@ public class XmlUtilTest {
     private void serializeDeserializeWifiConfigurationForConfigStore(
             WifiConfiguration configuration)
             throws IOException, XmlPullParserException {
+        // Reset enterprise config because this needs to be serialized/deserialized separately.
+        configuration.enterpriseConfig = new WifiEnterpriseConfig();
         Pair<String, WifiConfiguration> retrieved;
         // Test serialization/deserialization for config store.
         retrieved =
@@ -429,7 +471,7 @@ public class XmlUtilTest {
         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         out.setOutput(outputStream, StandardCharsets.UTF_8.name());
         XmlUtil.writeDocumentStart(out, mXmlDocHeader);
-        IpConfigurationXmlUtil.writeIpConfigurationToXml(out, configuration);
+        IpConfigurationXmlUtil.writeToXml(out, configuration);
         XmlUtil.writeDocumentEnd(out, mXmlDocHeader);
 
         // Deserialize the configuration object.
@@ -438,7 +480,7 @@ public class XmlUtilTest {
         in.setInput(inputStream, StandardCharsets.UTF_8.name());
         XmlUtil.gotoDocumentStart(in, mXmlDocHeader);
         IpConfiguration retrievedConfiguration =
-                IpConfigurationXmlUtil.parseIpConfigurationFromXml(in, in.getDepth());
+                IpConfigurationXmlUtil.parseFromXml(in, in.getDepth());
         assertEquals(configuration, retrievedConfiguration);
     }
 
@@ -449,7 +491,7 @@ public class XmlUtilTest {
         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         out.setOutput(outputStream, StandardCharsets.UTF_8.name());
         XmlUtil.writeDocumentStart(out, mXmlDocHeader);
-        NetworkSelectionStatusXmlUtil.writeNetworkSelectionStatusToXml(out, status);
+        NetworkSelectionStatusXmlUtil.writeToXml(out, status);
         XmlUtil.writeDocumentEnd(out, mXmlDocHeader);
 
         // Deserialize the configuration object.
@@ -458,8 +500,29 @@ public class XmlUtilTest {
         in.setInput(inputStream, StandardCharsets.UTF_8.name());
         XmlUtil.gotoDocumentStart(in, mXmlDocHeader);
         NetworkSelectionStatus retrievedStatus =
-                NetworkSelectionStatusXmlUtil.parseNetworkSelectionStatusFromXml(in, in.getDepth());
+                NetworkSelectionStatusXmlUtil.parseFromXml(in, in.getDepth());
         WifiConfigurationTestUtil.assertNetworkSelectionStatusEqualForConfigStore(
                 status, retrievedStatus);
+    }
+
+    private void serializeDeserializeWifiEnterpriseConfig(WifiEnterpriseConfig config)
+            throws IOException, XmlPullParserException {
+        // Serialize the configuration object.
+        final XmlSerializer out = new FastXmlSerializer();
+        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        out.setOutput(outputStream, StandardCharsets.UTF_8.name());
+        XmlUtil.writeDocumentStart(out, mXmlDocHeader);
+        WifiEnterpriseConfigXmlUtil.writeToXml(out, config);
+        XmlUtil.writeDocumentEnd(out, mXmlDocHeader);
+
+        // Deserialize the configuration object.
+        final XmlPullParser in = Xml.newPullParser();
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
+        in.setInput(inputStream, StandardCharsets.UTF_8.name());
+        XmlUtil.gotoDocumentStart(in, mXmlDocHeader);
+        WifiEnterpriseConfig retrievedConfig =
+                WifiEnterpriseConfigXmlUtil.parseFromXml(in, in.getDepth());
+        WifiConfigurationTestUtil.assertWifiEnterpriseConfigEqualForConfigStore(
+                config, retrievedConfig);
     }
 }
