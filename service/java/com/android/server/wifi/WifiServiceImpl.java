@@ -73,7 +73,6 @@ import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ResultReceiver;
 import android.os.SystemClock;
-import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.WorkSource;
@@ -82,7 +81,6 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.Slog;
 
-import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.PhoneConstants;
@@ -123,7 +121,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private static final String TAG = "WifiService";
     private static final boolean DBG = true;
     private static final boolean VDBG = false;
-    private static final String BOOT_DEFAULT_WIFI_COUNTRY_CODE = "ro.boot.wificountrycode";
 
     final WifiStateMachine mWifiStateMachine;
 
@@ -315,42 +312,29 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     public WifiServiceImpl(Context context) {
         mContext = context;
-        mWifiInjector = WifiInjector.getInstance();
-        mFacade = new FrameworkFacade();
-        HandlerThread wifiThread = new HandlerThread("WifiService");
-        wifiThread.start();
+        mWifiInjector = new WifiInjector(context);
+
+        mFacade = mWifiInjector.getFrameworkFacade();
         mWifiMetrics = mWifiInjector.getWifiMetrics();
-        mTrafficPoller = new WifiTrafficPoller(mContext, wifiThread.getLooper(),
-                WifiNative.getWlanNativeInterface().getInterfaceName());
+        mTrafficPoller = mWifiInjector.getWifiTrafficPoller();
         mUserManager = UserManager.get(mContext);
-        HandlerThread wifiStateMachineThread = new HandlerThread("WifiStateMachine");
-        wifiStateMachineThread.start();
-        mCountryCode = new WifiCountryCode(
-                WifiNative.getWlanNativeInterface(),
-                SystemProperties.get(BOOT_DEFAULT_WIFI_COUNTRY_CODE),
-                mFacade.getStringSetting(mContext, Settings.Global.WIFI_COUNTRY_CODE),
-                mContext.getResources().getBoolean(
-                        R.bool.config_wifi_revert_country_code_on_cellular_loss));
-        mWifiStateMachine = new WifiStateMachine(mContext, mFacade,
-            wifiStateMachineThread.getLooper(), mUserManager, mWifiInjector,
-            new BackupManagerProxy(), mCountryCode);
-        mSettingsStore = new WifiSettingsStore(mContext);
+        mCountryCode = mWifiInjector.getWifiCountryCode();
+        mWifiStateMachine = mWifiInjector.getWifiStateMachine();
         mWifiStateMachine.enableRssiPolling(true);
+        mSettingsStore = mWifiInjector.getWifiSettingsStore();
         mBatteryStats = BatteryStatsService.getService();
-        mPowerManager = context.getSystemService(PowerManager.class);
-        mAppOps = (AppOpsManager)context.getSystemService(Context.APP_OPS_SERVICE);
-        mCertManager = new WifiCertManager(mContext);
+        mPowerManager = mContext.getSystemService(PowerManager.class);
+        mAppOps = (AppOpsManager) mContext.getSystemService(Context.APP_OPS_SERVICE);
+        mCertManager = mWifiInjector.getWifiCertManager();
 
-        mNotificationController = new WifiNotificationController(mContext,
-                wifiThread.getLooper(), mWifiStateMachine, mFacade, null);
+        mNotificationController = mWifiInjector.getWifiNotificationController();
 
-        mWifiLockManager = new WifiLockManager(mContext, mBatteryStats);
-        mClientHandler = new ClientHandler(wifiThread.getLooper());
-        mWifiStateMachineHandler = new WifiStateMachineHandler(wifiThread.getLooper());
-        mWifiController = new WifiController(mContext, mWifiStateMachine,
-                mSettingsStore, mWifiLockManager, wifiThread.getLooper(), mFacade);
-        // Set the WifiController for WifiLastResortWatchdog
-        mWifiInjector.getWifiLastResortWatchdog().setWifiController(mWifiController);
+        mWifiLockManager = mWifiInjector.getWifiLockManager();
+        HandlerThread wifiServiceHandlerThread = mWifiInjector.getWifiServiceHandlerThread();
+        mClientHandler = new ClientHandler(wifiServiceHandlerThread.getLooper());
+        mWifiStateMachineHandler =
+                new WifiStateMachineHandler(wifiServiceHandlerThread.getLooper());
+        mWifiController = mWifiInjector.getWifiController();
         mWifiBackupRestore = mWifiInjector.getWifiBackupRestore();
 
         enableVerboseLoggingInternal(getVerboseLoggingLevel());
