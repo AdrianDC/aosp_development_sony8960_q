@@ -91,7 +91,7 @@ public class WifiQualifiedNetworkSelector {
     public static final int PASSPOINT_SECURITY_AWARD = 40;
     public static final int SECURITY_AWARD = 80;
     public static final int BSSID_BLACKLIST_THRESHOLD = 3;
-    public static final int BSSID_BLACKLIST_EXPIRE_TIME = 30 * 60 * 1000;
+    public static final int BSSID_BLACKLIST_EXPIRE_TIME = 5 * 60 * 1000;
     private final int mNoIntnetPenalty;
     //TODO: check whether we still need this one when we update the scan manager
     public static final int SCAN_RESULT_MAXIMUNM_AGE = 40000;
