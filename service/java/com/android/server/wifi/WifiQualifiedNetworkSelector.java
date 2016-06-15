@@ -94,7 +94,7 @@ public class WifiQualifiedNetworkSelector {
 
     // BSSID blacklist parameters.
     public static final int BSSID_BLACKLIST_THRESHOLD = 3;
-    public static final int BSSID_BLACKLIST_EXPIRE_TIME_MS = 30 * 60 * 1000;
+    public static final int BSSID_BLACKLIST_EXPIRE_TIME_MS = 5 * 60 * 1000;
 
     private final int mNoIntnetPenalty;
     private static final int INVALID_TIME_STAMP = -1;
