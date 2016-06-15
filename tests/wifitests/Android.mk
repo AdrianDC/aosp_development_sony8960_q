@@ -28,7 +28,7 @@ LOCAL_C_INCLUDES += \
 	$(JNI_H_INCLUDE) \
 	$(LOCAL_PATH)/../../service/jni \
 	$(call include-path-for, libhardware)/hardware \
-	$(call include-path-for, libhardware_legacy)/hardware_legacy \
+	$(call include-path-for, libhardware_legacy) \
 	packages/apps/Test/connectivity/sl4n/rapidjson/include \
 	libcore/include
 
@@ -42,7 +42,6 @@ endif
 
 LOCAL_MODULE := libwifi-hal-mock
 
-LOCAL_STATIC_LIBRARIES += libwifi-hal
 LOCAL_SHARED_LIBRARIES += \
 	libnativehelper \
 	libcutils \
@@ -143,6 +142,7 @@ LOCAL_JNI_SHARED_LIBRARIES := \
 	libstagefright_foundation \
 	libstdc++ \
 	libsync \
+	libwifi-hal \
 	libwifi-system \
 	libui \
 	libunwind \

@@ -16,79 +16,39 @@ LOCAL_PATH := $(call my-dir)
 
 ifneq ($(TARGET_BUILD_PDK), true)
 
-# Make HAL stub library 1
+# This is the HAL stub library.  We initialize the HAL function table
+# with functions from here so that we have reasonable "unimplemented"
+# fallback behavior when a behavior isn't implemented by a vendor.
 # ============================================================
-
 include $(CLEAR_VARS)
-
-LOCAL_REQUIRED_MODULES :=
-
-LOCAL_CFLAGS += -Wall -Werror -Wextra -Wno-unused-parameter -Wno-unused-function \
-                -Wunused-variable -Winit-self -Wwrite-strings -Wshadow
-
-LOCAL_C_INCLUDES += \
-	external/libnl-headers \
-	$(call include-path-for, libhardware_legacy)/hardware_legacy
-
-LOCAL_SRC_FILES := \
-	lib/wifi_hal.cpp
-
-LOCAL_MODULE := libwifi-hal
-
-include $(BUILD_STATIC_LIBRARY)
-
-# Make HAL stub library 2
-# ============================================================
-
-include $(CLEAR_VARS)
-
-LOCAL_REQUIRED_MODULES :=
-
-LOCAL_CFLAGS += -Wall -Werror -Wextra -Wno-unused-parameter -Wno-unused-function \
-                -Wunused-variable -Winit-self -Wwrite-strings -Wshadow
-
-LOCAL_C_INCLUDES += \
-	$(LOCAL_PATH)/jni \
-	external/libnl-headers \
-	$(call include-path-for, libhardware_legacy)/hardware_legacy
-
-LOCAL_SRC_FILES := \
-	lib/wifi_hal_stub.cpp
-
 LOCAL_MODULE := libwifi-hal-stub
+LOCAL_CFLAGS := \
+    -Wall \
+    -Werror \
+    -Wextra \
+    -Wno-unused-parameter \
+    -Wno-unused-function \
+    -Wunused-variable \
+    -Winit-self \
+    -Wwrite-strings \
+    -Wshadow
 
+LOCAL_C_INCLUDES := \
+    $(LOCAL_PATH)/jni \
+    $(call include-path-for, libhardware_legacy)
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_C_INCLUDES)
+LOCAL_SRC_FILES := lib/wifi_hal_stub.cpp
 include $(BUILD_STATIC_LIBRARY)
-
-# set correct hal library path
-# ============================================================
-LIB_WIFI_HAL := libwifi-hal
-
-ifeq ($(BOARD_WLAN_DEVICE), bcmdhd)
-  LIB_WIFI_HAL := libwifi-hal-bcm
-else ifeq ($(BOARD_WLAN_DEVICE), qcwcn)
-  LIB_WIFI_HAL := libwifi-hal-qcom
-else ifeq ($(BOARD_WLAN_DEVICE), mrvl)
-  # this is commented because none of the nexus devices
-  # that sport Marvell's wifi have support for HAL
-  # LIB_WIFI_HAL := libwifi-hal-mrvl
-else ifeq ($(BOARD_WLAN_DEVICE), MediaTek)
-  # support MTK WIFI HAL
-  LIB_WIFI_HAL := libwifi-hal-mt66xx
-endif
 
 # Make the JNI part
 # ============================================================
 include $(CLEAR_VARS)
-
-LOCAL_REQUIRED_MODULES := libwifi-system
 
 LOCAL_CFLAGS += -Wall -Werror -Wextra -Wno-unused-parameter -Wno-unused-function \
                 -Wunused-variable -Winit-self -Wwrite-strings -Wshadow
 
 LOCAL_C_INCLUDES += \
 	$(JNI_H_INCLUDE) \
-	$(call include-path-for, libhardware)/hardware \
-	$(call include-path-for, libhardware_legacy)/hardware_legacy \
 	libcore/include
 
 LOCAL_SHARED_LIBRARIES += \
@@ -96,13 +56,11 @@ LOCAL_SHARED_LIBRARIES += \
 	libnativehelper \
 	libcutils \
 	libutils \
-	libhardware \
-	libnl \
 	libdl \
+	libwifi-hal \
 	libwifi-system
 
-LOCAL_STATIC_LIBRARIES += libwifi-hal-stub
-LOCAL_STATIC_LIBRARIES += $(LIB_WIFI_HAL)
+LOCAL_STATIC_LIBRARIES := libwifi-hal-stub
 
 LOCAL_SRC_FILES := \
 	jni/com_android_server_wifi_WifiNative.cpp \

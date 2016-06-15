@@ -15,7 +15,8 @@
  */
 
 #include <stdint.h>
-#include "wifi_hal.h"
+
+#include "hardware_legacy/wifi_hal.h"
 #include "wifi_hal_stub.h"
 
 wifi_error wifi_initialize_stub(wifi_handle *handle) {

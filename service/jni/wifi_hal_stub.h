@@ -22,7 +22,7 @@ extern "C"
 {
 #endif
 
-#include "wifi_hal.h"
+#include "hardware_legacy/wifi_hal.h"
 
 int init_wifi_stub_hal_func_table(wifi_hal_fn *hal_fn);
 
