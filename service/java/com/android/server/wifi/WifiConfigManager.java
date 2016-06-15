@@ -260,6 +260,10 @@ public class WifiConfigManager {
      * The SSIDs are encoded in a String as per definition of WifiConfiguration.SSID field.
      */
     public Set<String> mDeletedEphemeralSSIDs = new HashSet<String>();
+    /**
+     * List of blacklisted BSSIDs.
+     */
+    private final HashSet<String> mBssidBlacklist = new HashSet<String>();
 
     /* configured networks with network id as the key */
     private final ConfigurationMap mConfiguredNetworks;
@@ -3248,16 +3252,36 @@ public class WifiConfigManager {
                 DEFAULT_MAX_DHCP_RETRIES);
     }
 
+    /**
+     * Clear BSSID blacklist in wpa_supplicant & HAL.
+     */
     void clearBssidBlacklist() {
+        mBssidBlacklist.clear();
         mWifiConfigStore.clearBssidBlacklist();
     }
 
+    /**
+     * Add a BSSID to the blacklist.
+     *
+     * @param bssid to be added.
+     */
     void blackListBssid(String bssid) {
-        mWifiConfigStore.blackListBssid(bssid);
+        if (TextUtils.isEmpty(bssid)) {
+            return;
+        }
+        mBssidBlacklist.add(bssid);
+        mWifiConfigStore.blackListBssid(bssid,
+                mBssidBlacklist.toArray(new String[mBssidBlacklist.size()]));
     }
 
+    /**
+     * Checks if the provided bssid is blacklisted or not.
+     *
+     * @param bssid bssid to be checked.
+     * @return true if present, false otherwise.
+     */
     public boolean isBssidBlacklisted(String bssid) {
-        return mWifiConfigStore.isBssidBlacklisted(bssid);
+        return mBssidBlacklist.contains(bssid);
     }
 
     public boolean getEnableAutoJoinWhenAssociated() {

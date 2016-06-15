@@ -91,7 +91,6 @@ public class WifiConfigStore {
     private final WpaConfigFileObserver mFileObserver;
     private final WifiNative mWifiNative;
     private final KeyStore mKeyStore;
-    private final HashSet<String> mBssidBlacklist = new HashSet<String>();
     private final BackupManagerProxy mBackupManagerProxy;
 
     private boolean mVerboseLoggingEnabled = false;
@@ -1102,11 +1101,10 @@ public class WifiConfigStore {
     }
 
     /**
-     * Clear BSSID blacklist in wpa_supplicant.
+     * Clear BSSID blacklist in wpa_supplicant & HAL.
      */
     public void clearBssidBlacklist() {
         if (mVerboseLoggingEnabled) localLog("clearBlacklist");
-        mBssidBlacklist.clear();
         mWifiNative.clearBlacklist();
         mWifiNative.setBssidBlacklist(null);
     }
@@ -1114,29 +1112,15 @@ public class WifiConfigStore {
     /**
      * Add a BSSID to the blacklist.
      *
-     * @param bssid bssid to be added.
+     * @param bssid to be added.
+     * @param bssidList entire BSSID list.
      */
-    public void blackListBssid(String bssid) {
-        if (bssid == null) {
-            return;
-        }
+    public void blackListBssid(String bssid, String[] bssidList) {
         if (mVerboseLoggingEnabled) localLog("blackListBssid: " + bssid);
-        mBssidBlacklist.add(bssid);
         // Blacklist at wpa_supplicant
         mWifiNative.addToBlacklist(bssid);
         // Blacklist at firmware
-        String[] list = mBssidBlacklist.toArray(new String[mBssidBlacklist.size()]);
-        mWifiNative.setBssidBlacklist(list);
-    }
-
-    /**
-     * Checks if the provided bssid is blacklisted or not.
-     *
-     * @param bssid bssid to be checked.
-     * @return true if present, false otherwise.
-     */
-    public boolean isBssidBlacklisted(String bssid) {
-        return mBssidBlacklist.contains(bssid);
+        mWifiNative.setBssidBlacklist(bssidList);
     }
 
     /**
