@@ -35,6 +35,7 @@
 #include <vector>
 
 #include "wifi_system/wifi.h"
+#include "hardware_legacy/wifi.h"
 #include "hardware_legacy/wifi_hal.h"
 #include "jni_helper.h"
 #include "hardware_legacy/rtt.h"

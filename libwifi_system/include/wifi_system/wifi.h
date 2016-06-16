@@ -22,29 +22,6 @@ extern "C" {
 #endif
 
 /**
- * Load the Wi-Fi driver.
- *
- * @return 0 on success, < 0 on failure.
- */
-int wifi_load_driver();
-
-/**
- * Unload the Wi-Fi driver.
- *
- * @return 0 on success, < 0 on failure.
- */
-int wifi_unload_driver();
-
-/**
- * Check if the Wi-Fi driver is loaded.
- * Check if the Wi-Fi driver is loaded.
-
- * @return 0 on success, < 0 on failure.
- */
-int is_wifi_driver_loaded();
-
-
-/**
  * Start supplicant.
  *
  * @return 0 on success, < 0 on failure.
@@ -106,19 +83,6 @@ int wifi_wait_for_event(char *buf, size_t len);
  * @return 0 if successful, < 0 if an error.
  */
 int wifi_command(const char *command, char *reply, size_t *reply_len);
-
-/**
- * Return the path to requested firmware
- */
-#define WIFI_GET_FW_PATH_STA	0
-#define WIFI_GET_FW_PATH_AP	1
-#define WIFI_GET_FW_PATH_P2P	2
-const char *wifi_get_fw_path(int fw_type);
-
-/**
- * Change the path to firmware for the wlan driver
- */
-int wifi_change_fw_path(const char *fwpath);
 
 /**
  * Check and create if necessary initial entropy file

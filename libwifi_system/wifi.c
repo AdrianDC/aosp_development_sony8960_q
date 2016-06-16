@@ -39,8 +39,6 @@
 #define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
 #include <sys/_system_properties.h>
 
-extern int init_module(void *, unsigned long, const char *);
-extern int delete_module(const char *, unsigned int);
 void wifi_close_sockets();
 
 #ifndef LIBWPA_CLIENT_EXISTS
@@ -69,36 +67,11 @@ static char primary_iface[PROPERTY_VALUE_MAX];
 // TODO: use new ANDROID_SOCKET mechanism, once support for multiple
 // sockets is in
 
-#ifndef WIFI_DRIVER_MODULE_ARG
-#define WIFI_DRIVER_MODULE_ARG          ""
-#endif
 #define WIFI_TEST_INTERFACE		"sta"
-
-#ifndef WIFI_DRIVER_FW_PATH_STA
-#define WIFI_DRIVER_FW_PATH_STA		NULL
-#endif
-#ifndef WIFI_DRIVER_FW_PATH_AP
-#define WIFI_DRIVER_FW_PATH_AP		NULL
-#endif
-#ifndef WIFI_DRIVER_FW_PATH_P2P
-#define WIFI_DRIVER_FW_PATH_P2P		NULL
-#endif
-
-#ifndef WIFI_DRIVER_FW_PATH_PARAM
-#define WIFI_DRIVER_FW_PATH_PARAM	"/sys/module/wlan/parameters/fwpath"
-#endif
 
 #define WIFI_DRIVER_LOADER_DELAY	1000000
 
 static const char IFACE_DIR[]           = "/data/system/wpa_supplicant";
-#ifdef WIFI_DRIVER_MODULE_PATH
-static const char DRIVER_MODULE_NAME[]  = WIFI_DRIVER_MODULE_NAME;
-static const char DRIVER_MODULE_TAG[]   = WIFI_DRIVER_MODULE_NAME " ";
-static const char DRIVER_MODULE_PATH[]  = WIFI_DRIVER_MODULE_PATH;
-static const char DRIVER_MODULE_ARG[]   = WIFI_DRIVER_MODULE_ARG;
-static const char MODULE_FILE[]         = "/proc/modules";
-#endif
-static const char DRIVER_PROP_NAME[]    = "wlan.driver.status";
 static const char SUPPLICANT_NAME[]     = "wpa_supplicant";
 static const char SUPP_PROP_NAME[]      = "init.svc.wpa_supplicant";
 static const char P2P_SUPPLICANT_NAME[] = "p2p_supplicant";
@@ -121,155 +94,6 @@ static unsigned char dummy_key[21] = { 0x02, 0x11, 0xbe, 0x33, 0x43, 0x35,
 static char supplicant_name[PROPERTY_VALUE_MAX];
 /* Is either SUPP_PROP_NAME or P2P_PROP_NAME */
 static char supplicant_prop_name[PROPERTY_KEY_MAX];
-
-static int insmod(const char *filename, const char *args)
-{
-    void *module;
-    unsigned int size;
-    int ret;
-
-    module = load_file(filename, &size);
-    if (!module)
-        return -1;
-
-    ret = init_module(module, size, args);
-
-    free(module);
-
-    return ret;
-}
-
-static int rmmod(const char *modname)
-{
-    int ret = -1;
-    int maxtry = 10;
-
-    while (maxtry-- > 0) {
-        ret = delete_module(modname, O_NONBLOCK | O_EXCL);
-        if (ret < 0 && errno == EAGAIN)
-            usleep(500000);
-        else
-            break;
-    }
-
-    if (ret != 0)
-        ALOGD("Unable to unload driver module \"%s\": %s\n",
-             modname, strerror(errno));
-    return ret;
-}
-
-#ifdef WIFI_DRIVER_STATE_CTRL_PARAM
-int wifi_change_driver_state(const char *state)
-{
-    int len;
-    int fd;
-    int ret = 0;
-
-    if (!state)
-        return -1;
-    fd = TEMP_FAILURE_RETRY(open(WIFI_DRIVER_STATE_CTRL_PARAM, O_WRONLY));
-    if (fd < 0) {
-        ALOGE("Failed to open driver state control param (%s)", strerror(errno));
-        return -1;
-    }
-    len = strlen(state) + 1;
-    if (TEMP_FAILURE_RETRY(write(fd, state, len)) != len) {
-        ALOGE("Failed to write driver state control param (%s)", strerror(errno));
-        ret = -1;
-    }
-    close(fd);
-    return ret;
-}
-#endif
-
-int is_wifi_driver_loaded() {
-    char driver_status[PROPERTY_VALUE_MAX];
-#ifdef WIFI_DRIVER_MODULE_PATH
-    FILE *proc;
-    char line[sizeof(DRIVER_MODULE_TAG)+10];
-#endif
-
-    if (!property_get(DRIVER_PROP_NAME, driver_status, NULL)
-            || strcmp(driver_status, "ok") != 0) {
-        return 0;  /* driver not loaded */
-    }
-#ifdef WIFI_DRIVER_MODULE_PATH
-    /*
-     * If the property says the driver is loaded, check to
-     * make sure that the property setting isn't just left
-     * over from a previous manual shutdown or a runtime
-     * crash.
-     */
-    if ((proc = fopen(MODULE_FILE, "r")) == NULL) {
-        ALOGW("Could not open %s: %s", MODULE_FILE, strerror(errno));
-        property_set(DRIVER_PROP_NAME, "unloaded");
-        return 0;
-    }
-    while ((fgets(line, sizeof(line), proc)) != NULL) {
-        if (strncmp(line, DRIVER_MODULE_TAG, strlen(DRIVER_MODULE_TAG)) == 0) {
-            fclose(proc);
-            return 1;
-        }
-    }
-    fclose(proc);
-    property_set(DRIVER_PROP_NAME, "unloaded");
-    return 0;
-#else
-    return 1;
-#endif
-}
-
-int wifi_load_driver()
-{
-#ifdef WIFI_DRIVER_MODULE_PATH
-    if (is_wifi_driver_loaded()) {
-        return 0;
-    }
-
-    if (insmod(DRIVER_MODULE_PATH, DRIVER_MODULE_ARG) < 0)
-        return -1;
-
-#elif defined WIFI_DRIVER_STATE_CTRL_PARAM
-    if (is_wifi_driver_loaded()) {
-        return 0;
-    }
-
-    if (wifi_change_driver_state(WIFI_DRIVER_STATE_ON) < 0)
-        return -1;
-#endif
-    property_set(DRIVER_PROP_NAME, "ok");
-    return 0;
-}
-
-int wifi_unload_driver()
-{
-    usleep(200000); /* allow to finish interface down */
-#ifdef WIFI_DRIVER_MODULE_PATH
-    if (rmmod(DRIVER_MODULE_NAME) == 0) {
-        int count = 20; /* wait at most 10 seconds for completion */
-        while (count-- > 0) {
-            if (!is_wifi_driver_loaded())
-                break;
-            usleep(500000);
-        }
-        usleep(500000); /* allow card removal */
-        if (count) {
-            return 0;
-        }
-        return -1;
-    } else
-        return -1;
-#else
-#ifdef WIFI_DRIVER_STATE_CTRL_PARAM
-    if (is_wifi_driver_loaded()) {
-        if (wifi_change_driver_state(WIFI_DRIVER_STATE_OFF) < 0)
-            return -1;
-    }
-#endif
-    property_set(DRIVER_PROP_NAME, "unloaded");
-    return 0;
-#endif
-}
 
 int ensure_entropy_file_exists()
 {
@@ -736,39 +560,4 @@ void wifi_close_supplicant_connection()
 int wifi_command(const char *command, char *reply, size_t *reply_len)
 {
     return wifi_send_command(command, reply, reply_len);
-}
-
-const char *wifi_get_fw_path(int fw_type)
-{
-    switch (fw_type) {
-    case WIFI_GET_FW_PATH_STA:
-        return WIFI_DRIVER_FW_PATH_STA;
-    case WIFI_GET_FW_PATH_AP:
-        return WIFI_DRIVER_FW_PATH_AP;
-    case WIFI_GET_FW_PATH_P2P:
-        return WIFI_DRIVER_FW_PATH_P2P;
-    }
-    return NULL;
-}
-
-int wifi_change_fw_path(const char *fwpath)
-{
-    int len;
-    int fd;
-    int ret = 0;
-
-    if (!fwpath)
-        return ret;
-    fd = TEMP_FAILURE_RETRY(open(WIFI_DRIVER_FW_PATH_PARAM, O_WRONLY));
-    if (fd < 0) {
-        ALOGE("Failed to open wlan fw path param (%s)", strerror(errno));
-        return -1;
-    }
-    len = strlen(fwpath) + 1;
-    if (TEMP_FAILURE_RETRY(write(fd, fwpath, len)) != len) {
-        ALOGE("Failed to write wlan fw path param (%s)", strerror(errno));
-        ret = -1;
-    }
-    close(fd);
-    return ret;
 }
