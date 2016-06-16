@@ -752,8 +752,8 @@ public class WifiBackupRestoreTest {
             out.write("        " + "wep_tx_keyidx=" + configuration.wepTxKeyIndex + "\n");
         }
         Map<String, String> extras = new HashMap<>();
-        extras.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, configuration.configKey());
-        extras.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+        extras.put(WifiSupplicantControl.ID_STRING_KEY_CONFIG_KEY, configuration.configKey());
+        extras.put(WifiSupplicantControl.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(configuration.creatorUid));
         String idString = WifiNative.createNetworkExtra(extras);
         if (idString != null) {
