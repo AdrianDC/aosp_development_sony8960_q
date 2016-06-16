@@ -299,8 +299,9 @@ public class WifiScanningServiceTest {
 
     private void assertDumpContainsRequestLog(String type, int id) {
         String serviceDump = dumpService();
-        Pattern logLineRegex = Pattern.compile("^.+" + type + ": ClientInfo\\[uid=\\d+\\],Id=" +
-                id + ".*$", Pattern.MULTILINE);
+        Pattern logLineRegex = Pattern.compile("^.+" + type
+                + ": ClientInfo\\[uid=\\d+,android\\.os\\.Messenger@[a-f0-9]+\\],Id=" + id
+                + ".*$", Pattern.MULTILINE);
         assertTrue("dump did not contain log with type=" + type + ", id=" + id +
                 ": " + serviceDump + "\n",
                 logLineRegex.matcher(serviceDump).find());
@@ -309,8 +310,9 @@ public class WifiScanningServiceTest {
     private void assertDumpContainsCallbackLog(String callback, int id, String extra) {
         String serviceDump = dumpService();
         String extraPattern = extra == null ? "" : "," + extra;
-        Pattern logLineRegex = Pattern.compile("^.+" + callback + ": ClientInfo\\[uid=\\d+\\],Id=" +
-                id + extraPattern + "$", Pattern.MULTILINE);
+        Pattern logLineRegex = Pattern.compile("^.+" + callback
+                + ": ClientInfo\\[uid=\\d+,android\\.os\\.Messenger@[a-f0-9]+\\],Id=" + id
+                + extraPattern + "$", Pattern.MULTILINE);
         assertTrue("dump did not contain callback log with callback=" + callback + ", id=" + id +
                 ", extra=" + extra + ": " + serviceDump + "\n",
                 logLineRegex.matcher(serviceDump).find());
