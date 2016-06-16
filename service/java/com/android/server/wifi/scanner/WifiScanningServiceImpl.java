@@ -136,7 +136,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 case AsyncChannel.CMD_CHANNEL_FULL_CONNECTION: {
                     ExternalClientInfo client = (ExternalClientInfo) mClients.get(msg.replyTo);
                     if (client != null) {
-                        logw("duplicate client connection: " + msg.sendingUid);
+                        logw("duplicate client connection: " + msg.sendingUid + ", messenger="
+                                + msg.replyTo);
                         client.mChannel.replyToMessage(msg, AsyncChannel.CMD_CHANNEL_FULLY_CONNECTED,
                                 AsyncChannel.STATUS_FULL_CONNECTION_REFUSED_ALREADY_CONNECTED);
                         return;
@@ -151,7 +152,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     ac.replyToMessage(msg, AsyncChannel.CMD_CHANNEL_FULLY_CONNECTED,
                             AsyncChannel.STATUS_SUCCESSFUL);
 
-                    if (DBG) Log.d(TAG, "client connected: " + client);
+                    localLog("client connected: " + client);
                     return;
                 }
                 case AsyncChannel.CMD_CHANNEL_DISCONNECT: {
@@ -164,9 +165,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 case AsyncChannel.CMD_CHANNEL_DISCONNECTED: {
                     ExternalClientInfo client = (ExternalClientInfo) mClients.get(msg.replyTo);
                     if (client != null) {
-                        if (DBG) {
-                            Log.d(TAG, "client disconnected: " + client + ", reason: " + msg.arg1);
-                        }
+                        localLog("client disconnected: " + client + ", reason: " + msg.arg1);
                         client.cleanup();
                     }
                     return;
@@ -1117,13 +1116,13 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 if (DBG) Log.d(TAG, "scan stopped");
                 return true;
             } else {
-                Log.d(TAG, "starting scan: "
+                localLog("starting scan: "
                         + "base period=" + schedule.base_period_ms
                         + ", max ap per scan=" + schedule.max_ap_per_scan
                         + ", batched scans=" + schedule.report_threshold_num_scans);
                 for (int b = 0; b < schedule.num_buckets; b++) {
                     WifiNative.BucketSettings bucket = schedule.buckets[b];
-                    Log.d(TAG, "bucket " + bucket.bucket + " (" + bucket.period_ms + "ms)"
+                    localLog("bucket " + bucket.bucket + " (" + bucket.period_ms + "ms)"
                             + "[" + bucket.report_events + "]: "
                             + ChannelHelper.toString(bucket));
                 }
@@ -1891,7 +1890,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
         @Override
         public String toString() {
-            return "ClientInfo[uid=" + mUid + "]";
+            return "ClientInfo[uid=" + mUid + "," + mMessenger + "]";
         }
     }
 
@@ -1987,6 +1986,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
          */
         public void sendRequestToClientHandler(int what) {
             sendRequestToClientHandler(what, null, null);
+        }
+
+        @Override
+        public String toString() {
+            return "InternalClientInfo[]";
         }
     }
 
