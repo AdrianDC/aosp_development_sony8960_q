@@ -26,7 +26,7 @@
 #include <sys/socket.h>
 #include <linux/if.h>
 #include "wifi_system/wifi.h"
-#include "wifi_hal.h"
+#include "hardware_legacy/wifi_hal.h"
 #include "jni_helper.h"
 #include "wifi_hal_mock.h"
 #include <sstream>

@@ -17,7 +17,7 @@
 #ifndef __WIFI_HAL_MOCK_H__
 #define __WIFI_HAL_MOCK_H__
 
-#include "wifi_hal.h"
+#include "hardware_legacy/wifi_hal.h"
 
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>

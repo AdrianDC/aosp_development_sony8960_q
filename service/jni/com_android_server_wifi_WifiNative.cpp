@@ -35,9 +35,9 @@
 #include <vector>
 
 #include "wifi_system/wifi.h"
-#include "wifi_hal.h"
+#include "hardware_legacy/wifi_hal.h"
 #include "jni_helper.h"
-#include "rtt.h"
+#include "hardware_legacy/rtt.h"
 #include "wifi_hal_stub.h"
 #define REPLY_BUF_SIZE (4096 + 1)         // wpa_supplicant's maximum size + 1 for nul
 #define EVENT_BUF_SIZE 2048
