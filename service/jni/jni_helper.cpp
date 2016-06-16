@@ -23,7 +23,7 @@
 #include <utils/Log.h>
 #include <utils/String16.h>
 
-#include "wifi.h"
+#include "wifi_system/wifi.h"
 #include "wifi_hal.h"
 #include "jni_helper.h"
 
