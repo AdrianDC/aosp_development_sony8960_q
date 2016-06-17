@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef _WIFI_H
-#define _WIFI_H
+#ifndef ANDROID_WIFI_SYSTEM_WIFI_H
+#define ANDROID_WIFI_SYSTEM_WIFI_H
 
-#if __cplusplus
-extern "C" {
-#endif
+#include <cstddef>
+
+namespace android {
+namespace wifi_system {
+
+extern const char kWiFiEntropyFile[];
 
 /**
  * Start supplicant.
@@ -61,7 +64,7 @@ void wifi_close_supplicant_connection();
  * event (for instance, no connection), and less than 0
  * if there is an error.
  */
-int wifi_wait_for_event(char *buf, size_t len);
+int wifi_wait_for_event(char* buf, size_t len);
 
 /**
  * wifi_command() issues a command to the Wi-Fi driver.
@@ -82,16 +85,14 @@ int wifi_wait_for_event(char *buf, size_t len);
  *
  * @return 0 if successful, < 0 if an error.
  */
-int wifi_command(const char *command, char *reply, size_t *reply_len);
+int wifi_command(const char* command, char* reply, size_t* reply_len);
 
 /**
  * Check and create if necessary initial entropy file
  */
-#define WIFI_ENTROPY_FILE	"/data/misc/wifi/entropy.bin"
 int ensure_entropy_file_exists();
 
-#if __cplusplus
-};  // extern "C"
-#endif
+}  // namespace wifi_system
+}  // namespace android
 
-#endif  // _WIFI_H
+#endif  // ANDROID_WIFI_SYSTEM_WIFI_H

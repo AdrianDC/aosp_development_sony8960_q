@@ -44,7 +44,7 @@ LOCAL_CFLAGS += -DLIBWPA_CLIENT_EXISTS
 LOCAL_SHARED_LIBRARIES += libwpa_client
 endif
 
-LOCAL_SRC_FILES := wifi.c
+LOCAL_SRC_FILES := wifi.cpp
 include $(BUILD_SHARED_LIBRARY)
 
 endif

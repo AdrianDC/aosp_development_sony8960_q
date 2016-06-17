@@ -65,7 +65,7 @@ static bool doCommand(JNIEnv* env, jstring javaCommand,
     }
 
     --reply_len; // Ensure we have room to add NUL termination.
-    if (::wifi_command(command.c_str(), reply, &reply_len) != 0) {
+    if (wifi_system::wifi_command(command.c_str(), reply, &reply_len) != 0) {
         return false;
     }
 
@@ -125,28 +125,28 @@ static jboolean android_net_wifi_unloadDriver(JNIEnv* env, jclass)
 
 static jboolean android_net_wifi_startSupplicant(JNIEnv* env, jclass, jboolean p2pSupported)
 {
-    return (::wifi_start_supplicant(p2pSupported) == 0);
+    return (wifi_system::wifi_start_supplicant(p2pSupported) == 0);
 }
 
 static jboolean android_net_wifi_killSupplicant(JNIEnv* env, jclass, jboolean p2pSupported)
 {
-    return (::wifi_stop_supplicant(p2pSupported) == 0);
+    return (wifi_system::wifi_stop_supplicant(p2pSupported) == 0);
 }
 
 static jboolean android_net_wifi_connectToSupplicant(JNIEnv* env, jclass)
 {
-    return (::wifi_connect_to_supplicant() == 0);
+    return (wifi_system::wifi_connect_to_supplicant() == 0);
 }
 
 static void android_net_wifi_closeSupplicantConnection(JNIEnv* env, jclass)
 {
-    ::wifi_close_supplicant_connection();
+    wifi_system::wifi_close_supplicant_connection();
 }
 
 static jstring android_net_wifi_waitForEvent(JNIEnv* env, jclass)
 {
     char buf[EVENT_BUF_SIZE];
-    int nread = ::wifi_wait_for_event(buf, sizeof buf);
+    int nread = wifi_system::wifi_wait_for_event(buf, sizeof buf);
     if (nread > 0) {
         return env->NewStringUTF(buf);
     } else {
