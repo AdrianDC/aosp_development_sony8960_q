@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import static com.android.server.wifi.WifiConfigStoreDataTest.assertConfigStoreDataEqual;
+
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
@@ -186,7 +187,7 @@ public class WifiConfigStoreNewTest {
      */
     @Test
     public void testReadAfterWrite() throws Exception {
-        WifiConfigStoreData writeData = getSingleOpenNetworkStoreData();
+        WifiConfigStoreData writeData = createSingleOpenNetworkStoreData();
         mWifiConfigStore.write(true, writeData);
         WifiConfigStoreData readData = mWifiConfigStore.read();
 
@@ -197,9 +198,7 @@ public class WifiConfigStoreNewTest {
      * Returns an empty store data object.
      */
     private WifiConfigStoreData getEmptyStoreData() {
-        return new WifiConfigStoreData(
-                new ArrayList<WifiConfiguration>(), new HashSet<String>(),
-                new HashSet<String>(), WifiConfigStoreData.NETWORK_ID_START);
+        return new WifiConfigStoreData(new ArrayList<WifiConfiguration>(), new HashSet<String>());
     }
 
     /**
@@ -208,8 +207,7 @@ public class WifiConfigStoreNewTest {
     private WifiConfigStoreData createSingleOpenNetworkStoreData() {
         List<WifiConfiguration> configurations = new ArrayList<>();
         configurations.add(createOpenNetwork(0));
-        return new WifiConfigStoreData(
-                configurations, new HashSet<String>(), new HashSet<String>(), 0);
+        return new WifiConfigStoreData(configurations, new HashSet<String>());
     }
 
     /**
@@ -218,8 +216,7 @@ public class WifiConfigStoreNewTest {
     private WifiConfigStoreData createSinglePskNetworkStoreData() {
         List<WifiConfiguration> configurations = new ArrayList<>();
         configurations.add(createPskNetwork(1));
-        return new WifiConfigStoreData(
-                configurations, new HashSet<String>(), new HashSet<String>(), 0);
+        return new WifiConfigStoreData(configurations, new HashSet<String>());
     }
 
     private WifiConfiguration createOpenNetwork(int id) {

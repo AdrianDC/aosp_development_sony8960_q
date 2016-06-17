@@ -62,13 +62,6 @@ public class WifiConfigStoreDataTest {
     private static final String TEST_PAC_PROXY_LOCATION = "http://";
     private static final String TEST_CONNECT_CHOICE = "XmlUtilConnectChoice";
     private static final long TEST_CONNECT_CHOICE_TIMESTAMP = 0x4566;
-
-    private static final Set<String> TEST_BSSID_BLACKLIST = new HashSet<String>() {
-        {
-            add("05:58:45:56:55:55");
-            add("05:48:25:56:35:55");
-        }
-    };
     private static final Set<String> TEST_DELETED_EPHEMERAL_LIST = new HashSet<String>() {
         {
             add("\"" + TEST_SSID + "1\"");
@@ -125,23 +118,16 @@ public class WifiConfigStoreDataTest {
                     + "<WifiConfigStoreData>\n"
                     + "<int name=\"Version\" value=\"1\" />\n"
                     + SINGLE_OPEN_NETWORK_LIST_XML_STRING_FORMAT
-                    + "<LastNetworkId>\n"
-                    + "<int name=\"Id\" value=\"0\" />\n"
-                    + "</LastNetworkId>\n"
                     + "</WifiConfigStoreData>\n";
     private static final String SINGLE_OPEN_NETWORK_USER_DATA_XML_STRING_FORMAT =
             "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n"
                     + "<WifiConfigStoreData>\n"
                     + "<int name=\"Version\" value=\"1\" />\n"
                     + SINGLE_OPEN_NETWORK_LIST_XML_STRING_FORMAT
-                    + "<BSSIDBlacklist>\n"
-                    + "<set name=\"BSSIDList\" />\n"
-                    + "</BSSIDBlacklist>\n"
                     + "<DeletedEphemeralSSIDList>\n"
                     + "<set name=\"SSIDList\" />\n"
                     + "</DeletedEphemeralSSIDList>\n"
                     + "</WifiConfigStoreData>\n";
-
 
     /**
      * Verify that multiple shared networks with different credential types and IpConfiguration
@@ -230,7 +216,7 @@ public class WifiConfigStoreDataTest {
         networks.add(sharedNetwork);
         networks.add(userNetwork);
         WifiConfigStoreData storeData =
-                new WifiConfigStoreData(networks, new HashSet<String>(), new HashSet<String>(), 0);
+                new WifiConfigStoreData(networks, new HashSet<String>());
 
         String sharedStoreXmlString =
                 String.format(SINGLE_OPEN_NETWORK_SHARED_DATA_XML_STRING_FORMAT,
@@ -501,26 +487,16 @@ public class WifiConfigStoreDataTest {
         // list as well.
         assertFalse(setSharedDataNull & setUserDataNull);
 
-        Set<String> bssidBlackList;
         Set<String> deletedEphemeralList;
-        int lastNetworkID;
-        if (setSharedDataNull) {
-            lastNetworkID = WifiConfigStoreData.NETWORK_ID_START;
-        } else {
-            lastNetworkID = TEST_NETWORK_ID;
-        }
         if (setUserDataNull) {
-            bssidBlackList = new HashSet<>();
             deletedEphemeralList = new HashSet<>();
         } else {
-            bssidBlackList = TEST_BSSID_BLACKLIST;
             deletedEphemeralList = TEST_DELETED_EPHEMERAL_LIST;
         }
 
         // Serialize the data.
         WifiConfigStoreData storeData =
-                new WifiConfigStoreData(
-                        configurations, bssidBlackList, deletedEphemeralList, lastNetworkID);
+                new WifiConfigStoreData(configurations, deletedEphemeralList);
 
         byte[] sharedDataBytes = null;
         byte[] userDataBytes = null;
@@ -544,8 +520,6 @@ public class WifiConfigStoreDataTest {
             WifiConfigStoreData expected, WifiConfigStoreData actual) {
         WifiConfigurationTestUtil.assertConfigurationsEqualForConfigStore(
                 expected.configurations, actual.configurations);
-        assertEquals(expected.blackListBSSIDs, actual.blackListBSSIDs);
         assertEquals(expected.deletedEphemeralSSIDs, actual.deletedEphemeralSSIDs);
-        assertEquals(expected.lastNetworkId, actual.lastNetworkId);
     }
 }

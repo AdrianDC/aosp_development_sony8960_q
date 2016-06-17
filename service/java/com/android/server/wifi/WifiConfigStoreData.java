@@ -23,7 +23,6 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.util.Pair;
 import android.util.Xml;
 
-import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.FastXmlSerializer;
 import com.android.server.wifi.util.XmlUtil;
 import com.android.server.wifi.util.XmlUtil.IpConfigurationXmlUtil;
@@ -61,13 +60,11 @@ public class WifiConfigStoreData {
      * Current config store data version. This will be incremented for any additions.
      */
     private static final int CURRENT_CONFIG_STORE_DATA_VERSION = 1;
-
     /** This list of older versions will be used to restore data from older config store. */
     /**
      * First version of the config store data format.
      */
     private static final int INITIAL_CONFIG_STORE_DATA_VERSION = 1;
-
     /**
      * List of XML section header tags in the config store data.
      */
@@ -80,50 +77,29 @@ public class WifiConfigStoreData {
     private static final String XML_TAG_SECTION_HEADER_IP_CONFIGURATION = "IpConfiguration";
     private static final String XML_TAG_SECTION_HEADER_WIFI_ENTERPRISE_CONFIGURATION =
             "WifiEnterpriseConfiguration";
-    private static final String XML_TAG_SECTION_HEADER_BSSID_BLACKLIST = "BSSIDBlacklist";
     private static final String XML_TAG_SECTION_HEADER_DELETED_EPHEMERAL_SSID_LIST =
             "DeletedEphemeralSSIDList";
-    private static final String XML_TAG_SECTION_HEADER_LAST_NETWORK_ID = "LastNetworkId";
-    /**
-     * First network ID to be assigned on a fresh device.
-     */
-    @VisibleForTesting
-    public static final int NETWORK_ID_START = 0;
     /**
      * List of saved networks visible to the current user to be stored (includes shared & private).
      */
     public List<WifiConfiguration> configurations;
     /**
-     * List of blacklist bssids to be stored.
-     */
-    public Set<String> blackListBSSIDs;
-    /**
      * List of deleted ephemeral ssids to be stored.
      */
     public Set<String> deletedEphemeralSSIDs;
-    /**
-     * Last network ID assigned.
-     */
-    public int lastNetworkId;
 
     /**
      * Create a new instance of store data to be written to the store files.
      *
      * @param configurations        list of saved networks to be stored.
      *                              See {@link WifiConfigManager#mConfiguredNetworks}.
-     * @param blacklistBSSIDs       list of blacklist bssids to be stored.
-     *                              See {@link WifiConfigStore#mBssidBlacklist}
-     *                              (TODO: Move this member to WifiConfigManager as well).
      * @param deletedEphemeralSSIDs list of deleted ephemeral ssids to be stored.
      *                              See {@link WifiConfigManager#mDeletedEphemeralSSIDs}
-     * @param lastNetworkId         last network ID assigned.
      */
-    public WifiConfigStoreData(List<WifiConfiguration> configurations, Set<String> blacklistBSSIDs,
-            Set<String> deletedEphemeralSSIDs, int lastNetworkId) {
+    public WifiConfigStoreData(
+            List<WifiConfiguration> configurations, Set<String> deletedEphemeralSSIDs) {
         this.configurations = configurations;
-        this.blackListBSSIDs = blacklistBSSIDs;
         this.deletedEphemeralSSIDs = deletedEphemeralSSIDs;
-        this.lastNetworkId = lastNetworkId;
     }
 
     /**
@@ -144,15 +120,12 @@ public class WifiConfigStoreData {
             if (sharedDataBytes != null && sharedDataBytes.length > 0) {
                 sharedData = SharedData.parseRawData(sharedDataBytes);
             } else {
-                sharedData = new SharedData(new ArrayList<WifiConfiguration>(), NETWORK_ID_START);
+                sharedData = new SharedData(new ArrayList<WifiConfiguration>());
             }
             if (userDataBytes != null && userDataBytes.length > 0) {
                 userData = UserData.parseRawData(userDataBytes);
             } else {
-                userData =
-                        new UserData(
-                                new ArrayList<WifiConfiguration>(), new HashSet<String>(),
-                                new HashSet<String>());
+                userData = new UserData(new ArrayList<WifiConfiguration>(), new HashSet<String>());
             }
             return getStoreData(sharedData, userData);
         } catch (ClassCastException e) {
@@ -167,9 +140,7 @@ public class WifiConfigStoreData {
         List<WifiConfiguration> configurations = new ArrayList<>();
         configurations.addAll(sharedData.configurations);
         configurations.addAll(userData.configurations);
-        return new WifiConfigStoreData(
-                configurations, userData.blackListBSSIDs,
-                userData.deletedEphemeralSSIDs, sharedData.lastNetworkId);
+        return new WifiConfigStoreData(configurations, userData.deletedEphemeralSSIDs);
 
     }
 
@@ -385,7 +356,7 @@ public class WifiConfigStoreData {
                 sharedConfigurations.add(configuration);
             }
         }
-        return new SharedData(sharedConfigurations, lastNetworkId);
+        return new SharedData(sharedConfigurations);
     }
 
     /**
@@ -400,27 +371,22 @@ public class WifiConfigStoreData {
                 userConfigurations.add(configuration);
             }
         }
-        return new UserData(userConfigurations, blackListBSSIDs, deletedEphemeralSSIDs);
+        return new UserData(userConfigurations, deletedEphemeralSSIDs);
     }
 
     /**
      * Class to encapsulate all the data to be stored in the shared store.
      */
     public static class SharedData {
-        private static final String XML_TAG_ID = "Id";
-
         public List<WifiConfiguration> configurations;
-        public int lastNetworkId;
 
         /**
          * Create a new instance of shared store data to be written to the store files.
          *
          * @param configurations list of shared saved networks to be stored.
-         * @param lastNetworkId  last network ID assigned.
          */
-        public SharedData(List<WifiConfiguration> configurations, int lastNetworkId) {
+        public SharedData(List<WifiConfiguration> configurations) {
             this.configurations = configurations;
-            this.lastNetworkId = lastNetworkId;
         }
 
         /**
@@ -444,11 +410,7 @@ public class WifiConfigStoreData {
             List<WifiConfiguration> configurations =
                     parseNetworksFromXml(in, rootTagDepth, version);
 
-            XmlUtil.gotoNextSectionWithName(
-                    in, XML_TAG_SECTION_HEADER_LAST_NETWORK_ID, rootTagDepth);
-            int lastNetworkID = (int) XmlUtil.readNextValueWithName(in, XML_TAG_ID);
-
-            return new SharedData(configurations, lastNetworkID);
+            return new SharedData(configurations);
         }
 
         /**
@@ -468,11 +430,6 @@ public class WifiConfigStoreData {
             // Write all the shared network configurations.
             writeNetworksToXml(out, configurations);
 
-            // Write the last network ID allocated.
-            XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_LAST_NETWORK_ID);
-            XmlUtil.writeNextValue(out, XML_TAG_ID, lastNetworkId);
-            XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_LAST_NETWORK_ID);
-
             XmlUtil.writeDocumentEnd(out, XML_TAG_DOCUMENT_HEADER);
 
             byte[] data = outputStream.toByteArray();
@@ -486,23 +443,18 @@ public class WifiConfigStoreData {
      */
     public static class UserData {
         private static final String XML_TAG_SSID_LIST = "SSIDList";
-        private static final String XML_TAG_BSSID_LIST = "BSSIDList";
 
         public List<WifiConfiguration> configurations;
-        public Set<String> blackListBSSIDs;
         public Set<String> deletedEphemeralSSIDs;
 
         /**
          * Create a new instance of user specific store data to be written to the store files.
          *
          * @param configurations        list of user specific saved networks to be stored.
-         * @param blacklistBSSIDs       list of blacklist bssids to be stored.
          * @param deletedEphemeralSSIDs list of deleted ephemeral ssids to be stored.
          */
-        public UserData(List<WifiConfiguration> configurations, Set<String> blacklistBSSIDs,
-                Set<String> deletedEphemeralSSIDs) {
+        public UserData(List<WifiConfiguration> configurations, Set<String> deletedEphemeralSSIDs) {
             this.configurations = configurations;
-            this.blackListBSSIDs = blacklistBSSIDs;
             this.deletedEphemeralSSIDs = deletedEphemeralSSIDs;
         }
 
@@ -528,16 +480,11 @@ public class WifiConfigStoreData {
                     parseNetworksFromXml(in, rootTagDepth, version);
 
             XmlUtil.gotoNextSectionWithName(
-                    in, XML_TAG_SECTION_HEADER_BSSID_BLACKLIST, rootTagDepth);
-            Set<String> blacklist =
-                    (Set<String>) XmlUtil.readNextValueWithName(in, XML_TAG_BSSID_LIST);
-
-            XmlUtil.gotoNextSectionWithName(
                     in, XML_TAG_SECTION_HEADER_DELETED_EPHEMERAL_SSID_LIST, rootTagDepth);
             Set<String> deletedEphemralList =
                     (Set<String>) XmlUtil.readNextValueWithName(in, XML_TAG_SSID_LIST);
 
-            return new UserData(configurations, blacklist, deletedEphemralList);
+            return new UserData(configurations, deletedEphemralList);
         }
 
         /**
@@ -556,11 +503,6 @@ public class WifiConfigStoreData {
 
             // Write all the user network configurations.
             writeNetworksToXml(out, configurations);
-
-            // Write the bssid blacklist & deleted ephemeral ssid list.
-            XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_BSSID_BLACKLIST);
-            XmlUtil.writeNextValue(out, XML_TAG_BSSID_LIST, blackListBSSIDs);
-            XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_BSSID_BLACKLIST);
 
             XmlUtil.writeNextSectionStart(
                     out, XML_TAG_SECTION_HEADER_DELETED_EPHEMERAL_SSID_LIST);
