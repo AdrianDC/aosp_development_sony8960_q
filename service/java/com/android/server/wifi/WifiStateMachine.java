@@ -940,6 +940,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private final BackupManagerProxy mBackupManagerProxy;
 
+    private int mSystemUiUid = -1;
+
     public WifiStateMachine(Context context, FrameworkFacade facade, Looper looper,
                             UserManager userManager, WifiInjector wifiInjector,
                             BackupManagerProxy backupManagerProxy,
@@ -1145,6 +1147,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
         intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_DISABLED);
         mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
+
+        try {
+            mSystemUiUid = mContext.getPackageManager().getPackageUidAsUser("com.android.systemui",
+                    PackageManager.MATCH_SYSTEM_ONLY, UserHandle.USER_SYSTEM);
+        } catch (PackageManager.NameNotFoundException e) {
+            loge("Unable to resolve SystemUI's UID.");
+        }
     }
 
     class IpManagerCallback extends IpManager.Callback {
@@ -5652,9 +5661,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mWifiConfigManager.removeNetworksForUser(message.arg1);
                     break;
                 case WifiManager.CONNECT_NETWORK:
-                    // Only the current foreground user can modify networks.
+                    // Only the current foreground user and System UI (which runs as user 0 but acts
+                    // on behalf of the current foreground user) can modify networks.
                     if (!mWifiConfigManager.isCurrentUserProfile(
-                            UserHandle.getUserId(message.sendingUid))) {
+                            UserHandle.getUserId(message.sendingUid)) &&
+                            message.sendingUid != mSystemUiUid) {
                         loge("Only the current foreground user can modify networks "
                                 + " currentUserId=" + mWifiConfigManager.getCurrentUserId()
                                 + " sendingUserId=" + UserHandle.getUserId(message.sendingUid));
