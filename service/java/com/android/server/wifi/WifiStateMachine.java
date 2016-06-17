@@ -636,8 +636,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     static final int CMD_SET_FREQUENCY_BAND                             = BASE + 90;
     /* Enable TDLS on a specific MAC address */
     static final int CMD_ENABLE_TDLS                                    = BASE + 92;
-    /* DHCP/IP configuration watchdog */
-    static final int CMD_OBTAINING_IP_ADDRESS_WATCHDOG_TIMER            = BASE + 93;
 
     /**
      * Watchdog for protecting against b/16823537
@@ -676,15 +674,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     /* try to match a provider with current network */
     static final int CMD_MATCH_PROVIDER_NETWORK                         = BASE + 105;
-
-    /**
-     * Make this timer 40 seconds, which is about the normal DHCP timeout.
-     * In no valid case, the WiFiStateMachine should remain stuck in ObtainingIpAddress
-     * for more than 30 seconds.
-     */
-    static final int OBTAINING_IP_ADDRESS_GUARD_TIMER_MSEC = 40000;
-
-    int obtainingIpWatchdogCount = 0;
 
     /* Commands from/to the SupplicantStateTracker */
     /* Reset the supplicant state tracker */
@@ -3884,7 +3873,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_DISABLE_P2P_RSP:
                 case WifiMonitor.SUP_REQUEST_IDENTITY:
                 case CMD_TEST_NETWORK_DISCONNECT:
-                case CMD_OBTAINING_IP_ADDRESS_WATCHDOG_TIMER:
                 case WifiMonitor.SUP_REQUEST_SIM_AUTH:
                 case CMD_TARGET_BSSID:
                 case CMD_AUTO_CONNECT:
@@ -6548,8 +6536,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 log("enter ObtainingIpState netId=" + Integer.toString(mLastNetworkId)
                         + " " + key + " "
                         + " roam=" + mAutoRoaming
-                        + " static=" + mWifiConfigManager.isUsingStaticIp(mLastNetworkId)
-                        + " watchdog= " + obtainingIpWatchdogCount);
+                        + " static=" + mWifiConfigManager.isUsingStaticIp(mLastNetworkId));
             }
 
             // Reset link Debouncing, indicating we have successfully re-connected to the AP
@@ -6588,12 +6575,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             .withApfCapabilities(mWifiNative.getApfCapabilities())
                             .build();
                 mIpManager.startProvisioning(prov);
-                obtainingIpWatchdogCount++;
-                logd("Start Dhcp Watchdog " + obtainingIpWatchdogCount);
                 // Get Link layer stats so as we get fresh tx packet counters
                 getWifiLinkLayerStats();
-                sendMessageDelayed(obtainMessage(CMD_OBTAINING_IP_ADDRESS_WATCHDOG_TIMER,
-                        obtainingIpWatchdogCount, 0), OBTAINING_IP_ADDRESS_GUARD_TIMER_MSEC);
             } else {
                 StaticIpConfiguration config = mWifiConfigManager.getStaticIpConfiguration(
                         mLastNetworkId);
@@ -6640,19 +6623,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_START_SCAN:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
                     deferMessage(message);
-                    break;
-                case CMD_OBTAINING_IP_ADDRESS_WATCHDOG_TIMER:
-                    if (message.arg1 == obtainingIpWatchdogCount) {
-                        logd("ObtainingIpAddress: Watchdog Triggered, count="
-                                + obtainingIpWatchdogCount);
-                        handleIpConfigurationLost();
-                        reportConnectionAttemptEnd(
-                                WifiMetrics.ConnectionEvent.FAILURE_NETWORK_DISCONNECTION,
-                                WifiMetricsProto.ConnectionEvent.HLF_NONE);
-                        transitionTo(mDisconnectingState);
-                        break;
-                    }
-                    messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
                 default:
                     return NOT_HANDLED;
