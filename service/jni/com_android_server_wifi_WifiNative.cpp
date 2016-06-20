@@ -16,29 +16,31 @@
 
 #define LOG_TAG "wifi"
 
-#include "jni.h"
-#include "JniConstants.h"
-#include <ScopedUtfChars.h>
-#include <ScopedBytes.h>
-#include <utils/misc.h>
-#include <utils/Log.h>
-#include <utils/String16.h>
 #include <ctype.h>
 #include <stdlib.h>
-#include <sys/socket.h>
 #include <sys/klog.h>
-#include <linux/if.h>
+#include <sys/socket.h>
+/* We need linux/if_arp.h for ARPHRD_ETHER.  Sadly, it forward declares
+   struct sockaddr and must be included after sys/socket.h. */
 #include <linux/if_arp.h>
 
 #include <algorithm>
 #include <limits>
 #include <vector>
 
-#include "wifi_system/wifi.h"
-#include "hardware_legacy/wifi.h"
-#include "hardware_legacy/wifi_hal.h"
+#include <hardware_legacy/rtt.h>
+#include <hardware_legacy/wifi.h>
+#include <hardware_legacy/wifi_hal.h>
+#include <log/log.h>
+#include <nativehelper/JniConstants.h>
+#include <nativehelper/ScopedBytes.h>
+#include <nativehelper/ScopedUtfChars.h>
+#include <nativehelper/jni.h>
+#include <utils/String16.h>
+#include <utils/misc.h>
+#include <wifi_system/wifi.h>
+
 #include "jni_helper.h"
-#include "hardware_legacy/rtt.h"
 #include "wifi_hal_stub.h"
 #define REPLY_BUF_SIZE (4096 + 1)         // wpa_supplicant's maximum size + 1 for nul
 #define EVENT_BUF_SIZE 2048

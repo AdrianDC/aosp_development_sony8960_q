@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
+#include "wifi_hal_stub.h"
+
 #include <stdint.h>
 
-#include "hardware_legacy/wifi_hal.h"
-#include "wifi_hal_stub.h"
+#include <hardware_legacy/wifi_hal.h>
 
 wifi_error wifi_initialize_stub(wifi_handle *handle) {
     return WIFI_ERROR_NOT_SUPPORTED;
