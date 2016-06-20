@@ -37,6 +37,7 @@ LOCAL_C_INCLUDES := \
     $(LOCAL_PATH)/jni \
     $(call include-path-for, libhardware_legacy)
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_C_INCLUDES)
+LOCAL_SHARED_LIBRARIES := libnativehelper
 LOCAL_SRC_FILES := lib/wifi_hal_stub.cpp
 include $(BUILD_STATIC_LIBRARY)
 

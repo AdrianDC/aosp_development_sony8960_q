@@ -38,6 +38,7 @@
 #include <nativehelper/jni.h>
 #include <utils/String16.h>
 #include <utils/misc.h>
+#include <wifi_system/interface_utils.h>
 #include <wifi_system/wifi.h>
 
 #include "jni_helper.h"
@@ -240,61 +241,8 @@ static JNIObject<jobject> createScanResult(JNIHelper &helper, wifi_scan_result *
     return scanResult;
 }
 
-int set_iface_flags(const char *ifname, bool dev_up) {
-    struct ifreq ifr;
-    int ret;
-    int sock = socket(PF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        ALOGD("Bad socket: %d\n", sock);
-        return -errno;
-    }
-
-    //ALOGD("setting interface %s flags (%s)\n", ifname, dev_up ? "UP" : "DOWN");
-
-    memset(&ifr, 0, sizeof(ifr));
-    strlcpy(ifr.ifr_name, ifname, IFNAMSIZ);
-
-    //ALOGD("reading old value\n");
-
-    if (ioctl(sock, SIOCGIFFLAGS, &ifr) != 0) {
-      ret = errno ? -errno : -999;
-      ALOGE("Could not read interface %s flags: %d\n", ifname, errno);
-      close(sock);
-      return ret;
-    } else {
-      //ALOGD("writing new value\n");
-    }
-
-    if (dev_up) {
-      if (ifr.ifr_flags & IFF_UP) {
-        // ALOGD("interface %s is already up\n", ifname);
-        close(sock);
-        return 0;
-      }
-      ifr.ifr_flags |= IFF_UP;
-    } else {
-      if (!(ifr.ifr_flags & IFF_UP)) {
-        // ALOGD("interface %s is already down\n", ifname);
-        close(sock);
-        return 0;
-      }
-      ifr.ifr_flags &= ~IFF_UP;
-    }
-
-    if (ioctl(sock, SIOCSIFFLAGS, &ifr) != 0) {
-      ALOGE("Could not set interface %s flags: %d\n", ifname, errno);
-      ret = errno ? -errno : -999;
-      close(sock);
-      return ret;
-    } else {
-      ALOGD("set interface %s flags (%s)\n", ifname, dev_up ? "UP" : "DOWN");
-    }
-    close(sock);
-    return 0;
-}
-
 static jboolean android_net_wifi_set_interface_up(JNIEnv* env, jclass cls, jboolean up) {
-    return (set_iface_flags("wlan0", (bool)up) == 0);
+    return wifi_system::set_wifi_iface_up((bool)up);
 }
 
 static jboolean android_net_wifi_startHal(JNIEnv* env, jclass cls) {
@@ -310,11 +258,10 @@ static jboolean android_net_wifi_startHal(JNIEnv* env, jclass cls) {
         wifi_error res = init_wifi_vendor_hal_func_table(&hal_fn);
         if (res != WIFI_SUCCESS) {
             ALOGE("Can not initialize the vendor function pointer table");
-	    return false;
+            return false;
         }
 
-        int ret = set_iface_flags("wlan0", true);
-        if(ret != 0) {
+        if(!wifi_system::set_wifi_iface_up(true)) {
             return false;
         }
 
@@ -328,7 +275,7 @@ static jboolean android_net_wifi_startHal(JNIEnv* env, jclass cls) {
         ALOGD("halHandle = %p, mVM = %p, mCls = %p", halHandle, mVM, mCls);
         return res == WIFI_SUCCESS;
     } else {
-        return (set_iface_flags("wlan0", true) == 0);
+        return wifi_system::set_wifi_iface_up(true);
     }
 }
 
@@ -362,7 +309,7 @@ static void android_net_wifi_waitForHalEvents(JNIEnv* env, jclass cls) {
     JNIHelper helper(env);
     wifi_handle halHandle = getWifiHandle(helper, cls);
     hal_fn.wifi_event_loop(halHandle);
-    set_iface_flags("wlan0", false);
+    wifi_system::set_wifi_iface_up(false);
 }
 
 static int android_net_wifi_getInterfaces(JNIEnv *env, jclass cls) {

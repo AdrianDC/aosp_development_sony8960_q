@@ -1,0 +1,35 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef ANDROID_WIFI_SYSTEM_INTERFACE_UTILS_H
+#define ANDROID_WIFI_SYSTEM_INTERFACE_UTILS_H
+
+namespace android {
+namespace wifi_system {
+
+// Set the interface named by |if_name| up or down.
+// Returns true on success, false otherwise.
+bool set_iface_up(const char* if_name, bool request_up);
+
+// A helpful alias for set_iface_up() that assumes there is a single system
+// WiFi interface.  Prefer this form if you're hardcoding "wlan0" to help us
+// identify all the places we are hardcoding the name of the wifi interface.
+bool set_wifi_iface_up(bool request_up);
+
+}  // namespace wifi_system
+}  // namespace android
+
+#endif  // ANDROID_WIFI_SYSTEM_INTERFACE_UTILS_H
