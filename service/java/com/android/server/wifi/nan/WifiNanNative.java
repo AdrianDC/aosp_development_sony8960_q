@@ -478,7 +478,7 @@ public class WifiNanNative {
     }
 
     private static native int initiateDataPathNative(short transactionId, Class<WifiNative> cls,
-                                                     int iface, int pubSubId, int
+                                                     int iface, int peerId, int
                                                              channelRequestType, int channel,
                                                      byte[] peer, String interfaceName, byte[]
                                                              message, int messageLength);
@@ -492,9 +492,8 @@ public class WifiNanNative {
      *
      * @param transactionId      Transaction ID for the transaction - used in the async callback to
      *                           match with the original request.
-     * @param pubSubId           ID of the publish/subscribe session to associate the data path
-     *                           with. A value of 0 indicates that not associated with an
-     *                           existing session.
+     * @param peerId             ID of the peer ID to associate the data path with. A value of 0
+     *                           indicates that not associated with an existing session.
      * @param channelRequestType Indicates whether the specified channel is available, if available
      *                           requested or forced (resulting in failure if cannot be
      *                           accommodated).
@@ -505,11 +504,11 @@ public class WifiNanNative {
      *                request.
      * @param messageLength The size of the message.
      */
-    public boolean initiateDataPath(short transactionId, int pubSubId, int channelRequestType,
+    public boolean initiateDataPath(short transactionId, int peerId, int channelRequestType,
                                     int channel, byte[] peer, String interfaceName, byte[]
                                             message, int messageLength) {
         if (VDBG) {
-            Log.v(TAG, "initiateDataPath: transactionId=" + transactionId + ", pubSubId=" + pubSubId
+            Log.v(TAG, "initiateDataPath: transactionId=" + transactionId + ", peerId=" + peerId
                     + ", channelRequestType=" + channelRequestType + ", channel=" + channel
                     + ", peer=" + String.valueOf(HexEncoding.encode(peer)) + ", interfaceName="
                     + interfaceName + ", " + "messageLength=" + messageLength);
@@ -519,7 +518,7 @@ public class WifiNanNative {
             int ret;
             synchronized (WifiNative.sLock) {
                 ret = initiateDataPathNative(transactionId, WifiNative.class, WifiNative
-                        .sWlan0Index, pubSubId, channelRequestType, channel, peer, interfaceName,
+                        .sWlan0Index, peerId, channelRequestType, channel, peer, interfaceName,
                         message, messageLength);
             }
             if (ret != WIFI_SUCCESS) {
