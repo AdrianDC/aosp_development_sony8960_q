@@ -154,6 +154,7 @@ public class WifiNanStateManager {
     private static final String MESSAGE_BUNDLE_KEY_PUB_SUB_ID = "pub_sub_id";
     private static final String MESSAGE_BUNDLE_KEY_CHANNEL_REQ_TYPE = "channel_request_type";
     private static final String MESSAGE_BUNDLE_KEY_CHANNEL = "channel";
+    private static final String MESSAGE_BUNDLE_KEY_UID = "uid";
 
     /*
      * Asynchronous access with no lock
@@ -223,12 +224,14 @@ public class WifiNanStateManager {
     /**
      * Place a request for a new client connection on the state machine queue.
      */
-    public void connect(int clientId, IWifiNanEventCallback callback, ConfigRequest configRequest) {
+    public void connect(int clientId, int uid, IWifiNanEventCallback callback,
+            ConfigRequest configRequest) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_CONNECT;
         msg.arg2 = clientId;
         msg.obj = callback;
         msg.getData().putParcelable(MESSAGE_BUNDLE_KEY_CONFIG, configRequest);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_UID, uid);
         mSm.sendMessage(msg);
     }
 
@@ -1080,8 +1083,9 @@ public class WifiNanStateManager {
                     IWifiNanEventCallback callback = (IWifiNanEventCallback) msg.obj;
                     ConfigRequest configRequest = (ConfigRequest) msg.getData()
                             .getParcelable(MESSAGE_BUNDLE_KEY_CONFIG);
+                    int uid = msg.getData().getInt(MESSAGE_BUNDLE_KEY_UID);
 
-                    waitForResponse = connectLocal(mCurrentTransactionId, clientId, callback,
+                    waitForResponse = connectLocal(mCurrentTransactionId, clientId, uid, callback,
                             configRequest);
                     break;
                 }
@@ -1531,11 +1535,12 @@ public class WifiNanStateManager {
      * COMMANDS
      */
 
-    private boolean connectLocal(short transactionId, int clientId, IWifiNanEventCallback callback,
-            ConfigRequest configRequest) {
+    private boolean connectLocal(short transactionId, int clientId, int uid,
+            IWifiNanEventCallback callback, ConfigRequest configRequest) {
         if (VDBG) {
             Log.v(TAG, "connectLocal(): transactionId=" + transactionId + ", clientId=" + clientId
-                    + ", callback=" + callback + ", configRequest=" + configRequest);
+                    + ", uid=" + uid + ", callback=" + callback + ", configRequest="
+                    + configRequest);
         }
 
         if (!mUsageEnabled) {
@@ -1563,7 +1568,7 @@ public class WifiNanStateManager {
             try {
                 callback.onConnectSuccess();
                 mClients.append(clientId,
-                        new WifiNanClientState(clientId, callback, configRequest));
+                        new WifiNanClientState(clientId, uid, callback, configRequest));
             } catch (RemoteException e) {
                 Log.w(TAG, "connectLocal onConnectSuccess(): RemoteException (FYI): " + e);
             }
@@ -1839,8 +1844,9 @@ public class WifiNanStateManager {
             IWifiNanEventCallback callback = (IWifiNanEventCallback) completedCommand.obj;
             ConfigRequest configRequest = (ConfigRequest) data
                     .getParcelable(MESSAGE_BUNDLE_KEY_CONFIG);
+            int uid = data.getInt(MESSAGE_BUNDLE_KEY_UID);
 
-            mClients.put(clientId, new WifiNanClientState(clientId, callback, configRequest));
+            mClients.put(clientId, new WifiNanClientState(clientId, uid, callback, configRequest));
             try {
                 callback.onConnectSuccess();
             } catch (RemoteException e) {

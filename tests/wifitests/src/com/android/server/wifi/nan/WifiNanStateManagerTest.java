@@ -148,6 +148,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testDisableUsageDisablesApis() throws Exception {
         final int clientId = 12314;
+        final int uid = 1000;
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
 
         IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
@@ -171,7 +172,7 @@ public class WifiNanStateManagerTest {
 
         // (3) try connecting and validate that get nothing (app should be aware of non-availability
         // through state change broadcast and/or query API)
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
 
         verifyNoMoreInteractions(mMockNative, mockCallback);
@@ -185,6 +186,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testDisableUsageFlow() throws Exception {
         final int clientId = 12341;
+        final int uid = 1000;
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
 
         IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
@@ -200,7 +202,7 @@ public class WifiNanStateManagerTest {
         collector.checkThat("usage enabled", mDut.isUsageEnabled(), equalTo(true));
 
         // (2) connect (successfully)
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -218,7 +220,7 @@ public class WifiNanStateManagerTest {
         validateInternalClientInfoCleanedUp(clientId);
 
         // (4) try connecting again and validate that just get an onNanDown
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
 
         // (5) disable usage again and validate that not much happens
@@ -237,7 +239,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (7) connect (should be successful)
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -259,6 +261,7 @@ public class WifiNanStateManagerTest {
         final int clusterLow = 5;
         final int clusterHigh = 100;
         final int masterPref = 111;
+        final int uid = 1000;
         final int reason = WifiNanEventCallback.REASON_OTHER;
         final byte[] someMac = HexEncoding.decode("000102030405".toCharArray(), false);
 
@@ -280,8 +283,8 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect 1st and 2nd clients
-        mDut.connect(clientId1, mockCallback1, configRequest1);
-        mDut.connect(clientId2, mockCallback2, configRequest2);
+        mDut.connect(clientId1, uid, mockCallback1, configRequest1);
+        mDut.connect(clientId2, uid, mockCallback2, configRequest2);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionIdCapture.capture(),
                 eq(configRequest1), eq(true));
@@ -320,6 +323,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testHalNoResponseTimeout() throws Exception {
         final int clientId = 12341;
+        final int uid = 1000;
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
         final PublishConfig publishConfig = new PublishConfig.Builder().build();
 
@@ -333,7 +337,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect (successfully)
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -369,6 +373,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testPublishFail() throws Exception {
         final int clientId = 1005;
+        final int uid = 1000;
         final int reasonFail = WifiNanSessionCallback.REASON_NO_RESOURCES;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -384,7 +389,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (0) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
                 eq(configRequest), eq(true));
@@ -415,6 +420,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testPublishSuccessTerminated() throws Exception {
         final int clientId = 2005;
+        final int uid = 1000;
         final int reasonTerminate = WifiNanSessionCallback.TERMINATE_REASON_DONE;
         final int publishId = 15;
 
@@ -432,7 +438,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (0) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
                 eq(configRequest), eq(true));
@@ -482,6 +488,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testPublishUpdateFail() throws Exception {
         final int clientId = 2005;
+        final int uid = 1000;
         final int publishId = 15;
         final int reasonFail = WifiNanSessionCallback.REASON_INVALID_ARGS;
 
@@ -499,7 +506,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (0) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -551,6 +558,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testDisconnectWhilePublishPending() throws Exception {
         final int clientId = 2005;
+        final int uid = 1000;
         final int publishId = 15;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -566,7 +574,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (0) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -603,6 +611,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testSubscribeFail() throws Exception {
         final int clientId = 1005;
+        final int uid = 1000;
         final int reasonFail = WifiNanSessionCallback.REASON_NO_RESOURCES;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -618,7 +627,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (0) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -649,6 +658,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testSubscribeSuccessTerminated() throws Exception {
         final int clientId = 2005;
+        final int uid = 1000;
         final int reasonTerminate = WifiNanSessionCallback.TERMINATE_REASON_DONE;
         final int subscribeId = 15;
 
@@ -666,7 +676,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (0) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -715,6 +725,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testSubscribeUpdateFail() throws Exception {
         final int clientId = 2005;
+        final int uid = 1000;
         final int subscribeId = 15;
         final int reasonFail = WifiNanSessionCallback.REASON_INVALID_ARGS;
 
@@ -732,7 +743,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (0) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -784,6 +795,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testDisconnectWhileSubscribePending() throws Exception {
         final int clientId = 2005;
+        final int uid = 1000;
         final int subscribeId = 15;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -799,7 +811,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (0) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -837,6 +849,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testMatchAndMessages() throws Exception {
         final int clientId = 1005;
+        final int uid = 1000;
         final String serviceName = "some-service-name";
         final String ssi = "some much longer and more arbitrary data";
         final int subscribeCount = 7;
@@ -867,7 +880,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (0) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
                 eq(configRequest), eq(true));
@@ -944,6 +957,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testMultipleMessageSources() throws Exception {
         final int clientId = 300;
+        final int uid = 1000;
         final int clusterLow = 7;
         final int clusterHigh = 7;
         final int masterPref = 0;
@@ -978,7 +992,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -1037,6 +1051,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testMessageWhilePeerChangesIdentity() throws Exception {
         final int clientId = 300;
+        final int uid = 1000;
         final int clusterLow = 7;
         final int clusterHigh = 7;
         final int masterPref = 0;
@@ -1068,7 +1083,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -1124,6 +1139,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testSendMessageToInvalidPeerId() throws Exception {
         final int clientId = 1005;
+        final int uid = 1000;
         final String ssi = "some much longer and more arbitrary data";
         final int subscribeId = 15;
         final int requestorId = 22;
@@ -1146,7 +1162,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -1183,6 +1199,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testSendMessageTimeout() throws Exception {
         final int clientId = 1005;
+        final int uid = 1000;
         final String ssi = "some much longer and more arbitrary data";
         final int subscribeId = 15;
         final int requestorId = 22;
@@ -1205,7 +1222,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -1254,6 +1271,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testSendMessageRetransmitSuccess() throws Exception {
         final int clientId = 1005;
+        final int uid = 1000;
         final String ssi = "some much longer and more arbitrary data";
         final int subscribeId = 15;
         final int requestorId = 22;
@@ -1277,7 +1295,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -1333,6 +1351,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testSendMessageRetransmitFail() throws Exception {
         final int clientId = 1005;
+        final int uid = 1000;
         final String ssi = "some much longer and more arbitrary data";
         final int subscribeId = 15;
         final int requestorId = 22;
@@ -1356,7 +1375,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -1412,6 +1431,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testStartRanging() throws Exception {
         final int clientId = 1005;
+        final int uid = 1000;
         final int subscribeId = 15;
         final int requestorId = 22;
         final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
@@ -1445,7 +1465,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -1487,6 +1507,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testConfigs() throws Exception {
         final int clientId1 = 9999;
+        final int uid = 1000;
         final int clusterLow1 = 5;
         final int clusterHigh1 = 100;
         final int masterPref1 = 111;
@@ -1523,7 +1544,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) config1 (valid)
-        mDut.connect(clientId1, mockCallback1, configRequest1);
+        mDut.connect(clientId1, uid, mockCallback1, configRequest1);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
                 crCapture.capture(), eq(true));
@@ -1533,7 +1554,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mockCallback1).onConnectSuccess();
 
         // (2) config2 (incompatible with config1)
-        mDut.connect(clientId2, mockCallback2, configRequest2);
+        mDut.connect(clientId2, uid, mockCallback2, configRequest2);
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback2)
                 .onConnectFail(WifiNanEventCallback.REASON_ALREADY_CONNECTED_INCOMPAT_CONFIG);
@@ -1541,7 +1562,7 @@ public class WifiNanStateManagerTest {
 
         // (3) config3 (compatible with config1 but requires upgrade - i.e. no
         // OTA changes)
-        mDut.connect(clientId3, mockCallback3, configRequest3);
+        mDut.connect(clientId3, uid, mockCallback3, configRequest3);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
                 crCapture.capture(), eq(false));
@@ -1584,6 +1605,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testDisconnectWithPendingTransactions() throws Exception {
         final int clientId = 125;
+        final int uid = 1000;
         final int clusterLow = 5;
         final int clusterHigh = 100;
         final int masterPref = 111;
@@ -1610,7 +1632,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -1655,6 +1677,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testUnknownTransactionType() throws Exception {
         final int clientId = 129;
+        final int uid = 1000;
         final int clusterLow = 15;
         final int clusterHigh = 192;
         final int masterPref = 234;
@@ -1679,7 +1702,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -1703,6 +1726,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testNoOpTransaction() throws Exception {
         final int clientId = 1294;
+        final int uid = 1000;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
 
@@ -1716,7 +1740,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect (no response)
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -1733,6 +1757,7 @@ public class WifiNanStateManagerTest {
     public void testInvalidCallbackIdParameters() throws Exception {
         final int pubSubId = 1235;
         final int clientId = 132;
+        final int uid = 1000;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
 
@@ -1745,7 +1770,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect and succeed
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -1778,6 +1803,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testSubscribeOnPublishSessionType() throws Exception {
         final int clientId = 188;
+        final int uid = 1000;
         final int publishId = 25;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -1795,7 +1821,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
                 eq(true));
@@ -1827,6 +1853,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testPublishOnSubscribeSessionType() throws Exception {
         final int clientId = 188;
+        final int uid = 1000;
         final int subscribeId = 25;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -1844,7 +1871,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
                 eq(configRequest), eq(true));
@@ -1875,6 +1902,7 @@ public class WifiNanStateManagerTest {
     @Test
     public void testSessionIdIncrement() throws Exception {
         final int clientId = 188;
+        final int uid = 1000;
         int loopCount = 100;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -1891,7 +1919,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(anyShort());
 
         // (1) connect
-        mDut.connect(clientId, mockCallback, configRequest);
+        mDut.connect(clientId, uid, mockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
                 eq(configRequest), eq(true));

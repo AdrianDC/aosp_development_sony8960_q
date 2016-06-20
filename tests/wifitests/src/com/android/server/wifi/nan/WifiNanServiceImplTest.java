@@ -20,6 +20,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -167,7 +168,7 @@ public class WifiNanServiceImplTest {
         int returnedClientId = mDut.connect(mBinderMock, mCallbackMock, configRequest);
 
         ArgumentCaptor<Integer> clientId = ArgumentCaptor.forClass(Integer.class);
-        verify(mNanStateManagerMock).connect(clientId.capture(), eq(mCallbackMock),
+        verify(mNanStateManagerMock).connect(clientId.capture(), anyInt(), eq(mCallbackMock),
                 eq(configRequest));
         assertEquals(returnedClientId, (int) clientId.getValue());
     }
@@ -444,7 +445,7 @@ public class WifiNanServiceImplTest {
         int returnedClientId = mDut.connect(mBinderMock, mCallbackMock, null);
 
         ArgumentCaptor<Integer> clientId = ArgumentCaptor.forClass(Integer.class);
-        verify(mNanStateManagerMock).connect(clientId.capture(), eq(mCallbackMock),
+        verify(mNanStateManagerMock).connect(clientId.capture(), anyInt(), eq(mCallbackMock),
                 eq(new ConfigRequest.Builder().build()));
         assertEquals(returnedClientId, (int) clientId.getValue());
 

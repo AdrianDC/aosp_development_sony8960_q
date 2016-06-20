@@ -198,7 +198,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             mUidByClientId.put(clientId, uid);
         }
 
-        mStateManager.connect(clientId, callback, configRequest);
+        mStateManager.connect(clientId, uid, callback, configRequest);
 
         return clientId;
     }
