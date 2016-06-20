@@ -47,6 +47,7 @@ import libcore.util.HexEncoding;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -65,6 +66,10 @@ public class WifiNanStateManager {
     @VisibleForTesting
     public static final String HAL_SEND_MESSAGE_TIMEOUT_TAG = TAG + " HAL Send Message Timeout";
 
+    @VisibleForTesting
+    public static final String HAL_DATA_PATH_CONFIRM_TIMEOUT_TAG =
+            TAG + " HAL Data Path Confirm Timeout";
+
     private static WifiNanStateManager sNanStateManagerSingleton;
 
     /*
@@ -77,6 +82,7 @@ public class WifiNanStateManager {
     private static final int MESSAGE_TYPE_RESPONSE = 3;
     private static final int MESSAGE_TYPE_RESPONSE_TIMEOUT = 4;
     private static final int MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT = 5;
+    private static final int MESSAGE_TYPE_DATA_PATH_TIMEOUT = 6;
 
     /*
      * Message sub-types:
@@ -154,6 +160,7 @@ public class WifiNanStateManager {
     private static final String MESSAGE_BUNDLE_KEY_PUB_SUB_ID = "pub_sub_id";
     private static final String MESSAGE_BUNDLE_KEY_CHANNEL_REQ_TYPE = "channel_request_type";
     private static final String MESSAGE_BUNDLE_KEY_CHANNEL = "channel";
+    private static final String MESSAGE_BUNDLE_KEY_PEER_ID = "peer_id";
     private static final String MESSAGE_BUNDLE_KEY_UID = "uid";
 
     /*
@@ -208,6 +215,7 @@ public class WifiNanStateManager {
 
         mRtt = new WifiNanRttStateManager();
         mDataPathMgr = new WifiNanDataPathStateManager(this);
+        mDataPathMgr.start(mContext, mSm.getHandler().getLooper());
     }
 
     /**
@@ -215,6 +223,13 @@ public class WifiNanStateManager {
      */
     public void startLate() {
         mRtt.start(mContext, mSm.getHandler().getLooper());
+    }
+
+    /**
+     * Get the client state for the specified ID (or null if none exists).
+     */
+    /* package */ WifiNanClientState getClient(int clientId) {
+        return mClients.get(clientId);
     }
 
     /*
@@ -423,17 +438,17 @@ public class WifiNanStateManager {
     /**
      * Command to initiate a data-path (executed by the initiator).
      */
-    public void initiateDataPathSetup(String networkSpecifier, int pubSubId, int channelRequestType,
-            int channel, byte[] peer, String interfaceName, String token) {
+    public void initiateDataPathSetup(String networkSpecifier, int peerId, int channelRequestType,
+            int channel, byte[] peer, String interfaceName, byte[] token) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_INITIATE_DATA_PATH_SETUP;
         msg.obj = networkSpecifier;
-        msg.getData().putInt(MESSAGE_BUNDLE_KEY_PUB_SUB_ID, pubSubId);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_PEER_ID, peerId);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_CHANNEL_REQ_TYPE, channelRequestType);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_CHANNEL, channel);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS, peer);
         msg.getData().putString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME, interfaceName);
-        msg.getData().putString(MESSAGE_BUNDLE_KEY_MESSAGE, token);
+        msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE, token);
         mSm.sendMessage(msg);
     }
 
@@ -579,7 +594,7 @@ public class WifiNanStateManager {
 
     /**
      * Response from firmware to {@link #initiateDataPathSetup(String, int, int, int, byte[],
-     * String, String)}. Indicates that command has started succesfully (not completed!).
+     * String, byte[])}. Indicates that command has started succesfully (not completed!).
      */
     public void onInitiateDataPathResponseSuccess(short transactionId, int ndpId) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
@@ -591,7 +606,7 @@ public class WifiNanStateManager {
 
     /**
      * Response from firmware to
-     * {@link #initiateDataPathSetup(String, int, int, int, byte[], String, String)}. Indicates
+     * {@link #initiateDataPathSetup(String, int, int, int, byte[], String, byte[])}. Indicates
      * that command has failed.
      */
     public void onInitiateDataPathResponseFail(short transactionId, int reason) {
@@ -800,6 +815,9 @@ public class WifiNanStateManager {
         private WakeupMessage mSendMessageTimeoutMessage = new WakeupMessage(mContext, getHandler(),
                 HAL_SEND_MESSAGE_TIMEOUT_TAG, MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT);
 
+        private static final long NAN_WAIT_FOR_DP_CONFIRM_TIMEOUT = 5_000;
+        private final Map<String, WakeupMessage> mDataPathConfirmTimeoutMessages = new HashMap<>();
+
         WifiNanStateMachine(String name, Looper looper) {
             super(name, looper);
 
@@ -824,6 +842,18 @@ public class WifiNanStateManager {
                     case MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT:
                         processSendMessageTimeout();
                         return HANDLED;
+                    case MESSAGE_TYPE_DATA_PATH_TIMEOUT: {
+                        String networkSpecifier = (String) msg.obj;
+
+                        if (VDBG) {
+                            Log.v(TAG, "MESSAGE_TYPE_DATA_PATH_TIMEOUT: networkSpecifier="
+                                    + networkSpecifier);
+                        }
+
+                        mDataPathMgr.handleDataPathTimeout(networkSpecifier);
+                        mDataPathConfirmTimeoutMessages.remove(networkSpecifier);
+                        return HANDLED;
+                    }
                     default:
                         /* fall-through */
                 }
@@ -1038,14 +1068,44 @@ public class WifiNanStateManager {
                     }
                     break;
                 }
-                case NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST:
-                    // TODO: do something with this
+                case NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST: {
+                    String networkSpecifier = mDataPathMgr.onDataPathRequest(msg.arg2,
+                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS),
+                            (int) msg.obj,
+                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA),
+                            msg.getData().getInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH));
+
+                    if (networkSpecifier != null) {
+                        WakeupMessage timeout = new WakeupMessage(mContext, getHandler(),
+                                HAL_DATA_PATH_CONFIRM_TIMEOUT_TAG, MESSAGE_TYPE_DATA_PATH_TIMEOUT,
+                                0, 0, networkSpecifier);
+                        mDataPathConfirmTimeoutMessages.put(networkSpecifier, timeout);
+                        timeout.schedule(
+                                SystemClock.elapsedRealtime() + NAN_WAIT_FOR_DP_CONFIRM_TIMEOUT);
+                    }
+
                     break;
-                case NOTIFICATION_TYPE_ON_DATA_PATH_CONFIRM:
-                    // TODO: do something with this
+                }
+                case NOTIFICATION_TYPE_ON_DATA_PATH_CONFIRM: {
+                    String networkSpecifier = mDataPathMgr.onDataPathConfirm(msg.arg2,
+                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS),
+                            msg.getData().getBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG),
+                            msg.getData().getInt(MESSAGE_BUNDLE_KEY_STATUS_CODE),
+                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA),
+                            msg.getData().getInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH));
+
+                    if (networkSpecifier != null) {
+                        WakeupMessage timeout = mDataPathConfirmTimeoutMessages.remove(
+                                networkSpecifier);
+                        if (timeout != null) {
+                            timeout.cancel();
+                        }
+                    }
+
                     break;
+                }
                 case NOTIFICATION_TYPE_ON_DATA_PATH_END:
-                    // TODO: do something with this
+                    mDataPathMgr.onDataPathEnd(msg.arg2);
                     break;
                 default:
                     Log.wtf(TAG, "processNotification: this isn't a NOTIFICATION -- msg=" + msg);
@@ -1206,15 +1266,26 @@ public class WifiNanStateManager {
                 case COMMAND_TYPE_INITIATE_DATA_PATH_SETUP: {
                     Bundle data = msg.getData();
 
-                    int pubSubId = data.getInt(MESSAGE_BUNDLE_KEY_PUB_SUB_ID);
+                    String networkSpecifier = (String) msg.obj;
+
+                    int peerId = data.getInt(MESSAGE_BUNDLE_KEY_PEER_ID);
                     int channelRequestType = data.getInt(MESSAGE_BUNDLE_KEY_CHANNEL_REQ_TYPE);
                     int channel = data.getInt(MESSAGE_BUNDLE_KEY_CHANNEL);
                     byte[] peer = data.getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS);
                     String interfaceName = data.getString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME);
-                    String token = data.getString(MESSAGE_BUNDLE_KEY_MESSAGE);
+                    byte[] token = data.getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE);
 
-                    waitForResponse = initiateDataPathSetupLocal(mCurrentTransactionId, pubSubId,
+                    waitForResponse = initiateDataPathSetupLocal(mCurrentTransactionId, peerId,
                             channelRequestType, channel, peer, interfaceName, token);
+
+                    if (waitForResponse) {
+                        WakeupMessage timeout = new WakeupMessage(mContext, getHandler(),
+                                HAL_DATA_PATH_CONFIRM_TIMEOUT_TAG, MESSAGE_TYPE_DATA_PATH_TIMEOUT,
+                                0, 0, networkSpecifier);
+                        mDataPathConfirmTimeoutMessages.put(networkSpecifier, timeout);
+                        timeout.schedule(
+                                SystemClock.elapsedRealtime() + NAN_WAIT_FOR_DP_CONFIRM_TIMEOUT);
+                    }
                     break;
                 }
                 case COMMAND_TYPE_RESPOND_TO_DATA_PATH_SETUP_REQUEST: {
@@ -1792,18 +1863,18 @@ public class WifiNanStateManager {
         mRtt.startRanging(rangingId, client, params);
     }
 
-    private boolean initiateDataPathSetupLocal(short transactionId, int pubSubId,
-            int channelRequestType, int channel, byte[] peer, String interfaceName, String token) {
+    private boolean initiateDataPathSetupLocal(short transactionId, int peerId,
+            int channelRequestType, int channel, byte[] peer, String interfaceName, byte[] token) {
         if (VDBG) {
             Log.v(TAG,
-                    "initiateDataPathSetupLocal(): transactionId=" + transactionId + ", pubSubId="
-                            + pubSubId + ", channelRequestType=" + channelRequestType + ", channel="
+                    "initiateDataPathSetupLocal(): transactionId=" + transactionId + ", peerId="
+                            + peerId + ", channelRequestType=" + channelRequestType + ", channel="
                             + channel + ", peer=" + String.valueOf(HexEncoding.encode(peer))
                             + ", interfaceName=" + interfaceName + ", token=" + token);
         }
 
-        return WifiNanNative.getInstance().initiateDataPath(transactionId, pubSubId,
-                channelRequestType, channel, peer, interfaceName, token.getBytes(), token.length());
+        return WifiNanNative.getInstance().initiateDataPath(transactionId, peerId,
+                channelRequestType, channel, peer, interfaceName, token, token.length);
     }
 
     private boolean respondToDataPathRequestLocal(short transactionId, boolean accept,
@@ -1815,8 +1886,10 @@ public class WifiNanStateManager {
                             + ", token=" + token);
         }
 
+        byte[] tokenBytes = token.getBytes();
+
         return WifiNanNative.getInstance().respondToDataPathRequest(transactionId, accept, ndpId,
-                interfaceName, token.getBytes(), token.length());
+                interfaceName, tokenBytes, tokenBytes.length);
     }
 
     private boolean endDataPathLocal(short transactionId, int ndpId) {
@@ -2110,7 +2183,7 @@ public class WifiNanStateManager {
                     + ndpId);
         }
 
-        // TODO: do something with this
+        mDataPathMgr.onDataPathInitiateSuccess((String) command.obj, ndpId);
     }
 
     private void onInitiateDataPathResponseFailLocal(Message command, int reason) {
@@ -2119,7 +2192,7 @@ public class WifiNanStateManager {
                     + reason);
         }
 
-        // TODO: do something with this
+        mDataPathMgr.onDataPathInitiateFail((String) command.obj, reason);
     }
 
     private void onRespondToDataPathSetupRequestResponseLocal(Message command, boolean success,
@@ -2249,6 +2322,7 @@ public class WifiNanStateManager {
 
         mClients.clear();
         mCurrentNanConfiguration = null;
+        mDataPathMgr.onNanDownCleanupDataPaths();
     }
 
     /*
@@ -2492,6 +2566,9 @@ public class WifiNanStateManager {
                 break;
             case MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT:
                 sb.append("SEND_MESSAGE_TIMEOUT");
+                break;
+            case MESSAGE_TYPE_DATA_PATH_TIMEOUT:
+                sb.append("DATA_PATH_TIMEOUT");
                 break;
             default:
                 sb.append("<unknown>");
