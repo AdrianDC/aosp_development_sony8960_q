@@ -27,6 +27,8 @@ import android.util.Log;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.AtomicFile;
 
+import org.xmlpull.v1.XmlPullParserException;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -166,7 +168,8 @@ public class WifiConfigStoreNew {
      * @param storeData The entire data to be stored across all the config store files.
      * @throws IOException if an error occurs.
      */
-    public void write(boolean forceSync, WifiConfigStoreData storeData) throws IOException {
+    public void write(boolean forceSync, WifiConfigStoreData storeData)
+            throws XmlPullParserException, IOException {
         // Serialize the provided data and send it to the respective stores. The actual write will
         // be performed later depending on the |forceSync| flag .
         byte[] sharedDataBytes = storeData.createSharedRawData();
