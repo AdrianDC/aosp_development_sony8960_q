@@ -16,15 +16,15 @@
 
 #define LOG_TAG "wifi"
 
-#include "jni.h"
-#include <ScopedUtfChars.h>
-#include <utils/misc.h>
 #include <android_runtime/AndroidRuntime.h>
+#include <hardware_legacy/wifi_hal.h>
+#include <nativehelper/ScopedUtfChars.h>
+#include <nativehelper/jni.h>
 #include <utils/Log.h>
 #include <utils/String16.h>
+#include <utils/misc.h>
+#include <wifi_system/wifi.h>
 
-#include "wifi_system/wifi.h"
-#include "hardware_legacy/wifi_hal.h"
 #include "jni_helper.h"
 
 namespace android {

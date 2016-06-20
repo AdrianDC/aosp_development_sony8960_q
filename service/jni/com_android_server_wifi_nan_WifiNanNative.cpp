@@ -16,19 +16,20 @@
 
 #define LOG_TAG "wifinan"
 
-#include "jni.h"
-#include "JniConstants.h"
-#include <ScopedUtfChars.h>
-#include <ScopedBytes.h>
-#include <utils/misc.h>
-#include <utils/Log.h>
-#include <utils/String16.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <sys/socket.h>
-#include <linux/if.h>
-#include "wifi_system/wifi.h"
-#include "hardware_legacy/wifi_hal.h"
+
+#include <hardware_legacy/wifi_hal.h>
+#include <log/log.h>
+#include <nativehelper/JniConstants.h>
+#include <nativehelper/ScopedBytes.h>
+#include <nativehelper/ScopedUtfChars.h>
+#include <nativehelper/jni.h>
+#include <utils/String16.h>
+#include <utils/misc.h>
+#include <wifi_system/wifi.h>
+
 #include "jni_helper.h"
 
 namespace android {
