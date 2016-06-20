@@ -76,7 +76,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private static final int MIN_PERIOD_PER_CHANNEL_MS = 200;               // DFS needs 120 ms
     private static final int UNKNOWN_PID = -1;
 
-    private final LocalLog mLocalLog = new LocalLog(1024);
+    private final LocalLog mLocalLog = new LocalLog(512);
 
     private void localLog(String message) {
         mLocalLog.log(message);
