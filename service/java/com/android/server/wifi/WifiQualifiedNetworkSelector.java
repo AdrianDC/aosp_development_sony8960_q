@@ -98,8 +98,7 @@ public class WifiQualifiedNetworkSelector {
     private static final int INVALID_TIME_STAMP = -1;
     private long mLastQualifiedNetworkSelectionTimeStamp = INVALID_TIME_STAMP;
 
-    // Temporarily, for dog food
-    private final LocalLog mLocalLog = new LocalLog(1024);
+    private final LocalLog mLocalLog = new LocalLog(512);
     private int mRssiScoreSlope = RSSI_SCORE_SLOPE;
     private int mRssiScoreOffset = RSSI_SCORE_OFFSET;
     private int mSameBssidAward = SAME_BSSID_AWARD;

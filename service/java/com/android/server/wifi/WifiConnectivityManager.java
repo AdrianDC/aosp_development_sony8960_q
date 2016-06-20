@@ -132,7 +132,7 @@ public class WifiConnectivityManager {
     private final Handler mEventHandler;
     private final Clock mClock;
     private final LocalLog mLocalLog =
-            new LocalLog(ActivityManager.isLowRamDeviceStatic() ? 256 : 1024);
+            new LocalLog(ActivityManager.isLowRamDeviceStatic() ? 128 : 256);
     private final LinkedList<Long> mConnectionAttemptTimeStamps;
 
     private boolean mDbg = false;
