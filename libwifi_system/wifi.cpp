@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include "wifi_system/wifi.h"
+#define LOG_TAG "WifiHW"
+
 #include <stdlib.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -24,44 +27,43 @@
 #include <unistd.h>
 #include <poll.h>
 
-#include "wifi_system/wifi.h"
-#ifdef LIBWPA_CLIENT_EXISTS
-#include "libwpa_client/wpa_ctrl.h"
-#endif
-
-#define LOG_TAG "WifiHW"
-#include "cutils/log.h"
-#include "cutils/memory.h"
-#include "cutils/misc.h"
-#include "cutils/properties.h"
-#include "private/android_filesystem_config.h"
+#include <cutils/log.h>
+#include <cutils/memory.h>
+#include <cutils/misc.h>
+#include <cutils/properties.h>
+#include <private/android_filesystem_config.h>
 
 #define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
 #include <sys/_system_properties.h>
 
-void wifi_close_sockets();
 
-#ifndef LIBWPA_CLIENT_EXISTS
+#ifdef LIBWPA_CLIENT_EXISTS
+#include <libwpa_client/wpa_ctrl.h>
+#else
 #define WPA_EVENT_TERMINATING "CTRL-EVENT-TERMINATING "
 struct wpa_ctrl {};
 void wpa_ctrl_cleanup(void) {}
-struct wpa_ctrl *wpa_ctrl_open(const char *ctrl_path) { return NULL; }
-void wpa_ctrl_close(struct wpa_ctrl *ctrl) {}
-int wpa_ctrl_request(struct wpa_ctrl *ctrl, const char *cmd, size_t cmd_len,
-	char *reply, size_t *reply_len, void (*msg_cb)(char *msg, size_t len))
+struct wpa_ctrl* wpa_ctrl_open(const char* ctrl_path) { return NULL; }
+void wpa_ctrl_close(struct wpa_ctrl* ctrl) {}
+int wpa_ctrl_request(struct wpa_ctrl* ctrl, const char* cmd, size_t cmd_len,
+	char* reply, size_t* reply_len, void (*msg_cb)(char* msg, size_t len))
 	{ return 0; }
-int wpa_ctrl_attach(struct wpa_ctrl *ctrl) { return 0; }
-int wpa_ctrl_detach(struct wpa_ctrl *ctrl) { return 0; }
-int wpa_ctrl_recv(struct wpa_ctrl *ctrl, char *reply, size_t *reply_len)
+int wpa_ctrl_attach(struct wpa_ctrl* ctrl) { return 0; }
+int wpa_ctrl_detach(struct wpa_ctrl* ctrl) { return 0; }
+int wpa_ctrl_recv(struct wpa_ctrl* ctrl, char* reply, size_t* reply_len)
 	{ return 0; }
-int wpa_ctrl_get_fd(struct wpa_ctrl *ctrl) { return 0; }
-#endif
+int wpa_ctrl_get_fd(struct wpa_ctrl* ctrl) { return 0; }
+#endif  // defined LIBWPA_CLIENT_EXISTS
 
-static struct wpa_ctrl *ctrl_conn;
-static struct wpa_ctrl *monitor_conn;
+
+namespace android {
+namespace wifi_system {
+namespace {
 
 /* socket pair used to exit from a blocking read */
-static int exit_sockets[2];
+int exit_sockets[2];
+struct wpa_ctrl* ctrl_conn;
+struct wpa_ctrl* monitor_conn;
 
 static char primary_iface[PROPERTY_VALUE_MAX];
 // TODO: use new ANDROID_SOCKET mechanism, once support for multiple
@@ -71,75 +73,53 @@ static char primary_iface[PROPERTY_VALUE_MAX];
 
 #define WIFI_DRIVER_LOADER_DELAY	1000000
 
-static const char IFACE_DIR[]           = "/data/system/wpa_supplicant";
-static const char SUPPLICANT_NAME[]     = "wpa_supplicant";
-static const char SUPP_PROP_NAME[]      = "init.svc.wpa_supplicant";
-static const char P2P_SUPPLICANT_NAME[] = "p2p_supplicant";
-static const char P2P_PROP_NAME[]       = "init.svc.p2p_supplicant";
-static const char SUPP_CONFIG_TEMPLATE[]= "/system/etc/wifi/wpa_supplicant.conf";
-static const char SUPP_CONFIG_FILE[]    = "/data/misc/wifi/wpa_supplicant.conf";
-static const char P2P_CONFIG_FILE[]     = "/data/misc/wifi/p2p_supplicant.conf";
+const char IFACE_DIR[]           = "/data/system/wpa_supplicant";
+const char SUPPLICANT_NAME[]     = "wpa_supplicant";
+const char SUPP_PROP_NAME[]      = "init.svc.wpa_supplicant";
+const char P2P_SUPPLICANT_NAME[] = "p2p_supplicant";
+const char P2P_PROP_NAME[]       = "init.svc.p2p_supplicant";
+const char SUPP_CONFIG_TEMPLATE[]= "/system/etc/wifi/wpa_supplicant.conf";
+const char SUPP_CONFIG_FILE[]    = "/data/misc/wifi/wpa_supplicant.conf";
+const char P2P_CONFIG_FILE[]     = "/data/misc/wifi/p2p_supplicant.conf";
 
-static const char IFNAME[]              = "IFNAME=";
+const char IFNAME[]              = "IFNAME=";
 #define IFNAMELEN			(sizeof(IFNAME) - 1)
-static const char WPA_EVENT_IGNORE[]    = "CTRL-EVENT-IGNORE ";
+const char WPA_EVENT_IGNORE[]    = "CTRL-EVENT-IGNORE ";
 
-static const char SUPP_ENTROPY_FILE[]   = WIFI_ENTROPY_FILE;
-static unsigned char dummy_key[21] = { 0x02, 0x11, 0xbe, 0x33, 0x43, 0x35,
-                                       0x68, 0x47, 0x84, 0x99, 0xa9, 0x2b,
-                                       0x1c, 0xd3, 0xee, 0xff, 0xf1, 0xe2,
-                                       0xf3, 0xf4, 0xf5 };
+unsigned char dummy_key[21] = { 0x02, 0x11, 0xbe, 0x33, 0x43, 0x35,
+                                0x68, 0x47, 0x84, 0x99, 0xa9, 0x2b,
+                                0x1c, 0xd3, 0xee, 0xff, 0xf1, 0xe2,
+                                0xf3, 0xf4, 0xf5 };
 
 /* Is either SUPPLICANT_NAME or P2P_SUPPLICANT_NAME */
-static char supplicant_name[PROPERTY_VALUE_MAX];
+char supplicant_name[PROPERTY_VALUE_MAX];
 /* Is either SUPP_PROP_NAME or P2P_PROP_NAME */
-static char supplicant_prop_name[PROPERTY_KEY_MAX];
+char supplicant_prop_name[PROPERTY_KEY_MAX];
 
-int ensure_entropy_file_exists()
+void wifi_close_sockets()
 {
-    int ret;
-    int destfd;
-
-    ret = access(SUPP_ENTROPY_FILE, R_OK|W_OK);
-    if ((ret == 0) || (errno == EACCES)) {
-        if ((ret != 0) &&
-            (chmod(SUPP_ENTROPY_FILE, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP) != 0)) {
-            ALOGE("Cannot set RW to \"%s\": %s", SUPP_ENTROPY_FILE, strerror(errno));
-            return -1;
-        }
-        return 0;
-    }
-    destfd = TEMP_FAILURE_RETRY(open(SUPP_ENTROPY_FILE, O_CREAT|O_RDWR, 0660));
-    if (destfd < 0) {
-        ALOGE("Cannot create \"%s\": %s", SUPP_ENTROPY_FILE, strerror(errno));
-        return -1;
+    if (ctrl_conn != NULL) {
+        wpa_ctrl_close(ctrl_conn);
+        ctrl_conn = NULL;
     }
 
-    if (TEMP_FAILURE_RETRY(write(destfd, dummy_key, sizeof(dummy_key))) != sizeof(dummy_key)) {
-        ALOGE("Error writing \"%s\": %s", SUPP_ENTROPY_FILE, strerror(errno));
-        close(destfd);
-        return -1;
-    }
-    close(destfd);
-
-    /* chmod is needed because open() didn't set permisions properly */
-    if (chmod(SUPP_ENTROPY_FILE, 0660) < 0) {
-        ALOGE("Error changing permissions of %s to 0660: %s",
-             SUPP_ENTROPY_FILE, strerror(errno));
-        unlink(SUPP_ENTROPY_FILE);
-        return -1;
+    if (monitor_conn != NULL) {
+        wpa_ctrl_close(monitor_conn);
+        monitor_conn = NULL;
     }
 
-    if (chown(SUPP_ENTROPY_FILE, AID_SYSTEM, AID_WIFI) < 0) {
-        ALOGE("Error changing group ownership of %s to %d: %s",
-             SUPP_ENTROPY_FILE, AID_WIFI, strerror(errno));
-        unlink(SUPP_ENTROPY_FILE);
-        return -1;
+    if (exit_sockets[0] >= 0) {
+        close(exit_sockets[0]);
+        exit_sockets[0] = -1;
     }
-    return 0;
+
+    if (exit_sockets[1] >= 0) {
+        close(exit_sockets[1]);
+        exit_sockets[1] = -1;
+    }
 }
 
-int ensure_config_file_exists(const char *config_file)
+int ensure_config_file_exists(const char* config_file)
 {
     char buf[2048];
     int srcfd, destfd;
@@ -203,11 +183,15 @@ int ensure_config_file_exists(const char *config_file)
     return 0;
 }
 
+}  // namespace
+
+const char kWiFiEntropyFile[] = "/data/misc/wifi/entropy.bin";
+
 int wifi_start_supplicant(int p2p_supported)
 {
     char supp_status[PROPERTY_VALUE_MAX] = {'\0'};
     int count = 200; /* wait at most 20 seconds for completion */
-    const prop_info *pi;
+    const prop_info* pi;
     unsigned serial = 0;
 
     if (p2p_supported) {
@@ -318,7 +302,9 @@ int wifi_stop_supplicant(int p2p_supported)
     return -1;
 }
 
-int wifi_connect_on_socket_path(const char *path)
+namespace {
+
+int wifi_connect_on_socket_path(const char* path)
 {
     char supp_status[PROPERTY_VALUE_MAX] = {'\0'};
 
@@ -358,20 +344,7 @@ int wifi_connect_on_socket_path(const char *path)
     return 0;
 }
 
-/* Establishes the control and monitor socket connections on the interface */
-int wifi_connect_to_supplicant()
-{
-    static char path[PATH_MAX];
-
-    if (access(IFACE_DIR, F_OK) == 0) {
-        snprintf(path, sizeof(path), "%s/%s", IFACE_DIR, primary_iface);
-    } else {
-        snprintf(path, sizeof(path), "@android:wpa_%s", primary_iface);
-    }
-    return wifi_connect_on_socket_path(path);
-}
-
-int wifi_send_command(const char *cmd, char *reply, size_t *reply_len)
+int wifi_send_command(const char* cmd, char* reply, size_t* reply_len)
 {
     int ret;
     if (ctrl_conn == NULL) {
@@ -405,7 +378,7 @@ int wifi_supplicant_connection_active()
     return 0;
 }
 
-int wifi_ctrl_recv(char *reply, size_t *reply_len)
+int wifi_ctrl_recv(char* reply, size_t* reply_len)
 {
     int res;
     int ctrlfd = wpa_ctrl_get_fd(monitor_conn);
@@ -441,11 +414,12 @@ int wifi_ctrl_recv(char *reply, size_t *reply_len)
     return -2;
 }
 
-int wifi_wait_on_socket(char *buf, size_t buflen)
+int wifi_wait_on_socket(char* buf, size_t buflen)
 {
     size_t nread = buflen - 1;
     int result;
-    char *match, *match2;
+    char* match;
+    char* match2;
 
     if (monitor_conn == NULL) {
         return snprintf(buf, buflen, "IFNAME=%s %s - connection closed",
@@ -513,32 +487,19 @@ int wifi_wait_on_socket(char *buf, size_t buflen)
     return nread;
 }
 
-int wifi_wait_for_event(char *buf, size_t buflen)
+}  // namespace
+
+/* Establishes the control and monitor socket connections on the interface */
+int wifi_connect_to_supplicant()
 {
-    return wifi_wait_on_socket(buf, buflen);
-}
+    static char path[PATH_MAX];
 
-void wifi_close_sockets()
-{
-    if (ctrl_conn != NULL) {
-        wpa_ctrl_close(ctrl_conn);
-        ctrl_conn = NULL;
+    if (access(IFACE_DIR, F_OK) == 0) {
+        snprintf(path, sizeof(path), "%s/%s", IFACE_DIR, primary_iface);
+    } else {
+        snprintf(path, sizeof(path), "@android:wpa_%s", primary_iface);
     }
-
-    if (monitor_conn != NULL) {
-        wpa_ctrl_close(monitor_conn);
-        monitor_conn = NULL;
-    }
-
-    if (exit_sockets[0] >= 0) {
-        close(exit_sockets[0]);
-        exit_sockets[0] = -1;
-    }
-
-    if (exit_sockets[1] >= 0) {
-        close(exit_sockets[1]);
-        exit_sockets[1] = -1;
-    }
+    return wifi_connect_on_socket_path(path);
 }
 
 void wifi_close_supplicant_connection()
@@ -557,7 +518,59 @@ void wifi_close_supplicant_connection()
     }
 }
 
-int wifi_command(const char *command, char *reply, size_t *reply_len)
+int wifi_wait_for_event(char* buf, size_t buflen)
+{
+    return wifi_wait_on_socket(buf, buflen);
+}
+
+int wifi_command(const char* command, char* reply, size_t* reply_len)
 {
     return wifi_send_command(command, reply, reply_len);
 }
+
+int ensure_entropy_file_exists()
+{
+    int ret;
+    int destfd;
+
+    ret = access(kWiFiEntropyFile, R_OK|W_OK);
+    if ((ret == 0) || (errno == EACCES)) {
+        if ((ret != 0) &&
+            (chmod(kWiFiEntropyFile, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP) != 0)) {
+            ALOGE("Cannot set RW to \"%s\": %s", kWiFiEntropyFile, strerror(errno));
+            return -1;
+        }
+        return 0;
+    }
+    destfd = TEMP_FAILURE_RETRY(open(kWiFiEntropyFile, O_CREAT|O_RDWR, 0660));
+    if (destfd < 0) {
+        ALOGE("Cannot create \"%s\": %s", kWiFiEntropyFile, strerror(errno));
+        return -1;
+    }
+
+    if (TEMP_FAILURE_RETRY(write(destfd, dummy_key, sizeof(dummy_key))) != sizeof(dummy_key)) {
+        ALOGE("Error writing \"%s\": %s", kWiFiEntropyFile, strerror(errno));
+        close(destfd);
+        return -1;
+    }
+    close(destfd);
+
+    /* chmod is needed because open() didn't set permisions properly */
+    if (chmod(kWiFiEntropyFile, 0660) < 0) {
+        ALOGE("Error changing permissions of %s to 0660: %s",
+             kWiFiEntropyFile, strerror(errno));
+        unlink(kWiFiEntropyFile);
+        return -1;
+    }
+
+    if (chown(kWiFiEntropyFile, AID_SYSTEM, AID_WIFI) < 0) {
+        ALOGE("Error changing group ownership of %s to %d: %s",
+             kWiFiEntropyFile, AID_WIFI, strerror(errno));
+        unlink(kWiFiEntropyFile);
+        return -1;
+    }
+    return 0;
+}
+
+}  // namespace wifi_system
+}  // namespace android
