@@ -33,6 +33,7 @@ LOCAL_CFLAGS := \
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
 LOCAL_SHARED_LIBRARIES := \
+    libbase \
     libcutils \
     liblog \
     libnetutils \
@@ -44,7 +45,9 @@ LOCAL_CFLAGS += -DLIBWPA_CLIENT_EXISTS
 LOCAL_SHARED_LIBRARIES += libwpa_client
 endif
 
-LOCAL_SRC_FILES := wifi.cpp
+LOCAL_SRC_FILES := \
+    interface_utils.cpp \
+    wifi.cpp
 include $(BUILD_SHARED_LIBRARY)
 
 endif
