@@ -17,12 +17,7 @@
 package com.android.server.wifi;
 
 import android.annotation.Nullable;
-import android.app.AlarmManager;
-import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
@@ -877,7 +872,7 @@ public class WifiNative {
      * some of the low-level scan parameters used by the driver are changed to
      * reduce interference with A2DP streaming.
      *
-     * @param isSet whether to enable or disable this mode
+     * @param setCoexScanMode whether to enable or disable this mode
      * @return {@code true} if the command succeeded, {@code false} otherwise.
      */
     public boolean setBluetoothCoexistenceScanMode(boolean setCoexScanMode) {
@@ -1552,6 +1547,7 @@ public class WifiNative {
     private static native void waitForHalEventNative();
 
     private static class MonitorThread extends Thread {
+        @Override
         public void run() {
             Log.i(TAG, "Waiting for HAL events mWifiHalHandle=" + Long.toString(sWifiHalHandle));
             waitForHalEventNative();
