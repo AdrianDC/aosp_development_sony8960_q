@@ -881,4 +881,40 @@ public class WifiConnectivityManagerTest {
 
         verify(mWifiScanner).startScan(anyObject(), anyObject(), anyObject());
     }
+
+    /**
+     *  Verify that we retry connectivity scan up to MAX_SCAN_RESTART_ALLOWED times
+     *  when Wifi somehow gets into a bad state and fails to scan.
+     *
+     * Expected behavior: WifiConnectivityManager schedules connectivity scan
+     * MAX_SCAN_RESTART_ALLOWED times.
+     */
+    @Test
+    public void checkMaximumScanRetry() {
+        // Set screen to ON
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ScanSettings settings, ScanListener listener,
+                    WorkSource workSource) throws Exception {
+                listener.onFailure(-1, "ScanFailure");
+            }}).when(mWifiScanner).startScan(anyObject(), anyObject(), anyObject());
+
+        // Set WiFi to disconnected state to trigger the single scan based periodic scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        // Fire the alarm timer 2x timers
+        for (int i = 0; i < (WifiConnectivityManager.MAX_SCAN_RESTART_ALLOWED * 2); i++) {
+            mAlarmManager.dispatch(WifiConnectivityManager.RESTART_SINGLE_SCAN_TIMER_TAG);
+            mLooper.dispatchAll();
+        }
+
+        // Verify that the connectivity scan has been retried for MAX_SCAN_RESTART_ALLOWED
+        // times. Note, WifiScanner.startScan() is invoked MAX_SCAN_RESTART_ALLOWED + 1 times.
+        // The very first scan is the initial one, and the other MAX_SCAN_RESTART_ALLOWED
+        // are the retrial ones.
+        verify(mWifiScanner, times(WifiConnectivityManager.MAX_SCAN_RESTART_ALLOWED + 1)).startScan(
+                anyObject(), anyObject(), anyObject());
+    }
 }
