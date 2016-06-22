@@ -147,6 +147,7 @@ public class WifiConnectivityManager {
     private String mLastConnectionAttemptBssid = null;
     private int mPeriodicSingleScanInterval = PERIODIC_SCAN_INTERVAL_MS;
     private long mLastPeriodicSingleScanTimeStamp = RESET_TIME_STAMP;
+    private boolean mPeriodicScanTimerSet = false;
 
     // PNO settings
     private int mMin5GHzRssi;
@@ -884,6 +885,15 @@ public class WifiConnectivityManager {
                             mClock.getElapsedSinceBootMillis() + intervalMs,
                             PERIODIC_SCAN_TIMER_TAG,
                             mPeriodicScanTimerListener, mEventHandler);
+        mPeriodicScanTimerSet = true;
+    }
+
+    // Cancel periodic scan timer
+    private void cancelPeriodicScanTimer() {
+        if (mPeriodicScanTimerSet) {
+            mAlarmManager.cancel(mPeriodicScanTimerListener);
+            mPeriodicScanTimerSet = false;
+        }
     }
 
     // Set up timer to start a delayed single scan after RESTART_SCAN_DELAY_MS
@@ -948,7 +958,7 @@ public class WifiConnectivityManager {
         // Due to b/28020168, timer based single scan will be scheduled
         // to provide periodic scan in an exponential backoff fashion.
         if (!ENABLE_BACKGROUND_SCAN) {
-            mAlarmManager.cancel(mPeriodicScanTimerListener);
+            cancelPeriodicScanTimer();
         } else {
             mScanner.stopBackgroundScan(mPeriodicScanListener);
         }
