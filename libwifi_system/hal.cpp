@@ -577,8 +577,8 @@ bool init_wifi_hal_function_table(wifi_hal_fn* hal_fn) {
 }
 
 bool wifi_hal_can_get_valid_channels(wifi_hal_fn* hal_fn) {
-    return hal_fn &&
-        (hal_fn->wifi_get_valid_channels != wifi_get_valid_channels_stub);
+  return hal_fn &&
+         (hal_fn->wifi_get_valid_channels != wifi_get_valid_channels_stub);
 }
 
 }  // namespace wifi_system
