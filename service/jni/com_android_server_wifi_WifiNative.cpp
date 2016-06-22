@@ -38,11 +38,12 @@
 #include <nativehelper/jni.h>
 #include <utils/String16.h>
 #include <utils/misc.h>
+#include <wifi_system/hal.h>
 #include <wifi_system/interface_utils.h>
 #include <wifi_system/wifi.h>
 
 #include "jni_helper.h"
-#include "wifi_hal_stub.h"
+
 #define REPLY_BUF_SIZE (4096 + 1)         // wpa_supplicant's maximum size + 1 for nul
 #define EVENT_BUF_SIZE 2048
 #define WAKE_REASON_TYPE_MAX 10
@@ -248,35 +249,28 @@ static jboolean android_net_wifi_set_interface_up(JNIEnv* env, jclass cls, jbool
 static jboolean android_net_wifi_startHal(JNIEnv* env, jclass cls) {
     JNIHelper helper(env);
     wifi_handle halHandle = getWifiHandle(helper, cls);
-    if (halHandle == NULL) {
-
-        if(init_wifi_stub_hal_func_table(&hal_fn) != 0 ) {
-            ALOGE("Can not initialize the basic function pointer table");
-            return false;
-        }
-
-        wifi_error res = init_wifi_vendor_hal_func_table(&hal_fn);
-        if (res != WIFI_SUCCESS) {
-            ALOGE("Can not initialize the vendor function pointer table");
-            return false;
-        }
-
-        if(!wifi_system::set_wifi_iface_up(true)) {
-            return false;
-        }
-
-        res = hal_fn.wifi_initialize(&halHandle);
-        if (res == WIFI_SUCCESS) {
-            helper.setStaticLongField(cls, WifiHandleVarName, (jlong)halHandle);
-            ALOGD("Did set static halHandle = %p", halHandle);
-        }
-        env->GetJavaVM(&mVM);
-        mCls = (jclass) env->NewGlobalRef(cls);
-        ALOGD("halHandle = %p, mVM = %p, mCls = %p", halHandle, mVM, mCls);
-        return res == WIFI_SUCCESS;
-    } else {
+    if (halHandle != NULL) {
         return wifi_system::set_wifi_iface_up(true);
     }
+
+    if (!wifi_system::init_wifi_hal_function_table(&hal_fn)) {
+        return false;
+    }
+
+    if(!wifi_system::set_wifi_iface_up(true)) {
+        ALOGE("Failed to set WiFi interface up");
+        return false;
+    }
+
+    const bool was_started = hal_fn.wifi_initialize(&halHandle) == WIFI_SUCCESS;
+    if (was_started) {
+        helper.setStaticLongField(cls, WifiHandleVarName, (jlong)halHandle);
+        ALOGD("Did set static halHandle = %p", halHandle);
+    }
+    env->GetJavaVM(&mVM);
+    mCls = (jclass) env->NewGlobalRef(cls);
+    ALOGD("halHandle = %p, mVM = %p, mCls = %p", halHandle, mVM, mCls);
+    return was_started;
 }
 
 void android_net_wifi_hal_cleaned_up_handler(wifi_handle handle) {
@@ -1338,7 +1332,7 @@ static jboolean android_net_wifi_setScanningMacOui(JNIEnv *env, jclass cls,
 }
 
 static jboolean android_net_wifi_is_get_channels_for_band_supported(JNIEnv *env, jclass cls){
-    return (hal_fn.wifi_get_valid_channels == wifi_get_valid_channels_stub);
+    return wifi_system::wifi_hal_can_get_valid_channels(&hal_fn);
 }
 
 static jintArray android_net_wifi_getValidChannels(JNIEnv *env, jclass cls,

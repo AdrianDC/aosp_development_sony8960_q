@@ -16,31 +16,6 @@ LOCAL_PATH := $(call my-dir)
 
 ifneq ($(TARGET_BUILD_PDK), true)
 
-# This is the HAL stub library.  We initialize the HAL function table
-# with functions from here so that we have reasonable "unimplemented"
-# fallback behavior when a behavior isn't implemented by a vendor.
-# ============================================================
-include $(CLEAR_VARS)
-LOCAL_MODULE := libwifi-hal-stub
-LOCAL_CFLAGS := \
-    -Wall \
-    -Werror \
-    -Wextra \
-    -Wno-unused-parameter \
-    -Wno-unused-function \
-    -Wunused-variable \
-    -Winit-self \
-    -Wwrite-strings \
-    -Wshadow
-
-LOCAL_C_INCLUDES := \
-    $(LOCAL_PATH)/jni \
-    $(call include-path-for, libhardware_legacy)
-LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_C_INCLUDES)
-LOCAL_SHARED_LIBRARIES := libnativehelper
-LOCAL_SRC_FILES := lib/wifi_hal_stub.cpp
-include $(BUILD_STATIC_LIBRARY)
-
 # Make the JNI part
 # ============================================================
 include $(CLEAR_VARS)
@@ -60,8 +35,6 @@ LOCAL_SHARED_LIBRARIES += \
 	libdl \
 	libwifi-hal \
 	libwifi-system
-
-LOCAL_STATIC_LIBRARIES := libwifi-hal-stub
 
 LOCAL_SRC_FILES := \
 	jni/com_android_server_wifi_WifiNative.cpp \
