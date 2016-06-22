@@ -152,11 +152,9 @@ public class WifiConfigStoreNew {
 
     /**
      * Enable verbose logging.
-     *
-     * @param verbose verbosity level.
      */
-    public void enableVerboseLogging(int verbose) {
-        mVerboseLoggingEnabled = (verbose > 0);
+    public void enableVerboseLogging(boolean verbose) {
+        mVerboseLoggingEnabled = verbose;
     }
 
     /**
