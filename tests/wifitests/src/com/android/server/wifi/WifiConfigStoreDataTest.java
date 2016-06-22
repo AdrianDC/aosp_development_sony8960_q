@@ -19,7 +19,6 @@ package com.android.server.wifi;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
-import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -41,25 +40,7 @@ import java.util.Set;
 @SmallTest
 public class WifiConfigStoreDataTest {
 
-    private static final int TEST_NETWORK_ID = -1;
-    private static final int TEST_UID = 1;
     private static final String TEST_SSID = "WifiConfigStoreDataSSID_";
-    private static final String TEST_PSK = "WifiConfigStoreDataPsk";
-    private static final String[] TEST_WEP_KEYS =
-            {"WifiConfigStoreDataWep1", "WifiConfigStoreDataWep2",
-                    "WifiConfigStoreDataWep3", "WifiConfigStoreDataWep3"};
-    private static final int TEST_WEP_TX_KEY_INDEX = 1;
-    private static final String TEST_FQDN = "WifiConfigStoreDataFQDN";
-    private static final String TEST_PROVIDER_FRIENDLY_NAME = "WifiConfigStoreDataFriendlyName";
-    private static final String TEST_STATIC_IP_LINK_ADDRESS = "192.168.48.2";
-    private static final int TEST_STATIC_IP_LINK_PREFIX_LENGTH = 8;
-    private static final String TEST_STATIC_IP_GATEWAY_ADDRESS = "192.168.48.1";
-    private static final String[] TEST_STATIC_IP_DNS_SERVER_ADDRESSES =
-            new String[]{"192.168.48.1", "192.168.48.10"};
-    private static final String TEST_STATIC_PROXY_HOST = "192.168.48.1";
-    private static final int TEST_STATIC_PROXY_PORT = 8000;
-    private static final String TEST_STATIC_PROXY_EXCLUSION_LIST = "";
-    private static final String TEST_PAC_PROXY_LOCATION = "http://";
     private static final String TEST_CONNECT_CHOICE = "XmlUtilConnectChoice";
     private static final long TEST_CONNECT_CHOICE_TIMESTAMP = 0x4566;
     private static final Set<String> TEST_DELETED_EPHEMERAL_LIST = new HashSet<String>() {
@@ -128,6 +109,16 @@ public class WifiConfigStoreDataTest {
                     + "<set name=\"SSIDList\" />\n"
                     + "</DeletedEphemeralSSIDList>\n"
                     + "</WifiConfigStoreData>\n";
+
+    /**
+     * Asserts that the 2 config store data are equal.
+     */
+    public static void assertConfigStoreDataEqual(
+            WifiConfigStoreData expected, WifiConfigStoreData actual) {
+        WifiConfigurationTestUtil.assertConfigurationsEqualForConfigStore(
+                expected.configurations, actual.configurations);
+        assertEquals(expected.deletedEphemeralSSIDs, actual.deletedEphemeralSSIDs);
+    }
 
     /**
      * Verify that multiple shared networks with different credential types and IpConfiguration
@@ -204,11 +195,11 @@ public class WifiConfigStoreDataTest {
      */
     @Test
     public void testManualConfigStoreDataParse() {
-        WifiConfiguration sharedNetwork = createOpenNetwork(0);
+        WifiConfiguration sharedNetwork = WifiConfigurationTestUtil.createOpenNetwork();
         sharedNetwork.shared = true;
-        sharedNetwork.setIpConfiguration(createDHCPIpConfigurationWithNoProxy());
-        WifiConfiguration userNetwork = createOpenNetwork(1);
-        userNetwork.setIpConfiguration(createDHCPIpConfigurationWithNoProxy());
+        sharedNetwork.setIpConfiguration(WifiConfigurationTestUtil.createDHCPIpConfigurationWithNoProxy());
+        WifiConfiguration userNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        userNetwork.setIpConfiguration(WifiConfigurationTestUtil.createDHCPIpConfigurationWithNoProxy());
         userNetwork.shared = false;
 
         // Create the store data for comparison.
@@ -321,93 +312,6 @@ public class WifiConfigStoreDataTest {
         fail();
     }
 
-    private WifiConfiguration createOpenNetwork(int id) {
-        String ssid = "\"" + TEST_SSID + id + "\"";
-        return WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                true, true, null, null,
-                WifiConfigurationTestUtil.SECURITY_NONE);
-    }
-
-    private WifiConfiguration createPskNetwork(int id) {
-        String ssid = "\"" + TEST_SSID + id + "\"";
-        WifiConfiguration configuration =
-                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                        true, true, null, null,
-                        WifiConfigurationTestUtil.SECURITY_PSK);
-        configuration.preSharedKey = TEST_PSK;
-        return configuration;
-    }
-
-    private WifiConfiguration createWepNetwork(int id) {
-        String ssid = "\"" + TEST_SSID + id + "\"";
-        WifiConfiguration configuration =
-                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                        true, true, null, null,
-                        WifiConfigurationTestUtil.SECURITY_WEP);
-        configuration.wepKeys = TEST_WEP_KEYS;
-        configuration.wepTxKeyIndex = TEST_WEP_TX_KEY_INDEX;
-        return configuration;
-    }
-
-    private WifiConfiguration createEapNetwork(int id) {
-        String ssid = "\"" + TEST_SSID + id + "\"";
-        WifiConfiguration configuration =
-                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                        true, true, TEST_FQDN, TEST_PROVIDER_FRIENDLY_NAME,
-                        WifiConfigurationTestUtil.SECURITY_EAP);
-        return configuration;
-    }
-
-    private IpConfiguration createStaticIpConfigurationWithPacProxy() {
-        return WifiConfigurationTestUtil.generateIpConfig(
-                WifiConfigurationTestUtil.STATIC_IP_ASSIGNMENT,
-                WifiConfigurationTestUtil.PAC_PROXY_SETTING,
-                TEST_STATIC_IP_LINK_ADDRESS, TEST_STATIC_IP_LINK_PREFIX_LENGTH,
-                TEST_STATIC_IP_GATEWAY_ADDRESS, TEST_STATIC_IP_DNS_SERVER_ADDRESSES,
-                TEST_STATIC_PROXY_HOST, TEST_STATIC_PROXY_PORT, TEST_STATIC_PROXY_EXCLUSION_LIST,
-                TEST_PAC_PROXY_LOCATION);
-    }
-
-    private IpConfiguration createStaticIpConfigurationWithStaticProxy() {
-        return WifiConfigurationTestUtil.generateIpConfig(
-                WifiConfigurationTestUtil.STATIC_IP_ASSIGNMENT,
-                WifiConfigurationTestUtil.STATIC_PROXY_SETTING,
-                TEST_STATIC_IP_LINK_ADDRESS, TEST_STATIC_IP_LINK_PREFIX_LENGTH,
-                TEST_STATIC_IP_GATEWAY_ADDRESS, TEST_STATIC_IP_DNS_SERVER_ADDRESSES,
-                TEST_STATIC_PROXY_HOST, TEST_STATIC_PROXY_PORT, TEST_STATIC_PROXY_EXCLUSION_LIST,
-                TEST_PAC_PROXY_LOCATION);
-    }
-
-    private IpConfiguration createPartialStaticIpConfigurationWithPacProxy() {
-        return WifiConfigurationTestUtil.generateIpConfig(
-                WifiConfigurationTestUtil.STATIC_IP_ASSIGNMENT,
-                WifiConfigurationTestUtil.PAC_PROXY_SETTING,
-                TEST_STATIC_IP_LINK_ADDRESS, TEST_STATIC_IP_LINK_PREFIX_LENGTH,
-                null, null,
-                TEST_STATIC_PROXY_HOST, TEST_STATIC_PROXY_PORT, TEST_STATIC_PROXY_EXCLUSION_LIST,
-                TEST_PAC_PROXY_LOCATION);
-    }
-
-    private IpConfiguration createDHCPIpConfigurationWithPacProxy() {
-        return WifiConfigurationTestUtil.generateIpConfig(
-                WifiConfigurationTestUtil.DHCP_IP_ASSIGNMENT,
-                WifiConfigurationTestUtil.PAC_PROXY_SETTING,
-                TEST_STATIC_IP_LINK_ADDRESS, TEST_STATIC_IP_LINK_PREFIX_LENGTH,
-                TEST_STATIC_IP_GATEWAY_ADDRESS, TEST_STATIC_IP_DNS_SERVER_ADDRESSES,
-                TEST_STATIC_PROXY_HOST, TEST_STATIC_PROXY_PORT, TEST_STATIC_PROXY_EXCLUSION_LIST,
-                TEST_PAC_PROXY_LOCATION);
-    }
-
-    private IpConfiguration createDHCPIpConfigurationWithNoProxy() {
-        return WifiConfigurationTestUtil.generateIpConfig(
-                WifiConfigurationTestUtil.DHCP_IP_ASSIGNMENT,
-                WifiConfigurationTestUtil.NONE_PROXY_SETTING,
-                TEST_STATIC_IP_LINK_ADDRESS, TEST_STATIC_IP_LINK_PREFIX_LENGTH,
-                TEST_STATIC_IP_GATEWAY_ADDRESS, TEST_STATIC_IP_DNS_SERVER_ADDRESSES,
-                TEST_STATIC_PROXY_HOST, TEST_STATIC_PROXY_PORT, TEST_STATIC_PROXY_EXCLUSION_LIST,
-                TEST_PAC_PROXY_LOCATION);
-    }
-
     /**
      * Helper method to add 4 networks with different credential types, IpConfiguration
      * types for all tests in the class.
@@ -417,30 +321,30 @@ public class WifiConfigStoreDataTest {
     private List<WifiConfiguration> createNetworks() {
         List<WifiConfiguration> configurations = new ArrayList<>();
 
-        WifiConfiguration wepNetwork = createWepNetwork(0);
-        wepNetwork.setIpConfiguration(createDHCPIpConfigurationWithPacProxy());
+        WifiConfiguration wepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        wepNetwork.setIpConfiguration(WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy());
         wepNetwork.getNetworkSelectionStatus().setNetworkSelectionStatus(
                 NetworkSelectionStatus.NETWORK_SELECTION_ENABLED);
         configurations.add(wepNetwork);
 
-        WifiConfiguration pskNetwork = createPskNetwork(1);
-        pskNetwork.setIpConfiguration(createStaticIpConfigurationWithPacProxy());
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        pskNetwork.setIpConfiguration(WifiConfigurationTestUtil.createStaticIpConfigurationWithPacProxy());
         pskNetwork.getNetworkSelectionStatus().setNetworkSelectionStatus(
                 NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED);
         pskNetwork.getNetworkSelectionStatus().setNetworkSelectionDisableReason(
                 NetworkSelectionStatus.DISABLED_ASSOCIATION_REJECTION);
         configurations.add(pskNetwork);
 
-        WifiConfiguration openNetwork = createOpenNetwork(2);
-        openNetwork.setIpConfiguration(createStaticIpConfigurationWithStaticProxy());
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        openNetwork.setIpConfiguration(WifiConfigurationTestUtil.createStaticIpConfigurationWithStaticProxy());
         openNetwork.getNetworkSelectionStatus().setNetworkSelectionStatus(
                 NetworkSelectionStatus.NETWORK_SELECTION_PERMANENTLY_DISABLED);
         openNetwork.getNetworkSelectionStatus().setNetworkSelectionDisableReason(
                 NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER);
         configurations.add(openNetwork);
 
-        WifiConfiguration eapNetwork = createEapNetwork(3);
-        eapNetwork.setIpConfiguration(createPartialStaticIpConfigurationWithPacProxy());
+        WifiConfiguration eapNetwork = WifiConfigurationTestUtil.createEapNetwork();
+        eapNetwork.setIpConfiguration(WifiConfigurationTestUtil.createPartialStaticIpConfigurationWithPacProxy());
         eapNetwork.getNetworkSelectionStatus().setConnectChoice(TEST_CONNECT_CHOICE);
         eapNetwork.getNetworkSelectionStatus().setConnectChoiceTimestamp(
                 TEST_CONNECT_CHOICE_TIMESTAMP);
@@ -511,15 +415,5 @@ public class WifiConfigStoreDataTest {
         WifiConfigStoreData retrievedStoreData =
                 WifiConfigStoreData.parseRawData(sharedDataBytes, userDataBytes);
         assertConfigStoreDataEqual(storeData, retrievedStoreData);
-    }
-
-    /**
-     * Asserts that the 2 config store data are equal.
-     */
-    public static void assertConfigStoreDataEqual(
-            WifiConfigStoreData expected, WifiConfigStoreData actual) {
-        WifiConfigurationTestUtil.assertConfigurationsEqualForConfigStore(
-                expected.configurations, actual.configurations);
-        assertEquals(expected.deletedEphemeralSSIDs, actual.deletedEphemeralSSIDs);
     }
 }

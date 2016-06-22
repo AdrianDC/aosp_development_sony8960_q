@@ -16,11 +16,10 @@
 
 package com.android.server.wifi.util;
 
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.*;
+
 import android.net.IpConfiguration;
-import android.net.LinkAddress;
-import android.net.NetworkUtils;
-import android.net.ProxyInfo;
-import android.net.StaticIpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
@@ -43,12 +42,8 @@ import org.xmlpull.v1.XmlSerializer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for {@link com.android.server.wifi.util.XmlUtil}.
@@ -56,25 +51,8 @@ import static org.mockito.Mockito.*;
 @SmallTest
 public class XmlUtilTest {
 
-    private static final int TEST_NETWORK_ID = -1;
-    private static final int TEST_UID = 1;
     private static final String TEST_PACKAGE_NAME = "XmlUtilPackage";
-    private static final String TEST_SSID = "\"XmlUtilSSID\"";
-    private static final String TEST_PSK = "XmlUtilPsk";
-    private static final String[] TEST_WEP_KEYS =
-            {"XmlUtilWep1", "XmlUtilWep2", "XmlUtilWep3", "XmlUtilWep3"};
-    private static final int TEST_WEP_TX_KEY_INDEX = 1;
-    private static final String TEST_FQDN = "XmlUtilFQDN";
-    private static final String TEST_PROVIDER_FRIENDLY_NAME = "XmlUtilFriendlyName";
-    private static final String TEST_STATIC_IP_LINK_ADDRESS = "192.168.48.2";
-    private static final int TEST_STATIC_IP_LINK_PREFIX_LENGTH = 8;
     private static final String TEST_STATIC_IP_GATEWAY_ADDRESS = "192.168.48.1";
-    private static final String[] TEST_STATIC_IP_DNS_SERVER_ADDRESSES =
-            new String[]{"192.168.48.1", "192.168.48.10"};
-    private static final String TEST_STATIC_PROXY_HOST = "192.168.48.1";
-    private static final int TEST_STATIC_PROXY_PORT = 8000;
-    private static final String TEST_STATIC_PROXY_EXCLUSION_LIST = "";
-    private static final String TEST_PAC_PROXY_LOCATION = "http://";
     private static final String TEST_DUMMY_CONFIG_KEY = "XmlUtilDummyConfigKey";
     private static final String TEST_IDENTITY = "XmlUtilTestIdentity";
     private static final String TEST_ANON_IDENTITY = "XmlUtilTestAnonIdentity";
@@ -98,7 +76,7 @@ public class XmlUtilTest {
     @Test
     public void testOpenWifiConfigurationSerializeDeserialize()
             throws IOException, XmlPullParserException {
-        serializeDeserializeWifiConfiguration(createOpenNetwork());
+        serializeDeserializeWifiConfiguration(WifiConfigurationTestUtil.createOpenNetwork());
     }
 
     /**
@@ -107,7 +85,7 @@ public class XmlUtilTest {
     @Test
     public void testOpenHiddenWifiConfigurationSerializeDeserialize()
             throws IOException, XmlPullParserException {
-        serializeDeserializeWifiConfiguration(createOpenHiddenNetwork());
+        serializeDeserializeWifiConfiguration(WifiConfigurationTestUtil.createOpenHiddenNetwork());
     }
 
     /**
@@ -116,7 +94,7 @@ public class XmlUtilTest {
     @Test
     public void testPskWifiConfigurationSerializeDeserialize()
             throws IOException, XmlPullParserException {
-        serializeDeserializeWifiConfiguration(createPskNetwork());
+        serializeDeserializeWifiConfiguration(WifiConfigurationTestUtil.createPskNetwork());
     }
 
     /**
@@ -125,7 +103,7 @@ public class XmlUtilTest {
     @Test
     public void testPskHiddenWifiConfigurationSerializeDeserialize()
             throws IOException, XmlPullParserException {
-        serializeDeserializeWifiConfiguration(createPskHiddenNetwork());
+        serializeDeserializeWifiConfiguration(WifiConfigurationTestUtil.createPskHiddenNetwork());
     }
 
     /**
@@ -134,7 +112,7 @@ public class XmlUtilTest {
     @Test
     public void testWepWifiConfigurationSerializeDeserialize()
             throws IOException, XmlPullParserException {
-        serializeDeserializeWifiConfiguration(createWepNetwork());
+        serializeDeserializeWifiConfiguration(WifiConfigurationTestUtil.createWepNetwork());
     }
 
     /**
@@ -144,7 +122,8 @@ public class XmlUtilTest {
     @Test
     public void testEapWifiConfigurationSerializeDeserialize()
             throws IOException, XmlPullParserException {
-        serializeDeserializeWifiConfigurationForConfigStore(createEapNetwork());
+        serializeDeserializeWifiConfigurationForConfigStore(
+                WifiConfigurationTestUtil.createEapNetwork());
     }
 
     /**
@@ -153,7 +132,8 @@ public class XmlUtilTest {
     @Test
     public void testStaticIpConfigurationWithPacProxySerializeDeserialize()
             throws IOException, XmlPullParserException {
-        serializeDeserializeIpConfiguration(createStaticIpConfigurationWithPacProxy());
+        serializeDeserializeIpConfiguration(
+                WifiConfigurationTestUtil.createStaticIpConfigurationWithPacProxy());
     }
 
     /**
@@ -162,7 +142,8 @@ public class XmlUtilTest {
     @Test
     public void testStaticIpConfigurationWithStaticProxySerializeDeserialize()
             throws IOException, XmlPullParserException {
-        serializeDeserializeIpConfiguration(createStaticIpConfigurationWithStaticProxy());
+        serializeDeserializeIpConfiguration(
+                WifiConfigurationTestUtil.createStaticIpConfigurationWithStaticProxy());
     }
 
     /**
@@ -172,7 +153,8 @@ public class XmlUtilTest {
     @Test
     public void testPartialStaticIpConfigurationWithPacProxySerializeDeserialize()
             throws IOException, XmlPullParserException {
-        serializeDeserializeIpConfiguration(createPartialStaticIpConfigurationWithPacProxy());
+        serializeDeserializeIpConfiguration(
+                WifiConfigurationTestUtil.createPartialStaticIpConfigurationWithPacProxy());
     }
 
     /**
@@ -182,7 +164,8 @@ public class XmlUtilTest {
     @Test
     public void testDHCPIpConfigurationWithPacProxySerializeDeserialize()
             throws IOException, XmlPullParserException {
-        serializeDeserializeIpConfiguration(createDHCPIpConfigurationWithPacProxy());
+        serializeDeserializeIpConfiguration(
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy());
     }
 
     /**
@@ -192,7 +175,8 @@ public class XmlUtilTest {
     @Test
     public void testDHCPIpConfigurationWithStaticProxySerializeDeserialize()
             throws IOException, XmlPullParserException {
-        serializeDeserializeIpConfiguration(createDHCPIpConfigurationWithStaticProxy());
+        serializeDeserializeIpConfiguration(
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithStaticProxy());
     }
 
     /**
@@ -202,7 +186,7 @@ public class XmlUtilTest {
     @Test
     public void testEapWifiConfigurationSerializeDeserializeForConfigStore()
             throws IOException, XmlPullParserException {
-        WifiConfiguration configuration = createEapNetwork();
+        WifiConfiguration configuration = WifiConfigurationTestUtil.createEapNetwork();
         configuration.linkedConfigurations = new HashMap<>();
         configuration.linkedConfigurations.put(TEST_DUMMY_CONFIG_KEY, Integer.valueOf(1));
         configuration.defaultGwMacAddress = TEST_STATIC_IP_GATEWAY_ADDRESS;
@@ -268,120 +252,10 @@ public class XmlUtilTest {
         config.setFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY, TEST_PRIVATE_KEY_ID);
         config.setFieldValue(WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY, TEST_ALTSUBJECT_MATCH);
         config.setFieldValue(WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY, TEST_DOM_SUFFIX_MATCH);
-        config.setFieldValue(WifiEnterpriseConfig.CA_PATH_KEY, TEST_CA_CERT);
+        config.setFieldValue(WifiEnterpriseConfig.CA_PATH_KEY, TEST_CA_PATH);
         config.setEapMethod(TEST_EAP_METHOD);
         config.setPhase2Method(TEST_PHASE2_METHOD);
         serializeDeserializeWifiEnterpriseConfig(config);
-    }
-
-    private WifiConfiguration createOpenNetwork() {
-        return WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, TEST_SSID,
-                true, true, null, null,
-                WifiConfigurationTestUtil.SECURITY_NONE);
-    }
-
-    private WifiConfiguration createOpenHiddenNetwork() {
-        WifiConfiguration configuration = createOpenNetwork();
-        configuration.hiddenSSID = true;
-        return configuration;
-    }
-
-    private WifiConfiguration createPskNetwork() {
-        WifiConfiguration configuration =
-                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, TEST_SSID,
-                        true, true, null, null,
-                        WifiConfigurationTestUtil.SECURITY_PSK);
-        configuration.preSharedKey = TEST_PSK;
-        return configuration;
-    }
-
-    private WifiConfiguration createPskHiddenNetwork() {
-        WifiConfiguration configuration = createPskNetwork();
-        configuration.hiddenSSID = true;
-        return configuration;
-    }
-
-    private WifiConfiguration createWepNetwork() {
-        WifiConfiguration configuration =
-                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, TEST_SSID,
-                        true, true, null, null,
-                        WifiConfigurationTestUtil.SECURITY_WEP);
-        configuration.wepKeys = TEST_WEP_KEYS;
-        configuration.wepTxKeyIndex = TEST_WEP_TX_KEY_INDEX;
-        return configuration;
-    }
-
-    private WifiConfiguration createEapNetwork() {
-        WifiConfiguration configuration =
-                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, TEST_SSID,
-                        true, true, TEST_FQDN, TEST_PROVIDER_FRIENDLY_NAME,
-                        WifiConfigurationTestUtil.SECURITY_EAP);
-        return configuration;
-    }
-
-    private StaticIpConfiguration createStaticIpConfiguration() {
-        StaticIpConfiguration staticIpConfiguration = new StaticIpConfiguration();
-        LinkAddress linkAddress =
-                new LinkAddress(NetworkUtils.numericToInetAddress(TEST_STATIC_IP_LINK_ADDRESS),
-                        TEST_STATIC_IP_LINK_PREFIX_LENGTH);
-        staticIpConfiguration.ipAddress = linkAddress;
-        InetAddress gatewayAddress =
-                NetworkUtils.numericToInetAddress(TEST_STATIC_IP_GATEWAY_ADDRESS);
-        staticIpConfiguration.gateway = gatewayAddress;
-        for (String dnsServerAddress : TEST_STATIC_IP_DNS_SERVER_ADDRESSES) {
-            staticIpConfiguration.dnsServers.add(
-                    NetworkUtils.numericToInetAddress(dnsServerAddress));
-        }
-        return staticIpConfiguration;
-    }
-
-    private StaticIpConfiguration createPartialStaticIpConfiguration() {
-        StaticIpConfiguration staticIpConfiguration = new StaticIpConfiguration();
-        LinkAddress linkAddress =
-                new LinkAddress(NetworkUtils.numericToInetAddress(TEST_STATIC_IP_LINK_ADDRESS),
-                        TEST_STATIC_IP_LINK_PREFIX_LENGTH);
-        staticIpConfiguration.ipAddress = linkAddress;
-        // Only set the link address, don't set the gateway/dns servers.
-        return staticIpConfiguration;
-    }
-
-    private IpConfiguration createStaticIpConfigurationWithPacProxy() {
-        StaticIpConfiguration staticIpConfiguration = createStaticIpConfiguration();
-        ProxyInfo proxyInfo = new ProxyInfo(TEST_PAC_PROXY_LOCATION);
-        return new IpConfiguration(IpConfiguration.IpAssignment.STATIC,
-                IpConfiguration.ProxySettings.PAC, staticIpConfiguration, proxyInfo);
-    }
-
-    private IpConfiguration createStaticIpConfigurationWithStaticProxy() {
-        StaticIpConfiguration staticIpConfiguration = createStaticIpConfiguration();
-        ProxyInfo proxyInfo =
-                new ProxyInfo(TEST_STATIC_PROXY_HOST,
-                        TEST_STATIC_PROXY_PORT,
-                        TEST_STATIC_PROXY_EXCLUSION_LIST);
-        return new IpConfiguration(IpConfiguration.IpAssignment.STATIC,
-                IpConfiguration.ProxySettings.STATIC, staticIpConfiguration, proxyInfo);
-    }
-
-    private IpConfiguration createPartialStaticIpConfigurationWithPacProxy() {
-        StaticIpConfiguration staticIpConfiguration = createPartialStaticIpConfiguration();
-        ProxyInfo proxyInfo = new ProxyInfo(TEST_PAC_PROXY_LOCATION);
-        return new IpConfiguration(IpConfiguration.IpAssignment.STATIC,
-                IpConfiguration.ProxySettings.PAC, staticIpConfiguration, proxyInfo);
-    }
-
-    private IpConfiguration createDHCPIpConfigurationWithPacProxy() {
-        ProxyInfo proxyInfo = new ProxyInfo(TEST_PAC_PROXY_LOCATION);
-        return new IpConfiguration(IpConfiguration.IpAssignment.DHCP,
-                IpConfiguration.ProxySettings.PAC, null, proxyInfo);
-    }
-
-    private IpConfiguration createDHCPIpConfigurationWithStaticProxy() {
-        ProxyInfo proxyInfo =
-                new ProxyInfo(TEST_STATIC_PROXY_HOST,
-                        TEST_STATIC_PROXY_PORT,
-                        TEST_STATIC_PROXY_EXCLUSION_LIST);
-        return new IpConfiguration(IpConfiguration.IpAssignment.DHCP,
-                IpConfiguration.ProxySettings.STATIC, null, proxyInfo);
     }
 
     private byte[] serializeWifiConfigurationForBackup(WifiConfiguration configuration)

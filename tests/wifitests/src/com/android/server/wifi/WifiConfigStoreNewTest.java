@@ -17,7 +17,6 @@
 package com.android.server.wifi;
 
 import static com.android.server.wifi.WifiConfigStoreDataTest.assertConfigStoreDataEqual;
-
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
@@ -45,15 +44,6 @@ import java.util.List;
  */
 @SmallTest
 public class WifiConfigStoreNewTest {
-    // Test constants.
-    private static final int TEST_NETWORK_ID = -1;
-    private static final int TEST_UID = 1;
-    private static final String TEST_SSID = "WifiConfigStoreSSID_";
-    private static final String TEST_PSK = "WifiConfigStorePsk";
-    private static final String[] TEST_WEP_KEYS =
-            {"WifiConfigStoreWep1", "WifiConfigStoreWep2",
-                    "WifiConfigStoreWep3", "WifiConfigStoreWep3"};
-
     // Test mocks
     @Mock private Context mContext;
     private TestAlarmManager mAlarmManager;
@@ -206,7 +196,7 @@ public class WifiConfigStoreNewTest {
      */
     private WifiConfigStoreData createSingleOpenNetworkStoreData() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createOpenNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createOpenNetwork());
         return new WifiConfigStoreData(configurations, new HashSet<String>());
     }
 
@@ -215,25 +205,8 @@ public class WifiConfigStoreNewTest {
      */
     private WifiConfigStoreData createSinglePskNetworkStoreData() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createPskNetwork(1));
+        configurations.add(WifiConfigurationTestUtil.createPskNetwork());
         return new WifiConfigStoreData(configurations, new HashSet<String>());
-    }
-
-    private WifiConfiguration createOpenNetwork(int id) {
-        String ssid = "\"" + TEST_SSID + id + "\"";
-        return WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                true, true, null, null,
-                WifiConfigurationTestUtil.SECURITY_NONE);
-    }
-
-    private WifiConfiguration createPskNetwork(int id) {
-        String ssid = "\"" + TEST_SSID + id + "\"";
-        WifiConfiguration configuration =
-                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                        true, true, null, null,
-                        WifiConfigurationTestUtil.SECURITY_PSK);
-        configuration.preSharedKey = TEST_PSK;
-        return configuration;
     }
 
     /**

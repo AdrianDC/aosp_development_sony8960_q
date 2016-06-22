@@ -53,6 +53,34 @@ public class WifiConfigurationTestUtil {
     public static final int PAC_PROXY_SETTING = 1;
     public static final int NONE_PROXY_SETTING = 2;
 
+    /**
+     * These are constants used to generate predefined WifiConfiguration objects.
+     */
+    public static final int TEST_NETWORK_ID = -1;
+    public static final int TEST_UID = 1;
+    public static final String TEST_SSID = "WifiConfigurationTestUtilSSID_";
+    public static final String TEST_PSK = "WifiConfigurationTestUtilPsk";
+    public static final String[] TEST_WEP_KEYS =
+            {"WifiConfigurationTestUtilWep1", "WifiConfigurationTestUtilWep2",
+                    "WifiConfigurationTestUtilWep3", "WifiConfigurationTestUtilWep3"};
+    public static final int TEST_WEP_TX_KEY_INDEX = 1;
+    public static final String TEST_FQDN = "WifiConfigurationTestUtilFQDN";
+    public static final String TEST_PROVIDER_FRIENDLY_NAME =
+            "WifiConfigurationTestUtilFriendlyName";
+    public static final String TEST_STATIC_IP_LINK_ADDRESS = "192.168.48.2";
+    public static final int TEST_STATIC_IP_LINK_PREFIX_LENGTH = 8;
+    public static final String TEST_STATIC_IP_GATEWAY_ADDRESS = "192.168.48.1";
+    public static final String[] TEST_STATIC_IP_DNS_SERVER_ADDRESSES =
+            new String[]{"192.168.48.1", "192.168.48.10"};
+    public static final String TEST_STATIC_PROXY_HOST = "192.168.48.1";
+    public static final int TEST_STATIC_PROXY_PORT = 8000;
+    public static final String TEST_STATIC_PROXY_EXCLUSION_LIST = "";
+    public static final String TEST_PAC_PROXY_LOCATION = "http://";
+
+    /**
+     * Index used to assign unique SSIDs for the generation of predefined WifiConfiguration objects.
+     */
+    private static int sNetworkIndex = 0;
 
     /**
      * Construct a {@link android.net.wifi.WifiConfiguration}.
@@ -180,6 +208,129 @@ public class WifiConfigurationTestUtil {
     }
 
     /**
+     * Create a new SSID for the the network being created.
+     */
+    private static String createNewSSID() {
+        return "\"" + TEST_SSID + sNetworkIndex++ + "\"";
+    }
+
+    /**
+     * Helper methods to generate predefined WifiConfiguration objects of the required type. These
+     * use a static index to avoid duplicate configurations.
+     */
+    public static WifiConfiguration createOpenNetwork() {
+        return generateWifiConfig(TEST_NETWORK_ID, TEST_UID, createNewSSID(), true, true, null,
+                null, SECURITY_NONE);
+    }
+
+    public static WifiConfiguration createOpenHiddenNetwork() {
+        WifiConfiguration configuration = createOpenNetwork();
+        configuration.hiddenSSID = true;
+        return configuration;
+    }
+
+    public static WifiConfiguration createPskNetwork() {
+        WifiConfiguration configuration =
+                generateWifiConfig(TEST_NETWORK_ID, TEST_UID, createNewSSID(), true, true, null,
+                        null, SECURITY_PSK);
+        configuration.preSharedKey = TEST_PSK;
+        return configuration;
+    }
+
+    public static WifiConfiguration createPskHiddenNetwork() {
+        WifiConfiguration configuration = createPskNetwork();
+        configuration.hiddenSSID = true;
+        return configuration;
+    }
+
+    public static WifiConfiguration createWepNetwork() {
+        WifiConfiguration configuration =
+                generateWifiConfig(TEST_NETWORK_ID, TEST_UID, createNewSSID(), true, true, null,
+                        null, SECURITY_WEP);
+        configuration.wepKeys = TEST_WEP_KEYS;
+        configuration.wepTxKeyIndex = TEST_WEP_TX_KEY_INDEX;
+        return configuration;
+    }
+
+    public static WifiConfiguration createWepHiddenNetwork() {
+        WifiConfiguration configuration = createWepNetwork();
+        configuration.hiddenSSID = true;
+        return configuration;
+    }
+
+
+    public static WifiConfiguration createWepNetworkWithSingleKey() {
+        WifiConfiguration configuration =
+                generateWifiConfig(TEST_NETWORK_ID, TEST_UID, createNewSSID(), true, true, null,
+                        null, SECURITY_WEP);
+        configuration.wepKeys[0] = TEST_WEP_KEYS[0];
+        configuration.wepTxKeyIndex = 0;
+        return configuration;
+    }
+
+
+    public static WifiConfiguration createEapNetwork() {
+        WifiConfiguration configuration =
+                generateWifiConfig(TEST_NETWORK_ID, TEST_UID, createNewSSID(), true, true,
+                        TEST_FQDN, TEST_PROVIDER_FRIENDLY_NAME, SECURITY_EAP);
+        return configuration;
+    }
+
+    public static IpConfiguration createStaticIpConfigurationWithPacProxy() {
+        return generateIpConfig(
+                STATIC_IP_ASSIGNMENT, PAC_PROXY_SETTING,
+                TEST_STATIC_IP_LINK_ADDRESS, TEST_STATIC_IP_LINK_PREFIX_LENGTH,
+                TEST_STATIC_IP_GATEWAY_ADDRESS, TEST_STATIC_IP_DNS_SERVER_ADDRESSES,
+                TEST_STATIC_PROXY_HOST, TEST_STATIC_PROXY_PORT, TEST_STATIC_PROXY_EXCLUSION_LIST,
+                TEST_PAC_PROXY_LOCATION);
+    }
+
+    public static IpConfiguration createStaticIpConfigurationWithStaticProxy() {
+        return generateIpConfig(
+                STATIC_IP_ASSIGNMENT, STATIC_PROXY_SETTING,
+                TEST_STATIC_IP_LINK_ADDRESS, TEST_STATIC_IP_LINK_PREFIX_LENGTH,
+                TEST_STATIC_IP_GATEWAY_ADDRESS, TEST_STATIC_IP_DNS_SERVER_ADDRESSES,
+                TEST_STATIC_PROXY_HOST, TEST_STATIC_PROXY_PORT, TEST_STATIC_PROXY_EXCLUSION_LIST,
+                TEST_PAC_PROXY_LOCATION);
+    }
+
+    public static IpConfiguration createPartialStaticIpConfigurationWithPacProxy() {
+        return generateIpConfig(
+                STATIC_IP_ASSIGNMENT, PAC_PROXY_SETTING,
+                TEST_STATIC_IP_LINK_ADDRESS, TEST_STATIC_IP_LINK_PREFIX_LENGTH,
+                null, null,
+                TEST_STATIC_PROXY_HOST, TEST_STATIC_PROXY_PORT, TEST_STATIC_PROXY_EXCLUSION_LIST,
+                TEST_PAC_PROXY_LOCATION);
+    }
+
+    public static IpConfiguration createDHCPIpConfigurationWithPacProxy() {
+        return generateIpConfig(
+                DHCP_IP_ASSIGNMENT, PAC_PROXY_SETTING,
+                TEST_STATIC_IP_LINK_ADDRESS, TEST_STATIC_IP_LINK_PREFIX_LENGTH,
+                TEST_STATIC_IP_GATEWAY_ADDRESS, TEST_STATIC_IP_DNS_SERVER_ADDRESSES,
+                TEST_STATIC_PROXY_HOST, TEST_STATIC_PROXY_PORT, TEST_STATIC_PROXY_EXCLUSION_LIST,
+                TEST_PAC_PROXY_LOCATION);
+    }
+
+    public static IpConfiguration createDHCPIpConfigurationWithStaticProxy() {
+        return generateIpConfig(
+                DHCP_IP_ASSIGNMENT, STATIC_PROXY_SETTING,
+                TEST_STATIC_IP_LINK_ADDRESS, TEST_STATIC_IP_LINK_PREFIX_LENGTH,
+                TEST_STATIC_IP_GATEWAY_ADDRESS, TEST_STATIC_IP_DNS_SERVER_ADDRESSES,
+                TEST_STATIC_PROXY_HOST, TEST_STATIC_PROXY_PORT, TEST_STATIC_PROXY_EXCLUSION_LIST,
+                TEST_PAC_PROXY_LOCATION);
+    }
+
+    public static IpConfiguration createDHCPIpConfigurationWithNoProxy() {
+        return generateIpConfig(
+                DHCP_IP_ASSIGNMENT, NONE_PROXY_SETTING,
+                TEST_STATIC_IP_LINK_ADDRESS, TEST_STATIC_IP_LINK_PREFIX_LENGTH,
+                TEST_STATIC_IP_GATEWAY_ADDRESS, TEST_STATIC_IP_DNS_SERVER_ADDRESSES,
+                TEST_STATIC_PROXY_HOST, TEST_STATIC_PROXY_PORT, TEST_STATIC_PROXY_EXCLUSION_LIST,
+                TEST_PAC_PROXY_LOCATION);
+    }
+
+    /**
      * Asserts that the 2 WifiConfigurations are equal in the elements saved for both backup/restore
      * and config store.
      */
@@ -230,6 +381,7 @@ public class WifiConfigurationTestUtil {
         assertEquals(expected.lastUpdateUid, actual.lastUpdateUid);
         assertEquals(expected.lastUpdateName, actual.lastUpdateName);
         assertEquals(expected.lastConnectUid, actual.lastConnectUid);
+        assertEquals(expected.updateTime, actual.updateTime);
         assertNetworkSelectionStatusEqualForConfigStore(
                 expected.getNetworkSelectionStatus(), actual.getNetworkSelectionStatus());
         assertWifiEnterpriseConfigEqualForConfigStore(

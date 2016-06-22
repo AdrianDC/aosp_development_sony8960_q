@@ -19,11 +19,6 @@ package com.android.server.wifi;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
-import android.net.IpConfiguration;
-import android.net.LinkAddress;
-import android.net.NetworkUtils;
-import android.net.ProxyInfo;
-import android.net.StaticIpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -40,7 +35,6 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -52,26 +46,6 @@ import java.util.Random;
  */
 @SmallTest
 public class WifiBackupRestoreTest {
-
-    private static final int TEST_NETWORK_ID = -1;
-    private static final int TEST_UID = 1;
-    private static final String TEST_SSID = "WifiBackupRestoreSSID_";
-    private static final String TEST_PSK = "WifiBackupRestorePsk";
-    private static final String[] TEST_WEP_KEYS =
-            {"WifiBackupRestoreWep1", "WifiBackupRestoreWep2",
-                    "WifiBackupRestoreWep3", "WifiBackupRestoreWep3"};
-    private static final int TEST_WEP_TX_KEY_INDEX = 1;
-    private static final String TEST_FQDN = "WifiBackupRestoreFQDN";
-    private static final String TEST_PROVIDER_FRIENDLY_NAME = "WifiBackupRestoreFriendlyName";
-    private static final String TEST_STATIC_IP_LINK_ADDRESS = "192.168.48.2";
-    private static final int TEST_STATIC_IP_LINK_PREFIX_LENGTH = 8;
-    private static final String TEST_STATIC_IP_GATEWAY_ADDRESS = "192.168.48.1";
-    private static final String[] TEST_STATIC_IP_DNS_SERVER_ADDRESSES =
-            new String[]{"192.168.48.1", "192.168.48.10"};
-    private static final String TEST_STATIC_PROXY_HOST = "192.168.48.1";
-    private static final int TEST_STATIC_PROXY_PORT = 8000;
-    private static final String TEST_STATIC_PROXY_EXCLUSION_LIST = "";
-    private static final String TEST_PAC_PROXY_LOCATION = "http://";
 
     private final WifiBackupRestore mWifiBackupRestore = new WifiBackupRestore();
     private boolean mCheckDump = true;
@@ -90,13 +64,19 @@ public class WifiBackupRestoreTest {
                     new FileDescriptor(), new PrintWriter(stringWriter), new String[0]);
             String dumpString = stringWriter.toString();
             // Ensure that the SSID was dumped out.
-            assertTrue("Dump: " + dumpString, dumpString.contains(TEST_SSID));
+            assertTrue("Dump: " + dumpString,
+                    dumpString.contains(WifiConfigurationTestUtil.TEST_SSID));
             // Ensure that the password wasn't dumped out.
-            assertFalse("Dump: " + dumpString, dumpString.contains(TEST_PSK));
-            assertFalse("Dump: " + dumpString, dumpString.contains(TEST_WEP_KEYS[0]));
-            assertFalse("Dump: " + dumpString, dumpString.contains(TEST_WEP_KEYS[1]));
-            assertFalse("Dump: " + dumpString, dumpString.contains(TEST_WEP_KEYS[2]));
-            assertFalse("Dump: " + dumpString, dumpString.contains(TEST_WEP_KEYS[3]));
+            assertFalse("Dump: " + dumpString,
+                    dumpString.contains(WifiConfigurationTestUtil.TEST_PSK));
+            assertFalse("Dump: " + dumpString,
+                    dumpString.contains(WifiConfigurationTestUtil.TEST_WEP_KEYS[0]));
+            assertFalse("Dump: " + dumpString,
+                    dumpString.contains(WifiConfigurationTestUtil.TEST_WEP_KEYS[1]));
+            assertFalse("Dump: " + dumpString,
+                    dumpString.contains(WifiConfigurationTestUtil.TEST_WEP_KEYS[2]));
+            assertFalse("Dump: " + dumpString,
+                    dumpString.contains(WifiConfigurationTestUtil.TEST_WEP_KEYS[3]));
         }
     }
 
@@ -106,7 +86,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSingleOpenNetworkBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createOpenNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createOpenNetwork());
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
@@ -122,7 +102,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSingleOpenHiddenNetworkBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createOpenHiddenNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createOpenHiddenNetwork());
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
@@ -137,7 +117,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSinglePskNetworkBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createPskNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createPskNetwork());
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
@@ -152,7 +132,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSinglePskHiddenNetworkBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createPskHiddenNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createPskHiddenNetwork());
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
@@ -167,7 +147,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSingleWepNetworkBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createWepNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createWepNetwork());
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
@@ -183,7 +163,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSingleWepNetworkWithSingleKeyBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createWepNetworkWithSingleKey(0));
+        configurations.add(WifiConfigurationTestUtil.createWepNetworkWithSingleKey());
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
@@ -198,7 +178,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSingleEnterpriseNetworkNotBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createEapNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createEapNetwork());
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
@@ -215,8 +195,9 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSinglePskNetworkWithStaticIpAndStaticProxyBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        WifiConfiguration pskNetwork = createPskNetwork(0);
-        pskNetwork.setIpConfiguration(createStaticIpConfigurationWithStaticProxy());
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        pskNetwork.setIpConfiguration(
+                WifiConfigurationTestUtil.createStaticIpConfigurationWithStaticProxy());
         configurations.add(pskNetwork);
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
@@ -233,8 +214,9 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSinglePskNetworkWithStaticIpAndPACProxyBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        WifiConfiguration pskNetwork = createPskNetwork(0);
-        pskNetwork.setIpConfiguration(createStaticIpConfigurationWithPacProxy());
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        pskNetwork.setIpConfiguration(
+                WifiConfigurationTestUtil.createStaticIpConfigurationWithPacProxy());
         configurations.add(pskNetwork);
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
@@ -251,8 +233,9 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSinglePskNetworkWithDHCPIpAndPACProxyBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        WifiConfiguration pskNetwork = createPskNetwork(0);
-        pskNetwork.setIpConfiguration(createDHCPIpConfigurationWithPacProxy());
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        pskNetwork.setIpConfiguration(
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy());
         configurations.add(pskNetwork);
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
@@ -269,8 +252,9 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSinglePskNetworkWithPartialStaticIpBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        WifiConfiguration pskNetwork = createPskNetwork(0);
-        pskNetwork.setIpConfiguration(createPartialStaticIpConfigurationWithPacProxy());
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        pskNetwork.setIpConfiguration(
+                WifiConfigurationTestUtil.createPartialStaticIpConfigurationWithPacProxy());
         configurations.add(pskNetwork);
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
@@ -286,10 +270,10 @@ public class WifiBackupRestoreTest {
     @Test
     public void testMultipleNetworksAllBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createWepNetwork(0));
-        configurations.add(createWepNetwork(1));
-        configurations.add(createPskNetwork(2));
-        configurations.add(createOpenNetwork(3));
+        configurations.add(WifiConfigurationTestUtil.createWepNetwork());
+        configurations.add(WifiConfigurationTestUtil.createWepNetwork());
+        configurations.add(WifiConfigurationTestUtil.createPskNetwork());
+        configurations.add(WifiConfigurationTestUtil.createOpenNetwork());
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
@@ -307,16 +291,19 @@ public class WifiBackupRestoreTest {
         List<WifiConfiguration> configurations = new ArrayList<>();
         List<WifiConfiguration> expectedConfigurations = new ArrayList<>();
 
-        configurations.add(createWepNetwork(0));
-        expectedConfigurations.add(createWepNetwork(0));
+        WifiConfiguration wepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        configurations.add(wepNetwork);
+        expectedConfigurations.add(wepNetwork);
 
-        configurations.add(createEapNetwork(1));
+        configurations.add(WifiConfigurationTestUtil.createEapNetwork());
 
-        configurations.add(createPskNetwork(2));
-        expectedConfigurations.add(createPskNetwork(2));
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        configurations.add(pskNetwork);
+        expectedConfigurations.add(pskNetwork);
 
-        configurations.add(createOpenNetwork(3));
-        expectedConfigurations.add(createOpenNetwork(3));
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        configurations.add(openNetwork);
+        expectedConfigurations.add(openNetwork);
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
         List<WifiConfiguration> retrievedConfigurations =
@@ -333,16 +320,19 @@ public class WifiBackupRestoreTest {
     public void testMultipleNetworksWithDifferentIpConfigurationsAllBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
 
-        WifiConfiguration wepNetwork = createWepNetwork(0);
-        wepNetwork.setIpConfiguration(createDHCPIpConfigurationWithPacProxy());
+        WifiConfiguration wepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        wepNetwork.setIpConfiguration(
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy());
         configurations.add(wepNetwork);
 
-        WifiConfiguration pskNetwork = createPskNetwork(1);
-        pskNetwork.setIpConfiguration(createStaticIpConfigurationWithPacProxy());
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        pskNetwork.setIpConfiguration(
+                WifiConfigurationTestUtil.createStaticIpConfigurationWithPacProxy());
         configurations.add(pskNetwork);
 
-        WifiConfiguration openNetwork = createOpenNetwork(2);
-        openNetwork.setIpConfiguration(createStaticIpConfigurationWithStaticProxy());
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        openNetwork.setIpConfiguration(
+                WifiConfigurationTestUtil.createStaticIpConfigurationWithStaticProxy());
         configurations.add(openNetwork);
 
         byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
@@ -359,7 +349,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSingleOpenNetworkSupplicantBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createOpenNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createOpenNetwork());
 
         byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
         byte[] ipConfigData = createIpConfBackupData(configurations);
@@ -377,7 +367,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSingleOpenHiddenNetworkSupplicantBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createOpenHiddenNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createOpenHiddenNetwork());
 
         byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
         byte[] ipConfigData = createIpConfBackupData(configurations);
@@ -395,7 +385,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSinglePskNetworkSupplicantBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createPskNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createPskNetwork());
 
         byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
         byte[] ipConfigData = createIpConfBackupData(configurations);
@@ -413,7 +403,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSinglePskHiddenNetworkSupplicantBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createPskHiddenNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createPskHiddenNetwork());
 
         byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
         byte[] ipConfigData = createIpConfBackupData(configurations);
@@ -431,7 +421,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSingleWepNetworkSupplicantBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createWepNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createWepNetwork());
 
         byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
         byte[] ipConfigData = createIpConfBackupData(configurations);
@@ -449,7 +439,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSingleWepNetworkWithSingleKeySupplicantBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createWepNetworkWithSingleKey(0));
+        configurations.add(WifiConfigurationTestUtil.createWepNetworkWithSingleKey());
 
         byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
         byte[] ipConfigData = createIpConfBackupData(configurations);
@@ -466,7 +456,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSingleEnterpriseNetworkNotSupplicantBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createEapNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createEapNetwork());
 
         byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
         byte[] ipConfigData = createIpConfBackupData(configurations);
@@ -484,16 +474,19 @@ public class WifiBackupRestoreTest {
     public void testMultipleNetworksWithDifferentIpConfigurationsAllSupplicantBackupRestore() {
         List<WifiConfiguration> configurations = new ArrayList<>();
 
-        WifiConfiguration wepNetwork = createWepNetwork(0);
-        wepNetwork.setIpConfiguration(createDHCPIpConfigurationWithPacProxy());
+        WifiConfiguration wepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        wepNetwork.setIpConfiguration(
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy());
         configurations.add(wepNetwork);
 
-        WifiConfiguration pskNetwork = createPskNetwork(1);
-        pskNetwork.setIpConfiguration(createStaticIpConfigurationWithPacProxy());
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        pskNetwork.setIpConfiguration(
+                WifiConfigurationTestUtil.createStaticIpConfigurationWithPacProxy());
         configurations.add(pskNetwork);
 
-        WifiConfiguration openNetwork = createOpenNetwork(2);
-        openNetwork.setIpConfiguration(createStaticIpConfigurationWithStaticProxy());
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        openNetwork.setIpConfiguration(
+                WifiConfigurationTestUtil.createStaticIpConfigurationWithStaticProxy());
         configurations.add(openNetwork);
 
         byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
@@ -512,7 +505,7 @@ public class WifiBackupRestoreTest {
     @Test
     public void testSingleOpenNetworkSupplicantBackupRestoreWithNoIpConfigData() {
         List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.add(createOpenNetwork(0));
+        configurations.add(WifiConfigurationTestUtil.createOpenNetwork());
 
         byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
         List<WifiConfiguration> retrievedConfigurations =
@@ -530,13 +523,13 @@ public class WifiBackupRestoreTest {
     public void testMultipleNetworksAllSupplicantBackupRestoreWithNoIpConfigData() {
         List<WifiConfiguration> configurations = new ArrayList<>();
 
-        WifiConfiguration wepNetwork = createWepNetwork(0);
+        WifiConfiguration wepNetwork = WifiConfigurationTestUtil.createWepNetwork();
         configurations.add(wepNetwork);
 
-        WifiConfiguration pskNetwork = createPskNetwork(1);
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
         configurations.add(pskNetwork);
 
-        WifiConfiguration openNetwork = createOpenNetwork(2);
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
         configurations.add(openNetwork);
 
         byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
@@ -561,131 +554,6 @@ public class WifiBackupRestoreTest {
         assertNull(retrievedConfigurations);
         // No valid data to check in dump.
         mCheckDump = false;
-    }
-
-    private WifiConfiguration createOpenNetwork(int id) {
-        String ssid = "\"" + TEST_SSID + id + "\"";
-        return WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                true, true, null, null,
-                WifiConfigurationTestUtil.SECURITY_NONE);
-    }
-
-    private WifiConfiguration createOpenHiddenNetwork(int id) {
-        String ssid = "\"" + TEST_SSID + id + "\"";
-        WifiConfiguration config =
-                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                true, true, null, null,
-                WifiConfigurationTestUtil.SECURITY_NONE);
-        config.hiddenSSID = true;
-        return config;
-    }
-
-    private WifiConfiguration createPskNetwork(int id) {
-        String ssid = "\"" + TEST_SSID + id + "\"";
-        WifiConfiguration configuration =
-                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                        true, true, null, null,
-                        WifiConfigurationTestUtil.SECURITY_PSK);
-        configuration.preSharedKey = TEST_PSK;
-        return configuration;
-    }
-
-    private WifiConfiguration createPskHiddenNetwork(int id) {
-        String ssid = "\"" + TEST_SSID + id + "\"";
-        WifiConfiguration configuration =
-                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                        true, true, null, null,
-                        WifiConfigurationTestUtil.SECURITY_PSK);
-        configuration.preSharedKey = TEST_PSK;
-        configuration.hiddenSSID = true;
-        return configuration;
-    }
-
-    private WifiConfiguration createWepNetwork(int id) {
-        String ssid = "\"" + TEST_SSID + id + "\"";
-        WifiConfiguration configuration =
-                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                        true, true, null, null,
-                        WifiConfigurationTestUtil.SECURITY_WEP);
-        configuration.wepKeys = TEST_WEP_KEYS;
-        configuration.wepTxKeyIndex = TEST_WEP_TX_KEY_INDEX;
-        return configuration;
-    }
-
-    private WifiConfiguration createWepNetworkWithSingleKey(int id) {
-        String ssid = "\"" + TEST_SSID + id + "\"";
-        WifiConfiguration configuration =
-                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                        true, true, null, null,
-                        WifiConfigurationTestUtil.SECURITY_WEP);
-        configuration.wepKeys[0] = TEST_WEP_KEYS[0];
-        configuration.wepTxKeyIndex = 0;
-        return configuration;
-    }
-
-    private WifiConfiguration createEapNetwork(int id) {
-        String ssid = "\"" + TEST_SSID + id + "\"";
-        WifiConfiguration configuration =
-                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
-                        true, true, TEST_FQDN, TEST_PROVIDER_FRIENDLY_NAME,
-                        WifiConfigurationTestUtil.SECURITY_EAP);
-        return configuration;
-    }
-
-    private StaticIpConfiguration createStaticIpConfiguration() {
-        StaticIpConfiguration staticIpConfiguration = new StaticIpConfiguration();
-        LinkAddress linkAddress =
-                new LinkAddress(NetworkUtils.numericToInetAddress(TEST_STATIC_IP_LINK_ADDRESS),
-                        TEST_STATIC_IP_LINK_PREFIX_LENGTH);
-        staticIpConfiguration.ipAddress = linkAddress;
-        InetAddress gatewayAddress =
-                NetworkUtils.numericToInetAddress(TEST_STATIC_IP_GATEWAY_ADDRESS);
-        staticIpConfiguration.gateway = gatewayAddress;
-        for (String dnsServerAddress : TEST_STATIC_IP_DNS_SERVER_ADDRESSES) {
-            staticIpConfiguration.dnsServers.add(
-                    NetworkUtils.numericToInetAddress(dnsServerAddress));
-        }
-        return staticIpConfiguration;
-    }
-
-    private StaticIpConfiguration createPartialStaticIpConfiguration() {
-        StaticIpConfiguration staticIpConfiguration = new StaticIpConfiguration();
-        LinkAddress linkAddress =
-                new LinkAddress(NetworkUtils.numericToInetAddress(TEST_STATIC_IP_LINK_ADDRESS),
-                        TEST_STATIC_IP_LINK_PREFIX_LENGTH);
-        staticIpConfiguration.ipAddress = linkAddress;
-        // Only set the link address, don't set the gateway/dns servers.
-        return staticIpConfiguration;
-    }
-
-    private IpConfiguration createStaticIpConfigurationWithPacProxy() {
-        StaticIpConfiguration staticIpConfiguration = createStaticIpConfiguration();
-        ProxyInfo proxyInfo = new ProxyInfo(TEST_PAC_PROXY_LOCATION);
-        return new IpConfiguration(IpConfiguration.IpAssignment.STATIC,
-                IpConfiguration.ProxySettings.PAC, staticIpConfiguration, proxyInfo);
-    }
-
-    private IpConfiguration createStaticIpConfigurationWithStaticProxy() {
-        StaticIpConfiguration staticIpConfiguration = createStaticIpConfiguration();
-        ProxyInfo proxyInfo =
-                new ProxyInfo(TEST_STATIC_PROXY_HOST,
-                        TEST_STATIC_PROXY_PORT,
-                        TEST_STATIC_PROXY_EXCLUSION_LIST);
-        return new IpConfiguration(IpConfiguration.IpAssignment.STATIC,
-                IpConfiguration.ProxySettings.STATIC, staticIpConfiguration, proxyInfo);
-    }
-
-    private IpConfiguration createPartialStaticIpConfigurationWithPacProxy() {
-        StaticIpConfiguration staticIpConfiguration = createPartialStaticIpConfiguration();
-        ProxyInfo proxyInfo = new ProxyInfo(TEST_PAC_PROXY_LOCATION);
-        return new IpConfiguration(IpConfiguration.IpAssignment.STATIC,
-                IpConfiguration.ProxySettings.PAC, staticIpConfiguration, proxyInfo);
-    }
-
-    private IpConfiguration createDHCPIpConfigurationWithPacProxy() {
-        ProxyInfo proxyInfo = new ProxyInfo(TEST_PAC_PROXY_LOCATION);
-        return new IpConfiguration(IpConfiguration.IpAssignment.DHCP,
-                IpConfiguration.ProxySettings.PAC, null, proxyInfo);
     }
 
     /**
