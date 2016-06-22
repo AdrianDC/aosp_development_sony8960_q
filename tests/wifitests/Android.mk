@@ -61,10 +61,7 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE_TAGS := tests
 
-RESOURCE_FILES := $(call all-named-files-under, R.java, $(intermediates.COMMON))
-
-LOCAL_SRC_FILES := $(call all-subdir-java-files) \
-	$RESOURCE_FILES
+LOCAL_SRC_FILES := $(call all-subdir-java-files)
 
 ifndef INCLUDE_NAN_FEATURE
 LOCAL_SRC_FILES := $(filter-out $(call all-java-files-under, \
