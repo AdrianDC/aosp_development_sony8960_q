@@ -90,7 +90,8 @@ public class WifiConnectivityManager {
     private static final int LOW_RSSI_NETWORK_RETRY_START_DELAY_MS = 20 * 1000; // 20 seconds
     private static final int LOW_RSSI_NETWORK_RETRY_MAX_DELAY_MS = 80 * 1000; // 80 seconds
     // Maximum number of retries when starting a scan failed
-    private static final int MAX_SCAN_RESTART_ALLOWED = 5;
+    @VisibleForTesting
+    public static final int MAX_SCAN_RESTART_ALLOWED = 5;
     // Number of milli-seconds to delay before retry starting
     // a previously failed scan
     private static final int RESTART_SCAN_DELAY_MS = 2 * 1000; // 2 seconds
@@ -246,9 +247,6 @@ public class WifiConnectivityManager {
         @Override
         public void onSuccess() {
             localLog("PeriodicScanListener onSuccess");
-
-            // reset the count
-            mScanRestartCount = 0;
         }
 
         @Override
@@ -277,6 +275,7 @@ public class WifiConnectivityManager {
         public void onResults(WifiScanner.ScanData[] results) {
             handleScanResults(mScanDetails, "PeriodicScanListener");
             clearScanDetails();
+            mScanRestartCount = 0;
         }
 
         @Override
@@ -313,9 +312,6 @@ public class WifiConnectivityManager {
         @Override
         public void onSuccess() {
             localLog("SingleScanListener onSuccess");
-
-            // reset the count
-            mSingleScanRestartCount = 0;
         }
 
         @Override
@@ -344,6 +340,8 @@ public class WifiConnectivityManager {
         public void onResults(WifiScanner.ScanData[] results) {
             boolean wasConnectAttempted = handleScanResults(mScanDetails, "SingleScanListener");
             clearScanDetails();
+            mSingleScanRestartCount = 0;
+
             // update metrics if this was a watchdog triggered single scan
             if (mIsWatchdogTriggered) {
                 if (wasConnectAttempted) {
@@ -402,9 +400,6 @@ public class WifiConnectivityManager {
         @Override
         public void onSuccess() {
             localLog("PnoScanListener onSuccess");
-
-            // reset the count
-            mScanRestartCount = 0;
         }
 
         @Override
@@ -451,6 +446,7 @@ public class WifiConnectivityManager {
             boolean wasConnectAttempted;
             wasConnectAttempted = handleScanResults(mScanDetails, "PnoScanListener");
             clearScanDetails();
+            mScanRestartCount = 0;
 
             if (!wasConnectAttempted) {
                 // The scan results were rejected by QNS due to low RSSI values
