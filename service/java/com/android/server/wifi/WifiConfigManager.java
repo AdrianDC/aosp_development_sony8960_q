@@ -260,6 +260,10 @@ public class WifiConfigManager {
      * The SSIDs are encoded in a String as per definition of WifiConfiguration.SSID field.
      */
     public Set<String> mDeletedEphemeralSSIDs = new HashSet<String>();
+    /**
+     * List of blacklisted BSSIDs.
+     */
+    private final HashSet<String> mBssidBlacklist = new HashSet<String>();
 
     /* configured networks with network id as the key */
     private final ConfigurationMap mConfiguredNetworks;
@@ -267,7 +271,8 @@ public class WifiConfigManager {
     private final LocalLog mLocalLog;
     private final KeyStore mKeyStore;
     private final WifiNetworkHistory mWifiNetworkHistory;
-    private final WifiConfigStore mWifiConfigStore;
+    private final WifiSupplicantControl mWifiSupplicantControl;
+    private final WifiKeyStore mWifiKeyStore;
     private final AnqpCache mAnqpCache;
     private final SupplicantBridge mSupplicantBridge;
     private final SupplicantBridgeCallbacks mSupplicantBridgeCallbacks;
@@ -275,6 +280,7 @@ public class WifiConfigManager {
     private final boolean mEnableOsuQueries;
     private final SIMAccessor mSIMAccessor;
     private final UserManager mUserManager;
+    private final BackupManagerProxy mBackupManagerProxy;
 
     private boolean mVerboseLoggingEnabled = false;
     private Context mContext;
@@ -397,20 +403,26 @@ public class WifiConfigManager {
         mWriter = new DelayedDiskWrite();
         mIpconfigStore = new IpConfigStore(mWriter);
         mWifiNetworkHistory = new WifiNetworkHistory(context, mLocalLog, mWriter);
-        mWifiConfigStore = new WifiConfigStore(wifiNative, mKeyStore, mLocalLog);
+        mWifiSupplicantControl = new WifiSupplicantControl(wifiNative, mLocalLog);
+        mWifiKeyStore = new WifiKeyStore(keyStore);
+        mBackupManagerProxy = new BackupManagerProxy();
     }
 
     public void trimANQPCache(boolean all) {
         mAnqpCache.clear(all, DBG);
     }
 
+    /**
+     * Enable verbose logging.
+     */
     void enableVerboseLogging(int verbose) {
         if (verbose > 0) {
             mVerboseLoggingEnabled = true;
         } else {
             mVerboseLoggingEnabled = false;
         }
-        mWifiConfigStore.enableVerboseLogging(mVerboseLoggingEnabled);
+        mWifiSupplicantControl.enableVerboseLogging(mVerboseLoggingEnabled);
+        mWifiKeyStore.enableVerboseLogging(mVerboseLoggingEnabled);
     }
 
     /**
@@ -603,11 +615,11 @@ public class WifiConfigManager {
     }
 
     private boolean setNetworkPriorityNative(WifiConfiguration config, int priority) {
-        return mWifiConfigStore.setNetworkPriority(config, priority);
+        return mWifiSupplicantControl.setNetworkPriority(config, priority);
     }
 
     private boolean setSSIDNative(WifiConfiguration config, String ssid) {
-        return mWifiConfigStore.setNetworkSSID(config, ssid);
+        return mWifiSupplicantControl.setNetworkSSID(config, ssid);
     }
 
     public boolean updateLastConnectUid(WifiConfiguration config, int uid) {
@@ -679,7 +691,7 @@ public class WifiConfigManager {
         }
         mSelectedPasspointNetwork = selectedPasspointNetwork;
 
-        mWifiConfigStore.enableHS20(config.isPasspoint());
+        mWifiSupplicantControl.enableHS20(config.isPasspoint());
 
         if (updatePriorities) {
             saveConfig();
@@ -783,7 +795,7 @@ public class WifiConfigManager {
     }
 
     void saveWifiConfigBSSID(WifiConfiguration config, String bssid) {
-        mWifiConfigStore.setNetworkBSSID(config, bssid);
+        mWifiSupplicantControl.setNetworkBSSID(config, bssid);
     }
 
 
@@ -1134,7 +1146,7 @@ public class WifiConfigManager {
         if (config == null) {
             return false;
         }
-        if (!mWifiConfigStore.removeNetwork(config)) {
+        if (!removeNetworkNative(config)) {
             loge("Failed to remove network " + config.networkId);
             return false;
         }
@@ -1274,21 +1286,21 @@ public class WifiConfigManager {
     }
 
     boolean selectNetworkWithoutBroadcast(int netId) {
-        return mWifiConfigStore.selectNetwork(mConfiguredNetworks.getForCurrentUser(netId));
+        return mWifiSupplicantControl.selectNetwork(mConfiguredNetworks.getForCurrentUser(netId));
     }
 
     /**
      * Disable a network in wpa_supplicant.
      */
     boolean disableNetworkNative(WifiConfiguration config) {
-        return mWifiConfigStore.disableNetwork(config);
+        return mWifiSupplicantControl.disableNetwork(config);
     }
 
     /**
      * Disable all networks in wpa_supplicant.
      */
     void disableAllNetworksNative() {
-        mWifiConfigStore.disableAllNetworks(mConfiguredNetworks.valuesForCurrentUser());
+        mWifiSupplicantControl.disableAllNetworks(mConfiguredNetworks.valuesForCurrentUser());
     }
 
     /* Mark all networks except specified netId as disabled */
@@ -1484,7 +1496,7 @@ public class WifiConfigManager {
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
     boolean saveConfig() {
-        return mWifiConfigStore.saveConfig();
+        return mWifiSupplicantControl.saveConfig();
     }
 
     /**
@@ -1494,7 +1506,7 @@ public class WifiConfigManager {
      * @return Wps result containing status and pin
      */
     WpsResult startWpsWithPinFromAccessPoint(WpsInfo config) {
-        WpsResult result = mWifiConfigStore.startWpsWithPinFromAccessPoint(config);
+        WpsResult result = mWifiSupplicantControl.startWpsWithPinFromAccessPoint(config);
         /* WPS leaves all networks disabled */
         if (result.status == WpsResult.Status.SUCCESS) {
             markAllNetworksDisabled(WifiConfiguration.NetworkSelectionStatus.DISABLED_WPS_START);
@@ -1508,7 +1520,7 @@ public class WifiConfigManager {
      * @return WpsResult indicating status and pin
      */
     WpsResult startWpsWithPinFromDevice(WpsInfo config) {
-        WpsResult result = mWifiConfigStore.startWpsWithPinFromDevice(config);
+        WpsResult result = mWifiSupplicantControl.startWpsWithPinFromDevice(config);
         /* WPS leaves all networks disabled */
         if (result.status == WpsResult.Status.SUCCESS) {
             markAllNetworksDisabled(WifiConfiguration.NetworkSelectionStatus.DISABLED_WPS_START);
@@ -1522,7 +1534,7 @@ public class WifiConfigManager {
      * @return WpsResult indicating status and pin
      */
     WpsResult startWpsPbc(WpsInfo config) {
-        WpsResult result = mWifiConfigStore.startWpsPbc(config);
+        WpsResult result = mWifiSupplicantControl.startWpsPbc(config);
         /* WPS leaves all networks disabled */
         if (result.status == WpsResult.Status.SUCCESS) {
             markAllNetworksDisabled(WifiConfiguration.NetworkSelectionStatus.DISABLED_WPS_START);
@@ -1629,7 +1641,7 @@ public class WifiConfigManager {
 
         final Map<String, WifiConfiguration> configs = new HashMap<>();
         final SparseArray<Map<String, String>> networkExtras = new SparseArray<>();
-        mLastPriority = mWifiConfigStore.loadNetworks(configs, networkExtras);
+        mLastPriority = mWifiSupplicantControl.loadNetworks(configs, networkExtras);
 
         readNetworkHistory(configs);
         readPasspointConfig(configs, networkExtras);
@@ -1648,7 +1660,7 @@ public class WifiConfigManager {
                     log("Ignoring network " + config.networkId + " because the configKey loaded "
                             + "from wpa_supplicant.conf is not valid.");
                 }
-                mWifiConfigStore.removeNetwork(config);
+                removeNetworkNative(config);
                 continue;
             }
             mConfiguredNetworks.put(config);
@@ -1666,8 +1678,8 @@ public class WifiConfigManager {
         if (mConfiguredNetworks.sizeForAllUsers() == 0) {
             // no networks? Lets log if the file contents
             logKernelTime();
-            logContents(WifiConfigStore.SUPPLICANT_CONFIG_FILE);
-            logContents(WifiConfigStore.SUPPLICANT_CONFIG_FILE_BACKUP);
+            logContents(WifiSupplicantControl.SUPPLICANT_CONFIG_FILE);
+            logContents(WifiSupplicantControl.SUPPLICANT_CONFIG_FILE_BACKUP);
             logContents(WifiNetworkHistory.NETWORK_HISTORY_CONFIG_FILE);
         }
     }
@@ -1699,12 +1711,13 @@ public class WifiConfigManager {
     }
 
     private Map<String, String> readNetworkVariablesFromSupplicantFile(String key) {
-        return mWifiConfigStore.readNetworkVariablesFromSupplicantFile(key);
+        return mWifiSupplicantControl.readNetworkVariablesFromSupplicantFile(key);
     }
 
     private String readNetworkVariableFromSupplicantFile(String configKey, String key) {
         long start = mClock.getElapsedSinceBootNanos();
-        Map<String, String> data = mWifiConfigStore.readNetworkVariablesFromSupplicantFile(key);
+        Map<String, String> data =
+                mWifiSupplicantControl.readNetworkVariablesFromSupplicantFile(key);
         long end = mClock.getElapsedSinceBootNanos();
 
         if (mVerboseLoggingEnabled) {
@@ -1725,7 +1738,7 @@ public class WifiConfigManager {
             if (config.allowedKeyManagement.get(KeyMgmt.WPA_EAP)
                     && config.allowedKeyManagement.get(KeyMgmt.IEEE8021X)) {
 
-                if (needsSoftwareBackedKeyStore(config.enterpriseConfig)) {
+                if (mWifiKeyStore.needsSoftwareBackedKeyStore(config.enterpriseConfig)) {
                     return true;
                 }
             }
@@ -1755,7 +1768,8 @@ public class WifiConfigManager {
                     continue;
                 }
                 final String configFqdn =
-                        networkExtras.get(config.networkId).get(WifiConfigStore.ID_STRING_KEY_FQDN);
+                        networkExtras.get(config.networkId)
+                                .get(WifiSupplicantControl.ID_STRING_KEY_FQDN);
                 if (configFqdn != null && configFqdn.equals(fqdn)) {
                     Log.d(TAG, "Matched " + configFqdn + " with " + config.networkId);
                     ++matchedConfigs;
@@ -1939,8 +1953,18 @@ public class WifiConfigManager {
         // HasEverConnected to be set to false.
         WifiConfiguration originalConfig = new WifiConfiguration(currentConfig);
 
-        if (!mWifiConfigStore.addOrUpdateNetwork(config, currentConfig)) {
+        if (!mWifiSupplicantControl.addOrUpdateNetwork(config)) {
             return new NetworkUpdateResult(INVALID_NETWORK_ID);
+        }
+        // Update the keys for enterprise networks and save the enterprise parameters to
+        // wpa_supplicant.
+        if (config.enterpriseConfig != null
+                && config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
+            if (!(mWifiKeyStore.updateNetworkKeys(config, currentConfig)
+                    && mWifiSupplicantControl.saveEnterpriseConfiguration(config))) {
+                removeNetworkNative(config);
+                return new NetworkUpdateResult(INVALID_NETWORK_ID);
+            }
         }
         int netId = config.networkId;
         String savedConfigKey = config.configKey();
@@ -2058,9 +2082,9 @@ public class WifiConfigManager {
         // When we read back the config from wpa_supplicant, some of the default values are set
         // which could change the configKey.
         if (!savedConfigKey.equals(currentConfig.configKey())) {
-            if (!mWifiConfigStore.saveNetworkMetadata(currentConfig)) {
+            if (!mWifiSupplicantControl.saveNetworkMetadata(currentConfig)) {
                 loge("Failed to set network metadata. Removing config " + config.networkId);
-                mWifiConfigStore.removeNetwork(config);
+                removeNetworkNative(config);
                 return new NetworkUpdateResult(INVALID_NETWORK_ID);
             }
         }
@@ -2096,8 +2120,23 @@ public class WifiConfigManager {
 
         saveConfig();
         writeKnownNetworkHistory();
-
+        // Stage the backup of the SettingsProvider package which backs this up.
+        mBackupManagerProxy.notifyDataChanged();
         return result;
+    }
+
+    private boolean removeNetworkNative(WifiConfiguration config) {
+        if (!mWifiSupplicantControl.removeNetwork(config)) {
+            return false;
+        }
+        // Remove any associated keys.
+        if (config.enterpriseConfig != null
+                && config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
+            mWifiKeyStore.removeKeys(config.enterpriseConfig);
+        }
+        // Stage the backup of the SettingsProvider package which backs this up.
+        mBackupManagerProxy.notifyDataChanged();
+        return true;
     }
 
     private boolean wasBitSetUpdated(BitSet originalBitSet, BitSet currentBitSet) {
@@ -2895,7 +2934,7 @@ public class WifiConfigManager {
      * @param config the {@link WifiConfiguration} object to be filled in.
      */
     private void readNetworkVariables(WifiConfiguration config) {
-        mWifiConfigStore.readNetworkVariables(config);
+        mWifiSupplicantControl.readNetworkVariables(config);
     }
 
     /* return the allowed key management based on a scan result */
@@ -3039,77 +3078,20 @@ public class WifiConfigManager {
         }
     }
 
-    static boolean needsSoftwareBackedKeyStore(WifiEnterpriseConfig config) {
-        String client = config.getClientCertificateAlias();
-        if (!TextUtils.isEmpty(client)) {
-            // a valid client certificate is configured
-
-            // BUGBUG: keyStore.get() never returns certBytes; because it is not
-            // taking WIFI_UID as a parameter. It always looks for certificate
-            // with SYSTEM_UID, and never finds any Wifi certificates. Assuming that
-            // all certificates need software keystore until we get the get() API
-            // fixed.
-
-            return true;
-        }
-
-        /*
-        try {
-
-            if (DBG) Slog.d(TAG, "Loading client certificate " + Credentials
-                    .USER_CERTIFICATE + client);
-
-            CertificateFactory factory = CertificateFactory.getInstance("X.509");
-            if (factory == null) {
-                Slog.e(TAG, "Error getting certificate factory");
-                return;
-            }
-
-            byte[] certBytes = keyStore.get(Credentials.USER_CERTIFICATE + client);
-            if (certBytes != null) {
-                Certificate cert = (X509Certificate) factory.generateCertificate(
-                        new ByteArrayInputStream(certBytes));
-
-                if (cert != null) {
-                    mNeedsSoftwareKeystore = hasHardwareBackedKey(cert);
-
-                    if (DBG) Slog.d(TAG, "Loaded client certificate " + Credentials
-                            .USER_CERTIFICATE + client);
-                    if (DBG) Slog.d(TAG, "It " + (mNeedsSoftwareKeystore ? "needs" :
-                            "does not need" ) + " software key store");
-                } else {
-                    Slog.d(TAG, "could not generate certificate");
-                }
-            } else {
-                Slog.e(TAG, "Could not load client certificate " + Credentials
-                        .USER_CERTIFICATE + client);
-                mNeedsSoftwareKeystore = true;
-            }
-
-        } catch(CertificateException e) {
-            Slog.e(TAG, "Could not read certificates");
-            mCaCert = null;
-            mClientCertificate = null;
-        }
-        */
-
-        return false;
-    }
-
     /**
      * Checks if the network is a sim config.
      * @param config Config corresponding to the network.
      * @return true if it is a sim config, false otherwise.
      */
     public boolean isSimConfig(WifiConfiguration config) {
-        return mWifiConfigStore.isSimConfig(config);
+        return mWifiSupplicantControl.isSimConfig(config);
     }
 
     /**
      * Resets all sim networks from the network list.
      */
     public void resetSimNetworks() {
-        mWifiConfigStore.resetSimNetworks(mConfiguredNetworks.valuesForCurrentUser());
+        mWifiSupplicantControl.resetSimNetworks(mConfiguredNetworks.valuesForCurrentUser());
     }
 
     boolean isNetworkConfigured(WifiConfiguration config) {
@@ -3248,16 +3230,36 @@ public class WifiConfigManager {
                 DEFAULT_MAX_DHCP_RETRIES);
     }
 
+    /**
+     * Clear BSSID blacklist in wpa_supplicant & HAL.
+     */
     void clearBssidBlacklist() {
-        mWifiConfigStore.clearBssidBlacklist();
+        mBssidBlacklist.clear();
+        mWifiSupplicantControl.clearBssidBlacklist();
     }
 
+    /**
+     * Add a BSSID to the blacklist.
+     *
+     * @param bssid to be added.
+     */
     void blackListBssid(String bssid) {
-        mWifiConfigStore.blackListBssid(bssid);
+        if (TextUtils.isEmpty(bssid)) {
+            return;
+        }
+        mBssidBlacklist.add(bssid);
+        mWifiSupplicantControl.blackListBssid(bssid,
+                mBssidBlacklist.toArray(new String[mBssidBlacklist.size()]));
     }
 
+    /**
+     * Checks if the provided bssid is blacklisted or not.
+     *
+     * @param bssid bssid to be checked.
+     * @return true if present, false otherwise.
+     */
     public boolean isBssidBlacklisted(String bssid) {
-        return mWifiConfigStore.isBssidBlacklisted(bssid);
+        return mBssidBlacklist.contains(bssid);
     }
 
     public boolean getEnableAutoJoinWhenAssociated() {

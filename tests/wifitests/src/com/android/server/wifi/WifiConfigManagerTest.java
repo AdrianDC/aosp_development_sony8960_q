@@ -463,12 +463,13 @@ public class WifiConfigManagerTest {
         // configuration.
         final Map<String, String> metadata = new HashMap<String, String>();
         if (CONFIGS.get(network).FQDN != null) {
-            metadata.put(WifiConfigStore.ID_STRING_KEY_FQDN, CONFIGS.get(network).FQDN);
+            metadata.put(WifiSupplicantControl.ID_STRING_KEY_FQDN, CONFIGS.get(network).FQDN);
         }
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(network).configKey());
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(
+                WifiSupplicantControl.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(network).configKey());
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(CONFIGS.get(network).creatorUid));
-        verify(mWifiNative).setNetworkExtra(network, WifiConfigStore.ID_STRING_VAR_NAME,
+        verify(mWifiNative).setNetworkExtra(network, WifiSupplicantControl.ID_STRING_VAR_NAME,
                 metadata);
 
         // Verify that an attempt to read back the requirePMF variable was made.
@@ -568,27 +569,27 @@ public class WifiConfigManagerTest {
                 .thenReturn(encodeConfigSSID(CONFIGS.get(i)));
         }
         // Legacy regular network configuration: No "id_str".
-        when(mWifiNative.getNetworkExtra(0, WifiConfigStore.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkExtra(0, WifiSupplicantControl.ID_STRING_VAR_NAME))
             .thenReturn(null);
         // Legacy Hotspot 2.0 network configuration: Quoted FQDN in "id_str".
-        when(mWifiNative.getNetworkExtra(1, WifiConfigStore.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkExtra(1, WifiSupplicantControl.ID_STRING_VAR_NAME))
             .thenReturn(null);
-        when(mWifiNative.getNetworkVariable(1, WifiConfigStore.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkVariable(1, WifiSupplicantControl.ID_STRING_VAR_NAME))
             .thenReturn('"' + CONFIGS.get(1).FQDN + '"');
         // Up-to-date Hotspot 2.0 network configuration: Metadata in "id_str".
         Map<String, String> metadata = new HashMap<String, String>();
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(2).configKey());
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(2).configKey());
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(CONFIGS.get(2).creatorUid));
-        metadata.put(WifiConfigStore.ID_STRING_KEY_FQDN, CONFIGS.get(2).FQDN);
-        when(mWifiNative.getNetworkExtra(2, WifiConfigStore.ID_STRING_VAR_NAME))
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_FQDN, CONFIGS.get(2).FQDN);
+        when(mWifiNative.getNetworkExtra(2, WifiSupplicantControl.ID_STRING_VAR_NAME))
             .thenReturn(metadata);
         // Up-to-date regular network configuration: Metadata in "id_str".
         metadata = new HashMap<String, String>();
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(3).configKey());
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(3).configKey());
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(CONFIGS.get(3).creatorUid));
-        when(mWifiNative.getNetworkExtra(3, WifiConfigStore.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkExtra(3, WifiSupplicantControl.ID_STRING_VAR_NAME))
             .thenReturn(metadata);
 
         // Set up networkHistory.txt file.
@@ -653,10 +654,10 @@ public class WifiConfigManagerTest {
         when(mWifiNative.getNetworkVariable(anyInt(), eq(WifiConfiguration.ssidVarName)))
             .thenReturn(encodeConfigSSID(config));
         final Map<String, String> metadata = new HashMap<String, String>();
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, config.configKey());
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CONFIG_KEY, config.configKey());
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(config.creatorUid));
-        when(mWifiNative.getNetworkExtra(anyInt(), eq(WifiConfigStore.ID_STRING_VAR_NAME)))
+        when(mWifiNative.getNetworkExtra(anyInt(), eq(WifiSupplicantControl.ID_STRING_VAR_NAME)))
             .thenReturn(metadata);
 
         // Load network configurations.
@@ -1459,8 +1460,8 @@ public class WifiConfigManagerTest {
         updateRequirePMFConfig.requirePMF = true;
 
         // Set up mock to allow the new value to be read back into the config
-        // TODO: please see b/28088226  - this test is implemented as if WifiConfigStore correctly
-        // read back the boolean value.  When fixed, uncomment the following line and the
+        // TODO: please see b/28088226  - this test is implemented as if WifiSupplicantControl
+        // correctly read back the boolean value. When fixed, uncomment the following line and the
         // checkHasEverConnectedFalse below.
         //when(mWifiNative.getNetworkVariable(BASE_HAS_EVER_CONNECTED_CONFIG.networkId,
         //        WifiConfiguration.pmfVarName)).thenReturn("2");

@@ -24,12 +24,7 @@ import android.net.wifi.WifiSsid;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.WpsResult;
 import android.os.FileObserver;
-import android.os.Process;
-import android.security.Credentials;
-import android.security.KeyChain;
-import android.security.KeyStore;
 import android.text.TextUtils;
-import android.util.ArraySet;
 import android.util.LocalLog;
 import android.util.Log;
 import android.util.SparseArray;
@@ -46,32 +41,18 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.security.PrivateKey;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
- * This class provides the API's to save/load/modify network configurations from a persistent
- * config database.
- * We use wpa_supplicant as our config database currently, but will be migrating to a different
- * one sometime in the future.
- * We use keystore for certificate/key management operations.
- *
- * NOTE: This class should only be used from WifiConfigManager!!!
+ * This class provides methods to send control commands to wpa_supplicant from WifiConfigManager.
+ * NOTE: This class should only be used from WifiConfigManager!
  */
-public class WifiConfigStore {
-
-    public static final String TAG = "WifiConfigStore";
+public class WifiSupplicantControl {
     // This is the only variable whose contents will not be interpreted by wpa_supplicant. We use it
     // to store metadata that allows us to correlate a wpa_supplicant.conf entry with additional
     // information about the same network stored in other files. The metadata is stored as a
@@ -82,24 +63,17 @@ public class WifiConfigStore {
     public static final String ID_STRING_KEY_CONFIG_KEY = "configKey";
     public static final String SUPPLICANT_CONFIG_FILE = "/data/misc/wifi/wpa_supplicant.conf";
     public static final String SUPPLICANT_CONFIG_FILE_BACKUP = SUPPLICANT_CONFIG_FILE + ".tmp";
-
     // Value stored by supplicant to requirePMF
     public static final int STORED_VALUE_FOR_REQUIRE_PMF = 2;
-    private static final boolean DBG = true;
-
+    private static final String TAG = "WifiSupplicantControl";
     private final LocalLog mLocalLog;
     private final WpaConfigFileObserver mFileObserver;
     private final WifiNative mWifiNative;
-    private final KeyStore mKeyStore;
-    private final HashSet<String> mBssidBlacklist = new HashSet<String>();
-    private final BackupManagerProxy mBackupManagerProxy;
 
     private boolean mVerboseLoggingEnabled = false;
 
-    WifiConfigStore(WifiNative wifiNative, KeyStore keyStore, LocalLog localLog) {
+    WifiSupplicantControl(WifiNative wifiNative, LocalLog localLog) {
         mWifiNative = wifiNative;
-        mKeyStore = keyStore;
-        mBackupManagerProxy = new BackupManagerProxy();
 
         mLocalLog = localLog;
         mFileObserver = new WpaConfigFileObserver();
@@ -121,7 +95,9 @@ public class WifiConfigStore {
      * Also transform the internal string format that uses _ (for bewildering
      * reasons) into a wpa_supplicant adjusted value, that uses - as a separator
      * (most of the time at least...).
-     * @param set a bit set with a one for each corresponding string to be included from strings.
+     *
+     * @param set     a bit set with a one for each corresponding string to be included from
+     *                strings.
      * @param strings the set of string literals to concatenate strinfs from.
      * @return A wpa_supplicant formatted value.
      */
@@ -131,8 +107,10 @@ public class WifiConfigStore {
 
     /**
      * Same as makeString with an exclusion parameter.
-     * @param set a bit set with a one for each corresponding string to be included from strings.
-     * @param strings the set of string literals to concatenate strinfs from.
+     *
+     * @param set       a bit set with a one for each corresponding string to be included from
+     *                  strings.
+     * @param strings   the set of string literals to concatenate strinfs from.
      * @param exception literal string to be excluded from the _ to - transformation.
      * @return A wpa_supplicant formatted value.
      */
@@ -144,9 +122,7 @@ public class WifiConfigStore {
         BitSet trimmedSet = set.get(0, strings.length);
 
         List<String> valueSet = new ArrayList<>();
-        for (int bit = trimmedSet.nextSetBit(0);
-             bit >= 0;
-             bit = trimmedSet.nextSetBit(bit+1)) {
+        for (int bit = trimmedSet.nextSetBit(0); bit >= 0; bit = trimmedSet.nextSetBit(bit + 1)) {
             String currentName = strings[bit];
             if (exception != null && currentName.equals(exception)) {
                 valueSet.add(currentName);
@@ -167,34 +143,6 @@ public class WifiConfigStore {
      */
     private static String encodeSSID(String str) {
         return Utils.toHex(removeDoubleQuotes(str).getBytes(StandardCharsets.UTF_8));
-    }
-
-    // Certificate and private key management for EnterpriseConfig
-    private static boolean needsKeyStore(WifiEnterpriseConfig config) {
-        return (!(config.getClientCertificate() == null && config.getCaCertificate() == null));
-    }
-
-    private static boolean isHardwareBackedKey(PrivateKey key) {
-        return KeyChain.isBoundKeyAlgorithm(key.getAlgorithm());
-    }
-
-    private static boolean hasHardwareBackedKey(Certificate certificate) {
-        return KeyChain.isBoundKeyAlgorithm(certificate.getPublicKey().getAlgorithm());
-    }
-
-    private static boolean needsSoftwareBackedKeyStore(WifiEnterpriseConfig config) {
-        java.lang.String client = config.getClientCertificateAlias();
-        if (!TextUtils.isEmpty(client)) {
-            // a valid client certificate is configured
-
-            // BUGBUG: keyStore.get() never returns certBytes; because it is not
-            // taking WIFI_UID as a parameter. It always looks for certificate
-            // with SYSTEM_UID, and never finds any Wifi certificates. Assuming that
-            // all certificates need software keystore until we get the get() API
-            // fixed.
-            return true;
-        }
-        return false;
     }
 
     private int lookupString(String string, String[] strings) {
@@ -443,132 +391,8 @@ public class WifiConfigStore {
     }
 
     /**
-     * Install keys for given enterprise network.
-     *
-     * @param existingConfig Existing config corresponding to the network already stored in our
-     *                       database. This maybe null if it's a new network.
-     * @param config         Config corresponding to the network.
-     * @return true if successful, false otherwise.
-     */
-    private boolean installKeys(WifiEnterpriseConfig existingConfig, WifiEnterpriseConfig config,
-            String name) {
-        boolean ret = true;
-        String privKeyName = Credentials.USER_PRIVATE_KEY + name;
-        String userCertName = Credentials.USER_CERTIFICATE + name;
-        if (config.getClientCertificate() != null) {
-            byte[] privKeyData = config.getClientPrivateKey().getEncoded();
-            if (DBG) {
-                if (isHardwareBackedKey(config.getClientPrivateKey())) {
-                    Log.d(TAG, "importing keys " + name + " in hardware backed store");
-                } else {
-                    Log.d(TAG, "importing keys " + name + " in software backed store");
-                }
-            }
-            ret = mKeyStore.importKey(privKeyName, privKeyData, Process.WIFI_UID,
-                    KeyStore.FLAG_NONE);
-
-            if (!ret) {
-                return ret;
-            }
-
-            ret = putCertInKeyStore(userCertName, config.getClientCertificate());
-            if (!ret) {
-                // Remove private key installed
-                mKeyStore.delete(privKeyName, Process.WIFI_UID);
-                return ret;
-            }
-        }
-
-        X509Certificate[] caCertificates = config.getCaCertificates();
-        Set<String> oldCaCertificatesToRemove = new ArraySet<String>();
-        if (existingConfig != null && existingConfig.getCaCertificateAliases() != null) {
-            oldCaCertificatesToRemove.addAll(
-                    Arrays.asList(existingConfig.getCaCertificateAliases()));
-        }
-        List<String> caCertificateAliases = null;
-        if (caCertificates != null) {
-            caCertificateAliases = new ArrayList<String>();
-            for (int i = 0; i < caCertificates.length; i++) {
-                String alias = caCertificates.length == 1 ? name
-                        : String.format("%s_%d", name, i);
-
-                oldCaCertificatesToRemove.remove(alias);
-                ret = putCertInKeyStore(Credentials.CA_CERTIFICATE + alias, caCertificates[i]);
-                if (!ret) {
-                    // Remove client key+cert
-                    if (config.getClientCertificate() != null) {
-                        mKeyStore.delete(privKeyName, Process.WIFI_UID);
-                        mKeyStore.delete(userCertName, Process.WIFI_UID);
-                    }
-                    // Remove added CA certs.
-                    for (String addedAlias : caCertificateAliases) {
-                        mKeyStore.delete(Credentials.CA_CERTIFICATE + addedAlias, Process.WIFI_UID);
-                    }
-                    return ret;
-                } else {
-                    caCertificateAliases.add(alias);
-                }
-            }
-        }
-        // Remove old CA certs.
-        for (String oldAlias : oldCaCertificatesToRemove) {
-            mKeyStore.delete(Credentials.CA_CERTIFICATE + oldAlias, Process.WIFI_UID);
-        }
-        // Set alias names
-        if (config.getClientCertificate() != null) {
-            config.setClientCertificateAlias(name);
-            config.resetClientKeyEntry();
-        }
-
-        if (caCertificates != null) {
-            config.setCaCertificateAliases(
-                    caCertificateAliases.toArray(new String[caCertificateAliases.size()]));
-            config.resetCaCertificate();
-        }
-        return ret;
-    }
-
-    private boolean putCertInKeyStore(String name, Certificate cert) {
-        try {
-            byte[] certData = Credentials.convertToPem(cert);
-            if (DBG) Log.d(TAG, "putting certificate " + name + " in keystore");
-            return mKeyStore.put(name, certData, Process.WIFI_UID, KeyStore.FLAG_NONE);
-
-        } catch (IOException e1) {
-            return false;
-        } catch (CertificateException e2) {
-            return false;
-        }
-    }
-
-    /**
-     * Remove enterprise keys from the network config.
-     *
-     * @param config Config corresponding to the network.
-     */
-    private void removeKeys(WifiEnterpriseConfig config) {
-        String client = config.getClientCertificateAlias();
-        // a valid client certificate is configured
-        if (!TextUtils.isEmpty(client)) {
-            if (DBG) Log.d(TAG, "removing client private key and user cert");
-            mKeyStore.delete(Credentials.USER_PRIVATE_KEY + client, Process.WIFI_UID);
-            mKeyStore.delete(Credentials.USER_CERTIFICATE + client, Process.WIFI_UID);
-        }
-
-        String[] aliases = config.getCaCertificateAliases();
-        // a valid ca certificate is configured
-        if (aliases != null) {
-            for (String ca : aliases) {
-                if (!TextUtils.isEmpty(ca)) {
-                    if (DBG) Log.d(TAG, "removing CA cert: " + ca);
-                    mKeyStore.delete(Credentials.CA_CERTIFICATE + ca, Process.WIFI_UID);
-                }
-            }
-        }
-    }
-
-    /**
      * Update the network metadata info stored in wpa_supplicant network extra field.
+     *
      * @param config Config corresponding to the network.
      * @return true if successful, false otherwise.
      */
@@ -735,49 +559,27 @@ public class WifiConfigStore {
     }
 
     /**
-     * Update/Install keys for given enterprise network.
+     * Save an enterprise network configuration to wpa_supplicant.
      *
-     * @param config         Config corresponding to the network.
-     * @param existingConfig Existing config corresponding to the network already stored in our
-     *                       database. This maybe null if it's a new network.
+     * @param config Config corresponding to the network.
      * @return true if successful, false otherwise.
      */
-    private boolean updateNetworkKeys(WifiConfiguration config, WifiConfiguration existingConfig) {
-        WifiEnterpriseConfig enterpriseConfig = config.enterpriseConfig;
-        if (needsKeyStore(enterpriseConfig)) {
-            try {
-                /* config passed may include only fields being updated.
-                 * In order to generate the key id, fetch uninitialized
-                 * fields from the currently tracked configuration
-                 */
-                String keyId = config.getKeyIdForCredentials(existingConfig);
-
-                if (!installKeys(existingConfig != null
-                        ? existingConfig.enterpriseConfig : null, enterpriseConfig, keyId)) {
-                    loge(config.SSID + ": failed to install keys");
-                    return false;
-                }
-            } catch (IllegalStateException e) {
-                loge(config.SSID + " invalid config for key installation: " + e.getMessage());
-                return false;
-            }
-        }
-        if (!enterpriseConfig.saveToSupplicant(
-                new SupplicantSaver(config.networkId, config.SSID))) {
-            removeKeys(enterpriseConfig);
+    public boolean saveEnterpriseConfiguration(WifiConfiguration config) {
+        if (config == null || config.enterpriseConfig == null) {
             return false;
         }
-        return true;
+        if (mVerboseLoggingEnabled) localLog("saveEnterpriseConfiguration: " + config.networkId);
+        return config.enterpriseConfig.saveToSupplicant(
+                new WifiSupplicantControl.SupplicantSaver(config.networkId, config.SSID));
     }
 
     /**
      * Add or update a network configuration to wpa_supplicant.
      *
      * @param config         Config corresponding to the network.
-     * @param existingConfig Existing config corresponding to the network saved in our database.
      * @return true if successful, false otherwise.
      */
-    public boolean addOrUpdateNetwork(WifiConfiguration config, WifiConfiguration existingConfig) {
+    public boolean addOrUpdateNetwork(WifiConfiguration config) {
         if (config == null) {
             return false;
         }
@@ -808,12 +610,6 @@ public class WifiConfigStore {
             }
             return false;
         }
-        if (config.enterpriseConfig != null
-                && config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
-            return updateNetworkKeys(config, existingConfig);
-        }
-        // Stage the backup of the SettingsProvider package which backs this up
-        mBackupManagerProxy.notifyDataChanged();
         return true;
     }
 
@@ -832,12 +628,6 @@ public class WifiConfigStore {
             loge("Remove network in wpa_supplicant failed on " + config.networkId);
             return false;
         }
-        // Remove any associated keys
-        if (config.enterpriseConfig != null) {
-            removeKeys(config.enterpriseConfig);
-        }
-        // Stage the backup of the SettingsProvider package which backs this up
-        mBackupManagerProxy.notifyDataChanged();
         return true;
     }
 
@@ -1010,7 +800,7 @@ public class WifiConfigStore {
      * readNetworkVariablesFromSupplicantFile() for testing.
      *
      * @param reader The reader to read the network variables from.
-     * @param key The parameter to be parsed.
+     * @param key    The parameter to be parsed.
      * @return Map of corresponding configKey to the value of the param requested.
      */
     public Map<String, String> readNetworkVariablesFromReader(BufferedReader reader, String key)
@@ -1036,20 +826,19 @@ public class WifiConfigStore {
                     try {
                         // Trim the quotes wrapping the id_str value.
                         final String encodedExtras = trimmedLine.substring(
-                                8, trimmedLine.length() -1);
+                                8, trimmedLine.length() - 1);
                         final JSONObject json =
                                 new JSONObject(URLDecoder.decode(encodedExtras, "UTF-8"));
-                        if (json.has(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY)) {
+                        if (json.has(ID_STRING_KEY_CONFIG_KEY)) {
                             final Object configKeyFromJson =
-                                    json.get(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY);
+                                    json.get(ID_STRING_KEY_CONFIG_KEY);
                             if (configKeyFromJson instanceof String) {
                                 configKey = (String) configKeyFromJson;
                             }
                         }
                     } catch (JSONException e) {
                         if (mVerboseLoggingEnabled) {
-                            loge("Could not get "+ WifiConfigStore.ID_STRING_KEY_CONFIG_KEY
-                                    + ", " + e);
+                            loge("Could not get " + ID_STRING_KEY_CONFIG_KEY + ", " + e);
                         }
                     }
                 }
@@ -1102,11 +891,10 @@ public class WifiConfigStore {
     }
 
     /**
-     * Clear BSSID blacklist in wpa_supplicant.
+     * Clear BSSID blacklist in wpa_supplicant & HAL.
      */
     public void clearBssidBlacklist() {
         if (mVerboseLoggingEnabled) localLog("clearBlacklist");
-        mBssidBlacklist.clear();
         mWifiNative.clearBlacklist();
         mWifiNative.setBssidBlacklist(null);
     }
@@ -1114,29 +902,15 @@ public class WifiConfigStore {
     /**
      * Add a BSSID to the blacklist.
      *
-     * @param bssid bssid to be added.
+     * @param bssid     to be added.
+     * @param bssidList entire BSSID list.
      */
-    public void blackListBssid(String bssid) {
-        if (bssid == null) {
-            return;
-        }
+    public void blackListBssid(String bssid, String[] bssidList) {
         if (mVerboseLoggingEnabled) localLog("blackListBssid: " + bssid);
-        mBssidBlacklist.add(bssid);
         // Blacklist at wpa_supplicant
         mWifiNative.addToBlacklist(bssid);
         // Blacklist at firmware
-        String[] list = mBssidBlacklist.toArray(new String[mBssidBlacklist.size()]);
-        mWifiNative.setBssidBlacklist(list);
-    }
-
-    /**
-     * Checks if the provided bssid is blacklisted or not.
-     *
-     * @param bssid bssid to be checked.
-     * @return true if present, false otherwise.
-     */
-    public boolean isBssidBlacklisted(String bssid) {
-        return mBssidBlacklist.contains(bssid);
+        mWifiNative.setBssidBlacklist(bssidList);
     }
 
     /**
@@ -1192,19 +966,19 @@ public class WifiConfigStore {
         return result;
     }
 
-    protected void logd(String s) {
+    private void logd(String s) {
         Log.d(TAG, s);
     }
 
-    protected void logi(String s) {
+    private void logi(String s) {
         Log.i(TAG, s);
     }
 
-    protected void loge(String s) {
+    private void loge(String s) {
         loge(s, false);
     }
 
-    protected void loge(String s, boolean stack) {
+    private void loge(String s, boolean stack) {
         if (stack) {
             Log.e(TAG, s + " stack:" + Thread.currentThread().getStackTrace()[2].getMethodName()
                     + " - " + Thread.currentThread().getStackTrace()[3].getMethodName()
@@ -1215,7 +989,7 @@ public class WifiConfigStore {
         }
     }
 
-    protected void log(String s) {
+    private void log(String s) {
         Log.d(TAG, s);
     }
 
@@ -1230,7 +1004,10 @@ public class WifiConfigStore {
         Log.d(TAG, s);
     }
 
-    void enableVerboseLogging(boolean verbose) {
+    /**
+     * Enable verbose logging.
+     */
+    public void enableVerboseLogging(boolean verbose) {
         mVerboseLoggingEnabled = verbose;
     }
 

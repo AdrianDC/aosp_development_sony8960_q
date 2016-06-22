@@ -11,7 +11,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
 
 package com.android.server.wifi;
@@ -34,10 +34,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Unit tests for {@link com.android.server.wifi.WifiConfigStore}.
+ * Unit tests for {@link com.android.server.wifi.WifiSupplicantControl}.
  */
 @SmallTest
-public class WifiConfigStoreTest {
+public class WifiSupplicantControlTest {
     private static final String KEY_SSID = "ssid";
     private static final String KEY_PSK = "psk";
     private static final String KEY_KEY_MGMT = "key_mgmt";
@@ -96,7 +96,7 @@ public class WifiConfigStoreTest {
         NETWORK_3_VARS.put(CONFIG_KEY, "\"testwpa2psk\"WPA_PSK");
     }
 
-    private static final ArrayList<HashMap<String, String>> NETWORK_VARS = new ArrayList<HashMap<String, String>>();
+    private static final ArrayList<HashMap<String, String>> NETWORK_VARS = new ArrayList<>();
     static {
         NETWORK_VARS.add(NETWORK_0_VARS);
         NETWORK_VARS.add(NETWORK_1_VARS);
@@ -156,15 +156,15 @@ public class WifiConfigStoreTest {
             + "}\n";
 
     @Mock private WifiNative mWifiNative;
-    private MockKeyStore mMockKeyStore;
-    private WifiConfigStore mWifiConfigStore;
+    private WifiSupplicantControl mWifiSupplicantControl;
 
+    /**
+     * Initialize |WifiSupplicantControl| instance before each test.
+     */
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-
-        mMockKeyStore = new MockKeyStore();
-        mWifiConfigStore = new WifiConfigStore(mWifiNative, mMockKeyStore.createMock(), null);
+        mWifiSupplicantControl = new WifiSupplicantControl(mWifiNative, null);
     }
 
     /**
@@ -224,7 +224,7 @@ public class WifiConfigStoreTest {
         BufferedReader reader = null;
         try {
             reader = new BufferedReader(new StringReader(TEST_WPA_SUPPLICANT_CONF));
-            result = mWifiConfigStore.readNetworkVariablesFromReader(reader, key);
+            result = mWifiSupplicantControl.readNetworkVariablesFromReader(reader, key);
         } catch (IOException e) {
             fail("Error reading test supplicant conf string");
         } finally {

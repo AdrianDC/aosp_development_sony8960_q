@@ -16,6 +16,8 @@
 
 package com.android.server.wifi;
 
+import static com.android.server.wifi.WifiConfigStoreDataTest.assertConfigStoreDataEqual;
+
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
@@ -36,6 +38,7 @@ import org.mockito.MockitoAnnotations;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiConfigStoreNew}.
@@ -50,18 +53,6 @@ public class WifiConfigStoreNewTest {
     private static final String[] TEST_WEP_KEYS =
             {"WifiConfigStoreWep1", "WifiConfigStoreWep2",
                     "WifiConfigStoreWep3", "WifiConfigStoreWep3"};
-    private static final int TEST_WEP_TX_KEY_INDEX = 1;
-    private static final String TEST_FQDN = "WifiConfigStoreFQDN";
-    private static final String TEST_PROVIDER_FRIENDLY_NAME = "WifiConfigStoreFriendlyName";
-    private static final String TEST_STATIC_IP_LINK_ADDRESS = "192.168.48.2";
-    private static final int TEST_STATIC_IP_LINK_PREFIX_LENGTH = 8;
-    private static final String TEST_STATIC_IP_GATEWAY_ADDRESS = "192.168.48.1";
-    private static final String[] TEST_STATIC_IP_DNS_SERVER_ADDRESSES =
-            new String[]{"192.168.48.1", "192.168.48.10"};
-    private static final String TEST_STATIC_PROXY_HOST = "192.168.48.1";
-    private static final int TEST_STATIC_PROXY_PORT = 8000;
-    private static final String TEST_STATIC_PROXY_EXCLUSION_LIST = "";
-    private static final String TEST_PAC_PROXY_LOCATION = "http://";
 
     // Test mocks
     @Mock private Context mContext;
@@ -149,11 +140,11 @@ public class WifiConfigStoreNewTest {
      * Tests the force write after a buffered write.
      * Expected behaviour: The force write should override the previous buffered write and stop the
      * buffer write alarms.
-     * TODO: Veirfy the buffer contents to ensure that the force write contents where written.
      */
     @Test
     public void testForceWriteAfterBufferedWrite() throws Exception {
-        mWifiConfigStore.write(false, getEmptyStoreData());
+        WifiConfigStoreData bufferedStoreData = createSingleOpenNetworkStoreData();
+        mWifiConfigStore.write(false, bufferedStoreData);
 
         assertTrue(mAlarmManager.isPending(WifiConfigStoreNew.BUFFERED_WRITE_ALARM_TAG));
         assertFalse(mSharedStore.isStoreWritten());
@@ -161,20 +152,88 @@ public class WifiConfigStoreNewTest {
 
         // Now send a force write and ensure that the writes have been performed and alarms have
         // been stopped.
-        mWifiConfigStore.write(true, getEmptyStoreData());
+        WifiConfigStoreData forcedStoreData = createSinglePskNetworkStoreData();
+        mWifiConfigStore.write(true, forcedStoreData);
 
         assertFalse(mAlarmManager.isPending(WifiConfigStoreNew.BUFFERED_WRITE_ALARM_TAG));
         assertTrue(mSharedStore.isStoreWritten());
         assertTrue(mUserStore.isStoreWritten());
+
+        // Now deserialize the data and ensure that the configuration retrieved matches the force
+        // write data.
+        WifiConfigStoreData retrievedStoreData =
+                WifiConfigStoreData.parseRawData(
+                        mSharedStore.getStoreBytes(), mUserStore.getStoreBytes());
+
+        assertConfigStoreDataEqual(forcedStoreData, retrievedStoreData);
+    }
+
+    /**
+     * Tests the read API behaviour when there is no file on the device.
+     * Expected behaviour: The read should return an empty store data instance when the file not
+     * found exception is raised.
+     */
+    @Test
+    public void testReadWithNoStoreFile() throws Exception {
+        // Reading the mock store without a write should simulate the file not found case because
+        // |readRawData| would return null.
+        WifiConfigStoreData readData = mWifiConfigStore.read();
+        assertConfigStoreDataEqual(getEmptyStoreData(), readData);
+    }
+
+    /**
+     * Tests the read API behaviour after a write to the store file.
+     * Expected behaviour: The read should return the same data that was last written.
+     */
+    @Test
+    public void testReadAfterWrite() throws Exception {
+        WifiConfigStoreData writeData = createSingleOpenNetworkStoreData();
+        mWifiConfigStore.write(true, writeData);
+        WifiConfigStoreData readData = mWifiConfigStore.read();
+
+        assertConfigStoreDataEqual(writeData, readData);
     }
 
     /**
      * Returns an empty store data object.
      */
     private WifiConfigStoreData getEmptyStoreData() {
-        return new WifiConfigStoreData(
-                new ArrayList<WifiConfiguration>(), new HashSet<String>(),
-                new HashSet<String>(), 0);
+        return new WifiConfigStoreData(new ArrayList<WifiConfiguration>(), new HashSet<String>());
+    }
+
+    /**
+     * Returns an store data object with a single open network.
+     */
+    private WifiConfigStoreData createSingleOpenNetworkStoreData() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createOpenNetwork(0));
+        return new WifiConfigStoreData(configurations, new HashSet<String>());
+    }
+
+    /**
+     * Returns an store data object with a single psk network.
+     */
+    private WifiConfigStoreData createSinglePskNetworkStoreData() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.add(createPskNetwork(1));
+        return new WifiConfigStoreData(configurations, new HashSet<String>());
+    }
+
+    private WifiConfiguration createOpenNetwork(int id) {
+        String ssid = "\"" + TEST_SSID + id + "\"";
+        return WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
+                true, true, null, null,
+                WifiConfigurationTestUtil.SECURITY_NONE);
+    }
+
+    private WifiConfiguration createPskNetwork(int id) {
+        String ssid = "\"" + TEST_SSID + id + "\"";
+        WifiConfiguration configuration =
+                WifiConfigurationTestUtil.generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid,
+                        true, true, null, null,
+                        WifiConfigurationTestUtil.SECURITY_PSK);
+        configuration.preSharedKey = TEST_PSK;
+        return configuration;
     }
 
     /**
