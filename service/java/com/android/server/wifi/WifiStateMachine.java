@@ -3143,6 +3143,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (newRssi > 0) newRssi -= 256;
             mWifiInfo.setRssi(newRssi);
             /*
+             * Log the rssi poll value in metrics
+             */
+            mWifiMetrics.incrementRssiPollRssiCount(newRssi);
+            /*
              * Rather then sending the raw RSSI out every time it
              * changes, we precalculate the signal level that would
              * be displayed in the status bar, and only send the
