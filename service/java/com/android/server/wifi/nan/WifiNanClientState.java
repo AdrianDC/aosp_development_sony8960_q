@@ -48,10 +48,12 @@ public class WifiNanClientState {
 
     private int mClientId;
     private ConfigRequest mConfigRequest;
+    private int mUid;
 
-    public WifiNanClientState(int clientId, IWifiNanEventCallback callback,
+    public WifiNanClientState(int clientId, int uid, IWifiNanEventCallback callback,
             ConfigRequest configRequest) {
         mClientId = clientId;
+        mUid = uid;
         mCallback = callback;
         mConfigRequest = configRequest;
     }
@@ -74,6 +76,10 @@ public class WifiNanClientState {
 
     public int getClientId() {
         return mClientId;
+    }
+
+    public int getUid() {
+        return mUid;
     }
 
     public IWifiNanEventCallback getCallback() {
