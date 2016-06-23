@@ -21,14 +21,20 @@ import static org.mockito.Mockito.*;
 
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiManager;
+import android.os.UserHandle;
 import android.os.UserManager;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.text.TextUtils;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -57,6 +63,8 @@ public class WifiConfigManagerNewTest {
     @Mock private WifiConfigStoreNew mWifiConfigStore;
     @Mock private PackageManager mPackageManager;
 
+    private InOrder mContextConfigStoreMockOrder;
+
     private WifiConfigManagerNew mWifiConfigManager;
 
     /**
@@ -65,6 +73,10 @@ public class WifiConfigManagerNewTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
+
+        // Set up the inorder for verifications. This is needed to verify that the broadcasts,
+        // store writes for network updates followed by network additions are in the expected order.
+        mContextConfigStoreMockOrder = inOrder(mContext, mWifiConfigStore);
 
         // Set up the package name stuff & permission override.
         when(mContext.getPackageManager()).thenReturn(mPackageManager);
@@ -108,9 +120,7 @@ public class WifiConfigManagerNewTest {
         List<WifiConfiguration> networks = new ArrayList<>();
         networks.add(openNetwork);
 
-        NetworkUpdateResult result = addNetworkToWifiConfigManager(openNetwork);
-        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
-        assertTrue(result.isNewNetwork());
+        verifyAddNetworkToWifiConfigManager(openNetwork);
 
         List<WifiConfiguration> retrievedNetworks =
                 mWifiConfigManager.getConfiguredNetworksWithPasswords();
@@ -128,18 +138,11 @@ public class WifiConfigManagerNewTest {
         List<WifiConfiguration> networks = new ArrayList<>();
         networks.add(openNetwork);
 
-        NetworkUpdateResult result = addNetworkToWifiConfigManager(openNetwork);
-        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
-        assertTrue(result.isNewNetwork());
+        verifyAddNetworkToWifiConfigManager(openNetwork);
 
-        // Now set the obtained network id in the configuration and change BSSID.
-        openNetwork.networkId = result.getNetworkId();
+        // Now change BSSID for the network.
         assertAndSetNetworkBSSID(openNetwork, TEST_BSSID);
-
-        // Update the same configuration and compare.
-        result = updateNetworkToWifiConfigManager(openNetwork);
-        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
-        assertFalse(result.isNewNetwork());
+        verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(openNetwork);
 
         // Now verify that the modification has been effective.
         List<WifiConfiguration> retrievedNetworks =
@@ -160,9 +163,7 @@ public class WifiConfigManagerNewTest {
         List<WifiConfiguration> networks = new ArrayList<>();
         networks.add(openNetwork);
 
-        NetworkUpdateResult result = addNetworkToWifiConfigManager(openNetwork);
-        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
-        assertTrue(result.isNewNetwork());
+        verifyAddEphemeralNetworkToWifiConfigManager(openNetwork);
 
         List<WifiConfiguration> retrievedNetworks =
                 mWifiConfigManager.getConfiguredNetworksWithPasswords();
@@ -184,12 +185,9 @@ public class WifiConfigManagerNewTest {
         List<WifiConfiguration> networks = new ArrayList<>();
         networks.add(openNetwork);
 
-        NetworkUpdateResult result = addNetworkToWifiConfigManager(openNetwork);
-        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
-        assertTrue(result.isNewNetwork());
+        verifyAddNetworkToWifiConfigManager(openNetwork);
 
-        // Now set the obtained network id in the configuration and change BSSID.
-        openNetwork.networkId = result.getNetworkId();
+        // Now change BSSID of the network.
         assertAndSetNetworkBSSID(openNetwork, TEST_BSSID);
 
         // Deny permission for |UPDATE_UID|.
@@ -203,7 +201,7 @@ public class WifiConfigManagerNewTest {
         }).when(mFrameworkFacade).checkUidPermission(anyString(), anyInt());
 
         // Update the same configuration and ensure that the operation failed.
-        result = updateNetworkToWifiConfigManager(openNetwork);
+        NetworkUpdateResult result = updateNetworkToWifiConfigManager(openNetwork);
         assertTrue(result.getNetworkId() == WifiConfiguration.INVALID_NETWORK_ID);
     }
 
@@ -218,12 +216,9 @@ public class WifiConfigManagerNewTest {
         List<WifiConfiguration> networks = new ArrayList<>();
         networks.add(openNetwork);
 
-        NetworkUpdateResult result = addNetworkToWifiConfigManager(openNetwork);
-        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
-        assertTrue(result.isNewNetwork());
+        verifyAddNetworkToWifiConfigManager(openNetwork);
 
-        // Now set the obtained network id in the configuration and change BSSID.
-        openNetwork.networkId = result.getNetworkId();
+        // Now change BSSID of the network.
         assertAndSetNetworkBSSID(openNetwork, TEST_BSSID);
 
         // Deny permission for all UIDs.
@@ -234,7 +229,8 @@ public class WifiConfigManagerNewTest {
         }).when(mFrameworkFacade).checkUidPermission(anyString(), anyInt());
 
         // Update the same configuration using the creator UID.
-        result = mWifiConfigManager.addOrUpdateNetwork(openNetwork, TEST_CREATOR_UID);
+        NetworkUpdateResult result =
+                mWifiConfigManager.addOrUpdateNetwork(openNetwork, TEST_CREATOR_UID);
         assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
 
         // Now verify that the modification has been effective.
@@ -255,9 +251,7 @@ public class WifiConfigManagerNewTest {
         List<WifiConfiguration> networks = new ArrayList<>();
         networks.add(pskNetwork);
 
-        NetworkUpdateResult result = addNetworkToWifiConfigManager(pskNetwork);
-        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
-        assertTrue(result.isNewNetwork());
+        verifyAddNetworkToWifiConfigManager(pskNetwork);
 
         List<WifiConfiguration> retrievedNetworks =
                 mWifiConfigManager.getConfiguredNetworksWithPasswords();
@@ -267,8 +261,7 @@ public class WifiConfigManagerNewTest {
         List<WifiConfiguration> retrievedSavedNetworks = mWifiConfigManager.getSavedNetworks();
         assertEquals(retrievedSavedNetworks.size(), 1);
         assertEquals(retrievedSavedNetworks.get(0).configKey(), pskNetwork.configKey());
-        assertEquals(
-                WifiConfigManagerNew.PASSWORD_MASK, retrievedSavedNetworks.get(0).preSharedKey);
+        assertPasswordsMaskedInWifiConfiguration(retrievedSavedNetworks.get(0));
     }
 
     /**
@@ -282,9 +275,7 @@ public class WifiConfigManagerNewTest {
         List<WifiConfiguration> networks = new ArrayList<>();
         networks.add(wepNetwork);
 
-        NetworkUpdateResult result = addNetworkToWifiConfigManager(wepNetwork);
-        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
-        assertTrue(result.isNewNetwork());
+        verifyAddNetworkToWifiConfigManager(wepNetwork);
 
         List<WifiConfiguration> retrievedNetworks =
                 mWifiConfigManager.getConfiguredNetworksWithPasswords();
@@ -294,14 +285,7 @@ public class WifiConfigManagerNewTest {
         List<WifiConfiguration> retrievedSavedNetworks = mWifiConfigManager.getSavedNetworks();
         assertEquals(retrievedSavedNetworks.size(), 1);
         assertEquals(retrievedSavedNetworks.get(0).configKey(), wepNetwork.configKey());
-        assertEquals(
-                WifiConfigManagerNew.PASSWORD_MASK, retrievedSavedNetworks.get(0).wepKeys[0]);
-        assertEquals(
-                WifiConfigManagerNew.PASSWORD_MASK, retrievedSavedNetworks.get(0).wepKeys[1]);
-        assertEquals(
-                WifiConfigManagerNew.PASSWORD_MASK, retrievedSavedNetworks.get(0).wepKeys[2]);
-        assertEquals(
-                WifiConfigManagerNew.PASSWORD_MASK, retrievedSavedNetworks.get(0).wepKeys[3]);
+        assertPasswordsMaskedInWifiConfiguration(retrievedSavedNetworks.get(0));
     }
 
     /**
@@ -314,33 +298,20 @@ public class WifiConfigManagerNewTest {
         List<WifiConfiguration> networks = new ArrayList<>();
         networks.add(openNetwork);
 
-        NetworkUpdateResult result = addNetworkToWifiConfigManager(openNetwork);
-        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
-        assertTrue(result.isNewNetwork());
-        assertTrue(result.hasIpChanged());
-        assertTrue(result.hasProxyChanged());
+        verifyAddNetworkToWifiConfigManager(openNetwork);
 
-        // Now set the obtained network id in the configuration and change BSSID.
-        openNetwork.networkId = result.getNetworkId();
+        // Now change BSSID of the network.
         assertAndSetNetworkBSSID(openNetwork, TEST_BSSID);
 
         // Update the same configuration and ensure that the IP configuration change flags
         // are not set.
-        result = updateNetworkToWifiConfigManager(openNetwork);
-        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
-        assertFalse(result.isNewNetwork());
-        assertFalse(result.hasIpChanged());
-        assertFalse(result.hasProxyChanged());
+        verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(openNetwork);
 
         // Change the IpConfiguration now and ensure that the IP configuration flags are set now.
         assertAndSetNetworkIpConfiguration(
                 openNetwork,
                 WifiConfigurationTestUtil.createStaticIpConfigurationWithStaticProxy());
-        result = updateNetworkToWifiConfigManager(openNetwork);
-        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
-        assertFalse(result.isNewNetwork());
-        assertTrue(result.hasIpChanged());
-        assertTrue(result.hasProxyChanged());
+        verifyUpdateNetworkToWifiConfigManagerWithIpChange(openNetwork);
 
         // Now verify that all the modifications have been effective.
         List<WifiConfiguration> retrievedNetworks =
@@ -438,6 +409,114 @@ public class WifiConfigManagerNewTest {
     }
 
     /**
+     * Returns whether the provided network was in the store data or not.
+     */
+    private boolean isNetworkInConfigStoreData(WifiConfiguration configuration) {
+        try {
+            ArgumentCaptor<WifiConfigStoreData> storeDataCaptor =
+                    ArgumentCaptor.forClass(WifiConfigStoreData.class);
+            mContextConfigStoreMockOrder.verify(mWifiConfigStore)
+                    .write(anyBoolean(), storeDataCaptor.capture());
+
+            WifiConfigStoreData storeData = storeDataCaptor.getValue();
+
+            boolean foundNetworkInStoreData = false;
+            for (WifiConfiguration retrievedConfig: storeData.configurations) {
+                if (retrievedConfig.configKey().equals(configuration.configKey())) {
+                    foundNetworkInStoreData = true;
+                }
+            }
+            return foundNetworkInStoreData;
+        } catch (Exception e) {
+            fail("Exception encountered during write " + e);
+        }
+        return false;
+    }
+
+    /**
+     * Verifies that the provided network was not present in the last config store write.
+     */
+    private void verifyNetworkNotInConfigStoreData(WifiConfiguration configuration) {
+        assertFalse(isNetworkInConfigStoreData(configuration));
+    }
+
+    /**
+     * Verifies that the provided network was present in the last config store write.
+     */
+    private void verifyNetworkInConfigStoreData(WifiConfiguration configuration) {
+        assertTrue(isNetworkInConfigStoreData(configuration));
+    }
+
+    private void assertPasswordsMaskedInWifiConfiguration(WifiConfiguration configuration) {
+        if(!TextUtils.isEmpty(configuration.preSharedKey)) {
+            assertEquals(WifiConfigManagerNew.PASSWORD_MASK, configuration.preSharedKey);
+        }
+        if (configuration.wepKeys != null) {
+            for (int i = 0; i < configuration.wepKeys.length; i++) {
+                if (!TextUtils.isEmpty(configuration.wepKeys[i])) {
+                    assertEquals(WifiConfigManagerNew.PASSWORD_MASK, configuration.wepKeys[i]);
+                }
+            }
+        }
+        if(!TextUtils.isEmpty(configuration.enterpriseConfig.getPassword())) {
+            assertEquals(
+                    WifiConfigManagerNew.PASSWORD_MASK,
+                    configuration.enterpriseConfig.getPassword());
+        }
+    }
+
+    /**
+     * Verifies that the network was present in the network change broadcast and returns the
+     * change reason.
+     */
+    private int verifyNetworkInBroadcastAndReturnReason(WifiConfiguration configuration) {
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+        ArgumentCaptor<UserHandle> userHandleCaptor = ArgumentCaptor.forClass(UserHandle.class);
+        mContextConfigStoreMockOrder.verify(mContext)
+                .sendBroadcastAsUser(intentCaptor.capture(), userHandleCaptor.capture());
+
+        assertEquals(userHandleCaptor.getValue(), UserHandle.ALL);
+        Intent intent = intentCaptor.getValue();
+
+        int changeReason = intent.getIntExtra(WifiManager.EXTRA_CHANGE_REASON, -1);
+        WifiConfiguration retrievedConfig =
+                (WifiConfiguration) intent.getExtra(WifiManager.EXTRA_WIFI_CONFIGURATION);
+        assertEquals(retrievedConfig.configKey(), configuration.configKey());
+
+        // Verify that all the passwords are masked in the broadcast configuration.
+        assertPasswordsMaskedInWifiConfiguration(retrievedConfig);
+
+        return changeReason;
+    }
+
+    /**
+     * Verifies that we sent out an add broadcast with the provided network.
+     */
+    private void verifyNetworkAddBroadcast(WifiConfiguration configuration) {
+        assertEquals(
+                verifyNetworkInBroadcastAndReturnReason(configuration),
+                WifiManager.CHANGE_REASON_ADDED);
+    }
+
+    /**
+     * Verifies that we sent out an update broadcast with the provided network.
+     */
+    private void verifyNetworkUpdateBroadcast(WifiConfiguration configuration) {
+        assertEquals(
+                verifyNetworkInBroadcastAndReturnReason(configuration),
+                WifiManager.CHANGE_REASON_CONFIG_CHANGE);
+    }
+
+    /**
+     * Verifies that we sent out a remove broadcast with the provided network.
+     */
+    private void verifyNetworkRemoveBroadcast(WifiConfiguration configuration) {
+        assertEquals(
+                verifyNetworkInBroadcastAndReturnReason(configuration),
+                WifiManager.CHANGE_REASON_REMOVED);
+    }
+
+    /**
      * Adds the provided configuration to WifiConfigManager and modifies the provided configuration
      * with creator/update uid, package name and time. This also sets defaults for fields not
      * populated.
@@ -450,6 +529,41 @@ public class WifiConfigManagerNewTest {
                 mWifiConfigManager.addOrUpdateNetwork(configuration, TEST_CREATOR_UID);
         setDefaults(configuration);
         setCreationDebugParams(configuration);
+        configuration.networkId = result.getNetworkId();
+        return result;
+    }
+
+    /**
+     * Add network to WifiConfigManager and ensure that it was successful.
+     */
+    private NetworkUpdateResult verifyAddNetworkToWifiConfigManager(
+            WifiConfiguration configuration) {
+        NetworkUpdateResult result = addNetworkToWifiConfigManager(configuration);
+        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
+        assertTrue(result.isNewNetwork());
+        assertTrue(result.hasIpChanged());
+        assertTrue(result.hasProxyChanged());
+
+        verifyNetworkAddBroadcast(configuration);
+        // Verify that the config store write was triggered with this new configuration.
+        verifyNetworkInConfigStoreData(configuration);
+        return result;
+    }
+
+    /**
+     * Add ephemeral network to WifiConfigManager and ensure that it was successful.
+     */
+    private NetworkUpdateResult verifyAddEphemeralNetworkToWifiConfigManager(
+            WifiConfiguration configuration) {
+        NetworkUpdateResult result = addNetworkToWifiConfigManager(configuration);
+        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
+        assertTrue(result.isNewNetwork());
+        assertTrue(result.hasIpChanged());
+        assertTrue(result.hasProxyChanged());
+
+        verifyNetworkAddBroadcast(configuration);
+        // Ephemeral networks should not be persisted.
+        verifyNetworkNotInConfigStoreData(configuration);
         return result;
     }
 
@@ -464,6 +578,45 @@ public class WifiConfigManagerNewTest {
         NetworkUpdateResult result =
                 mWifiConfigManager.addOrUpdateNetwork(configuration, TEST_UPDATE_UID);
         setUpdateDebugParams(configuration);
+        return result;
+    }
+
+    /**
+     * Update network to WifiConfigManager config change and ensure that it was successful.
+     */
+    private NetworkUpdateResult verifyUpdateNetworkToWifiConfigManager(
+            WifiConfiguration configuration) {
+        NetworkUpdateResult result = updateNetworkToWifiConfigManager(configuration);
+        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
+        assertFalse(result.isNewNetwork());
+
+        verifyNetworkUpdateBroadcast(configuration);
+        // Verify that the config store write was triggered with this new configuration.
+        verifyNetworkInConfigStoreData(configuration);
+        return result;
+    }
+
+    /**
+     * Update network to WifiConfigManager without IP config change and ensure that it was
+     * successful.
+     */
+    private NetworkUpdateResult verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(
+            WifiConfiguration configuration) {
+        NetworkUpdateResult result = verifyUpdateNetworkToWifiConfigManager(configuration);
+        assertFalse(result.hasIpChanged());
+        assertFalse(result.hasProxyChanged());
+        return result;
+    }
+
+    /**
+     * Update network to WifiConfigManager with IP config change and ensure that it was
+     * successful.
+     */
+    private NetworkUpdateResult verifyUpdateNetworkToWifiConfigManagerWithIpChange(
+            WifiConfiguration configuration) {
+        NetworkUpdateResult result = verifyUpdateNetworkToWifiConfigManager(configuration);
+        assertTrue(result.hasIpChanged());
+        assertTrue(result.hasProxyChanged());
         return result;
     }
 }

@@ -21,6 +21,7 @@ import android.app.admin.DeviceAdminInfo;
 import android.app.admin.DevicePolicyManagerInternal;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.IpConfiguration;
 import android.net.ProxyInfo;
@@ -345,6 +346,38 @@ public class WifiConfigManagerNew {
     }
 
     /**
+     * Method to send out the configured networks change broadcast when a single network
+     * configuration is changed.
+     *
+     * @param network WifiConfiguration corresponding to the network that was changed.
+     * @param reason  The reason for the change, should be one of WifiManager.CHANGE_REASON_ADDED,
+     *                WifiManager.CHANGE_REASON_REMOVED, or WifiManager.CHANGE_REASON_CHANGE.
+     */
+    private void sendConfiguredNetworkChangedBroadcast(
+            WifiConfiguration network, int reason) {
+        Intent intent = new Intent(WifiManager.CONFIGURED_NETWORKS_CHANGED_ACTION);
+        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+        intent.putExtra(WifiManager.EXTRA_MULTIPLE_NETWORKS_CHANGED, false);
+        // Create a new WifiConfiguration with passwords masked before we send it out.
+        WifiConfiguration broadcastNetwork = new WifiConfiguration(network);
+        maskPasswordsInWifiConfiguration(broadcastNetwork);
+        intent.putExtra(WifiManager.EXTRA_WIFI_CONFIGURATION, broadcastNetwork);
+        intent.putExtra(WifiManager.EXTRA_CHANGE_REASON, reason);
+        mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
+    }
+
+    /**
+     * Method to send out the configured networks change broadcast when multiple network
+     * configurations are changed.
+     */
+    private void sendConfiguredNetworksChangedBroadcast() {
+        Intent intent = new Intent(WifiManager.CONFIGURED_NETWORKS_CHANGED_ACTION);
+        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+        intent.putExtra(WifiManager.EXTRA_MULTIPLE_NETWORKS_CHANGED, true);
+        mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
+    }
+
+    /**
      * Checks if the app has the permission to override Wi-Fi network configuration or not.
      *
      * @param uid uid of the app.
@@ -648,7 +681,7 @@ public class WifiConfigManagerNew {
      */
     private NetworkUpdateResult addOrUpdateNetworkInternal(WifiConfiguration config, int uid) {
         if (mVerboseLoggingEnabled) {
-            Log.v(TAG, "addOrUpdateNetworkInternal: " + config.getPrintableSsid());
+            Log.v(TAG, "Adding/Updating network " + config.getPrintableSsid());
         }
         boolean newNetwork;
         WifiConfiguration existingInternalConfig;
@@ -716,8 +749,20 @@ public class WifiConfigManagerNew {
             Log.e(TAG, "Cannot add/update network with null config");
             return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
         }
-        return addOrUpdateNetworkInternal(config, uid);
-        // TODO: More stuff to be done here.
+        NetworkUpdateResult result = addOrUpdateNetworkInternal(config, uid);
+        if (!result.isSuccess()) {
+            Log.e(TAG, "Failed to add/update network " + config.getPrintableSsid());
+            return result;
+        }
+        WifiConfiguration newConfig = getInternalConfiguredNetwork(result.getNetworkId());
+        sendConfiguredNetworkChangedBroadcast(
+                newConfig,
+                result.isNewNetwork()
+                        ? WifiManager.CHANGE_REASON_ADDED
+                        : WifiManager.CHANGE_REASON_CONFIG_CHANGE);
+        // External modification, persist it immediately.
+        saveToStore(true);
+        return result;
     }
 
     /**
@@ -728,7 +773,7 @@ public class WifiConfigManagerNew {
      */
     private boolean removeNetworkInternal(WifiConfiguration config) {
         if (mVerboseLoggingEnabled) {
-            Log.v(TAG, "removeNetworkInternal: " + config.getPrintableSsid());
+            Log.v(TAG, "Removing network " + config.getPrintableSsid());
         }
         // Remove any associated enterprise keys.
         if (config.enterpriseConfig != null
@@ -754,13 +799,19 @@ public class WifiConfigManagerNew {
      * @return true if successful, false otherwise.
      */
     public boolean removeNetwork(int networkId) {
-        WifiConfiguration configuration = getInternalConfiguredNetwork(networkId);
-        if (configuration == null) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
             Log.e(TAG, "Cannot find network with networkId " + networkId);
             return false;
         }
-        return removeNetworkInternal(configuration);
-        // TODO: More stuff to be done here.
+        if (!removeNetworkInternal(config)) {
+            Log.e(TAG, "Failed to remove network " + config.getPrintableSsid());
+            return false;
+        }
+        sendConfiguredNetworkChangedBroadcast(config, WifiManager.CHANGE_REASON_REMOVED);
+        // External modification, persist it immediately.
+        saveToStore(true);
+        return true;
     }
 
     /**
@@ -777,12 +828,11 @@ public class WifiConfigManagerNew {
         try {
             storeData = mWifiConfigStore.read();
         } catch (Exception e) {
-            // TODO: Handle this exception properly?
-            Log.wtf(TAG, "Reading from new store failed: " + e + ". All saved networks are lost!");
+            Log.wtf(TAG, "Reading from new store failed " + e + ". All saved networks are lost!");
             return;
         }
         long readTime = mClock.getElapsedSinceBootMillis() - readStartTime;
-        Log.d(TAG, "loadFromStore: Read time: " + readTime + " ms");
+        Log.d(TAG, "Loading from store completed in " + readTime + " ms.");
 
         // Clear out all the existing in-memory lists and load the lists from what was retrieved
         // from the config store.
@@ -791,7 +841,7 @@ public class WifiConfigManagerNew {
         for (WifiConfiguration configuration : storeData.configurations) {
             configuration.networkId = mLastNetworkId++;
             if (mVerboseLoggingEnabled) {
-                Log.v(TAG, "Adding network from store: " + configuration.configKey());
+                Log.v(TAG, "Adding network from store " + configuration.configKey());
             }
             mConfiguredNetworks.put(configuration);
         }
@@ -824,12 +874,11 @@ public class WifiConfigManagerNew {
         try {
             mWifiConfigStore.write(forceWrite, storeData);
         } catch (Exception e) {
-            // TODO: Handle this exception properly?
-            Log.wtf(TAG, "Writing to store failed: " + e + ". Saved networks maybe lost!");
+            Log.wtf(TAG, "Writing to store failed " + e + ". Saved networks maybe lost!");
             return false;
         }
         long writeTime = mClock.getElapsedSinceBootMillis() - writeStartTime;
-        Log.d(TAG, "saveToStore: Write time: " + writeTime + " ms");
+        Log.d(TAG, "Writing to store completed in " + writeTime + " ms.");
         return true;
     }
 
