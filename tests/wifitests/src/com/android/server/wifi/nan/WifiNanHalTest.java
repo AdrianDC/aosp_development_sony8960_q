@@ -242,9 +242,10 @@ public class WifiNanHalTest {
         final int reqInstanceId = 11;
         final byte[] peer = HexEncoding.decode("000102030405".toCharArray(), false);
         final String msg = "Hello there - how are you doing?";
+        final int messageId = 10; /* garbage - not used by HAL */
 
         mDut.sendMessage(transactionId, pubSubId, reqInstanceId, peer, msg.getBytes(),
-                msg.length());
+                msg.length(), messageId);
 
         verify(mNanHalMock).transmitFollowupHalMockNative(eq(transactionId), mArgs.capture());
 

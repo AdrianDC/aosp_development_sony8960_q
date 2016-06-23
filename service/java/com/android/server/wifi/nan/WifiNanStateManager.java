@@ -73,13 +73,14 @@ public class WifiNanStateManager {
     private static WifiNanStateManager sNanStateManagerSingleton;
 
     /*
-     * State machine message types. There are sub-types for the messages (except for TIMEOUT).
-     * Format: - Message.arg1: contains message sub-type - Message.arg2: contains transaction ID for
-     * RESPONSE & RESPONSE_TIMEOUT
+     * State machine message types. There are sub-types for the messages (except for TIMEOUTs).
+     * Format:
+     * - Message.arg1: contains message sub-type
+     * - Message.arg2: contains transaction ID for RESPONSE & RESPONSE_TIMEOUT
      */
-    private static final int MESSAGE_TYPE_NOTIFICATION = 1;
-    private static final int MESSAGE_TYPE_COMMAND = 2;
-    private static final int MESSAGE_TYPE_RESPONSE = 3;
+    private static final int MESSAGE_TYPE_COMMAND = 1;
+    private static final int MESSAGE_TYPE_RESPONSE = 2;
+    private static final int MESSAGE_TYPE_NOTIFICATION = 3;
     private static final int MESSAGE_TYPE_RESPONSE_TIMEOUT = 4;
     private static final int MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT = 5;
     private static final int MESSAGE_TYPE_DATA_PATH_TIMEOUT = 6;
@@ -94,7 +95,7 @@ public class WifiNanStateManager {
     private static final int COMMAND_TYPE_UPDATE_PUBLISH = 104;
     private static final int COMMAND_TYPE_SUBSCRIBE = 105;
     private static final int COMMAND_TYPE_UPDATE_SUBSCRIBE = 106;
-    private static final int COMMAND_TYPE_SEND_MESSAGE = 107;
+    private static final int COMMAND_TYPE_ENQUEUE_SEND_MESSAGE = 107;
     private static final int COMMAND_TYPE_ENABLE_USAGE = 108;
     private static final int COMMAND_TYPE_DISABLE_USAGE = 109;
     private static final int COMMAND_TYPE_START_RANGING = 110;
@@ -106,6 +107,7 @@ public class WifiNanStateManager {
     private static final int COMMAND_TYPE_INITIATE_DATA_PATH_SETUP = 116;
     private static final int COMMAND_TYPE_RESPOND_TO_DATA_PATH_SETUP_REQUEST = 117;
     private static final int COMMAND_TYPE_END_DATA_PATH = 118;
+    private static final int COMMAND_TYPE_TRANSMIT_NEXT_MESSAGE = 119;
 
     private static final int RESPONSE_TYPE_ON_CONFIG_SUCCESS = 200;
     private static final int RESPONSE_TYPE_ON_CONFIG_FAIL = 201;
@@ -162,6 +164,8 @@ public class WifiNanStateManager {
     private static final String MESSAGE_BUNDLE_KEY_CHANNEL = "channel";
     private static final String MESSAGE_BUNDLE_KEY_PEER_ID = "peer_id";
     private static final String MESSAGE_BUNDLE_KEY_UID = "uid";
+    private static final String MESSAGE_BUNDLE_KEY_SENT_MESSAGE = "send_message";
+    private static final String MESSAGE_BUNDLE_KEY_MESSAGE_ARRIVAL_SEQ = "message_arrival_seq";
 
     /*
      * Asynchronous access with no lock
@@ -333,7 +337,7 @@ public class WifiNanStateManager {
     public void sendMessage(int clientId, int sessionId, int peerId, byte[] message,
             int messageLength, int messageId, int retryCount) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
-        msg.arg1 = COMMAND_TYPE_SEND_MESSAGE;
+        msg.arg1 = COMMAND_TYPE_ENQUEUE_SEND_MESSAGE;
         msg.arg2 = clientId;
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_SESSION_ID, sessionId);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_PEER_ID, peerId);
@@ -473,6 +477,20 @@ public class WifiNanStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_END_DATA_PATH;
         msg.arg2 = ndpId;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * NAN follow-on messages (L2 messages) are queued by the firmware for transmission
+     * on-the-air. The firmware has limited queue depth. The host queues all messages and doles
+     * them out to the firmware when possible. This command removes the next messages for
+     * transmission from the host queue and attempts to send it through the firmware. The queues
+     * are inspected when the command is executed - not when the command is placed on the handler
+     * (i.e. not evaluated here).
+     */
+    private void transmitNextMessage() {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_TRANSMIT_NEXT_MESSAGE;
         mSm.sendMessage(msg);
     }
 
@@ -797,7 +815,8 @@ public class WifiNanStateManager {
     /**
      * State machine.
      */
-    private class WifiNanStateMachine extends StateMachine {
+    @VisibleForTesting
+    class WifiNanStateMachine extends StateMachine {
         private static final int TRANSACTION_ID_IGNORE = 0;
 
         private DefaultState mDefaultState = new DefaultState();
@@ -810,8 +829,11 @@ public class WifiNanStateManager {
         private Message mCurrentCommand;
         private short mCurrentTransactionId = TRANSACTION_ID_IGNORE;
 
-        private static final long NAN_SEND_MESSAGE_TIMEOUT = 5_000;
-        private final Map<Short, Message> mQueuedSendMessages = new LinkedHashMap<>();
+        private static final long NAN_SEND_MESSAGE_TIMEOUT = 10_000;
+        private int mSendArrivalSequenceCounter = 0;
+        private boolean mSendQueueBlocked = false;
+        private final SparseArray<Message> mHostQueuedSendMessages = new SparseArray<>();
+        private final Map<Short, Message> mFwQueuedSendMessages = new LinkedHashMap<>();
         private WakeupMessage mSendMessageTimeoutMessage = new WakeupMessage(mContext, getHandler(),
                 HAL_SEND_MESSAGE_TIMEOUT_TAG, MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT);
 
@@ -826,6 +848,12 @@ public class WifiNanStateManager {
             /* --> */ addState(mWaitForResponseState, mDefaultState);
 
             setInitialState(mWaitState);
+        }
+
+        public void onNanDownCleanupSendQueueState() {
+            mSendQueueBlocked = false;
+            mHostQueuedSendMessages.clear();
+            mFwQueuedSendMessages.clear();
         }
 
         private class DefaultState extends State {
@@ -1025,32 +1053,44 @@ public class WifiNanStateManager {
                 }
                 case NOTIFICATION_TYPE_ON_MESSAGE_SEND_SUCCESS: {
                     short transactionId = (short) msg.arg2;
-                    Message queuedSendCommand = mQueuedSendMessages.get(transactionId);
+                    Message queuedSendCommand = mFwQueuedSendMessages.get(transactionId);
+                    if (VDBG) {
+                        Log.v(TAG, "NOTIFICATION_TYPE_ON_MESSAGE_SEND_SUCCESS: queuedSendCommand="
+                                + queuedSendCommand);
+                    }
                     if (queuedSendCommand == null) {
                         Log.w(TAG,
                                 "processNotification: NOTIFICATION_TYPE_ON_MESSAGE_SEND_SUCCESS:"
                                         + " transactionId=" + transactionId
-                                        + " - no such queued send command");
+                                        + " - no such queued send command (timed-out?)");
                     } else {
-                        removeSendMessageFromQueue(transactionId);
+                        mFwQueuedSendMessages.remove(transactionId);
+                        updateSendMessageTimeout();
                         onMessageSendSuccessLocal(queuedSendCommand);
                     }
+                    mSendQueueBlocked = false;
+                    transmitNextMessage();
 
                     break;
                 }
                 case NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL: {
                     short transactionId = (short) msg.arg2;
                     int reason = (Integer) msg.obj;
-                    Message queuedSendCommand = mQueuedSendMessages.get(transactionId);
-                    if (queuedSendCommand == null) {
+                    Message sentMessage = mFwQueuedSendMessages.get(transactionId);
+                    if (VDBG) {
+                        Log.v(TAG, "NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL: sentMessage="
+                                + sentMessage);
+                    }
+                    if (sentMessage == null) {
                         Log.w(TAG,
                                 "processNotification: NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL:"
                                         + " transactionId=" + transactionId
-                                        + " - no such queued send command");
+                                        + " - no such queued send command (timed-out?)");
                     } else {
-                        removeSendMessageFromQueue(transactionId);
+                        mFwQueuedSendMessages.remove(transactionId);
+                        updateSendMessageTimeout();
 
-                        int retryCount = queuedSendCommand.getData()
+                        int retryCount = sentMessage.getData()
                                 .getInt(MESSAGE_BUNDLE_KEY_RETRY_COUNT);
                         if (retryCount > 0 && reason == WifiNanSessionCallback.REASON_TX_FAIL) {
                             if (DBG) {
@@ -1059,12 +1099,17 @@ public class WifiNanStateManager {
                                                 + transactionId + ", reason=" + reason
                                                 + ": retransmitting - retryCount=" + retryCount);
                             }
-                            queuedSendCommand.getData().putInt(MESSAGE_BUNDLE_KEY_RETRY_COUNT,
+                            sentMessage.getData().putInt(MESSAGE_BUNDLE_KEY_RETRY_COUNT,
                                     retryCount - 1);
-                            sendMessageAtFrontOfQueue(queuedSendCommand);
+
+                            int arrivalSeq = sentMessage.getData().getInt(
+                                    MESSAGE_BUNDLE_KEY_MESSAGE_ARRIVAL_SEQ);
+                            mHostQueuedSendMessages.put(arrivalSeq, sentMessage);
                         } else {
-                            onMessageSendFailLocal(queuedSendCommand, reason);
+                            onMessageSendFailLocal(sentMessage, reason);
                         }
+                        mSendQueueBlocked = false;
+                        transmitNextMessage();
                     }
                     break;
                 }
@@ -1201,18 +1246,55 @@ public class WifiNanStateManager {
                             sessionId, subscribeConfig);
                     break;
                 }
-                case COMMAND_TYPE_SEND_MESSAGE: {
-                    Bundle data = msg.getData();
+                case COMMAND_TYPE_ENQUEUE_SEND_MESSAGE: {
+                    if (VDBG) {
+                        Log.v(TAG, "processCommand: ENQUEUE_SEND_MESSAGE - messageId="
+                                + msg.getData().getInt(MESSAGE_BUNDLE_KEY_MESSAGE_ID)
+                                + ", mSendArrivalSequenceCounter=" + mSendArrivalSequenceCounter);
+                    }
+                    Message sendMsg = obtainMessage(msg.what);
+                    sendMsg.copyFrom(msg);
+                    sendMsg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_ARRIVAL_SEQ,
+                            mSendArrivalSequenceCounter);
+                    mHostQueuedSendMessages.put(mSendArrivalSequenceCounter, sendMsg);
+                    mSendArrivalSequenceCounter++;
+                    waitForResponse = false;
 
-                    int clientId = msg.arg2;
-                    int sessionId = msg.getData().getInt(MESSAGE_BUNDLE_KEY_SESSION_ID);
-                    int peerId = data.getInt(MESSAGE_BUNDLE_KEY_MESSAGE_PEER_ID);
-                    byte[] message = data.getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE);
-                    int messageId = data.getInt(MESSAGE_BUNDLE_KEY_MESSAGE_ID);
-                    int messageLength = data.getInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH);
+                    if (!mSendQueueBlocked) {
+                        transmitNextMessage();
+                    }
 
-                    waitForResponse = sendFollowonMessageLocal(mCurrentTransactionId, clientId,
-                            sessionId, peerId, message, messageLength, messageId);
+                    break;
+                }
+                case COMMAND_TYPE_TRANSMIT_NEXT_MESSAGE: {
+                    if (mSendQueueBlocked || mHostQueuedSendMessages.size() == 0) {
+                        if (VDBG) {
+                            Log.v(TAG, "processCommand: SEND_TOP_OF_QUEUE_MESSAGE - blocked or "
+                                    + "empty host queue");
+                        }
+                        waitForResponse = false;
+                    } else {
+                        if (VDBG) {
+                            Log.v(TAG, "processCommand: SEND_TOP_OF_QUEUE_MESSAGE - "
+                                    + "sendArrivalSequenceCounter="
+                                    + mHostQueuedSendMessages.keyAt(0));
+                        }
+                        Message sendMessage = mHostQueuedSendMessages.valueAt(0);
+                        mHostQueuedSendMessages.removeAt(0);
+
+                        Bundle data = sendMessage.getData();
+                        int clientId = sendMessage.arg2;
+                        int sessionId = sendMessage.getData().getInt(MESSAGE_BUNDLE_KEY_SESSION_ID);
+                        int peerId = data.getInt(MESSAGE_BUNDLE_KEY_MESSAGE_PEER_ID);
+                        byte[] message = data.getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE);
+                        int messageId = data.getInt(MESSAGE_BUNDLE_KEY_MESSAGE_ID);
+                        int messageLength = data.getInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH);
+
+                        msg.getData().putParcelable(MESSAGE_BUNDLE_KEY_SENT_MESSAGE, sendMessage);
+
+                        waitForResponse = sendFollowonMessageLocal(mCurrentTransactionId, clientId,
+                                sessionId, peerId, message, messageLength, messageId);
+                    }
                     break;
                 }
                 case COMMAND_TYPE_ENABLE_USAGE:
@@ -1355,13 +1437,43 @@ public class WifiNanStateManager {
                     onSessionConfigFailLocal(mCurrentCommand, isPublish, reason);
                     break;
                 }
-                case RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_SUCCESS:
-                    addSendMessageToQueue((short) msg.arg2, mCurrentCommand);
+                case RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_SUCCESS: {
+                    Message sentMessage = mCurrentCommand.getData().getParcelable(
+                            MESSAGE_BUNDLE_KEY_SENT_MESSAGE);
+                    sentMessage.getData().putLong(MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME,
+                            SystemClock.elapsedRealtime());
+                    mFwQueuedSendMessages.put(mCurrentTransactionId, sentMessage);
+                    updateSendMessageTimeout();
+                    if (!mSendQueueBlocked) {
+                        transmitNextMessage();
+                    }
+
+                    if (VDBG) {
+                        Log.v(TAG, "processResponse: ON_MESSAGE_SEND_QUEUED_SUCCESS - arrivalSeq="
+                                + sentMessage.getData().getInt(
+                                MESSAGE_BUNDLE_KEY_MESSAGE_ARRIVAL_SEQ));
+                    }
                     break;
+                }
                 case RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_FAIL: {
+                    if (VDBG) {
+                        Log.v(TAG, "processResponse: ON_MESSAGE_SEND_QUEUED_FAIL - blocking!");
+                    }
+                    // TODO: b/29459286 - once there's a unique code for "queue is full" use it!
                     int reason = (Integer) msg.obj;
 
-                    onMessageSendFailLocal(mCurrentCommand, reason);
+                    Message sentMessage = mCurrentCommand.getData().getParcelable(
+                            MESSAGE_BUNDLE_KEY_SENT_MESSAGE);
+                    int arrivalSeq = sentMessage.getData().getInt(
+                            MESSAGE_BUNDLE_KEY_MESSAGE_ARRIVAL_SEQ);
+                    mHostQueuedSendMessages.put(arrivalSeq, sentMessage);
+                    mSendQueueBlocked = true;
+
+                    if (VDBG) {
+                        Log.v(TAG,
+                                "processResponse: ON_MESSAGE_SEND_QUEUED_FAIL - arrivalSeq="
+                                        + arrivalSeq + " -- blocking");
+                    }
                     break;
                 }
                 case RESPONSE_TYPE_ON_CAPABILITIES_UPDATED: {
@@ -1456,8 +1568,16 @@ public class WifiNanStateManager {
                             WifiNanSessionCallback.REASON_OTHER);
                     break;
                 }
-                case COMMAND_TYPE_SEND_MESSAGE: {
-                    onMessageSendFailLocal(mCurrentCommand, WifiNanSessionCallback.REASON_TX_FAIL);
+                case COMMAND_TYPE_ENQUEUE_SEND_MESSAGE: {
+                    Log.wtf(TAG, "processTimeout: ENQUEUE_SEND_MESSAGE - shouldn't be waiting!");
+                    break;
+                }
+                case COMMAND_TYPE_TRANSMIT_NEXT_MESSAGE: {
+                    Message sentMessage = mCurrentCommand.getData().getParcelable(
+                            MESSAGE_BUNDLE_KEY_SENT_MESSAGE);
+                    onMessageSendFailLocal(sentMessage, WifiNanSessionCallback.REASON_TX_FAIL);
+                    mSendQueueBlocked = false;
+                    transmitNextMessage();
                     break;
                 }
                 case COMMAND_TYPE_ENABLE_USAGE:
@@ -1514,7 +1634,13 @@ public class WifiNanStateManager {
         }
 
         private void updateSendMessageTimeout() {
-            Iterator<Message> it = mQueuedSendMessages.values().iterator();
+            if (VDBG) {
+                Log.v(TAG, "updateSendMessageTimeout: mHostQueuedSendMessages.size()="
+                        + mHostQueuedSendMessages.size() + ", mFwQueuedSendMessages.size()="
+                        + mFwQueuedSendMessages.size() + ", mSendQueueBlocked="
+                        + mSendQueueBlocked);
+            }
+            Iterator<Message> it = mFwQueuedSendMessages.values().iterator();
             if (it.hasNext()) {
                 /*
                  * Schedule timeout based on the first message in the queue (which is the earliest
@@ -1530,17 +1656,34 @@ public class WifiNanStateManager {
         }
 
         private void processSendMessageTimeout() {
+            if (VDBG) {
+                Log.v(TAG, "processSendMessageTimeout: mHostQueuedSendMessages.size()="
+                        + mHostQueuedSendMessages.size() + ", mFwQueuedSendMessages.size()="
+                        + mFwQueuedSendMessages.size() + ", mSendQueueBlocked="
+                        + mSendQueueBlocked);
+
+            }
             /*
              * Note: using 'first' to always time-out (remove) at least 1 notification (partially)
              * due to test code needs: there's no way to mock elapsedRealtime(). TODO: replace with
              * injected getClock() once moved off of mmwd.
              */
             boolean first = true;
-            Iterator<Message> it = mQueuedSendMessages.values().iterator();
+            long currentTime = SystemClock.elapsedRealtime();
+            Iterator<Map.Entry<Short, Message>> it = mFwQueuedSendMessages.entrySet().iterator();
             while (it.hasNext()) {
-                Message message = it.next();
-                if (first || message.getData().getLong(MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME)
-                        + NAN_SEND_MESSAGE_TIMEOUT >= SystemClock.elapsedRealtime()) {
+                Map.Entry<Short, Message> entry = it.next();
+                short transactionId = entry.getKey();
+                Message message = entry.getValue();
+                long messageEnqueueTime = message.getData().getLong(
+                        MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME);
+                if (first || messageEnqueueTime + NAN_SEND_MESSAGE_TIMEOUT <= currentTime) {
+                    if (VDBG) {
+                        Log.v(TAG, "processSendMessageTimeout: expiring - transactionId="
+                                + transactionId + ", message=" + message
+                                + ", due to messageEnqueueTime=" + messageEnqueueTime
+                                + ", currentTime=" + currentTime);
+                    }
                     onMessageSendFailLocal(message, WifiNanSessionCallback.REASON_TX_FAIL);
                     it.remove();
                     first = false;
@@ -1549,18 +1692,8 @@ public class WifiNanStateManager {
                 }
             }
             updateSendMessageTimeout();
-        }
-
-        private void addSendMessageToQueue(short transactionId, Message sendCommand) {
-            sendCommand.getData().putLong(MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME,
-                    SystemClock.elapsedRealtime());
-            mQueuedSendMessages.put(transactionId, sendCommand);
-            updateSendMessageTimeout();
-        }
-
-        private void removeSendMessageFromQueue(short transactionId) {
-            mQueuedSendMessages.remove(transactionId);
-            updateSendMessageTimeout();
+            mSendQueueBlocked = false;
+            transmitNextMessage();
         }
 
         @Override
@@ -1582,7 +1715,10 @@ public class WifiNanStateManager {
             pw.println("  mNextSessionId: " + mNextSessionId);
             pw.println("  mCurrentCommand: " + mCurrentCommand);
             pw.println("  mCurrentTransaction: " + mCurrentTransactionId);
-            pw.println("  mQueuedSendMessages: [" + mQueuedSendMessages + "]");
+            pw.println("  mSendQueueBlocked: " + mSendQueueBlocked);
+            pw.println("  mSendArrivalSequenceCounter: " + mSendArrivalSequenceCounter);
+            pw.println("  mHostQueuedSendMessages: [" + mHostQueuedSendMessages + "]");
+            pw.println("  mFwQueuedSendMessages: [" + mFwQueuedSendMessages + "]");
             super.dump(fd, pw, args);
         }
     }
@@ -2322,6 +2458,7 @@ public class WifiNanStateManager {
 
         mClients.clear();
         mCurrentNanConfiguration = null;
+        mSm.onNanDownCleanupSendQueueState();
         mDataPathMgr.onNanDownCleanupDataPaths();
     }
 
@@ -2472,8 +2609,8 @@ public class WifiNanStateManager {
                     case COMMAND_TYPE_UPDATE_SUBSCRIBE:
                         sb.append("UPDATE_SUBSCRIBE");
                         break;
-                    case COMMAND_TYPE_SEND_MESSAGE:
-                        sb.append("SEND_MESSAGE");
+                    case COMMAND_TYPE_ENQUEUE_SEND_MESSAGE:
+                        sb.append("ENQUEUE_SEND_MESSAGE");
                         break;
                     case COMMAND_TYPE_ENABLE_USAGE:
                         sb.append("ENABLE_USAGE");
@@ -2507,6 +2644,9 @@ public class WifiNanStateManager {
                         break;
                     case COMMAND_TYPE_END_DATA_PATH:
                         sb.append("END_DATA_PATH");
+                        break;
+                    case COMMAND_TYPE_TRANSMIT_NEXT_MESSAGE:
+                        sb.append("SEND_TOP_OF_QUEUE_MESSAGE");
                         break;
                     default:
                         sb.append("<unknown>");
