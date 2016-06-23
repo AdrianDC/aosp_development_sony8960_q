@@ -26,6 +26,7 @@ import android.content.pm.PackageManager;
 import android.net.IpConfiguration;
 import android.net.ProxyInfo;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiManager;
 import android.os.RemoteException;
@@ -77,18 +78,14 @@ public class WifiConfigManagerNew {
      */
     @VisibleForTesting
     public static final String PASSWORD_MASK = "*";
-
-    /**
-     * Log tag for this class.
-     */
-    private static final String TAG = "WifiConfigManagerNew";
     /**
      * Network Selection disable reason thresholds. These numbers are used to debounce network
      * failures before we disable them.
      * These are indexed using the disable reason constants defined in
      * {@link android.net.wifi.WifiConfiguration.NetworkSelectionStatus}.
      */
-    private static final int[] NETWORK_SELECTION_DISABLE_THRESHOLD = {
+    @VisibleForTesting
+    public static final int[] NETWORK_SELECTION_DISABLE_THRESHOLD = {
             -1, //  threshold for NETWORK_SELECTION_ENABLE
             1,  //  threshold for DISABLED_BAD_LINK
             5,  //  threshold for DISABLED_ASSOCIATION_REJECTION
@@ -103,19 +100,20 @@ public class WifiConfigManagerNew {
             1   //  threshold for DISABLED_BY_USER_SWITCH
     };
     /**
-     * Network Selection disable timeout for each kind of error. After the timeout minutes,enable
-     * the network again.
+     * Network Selection disable timeout for each kind of error. After the timeout milliseconds,
+     * enable the network again.
      * These are indexed using the disable reason constants defined in
      * {@link android.net.wifi.WifiConfiguration.NetworkSelectionStatus}.
      */
-    private static final int[] NETWORK_SELECTION_DISABLE_TIMEOUT = {
+    @VisibleForTesting
+    public static final int[] NETWORK_SELECTION_DISABLE_TIMEOUT_MS = {
             Integer.MAX_VALUE,  // threshold for NETWORK_SELECTION_ENABLE
-            15,                 // threshold for DISABLED_BAD_LINK
-            5,                  // threshold for DISABLED_ASSOCIATION_REJECTION
-            5,                  // threshold for DISABLED_AUTHENTICATION_FAILURE
-            5,                  // threshold for DISABLED_DHCP_FAILURE
-            5,                  // threshold for DISABLED_DNS_FAILURE
-            0,                  // threshold for DISABLED_WPS_START
+            15 * 60 * 1000,     // threshold for DISABLED_BAD_LINK
+            5 * 60 * 1000,      // threshold for DISABLED_ASSOCIATION_REJECTION
+            5 * 60 * 1000,      // threshold for DISABLED_AUTHENTICATION_FAILURE
+            5 * 60 * 1000,      // threshold for DISABLED_DHCP_FAILURE
+            5 * 60 * 1000,      // threshold for DISABLED_DNS_FAILURE
+            0 * 60 * 1000,      // threshold for DISABLED_WPS_START
             Integer.MAX_VALUE,  // threshold for DISABLED_TLS_VERSION
             Integer.MAX_VALUE,  // threshold for DISABLED_AUTHENTICATION_NO_CREDENTIALS
             Integer.MAX_VALUE,  // threshold for DISABLED_NO_INTERNET
@@ -128,7 +126,10 @@ public class WifiConfigManagerNew {
      */
     private static final boolean ALLOW_LOCKDOWN_CHECK_BYPASS = true;
     private static final boolean DISALLOW_LOCKDOWN_CHECK_BYPASS = false;
-
+    /**
+     * Log tag for this class.
+     */
+    private static final String TAG = "WifiConfigManagerNew";
     /**
      * List of external dependencies for WifiConfigManager.
      */
@@ -280,10 +281,10 @@ public class WifiConfigManagerNew {
     }
 
     /**
-     * Retrieves the list of all configured networks with the passwords.
+     * Retrieves the list of all configured networks with the passwords in plaintext.
      *
-     * WARNING: Don't use this to pass network configurations to external apps. Should only sent
-     * to system apps who have a need for the passwords.
+     * WARNING: Don't use this to pass network configurations to external apps. Should only be
+     * sent to system apps/wifi stack, when there is a need for passwords in plaintext.
      * TODO: Need to understand the current use case of this API.
      *
      * @return List of WifiConfiguration objects representing the networks.
@@ -299,6 +300,46 @@ public class WifiConfigManagerNew {
      */
     public List<WifiConfiguration> getSavedNetworks() {
         return getConfiguredNetworks(true, true);
+    }
+
+    /**
+     * Retrieves the configured network corresponding to the provided networkId with password
+     * masked.
+     *
+     * @param networkId networkId of the requested network.
+     * @return WifiConfiguration object if found, null otherwise.
+     */
+    public WifiConfiguration getConfiguredNetwork(int networkId) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return null;
+        }
+        // Create a new configuration object with the passwords masked to send out to the external
+        // world.
+        WifiConfiguration network = new WifiConfiguration(config);
+        maskPasswordsInWifiConfiguration(network);
+        return network;
+    }
+
+    /**
+     * Retrieves the configured network corresponding to the provided networkId with password
+     * in plaintext.
+     *
+     * WARNING: Don't use this to pass network configurations to external apps. Should only be
+     * sent to system apps/wifi stack, when there is a need for passwords in plaintext.
+     *
+     * @param networkId networkId of the requested network.
+     * @return WifiConfiguration object if found, null otherwise.
+     */
+    public WifiConfiguration getConfiguredNetworkWithPassword(int networkId) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return null;
+        }
+        // Create a new configuration object without the passwords masked to send out to the
+        // external world.
+        WifiConfiguration network = new WifiConfiguration(config);
+        return network;
     }
 
     /**
@@ -812,6 +853,190 @@ public class WifiConfigManagerNew {
         // External modification, persist it immediately.
         saveToStore(true);
         return true;
+    }
+
+    /**
+     * Helper method to mark a network enabled for network selection.
+     */
+    private void setNetworkSelectionEnabled(NetworkSelectionStatus status) {
+        status.setNetworkSelectionStatus(
+                NetworkSelectionStatus.NETWORK_SELECTION_ENABLED);
+        status.setDisableTime(
+                NetworkSelectionStatus.INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP);
+        status.setNetworkSelectionDisableReason(NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+
+        // Clear out all the disable reason counters.
+        status.clearDisableReasonCounter();
+    }
+
+    /**
+     * Helper method to mark a network temporarily disabled for network selection.
+     */
+    private void setNetworkSelectionTemporarilyDisabled(
+            NetworkSelectionStatus status, int disableReason) {
+        status.setNetworkSelectionStatus(
+                NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED);
+        // Only need a valid time filled in for temporarily disabled networks.
+        status.setDisableTime(mClock.getElapsedSinceBootMillis());
+        status.setNetworkSelectionDisableReason(disableReason);
+    }
+
+    /**
+     * Helper method to mark a network permanently disabled for network selection.
+     */
+    private void setNetworkSelectionPermanentlyDisabled(
+            NetworkSelectionStatus status, int disableReason) {
+        status.setNetworkSelectionStatus(
+                NetworkSelectionStatus.NETWORK_SELECTION_PERMANENTLY_DISABLED);
+        status.setDisableTime(
+                NetworkSelectionStatus.INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP);
+        status.setNetworkSelectionDisableReason(disableReason);
+    }
+
+    /**
+     * Helper method to set the publicly exposed status for the network and send out the network
+     * status change broadcast.
+     */
+    private void setNetworkStatus(WifiConfiguration config, int status) {
+        config.status = status;
+        sendConfiguredNetworkChangedBroadcast(config, WifiManager.CHANGE_REASON_CONFIG_CHANGE);
+    }
+
+    /**
+     * Sets a network's status (both internal and public) according to the update reason and
+     * its current state.
+     *
+     * This updates the network's {@link WifiConfiguration#mNetworkSelectionStatus} field and the
+     * public {@link WifiConfiguration#status} field if the network is either enabled or
+     * permanently disabled.
+     *
+     * @param config network to be updated.
+     * @param reason reason code for update.
+     * @return true if the input configuration has been updated, false otherwise.
+     */
+    private boolean setNetworkSelectionStatus(WifiConfiguration config, int reason) {
+        NetworkSelectionStatus networkStatus = config.getNetworkSelectionStatus();
+        if (reason < 0 || reason >= NetworkSelectionStatus.NETWORK_SELECTION_DISABLED_MAX) {
+            Log.e(TAG, "Invalid Network disable reason " + reason);
+            return false;
+        }
+        if (reason == NetworkSelectionStatus.NETWORK_SELECTION_ENABLE) {
+            setNetworkSelectionEnabled(networkStatus);
+            setNetworkStatus(config, WifiConfiguration.Status.ENABLED);
+        } else if (reason < NetworkSelectionStatus.DISABLED_TLS_VERSION_MISMATCH) {
+            setNetworkSelectionTemporarilyDisabled(networkStatus, reason);
+        } else {
+            setNetworkSelectionPermanentlyDisabled(networkStatus, reason);
+            setNetworkStatus(config, WifiConfiguration.Status.DISABLED);
+        }
+        localLog("setNetworkSelectionStatus: configKey=" + config.configKey()
+                + " networkStatus=" + networkStatus.getNetworkStatusString() + " disableReason="
+                + networkStatus.getNetworkDisableReasonString() + " at="
+                + createDebugTimeStampString(mClock.getWallClockMillis()));
+        return true;
+    }
+
+    /**
+     * Update a network's status (both internal and public) according to the update reason and
+     * its current state.
+     *
+     * @param config network to be updated.
+     * @param reason reason code for update.
+     * @return true if the input configuration has been updated, false otherwise.
+     */
+    private boolean updateNetworkSelectionStatus(WifiConfiguration config, int reason) {
+        NetworkSelectionStatus networkStatus = config.getNetworkSelectionStatus();
+        if (reason != NetworkSelectionStatus.NETWORK_SELECTION_ENABLE) {
+            networkStatus.incrementDisableReasonCounter(reason);
+            // For network disable reasons, we should only update the status if we cross the
+            // threshold.
+            int disableReasonCounter = networkStatus.getDisableReasonCounter(reason);
+            int disableReasonThreshold = NETWORK_SELECTION_DISABLE_THRESHOLD[reason];
+            if (disableReasonCounter < disableReasonThreshold) {
+                if (mVerboseLoggingEnabled) {
+                    Log.v(TAG, "Disable counter for network " + config.getPrintableSsid()
+                            + " for reason "
+                            + NetworkSelectionStatus.getNetworkDisableReasonString(reason) + " is "
+                            + networkStatus.getDisableReasonCounter(reason) + " and threshold is "
+                            + disableReasonThreshold);
+                }
+                return true;
+            }
+        }
+        return setNetworkSelectionStatus(config, reason);
+    }
+
+    /**
+     * Update a network's status (both internal and public) according to the update reason and
+     * its current state.
+     *
+     * Each network has 2 status:
+     * 1. NetworkSelectionStatus: This is internal selection status of the network. This is used
+     * for temporarily disabling a network for QNS.
+     * 2. Status: This is the exposed status for a network. This is mostly set by
+     * the public API's {@link WifiManager#enableNetwork(int, boolean)} &
+     * {@link WifiManager#disableNetwork(int)}.
+     *
+     * @param networkId network ID of the network that needs the update.
+     * @param reason    reason to update the network.
+     * @return true if the input configuration has been updated, false otherwise.
+     */
+    public boolean updateNetworkSelectionStatus(int networkId, int reason) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            Log.e(TAG, "Cannot find network with networkId " + networkId);
+            return false;
+        }
+        return updateNetworkSelectionStatus(config, reason);
+    }
+
+    /**
+     * Attempt to re-enable a network for network selection, if this network was either:
+     * a) Previously temporarily disabled, but its disable timeout has expired, or
+     * b) Previously disabled because of a user switch, but is now visible to the current
+     * user.
+     *
+     * @param config configuration for the network to be re-enabled for network selection. The
+     *               network corresponding to the config must be visible to the current user.
+     * @return true if the network identified by {@param config} was re-enabled for qualified
+     * network selection, false otherwise.
+     */
+    private boolean tryEnableNetwork(WifiConfiguration config) {
+        NetworkSelectionStatus networkStatus = config.getNetworkSelectionStatus();
+        if (networkStatus.isNetworkTemporaryDisabled()) {
+            long timeDifferenceMs =
+                    mClock.getElapsedSinceBootMillis() - networkStatus.getDisableTime();
+            int disableReason = networkStatus.getNetworkSelectionDisableReason();
+            long disableTimeoutMs = NETWORK_SELECTION_DISABLE_TIMEOUT_MS[disableReason];
+            if (timeDifferenceMs >= disableTimeoutMs) {
+                return updateNetworkSelectionStatus(
+                        config, NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+            }
+        } else if (networkStatus.isDisabledByReason(
+                NetworkSelectionStatus.DISABLED_DUE_TO_USER_SWITCH)) {
+            return updateNetworkSelectionStatus(
+                    config, NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+        }
+        return false;
+    }
+
+    /**
+     * Attempt to re-enable a network for network selection, if this network was either:
+     * a) Previously temporarily disabled, but its disable timeout has expired, or
+     * b) Previously disabled because of a user switch, but is now visible to the current
+     * user.
+     *
+     * @param networkId the id of the network to be checked for possible unblock (due to timeout)
+     * @return true if the network identified by {@param networkId} was re-enabled for qualified
+     * network selection, false otherwise.
+     */
+    public boolean tryEnableNetwork(int networkId) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            Log.e(TAG, "Cannot find network with networkId " + networkId);
+            return false;
+        }
+        return tryEnableNetwork(config);
     }
 
     /**
