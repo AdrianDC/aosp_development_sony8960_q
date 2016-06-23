@@ -321,6 +321,74 @@ public class WifiConfigManagerNewTest {
     }
 
     /**
+     * Verifies the removal of a single network using
+     * {@link WifiConfigManagerNew#removeNetwork(int)}
+     */
+    @Test
+    public void testRemoveSingleOpenNetwork() {
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        List<WifiConfiguration> networks = new ArrayList<>();
+        networks.add(openNetwork);
+
+        verifyAddNetworkToWifiConfigManager(openNetwork);
+
+        verifyRemoveNetworkFromWifiConfigManager(openNetwork);
+
+        // Ensure that configured network list is empty now.
+        assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+    }
+
+    /**
+     * Verifies the addition & updation of  multiple networks using
+     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)} and the
+     * removal of networks using
+     * {@link WifiConfigManagerNew#removeNetwork(int)}
+     */
+    @Test
+    public void testAddUpdateRemoveMulitpleNetworks() {
+        List<WifiConfiguration> networks = new ArrayList<>();
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        WifiConfiguration wepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        networks.add(openNetwork);
+        networks.add(pskNetwork);
+        networks.add(wepNetwork);
+
+        verifyAddNetworkToWifiConfigManager(openNetwork);
+        verifyAddNetworkToWifiConfigManager(pskNetwork);
+        verifyAddNetworkToWifiConfigManager(wepNetwork);
+
+        // Now verify that all the additions has been effective.
+        List<WifiConfiguration> retrievedNetworks =
+                mWifiConfigManager.getConfiguredNetworksWithPasswords();
+        WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
+                networks, retrievedNetworks);
+
+        // Modify all the 3 configurations and update it to WifiConfigManager.
+        assertAndSetNetworkBSSID(openNetwork, TEST_BSSID);
+        assertAndSetNetworkBSSID(pskNetwork, TEST_BSSID);
+        assertAndSetNetworkIpConfiguration(
+                wepNetwork,
+                WifiConfigurationTestUtil.createStaticIpConfigurationWithPacProxy());
+
+        verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(openNetwork);
+        verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(pskNetwork);
+        verifyUpdateNetworkToWifiConfigManagerWithIpChange(wepNetwork);
+        // Now verify that all the modifications has been effective.
+        retrievedNetworks = mWifiConfigManager.getConfiguredNetworksWithPasswords();
+        WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
+                networks, retrievedNetworks);
+
+        // Now remove all 3 networks.
+        verifyRemoveNetworkFromWifiConfigManager(openNetwork);
+        verifyRemoveNetworkFromWifiConfigManager(pskNetwork);
+        verifyRemoveNetworkFromWifiConfigManager(wepNetwork);
+
+        // Ensure that configured network list is empty now.
+        assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+    }
+
+    /**
      * This method sets defaults in the provided WifiConfiguration object if not set
      * so that it can be used for comparison with the configuration retrieved from
      * WifiConfigManager.
@@ -618,5 +686,17 @@ public class WifiConfigManagerNewTest {
         assertTrue(result.hasIpChanged());
         assertTrue(result.hasProxyChanged());
         return result;
+    }
+
+    /**
+     * Removes network from WifiConfigManager and ensure that it was successful.
+     */
+    private void verifyRemoveNetworkFromWifiConfigManager(
+            WifiConfiguration configuration) {
+        assertTrue(mWifiConfigManager.removeNetwork(configuration.networkId));
+
+        verifyNetworkRemoveBroadcast(configuration);
+        // Verify if the config store write was triggered without this new configuration.
+        verifyNetworkNotInConfigStoreData(configuration);
     }
 }
