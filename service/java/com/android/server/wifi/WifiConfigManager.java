@@ -2998,11 +2998,7 @@ public class WifiConfigManager {
                 pw.println(s);
             }
         }
-        if (mLocalLog != null) {
-            pw.println("WifiConfigManager - Log Begin ----");
-            mLocalLog.dump(fd, pw, args);
-            pw.println("WifiConfigManager - Log End ----");
-        }
+
         if (mMOManager.isConfigured()) {
             pw.println("Begin dump of ANQP Cache");
             mAnqpCache.dump(pw);
