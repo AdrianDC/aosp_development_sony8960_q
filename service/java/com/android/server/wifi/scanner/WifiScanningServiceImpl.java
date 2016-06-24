@@ -418,6 +418,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         private final IdleState  mIdleState  = new IdleState();
         private final ScanningState  mScanningState  = new ScanningState();
 
+        private WifiNative.ScanSettings mActiveScanSettings = null;
         private RequestList<ScanSettings> mActiveScans = new RequestList<>();
         private RequestList<ScanSettings> mPendingScans = new RequestList<>();
 
@@ -546,12 +547,24 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                                 scanParams.getParcelable(WifiScanner.SCAN_PARAMS_SCAN_SETTINGS_KEY);
                         WorkSource workSource =
                                 scanParams.getParcelable(WifiScanner.SCAN_PARAMS_WORK_SOURCE_KEY);
-                        if (validateAndAddToScanQueue(ci, handler, scanSettings, workSource)) {
+                        if (validateScanRequest(ci, handler, scanSettings, workSource)) {
+                            logScanRequest("addSingleScanRequest", ci, handler, workSource,
+                                    scanSettings, null);
                             replySucceeded(msg);
+
+                            // If there is an active scan that will fulfill the scan request then
+                            // mark this request as an active scan, otherwise mark it pending.
                             // If were not currently scanning then try to start a scan. Otherwise
                             // this scan will be scheduled when transitioning back to IdleState
                             // after finishing the current scan.
-                            if (getCurrentState() != mScanningState) {
+                            if (getCurrentState() == mScanningState) {
+                                if (activeScanSatisfies(scanSettings)) {
+                                    mActiveScans.addRequest(ci, handler, workSource, scanSettings);
+                                } else {
+                                    mPendingScans.addRequest(ci, handler, workSource, scanSettings);
+                                }
+                            } else {
+                                mPendingScans.addRequest(ci, handler, workSource, scanSettings);
                                 tryToStartNewScan();
                             }
                         } else {
@@ -597,6 +610,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
             @Override
             public void exit() {
+                mActiveScanSettings = null;
                 try {
                     mBatteryStats.noteWifiScanStoppedFromSource(mScanWorkSource);
                 } catch (RemoteException e) {
@@ -638,7 +652,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
         }
 
-        boolean validateAndAddToScanQueue(ClientInfo ci, int handler, ScanSettings settings,
+        boolean validateScanRequest(ClientInfo ci, int handler, ScanSettings settings,
                 WorkSource workSource) {
             if (ci == null) {
                 Log.d(TAG, "Failing single scan request ClientInfo not found " + handler);
@@ -650,8 +664,43 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     return false;
                 }
             }
-            logScanRequest("addSingleScanRequest", ci, handler, workSource, settings, null);
-            mPendingScans.addRequest(ci, handler, workSource, settings);
+            return true;
+        }
+
+        boolean activeScanSatisfies(ScanSettings settings) {
+            if (mActiveScanSettings == null) {
+                return false;
+            }
+
+            // there is always one bucket for a single scan
+            WifiNative.BucketSettings activeBucket = mActiveScanSettings.buckets[0];
+
+            // validate that all requested channels are being scanned
+            ChannelCollection activeChannels = mChannelHelper.createChannelCollection();
+            activeChannels.addChannels(activeBucket);
+            if (!activeChannels.containsSettings(settings)) {
+                return false;
+            }
+
+            // if the request is for a full scan, but there is no ongoing full scan
+            if ((settings.reportEvents & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT) != 0
+                    && (activeBucket.report_events & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT)
+                    == 0) {
+                return false;
+            }
+
+            if (settings.hiddenNetworkIds != null) {
+                Set<Integer> activeHiddenNetworkIds = new HashSet<>();
+                for (int id : mActiveScanSettings.hiddenNetworkIds) {
+                    activeHiddenNetworkIds.add(id);
+                }
+                for (int id : settings.hiddenNetworkIds) {
+                    if (!activeHiddenNetworkIds.contains(id)) {
+                        return false;
+                    }
+                }
+            }
+
             return true;
         }
 
@@ -710,6 +759,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
             settings.buckets = new WifiNative.BucketSettings[] {bucketSettings};
             if (mScannerImpl.startSingleScan(settings, this)) {
+                // store the active scan settings
+                mActiveScanSettings = settings;
                 // swap pending and active scan requests
                 RequestList<ScanSettings> tmp = mActiveScans;
                 mActiveScans = mPendingScans;
