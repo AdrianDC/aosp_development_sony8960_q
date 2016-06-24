@@ -504,6 +504,153 @@ public class WifiConfigManagerNewTest {
     }
 
     /**
+     * Verifies the enabling of network using
+     * {@link WifiConfigManagerNew#enableNetwork(int, int)} and
+     * {@link WifiConfigManagerNew#disableNetwork(int, int)}.
+     */
+    @Test
+    public void testEnableDisableNetwork() {
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+
+        NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
+
+        assertTrue(mWifiConfigManager.enableNetwork(result.getNetworkId(), TEST_CREATOR_UID));
+        WifiConfiguration retrievedNetwork =
+                mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        NetworkSelectionStatus retrievedStatus = retrievedNetwork.getNetworkSelectionStatus();
+        assertTrue(retrievedStatus.isNetworkEnabled());
+        verifyUpdateNetworkStatus(retrievedNetwork, WifiConfiguration.Status.ENABLED);
+
+        // Now set it disabled.
+        assertTrue(mWifiConfigManager.disableNetwork(result.getNetworkId(), TEST_CREATOR_UID));
+        retrievedNetwork = mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        retrievedStatus = retrievedNetwork.getNetworkSelectionStatus();
+        assertTrue(retrievedStatus.isNetworkPermanentlyDisabled());
+        verifyUpdateNetworkStatus(retrievedNetwork, WifiConfiguration.Status.DISABLED);
+    }
+
+    /**
+     * Verifies the enabling of network using
+     * {@link WifiConfigManagerNew#enableNetwork(int, int)} with a UID which
+     * has no permission to modify the network fails..
+     */
+    @Test
+    public void testEnableDisableNetworkFailedDueToPermissionDenied() throws Exception {
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+
+        NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
+
+        assertTrue(mWifiConfigManager.enableNetwork(result.getNetworkId(), TEST_CREATOR_UID));
+        WifiConfiguration retrievedNetwork =
+                mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        NetworkSelectionStatus retrievedStatus = retrievedNetwork.getNetworkSelectionStatus();
+        assertTrue(retrievedStatus.isNetworkEnabled());
+        verifyUpdateNetworkStatus(retrievedNetwork, WifiConfiguration.Status.ENABLED);
+
+        // Deny permission for |UPDATE_UID|.
+        doAnswer(new AnswerWithArguments() {
+            public int answer(String permName, int uid) throws Exception {
+                if (uid == TEST_CREATOR_UID) {
+                    return PackageManager.PERMISSION_GRANTED;
+                }
+                return PackageManager.PERMISSION_DENIED;
+            }
+        }).when(mFrameworkFacade).checkUidPermission(anyString(), anyInt());
+
+        // Now try to set it disabled with |TEST_UPDATE_UID|, it should fail and the network
+        // should remain enabled.
+        assertFalse(mWifiConfigManager.disableNetwork(result.getNetworkId(), TEST_UPDATE_UID));
+        retrievedStatus =
+                mWifiConfigManager.getConfiguredNetwork(result.getNetworkId())
+                        .getNetworkSelectionStatus();
+        assertTrue(retrievedStatus.isNetworkEnabled());
+        assertEquals(WifiConfiguration.Status.ENABLED, retrievedNetwork.status);
+    }
+
+    /**
+     * Verifies the updation of network's connectUid using
+     * {@link WifiConfigManagerNew#checkAndUpdateLastConnectUid(int, int)}.
+     */
+    @Test
+    public void testUpdateLastConnectUid() throws Exception {
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+
+        NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
+
+        assertTrue(
+                mWifiConfigManager.checkAndUpdateLastConnectUid(result.getNetworkId(), TEST_CREATOR_UID));
+        WifiConfiguration retrievedNetwork =
+                mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        assertEquals(TEST_CREATOR_UID, retrievedNetwork.lastConnectUid);
+
+        // Deny permission for |UPDATE_UID|.
+        doAnswer(new AnswerWithArguments() {
+            public int answer(String permName, int uid) throws Exception {
+                if (uid == TEST_CREATOR_UID) {
+                    return PackageManager.PERMISSION_GRANTED;
+                }
+                return PackageManager.PERMISSION_DENIED;
+            }
+        }).when(mFrameworkFacade).checkUidPermission(anyString(), anyInt());
+
+        // Now try to update the last connect UID with |TEST_UPDATE_UID|, it should fail and
+        // the lastConnectUid should remain the same.
+        assertFalse(
+                mWifiConfigManager.checkAndUpdateLastConnectUid(result.getNetworkId(), TEST_UPDATE_UID));
+        retrievedNetwork = mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        assertEquals(TEST_CREATOR_UID, retrievedNetwork.lastConnectUid);
+    }
+
+    /**
+     * Verifies that any configuration update attempt with an null config is gracefully
+     * handled.
+     * This invokes {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}.
+     */
+    @Test
+    public void testAddOrUpdateNetworkWithNullConfig() {
+        NetworkUpdateResult result = mWifiConfigManager.addOrUpdateNetwork(null, TEST_CREATOR_UID);
+        assertFalse(result.isSuccess());
+    }
+
+    /**
+     * Verifies that any configuration removal attempt with an invalid networkID is gracefully
+     * handled.
+     * This invokes {@link WifiConfigManagerNew#removeNetwork(int)}.
+     */
+    @Test
+    public void testRemoveNetworkWithInvalidNetworkId() {
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+
+        verifyAddNetworkToWifiConfigManager(openNetwork);
+
+        // Change the networkID to an invalid one.
+        openNetwork.networkId++;
+        assertFalse(mWifiConfigManager.removeNetwork(openNetwork.networkId));
+    }
+
+    /**
+     * Verifies that any configuration update attempt with an invalid networkID is gracefully
+     * handled.
+     * This invokes {@link WifiConfigManagerNew#enableNetwork(int, int)},
+     * {@link WifiConfigManagerNew#disableNetwork(int, int)},
+     * {@link WifiConfigManagerNew#updateNetworkSelectionStatus(int, int)} and
+     * {@link WifiConfigManagerNew#checkAndUpdateLastConnectUid(int, int)}.
+     */
+    @Test
+    public void testChangeConfigurationWithInvalidNetworkId() {
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+
+        NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
+
+        assertFalse(mWifiConfigManager.enableNetwork(result.getNetworkId() +1, TEST_CREATOR_UID));
+        assertFalse(mWifiConfigManager.disableNetwork(result.getNetworkId() +1, TEST_CREATOR_UID));
+        assertFalse(mWifiConfigManager.updateNetworkSelectionStatus(
+                result.getNetworkId() +1, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER));
+        assertFalse(mWifiConfigManager.checkAndUpdateLastConnectUid(
+                result.getNetworkId() +1, TEST_CREATOR_UID));
+    }
+
+    /**
      * This method sets defaults in the provided WifiConfiguration object if not set
      * so that it can be used for comparison with the configuration retrieved from
      * WifiConfigManager.

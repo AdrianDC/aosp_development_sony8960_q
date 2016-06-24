@@ -1040,6 +1040,74 @@ public class WifiConfigManagerNew {
     }
 
     /**
+     * Enable a network using the public {@link WifiManager#enableNetwork(int, boolean)} API.
+     *
+     * @param networkId network ID of the network that needs the update.
+     * @param uid       uid of the app requesting the update.
+     * @return {@code true} if it succeeds, {@code false} otherwise
+     */
+    public boolean enableNetwork(int networkId, int uid) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            Log.e(TAG, "Cannot find network with networkId " + networkId);
+            return false;
+        }
+        if (!canModifyNetwork(config, uid, DISALLOW_LOCKDOWN_CHECK_BYPASS)) {
+            Log.e(TAG, "UID " + uid + " does not have permission to update configuration "
+                    + config.configKey());
+            return false;
+        }
+        return updateNetworkSelectionStatus(
+                networkId, WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+    }
+
+    /**
+     * Disable a network using the public {@link WifiManager#disableNetwork(int)} API.
+     *
+     * @param networkId network ID of the network that needs the update.
+     * @param uid       uid of the app requesting the update.
+     * @return {@code true} if it succeeds, {@code false} otherwise
+     */
+    public boolean disableNetwork(int networkId, int uid) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            Log.e(TAG, "Cannot find network with networkId " + networkId);
+            return false;
+        }
+        if (!canModifyNetwork(config, uid, DISALLOW_LOCKDOWN_CHECK_BYPASS)) {
+            Log.e(TAG, "UID " + uid + " does not have permission to update configuration "
+                    + config.configKey());
+            return false;
+        }
+        return updateNetworkSelectionStatus(
+                networkId, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER);
+    }
+
+    /**
+     * Checks if the |uid| has the necessary permission to override wifi config and updates the last
+     * connected UID for the provided configuration.
+     *
+     * @param networkId network ID corresponding to the network.
+     * @param uid       uid of the app requesting the connection.
+     * @return  {@code true} if |uid| has the necessary permission to trigger connection to the
+     * network, {@code false} otherwise.
+     */
+    public boolean checkAndUpdateLastConnectUid(int networkId, int uid) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            Log.e(TAG, "Cannot find network with networkId " + networkId);
+            return false;
+        }
+        if (!canModifyNetwork(config, uid, ALLOW_LOCKDOWN_CHECK_BYPASS)) {
+            Log.e(TAG, "UID " + uid + " does not have permission to update configuration "
+                    + config.configKey());
+            return false;
+        }
+        config.lastConnectUid = uid;
+        return true;
+    }
+
+    /**
      * Read the config store and load the in-memory lists from the store data retrieved.
      * This reads all the network configurations from:
      * 1. Shared WifiConfigStore.xml
@@ -1105,24 +1173,6 @@ public class WifiConfigManagerNew {
         long writeTime = mClock.getElapsedSinceBootMillis() - writeStartTime;
         Log.d(TAG, "Writing to store completed in " + writeTime + " ms.");
         return true;
-    }
-
-    /**
-     * Updates the last connected UID for the provided configuration if the UID has the permission
-     * to do it.
-     *
-     * @param networkId network ID corresponding to the network.
-     * @param uid       uid of the app requesting the connection.
-     */
-    public boolean updateLastConnectUid(int networkId, int uid) {
-        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
-        if (!canModifyNetwork(config, uid, DISALLOW_LOCKDOWN_CHECK_BYPASS)) {
-            if (config.lastConnectUid != uid) {
-                config.lastConnectUid = uid;
-            }
-            return true;
-        }
-        return false;
     }
 
     /**
