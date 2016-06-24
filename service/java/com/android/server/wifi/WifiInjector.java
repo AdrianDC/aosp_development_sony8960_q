@@ -17,7 +17,10 @@
 package com.android.server.wifi;
 
 import android.content.Context;
+import android.net.wifi.IWificond;
 import android.os.HandlerThread;
+import android.os.IBinder;
+import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.UserManager;
 import android.provider.Settings;
@@ -27,15 +30,16 @@ import com.android.internal.R;
 import com.android.server.am.BatteryStatsService;
 
 /**
- *  WiFi dependency injecto. To be used for accessing various wifi class instances and as a
+ *  WiFi dependency injector. To be used for accessing various WiFi class instances and as a
  *  handle for mock injection.
  *
- *  Some wifi class instances currently depend on having a Looper from a HandlerThread that has
- *  been started. To accomodate this, we have a two-phased approach to initialize and retrieve
+ *  Some WiFi class instances currently depend on having a Looper from a HandlerThread that has
+ *  been started. To accommodate this, we have a two-phased approach to initialize and retrieve
  *  an instance of the WifiInjector.
  */
 public class WifiInjector {
     private static final String BOOT_DEFAULT_WIFI_COUNTRY_CODE = "ro.boot.wificountrycode";
+    private static final String WIFICOND_SERVICE_NAME = "wificond";
 
     static WifiInjector sWifiInjector = null;
 
@@ -190,5 +194,11 @@ public class WifiInjector {
 
     public WifiBackupRestore getWifiBackupRestore() {
         return mWifiBackupRestore;
+    }
+
+    public IWificond makeWificond() {
+        // We depend on being able to refresh our binder in WifiStateMachine, so don't cache it.
+        IBinder binder = ServiceManager.getService(WIFICOND_SERVICE_NAME);
+        return IWificond.Stub.asInterface(binder);
     }
 }
