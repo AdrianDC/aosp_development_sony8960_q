@@ -543,7 +543,7 @@ class WifiLogger extends BaseWifiLogger {
         String result;
         //compress
         Deflater compressor = new Deflater();
-        compressor.setLevel(Deflater.BEST_COMPRESSION);
+        compressor.setLevel(Deflater.BEST_SPEED);
         compressor.setInput(input);
         compressor.finish();
         ByteArrayOutputStream bos = new ByteArrayOutputStream(input.length);
