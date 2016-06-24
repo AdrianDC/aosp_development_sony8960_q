@@ -49,8 +49,9 @@ public class FrameworkFacade {
     }
 
     public BaseWifiLogger makeRealLogger(
-            WifiStateMachine stateMachine, WifiNative wifiNative, BuildProperties buildProperties) {
-        return new WifiLogger(stateMachine, wifiNative, buildProperties);
+            Context context, WifiStateMachine stateMachine, WifiNative wifiNative,
+            BuildProperties buildProperties) {
+        return new WifiLogger(context, stateMachine, wifiNative, buildProperties);
     }
 
     public boolean setIntegerSetting(Context context, String name, int def) {
