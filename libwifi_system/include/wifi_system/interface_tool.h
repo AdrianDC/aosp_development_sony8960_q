@@ -14,19 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_WIFI_SYSTEM_HAL_H
-#define ANDROID_WIFI_SYSTEM_HAL_H
-
-#include <hardware_legacy/wifi_hal.h>
+#ifndef ANDROID_WIFI_SYSTEM_INTERFACE_TOOL_H
+#define ANDROID_WIFI_SYSTEM_INTERFACE_TOOL_H
 
 namespace android {
 namespace wifi_system {
 
-bool init_wifi_hal_function_table(wifi_hal_fn* hal_fn);
+class InterfaceTool {
+ public:
+  InterfaceTool() = default;
+  virtual ~InterfaceTool() = default;
 
-bool wifi_hal_can_get_valid_channels(wifi_hal_fn* hal_fn);
+  // Set the interface named by |if_name| up or down.
+  // Returns true on success, false otherwise.
+  virtual bool SetUpState(const char* if_name, bool request_up);
+
+  // A helpful alias for SetUpState() that assumes there is a single system
+  // WiFi interface.  Prefer this form if you're hardcoding "wlan0" to help us
+  // identify all the places we are hardcoding the name of the wifi interface.
+  virtual bool SetWifiUpState(bool request_up);
+
+};  // class InterfaceTool
 
 }  // namespace wifi_system
 }  // namespace android
 
-#endif  // ANDROID_WIFI_SYSTEM_HAL_H
+#endif  // ANDROID_WIFI_SYSTEM_INTERFACE_TOOL_H

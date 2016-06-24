@@ -38,8 +38,8 @@
 #include <nativehelper/jni.h>
 #include <utils/String16.h>
 #include <utils/misc.h>
-#include <wifi_system/hal.h>
-#include <wifi_system/interface_utils.h>
+#include <wifi_system/hal_tool.h>
+#include <wifi_system/interface_tool.h>
 #include <wifi_system/wifi.h>
 
 #include "jni_helper.h"
@@ -47,6 +47,9 @@
 #define REPLY_BUF_SIZE (4096 + 1)         // wpa_supplicant's maximum size + 1 for nul
 #define EVENT_BUF_SIZE 2048
 #define WAKE_REASON_TYPE_MAX 10
+
+using android::wifi_system::HalTool;
+using android::wifi_system::InterfaceTool;
 
 namespace android {
 
@@ -243,21 +246,24 @@ static JNIObject<jobject> createScanResult(JNIHelper &helper, wifi_scan_result *
 }
 
 static jboolean android_net_wifi_set_interface_up(JNIEnv* env, jclass cls, jboolean up) {
-    return wifi_system::set_wifi_iface_up((bool)up);
+    InterfaceTool if_tool;
+    return if_tool.SetWifiUpState((bool)up);
 }
 
 static jboolean android_net_wifi_startHal(JNIEnv* env, jclass cls) {
+    InterfaceTool if_tool;
     JNIHelper helper(env);
     wifi_handle halHandle = getWifiHandle(helper, cls);
     if (halHandle != NULL) {
-        return wifi_system::set_wifi_iface_up(true);
+        return if_tool.SetWifiUpState(true);
     }
 
-    if (!wifi_system::init_wifi_hal_function_table(&hal_fn)) {
+    HalTool hal_tool;
+    if (!hal_tool.InitFunctionTable(&hal_fn)) {
         return false;
     }
 
-    if(!wifi_system::set_wifi_iface_up(true)) {
+    if(!if_tool.SetWifiUpState(true)) {
         ALOGE("Failed to set WiFi interface up");
         return false;
     }
@@ -303,7 +309,8 @@ static void android_net_wifi_waitForHalEvents(JNIEnv* env, jclass cls) {
     JNIHelper helper(env);
     wifi_handle halHandle = getWifiHandle(helper, cls);
     hal_fn.wifi_event_loop(halHandle);
-    wifi_system::set_wifi_iface_up(false);
+    InterfaceTool if_tool;
+    if_tool.SetWifiUpState(false);
 }
 
 static int android_net_wifi_getInterfaces(JNIEnv *env, jclass cls) {
@@ -1332,7 +1339,8 @@ static jboolean android_net_wifi_setScanningMacOui(JNIEnv *env, jclass cls,
 }
 
 static jboolean android_net_wifi_is_get_channels_for_band_supported(JNIEnv *env, jclass cls){
-    return wifi_system::wifi_hal_can_get_valid_channels(&hal_fn);
+    HalTool hal_tool;
+    return hal_tool.CanGetValidChannels(&hal_fn);
 }
 
 static jintArray android_net_wifi_getValidChannels(JNIEnv *env, jclass cls,

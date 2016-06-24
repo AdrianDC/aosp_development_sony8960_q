@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "wifi_system/hal.h"
+#include "wifi_system/hal_tool.h"
 
 #include <log/log.h>
 
@@ -562,7 +562,7 @@ bool init_wifi_stub_hal_func_table(wifi_hal_fn* hal_fn) {
 
 }  // namespace
 
-bool init_wifi_hal_function_table(wifi_hal_fn* hal_fn) {
+bool HalTool::InitFunctionTable(wifi_hal_fn* hal_fn) {
   if (!init_wifi_stub_hal_func_table(hal_fn)) {
     ALOGE("Can not initialize the basic function pointer table");
     return false;
@@ -576,7 +576,7 @@ bool init_wifi_hal_function_table(wifi_hal_fn* hal_fn) {
   return true;
 }
 
-bool wifi_hal_can_get_valid_channels(wifi_hal_fn* hal_fn) {
+bool HalTool::CanGetValidChannels(wifi_hal_fn* hal_fn) {
   return hal_fn &&
          (hal_fn->wifi_get_valid_channels != wifi_get_valid_channels_stub);
 }

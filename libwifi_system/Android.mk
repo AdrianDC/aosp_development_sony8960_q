@@ -47,8 +47,8 @@ LOCAL_SHARED_LIBRARIES += libwpa_client
 endif
 
 LOCAL_SRC_FILES := \
-    interface_utils.cpp \
-    hal.cpp \
+    interface_tool.cpp \
+    hal_tool.cpp \
     wifi.cpp
 include $(BUILD_SHARED_LIBRARY)
 
