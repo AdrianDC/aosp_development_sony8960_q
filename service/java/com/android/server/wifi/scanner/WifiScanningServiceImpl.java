@@ -214,6 +214,15 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 case WifiScanner.CMD_STOP_TRACKING_CHANGE:
                     mWifiChangeStateMachine.sendMessage(Message.obtain(msg));
                     break;
+                case WifiScanner.CMD_REGISTER_SCAN_LISTENER:
+                    logScanRequest("registerScanListener", ci, msg.arg2, null, null, null);
+                    mSingleScanListeners.addRequest(ci, msg.arg2, null, null);
+                    replySucceeded(msg);
+                    break;
+                case WifiScanner.CMD_DEREGISTER_SCAN_LISTENER:
+                    logScanRequest("deregisterScanListener", ci, msg.arg2, null, null, null);
+                    mSingleScanListeners.removeRequest(ci, msg.arg2);
+                    break;
                 default:
                     replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "Invalid request");
                     break;
@@ -241,6 +250,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private final Looper mLooper;
     private final WifiScannerImpl.WifiScannerImplFactory mScannerImplFactory;
     private final ArrayMap<Messenger, ClientInfo> mClients;
+
+    private final RequestList<Void> mSingleScanListeners = new RequestList<>();
 
     private ChannelHelper mChannelHelper;
     private BackgroundScanScheduler mBackgroundScheduler;
@@ -795,6 +806,10 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     entry.reportEvent(WifiScanner.CMD_FULL_SCAN_RESULT, 0, result);
                 }
             }
+
+            for (RequestInfo<Void> entry : mSingleScanListeners) {
+                entry.reportEvent(WifiScanner.CMD_FULL_SCAN_RESULT, 0, result);
+            }
         }
 
         void reportScanResults(ScanData results) {
@@ -805,17 +820,25 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     mWifiMetrics.incrementEmptyScanResultCount();
                 }
             }
+            ScanData[] allResults = new ScanData[] {results};
             for (RequestInfo<ScanSettings> entry : mActiveScans) {
-                ScanData[] resultsArray = new ScanData[] {results};
                 ScanData[] resultsToDeliver = ScanScheduleUtil.filterResultsForSettings(
-                        mChannelHelper, resultsArray, entry.settings, -1);
-                WifiScanner.ParcelableScanData parcelableScanData =
+                        mChannelHelper, allResults, entry.settings, -1);
+                WifiScanner.ParcelableScanData parcelableResultsToDeliver =
                         new WifiScanner.ParcelableScanData(resultsToDeliver);
                 logCallback("singleScanResults",  entry.clientInfo, entry.handlerId,
                         describeForLog(resultsToDeliver));
-                entry.reportEvent(WifiScanner.CMD_SCAN_RESULT, 0, parcelableScanData);
+                entry.reportEvent(WifiScanner.CMD_SCAN_RESULT, 0, parcelableResultsToDeliver);
                 // make sure the handler is removed
                 entry.reportEvent(WifiScanner.CMD_SINGLE_SCAN_COMPLETED, 0, null);
+            }
+
+            WifiScanner.ParcelableScanData parcelableAllResults =
+                    new WifiScanner.ParcelableScanData(allResults);
+            for (RequestInfo<Void> entry : mSingleScanListeners) {
+                logCallback("singleScanResults",  entry.clientInfo, entry.handlerId,
+                        describeForLog(allResults));
+                entry.reportEvent(WifiScanner.CMD_SCAN_RESULT, 0, parcelableAllResults);
             }
         }
     }
@@ -1870,6 +1893,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
 
         public void cleanup() {
+            mSingleScanListeners.removeAllForClient(this);
             mSingleScanStateMachine.removeSingleScanRequests(this);
             mBackgroundScanStateMachine.removeBackgroundScanSettings(this);
             mBackgroundScanStateMachine.removeHotlistSettings(this);
