@@ -398,7 +398,7 @@ public class WifiConfigManager {
         mIpconfigStore = new IpConfigStore(mWriter);
         mWifiNetworkHistory = new WifiNetworkHistory(context, mLocalLog, mWriter);
         mWifiConfigStore =
-                new WifiConfigStore(wifiNative, mKeyStore, mLocalLog, mShowNetworks, true);
+                new WifiConfigStore(context, wifiNative, mKeyStore, mLocalLog, mShowNetworks, true);
     }
 
     public void trimANQPCache(boolean all) {
@@ -3116,15 +3116,6 @@ public class WifiConfigManager {
         */
 
         return false;
-    }
-
-    /**
-     * Checks if the network is a sim config.
-     * @param config Config corresponding to the network.
-     * @return true if it is a sim config, false otherwise.
-     */
-    public boolean isSimConfig(WifiConfiguration config) {
-        return mWifiConfigStore.isSimConfig(config);
     }
 
     /**

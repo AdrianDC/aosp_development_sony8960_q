@@ -108,6 +108,7 @@ import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
+import com.android.server.wifi.util.TelephonyUtil;
 
 import java.io.BufferedReader;
 import java.io.FileDescriptor;
@@ -2143,8 +2144,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /**
      * reset cached SIM credential data
      */
-    public synchronized void resetSimAuthNetworks() {
-        sendMessage(CMD_RESET_SIM_NETWORKS);
+    public synchronized void resetSimAuthNetworks(boolean simPresent) {
+        sendMessage(CMD_RESET_SIM_NETWORKS, simPresent ? 1 : 0);
     }
 
     /**
@@ -4507,7 +4508,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     replyToMessage(message, message.what, stats);
                     break;
                 case CMD_RESET_SIM_NETWORKS:
-                    log("resetting EAP-SIM/AKA/AKA' networks since SIM was removed");
+                    log("resetting EAP-SIM/AKA/AKA' networks since SIM was changed");
                     mWifiConfigManager.resetSimNetworks();
                     break;
                 default:
@@ -5610,24 +5611,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             && targetWificonfiguration.networkId == networkId
                             && targetWificonfiguration.allowedKeyManagement
                                     .get(WifiConfiguration.KeyMgmt.IEEE8021X)
-                            &&  (eapMethod == WifiEnterpriseConfig.Eap.SIM
-                            || eapMethod == WifiEnterpriseConfig.Eap.AKA
-                            || eapMethod == WifiEnterpriseConfig.Eap.AKA_PRIME)) {
-                        TelephonyManager tm = (TelephonyManager)
-                                mContext.getSystemService(Context.TELEPHONY_SERVICE);
-                        if (tm != null) {
-                            String imsi = tm.getSubscriberId();
-                            String mccMnc = "";
-
-                            if (tm.getSimState() == TelephonyManager.SIM_STATE_READY)
-                                 mccMnc = tm.getSimOperator();
-
-                            String identity = buildIdentity(eapMethod, imsi, mccMnc);
-
-                            if (!identity.isEmpty()) {
-                                mWifiNative.simIdentityResponse(networkId, identity);
-                                identitySent = true;
-                            }
+                            && TelephonyUtil.isSimEapMethod(eapMethod)) {
+                        String identity = TelephonyUtil.getSimIdentity(mContext, eapMethod);
+                        if (identity != null) {
+                            mWifiNative.simIdentityResponse(networkId, identity);
+                            identitySent = true;
                         }
                     }
                     if (!identitySent) {
@@ -6686,10 +6674,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     stopRssiMonitoringOffload();
                     break;
                 case CMD_RESET_SIM_NETWORKS:
-                    if (mLastNetworkId != WifiConfiguration.INVALID_NETWORK_ID) {
+                    if (message.arg1 == 0 // sim was removed
+                            && mLastNetworkId != WifiConfiguration.INVALID_NETWORK_ID) {
                         WifiConfiguration config =
                                 mWifiConfigManager.getWifiConfiguration(mLastNetworkId);
-                        if (mWifiConfigManager.isSimConfig(config)) {
+                        if (TelephonyUtil.isSimConfig(config)) {
                             mWifiNative.disconnect();
                             transitionTo(mDisconnectingState);
                         }
@@ -7881,6 +7870,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return result;
     }
 
+    // TODO move to TelephonyUtil, same with utilities above
     String getGsmSimAuthResponse(String[] requestData, TelephonyManager tm) {
         StringBuilder sb = new StringBuilder();
         for (String challenge : requestData) {
@@ -7942,6 +7932,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return sb.toString();
     }
 
+    // TODO move to TelephonyUtil
     void handleGsmAuthRequest(SimAuthRequestData requestData) {
         if (targetWificonfiguration == null
                 || targetWificonfiguration.networkId == requestData.networkId) {
@@ -7969,6 +7960,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
+    // TODO move to TelephonyUtil
     void handle3GAuthRequest(SimAuthRequestData requestData) {
         StringBuilder sb = new StringBuilder();
         byte[] rand = null;

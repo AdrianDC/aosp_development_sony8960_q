@@ -391,9 +391,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                         String state = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
                         if (IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(state)) {
                             Log.d(TAG, "resetting networks because SIM was removed");
-                            mWifiStateMachine.resetSimAuthNetworks();
+                            mWifiStateMachine.resetSimAuthNetworks(false);
                             Log.d(TAG, "resetting country code because SIM is removed");
                             mCountryCode.simCardRemoved();
+                        } else if (IccCardConstants.INTENT_VALUE_ICC_LOADED.equals(state)) {
+                            Log.d(TAG, "resetting networks because SIM was loaded");
+                            mWifiStateMachine.resetSimAuthNetworks(true);
                         }
                     }
                 },
