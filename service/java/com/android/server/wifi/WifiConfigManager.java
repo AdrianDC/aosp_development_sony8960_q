@@ -402,8 +402,8 @@ public class WifiConfigManager {
         mSIMAccessor = new SIMAccessor(mContext);
         mWriter = new DelayedDiskWrite();
         mIpconfigStore = new IpConfigStore(mWriter);
-        mWifiNetworkHistory = new WifiNetworkHistory(context, mLocalLog, mWriter);
-        mWifiSupplicantControl = new WifiSupplicantControl(wifiNative, mLocalLog);
+        mWifiNetworkHistory = new WifiNetworkHistory(mContext, mLocalLog, mWriter);
+        mWifiSupplicantControl = new WifiSupplicantControl(mContext, wifiNative, mLocalLog);
         mWifiKeyStore = new WifiKeyStore(keyStore);
         mBackupManagerProxy = new BackupManagerProxy();
     }
@@ -3076,15 +3076,6 @@ public class WifiConfigManager {
         } else {
             mLocalLog.log(s + " " + netId);
         }
-    }
-
-    /**
-     * Checks if the network is a sim config.
-     * @param config Config corresponding to the network.
-     * @return true if it is a sim config, false otherwise.
-     */
-    public boolean isSimConfig(WifiConfiguration config) {
-        return mWifiSupplicantControl.isSimConfig(config);
     }
 
     /**
