@@ -503,67 +503,80 @@ public class WifiConfigManagerNew {
      */
     private void mergeWithInternalWifiConfiguration(
             WifiConfiguration externalConfig, WifiConfiguration internalConfig) {
-        if (!TextUtils.isEmpty(externalConfig.SSID)) {
+        if (externalConfig.SSID != null) {
             internalConfig.SSID = externalConfig.SSID;
         }
-        if (!TextUtils.isEmpty(externalConfig.BSSID)) {
+        if (externalConfig.BSSID != null) {
             internalConfig.BSSID = externalConfig.BSSID;
         }
         internalConfig.hiddenSSID = externalConfig.hiddenSSID;
-        if (!TextUtils.isEmpty(externalConfig.preSharedKey)) {
+        if (externalConfig.preSharedKey != null) {
             internalConfig.preSharedKey = externalConfig.preSharedKey;
         }
-        internalConfig.wepTxKeyIndex = externalConfig.wepTxKeyIndex;
         // Modify only wep keys are present in the provided configuration. This is a little tricky
         // because there is no easy way to tell if the app is actually trying to null out the
         // existing keys or not.
         if (externalConfig.wepKeys != null) {
+            boolean hasWepKey = false;
             for (int i = 0; i < internalConfig.wepKeys.length; i++) {
                 if (externalConfig.wepKeys[i] != null) {
                     internalConfig.wepKeys[i] = externalConfig.wepKeys[i];
+                    hasWepKey = true;
                 }
             }
+            if (hasWepKey) {
+                internalConfig.wepTxKeyIndex = externalConfig.wepTxKeyIndex;
+            }
         }
-        if (!TextUtils.isEmpty(externalConfig.FQDN)) {
+        if (externalConfig.FQDN != null) {
             internalConfig.FQDN = externalConfig.FQDN;
         }
-        if (!TextUtils.isEmpty(externalConfig.providerFriendlyName)) {
+        if (externalConfig.providerFriendlyName != null) {
             internalConfig.providerFriendlyName = externalConfig.providerFriendlyName;
         }
         if (externalConfig.roamingConsortiumIds != null) {
             internalConfig.roamingConsortiumIds = externalConfig.roamingConsortiumIds;
         }
 
-        // Copy over the auth parameters if set.
-        if (!externalConfig.allowedAuthAlgorithms.isEmpty()) {
+        // Copy over all the auth/protocol/key mgmt parameters if set.
+        if (externalConfig.allowedAuthAlgorithms != null
+                && !externalConfig.allowedAuthAlgorithms.isEmpty()) {
             internalConfig.allowedAuthAlgorithms = externalConfig.allowedAuthAlgorithms;
         }
-        if (!externalConfig.allowedProtocols.isEmpty()) {
+        if (externalConfig.allowedProtocols != null
+                && !externalConfig.allowedProtocols.isEmpty()) {
             internalConfig.allowedProtocols = externalConfig.allowedProtocols;
         }
-        if (!externalConfig.allowedKeyManagement.isEmpty()) {
+        if (externalConfig.allowedKeyManagement != null
+                && !externalConfig.allowedKeyManagement.isEmpty()) {
             internalConfig.allowedKeyManagement = externalConfig.allowedKeyManagement;
         }
-        if (!externalConfig.allowedPairwiseCiphers.isEmpty()) {
+        if (externalConfig.allowedPairwiseCiphers != null
+                && !externalConfig.allowedPairwiseCiphers.isEmpty()) {
             internalConfig.allowedPairwiseCiphers = externalConfig.allowedPairwiseCiphers;
         }
-        if (!externalConfig.allowedGroupCiphers.isEmpty()) {
+        if (externalConfig.allowedGroupCiphers != null
+                && !externalConfig.allowedGroupCiphers.isEmpty()) {
             internalConfig.allowedGroupCiphers = externalConfig.allowedGroupCiphers;
         }
 
-        // Copy over the IpConfiguration parameters if set.
-        if (externalConfig.getIpAssignment() != IpConfiguration.IpAssignment.UNASSIGNED) {
-            internalConfig.setIpAssignment(externalConfig.getIpAssignment());
-            internalConfig.setStaticIpConfiguration(externalConfig.getStaticIpConfiguration());
-        }
-        if (externalConfig.getProxySettings() != IpConfiguration.ProxySettings.UNASSIGNED) {
-            internalConfig.setProxySettings(externalConfig.getProxySettings());
-            internalConfig.setHttpProxy(externalConfig.getHttpProxy());
+        // Copy over the |IpConfiguration| parameters if set.
+        if (externalConfig.getIpConfiguration() != null) {
+            if (externalConfig.getIpAssignment() != IpConfiguration.IpAssignment.UNASSIGNED) {
+                internalConfig.setIpAssignment(externalConfig.getIpAssignment());
+                internalConfig.setStaticIpConfiguration(externalConfig.getStaticIpConfiguration());
+            }
+            if (externalConfig.getProxySettings() != IpConfiguration.ProxySettings.UNASSIGNED) {
+                internalConfig.setProxySettings(externalConfig.getProxySettings());
+                internalConfig.setHttpProxy(externalConfig.getHttpProxy());
+            }
         }
 
-        // TODO(b/29641570): Merge enterprise config params. We may need to just check for non-null
-        // values even above so that apps can reset fields during an update if needed.
-        internalConfig.enterpriseConfig = new WifiEnterpriseConfig(externalConfig.enterpriseConfig);
+        // Copy over the |WifiEnterpriseConfig| parameters if set.
+        if (externalConfig.enterpriseConfig != null) {
+            internalConfig.enterpriseConfig =
+                    new WifiEnterpriseConfig(externalConfig.enterpriseConfig);
+        }
     }
 
     /**

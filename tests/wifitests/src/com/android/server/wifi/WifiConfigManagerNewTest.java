@@ -26,6 +26,7 @@ import android.content.pm.PackageManager;
 import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiManager;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -40,6 +41,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -104,6 +106,10 @@ public class WifiConfigManagerNewTest {
                 return PackageManager.PERMISSION_DENIED;
             }
         }).when(mFrameworkFacade).checkUidPermission(anyString(), anyInt());
+
+        when(mWifiKeyStore
+                .updateNetworkKeys(any(WifiConfiguration.class), any(WifiConfiguration.class)))
+                .thenReturn(true);
 
         mWifiConfigManager =
                 new WifiConfigManagerNew(
@@ -596,7 +602,8 @@ public class WifiConfigManagerNewTest {
         // Now try to update the last connect UID with |TEST_UPDATE_UID|, it should fail and
         // the lastConnectUid should remain the same.
         assertFalse(
-                mWifiConfigManager.checkAndUpdateLastConnectUid(result.getNetworkId(), TEST_UPDATE_UID));
+                mWifiConfigManager.checkAndUpdateLastConnectUid(
+                        result.getNetworkId(), TEST_UPDATE_UID));
         retrievedNetwork = mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
         assertEquals(TEST_CREATOR_UID, retrievedNetwork.lastConnectUid);
     }
@@ -648,6 +655,120 @@ public class WifiConfigManagerNewTest {
                 result.getNetworkId() +1, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER));
         assertFalse(mWifiConfigManager.checkAndUpdateLastConnectUid(
                 result.getNetworkId() +1, TEST_CREATOR_UID));
+    }
+
+    /**
+     * Verifies multiple modification of a single network using
+     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}.
+     * This test is basically checking if the apps can reset some of the fields of the config after
+     * addition. The fields being reset in this test are the |preSharedKey| and |wepKeys|.
+     * 1. Create an open network initially.
+     * 2. Modify the added network config to a WEP network config with all the 4 keys set.
+     * 3. Modify the added network config to a WEP network config with only 1 key set.
+     * 4. Modify the added network config to a PSK network config.
+     */
+    @Test
+    public void testMultipleUpdatesSingleNetwork() {
+        WifiConfiguration network = WifiConfigurationTestUtil.createOpenNetwork();
+        verifyAddNetworkToWifiConfigManager(network);
+
+        // Now add |wepKeys| to the network. We don't need to update the |allowedKeyManagement|
+        // fields for open to WEP conversion.
+        String[] wepKeys =
+                Arrays.copyOf(WifiConfigurationTestUtil.TEST_WEP_KEYS,
+                        WifiConfigurationTestUtil.TEST_WEP_KEYS.length);
+        int wepTxKeyIdx = WifiConfigurationTestUtil.TEST_WEP_TX_KEY_INDEX;
+        assertAndSetNetworkWepKeysAndTxIndex(network, wepKeys, wepTxKeyIdx);
+
+        verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(network);
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                network, mWifiConfigManager.getConfiguredNetworkWithPassword(network.networkId));
+
+        // Now empty out 3 of the |wepKeys[]| and ensure that those keys have been reset correctly.
+        for (int i = 1; i < network.wepKeys.length; i++) {
+            wepKeys[i] = "";
+        }
+        wepTxKeyIdx = 0;
+        assertAndSetNetworkWepKeysAndTxIndex(network, wepKeys, wepTxKeyIdx);
+
+        verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(network);
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                network, mWifiConfigManager.getConfiguredNetworkWithPassword(network.networkId));
+
+        // Now change the config to a PSK network config by resetting the remaining |wepKey[0]|
+        // field and setting the |preSharedKey| and |allowedKeyManagement| fields.
+        wepKeys[0] = "";
+        wepTxKeyIdx = -1;
+        assertAndSetNetworkWepKeysAndTxIndex(network, wepKeys, wepTxKeyIdx);
+        network.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
+        assertAndSetNetworkPreSharedKey(network, WifiConfigurationTestUtil.TEST_PSK);
+
+        verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(network);
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                network, mWifiConfigManager.getConfiguredNetworkWithPassword(network.networkId));
+    }
+
+    /**
+     * Verifies the modification of a WifiEnteriseConfig using
+     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}.
+     */
+    @Test
+    public void testUpdateWifiEnterpriseConfig() {
+        WifiConfiguration network = WifiConfigurationTestUtil.createEapNetwork();
+        verifyAddNetworkToWifiConfigManager(network);
+
+        // Set the |password| field in WifiEnterpriseConfig and modify the config to PEAP/GTC.
+        network.enterpriseConfig =
+                WifiConfigurationTestUtil.createPEAPWifiEnterpriseConfigWithGTCPhase2();
+        assertAndSetNetworkEnterprisePassword(network, "test");
+
+        verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(network);
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                network, mWifiConfigManager.getConfiguredNetworkWithPassword(network.networkId));
+
+        // Reset the |password| field in WifiEnterpriseConfig and modify the config to TLS/None.
+        network.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
+        network.enterpriseConfig.setPhase2Method(WifiEnterpriseConfig.Phase2.NONE);
+        assertAndSetNetworkEnterprisePassword(network, "");
+
+        verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(network);
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                network, mWifiConfigManager.getConfiguredNetworkWithPassword(network.networkId));
+    }
+
+    /**
+     * Verifies the modification of a single network using
+     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)} by passing in nulls
+     * in all the publicly exposed fields.
+     */
+    @Test
+    public void testUpdateSingleNetworkWithNullValues() {
+        WifiConfiguration network = WifiConfigurationTestUtil.createEapNetwork();
+        verifyAddNetworkToWifiConfigManager(network);
+
+        // Save a copy of the original network for comparison.
+        WifiConfiguration originalNetwork = new WifiConfiguration(network);
+
+        // Now set all the public fields to null and try updating the network.
+        network.allowedAuthAlgorithms = null;
+        network.allowedProtocols = null;
+        network.allowedKeyManagement = null;
+        network.allowedPairwiseCiphers = null;
+        network.allowedGroupCiphers = null;
+        network.setIpConfiguration(null);
+        network.enterpriseConfig = null;
+
+        verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(network);
+
+        // Copy over the updated debug params to the original network config before comparison.
+        originalNetwork.lastUpdateUid = network.lastUpdateUid;
+        originalNetwork.lastUpdateName = network.lastUpdateName;
+        originalNetwork.updateTime = network.updateTime;
+
+        // Now verify that there was no change to the network configurations.
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                originalNetwork,
+                mWifiConfigManager.getConfiguredNetworkWithPassword(originalNetwork.networkId));
     }
 
     /**
@@ -709,33 +830,61 @@ public class WifiConfigManagerNewTest {
                 WifiConfigManagerNew.createDebugTimeStampString(TEST_WALLCLOCK_UPDATE_TIME_MILLIS);
     }
 
+    private void assertNotEquals(Object expected, Object actual) {
+        if (actual != null) {
+            assertFalse(actual.equals(expected));
+        } else {
+            assertNotNull(expected);
+        }
+    }
+
     /**
      * Modifies the provided WifiConfiguration with the specified bssid value. Also, asserts that
      * the existing |BSSID| field is not the same value as the one being set
      */
     private void assertAndSetNetworkBSSID(WifiConfiguration configuration, String bssid) {
-        // Equivalent to assertNotEquals.
-        if (configuration.BSSID != null) {
-            assertFalse(configuration.BSSID.equals(bssid));
-        } else {
-            assertNotNull(bssid);
-        }
+        assertNotEquals(bssid, configuration.BSSID);
         configuration.BSSID = bssid;
     }
 
     /**
      * Modifies the provided WifiConfiguration with the specified |IpConfiguration| object. Also,
-     * asserts that the existing |IpConfiguration| field is not the same value as the one being set
+     * asserts that the existing |mIpConfiguration| field is not the same value as the one being set
      */
     private void assertAndSetNetworkIpConfiguration(
             WifiConfiguration configuration, IpConfiguration ipConfiguration) {
-        // Equivalent to assertNotEquals.
-        if (configuration.getIpConfiguration() != null) {
-            assertFalse(configuration.getIpConfiguration().equals(ipConfiguration));
-        } else {
-            assertNotNull(configuration.getIpConfiguration());
-        }
+        assertNotEquals(ipConfiguration, configuration.getIpConfiguration());
         configuration.setIpConfiguration(ipConfiguration);
+    }
+
+    /**
+     * Modifies the provided WifiConfiguration with the specified |wepKeys| value and
+     * |wepTxKeyIndex|.
+     */
+    private void assertAndSetNetworkWepKeysAndTxIndex(
+            WifiConfiguration configuration, String[] wepKeys, int wepTxKeyIdx) {
+        assertNotEquals(wepKeys, configuration.wepKeys);
+        assertNotEquals(wepTxKeyIdx, configuration.wepTxKeyIndex);
+        configuration.wepKeys = Arrays.copyOf(wepKeys, wepKeys.length);
+        configuration.wepTxKeyIndex = wepTxKeyIdx;
+    }
+
+    /**
+     * Modifies the provided WifiConfiguration with the specified |preSharedKey| value.
+     */
+    private void assertAndSetNetworkPreSharedKey(
+            WifiConfiguration configuration, String preSharedKey) {
+        assertNotEquals(preSharedKey, configuration.preSharedKey);
+        configuration.preSharedKey = preSharedKey;
+    }
+
+    /**
+     * Modifies the provided WifiConfiguration with the specified enteprise |password| value.
+     */
+    private void assertAndSetNetworkEnterprisePassword(
+            WifiConfiguration configuration, String password) {
+        assertNotEquals(password, configuration.enterpriseConfig.getPassword());
+        configuration.enterpriseConfig.setPassword(password);
     }
 
     /**
