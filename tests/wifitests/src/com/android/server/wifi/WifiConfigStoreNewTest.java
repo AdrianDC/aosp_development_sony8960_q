@@ -82,7 +82,7 @@ public class WifiConfigStoreNewTest {
                         mContext, mLooper.getLooper(), mClock, mSharedStore, mUserStore);
 
         // Enable verbose logging before tests.
-        mWifiConfigStore.enableVerboseLogging(1);
+        mWifiConfigStore.enableVerboseLogging(true);
     }
 
     /**

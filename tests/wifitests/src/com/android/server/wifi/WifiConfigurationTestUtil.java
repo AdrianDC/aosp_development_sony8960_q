@@ -389,6 +389,31 @@ public class WifiConfigurationTestUtil {
     }
 
     /**
+     * Asserts that the 2 WifiConfigurations are equal. This compares all the elements that are
+     * saved into internal database by WifiConfigurationManager for network additions/updates.
+     */
+    public static void assertConfigurationEqualForConfigManagerAddOrUpdate(
+            WifiConfiguration expected, WifiConfiguration actual) {
+        assertCommonConfigurationElementsEqual(expected, actual);
+        assertEquals(expected.FQDN, actual.FQDN);
+        assertEquals(expected.providerFriendlyName, actual.providerFriendlyName);
+        assertEquals(expected.noInternetAccessExpected, actual.noInternetAccessExpected);
+        assertEquals(expected.meteredHint, actual.meteredHint);
+        assertEquals(expected.useExternalScores, actual.useExternalScores);
+        assertEquals(expected.ephemeral, actual.ephemeral);
+        assertEquals(expected.creatorUid, actual.creatorUid);
+        assertEquals(expected.creatorName, actual.creatorName);
+        assertEquals(expected.creationTime, actual.creationTime);
+        assertEquals(expected.lastUpdateUid, actual.lastUpdateUid);
+        assertEquals(expected.lastUpdateName, actual.lastUpdateName);
+        assertEquals(expected.updateTime, actual.updateTime);
+        assertNetworkSelectionStatusEqualForConfigStore(
+                expected.getNetworkSelectionStatus(), actual.getNetworkSelectionStatus());
+        assertWifiEnterpriseConfigEqualForConfigStore(
+                expected.enterpriseConfig, actual.enterpriseConfig);
+    }
+
+    /**
      * Assert that the 2 NetworkSelectionStatus's are equal. This compares all the elements saved
      * for config store.
      */
@@ -458,6 +483,29 @@ public class WifiConfigurationTestUtil {
                 String actualConfigKey = actualConfiguration.configKey();
                 if (actualConfigKey.equals(expectedConfigKey)) {
                     assertConfigurationEqualForBackup(
+                            expectedConfiguration, actualConfiguration);
+                    didCompare = true;
+                }
+            }
+            assertTrue(didCompare);
+        }
+    }
+
+    /**
+     * Asserts that the 2 lists of WifiConfigurations are equal. This compares all the elements
+     * that are saved into internal database by WifiConfigurationManager for network
+     * additions/updates.
+     */
+    public static void assertConfigurationsEqualForConfigManagerAddOrUpdate(
+            List<WifiConfiguration> expected, List<WifiConfiguration> actual) {
+        assertEquals(expected.size(), actual.size());
+        for (WifiConfiguration expectedConfiguration : expected) {
+            String expectedConfigKey = expectedConfiguration.configKey();
+            boolean didCompare = false;
+            for (WifiConfiguration actualConfiguration : actual) {
+                String actualConfigKey = actualConfiguration.configKey();
+                if (actualConfigKey.equals(expectedConfigKey)) {
+                    assertConfigurationEqualForConfigManagerAddOrUpdate(
                             expectedConfiguration, actualConfiguration);
                     didCompare = true;
                 }
