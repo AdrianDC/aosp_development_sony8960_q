@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "wifi_system/interface_utils.h"
+#include "wifi_system/interface_tool.h"
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -33,7 +33,7 @@ const char kWlan0InterfaceName[] = "wlan0";
 
 }  // namespace
 
-bool set_iface_up(const char* if_name, bool request_up) {
+bool InterfaceTool::SetUpState(const char* if_name, bool request_up) {
   base::unique_fd sock(socket(PF_INET, SOCK_DGRAM, 0));
   if (sock.get() < 0) {
     ALOGE("Bad socket: %d, errno: %d\n", sock.get(), errno);
@@ -72,8 +72,8 @@ bool set_iface_up(const char* if_name, bool request_up) {
   return true;
 }
 
-bool set_wifi_iface_up(bool request_up) {
-  return set_iface_up(kWlan0InterfaceName, request_up);
+bool InterfaceTool::SetWifiUpState(bool request_up) {
+  return SetUpState(kWlan0InterfaceName, request_up);
 }
 
 }  // namespace wifi_system

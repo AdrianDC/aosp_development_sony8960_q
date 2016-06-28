@@ -96,6 +96,7 @@ endif
 # ============================================================
 include $(CLEAR_VARS)
 LOCAL_MODULE := libwifi-hal
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
 LOCAL_EXPORT_C_INCLUDE_DIRS := \
     $(LOCAL_PATH)/include \
     $(call include-path-for, libhardware_legacy)
@@ -104,6 +105,8 @@ LOCAL_SHARED_LIBRARIES := \
     liblog \
     libnl \
     libutils
+LOCAL_SRC_FILES := \
+    driver_tool.cpp
 LOCAL_WHOLE_STATIC_LIBRARIES := $(LIB_WIFI_HAL) libwifi-hal-common
 include $(BUILD_SHARED_LIBRARY)
 

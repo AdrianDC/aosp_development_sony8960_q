@@ -14,22 +14,26 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_WIFI_SYSTEM_INTERFACE_UTILS_H
-#define ANDROID_WIFI_SYSTEM_INTERFACE_UTILS_H
+#ifndef ANDROID_WIFI_SYSTEM_HAL_TOOL_H
+#define ANDROID_WIFI_SYSTEM_HAL_TOOL_H
+
+#include <hardware_legacy/wifi_hal.h>
 
 namespace android {
 namespace wifi_system {
 
-// Set the interface named by |if_name| up or down.
-// Returns true on success, false otherwise.
-bool set_iface_up(const char* if_name, bool request_up);
+// Utilities for interacting with the HAL.
+class HalTool {
+ public:
+  HalTool() = default;
+  virtual ~HalTool() = default;
 
-// A helpful alias for set_iface_up() that assumes there is a single system
-// WiFi interface.  Prefer this form if you're hardcoding "wlan0" to help us
-// identify all the places we are hardcoding the name of the wifi interface.
-bool set_wifi_iface_up(bool request_up);
+  virtual bool InitFunctionTable(wifi_hal_fn* hal_fn);
+
+  virtual bool CanGetValidChannels(wifi_hal_fn* hal_fn);
+};  // class HalTool
 
 }  // namespace wifi_system
 }  // namespace android
 
-#endif  // ANDROID_WIFI_SYSTEM_INTERFACE_UTILS_H
+#endif  // ANDROID_WIFI_SYSTEM_HAL_TOOL_H
