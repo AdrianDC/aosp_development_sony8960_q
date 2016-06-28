@@ -110,4 +110,18 @@ LOCAL_SRC_FILES := \
 LOCAL_WHOLE_STATIC_LIBRARIES := $(LIB_WIFI_HAL) libwifi-hal-common
 include $(BUILD_SHARED_LIBRARY)
 
+# Test utilities (e.g. mock classes) for libwifi-hal
+# ============================================================
+include $(CLEAR_VARS)
+LOCAL_MODULE := libwifi-hal-test
+LOCAL_CFLAGS := $(wifi_hal_cflags)
+LOCAL_C_INCLUDES := \
+    $(LOCAL_PATH)/include \
+    $(LOCAL_PATH)/testlib/include
+LOCAL_STATIC_LIBRARIES := libgmock
+LOCAL_EXPORT_C_INCLUDE_DIRS := \
+    $(LOCAL_PATH)/include \
+    $(LOCAL_PATH)/testlib/include
+include $(BUILD_STATIC_LIBRARY)
+
 endif

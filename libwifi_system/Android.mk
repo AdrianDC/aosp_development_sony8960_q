@@ -16,11 +16,7 @@ LOCAL_PATH := $(call my-dir)
 
 ifneq ($(TARGET_BUILD_PDK), true)
 
-# Device independent wifi system logic.
-# ============================================================
-include $(CLEAR_VARS)
-LOCAL_MODULE := libwifi-system
-LOCAL_CFLAGS := \
+wifi_system_cflags := \
     -Wall \
     -Werror \
     -Wextra \
@@ -30,6 +26,12 @@ LOCAL_CFLAGS := \
     -Wshadow \
     -Wunused-variable \
     -Wwrite-strings
+
+# Device independent wifi system logic.
+# ============================================================
+include $(CLEAR_VARS)
+LOCAL_MODULE := libwifi-system
+LOCAL_CFLAGS := $(wifi_system_cflags)
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
 LOCAL_SHARED_LIBRARIES := \
@@ -51,5 +53,19 @@ LOCAL_SRC_FILES := \
     hal_tool.cpp \
     wifi.cpp
 include $(BUILD_SHARED_LIBRARY)
+
+# Test utilities (e.g. mock classes) for libwifi-system
+# ============================================================
+include $(CLEAR_VARS)
+LOCAL_MODULE := libwifi-system-test
+LOCAL_CFLAGS := $(wifi_system_cflags)
+LOCAL_C_INCLUDES := \
+    $(LOCAL_PATH)/include \
+    $(LOCAL_PATH)/testlib/include
+LOCAL_STATIC_LIBRARIES := libgmock
+LOCAL_EXPORT_C_INCLUDE_DIRS := \
+    $(LOCAL_PATH)/include \
+    $(LOCAL_PATH)/testlib/include
+include $(BUILD_STATIC_LIBRARY)
 
 endif
