@@ -25,6 +25,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.IpConfiguration;
 import android.net.ProxyInfo;
+import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
@@ -39,6 +40,7 @@ import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalServices;
+import com.android.server.wifi.util.ScanResultUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -120,6 +122,18 @@ public class WifiConfigManagerNew {
             Integer.MAX_VALUE,  // threshold for DISABLED_BY_WIFI_MANAGER
             Integer.MAX_VALUE   // threshold for DISABLED_BY_USER_SWITCH
     };
+    /**
+     * Max size of scan details to cache in {@link #mScanDetailCaches}.
+     */
+    @VisibleForTesting
+    public static final int SCAN_CACHE_ENTRIES_MAX_SIZE = 192;
+    /**
+     * Once the size of the scan details in the cache {@link #mScanDetailCaches} exceeds
+     * {@link #SCAN_CACHE_ENTRIES_MAX_SIZE}, trim it down to this value so that we have some
+     * buffer time before the next eviction.
+     */
+    @VisibleForTesting
+    public static final int SCAN_CACHE_ENTRIES_TRIM_SIZE = 128;
     /**
      * Flags to be passed in for |canModifyNetwork| to decide if the change is minor and can
      * bypass the lockdown checks.
@@ -1102,7 +1116,7 @@ public class WifiConfigManagerNew {
      *
      * @param networkId network ID corresponding to the network.
      * @param uid       uid of the app requesting the connection.
-     * @return  {@code true} if |uid| has the necessary permission to trigger connection to the
+     * @return {@code true} if |uid| has the necessary permission to trigger connection to the
      * network, {@code false} otherwise.
      */
     public boolean checkAndUpdateLastConnectUid(int networkId, int uid) {
@@ -1118,6 +1132,123 @@ public class WifiConfigManagerNew {
         }
         config.lastConnectUid = uid;
         return true;
+    }
+
+    /**
+     * Helper method to get the scan detail cache entry {@link #mScanDetailCaches} for the provided
+     * network.
+     *
+     * @param networkId network ID corresponding to the network.
+     * @return existing {@link ScanDetailCache} entry if one exists or null.
+     */
+    @VisibleForTesting
+    public ScanDetailCache getScanDetailCacheForNetwork(int networkId) {
+        return mScanDetailCaches.get(networkId);
+    }
+
+    /**
+     * Helper method to get or create a scan detail cache entry {@link #mScanDetailCaches} for
+     * the provided network.
+     *
+     * @param config configuration corresponding to the the network.
+     * @return existing {@link ScanDetailCache} entry if one exists or a new instance created for
+     * this network.
+     */
+    private ScanDetailCache getOrCreateScanDetailCacheForNetwork(WifiConfiguration config) {
+        if (config == null) return null;
+        ScanDetailCache cache = getScanDetailCacheForNetwork(config.networkId);
+        if (cache == null && config.networkId != WifiConfiguration.INVALID_NETWORK_ID) {
+            cache =
+                    new ScanDetailCache(
+                            config, SCAN_CACHE_ENTRIES_MAX_SIZE, SCAN_CACHE_ENTRIES_TRIM_SIZE);
+            mScanDetailCaches.put(config.networkId, cache);
+        }
+        return cache;
+    }
+
+    /**
+     * Saves the provided ScanDetail into the corresponding scan detail cache entry
+     * {@link #mScanDetailCaches} for the provided network.
+     *
+     * @param config     configuration corresponding to the the network.
+     * @param scanDetail new scan detail instance to be saved into the cache.
+     */
+    private void saveToScanDetailCacheForNetwork(
+            WifiConfiguration config, ScanDetail scanDetail) {
+        ScanResult scanResult = scanDetail.getScanResult();
+
+        ScanDetailCache scanDetailCache = getOrCreateScanDetailCacheForNetwork(config);
+        if (scanDetailCache == null) {
+            Log.e(TAG, "Could not allocate scan cache for " + config.getPrintableSsid());
+            return;
+        }
+
+        // Adding a new BSSID
+        ScanResult result = scanDetailCache.get(scanResult.BSSID);
+        if (result != null) {
+            // transfer the black list status
+            scanResult.blackListTimestamp = result.blackListTimestamp;
+            scanResult.numIpConfigFailures = result.numIpConfigFailures;
+            scanResult.numConnection = result.numConnection;
+            scanResult.isAutoJoinCandidate = result.isAutoJoinCandidate;
+        }
+        if (config.ephemeral) {
+            // For an ephemeral Wi-Fi config, the ScanResult should be considered
+            // untrusted.
+            scanResult.untrusted = true;
+        }
+
+        // Add the scan detail to this network's scan detail cache.
+        scanDetailCache.put(scanDetail);
+
+        // Since we added a scan result to this configuration, re-attempt linking
+        // TODO: linkConfiguration(config);
+    }
+
+    /**
+     * Retrieves a saved network corresponding to the provided scan detail if one exists.
+     *
+     * @param scanDetail ScanDetail instance  to use for looking up the network.
+     * @return WifiConfiguration object representing the network corresponding to the scanDetail,
+     * null if none exists.
+     */
+    private WifiConfiguration getSavedNetworkForScanDetail(ScanDetail scanDetail) {
+        ScanResult scanResult = scanDetail.getScanResult();
+        if (scanResult == null) {
+            Log.e(TAG, "No scan result found in scan detail");
+            return null;
+        }
+        // Add the double quotes to the scan result SSID for comparison with the network configs.
+        String ssidToCompare = "\"" + scanResult.SSID + "\"";
+        for (WifiConfiguration config : getInternalConfiguredNetworks()) {
+            if (config.SSID == null || !config.SSID.equals(ssidToCompare)) {
+                continue;
+            }
+            if (ScanResultUtil.doesScanResultEncryptionMatchWithNetwork(scanResult, config)) {
+                localLog("getSavedNetworkFromScanDetail: Found " + config.configKey()
+                        + " for " + scanResult.SSID + "[" + scanResult.capabilities + "]");
+                return config;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Retrieves a saved network corresponding to the provided scan detail if one exists and caches
+     * the provided |scanDetail| into the corresponding scan detail cache entry
+     * {@link #mScanDetailCaches} for the retrieved network.
+     *
+     * @param scanDetail input a scanDetail from the scan result
+     * @return WifiConfiguration object representing the network corresponding to the scanDetail,
+     * null if none exists.
+     */
+    public WifiConfiguration getSavedNetworkForScanDetailAndCache(ScanDetail scanDetail) {
+        WifiConfiguration network = getSavedNetworkForScanDetail(scanDetail);
+        if (network == null) {
+            return null;
+        }
+        saveToScanDetailCacheForNetwork(network, scanDetail);
+        return getConfiguredNetworkWithPassword(network.networkId);
     }
 
     /**

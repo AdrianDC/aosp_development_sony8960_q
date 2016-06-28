@@ -131,10 +131,10 @@ public class WifiConfigurationTestUtil {
         WifiConfiguration config = generateWifiConfig(networkId, uid, ssid, shared, enabled, fqdn,
                 providerFriendlyName);
 
-        if (security == SECURITY_NONE) {
+        if ((security == SECURITY_NONE) || ((security & SECURITY_WEP) != 0)) {
             config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
         } else {
-            if (((security & SECURITY_WEP) != 0) || ((security & SECURITY_PSK) != 0)) {
+            if ((security & SECURITY_PSK) != 0) {
                 config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
             }
 

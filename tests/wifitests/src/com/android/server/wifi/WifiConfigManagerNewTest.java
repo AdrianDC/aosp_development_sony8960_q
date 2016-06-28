@@ -24,10 +24,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.IpConfiguration;
+import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiSsid;
+import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -649,12 +652,12 @@ public class WifiConfigManagerNewTest {
 
         NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
 
-        assertFalse(mWifiConfigManager.enableNetwork(result.getNetworkId() +1, TEST_CREATOR_UID));
-        assertFalse(mWifiConfigManager.disableNetwork(result.getNetworkId() +1, TEST_CREATOR_UID));
+        assertFalse(mWifiConfigManager.enableNetwork(result.getNetworkId() + 1, TEST_CREATOR_UID));
+        assertFalse(mWifiConfigManager.disableNetwork(result.getNetworkId() + 1, TEST_CREATOR_UID));
         assertFalse(mWifiConfigManager.updateNetworkSelectionStatus(
-                result.getNetworkId() +1, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER));
+                result.getNetworkId() + 1, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER));
         assertFalse(mWifiConfigManager.checkAndUpdateLastConnectUid(
-                result.getNetworkId() +1, TEST_CREATOR_UID));
+                result.getNetworkId() + 1, TEST_CREATOR_UID));
     }
 
     /**
@@ -769,6 +772,118 @@ public class WifiConfigManagerNewTest {
         WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
                 originalNetwork,
                 mWifiConfigManager.getConfiguredNetworkWithPassword(originalNetwork.networkId));
+    }
+
+    /**
+     * Verifies the matching of networks with different encryption types with the
+     * corresponding scan detail using
+     * {@link WifiConfigManagerNew#getSavedNetworkForScanDetailAndCache(ScanDetail)}.
+     * The test also verifies that the provided scan detail was cached,
+     */
+    @Test
+    public void testMatchScanDetailToNetworksAndCache() {
+        // Create networks of different types and ensure that they're all matched using
+        // the corresponding ScanDetail correctly.
+        verifyAddSingleNetworkAndMatchScanDetailToNetworkAndCache(
+                WifiConfigurationTestUtil.createOpenNetwork());
+        verifyAddSingleNetworkAndMatchScanDetailToNetworkAndCache(
+                WifiConfigurationTestUtil.createWepNetwork());
+        verifyAddSingleNetworkAndMatchScanDetailToNetworkAndCache(
+                WifiConfigurationTestUtil.createPskNetwork());
+        verifyAddSingleNetworkAndMatchScanDetailToNetworkAndCache(
+                WifiConfigurationTestUtil.createEapNetwork());
+    }
+
+    /**
+     * Verifies that scan details with wrong SSID/authentication types are not matched using
+     * {@link WifiConfigManagerNew#getSavedNetworkForScanDetailAndCache(ScanDetail)}
+     * to the added networks.
+     */
+    @Test
+    public void testNoMatchScanDetailToNetwork() {
+        // First create networks of different types.
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        WifiConfiguration wepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        WifiConfiguration eapNetwork = WifiConfigurationTestUtil.createEapNetwork();
+
+        // Now add them to WifiConfigManager.
+        verifyAddNetworkToWifiConfigManager(openNetwork);
+        verifyAddNetworkToWifiConfigManager(wepNetwork);
+        verifyAddNetworkToWifiConfigManager(pskNetwork);
+        verifyAddNetworkToWifiConfigManager(eapNetwork);
+
+        // Now create dummy scan detail corresponding to the networks.
+        ScanDetail openNetworkScanDetail = createScanDetailForNetwork(openNetwork);
+        ScanDetail wepNetworkScanDetail = createScanDetailForNetwork(wepNetwork);
+        ScanDetail pskNetworkScanDetail = createScanDetailForNetwork(pskNetwork);
+        ScanDetail eapNetworkScanDetail = createScanDetailForNetwork(eapNetwork);
+
+        // Now mix and match parameters from different scan details.
+        openNetworkScanDetail.getScanResult().SSID =
+                wepNetworkScanDetail.getScanResult().SSID;
+        wepNetworkScanDetail.getScanResult().capabilities =
+                pskNetworkScanDetail.getScanResult().capabilities;
+        pskNetworkScanDetail.getScanResult().capabilities =
+                eapNetworkScanDetail.getScanResult().capabilities;
+        eapNetworkScanDetail.getScanResult().capabilities =
+                openNetworkScanDetail.getScanResult().capabilities;
+
+        // Try to lookup a saved network using the modified scan details. All of these should fail.
+        assertNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(openNetworkScanDetail));
+        assertNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(wepNetworkScanDetail));
+        assertNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(pskNetworkScanDetail));
+        assertNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(eapNetworkScanDetail));
+
+        // All the cache's should be empty as well.
+        assertNull(mWifiConfigManager.getScanDetailCacheForNetwork(openNetwork.networkId));
+        assertNull(mWifiConfigManager.getScanDetailCacheForNetwork(wepNetwork.networkId));
+        assertNull(mWifiConfigManager.getScanDetailCacheForNetwork(pskNetwork.networkId));
+        assertNull(mWifiConfigManager.getScanDetailCacheForNetwork(eapNetwork.networkId));
+    }
+
+    /**
+     * Verifies that scan detail cache is trimmed down when the size of the cache for a network
+     * exceeds {@link WifiConfigManagerNew#SCAN_CACHE_ENTRIES_MAX_SIZE}.
+     */
+    @Test
+    public void testScanDetailCacheTrimForNetwork() {
+        // Add a single network.
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        verifyAddNetworkToWifiConfigManager(openNetwork);
+
+        ScanDetailCache scanDetailCache;
+        String testBssidPrefix = "00:a5:b8:c9:45:";
+
+        // Modify |BSSID| field in the scan result and add copies of scan detail
+        // |SCAN_CACHE_ENTRIES_MAX_SIZE| times.
+        int scanDetailNum = 1;
+        for (; scanDetailNum <= WifiConfigManagerNew.SCAN_CACHE_ENTRIES_MAX_SIZE; scanDetailNum++) {
+            // Create dummy scan detail caches with different BSSID for the network.
+            ScanDetail scanDetail =
+                    createScanDetailForNetwork(
+                            openNetwork, String.format("%s%02x", testBssidPrefix, scanDetailNum));
+            assertNotNull(
+                    mWifiConfigManager.getSavedNetworkForScanDetailAndCache(scanDetail));
+
+            // The size of scan detail cache should keep growing until it hits
+            // |SCAN_CACHE_ENTRIES_MAX_SIZE|.
+            scanDetailCache =
+                    mWifiConfigManager.getScanDetailCacheForNetwork(openNetwork.networkId);
+            assertEquals(scanDetailNum, scanDetailCache.size());
+        }
+
+        // Now add the |SCAN_CACHE_ENTRIES_MAX_SIZE + 1| entry. This should trigger the trim.
+        ScanDetail scanDetail =
+                createScanDetailForNetwork(
+                        openNetwork, String.format("%s%02x", testBssidPrefix, scanDetailNum));
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(scanDetail));
+
+        // Retrieve the scan detail cache and ensure that the size was trimmed down to
+        // |SCAN_CACHE_ENTRIES_TRIM_SIZE + 1|. The "+1" is to account for the new entry that
+        // was added after the trim.
+        scanDetailCache = mWifiConfigManager.getScanDetailCacheForNetwork(openNetwork.networkId);
+        assertEquals(WifiConfigManagerNew.SCAN_CACHE_ENTRIES_TRIM_SIZE + 1, scanDetailCache.size());
     }
 
     /**
@@ -900,7 +1015,7 @@ public class WifiConfigManagerNewTest {
             WifiConfigStoreData storeData = storeDataCaptor.getValue();
 
             boolean foundNetworkInStoreData = false;
-            for (WifiConfiguration retrievedConfig: storeData.configurations) {
+            for (WifiConfiguration retrievedConfig : storeData.configurations) {
                 if (retrievedConfig.configKey().equals(configuration.configKey())) {
                     foundNetworkInStoreData = true;
                 }
@@ -927,7 +1042,7 @@ public class WifiConfigManagerNewTest {
     }
 
     private void assertPasswordsMaskedInWifiConfiguration(WifiConfiguration configuration) {
-        if(!TextUtils.isEmpty(configuration.preSharedKey)) {
+        if (!TextUtils.isEmpty(configuration.preSharedKey)) {
             assertEquals(WifiConfigManagerNew.PASSWORD_MASK, configuration.preSharedKey);
         }
         if (configuration.wepKeys != null) {
@@ -937,7 +1052,7 @@ public class WifiConfigManagerNewTest {
                 }
             }
         }
-        if(!TextUtils.isEmpty(configuration.enterpriseConfig.getPassword())) {
+        if (!TextUtils.isEmpty(configuration.enterpriseConfig.getPassword())) {
             assertEquals(
                     WifiConfigManagerNew.PASSWORD_MASK,
                     configuration.enterpriseConfig.getPassword());
@@ -1184,4 +1299,63 @@ public class WifiConfigManagerNewTest {
         }
     }
 
+    /**
+     * Creates a scan detail corresponding to the provided network and BSSID value.
+     */
+    private ScanDetail createScanDetailForNetwork(WifiConfiguration configuration, String bssid) {
+        String caps;
+        if (configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
+            caps = "[WPA2-PSK-CCMP]";
+        } else if (configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP)
+                || configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
+            caps = "[WPA2-EAP-CCMP]";
+        } else if (configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)
+                && WifiConfigurationUtil.hasAnyValidWepKey(configuration.wepKeys)) {
+            caps = "[WEP]";
+        } else {
+            caps = "[]";
+        }
+        WifiSsid ssid = WifiSsid.createFromAsciiEncoded(configuration.getPrintableSsid());
+        // Fill in 0's in the fields we don't care about.
+        return new ScanDetail(
+                ssid, bssid, caps, 0, 0, SystemClock.uptimeMillis(), System.currentTimeMillis());
+    }
+
+    /**
+     * Creates a scan detail corresponding to the provided network and fixed BSSID value.
+     */
+    private ScanDetail createScanDetailForNetwork(WifiConfiguration configuration) {
+        return createScanDetailForNetwork(configuration, TEST_BSSID);
+    }
+
+    /**
+     * Adds the provided network and then creates a scan detail corresponding to the network. The
+     * method then creates a ScanDetail corresponding to the network and ensures that the network
+     * is properly matched using
+     * {@link WifiConfigManagerNew#getSavedNetworkForScanDetailAndCache(ScanDetail)} and also
+     * verifies that the provided scan detail was cached,
+     */
+    private void verifyAddSingleNetworkAndMatchScanDetailToNetworkAndCache(
+            WifiConfiguration network) {
+        // First add the provided network.
+        verifyAddNetworkToWifiConfigManager(network);
+
+        // Now create a dummy scan detail corresponding to the network.
+        ScanDetail scanDetail = createScanDetailForNetwork(network);
+        ScanResult scanResult = scanDetail.getScanResult();
+
+        WifiConfiguration retrievedNetwork =
+                mWifiConfigManager.getSavedNetworkForScanDetailAndCache(scanDetail);
+
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                network, retrievedNetwork);
+
+        // Now retrieve the scan detail cache and ensure that the new scan detail is in cache.
+        ScanDetailCache retrievedScanDetailCache =
+                mWifiConfigManager.getScanDetailCacheForNetwork(network.networkId);
+        assertEquals(1, retrievedScanDetailCache.size());
+        ScanResult retrievedScanResult = retrievedScanDetailCache.get(scanResult.BSSID);
+
+        ScanTestUtil.assertScanResultEquals(scanResult, retrievedScanResult);
+    }
 }

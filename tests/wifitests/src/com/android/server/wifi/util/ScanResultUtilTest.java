@@ -33,10 +33,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
- * Unit tests for {@link com.android.server.wifi.util.ScanDetailUtil}.
+ * Unit tests for {@link com.android.server.wifi.util.ScanResultUtil}.
  */
 @SmallTest
-public class ScanDetailUtilTest {
+public class ScanResultUtilTest {
 
     @Test
     public void convertScanResult() {
@@ -49,7 +49,7 @@ public class ScanDetailUtilTest {
             createIE(InformationElement.EID_SSID, ssid.getBytes(StandardCharsets.UTF_8))
         };
 
-        ScanDetail output = ScanDetailUtil.toScanDetail(input);
+        ScanDetail output = ScanResultUtil.toScanDetail(input);
 
         validateScanDetail(input, output);
     }
@@ -66,7 +66,7 @@ public class ScanDetailUtilTest {
         };
         input.anqpLines = Arrays.asList("LINE 1", "line 2", "Line 3");
 
-        ScanDetail output = ScanDetailUtil.toScanDetail(input);
+        ScanDetail output = ScanResultUtil.toScanDetail(input);
 
         validateScanDetail(input, output);
     }
@@ -80,7 +80,7 @@ public class ScanDetailUtilTest {
             createIE(InformationElement.EID_SSID, ssid.getBytes(StandardCharsets.UTF_8))
         };
 
-        ScanDetail output = ScanDetailUtil.toScanDetail(input);
+        ScanDetail output = ScanResultUtil.toScanDetail(input);
 
         validateScanDetail(input, output);
     }

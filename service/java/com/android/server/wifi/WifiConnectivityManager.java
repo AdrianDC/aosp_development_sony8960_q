@@ -36,7 +36,7 @@ import android.util.Log;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.server.wifi.util.ScanDetailUtil;
+import com.android.server.wifi.util.ScanResultUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -285,7 +285,7 @@ public class WifiConnectivityManager {
                             + fullScanResult.capabilities);
             }
 
-            mScanDetails.add(ScanDetailUtil.toScanDetail(fullScanResult));
+            mScanDetails.add(ScanResultUtil.toScanDetail(fullScanResult));
         }
     }
 
@@ -354,7 +354,7 @@ public class WifiConnectivityManager {
                             + fullScanResult.capabilities);
             }
 
-            mScanDetails.add(ScanDetailUtil.toScanDetail(fullScanResult));
+            mScanDetails.add(ScanResultUtil.toScanDetail(fullScanResult));
         }
     }
 
@@ -478,7 +478,7 @@ public class WifiConnectivityManager {
             localLog("PnoScanListener: onPnoNetworkFound: results len = " + results.length);
 
             for (ScanResult result: results) {
-                mScanDetails.add(ScanDetailUtil.toScanDetail(result));
+                mScanDetails.add(ScanResultUtil.toScanDetail(result));
             }
 
             boolean wasConnectAttempted;

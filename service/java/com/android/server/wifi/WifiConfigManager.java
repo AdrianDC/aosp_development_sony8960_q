@@ -2272,7 +2272,9 @@ public class WifiConfigManager {
         if (config == null) return null;
         ScanDetailCache cache = mScanDetailCaches.get(config.networkId);
         if (cache == null && config.networkId != WifiConfiguration.INVALID_NETWORK_ID) {
-            cache = new ScanDetailCache(config);
+            cache =
+                    new ScanDetailCache(
+                            config, MAX_NUM_SCAN_CACHE_ENTRIES + 64, MAX_NUM_SCAN_CACHE_ENTRIES);
             mScanDetailCaches.put(config.networkId, cache);
         }
         return cache;
@@ -2650,30 +2652,6 @@ public class WifiConfigManager {
             // For an ephemeral Wi-Fi config, the ScanResult should be considered
             // untrusted.
             scanResult.untrusted = true;
-        }
-
-        if (scanDetailCache.size() > (MAX_NUM_SCAN_CACHE_ENTRIES + 64)) {
-            long now_dbg = 0;
-            if (mVerboseLoggingEnabled) {
-                logd(" Will trim config " + config.configKey()
-                        + " size " + scanDetailCache.size());
-
-                for (ScanDetail sd : scanDetailCache.values()) {
-                    logd("     " + sd.getBSSIDString() + " " + sd.getSeen());
-                }
-                now_dbg = mClock.getElapsedSinceBootNanos();
-            }
-            // Trim the scan result cache to MAX_NUM_SCAN_CACHE_ENTRIES entries max
-            // Since this operation is expensive, make sure it is not performed
-            // until the cache has grown significantly above the trim treshold
-            scanDetailCache.trim(MAX_NUM_SCAN_CACHE_ENTRIES);
-            if (mVerboseLoggingEnabled) {
-                long diff = mClock.getElapsedSinceBootNanos() - now_dbg;
-                logd(" Finished trimming config, time(ns) " + diff);
-                for (ScanDetail sd : scanDetailCache.values()) {
-                    logd("     " + sd.getBSSIDString() + " " + sd.getSeen());
-                }
-            }
         }
 
         // Add the scan result to this WifiConfiguration
