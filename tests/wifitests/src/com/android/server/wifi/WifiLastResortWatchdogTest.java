@@ -55,8 +55,7 @@ public class WifiLastResortWatchdogTest {
     @Before
     public void setUp() throws Exception {
         initMocks(this);
-        mLastResortWatchdog = new WifiLastResortWatchdog(mWifiMetrics);
-        mLastResortWatchdog.setWifiController(mWifiController);
+        mLastResortWatchdog = new WifiLastResortWatchdog(mWifiController, mWifiMetrics);
     }
 
     private List<Pair<ScanDetail, WifiConfiguration>> createFilteredQnsCandidates(String[] ssids,

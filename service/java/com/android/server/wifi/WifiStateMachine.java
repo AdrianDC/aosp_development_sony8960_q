@@ -180,7 +180,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     protected void log(String s) {
         Log.d(getName(), s);
     }
-    private WifiLastResortWatchdog mWifiLastResortWatchdog;
     private WifiMetrics mWifiMetrics;
     private WifiInjector mWifiInjector;
     private WifiMonitor mWifiMonitor;
@@ -939,7 +938,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         super("WifiStateMachine", looper);
         mWifiInjector = wifiInjector;
         mWifiMetrics = mWifiInjector.getWifiMetrics();
-        mWifiLastResortWatchdog = wifiInjector.getWifiLastResortWatchdog();
         mClock = wifiInjector.getClock();
         mPropertyService = wifiInjector.getPropertyService();
         mBuildProperties = wifiInjector.getBuildProperties();
@@ -1163,8 +1161,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 sendMessage(CMD_IPV4_PROVISIONING_SUCCESS, dhcpResults);
             } else {
                 sendMessage(CMD_IPV4_PROVISIONING_FAILURE);
-                mWifiLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(getTargetSsid(),
-                        mTargetRoamBSSID,
+                mWifiInjector.getWifiLastResortWatchdog().noteConnectionFailureAndTriggerIfNeeded(
+                        getTargetSsid(), mTargetRoamBSSID,
                         WifiLastResortWatchdog.FAILURE_CODE_DHCP);
             }
         }
@@ -3781,6 +3779,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      *******************************************************/
 
     class DefaultState extends State {
+
         @Override
         public boolean processMessage(Message message) {
             logStateAndMessage(message, this);
@@ -5117,8 +5116,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
             // Inform metrics that Wifi is Enabled (but not yet connected)
             mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_DISCONNECTED);
-
-
         }
 
         @Override
@@ -5168,9 +5165,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_ASSOCIATION_REJECTION,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
-                    mWifiLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(getTargetSsid(),
-                            bssid,
-                            WifiLastResortWatchdog.FAILURE_CODE_ASSOCIATION);
+                    mWifiInjector.getWifiLastResortWatchdog()
+                            .noteConnectionFailureAndTriggerIfNeeded(
+                                    getTargetSsid(), bssid,
+                                    WifiLastResortWatchdog.FAILURE_CODE_ASSOCIATION);
                     break;
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                     mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_AUTH_FAILURE);
@@ -5184,9 +5182,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_AUTHENTICATION_FAILURE,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
-                    mWifiLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(getTargetSsid(),
-                            mTargetRoamBSSID,
-                            WifiLastResortWatchdog.FAILURE_CODE_AUTHENTICATION);
+                    mWifiInjector.getWifiLastResortWatchdog()
+                            .noteConnectionFailureAndTriggerIfNeeded(
+                                    getTargetSsid(), mTargetRoamBSSID,
+                                    WifiLastResortWatchdog.FAILURE_CODE_AUTHENTICATION);
                     break;
                 case WifiMonitor.SSID_TEMP_DISABLED:
                     Log.e(TAG, "Supplicant SSID temporary disabled:"
@@ -5198,9 +5197,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_SSID_TEMP_DISABLED,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
-                    mWifiLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(getTargetSsid(),
-                            mTargetRoamBSSID,
-                            WifiLastResortWatchdog.FAILURE_CODE_AUTHENTICATION);
+                    mWifiInjector.getWifiLastResortWatchdog()
+                            .noteConnectionFailureAndTriggerIfNeeded(
+                                    getTargetSsid(), mTargetRoamBSSID,
+                                    WifiLastResortWatchdog.FAILURE_CODE_AUTHENTICATION);
                     break;
                 case WifiMonitor.SSID_REENABLED:
                     Log.d(TAG, "Supplicant SSID reenable:"
@@ -6865,7 +6865,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             mLastDriverRoamAttempt = 0;
             mTargetNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
-            mWifiLastResortWatchdog.connectedStateTransition(true);
+            mWifiInjector.getWifiLastResortWatchdog().connectedStateTransition(true);
         }
         @Override
         public boolean processMessage(Message message) {
@@ -7127,7 +7127,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
 
             mLastDriverRoamAttempt = 0;
-            mWifiLastResortWatchdog.connectedStateTransition(false);
+            mWifiInjector.getWifiLastResortWatchdog().connectedStateTransition(false);
         }
     }
 

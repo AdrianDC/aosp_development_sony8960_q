@@ -79,9 +79,10 @@ public class WifiLastResortWatchdog {
 
     private WifiMetrics mWifiMetrics;
 
-    private WifiController mWifiController = null;
+    private WifiController mWifiController;
 
-    WifiLastResortWatchdog(WifiMetrics wifiMetrics) {
+    WifiLastResortWatchdog(WifiController wifiController, WifiMetrics wifiMetrics) {
+        mWifiController = wifiController;
         mWifiMetrics = wifiMetrics;
     }
 
@@ -548,15 +549,5 @@ public class WifiLastResortWatchdog {
                     + ", Dhcp: " + dhcpFailure
                     + "}";
         }
-    }
-
-    /**
-     * Method used to set the WifiController for the this watchdog.
-     *
-     * The WifiController is used to send the restart wifi command to carry out the wifi restart.
-     * @param wifiController WifiController instance that will be sent the CMD_RESTART_WIFI message.
-     */
-    public void setWifiController(WifiController wifiController) {
-        mWifiController = wifiController;
     }
 }
