@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import static com.android.server.wifi.WifiConfigurationTestUtil.generateWifiConfig;
+import static com.android.server.wifi.WifiStateMachine.WIFI_WORK_SOURCE;
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
@@ -45,6 +46,7 @@ import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -128,6 +130,10 @@ public class WifiConnectivityManagerTest {
 
     WifiScanner mockWifiScanner() {
         WifiScanner scanner = mock(WifiScanner.class);
+        ArgumentCaptor<ScanListener> allSingleScanListenerCaptor =
+                ArgumentCaptor.forClass(ScanListener.class);
+
+        doNothing().when(scanner).registerScanListener(allSingleScanListenerCaptor.capture());
 
         // dummy scan results. QNS PeriodicScanListener bulids scanDetails from
         // the fullScanResult and doesn't really use results
@@ -144,6 +150,7 @@ public class WifiConnectivityManagerTest {
                 public void answer(ScanSettings settings, ScanListener listener,
                         WorkSource workSource) throws Exception {
                     listener.onResults(scanDatas);
+                    allSingleScanListenerCaptor.getValue().onResults(scanDatas);
                 }}).when(scanner).startScan(anyObject(), anyObject(), anyObject());
 
         // This unfortunately needs to be a somewhat valid scan result, otherwise
@@ -914,5 +921,27 @@ public class WifiConnectivityManagerTest {
         // are the retrial ones.
         verify(mWifiScanner, times(WifiConnectivityManager.MAX_SCAN_RESTART_ALLOWED + 1)).startScan(
                 anyObject(), anyObject(), anyObject());
+    }
+
+    /**
+     * Listen to scan results not requested by WifiConnectivityManager and
+     * act on them.
+     *
+     * Expected behavior: WifiConnectivityManager calls
+     * WifiStateMachine.autoConnectToNetwork() with the
+     * expected candidate network ID and BSSID.
+     */
+    @Test
+    public void listenToAllSingleScanResults() {
+        ScanSettings settings = new ScanSettings();
+        ScanListener scanListener = mock(ScanListener.class);
+
+        // Request a single scan outside of WifiConnectivityManager.
+        mWifiScanner.startScan(settings, scanListener, WIFI_WORK_SOURCE);
+
+        // Verify that WCM receives the scan results and initiates a connection
+        // to the network.
+        verify(mWifiStateMachine).autoConnectToNetwork(
+                CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 }
