@@ -30,21 +30,19 @@ import android.os.Handler;
 import android.os.Message;
 import android.text.TextUtils;
 import android.util.ArraySet;
-import android.util.Base64;
 import android.util.LocalLog;
 import android.util.Log;
 import android.util.SparseArray;
 
+import com.android.internal.util.Protocol;
+import com.android.internal.util.StateMachine;
 import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl.P2pStatus;
-
-import com.android.internal.util.Protocol;
-import com.android.internal.util.StateMachine;
+import com.android.server.wifi.util.TelephonyUtil.SimAuthRequestData;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1338,8 +1336,7 @@ public class WifiMonitor {
         } else if (requestName.startsWith(SIM_STR)) {
             Matcher matchGsm = mRequestGsmAuthPattern.matcher(requestName);
             Matcher matchUmts = mRequestUmtsAuthPattern.matcher(requestName);
-            WifiStateMachine.SimAuthRequestData data =
-                    new WifiStateMachine.SimAuthRequestData();
+            SimAuthRequestData data = new SimAuthRequestData();
             if (matchGsm.find()) {
                 data.networkId = Integer.parseInt(matchGsm.group(1));
                 data.protocol = WifiEnterpriseConfig.Eap.SIM;

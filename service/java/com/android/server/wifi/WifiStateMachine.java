@@ -110,6 +110,8 @@ import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
 import com.android.server.wifi.util.TelephonyUtil;
+import com.android.server.wifi.util.TelephonyUtil.SimAuthRequestData;
+import com.android.server.wifi.util.TelephonyUtil.SimAuthResponseData;
 
 import java.io.BufferedReader;
 import java.io.FileDescriptor;
@@ -870,15 +872,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /* Soft ap state */
     private State mSoftApState = new SoftApState();
 
-    public static class SimAuthRequestData {
-        int networkId;
-        int protocol;
-        String ssid;
-        // EAP-SIM: data[] contains the 3 rand, one for each of the 3 challenges
-        // EAP-AKA/AKA': data[] contains rand & authn couple for the single challenge
-        String[] data;
-    }
-
     /**
      * One of  {@link WifiManager#WIFI_STATE_DISABLED},
      * {@link WifiManager#WIFI_STATE_DISABLING},
@@ -921,6 +914,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * The last reported UIDs that were responsible for starting WIFI.
      */
     private final WorkSource mLastRunningWifiUids = new WorkSource();
+
+    private TelephonyManager mTelephonyManager;
+    private TelephonyManager getTelephonyManager() {
+        if (mTelephonyManager == null) {
+            mTelephonyManager = mWifiInjector.makeTelephonyManager();
+        }
+        return mTelephonyManager;
+    }
 
     private final IBatteryStats mBatteryStats;
 
@@ -5410,7 +5411,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             && targetWificonfiguration.allowedKeyManagement
                                     .get(WifiConfiguration.KeyMgmt.IEEE8021X)
                             && TelephonyUtil.isSimEapMethod(eapMethod)) {
-                        String identity = TelephonyUtil.getSimIdentity(mContext, eapMethod);
+                        String identity =
+                                TelephonyUtil.getSimIdentity(getTelephonyManager(), eapMethod);
                         if (identity != null) {
                             mWifiNative.simIdentityResponse(networkId, identity);
                             identitySent = true;
@@ -7559,142 +7561,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    private static int parseHex(char ch) {
-        if ('0' <= ch && ch <= '9') {
-            return ch - '0';
-        } else if ('a' <= ch && ch <= 'f') {
-            return ch - 'a' + 10;
-        } else if ('A' <= ch && ch <= 'F') {
-            return ch - 'A' + 10;
-        } else {
-            throw new NumberFormatException("" + ch + " is not a valid hex digit");
-        }
-    }
-
-    private byte[] parseHex(String hex) {
-        /* This only works for good input; don't throw bad data at it */
-        if (hex == null) {
-            return new byte[0];
-        }
-
-        if (hex.length() % 2 != 0) {
-            throw new NumberFormatException(hex + " is not a valid hex string");
-        }
-
-        byte[] result = new byte[(hex.length())/2 + 1];
-        result[0] = (byte) ((hex.length())/2);
-        for (int i = 0, j = 1; i < hex.length(); i += 2, j++) {
-            int val = parseHex(hex.charAt(i)) * 16 + parseHex(hex.charAt(i+1));
-            byte b = (byte) (val & 0xFF);
-            result[j] = b;
-        }
-
-        return result;
-    }
-
-    private static String makeHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b));
-        }
-        return sb.toString();
-    }
-
-    private static String makeHex(byte[] bytes, int from, int len) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < len; i++) {
-            sb.append(String.format("%02x", bytes[from+i]));
-        }
-        return sb.toString();
-    }
-
-    private static byte[] concatHex(byte[] array1, byte[] array2) {
-
-        int len = array1.length + array2.length;
-
-        byte[] result = new byte[len];
-
-        int index = 0;
-        if (array1.length != 0) {
-            for (byte b : array1) {
-                result[index] = b;
-                index++;
-            }
-        }
-
-        if (array2.length != 0) {
-            for (byte b : array2) {
-                result[index] = b;
-                index++;
-            }
-        }
-
-        return result;
-    }
-
-    // TODO move to TelephonyUtil, same with utilities above
-    String getGsmSimAuthResponse(String[] requestData, TelephonyManager tm) {
-        StringBuilder sb = new StringBuilder();
-        for (String challenge : requestData) {
-            if (challenge == null || challenge.isEmpty()) {
-                continue;
-            }
-            logd("RAND = " + challenge);
-
-            byte[] rand = null;
-            try {
-                rand = parseHex(challenge);
-            } catch (NumberFormatException e) {
-                loge("malformed challenge");
-                continue;
-            }
-
-            String base64Challenge = android.util.Base64.encodeToString(
-                    rand, android.util.Base64.NO_WRAP);
-
-            // Try USIM first for authentication.
-            String tmResponse = tm.getIccAuthentication(TelephonyManager.APPTYPE_USIM,
-                    TelephonyManager.AUTHTYPE_EAP_SIM, base64Challenge);
-            if (tmResponse == null) {
-                /* Then, in case of failure, issue may be due to sim type, retry as a simple sim
-                 */
-                tmResponse = tm.getIccAuthentication(TelephonyManager.APPTYPE_SIM,
-                        TelephonyManager.AUTHTYPE_EAP_SIM, base64Challenge);
-            }
-            logv("Raw Response - " + tmResponse);
-
-            if (tmResponse == null || tmResponse.length() <= 4) {
-                loge("bad response - " + tmResponse);
-                return null;
-            }
-
-            byte[] result = android.util.Base64.decode(tmResponse, android.util.Base64.DEFAULT);
-            logv("Hex Response -" + makeHex(result));
-            int sres_len = result[0];
-            if (sres_len >= result.length) {
-                loge("malfomed response - " + tmResponse);
-                return null;
-            }
-            String sres = makeHex(result, 1, sres_len);
-            int kc_offset = 1 + sres_len;
-            if (kc_offset >= result.length) {
-                loge("malfomed response - " + tmResponse);
-                return null;
-            }
-            int kc_len = result[kc_offset];
-            if (kc_offset + kc_len > result.length) {
-                loge("malfomed response - " + tmResponse);
-                return null;
-            }
-            String kc = makeHex(result, 1 + kc_offset, kc_len);
-            sb.append(":" + kc + ":" + sres);
-            logv("kc:" + kc + " sres:" + sres);
-        }
-
-        return sb.toString();
-    }
-
-    // TODO move to TelephonyUtil
     void handleGsmAuthRequest(SimAuthRequestData requestData) {
         if (targetWificonfiguration == null
                 || targetWificonfiguration.networkId == requestData.networkId) {
@@ -7704,16 +7570,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             return;
         }
 
-        TelephonyManager tm = (TelephonyManager)
-                mContext.getSystemService(Context.TELEPHONY_SERVICE);
-
-        if (tm == null) {
-            loge("could not get telephony manager");
-            mWifiNative.simAuthFailedResponse(requestData.networkId);
-            return;
-        }
-
-        String response = getGsmSimAuthResponse(requestData.data, tm);
+        String response =
+                TelephonyUtil.getGsmSimAuthResponse(requestData.data, getTelephonyManager());
         if (response == null) {
             mWifiNative.simAuthFailedResponse(requestData.networkId);
         } else {
@@ -7722,13 +7580,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    // TODO move to TelephonyUtil
     void handle3GAuthRequest(SimAuthRequestData requestData) {
-        StringBuilder sb = new StringBuilder();
-        byte[] rand = null;
-        byte[] authn = null;
-        String res_type = "UMTS-AUTH";
-
         if (targetWificonfiguration == null
                 || targetWificonfiguration.networkId == requestData.networkId) {
             logd("id matches targetWifiConfiguration");
@@ -7736,69 +7588,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             logd("id does not match targetWifiConfiguration");
             return;
         }
-        if (requestData.data.length == 2) {
-            try {
-                rand = parseHex(requestData.data[0]);
-                authn = parseHex(requestData.data[1]);
-            } catch (NumberFormatException e) {
-                loge("malformed challenge");
-            }
-        } else {
-               loge("malformed challenge");
-        }
 
-        String tmResponse = "";
-        if (rand != null && authn != null) {
-            String base64Challenge = android.util.Base64.encodeToString(
-                    concatHex(rand,authn), android.util.Base64.NO_WRAP);
-
-            TelephonyManager tm = (TelephonyManager)
-                    mContext.getSystemService(Context.TELEPHONY_SERVICE);
-            if (tm != null) {
-                tmResponse = tm.getIccAuthentication(TelephonyManager.APPTYPE_USIM,
-                        TelephonyManager.AUTHTYPE_EAP_AKA, base64Challenge);
-                logv("Raw Response - " + tmResponse);
-            } else {
-                loge("could not get telephony manager");
-            }
-        }
-
-        boolean good_response = false;
-        if (tmResponse != null && tmResponse.length() > 4) {
-            byte[] result = android.util.Base64.decode(tmResponse,
-                    android.util.Base64.DEFAULT);
-            loge("Hex Response - " + makeHex(result));
-            byte tag = result[0];
-            if (tag == (byte) 0xdb) {
-                logv("successful 3G authentication ");
-                int res_len = result[1];
-                String res = makeHex(result, 2, res_len);
-                int ck_len = result[res_len + 2];
-                String ck = makeHex(result, res_len + 3, ck_len);
-                int ik_len = result[res_len + ck_len + 3];
-                String ik = makeHex(result, res_len + ck_len + 4, ik_len);
-                sb.append(":" + ik + ":" + ck + ":" + res);
-                logv("ik:" + ik + "ck:" + ck + " res:" + res);
-                good_response = true;
-            } else if (tag == (byte) 0xdc) {
-                loge("synchronisation failure");
-                int auts_len = result[1];
-                String auts = makeHex(result, 2, auts_len);
-                res_type = "UMTS-AUTS";
-                sb.append(":" + auts);
-                logv("auts:" + auts);
-                good_response = true;
-            } else {
-                loge("bad response - unknown tag = " + tag);
-            }
-        } else {
-            loge("bad response - " + tmResponse);
-        }
-
-        if (good_response) {
-            String response = sb.toString();
-            logv("Supplicant Response -" + response);
-            mWifiNative.simAuthResponse(requestData.networkId, res_type, response);
+        SimAuthResponseData response =
+                TelephonyUtil.get3GAuthResponse(requestData, getTelephonyManager());
+        if (response != null) {
+            mWifiNative.simAuthResponse(requestData.networkId, response.type, response.response);
         } else {
             mWifiNative.umtsAuthFailedResponse(requestData.networkId);
         }

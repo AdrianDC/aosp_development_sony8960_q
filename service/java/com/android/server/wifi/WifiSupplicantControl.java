@@ -16,7 +16,6 @@
 
 package com.android.server.wifi;
 
-import android.content.Context;
 import android.net.IpConfiguration.IpAssignment;
 import android.net.IpConfiguration.ProxySettings;
 import android.net.wifi.WifiConfiguration;
@@ -25,6 +24,7 @@ import android.net.wifi.WifiSsid;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.WpsResult;
 import android.os.FileObserver;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.LocalLog;
 import android.util.Log;
@@ -70,13 +70,14 @@ public class WifiSupplicantControl {
     private static final String TAG = "WifiSupplicantControl";
     private final LocalLog mLocalLog;
     private final WpaConfigFileObserver mFileObserver;
-    private final Context mContext;
+    private final TelephonyManager mTelephonyManager;
     private final WifiNative mWifiNative;
 
     private boolean mVerboseLoggingEnabled = false;
 
-    WifiSupplicantControl(Context context, WifiNative wifiNative, LocalLog localLog) {
-        mContext = context;
+    WifiSupplicantControl(TelephonyManager telephonyManager, WifiNative wifiNative,
+            LocalLog localLog) {
+        mTelephonyManager = telephonyManager;
         mWifiNative = wifiNative;
 
         mLocalLog = localLog;
@@ -885,7 +886,7 @@ public class WifiSupplicantControl {
         if (mVerboseLoggingEnabled) localLog("resetSimNetworks");
         for (WifiConfiguration config : configs) {
             if (TelephonyUtil.isSimConfig(config)) {
-                String currentIdentity = TelephonyUtil.getSimIdentity(mContext,
+                String currentIdentity = TelephonyUtil.getSimIdentity(mTelephonyManager,
                         config.enterpriseConfig.getEapMethod());
                 String supplicantIdentity =
                         mWifiNative.getNetworkVariable(config.networkId, "identity");

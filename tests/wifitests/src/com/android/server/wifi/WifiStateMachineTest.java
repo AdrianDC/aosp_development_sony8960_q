@@ -22,8 +22,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
 import android.app.ActivityManager;
-import android.app.test.TestAlarmManager;
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
+import android.app.test.TestAlarmManager;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -60,7 +60,6 @@ import android.provider.Settings;
 import android.security.KeyStore;
 import android.telephony.TelephonyManager;
 import android.test.suitebuilder.annotation.SmallTest;
-import android.util.Base64;
 import android.util.Log;
 
 import com.android.internal.R;
@@ -1011,59 +1010,6 @@ public class WifiStateMachineTest {
 
         verify(mWifiNative).doCustomSupplicantCommand(command);
         assertEquals(true, result);
-    }
-
-    private String createSimChallengeRequest(byte[] challengeValue) {
-        // Produce a base64 encoded length byte + data.
-        byte[] challengeLengthAndValue = new byte[challengeValue.length + 1];
-        challengeLengthAndValue[0] = (byte) challengeValue.length;
-        for (int i = 0; i < challengeValue.length; ++i) {
-            challengeLengthAndValue[i + 1] = challengeValue[i];
-        }
-        return Base64.encodeToString(challengeLengthAndValue, android.util.Base64.NO_WRAP);
-    }
-
-    private String createSimAuthResponse(byte[] sresValue, byte[] kcValue) {
-        // Produce a base64 encoded sres length byte + sres + kc length byte + kc.
-        int overallLength = sresValue.length + kcValue.length + 2;
-        byte[] result = new byte[sresValue.length + kcValue.length + 2];
-        int idx = 0;
-        result[idx++] = (byte) sresValue.length;
-        for (int i = 0; i < sresValue.length; ++i) {
-            result[idx++] = sresValue[i];
-        }
-        result[idx++] = (byte) kcValue.length;
-        for (int i = 0; i < kcValue.length; ++i) {
-            result[idx++] = kcValue[i];
-        }
-        return Base64.encodeToString(result, Base64.NO_WRAP);
-    }
-
-    /** Verifies function getGsmSimAuthResponse method. */
-    @Test
-    public void getGsmSimAuthResponseTest() throws Exception {
-        TelephonyManager tm = mock(TelephonyManager.class);
-        final String[] invalidRequests = { null, "", "XXXX" };
-        assertEquals("", mWsm.getGsmSimAuthResponse(invalidRequests, tm));
-
-        final String[] failedRequests = { "5E5F" };
-        when(tm.getIccAuthentication(anyInt(), anyInt(),
-                eq(createSimChallengeRequest(new byte[] { 0x5e, 0x5f })))).thenReturn(null);
-        assertEquals(null, mWsm.getGsmSimAuthResponse(failedRequests, tm));
-
-        when(tm.getIccAuthentication(2, tm.AUTHTYPE_EAP_SIM,
-                createSimChallengeRequest(new byte[] { 0x1a, 0x2b })))
-                .thenReturn(null);
-        when(tm.getIccAuthentication(1, tm.AUTHTYPE_EAP_SIM,
-                createSimChallengeRequest(new byte[] { 0x1a, 0x2b })))
-                .thenReturn(createSimAuthResponse(new byte[] { 0x1D, 0x2C },
-                       new byte[] { 0x3B, 0x4A }));
-        when(tm.getIccAuthentication(1, tm.AUTHTYPE_EAP_SIM,
-                createSimChallengeRequest(new byte[] { 0x01, 0x23 })))
-                .thenReturn(createSimAuthResponse(new byte[] { 0x33, 0x22 },
-                        new byte[] { 0x11, 0x00 }));
-        assertEquals(":3b4a:1d2c:1100:3322", mWsm.getGsmSimAuthResponse(
-                new String[] { "1A2B", "0123" }, tm));
     }
 
     /**

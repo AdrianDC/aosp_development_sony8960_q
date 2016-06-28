@@ -28,6 +28,7 @@ import android.os.SystemProperties;
 import android.os.UserManager;
 import android.provider.Settings;
 import android.security.KeyStore;
+import android.telephony.TelephonyManager;
 
 import com.android.internal.R;
 import com.android.server.am.BatteryStatsService;
@@ -210,6 +211,11 @@ public class WifiInjector {
 
     public WifiMulticastLockManager getWifiMulticastLockManager() {
         return mWifiMulticastLockManager;
+    }
+
+    public TelephonyManager makeTelephonyManager() {
+        // may not be available when WiFi starts
+        return (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
     }
 
     public IWificond makeWificond() {

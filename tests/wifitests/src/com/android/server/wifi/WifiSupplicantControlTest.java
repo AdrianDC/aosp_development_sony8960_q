@@ -19,7 +19,7 @@ package com.android.server.wifi;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-import android.content.Context;
+import android.telephony.TelephonyManager;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import org.junit.Before;
@@ -157,7 +157,7 @@ public class WifiSupplicantControlTest {
             + "}\n";
 
     @Mock private WifiNative mWifiNative;
-    @Mock private Context mContext;
+    @Mock private TelephonyManager mTelephonyManager;
     private WifiSupplicantControl mWifiSupplicantControl;
 
     /**
@@ -166,7 +166,7 @@ public class WifiSupplicantControlTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        mWifiSupplicantControl = new WifiSupplicantControl(mContext, mWifiNative, null);
+        mWifiSupplicantControl = new WifiSupplicantControl(mTelephonyManager, mWifiNative, null);
     }
 
     /**

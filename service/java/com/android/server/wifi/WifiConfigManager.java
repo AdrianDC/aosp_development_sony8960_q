@@ -49,6 +49,7 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
 import android.security.KeyStore;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.LocalLog;
 import android.util.Log;
@@ -403,7 +404,8 @@ public class WifiConfigManager {
         mWriter = new DelayedDiskWrite();
         mIpconfigStore = new IpConfigStore(mWriter);
         mWifiNetworkHistory = new WifiNetworkHistory(mContext, mLocalLog, mWriter);
-        mWifiSupplicantControl = new WifiSupplicantControl(mContext, wifiNative, mLocalLog);
+        TelephonyManager tm = TelephonyManager.from(mContext);
+        mWifiSupplicantControl = new WifiSupplicantControl(tm, wifiNative, mLocalLog);
         mWifiKeyStore = new WifiKeyStore(keyStore);
         mBackupManagerProxy = new BackupManagerProxy();
     }
