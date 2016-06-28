@@ -64,6 +64,9 @@ public class TlvBufferUtilsTest {
 
     @Test
     public void testTlvIterate() {
+        final String ascii = "ABC";
+        final String nonAscii = "何かもっと複雑な";
+
         TlvBufferUtils.TlvConstructor tlv22 = new TlvBufferUtils.TlvConstructor(2, 2);
         tlv22.allocate(18);
         tlv22.putInt(0, 2);
@@ -98,9 +101,10 @@ public class TlvBufferUtilsTest {
         }
 
         TlvBufferUtils.TlvConstructor tlv02 = new TlvBufferUtils.TlvConstructor(0, 2);
-        tlv02.allocate(15);
+        tlv02.allocate(100);
         tlv02.putByte(0, (byte) 2);
-        tlv02.putString(0, "ABC");
+        tlv02.putString(0, ascii);
+        tlv02.putString(0, nonAscii);
 
         TlvBufferUtils.TlvIterable tlv02It = new TlvBufferUtils.TlvIterable(0, 2, tlv02.getArray(),
                 tlv02.getActualLength());
@@ -111,19 +115,23 @@ public class TlvBufferUtilsTest {
                 collector.checkThat("tlv02-correct-iteration-DATA", (int) tlv.getByte(),
                         equalTo(2));
             } else if (count == 1) {
-                collector.checkThat("tlv02-correct-iteration-mLength", tlv.mLength, equalTo(3));
-                collector.checkThat("tlv02-correct-iteration-DATA", tlv.getString().equals("ABC"),
+                collector.checkThat("tlv02-correct-iteration-mLength", tlv.mLength,
+                        equalTo(ascii.length()));
+                collector.checkThat("tlv02-correct-iteration-DATA", tlv.getString().equals(ascii),
                         equalTo(true));
+            } else if (count == 2) {
+                collector.checkThat("tlv02-correct-iteration-mLength", tlv.mLength,
+                        equalTo(nonAscii.getBytes().length));
+                collector.checkThat("tlv02-correct-iteration-DATA",
+                        tlv.getString().equals(nonAscii), equalTo(true));
             } else {
                 collector.checkThat("Invalid number of iterations in loop - tlv02", true,
                         equalTo(false));
             }
             ++count;
         }
-        if (count != 2) {
-            collector.checkThat("Invalid number of iterations outside loop - tlv02", true,
-                    equalTo(false));
-        }
+        collector.checkThat("Invalid number of iterations outside loop - tlv02", count,
+                equalTo(3));
     }
 
     @Test(expected = IllegalArgumentException.class)
