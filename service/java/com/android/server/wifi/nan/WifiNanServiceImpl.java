@@ -33,6 +33,7 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.SparseArray;
+import android.util.SparseIntArray;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -57,7 +58,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             new SparseArray<>();
     private int mNextClientId = 1;
     private int mNextRangingId = 1;
-    private final SparseArray<Integer> mUidByClientId = new SparseArray<>();
+    private final SparseIntArray mUidByClientId = new SparseIntArray();
 
     public WifiNanServiceImpl(Context context) {
         mContext = context.getApplicationContext();
@@ -401,15 +402,12 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     private void enforceClientValidity(int uid, int clientId) {
-        Integer uidLookup;
         synchronized (mLock) {
-            uidLookup = mUidByClientId.get(clientId);
-        }
-
-        boolean valid = uidLookup != null && uidLookup == uid;
-        if (!valid) {
-            throw new SecurityException("Attempting to use invalid uid+clientId mapping: uid=" + uid
-                    + ", clientId=" + clientId);
+            int uidIndex = mUidByClientId.indexOfKey(clientId);
+            if (uidIndex < 0 || mUidByClientId.valueAt(uidIndex) != uid) {
+                throw new SecurityException("Attempting to use invalid uid+clientId mapping: uid="
+                        + uid + ", clientId=" + clientId);
+            }
         }
     }
 
