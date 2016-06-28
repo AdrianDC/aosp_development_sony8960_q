@@ -20,6 +20,7 @@ import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
 import android.test.suitebuilder.annotation.SmallTest;
 import com.android.internal.R;
+import android.util.LocalLog;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -60,6 +61,7 @@ public class WifiLoggerTest {
     private static final int SMALL_RING_BUFFER_SIZE_KB = 32;
     private static final int LARGE_RING_BUFFER_SIZE_KB = 1024;
     private static final int BYTES_PER_KBYTE = 1024;
+    private LocalLog mWifiNativeLocalLog;
 
     private WifiNative.RingBufferStatus mFakeRbs;
     /**
@@ -77,15 +79,17 @@ public class WifiLoggerTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
+
         mFakeRbs = new WifiNative.RingBufferStatus();
         mFakeRbs.name = FAKE_RING_BUFFER_NAME;
-
         WifiNative.RingBufferStatus[] ringBufferStatuses = new WifiNative.RingBufferStatus[] {
                 mFakeRbs
         };
+        mWifiNativeLocalLog = new LocalLog(8192);
 
         when(mWifiNative.getRingBufferStatus()).thenReturn(ringBufferStatuses);
         when(mWifiNative.readKernelLog()).thenReturn("");
+        when(mWifiNative.getLocalLog()).thenReturn(mWifiNativeLocalLog);
         when(mBuildProperties.isEngBuild()).thenReturn(false);
         when(mBuildProperties.isUserdebugBuild()).thenReturn(false);
         when(mBuildProperties.isUserBuild()).thenReturn(true);
@@ -717,5 +721,18 @@ public class WifiLoggerTest {
         PrintWriter pw = new PrintWriter(sw);
         mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
         assertFalse(sw.toString().contains(WifiLogger.FIRMWARE_DUMP_SECTION_HEADER));
+    }
+
+    /** Verifies that the dump() includes contents of WifiNative's LocalLog. */
+    @Test
+    public void dumpIncludesContentOfWifiNativeLocalLog() {
+        final String wifiNativeLogMessage = "This is a message";
+        mWifiNativeLocalLog.log(wifiNativeLogMessage);
+
+        mWifiLogger.startLogging(false  /* verbose disabled */);
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
+        assertTrue(sw.toString().contains(wifiNativeLogMessage));
     }
 }
