@@ -96,6 +96,7 @@ endif
 # ============================================================
 include $(CLEAR_VARS)
 LOCAL_MODULE := libwifi-hal
+LOCAL_CFLAGS := $(wifi_hal_cflags)
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
 LOCAL_EXPORT_C_INCLUDE_DIRS := \
     $(LOCAL_PATH)/include \
