@@ -86,6 +86,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -167,20 +168,16 @@ public class WifiStateMachineTest {
         WifiP2pServiceImpl p2pm = (WifiP2pServiceImpl) p2pBinder.queryLocalInterface(
                 IWifiP2pManager.class.getCanonicalName());
 
-        final Object sync = new Object();
-        synchronized (sync) {
-            mP2pThread = new HandlerThread("WifiP2pMockThread") {
-                @Override
-                protected void onLooperPrepared() {
-                    synchronized (sync) {
-                        sync.notifyAll();
-                    }
-                }
-            };
+        final CountDownLatch untilDone = new CountDownLatch(1);
+        mP2pThread = new HandlerThread("WifiP2pMockThread") {
+            @Override
+            protected void onLooperPrepared() {
+                untilDone.countDown();
+            }
+        };
 
-            mP2pThread.start();
-            sync.wait();
-        }
+        mP2pThread.start();
+        untilDone.await();
 
         Handler handler = new Handler(mP2pThread.getLooper());
         when(p2pm.getP2pStateMachineMessenger()).thenReturn(new Messenger(handler));
