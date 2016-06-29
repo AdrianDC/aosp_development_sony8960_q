@@ -150,6 +150,7 @@ public class WifiConnectivityManager {
     private long mLastPeriodicSingleScanTimeStamp = RESET_TIME_STAMP;
     private boolean mPeriodicScanTimerSet = false;
     private boolean mPnoScanStarted = false;
+    private boolean mPeriodicScanTimerSet = false;
 
     // PNO settings
     private int mMin5GHzRssi;
