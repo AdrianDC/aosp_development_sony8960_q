@@ -149,6 +149,7 @@ public class WifiConnectivityManager {
     private int mPeriodicSingleScanInterval = PERIODIC_SCAN_INTERVAL_MS;
     private long mLastPeriodicSingleScanTimeStamp = RESET_TIME_STAMP;
     private boolean mPeriodicScanTimerSet = false;
+    private boolean mPnoScanStarted = false;
 
     // PNO settings
     private int mMin5GHzRssi;
@@ -332,7 +333,7 @@ public class WifiConnectivityManager {
             // while PNO scan didn't.
             // Note: We don't update the background scan metrics any more as it is
             //       not in use.
-            if (!mScreenOn && mWifiState == WIFI_STATE_DISCONNECTED) {
+            if (mPnoScanStarted) {
                 if (wasConnectAttempted) {
                     mWifiMetrics.incrementNumConnectivityWatchdogPnoBad();
                 } else {
@@ -860,6 +861,7 @@ public class WifiConnectivityManager {
         mPnoScanListener.clearScanDetails();
 
         mScanner.startDisconnectedPnoScan(scanSettings, pnoSettings, mPnoScanListener);
+        mPnoScanStarted = true;
     }
 
     // Start a ConnectedPNO scan when screen is off and Wifi is connected
@@ -903,6 +905,16 @@ public class WifiConnectivityManager {
         mPnoScanListener.clearScanDetails();
 
         mScanner.startConnectedPnoScan(scanSettings, pnoSettings, mPnoScanListener);
+        mPnoScanStarted = true;
+    }
+
+    // Stop a PNO scan. This includes both DisconnectedPNO and ConnectedPNO scans.
+    private void stopPnoScan() {
+        if (mPnoScanStarted) {
+            mScanner.stopPnoScan(mPnoScanListener);
+        }
+
+        mPnoScanStarted = false;
     }
 
     // Set up watchdog timer
@@ -998,7 +1010,7 @@ public class WifiConnectivityManager {
         } else {
             mScanner.stopBackgroundScan(mPeriodicScanListener);
         }
-        mScanner.stopPnoScan(mPnoScanListener);
+        stopPnoScan();
         mScanRestartCount = 0;
     }
 
