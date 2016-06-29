@@ -148,7 +148,6 @@ public class WifiConnectivityManager {
     private String mLastConnectionAttemptBssid = null;
     private int mPeriodicSingleScanInterval = PERIODIC_SCAN_INTERVAL_MS;
     private long mLastPeriodicSingleScanTimeStamp = RESET_TIME_STAMP;
-    private boolean mPeriodicScanTimerSet = false;
     private boolean mPnoScanStarted = false;
     private boolean mPeriodicScanTimerSet = false;
 
