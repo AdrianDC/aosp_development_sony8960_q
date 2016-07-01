@@ -80,7 +80,9 @@ public class ScanDetail {
         mScanResult = scanResult;
         mNetworkDetail = networkDetail;
         mMatches = matches;
-        mSeen = mScanResult.seen;
+        // Only inherit |mScanResult.seen| if it was previously set. This ensures that |mSeen|
+        // will always contain a valid timestamp.
+        mSeen = (mScanResult.seen == 0) ? System.currentTimeMillis() : mScanResult.seen;
     }
 
     /**
