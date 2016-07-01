@@ -701,6 +701,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
 
             if (settings.hiddenNetworkIds != null) {
+                if (mActiveScanSettings.hiddenNetworkIds == null) {
+                    return false;
+                }
                 Set<Integer> activeHiddenNetworkIds = new HashSet<>();
                 for (int id : mActiveScanSettings.hiddenNetworkIds) {
                     activeHiddenNetworkIds.add(id);
