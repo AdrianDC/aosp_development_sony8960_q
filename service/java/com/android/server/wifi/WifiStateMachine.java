@@ -1217,19 +1217,28 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return mFacade.getBroadcast(mContext, requestCode, intent, 0);
     }
 
+    /**
+     * Set wpa_supplicant log level using |mVerboseLoggingLevel| flag.
+     */
+    void setSupplicantLogLevel() {
+        if (mVerboseLoggingEnabled) {
+            mWifiNative.setSupplicantLogLevel("DEBUG");
+        } else {
+            mWifiNative.setSupplicantLogLevel("INFO");
+        }
+    }
+
     void enableVerboseLogging(int verbose) {
         if (verbose > 0) {
             mVerboseLoggingEnabled = true;
-            mWifiNative.setSupplicantLogLevel("DEBUG");
             setLogRecSize(ActivityManager.isLowRamDeviceStatic()
                     ? NUM_LOG_RECS_VERBOSE_LOW_MEMORY : NUM_LOG_RECS_VERBOSE);
-            configureVerboseHalLogging(true);
         } else {
             mVerboseLoggingEnabled = false;
-            mWifiNative.setSupplicantLogLevel("INFO");
             setLogRecSize(NUM_LOG_RECS_NORMAL);
-            configureVerboseHalLogging(false);
         }
+        configureVerboseHalLogging(mVerboseLoggingEnabled);
+        setSupplicantLogLevel();
         mCountryCode.enableVerboseLogging(verbose);
         mWifiLogger.startLogging(mVerboseLoggingEnabled);
         mWifiMonitor.enableVerboseLogging(verbose);
@@ -4100,6 +4109,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         }
 
                         if (mWifiNative.startSupplicant(mP2pSupported)) {
+                            setSupplicantLogLevel();
                             setWifiState(WIFI_STATE_ENABLING);
                             if (mVerboseLoggingEnabled) log("Supplicant start successful");
                             mWifiMonitor.startMonitoring(mInterfaceName);
