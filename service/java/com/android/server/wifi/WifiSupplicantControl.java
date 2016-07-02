@@ -736,6 +736,25 @@ public class WifiSupplicantControl {
     }
 
     /**
+     * Get BSSID for a network in wpa_supplicant.
+     *
+     * @param config Config corresponding to the network.
+     * @return BSSID for the network, if it exists, null otherwise.
+     */
+    public String getNetworkBSSID(WifiConfiguration config) {
+      // Sanity check the config is valid
+        if (config == null
+                || (config.networkId == WifiConfiguration.INVALID_NETWORK_ID
+                && config.SSID == null)) {
+            return null;
+        }
+        if (mVerboseLoggingEnabled) localLog("getNetworkBSSID: " + config.networkId);
+        String bssid =
+                mWifiNative.getNetworkVariable(config.networkId, WifiConfiguration.bssidVarName);
+        return (TextUtils.isEmpty(bssid) ? null : bssid);
+    }
+
+    /**
      * Enable/Disable HS20 parameter in wpa_supplicant.
      *
      * @param enable Enable/Disable the parameter.
