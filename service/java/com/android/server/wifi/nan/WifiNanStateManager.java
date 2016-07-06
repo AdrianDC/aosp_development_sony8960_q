@@ -38,6 +38,7 @@ import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.util.MessageUtils;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.internal.util.WakeupMessage;
@@ -134,6 +135,10 @@ public class WifiNanStateManager {
     private static final int NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST = 309;
     private static final int NOTIFICATION_TYPE_ON_DATA_PATH_CONFIRM = 310;
     private static final int NOTIFICATION_TYPE_ON_DATA_PATH_END = 311;
+
+    private static final SparseArray<String> sSmToString = MessageUtils.findMessageNames(
+            new Class[]{WifiNanStateManager.class},
+            new String[]{"MESSAGE_TYPE", "COMMAND_TYPE", "RESPONSE_TYPE", "NOTIFICATION_TYPE"});
 
     /*
      * Keys used when passing (some) arguments to the Handler thread (too many
@@ -2543,175 +2548,19 @@ public class WifiNanStateManager {
     private static String messageToString(Message msg) {
         StringBuilder sb = new StringBuilder();
 
-        switch (msg.what) {
-            case MESSAGE_TYPE_NOTIFICATION:
-                sb.append("NOTIFICATION/");
-                switch (msg.arg1) {
-                    case NOTIFICATION_TYPE_INTERFACE_CHANGE:
-                        sb.append("INTERFACE_CHANGE");
-                        break;
-                    case NOTIFICATION_TYPE_CLUSTER_CHANGE:
-                        sb.append("CLUSTER_CHANGE");
-                        break;
-                    case NOTIFICATION_TYPE_MATCH:
-                        sb.append("MATCH");
-                        break;
-                    case NOTIFICATION_TYPE_SESSION_TERMINATED:
-                        sb.append("SESSION_TERMINATED");
-                        break;
-                    case NOTIFICATION_TYPE_MESSAGE_RECEIVED:
-                        sb.append("MESSAGE_RECEIVED");
-                        break;
-                    case NOTIFICATION_TYPE_NAN_DOWN:
-                        sb.append("NAN_DOWN");
-                        break;
-                    case NOTIFICATION_TYPE_ON_MESSAGE_SEND_SUCCESS:
-                        sb.append("ON_MESSAGE_SEND_SUCCESS");
-                        break;
-                    case NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL:
-                        sb.append("ON_MESSAGE_SEND_FAIL");
-                        break;
-                    case NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST:
-                        sb.append("ON_DATA_PATH_REQUEST");
-                        break;
-                    case NOTIFICATION_TYPE_ON_DATA_PATH_CONFIRM:
-                        sb.append("ON_DATA_PATH_CONFIRM");
-                        break;
-                    case NOTIFICATION_TYPE_ON_DATA_PATH_END:
-                        sb.append("ON_DATA_PATH_END");
-                        break;
-                    default:
-                        sb.append("<unknown>");
-                        break;
-                }
-                break;
-            case MESSAGE_TYPE_COMMAND:
-                sb.append("COMMAND/");
-                switch (msg.arg1) {
-                    case COMMAND_TYPE_CONNECT:
-                        sb.append("CONNECT");
-                        break;
-                    case COMMAND_TYPE_DISCONNECT:
-                        sb.append("DISCONNECT");
-                        break;
-                    case COMMAND_TYPE_TERMINATE_SESSION:
-                        sb.append("TERMINATE_SESSION");
-                        break;
-                    case COMMAND_TYPE_PUBLISH:
-                        sb.append("PUBLISH");
-                        break;
-                    case COMMAND_TYPE_UPDATE_PUBLISH:
-                        sb.append("UPDATE_PUBLISH");
-                        break;
-                    case COMMAND_TYPE_SUBSCRIBE:
-                        sb.append("SUBSCRIBE");
-                        break;
-                    case COMMAND_TYPE_UPDATE_SUBSCRIBE:
-                        sb.append("UPDATE_SUBSCRIBE");
-                        break;
-                    case COMMAND_TYPE_ENQUEUE_SEND_MESSAGE:
-                        sb.append("ENQUEUE_SEND_MESSAGE");
-                        break;
-                    case COMMAND_TYPE_ENABLE_USAGE:
-                        sb.append("ENABLE_USAGE");
-                        break;
-                    case COMMAND_TYPE_DISABLE_USAGE:
-                        sb.append("DISABLE_USAGE");
-                        break;
-                    case COMMAND_TYPE_START_RANGING:
-                        sb.append("START_RANGING");
-                        break;
-                    case COMMAND_TYPE_GET_CAPABILITIES:
-                        sb.append("GET_CAPABILITIES");
-                        break;
-                    case COMMAND_TYPE_CREATE_ALL_DATA_PATH_INTERFACES:
-                        sb.append("CREATE_ALL_DATA_PATH_INTERFACES");
-                        break;
-                    case COMMAND_TYPE_DELETE_ALL_DATA_PATH_INTERFACES:
-                        sb.append("DELETE_ALL_DATA_PATH_INTERFACES");
-                        break;
-                    case COMMAND_TYPE_CREATE_DATA_PATH_INTERFACE:
-                        sb.append("CREATE_DATA_PATH_INTERFACE");
-                        break;
-                    case COMMAND_TYPE_DELETE_DATA_PATH_INTERFACE:
-                        sb.append("DELETE_DATA_PATH_INTERFACE");
-                        break;
-                    case COMMAND_TYPE_INITIATE_DATA_PATH_SETUP:
-                        sb.append("INITIATE_DATA_PATH_SETUP");
-                        break;
-                    case COMMAND_TYPE_RESPOND_TO_DATA_PATH_SETUP_REQUEST:
-                        sb.append("RESPOND_TO_DATA_PATH_SETUP_REQUEST");
-                        break;
-                    case COMMAND_TYPE_END_DATA_PATH:
-                        sb.append("END_DATA_PATH");
-                        break;
-                    case COMMAND_TYPE_TRANSMIT_NEXT_MESSAGE:
-                        sb.append("SEND_TOP_OF_QUEUE_MESSAGE");
-                        break;
-                    default:
-                        sb.append("<unknown>");
-                        break;
-                }
-                break;
-            case MESSAGE_TYPE_RESPONSE:
-                sb.append("RESPONSE/");
-                switch (msg.arg1) {
-                    case RESPONSE_TYPE_ON_CONFIG_SUCCESS:
-                        sb.append("ON_CONFIG_SUCCESS");
-                        break;
-                    case RESPONSE_TYPE_ON_CONFIG_FAIL:
-                        sb.append("ON_CONFIG_FAIL");
-                        break;
-                    case RESPONSE_TYPE_ON_SESSION_CONFIG_SUCCESS:
-                        sb.append("ON_SESSION_CONFIG_SUCCESS");
-                        break;
-                    case RESPONSE_TYPE_ON_SESSION_CONFIG_FAIL:
-                        sb.append("ON_SESSION_CONFIG_FAIL");
-                        break;
-                    case RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_SUCCESS:
-                        sb.append("ON_MESSAGE_SEND_QUEUED_SUCCESS");
-                        break;
-                    case RESPONSE_TYPE_ON_MESSAGE_SEND_QUEUED_FAIL:
-                        sb.append("ON_MESSAGE_SEND_QUEUED_FAIL");
-                        break;
-                    case RESPONSE_TYPE_ON_CAPABILITIES_UPDATED:
-                        sb.append("ON_CAPABILITIES_UDPATED");
-                        break;
-                    case RESPONSE_TYPE_ON_CREATE_INTERFACE:
-                        sb.append("ON_CREATE_INTERFACE");
-                        break;
-                    case RESPONSE_TYPE_ON_DELETE_INTERFACE:
-                        sb.append("ON_DELETE_INTERFACE");
-                        break;
-                    case RESPONSE_TYPE_ON_INITIATE_DATA_PATH_SUCCESS:
-                        sb.append("ON_INITIATE_DATA_PATH_SUCCESS");
-                        break;
-                    case RESPONSE_TYPE_ON_INITIATE_DATA_PATH_FAIL:
-                        sb.append("ON_INITIATE_DATA_PATH_FAIL");
-                        break;
-                    case RESPONSE_TYPE_ON_RESPOND_TO_DATA_PATH_SETUP_REQUEST:
-                        sb.append("ON_RESPOND_TO_DATA_PATH_SETUP_REQUEST");
-                        break;
-                    case RESPONSE_TYPE_ON_END_DATA_PATH:
-                        sb.append("DATA_PATH_END_RESPONSE");
-                        break;
-                    default:
-                        sb.append("<unknown>");
-                        break;
+        String s = sSmToString.get(msg.what);
+        if (s == null) {
+            s = "<unknown>";
+        }
+        sb.append(s).append("/");
 
-                }
-                break;
-            case MESSAGE_TYPE_RESPONSE_TIMEOUT:
-                sb.append("RESPONSE_TIMEOUT");
-                break;
-            case MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT:
-                sb.append("SEND_MESSAGE_TIMEOUT");
-                break;
-            case MESSAGE_TYPE_DATA_PATH_TIMEOUT:
-                sb.append("DATA_PATH_TIMEOUT");
-                break;
-            default:
-                sb.append("<unknown>");
+        if (msg.what == MESSAGE_TYPE_NOTIFICATION || msg.what == MESSAGE_TYPE_COMMAND
+                || msg.what == MESSAGE_TYPE_RESPONSE) {
+            s = sSmToString.get(msg.arg1);
+            if (s == null) {
+                s = "<unknown>";
+            }
+            sb.append(s);
         }
 
         if (msg.what == MESSAGE_TYPE_RESPONSE || msg.what == MESSAGE_TYPE_RESPONSE_TIMEOUT) {
