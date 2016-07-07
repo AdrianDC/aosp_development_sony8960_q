@@ -15,8 +15,8 @@ frameworks/opt/net/wifi/tests/wifitests/runtests.sh
 connected device. It will then run the tests on the device.
 
 See below for a few example of options to limit which tests are run.
-See the [AndroidJUnitRunner Documentation]
-(https://developer.android.com/reference/android/support/test/runner/AndroidJUnitRunner.html)
+See the
+[AndroidJUnitRunner Documentation](https://developer.android.com/reference/android/support/test/runner/AndroidJUnitRunner.html)
 for more details on the supported options.
 
 ```
