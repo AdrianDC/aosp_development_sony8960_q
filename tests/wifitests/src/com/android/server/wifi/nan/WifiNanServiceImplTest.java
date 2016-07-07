@@ -239,7 +239,8 @@ public class WifiNanServiceImplTest {
 
         mDut.fakeUid = mDefaultUid;
 
-        PublishConfig publishConfig = new PublishConfig.Builder().build();
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName("valid.value")
+                .build();
         mDut.publish(clientId, publishConfig, mSessionCallbackMock);
 
         verify(mNanStateManagerMock).publish(clientId, publishConfig, mSessionCallbackMock);
@@ -297,7 +298,24 @@ public class WifiNanServiceImplTest {
      */
     @Test
     public void testPublish() {
-        PublishConfig publishConfig = new PublishConfig.Builder().build();
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName("something.valid")
+                .build();
+        int clientId = doConnect();
+        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
+
+        mDut.publish(clientId, publishConfig, mockCallback);
+
+        verify(mNanStateManagerMock).publish(clientId, publishConfig, mockCallback);
+    }
+
+    /**
+     * Validate that publish() verifies the input PublishConfig and fails on an invalid service
+     * name.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testPublishBadServiceName() {
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(
+                "Including invalid characters - spaces").build();
         int clientId = doConnect();
         IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
 
@@ -312,7 +330,8 @@ public class WifiNanServiceImplTest {
     @Test
     public void testUpdatePublish() {
         int sessionId = 1232;
-        PublishConfig publishConfig = new PublishConfig.Builder().build();
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName("something.valid")
+                .build();
         int clientId = doConnect();
 
         mDut.updatePublish(clientId, sessionId, publishConfig);
@@ -325,7 +344,24 @@ public class WifiNanServiceImplTest {
      */
     @Test
     public void testSubscribe() {
-        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder()
+                .setServiceName("something.valid").build();
+        int clientId = doConnect();
+        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
+
+        mDut.subscribe(clientId, subscribeConfig, mockCallback);
+
+        verify(mNanStateManagerMock).subscribe(clientId, subscribeConfig, mockCallback);
+    }
+
+    /**
+     * Validate that subscribe() verifies the input SubscribeConfig and fails on an invalid service
+     * name.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testSubscribeBadServiceName() {
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(
+                "InvalidServiceCharacters__").build();
         int clientId = doConnect();
         IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
 
@@ -340,7 +376,8 @@ public class WifiNanServiceImplTest {
     @Test
     public void testUpdateSubscribe() {
         int sessionId = 1232;
-        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder()
+                .setServiceName("something.valid").build();
         int clientId = doConnect();
 
         mDut.updateSubscribe(clientId, sessionId, subscribeConfig);

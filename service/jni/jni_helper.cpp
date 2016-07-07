@@ -241,7 +241,7 @@ jlong JNIHelper::getLongArrayField(jobject obj, const char *name, int index)
     return value;
 }
 
-void JNIHelper::getByteArrayField(jobject obj, const char *name, byte* buf, int size) {
+void JNIHelper::getByteArrayField(jobject obj, const char *name, byte *buf, size_t size) {
     JNIObject<jclass> cls(*this, mEnv->GetObjectClass(obj));
     jfieldID field = mEnv->GetFieldID(cls, name, "[B");
     if (field == 0) {
@@ -262,6 +262,37 @@ void JNIHelper::getByteArrayField(jobject obj, const char *name, byte* buf, int 
     }
 
     memcpy(buf, elem, size);
+    mEnv->ReleaseByteArrayElements(array, elem, 0);
+}
+
+void JNIHelper::getByteArrayField(jobject obj, const char *name, byte *buf, size_t *size, int max_size) {
+    JNIObject<jclass> cls(*this, mEnv->GetObjectClass(obj));
+    jfieldID field = mEnv->GetFieldID(cls, name, "[B");
+    if (field == 0) {
+        THROW(*this, "Error in accessing field definition");
+        return;
+    }
+
+    jbyteArray byteArray = (jbyteArray)mEnv->GetObjectField(obj, field);
+    JNIObject<jbyteArray> array(*this, byteArray);
+    if (array == NULL) {
+        THROW(*this, "Error in accessing array");
+        return;
+    }
+
+    *size = getArrayLength(byteArray);
+    int use_size = *size;
+    if (use_size > max_size) {
+        use_size = max_size;
+    }
+
+    jbyte *elem = mEnv->GetByteArrayElements(array, 0);
+    if (elem == NULL) {
+        THROW(*this, "Error in accessing index element");
+        return;
+    }
+
+    memcpy(buf, elem, use_size);
     mEnv->ReleaseByteArrayElements(array, elem, 0);
 }
 
