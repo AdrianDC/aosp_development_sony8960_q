@@ -713,19 +713,13 @@ public class WifiConfigManager {
         }
 
         if (config.isPasspoint()) {
-            /* need to slap on the SSID of selected bssid to work */
-            if (getScanDetailCache(config).size() != 0) {
-                ScanDetail result = getScanDetailCache(config).getFirst();
-                if (result == null) {
-                    loge("Could not find scan result for " + config.BSSID);
-                } else {
-                    logd("Setting SSID for " + config.networkId + " to" + result.getSSID());
-                    setSSIDNative(config, result.getSSID());
-                }
-
-            } else {
-                loge("Could not find bssid for " + config);
-            }
+            // Set the SSID for the underlying WPA supplicant network entry corresponding to this
+            // Passpoint profile to the SSID of the BSS selected by QNS. |config.SSID| is set by
+            // selectQualifiedNetwork.selectQualifiedNetwork(), when the qualified network selected
+            // is a Passpoint network.
+            logd("Setting SSID for WPA supplicant network " + config.networkId + " to "
+                    + config.SSID);
+            setSSIDNative(config, config.SSID);
         }
 
         mWifiConfigStore.enableHS20(config.isPasspoint());
