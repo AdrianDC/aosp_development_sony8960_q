@@ -67,4 +67,9 @@ class NetworkUpdateResult {
     public void setIsNewNetwork(boolean isNew) {
         isNewNetwork = isNew;
     }
+
+    public boolean isSuccess() {
+        return netId != INVALID_NETWORK_ID;
+    }
+
 }
