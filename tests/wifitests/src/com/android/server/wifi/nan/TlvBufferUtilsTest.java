@@ -60,6 +60,13 @@ public class TlvBufferUtilsTest {
                 utilAreArraysEqual(tlv01.getArray(), tlv01.getActualLength(), new byte[] {
                         1, 2, 3, 0, 1, 2 }, 6),
                 equalTo(true));
+
+        collector.checkThat("tlv11-valid",
+                TlvBufferUtils.isValid(tlv11.getArray(), tlv11.getActualLength(), 1, 1),
+                equalTo(true));
+        collector.checkThat("tlv01-valid",
+                TlvBufferUtils.isValid(tlv01.getArray(), tlv01.getActualLength(), 0, 1),
+                equalTo(true));
     }
 
     @Test
@@ -132,6 +139,13 @@ public class TlvBufferUtilsTest {
         }
         collector.checkThat("Invalid number of iterations outside loop - tlv02", count,
                 equalTo(3));
+
+        collector.checkThat("tlv22-valid",
+                TlvBufferUtils.isValid(tlv22.getArray(), tlv22.getActualLength(), 2, 2),
+                equalTo(true));
+        collector.checkThat("tlv02-valid",
+                TlvBufferUtils.isValid(tlv02.getArray(), tlv02.getActualLength(), 0, 2),
+                equalTo(true));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -202,6 +216,23 @@ public class TlvBufferUtilsTest {
         final int dummyLength = 3;
         TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(3, 1, dummy,
                 dummyLength);
+    }
+
+    /**
+     * Validate that a malformed byte array fails the TLV validity test.
+     */
+    @Test
+    public void testTlvInvalidByteArray() {
+        TlvBufferUtils.TlvConstructor tlv01 = new TlvBufferUtils.TlvConstructor(0, 1);
+        tlv01.allocate(15);
+        tlv01.putByte(0, (byte) 2);
+        tlv01.putByteArray(2, new byte[]{0, 1, 2});
+
+        byte[] array = tlv01.getArray();
+        array[0] = 10;
+
+        collector.checkThat("tlv01-invalid",
+                TlvBufferUtils.isValid(array, tlv01.getActualLength(), 0, 1), equalTo(false));
     }
 
     /*
