@@ -17,9 +17,12 @@
 package com.android.server.wifi;
 
 import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.wifi.IApInterface;
 import android.net.wifi.IWificond;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.INetworkManagementService;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.UserManager;
@@ -28,6 +31,8 @@ import android.security.KeyStore;
 
 import com.android.internal.R;
 import com.android.server.am.BatteryStatsService;
+
+import java.util.ArrayList;
 
 /**
  *  WiFi dependency injector. To be used for accessing various WiFi class instances and as a
@@ -200,5 +205,27 @@ public class WifiInjector {
         // We depend on being able to refresh our binder in WifiStateMachine, so don't cache it.
         IBinder binder = ServiceManager.getService(WIFICOND_SERVICE_NAME);
         return IWificond.Stub.asInterface(binder);
+    }
+
+    /**
+     * Create a SoftApManager.
+     * @param wifiNative reference to WifiNative
+     * @param nmService reference to NetworkManagementService
+     * @param cm reference to ConnectivityManager
+     * @param countryCode Country code
+     * @param allowed2GChannels list of allowed 2G channels
+     * @param listener listener for SoftApManager
+     * @param apInterface network interface to start hostapd against
+     * @return an instance of SoftApManager
+     */
+    public SoftApManager makeSoftApManager(
+            WifiNative wifiNative,
+            INetworkManagementService nmService, ConnectivityManager cm,
+            String countryCode, ArrayList<Integer> allowed2GChannels,
+            SoftApManager.Listener listener, IApInterface apInterface) {
+        return new SoftApManager(
+                mWifiServiceHandlerThread.getLooper(),
+                wifiNative, nmService, countryCode,
+                allowed2GChannels, listener, apInterface);
     }
 }

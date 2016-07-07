@@ -20,13 +20,14 @@ import static com.android.server.wifi.util.ApConfigUtil.ERROR_GENERIC;
 import static com.android.server.wifi.util.ApConfigUtil.ERROR_NO_CHANNEL;
 import static com.android.server.wifi.util.ApConfigUtil.SUCCESS;
 
-import android.content.Context;
-import android.net.ConnectivityManager;
+import android.net.wifi.IApInterface;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
+import android.os.IBinder.DeathRecipient;
 import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.Message;
+import android.os.RemoteException;
 import android.util.Log;
 
 import com.android.internal.util.State;
@@ -72,8 +73,9 @@ public class SoftApManager {
                          INetworkManagementService nmService,
                          String countryCode,
                          ArrayList<Integer> allowed2GChannels,
-                         Listener listener) {
-        mStateMachine = new SoftApStateMachine(looper);
+                         Listener listener,
+                         IApInterface apInterface) {
+        mStateMachine = new SoftApStateMachine(looper, apInterface);
 
         mNmService = nmService;
         mWifiNative = wifiNative;
@@ -174,12 +176,26 @@ public class SoftApManager {
         /* Commands for the state machine. */
         public static final int CMD_START = 0;
         public static final int CMD_STOP = 1;
+        public static final int CMD_AP_INTERFACE_BINDER_DEATH = 2;
+
+        private final IApInterface mApInterface;
 
         private final State mIdleState = new IdleState();
         private final State mStartedState = new StartedState();
 
-        SoftApStateMachine(Looper looper) {
+        private ApInterfaceDeathRecipient mDeathRecipient;
+
+        private class ApInterfaceDeathRecipient implements DeathRecipient {
+            @Override
+            public void binderDied() {
+                SoftApStateMachine.this.sendMessage(CMD_AP_INTERFACE_BINDER_DEATH);
+            }
+        }
+
+
+        SoftApStateMachine(Looper looper, IApInterface apInterface) {
             super(TAG, looper);
+            mApInterface = apInterface;
 
             addState(mIdleState);
             addState(mStartedState);
@@ -190,11 +206,31 @@ public class SoftApManager {
 
         private class IdleState extends State {
             @Override
+            public void enter() {
+                if (mDeathRecipient != null) {
+                    mApInterface.asBinder().unlinkToDeath(mDeathRecipient, 0);
+                    mDeathRecipient = null;
+                }
+            }
+
+            @Override
             public boolean processMessage(Message message) {
                 switch (message.what) {
                     case CMD_START:
+                        int result = SUCCESS;
                         updateApState(WifiManager.WIFI_AP_STATE_ENABLING, 0);
-                        int result = startSoftAp((WifiConfiguration) message.obj);
+                        mDeathRecipient = new ApInterfaceDeathRecipient();
+                        try {
+                            mApInterface.asBinder().linkToDeath(mDeathRecipient, 0);
+                        } catch (RemoteException e) {
+                            // The remote has already died.
+                            result = ERROR_GENERIC;
+                            break;
+                        }
+
+                        if (result == SUCCESS) {
+                            result = startSoftAp((WifiConfiguration) message.obj);
+                        }
                         if (result == SUCCESS) {
                             updateApState(WifiManager.WIFI_AP_STATE_ENABLED, 0);
                             transitionTo(mStartedState);
@@ -204,12 +240,17 @@ public class SoftApManager {
                                 reason = WifiManager.SAP_START_FAILURE_NO_CHANNEL;
                             }
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED, reason);
+                            if (mDeathRecipient != null) {
+                                mApInterface.asBinder().unlinkToDeath(mDeathRecipient, 0);
+                                mDeathRecipient = null;
+                            }
                         }
                         break;
                     default:
                         /* Ignore all other commands. */
                         break;
                 }
+
                 return HANDLED;
             }
         }
@@ -221,10 +262,16 @@ public class SoftApManager {
                     case CMD_START:
                         /* Already started, ignore this command. */
                         break;
+                    case CMD_AP_INTERFACE_BINDER_DEATH:
                     case CMD_STOP:
                         updateApState(WifiManager.WIFI_AP_STATE_DISABLING, 0);
                         stopSoftAp();
-                        updateApState(WifiManager.WIFI_AP_STATE_DISABLED, 0);
+                        if (message.what == CMD_AP_INTERFACE_BINDER_DEATH) {
+                            updateApState(WifiManager.WIFI_AP_STATE_FAILED,
+                                    WifiManager.SAP_START_FAILURE_GENERAL);
+                        } else {
+                            updateApState(WifiManager.WIFI_AP_STATE_DISABLED, 0);
+                        }
                         transitionTo(mIdleState);
                         break;
                     default:

@@ -25,14 +25,18 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.net.InterfaceConfiguration;
+import android.net.wifi.IApInterface;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
+import android.os.IBinder;
+import android.os.IBinder.DeathRecipient;
 import android.os.INetworkManagementService;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -59,6 +63,10 @@ public class SoftApManagerTest {
     @Mock INetworkManagementService mNmService;
     @Mock SoftApManager.Listener mListener;
     @Mock InterfaceConfiguration mInterfaceConfiguration;
+    @Mock IApInterface mApInterface;
+    @Mock IBinder mApInterfaceBinder;
+    final ArgumentCaptor<DeathRecipient> mDeathListenerCaptor =
+            ArgumentCaptor.forClass(DeathRecipient.class);
 
     SoftApManager mSoftApManager;
 
@@ -71,13 +79,15 @@ public class SoftApManagerTest {
         when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
         when(mNmService.getInterfaceConfig(TEST_INTERFACE_NAME))
                 .thenReturn(mInterfaceConfiguration);
+        when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
 
         mSoftApManager = new SoftApManager(mLooper.getLooper(),
                                            mWifiNative,
                                            mNmService,
                                            TEST_COUNTRY_CODE,
                                            mAllowed2GChannels,
-                                           mListener);
+                                           mListener,
+                                           mApInterface);
 
         mLooper.dispatchAll();
     }
@@ -119,9 +129,21 @@ public class SoftApManagerTest {
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
     }
 
+    @Test
+    public void handlesWificondInterfaceDeath() throws Exception {
+        startSoftApAndVerifyEnabled();
+
+        mDeathListenerCaptor.getValue().binderDied();
+        mLooper.dispatchAll();
+        InOrder order = inOrder(mListener);
+        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
+        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+                WifiManager.SAP_START_FAILURE_GENERAL);
+    }
+
     /** Starts soft AP and verifies that it is enabled successfully. */
     protected void startSoftApAndVerifyEnabled() throws Exception {
-        InOrder order = inOrder(mListener);
+        InOrder order = inOrder(mListener, mApInterfaceBinder);
 
         /**
          *  Only test the default configuration. Testing for different configurations
@@ -137,6 +159,7 @@ public class SoftApManagerTest {
         verify(mNmService).startAccessPoint(
                 any(WifiConfiguration.class), eq(TEST_INTERFACE_NAME));
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLING, 0);
+        order.verify(mApInterfaceBinder).linkToDeath(mDeathListenerCaptor.capture(), eq(0));
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLED, 0);
     }
 
