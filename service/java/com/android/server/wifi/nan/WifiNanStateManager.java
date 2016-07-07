@@ -190,6 +190,9 @@ public class WifiNanStateManager {
     private final SparseArray<WifiNanClientState> mClients = new SparseArray<>();
     private ConfigRequest mCurrentNanConfiguration = null;
 
+    private static final byte[] ALL_ZERO_MAC = new byte[] {0, 0, 0, 0, 0, 0};
+    private byte[] mCurrentDiscoveryInterfaceMac = ALL_ZERO_MAC;
+
     private WifiNanStateManager() {
         // EMPTY: singleton pattern
     }
@@ -1779,11 +1782,13 @@ public class WifiNanStateManager {
         if (mCurrentNanConfiguration != null && mCurrentNanConfiguration.equals(merged)) {
             try {
                 callback.onConnectSuccess();
-                mClients.append(clientId,
-                        new WifiNanClientState(clientId, uid, callback, configRequest));
             } catch (RemoteException e) {
                 Log.w(TAG, "connectLocal onConnectSuccess(): RemoteException (FYI): " + e);
             }
+            WifiNanClientState client = new WifiNanClientState(clientId, uid, callback,
+                    configRequest);
+            client.onInterfaceAddressChange(mCurrentDiscoveryInterfaceMac);
+            mClients.append(clientId, client);
             return false;
         }
 
@@ -2060,13 +2065,16 @@ public class WifiNanStateManager {
                     .getParcelable(MESSAGE_BUNDLE_KEY_CONFIG);
             int uid = data.getInt(MESSAGE_BUNDLE_KEY_UID);
 
-            mClients.put(clientId, new WifiNanClientState(clientId, uid, callback, configRequest));
+            WifiNanClientState client = new WifiNanClientState(clientId, uid, callback,
+                    configRequest);
+            mClients.put(clientId, client);
             try {
                 callback.onConnectSuccess();
             } catch (RemoteException e) {
                 Log.w(TAG,
                         "onConfigCompletedLocal onConnectSuccess(): RemoteException (FYI): " + e);
             }
+            client.onInterfaceAddressChange(mCurrentDiscoveryInterfaceMac);
         } else if (completedCommand.arg1 == COMMAND_TYPE_DISCONNECT) {
             /*
              * NOP (i.e. updated configuration after disconnecting a client)
@@ -2364,15 +2372,11 @@ public class WifiNanStateManager {
             Log.v(TAG, "onInterfaceAddressChange: mac=" + String.valueOf(HexEncoding.encode(mac)));
         }
 
-        int interested = 0;
+        mCurrentDiscoveryInterfaceMac = mac;
+
         for (int i = 0; i < mClients.size(); ++i) {
             WifiNanClientState client = mClients.valueAt(i);
-            interested += client.onInterfaceAddressChange(mac);
-        }
-
-        if (interested == 0) {
-            Log.e(TAG, "onInterfaceAddressChange: event received but no callbacks registered "
-                    + "for this event - should be disabled from fw!");
+            client.onInterfaceAddressChange(mac);
         }
     }
 
@@ -2382,15 +2386,9 @@ public class WifiNanStateManager {
                     + String.valueOf(HexEncoding.encode(clusterId)));
         }
 
-        int interested = 0;
         for (int i = 0; i < mClients.size(); ++i) {
             WifiNanClientState client = mClients.valueAt(i);
-            interested += client.onClusterChange(flag, clusterId);
-        }
-
-        if (interested == 0) {
-            Log.e(TAG, "onClusterChange: event received but no callbacks registered for this "
-                    + "event - should be disabled from fw!");
+            client.onClusterChange(flag, clusterId, mCurrentDiscoveryInterfaceMac);
         }
     }
 
@@ -2465,6 +2463,7 @@ public class WifiNanStateManager {
         mCurrentNanConfiguration = null;
         mSm.onNanDownCleanupSendQueueState();
         mDataPathMgr.onNanDownCleanupDataPaths();
+        mCurrentDiscoveryInterfaceMac = ALL_ZERO_MAC;
     }
 
     /*

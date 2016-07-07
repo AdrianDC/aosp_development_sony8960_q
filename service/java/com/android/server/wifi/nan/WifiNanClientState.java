@@ -25,6 +25,7 @@ import android.util.SparseArray;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.Arrays;
 
 /**
  * Manages the service-side NAN state of an individual "client". A client
@@ -49,6 +50,9 @@ public class WifiNanClientState {
     private int mClientId;
     private ConfigRequest mConfigRequest;
     private int mUid;
+
+    private static final byte[] ALL_ZERO_MAC = new byte[] {0, 0, 0, 0, 0, 0};
+    private byte[] mLastDiscoveryInterfaceMac = ALL_ZERO_MAC;
 
     public WifiNanClientState(int clientId, int uid, IWifiNanEventCallback callback,
             ConfigRequest configRequest) {
@@ -80,10 +84,6 @@ public class WifiNanClientState {
 
     public int getUid() {
         return mUid;
-    }
-
-    public IWifiNanEventCallback getCallback() {
-        return mCallback;
     }
 
     /**
@@ -168,22 +168,21 @@ public class WifiNanClientState {
      * identity change (interface address information not propagated to client -
      * privacy concerns).
      *
-     * @param mac The new MAC address of the discovery interface - not
-     *            propagated to client!
-     * @return A 1 if registered to listen for event, 0 otherwise.
+     * @param mac The new MAC address of the discovery interface - optionally propagated to the
+     *            client.
      */
-    public int onInterfaceAddressChange(byte[] mac) {
-        if (mConfigRequest.mEnableIdentityChangeCallback) {
+    public void onInterfaceAddressChange(byte[] mac) {
+        if (mConfigRequest.mEnableIdentityChangeCallback && !Arrays.equals(mac,
+                mLastDiscoveryInterfaceMac)) {
             try {
-                mCallback.onIdentityChanged();
+                // TODO: b/30000323 - resolve privacy concerns
+                mCallback.onIdentityChanged(mac);
             } catch (RemoteException e) {
                 Log.w(TAG, "onIdentityChanged: RemoteException - ignored: " + e);
             }
-
-            return 1;
         }
 
-        return 0;
+        mLastDiscoveryInterfaceMac = mac;
     }
 
     /**
@@ -193,22 +192,21 @@ public class WifiNanClientState {
      * concerns). Dispatched if the client registered for the identity changed
      * event.
      *
-     * @param mac The (new) MAC address of the discovery interface - not
-     *            propagated to client!
-     * @return A 1 if registered to listen for event, 0 otherwise.
+     * @param mac The cluster ID of the cluster started or joined.
+     * @param currentDiscoveryInterfaceMac The MAC address of the discovery interface.
      */
-    public int onClusterChange(int flag, byte[] mac) {
-        if (mConfigRequest.mEnableIdentityChangeCallback) {
+    public void onClusterChange(int flag, byte[] mac, byte[] currentDiscoveryInterfaceMac) {
+        if (mConfigRequest.mEnableIdentityChangeCallback && !Arrays.equals(
+                currentDiscoveryInterfaceMac, mLastDiscoveryInterfaceMac)) {
             try {
-                mCallback.onIdentityChanged();
+                // TODO: b/30000323 - resolve privacy concerns
+                mCallback.onIdentityChanged(currentDiscoveryInterfaceMac);
             } catch (RemoteException e) {
                 Log.w(TAG, "onIdentityChanged: RemoteException - ignored: " + e);
             }
-
-            return 1;
         }
 
-        return 0;
+        mLastDiscoveryInterfaceMac = currentDiscoveryInterfaceMac;
     }
 
     /**

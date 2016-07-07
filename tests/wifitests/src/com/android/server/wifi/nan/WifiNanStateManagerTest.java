@@ -323,7 +323,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
 
         inOrder.verify(mockCallback2).onConnectSuccess();
-        inOrder.verify(mockCallback2, times(2)).onIdentityChanged();
+        inOrder.verify(mockCallback2).onIdentityChanged(someMac);
 
         validateInternalClientInfoCleanedUp(clientId1);
         validateInternalClientInfoCleanedUp(clientId2);
