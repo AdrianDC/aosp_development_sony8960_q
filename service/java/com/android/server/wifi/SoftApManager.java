@@ -182,7 +182,7 @@ public class SoftApManager {
             super(TAG, looper);
 
             addState(mIdleState);
-            addState(mStartedState, mIdleState);
+            addState(mStartedState);
 
             setInitialState(mIdleState);
             start();
