@@ -299,13 +299,18 @@ void JoinFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
   WordScanner ws1(list1);
   WordScanner ws2(list2);
   WordWriter ww(s);
-  for (WordScanner::Iterator iter1 = ws1.begin(), iter2 = ws2.begin();
+  WordScanner::Iterator iter1, iter2;
+  for (iter1 = ws1.begin(), iter2 = ws2.begin();
        iter1 != ws1.end() && iter2 != ws2.end();
        ++iter1, ++iter2) {
     ww.Write(*iter1);
     // Use |AppendString| not to append extra ' '.
     AppendString(*iter2, s);
   }
+  for (; iter1 != ws1.end(); ++iter1)
+    ww.Write(*iter1);
+  for (; iter2 != ws2.end(); ++iter2)
+    ww.Write(*iter2);
 }
 
 void WildcardFunc(const vector<Value*>& args, Evaluator* ev, string* s) {
@@ -458,10 +463,6 @@ void EvalFunc(const vector<Value*>& args, Evaluator* ev, string*) {
   //const string text = args[0]->Eval(ev);
   string* text = new string;
   args[0]->Eval(ev, text);
-  if ((*text)[0] == '#') {
-    delete text;
-    return;
-  }
   if (ev->avoid_io()) {
     KATI_WARN("%s:%d: *warning*: $(eval) in a recipe is not recommended: %s",
               LOCF(ev->loc()), text->c_str());
