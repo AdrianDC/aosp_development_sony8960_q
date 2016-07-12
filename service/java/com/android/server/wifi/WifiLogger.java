@@ -231,8 +231,11 @@ class WifiLogger extends BaseWifiLogger {
         }
 
         dumpPacketFates(pw);
-
         pw.println("--------------------------------------------------------------------");
+
+        pw.println("WifiNative - Log Begin ----");
+        mWifiNative.getLocalLog().dump(fd, pw, args);
+        pw.println("WifiNative - Log End ----");
     }
 
     /* private methods and data */
