@@ -122,7 +122,10 @@ void Evaluator::EvalRule(const RuleStmt* stmt) {
 
   Rule* rule;
   RuleVarAssignment rule_var;
-  ParseRule(loc_, expr, stmt->term, &rule, &rule_var);
+  function<string()> after_term_fn = [this, stmt](){
+    return stmt->after_term ? stmt->after_term->Eval(this) : "";
+  };
+  ParseRule(loc_, expr, stmt->term, after_term_fn, &rule, &rule_var);
 
   if (rule) {
     if (stmt->term == ';') {
@@ -201,8 +204,7 @@ void Evaluator::EvalIf(const IfStmt* stmt) {
       if (lhs.str().find_first_of(" \t") != string::npos)
         Error("*** invalid syntax in conditional.");
       Var* v = LookupVarInCurrentScope(lhs);
-      const string&& s = v->Eval(this);
-      is_true = (s.empty() == (stmt->op == CondOp::IFNDEF));
+      is_true = (v->String().empty() == (stmt->op == CondOp::IFNDEF));
       break;
     }
     case CondOp::IFEQ:
