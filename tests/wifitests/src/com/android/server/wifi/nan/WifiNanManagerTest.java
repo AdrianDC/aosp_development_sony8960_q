@@ -43,7 +43,11 @@ import android.os.IBinder;
 import android.os.Parcel;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.util.Base64;
 
+import libcore.util.HexEncoding;
+
+import org.json.JSONObject;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -945,6 +949,126 @@ public class WifiNanManagerTest {
         // (5) ranging aborted callback (should be ignored since listener cleared on first callback)
         clientProxyCallback.getValue().onRangingAborted(rangingId);
         mMockLooper.dispatchAll();
+
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService,
+                mockPublishSession, mockRttListener);
+    }
+
+    /*
+     * Data-path tests
+     */
+
+    /**
+     * Validate that correct network specifier is generated for client-based data-path.
+     */
+    @Test
+    public void testNetworkSpecifierWithClient() throws Exception {
+        final int clientId = 4565;
+        final int sessionId = 123;
+        final int peerId = 123412;
+        final int role = WifiNanManager.WIFI_NAN_DATA_PATH_ROLE_INITIATOR;
+        final String token = "Some arbitrary token string - can really be anything";
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        final PublishConfig publishConfig = new PublishConfig.Builder().build();
+
+        String tokenB64 = Base64.encodeToString(token.getBytes(), Base64.DEFAULT);
+
+        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanEventCallback.class);
+        ArgumentCaptor<IWifiNanSessionCallback> sessionProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanSessionCallback.class);
+        ArgumentCaptor<WifiNanPublishSession> publishSession = ArgumentCaptor
+                .forClass(WifiNanPublishSession.class);
+
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
+                any(ConfigRequest.class))).thenReturn(clientId);
+
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
+                mockPublishSession, mockRttListener);
+
+        // (1) connect successfully
+        mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
+        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
+                eq(configRequest));
+        clientProxyCallback.getValue().onConnectSuccess();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
+
+        // (2) publish successfully
+        mDut.publish(publishConfig, mockSessionCallback);
+        inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
+                sessionProxyCallback.capture());
+        sessionProxyCallback.getValue().onSessionStarted(sessionId);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onPublishStarted(publishSession.capture());
+
+        // (3) request a network specifier from the session
+        String networkSpecifier = publishSession.getValue().createNetworkSpecifier(role, peerId,
+                token.getBytes(), token.length());
+
+        // validate format
+        JSONObject jsonObject = new JSONObject(networkSpecifier);
+        collector.checkThat("role", role,
+                equalTo(jsonObject.getInt(WifiNanManager.NETWORK_SPECIFIER_KEY_ROLE)));
+        collector.checkThat("client_id", clientId,
+                equalTo(jsonObject.getInt(WifiNanManager.NETWORK_SPECIFIER_KEY_CLIENT_ID)));
+        collector.checkThat("session_id", sessionId,
+                equalTo(jsonObject.getInt(WifiNanManager.NETWORK_SPECIFIER_KEY_SESSION_ID)));
+        collector.checkThat("peer_id", peerId,
+                equalTo(jsonObject.getInt(WifiNanManager.NETWORK_SPECIFIER_KEY_PEER_ID)));
+        collector.checkThat("token", tokenB64,
+                equalTo(jsonObject.getString(WifiNanManager.NETWORK_SPECIFIER_KEY_TOKEN)));
+
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService,
+                mockPublishSession, mockRttListener);
+    }
+
+    /**
+     * Validate that correct network specifier is generated for a direct data-path (i.e.
+     * specifying MAC address as opposed to a client-based oqaque specification).
+     */
+    @Test
+    public void testNetworkSpecifierDirect() throws Exception {
+        final int clientId = 134;
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        final byte[] someMac = HexEncoding.decode("000102030405".toCharArray(), false);
+        final int role = WifiNanManager.WIFI_NAN_DATA_PATH_ROLE_INITIATOR;
+        final String token = "Some arbitrary token string - can really be anything";
+
+        String tokenB64 = Base64.encodeToString(token.getBytes(), Base64.DEFAULT);
+
+        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanEventCallback.class);
+
+        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
+                any(ConfigRequest.class))).thenReturn(clientId);
+
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
+                mockPublishSession, mockRttListener);
+
+        // (1) connect successfully
+        mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
+        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
+                eq(configRequest));
+        clientProxyCallback.getValue().onConnectSuccess();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess();
+
+        /* (2) request a direct network specifier*/
+        String networkSpecifier = mDut.createNetworkSpecifier(role, someMac, token.getBytes(),
+                token.length());
+
+        /* validate format*/
+        JSONObject jsonObject = new JSONObject(networkSpecifier);
+        collector.checkThat("role", role,
+                equalTo(jsonObject.getInt(WifiNanManager.NETWORK_SPECIFIER_KEY_ROLE)));
+        collector.checkThat("client_id", clientId,
+                equalTo(jsonObject.getInt(WifiNanManager.NETWORK_SPECIFIER_KEY_CLIENT_ID)));
+        collector.checkThat("peer_mac", someMac, equalTo(HexEncoding.decode(
+                jsonObject.getString(WifiNanManager.NETWORK_SPECIFIER_KEY_PEER_MAC).toCharArray(),
+                false)));
+        collector.checkThat("token", tokenB64,
+                equalTo(jsonObject.getString(WifiNanManager.NETWORK_SPECIFIER_KEY_TOKEN)));
 
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService,
                 mockPublishSession, mockRttListener);

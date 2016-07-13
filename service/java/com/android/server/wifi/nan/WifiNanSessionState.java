@@ -59,6 +59,10 @@ public class WifiNanSessionState {
         return mSessionId;
     }
 
+    public int getPubSubId() {
+        return mPubSubId;
+    }
+
     public IWifiNanSessionCallback getCallback() {
         return mCallback;
     }

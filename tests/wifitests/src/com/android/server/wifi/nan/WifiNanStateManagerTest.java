@@ -34,6 +34,7 @@ import static org.mockito.Mockito.when;
 import android.app.test.TestAlarmManager;
 import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
 import android.net.wifi.RttManager;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventCallback;
@@ -89,6 +90,9 @@ public class WifiNanStateManagerTest {
         when(mMockContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
 
+        when(mMockContext.getSystemService(Context.CONNECTIVITY_SERVICE)).thenReturn(
+                mock(ConnectivityManager.class));
+
         mMockLooper = new TestLooper();
 
         mDut = installNewNanStateManager();
@@ -134,6 +138,7 @@ public class WifiNanStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).disable((short) 0);
         inOrder.verify(mMockNative).deInitNan();
+        inOrder.verify(mMockNanDataPathStatemanager).onNanDownCleanupDataPaths();
         validateCorrectNanStatusChangeBroadcast(inOrder, false);
         inOrder.verify(mMockNanDataPathStatemanager).deleteAllInterfaces();
         collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
