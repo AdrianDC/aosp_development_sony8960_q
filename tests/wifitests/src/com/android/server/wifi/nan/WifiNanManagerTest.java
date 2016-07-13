@@ -692,7 +692,8 @@ public class WifiNanManagerTest {
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
                 .setEnableTerminateNotification(enableTerminateNotification).build();
 
-        collector.checkThat("mServiceName", serviceName, equalTo(subscribeConfig.mServiceName));
+        collector.checkThat("mServiceName", serviceName.getBytes(),
+                equalTo(subscribeConfig.mServiceName));
         collector.checkThat("mServiceSpecificInfo",
                 utilAreArraysEqual(serviceSpecificInfo.getBytes(), serviceSpecificInfo.length(),
                         subscribeConfig.mServiceSpecificInfo,
@@ -808,7 +809,8 @@ public class WifiNanManagerTest {
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
                 .setEnableTerminateNotification(enableTerminateNotification).build();
 
-        collector.checkThat("mServiceName", serviceName, equalTo(publishConfig.mServiceName));
+        collector.checkThat("mServiceName", serviceName.getBytes(),
+                equalTo(publishConfig.mServiceName));
         collector.checkThat("mServiceSpecificInfo",
                 utilAreArraysEqual(serviceSpecificInfo.getBytes(), serviceSpecificInfo.length(),
                         publishConfig.mServiceSpecificInfo,

@@ -400,19 +400,14 @@ static jint android_net_wifi_nan_publish(JNIEnv *env, jclass cls,
     /* configurable settings */
     msg.publish_id = publish_id;
 
-    JNIObject<jstring> objStr1 = helper.getStringField(publish_config, "mServiceName");
-    if (objStr1 == NULL) {
-        ALOGE("Error accessing mServiceName field");
+    size_t service_name_len;
+    helper.getByteArrayField(publish_config, "mServiceName", msg.service_name,
+                             &service_name_len, NAN_MAX_SERVICE_NAME_LEN);
+    if (service_name_len > NAN_MAX_SERVICE_NAME_LEN) {
+        ALOGE("Length of service name field larger than max allowed");
         return 0;
     }
-    ScopedUtfChars chars1(env, objStr1);
-    const char *serviceName = chars1.c_str();
-    if (serviceName == NULL) {
-        ALOGE("Error getting mServiceName");
-        return 0;
-    }
-    msg.service_name_len = strlen(serviceName);
-    strcpy((char*)msg.service_name, serviceName);
+    msg.service_name_len = service_name_len;
 
     msg.service_specific_info_len = helper.getIntField(publish_config, "mServiceSpecificInfoLength");
     if (msg.service_specific_info_len != 0) {
@@ -476,19 +471,14 @@ static jint android_net_wifi_nan_subscribe(JNIEnv *env, jclass cls,
     /* configurable settings */
     msg.subscribe_id = subscribe_id;
 
-    JNIObject<jstring> objStr1 = helper.getStringField(subscribe_config, "mServiceName");
-    if (objStr1 == NULL) {
-        ALOGE("Error accessing mServiceName field");
+    size_t service_name_len;
+    helper.getByteArrayField(subscribe_config, "mServiceName", msg.service_name,
+                             &service_name_len, NAN_MAX_SERVICE_NAME_LEN);
+    if (service_name_len > NAN_MAX_SERVICE_NAME_LEN) {
+        ALOGE("Length of service name field larger than max allowed");
         return 0;
     }
-    ScopedUtfChars chars1(env, objStr1);
-    const char *serviceName = chars1.c_str();
-    if (serviceName == NULL) {
-        ALOGE("Error getting mServiceName");
-        return 0;
-    }
-    msg.service_name_len = strlen(serviceName);
-    strcpy((char*)msg.service_name, serviceName);
+    msg.service_name_len = service_name_len;
 
     msg.service_specific_info_len = helper.getIntField(subscribe_config, "mServiceSpecificInfoLength");
     if (msg.service_specific_info_len != 0) {
