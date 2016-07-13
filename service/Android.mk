@@ -52,11 +52,15 @@ include $(BUILD_SHARED_LIBRARY)
 # Build the java code
 # ============================================================
 
+wificond_aidl_path := system/connectivity/wificond/aidl
+wificond_aidl_rel_path := ../../../../../$(wificond_aidl_path)
+
 include $(CLEAR_VARS)
 
-LOCAL_AIDL_INCLUDES := $(LOCAL_PATH)/java
+LOCAL_AIDL_INCLUDES := $(LOCAL_PATH)/java $(wificond_aidl_path)
 LOCAL_SRC_FILES := $(call all-java-files-under, java) \
 	$(call all-Iaidl-files-under, java) \
+	$(call all-Iaidl-files-under, $(wificond_aidl_rel_path)) \
 	$(call all-logtags-files-under, java) \
 	$(call all-proto-files-under, proto)
 

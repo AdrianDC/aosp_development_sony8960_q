@@ -55,6 +55,8 @@ import android.net.RouteInfo;
 import android.net.StaticIpConfiguration;
 import android.net.dhcp.DhcpClient;
 import android.net.ip.IpManager;
+import android.net.wifi.IApInterface;
+import android.net.wifi.IWificond;
 import android.net.wifi.PasspointManagementObjectDefinition;
 import android.net.wifi.RssiPacketCountInfo;
 import android.net.wifi.ScanResult;
@@ -188,6 +190,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private WifiConnectivityManager mWifiConnectivityManager;
     private WifiQualifiedNetworkSelector mWifiQualifiedNetworkSelector;
     private INetworkManagementService mNwService;
+    private IWificond mWificond;
     private ConnectivityManager mCm;
     private BaseWifiLogger mWifiLogger;
     private WifiApConfigStore mWifiApConfigStore;
@@ -3610,34 +3613,27 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     /* Driver/firmware setup for soft AP. */
-    private boolean setupDriverForSoftAp() {
-        if (!mWifiNative.loadDriver()) {
-            Log.e(TAG, "Failed to load driver for softap");
-            return false;
+    private IApInterface setupDriverForSoftAp() {
+        if (mWificond == null) {
+            Log.e(TAG, "Failed to get reference to wificond");
+            return null;
         }
 
-        int index = mWifiNative.queryInterfaceIndex(mInterfaceName);
-        if (index != -1) {
-            if (!mWifiNative.setInterfaceUp(false)) {
-                Log.e(TAG, "toggleInterface failed");
-                return false;
-            }
-        } else {
-            if (mVerboseLoggingEnabled) Log.d(TAG, "No interfaces to bring down");
-        }
-
+        IApInterface apInterface = null;
         try {
-            mNwService.wifiFirmwareReload(mInterfaceName, "AP");
-            if (mVerboseLoggingEnabled) Log.d(TAG, "Firmware reloaded in AP mode");
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to reload AP firmware " + e);
+            apInterface = mWificond.createApInterface();
+        } catch (RemoteException e1) { }
+
+        if (apInterface == null) {
+            Log.e(TAG, "Could not get IApInterface instance from wificond");
+            return null;
         }
 
         if (!mWifiNative.startHal()) {
             /* starting HAL is optional */
             Log.e(TAG, "Failed to start HAL");
         }
-        return true;
+        return apInterface;
     }
 
     private byte[] macAddressFromString(String macString) {
@@ -4047,6 +4043,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     class InitialState extends State {
         @Override
         public void enter() {
+            if (mWificond != null) {
+                try {
+                    mWificond.tearDownInterfaces();
+                } catch (RemoteException e) {
+                    // There is very little we can do here
+                    Log.e(TAG, "Failed to tear down interfaces via wificond");
+                }
+                mWificond = null;
+            }
             mWifiNative.stopHal();
             mWifiNative.unloadDriver();
             if (mWifiP2pChannel == null && mWifiP2pServiceImpl != null) {
@@ -4124,17 +4129,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case CMD_START_AP:
-                    if (setupDriverForSoftAp()) {
-                        transitionTo(mSoftApState);
-                    } else {
-                        setWifiApState(WIFI_AP_STATE_FAILED,
-                                WifiManager.SAP_START_FAILURE_GENERAL);
-                        /**
-                         * Transition to InitialState (current state) to reset the
-                         * driver/HAL back to the initial state.
-                         */
-                        transitionTo(mInitialState);
-                    }
+                    // Refresh our reference to wificond.  This allows us to tolerate restarts.
+                    mWificond = mWifiInjector.makeWificond();
+                    transitionTo(mSoftApState);
                     break;
                 default:
                     return NOT_HANDLED;
@@ -7477,30 +7474,41 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         @Override
         public void enter() {
             final Message message = getCurrentMessage();
-            if (message.what == CMD_START_AP) {
-                WifiConfiguration config = (WifiConfiguration) message.obj;
-
-                if (config == null) {
-                    /**
-                     * Configuration not provided in the command, fallback to use the current
-                     * configuration.
-                     */
-                    config = mWifiApConfigStore.getApConfiguration();
-                } else {
-                    /* Update AP configuration. */
-                    mWifiApConfigStore.setApConfiguration(config);
-                }
-
-                checkAndSetConnectivityInstance();
-                mSoftApManager = mFacade.makeSoftApManager(
-                        mContext, getHandler().getLooper(), mWifiNative, mNwService,
-                        mCm, mCountryCode.getCurrentCountryCode(),
-                        mWifiApConfigStore.getAllowed2GChannel(),
-                        new SoftApListener());
-                mSoftApManager.start(config);
-            } else {
+            if (message.what != CMD_START_AP) {
                 throw new RuntimeException("Illegal transition to SoftApState: " + message);
             }
+
+            IApInterface apInterface = setupDriverForSoftAp();
+            if (apInterface == null) {
+                setWifiApState(WIFI_AP_STATE_FAILED,
+                        WifiManager.SAP_START_FAILURE_GENERAL);
+                /**
+                 * Transition to InitialState to reset the
+                 * driver/HAL back to the initial state.
+                 */
+                transitionTo(mInitialState);
+                return;
+            }
+
+            WifiConfiguration config = (WifiConfiguration) message.obj;
+            if (config == null) {
+                /**
+                 * Configuration not provided in the command, fallback to use the current
+                 * configuration.
+                 */
+                config = mWifiApConfigStore.getApConfiguration();
+            } else {
+                /* Update AP configuration. */
+                mWifiApConfigStore.setApConfiguration(config);
+            }
+
+            checkAndSetConnectivityInstance();
+            mSoftApManager = mFacade.makeSoftApManager(
+                    mContext, getHandler().getLooper(), mWifiNative, mNwService,
+                    mCm, mCountryCode.getCurrentCountryCode(),
+                    mWifiApConfigStore.getAllowed2GChannel(),
+                    new SoftApListener());
+            mSoftApManager.start(config);
         }
 
         @Override
