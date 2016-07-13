@@ -7503,11 +7503,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
 
             checkAndSetConnectivityInstance();
-            mSoftApManager = mFacade.makeSoftApManager(
-                    mContext, getHandler().getLooper(), mWifiNative, mNwService,
+            mSoftApManager = mWifiInjector.makeSoftApManager(
+                    mWifiNative, mNwService,
                     mCm, mCountryCode.getCurrentCountryCode(),
                     mWifiApConfigStore.getAllowed2GChannel(),
-                    new SoftApListener());
+                    new SoftApListener(), apInterface);
             mSoftApManager.start(config);
         }
 
