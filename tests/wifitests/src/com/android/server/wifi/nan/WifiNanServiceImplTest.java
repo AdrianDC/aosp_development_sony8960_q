@@ -38,6 +38,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
+import android.util.SparseIntArray;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -430,8 +431,8 @@ public class WifiNanServiceImplTest {
      */
 
     private void validateInternalStateCleanedUp(int clientId) throws Exception {
-        Integer uidEntry = getInternalStateUid(clientId);
-        assertEquals(null, uidEntry);
+        int uidEntry = getInternalStateUid(clientId);
+        assertEquals(-1, uidEntry);
 
         IBinder.DeathRecipient dr = getInternalStateDeathRecipient(clientId);
         assertEquals(null, dr);
@@ -459,13 +460,13 @@ public class WifiNanServiceImplTest {
         field.set(null, mNanStateManagerMock);
     }
 
-    private Integer getInternalStateUid(int clientId) throws Exception {
+    private int getInternalStateUid(int clientId) throws Exception {
         Field field = WifiNanServiceImpl.class.getDeclaredField("mUidByClientId");
         field.setAccessible(true);
         @SuppressWarnings("unchecked")
-        SparseArray<Integer> uidByClientId = (SparseArray<Integer>) field.get(mDut);
+        SparseIntArray uidByClientId = (SparseIntArray) field.get(mDut);
 
-        return uidByClientId.get(clientId);
+        return uidByClientId.get(clientId, -1);
     }
 
     private IBinder.DeathRecipient getInternalStateDeathRecipient(int clientId) throws Exception {
