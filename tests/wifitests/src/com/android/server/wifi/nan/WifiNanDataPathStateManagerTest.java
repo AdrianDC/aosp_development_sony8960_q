@@ -128,7 +128,7 @@ public class WifiNanDataPathStateManagerTest {
         when(mMockNative.subscribe(anyShort(), anyInt(), any(SubscribeConfig.class)))
                 .thenReturn(true);
         when(mMockNative.sendMessage(anyShort(), anyInt(), anyInt(), any(byte[].class),
-                any(byte[].class), anyInt())).thenReturn(true);
+                any(byte[].class), anyInt(), anyInt())).thenReturn(true);
         when(mMockNative.stopPublish(anyShort(), anyInt())).thenReturn(true);
         when(mMockNative.stopSubscribe(anyShort(), anyInt())).thenReturn(true);
         when(mMockNative.createNanNetworkInterface(anyShort(), anyString())).thenReturn(true);

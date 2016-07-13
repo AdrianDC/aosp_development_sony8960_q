@@ -317,15 +317,17 @@ public class WifiNanNative {
      *            together with requestorInstanceId.
      * @param message Message.
      * @param messageLength Message byte array length.
+     * @param messageId Arbitary integer from host (not sent to HAL - useful for
+     *                  testing/debugging at this level)
      */
     public boolean sendMessage(short transactionId, int pubSubId, int requestorInstanceId,
-            byte[] dest, byte[] message, int messageLength) {
+            byte[] dest, byte[] message, int messageLength, int messageId) {
         if (VDBG) {
             Log.d(TAG,
                     "sendMessage: transactionId=" + transactionId + ", pubSubId=" + pubSubId
                             + ", requestorInstanceId=" + requestorInstanceId + ", dest="
                             + String.valueOf(HexEncoding.encode(dest)) + ", messageLength="
-                            + messageLength);
+                            + messageLength + ", messageId=" + messageId);
         }
 
         if (isNanInit()) {

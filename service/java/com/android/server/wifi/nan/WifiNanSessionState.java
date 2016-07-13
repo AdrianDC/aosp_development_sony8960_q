@@ -176,7 +176,7 @@ public class WifiNanSessionState {
         byte[] peerMac = HexEncoding.decode(peerMacStr.toCharArray(), false);
 
         return WifiNanNative.getInstance().sendMessage(transactionId, mPubSubId, peerId, peerMac,
-                message, messageLength);
+                message, messageLength, messageId);
     }
 
     /**
