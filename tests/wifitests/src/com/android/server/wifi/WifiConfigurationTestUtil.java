@@ -23,12 +23,14 @@ import android.net.LinkAddress;
 import android.net.NetworkUtils;
 import android.net.ProxyInfo;
 import android.net.StaticIpConfiguration;
+import android.net.wifi.FakeKeys;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.text.TextUtils;
 
 import java.net.InetAddress;
+import java.security.cert.X509Certificate;
 import java.util.List;
 
 /**
@@ -76,6 +78,7 @@ public class WifiConfigurationTestUtil {
     public static final int TEST_STATIC_PROXY_PORT = 8000;
     public static final String TEST_STATIC_PROXY_EXCLUSION_LIST = "";
     public static final String TEST_PAC_PROXY_LOCATION = "http://";
+    public static final String TEST_CA_CERT_ALIAS = "WifiConfigurationTestUtilCaCertAlias";
 
     /**
      * Index used to assign unique SSIDs for the generation of predefined WifiConfiguration objects.
@@ -128,10 +131,10 @@ public class WifiConfigurationTestUtil {
         WifiConfiguration config = generateWifiConfig(networkId, uid, ssid, shared, enabled, fqdn,
                 providerFriendlyName);
 
-        if (security == SECURITY_NONE) {
+        if ((security == SECURITY_NONE) || ((security & SECURITY_WEP) != 0)) {
             config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
         } else {
-            if (((security & SECURITY_WEP) != 0) || ((security & SECURITY_PSK) != 0)) {
+            if ((security & SECURITY_PSK) != 0) {
                 config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
             }
 
@@ -328,6 +331,25 @@ public class WifiConfigurationTestUtil {
                 TEST_STATIC_IP_GATEWAY_ADDRESS, TEST_STATIC_IP_DNS_SERVER_ADDRESSES,
                 TEST_STATIC_PROXY_HOST, TEST_STATIC_PROXY_PORT, TEST_STATIC_PROXY_EXCLUSION_LIST,
                 TEST_PAC_PROXY_LOCATION);
+    }
+
+    // TODO: These enterprise configurations may need more parameters set.
+    public static WifiEnterpriseConfig createPEAPWifiEnterpriseConfigWithGTCPhase2() {
+        WifiEnterpriseConfig config = new WifiEnterpriseConfig();
+        config.setEapMethod(WifiEnterpriseConfig.Eap.PEAP);
+        config.setPhase2Method(WifiEnterpriseConfig.Phase2.GTC);
+        config.setCaCertificateAliases(new String[] {TEST_CA_CERT_ALIAS + "PEAP"});
+        config.setCaCertificates(new X509Certificate[] {FakeKeys.CA_CERT0, FakeKeys.CA_CERT1});
+        return config;
+    }
+
+    public static WifiEnterpriseConfig createTLSWifiEnterpriseConfigWithNonePhase2() {
+        WifiEnterpriseConfig config = new WifiEnterpriseConfig();
+        config.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
+        config.setPhase2Method(WifiEnterpriseConfig.Phase2.NONE);
+        config.setCaCertificateAliases(new String[] {TEST_CA_CERT_ALIAS + "TLS"});
+        config.setCaCertificates(new X509Certificate[] {FakeKeys.CA_CERT0, FakeKeys.CA_CERT1});
+        return config;
     }
 
     /**

@@ -23,14 +23,17 @@ import android.os.UserHandle;
 import java.util.List;
 
 /**
- * Helper for working with {@link android.net.wifi.WifiConfiguration} objects.
+ * WifiConfiguration utility for any {@link android.net.wifi.WifiConfiguration} related operations.
+ * Currently contains:
+ *   > Helper method to check if the WifiConfiguration object is visible to the provided users.
+ *   > Helper methods to identify the encryption of a WifiConfiguration object.
  */
 public class WifiConfigurationUtil {
     /**
      * Check whether a network configuration is visible to a user or any of its managed profiles.
      * @param config the network configuration whose visibility should be checked
      * @param profiles the user IDs of the user itself and all its managed profiles (can be obtained
-     *         via {@link android.os.UserManager.getProfiles})
+     *         via {@link android.os.UserManager#getProfiles})
      * @return whether the network configuration is visible to the user or any of its managed
      *         profiles
      */
@@ -46,4 +49,48 @@ public class WifiConfigurationUtil {
         }
         return false;
     }
+
+    /**
+     * Checks if the provided |wepKeys| array contains any non-null value;
+     */
+    public static boolean hasAnyValidWepKey(String[] wepKeys) {
+        for (int i = 0; i < wepKeys.length; i++) {
+            if (wepKeys[i] != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Helper method to check if the provided |config| corresponds to a PSK network or not.
+     */
+    public static boolean isConfigForPskNetwork(WifiConfiguration config) {
+        return config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK);
+    }
+
+    /**
+     * Helper method to check if the provided |config| corresponds to a EAP network or not.
+     */
+    public static boolean isConfigForEapNetwork(WifiConfiguration config) {
+        return (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP)
+                || config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X));
+    }
+
+    /**
+     * Helper method to check if the provided |config| corresponds to a WEP network or not.
+     */
+    public static boolean isConfigForWepNetwork(WifiConfiguration config) {
+        return (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)
+                && hasAnyValidWepKey(config.wepKeys));
+    }
+
+    /**
+     * Helper method to check if the provided |config| corresponds to an open network or not.
+     */
+    public static boolean isConfigForOpenNetwork(WifiConfiguration config) {
+        return !(isConfigForWepNetwork(config) || isConfigForPskNetwork(config)
+                || isConfigForEapNetwork(config));
+    }
+
 }
