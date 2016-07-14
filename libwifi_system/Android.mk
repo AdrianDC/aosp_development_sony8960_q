@@ -34,8 +34,10 @@ LOCAL_MODULE := libwifi-system
 LOCAL_CFLAGS := $(wifi_system_cflags)
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := libbase
 LOCAL_SHARED_LIBRARIES := \
     libbase \
+    libcrypto \
     libcutils \
     liblog \
     libnetutils \
@@ -49,6 +51,7 @@ LOCAL_SHARED_LIBRARIES += libwpa_client
 endif
 
 LOCAL_SRC_FILES := \
+    hostapd_manager.cpp \
     interface_tool.cpp \
     hal_tool.cpp \
     wifi.cpp
@@ -67,5 +70,22 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := \
     $(LOCAL_PATH)/include \
     $(LOCAL_PATH)/testlib/include
 include $(BUILD_STATIC_LIBRARY)
+
+
+# Unit tests for libwifi-system
+# ============================================================
+include $(CLEAR_VARS)
+LOCAL_MODULE := libwifi-system_tests
+LOCAL_CPPFLAGS := $(wificond_cpp_flags)
+LOCAL_SRC_FILES := \
+    tests/main.cpp \
+    tests/hostapd_manager_unittest.cpp
+LOCAL_STATIC_LIBRARIES := \
+    libgmock \
+    libgtest
+LOCAL_SHARED_LIBRARIES := \
+    libbase \
+    libwifi-system
+include $(BUILD_NATIVE_TEST)
 
 endif

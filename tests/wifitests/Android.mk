@@ -114,6 +114,7 @@ LOCAL_JAVA_LIBRARIES := \
 # These must be explicitly included because they are not normally accessible
 # from apps.
 LOCAL_JNI_SHARED_LIBRARIES := \
+	libcrypto \
 	libwifi-service \
 	libEGL \
 	libGLESv2 \
