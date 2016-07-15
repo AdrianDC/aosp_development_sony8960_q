@@ -333,15 +333,11 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
-    public void sendMessage(int clientId, int sessionId, int peerId, byte[] message,
-            int messageLength, int messageId, int retryCount) {
+    public void sendMessage(int clientId, int sessionId, int peerId, byte[] message, int messageId,
+            int retryCount) {
         enforceAccessPermission();
         enforceChangePermission();
 
-        if (messageLength != 0 && (message == null || message.length < messageLength)) {
-            throw new IllegalArgumentException(
-                    "Non-matching combination of message and messageLength");
-        }
         if (retryCount < 0 || retryCount > WifiNanSession.MAX_SEND_RETRY_COUNT) {
             throw new IllegalArgumentException("Invalid 'retryCount' must be non-negative "
                     + "and <= WifiNanSession.MAX_SEND_RETRY_COUNT");
@@ -352,12 +348,11 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         if (VDBG) {
             Log.v(TAG,
                     "sendMessage: sessionId=" + sessionId + ", uid=" + uid + ", clientId="
-                            + clientId + ", peerId=" + peerId + ", messageLength=" + messageLength
-                            + ", messageId=" + messageId + ", retryCount=" + retryCount);
+                            + clientId + ", peerId=" + peerId + ", messageId=" + messageId
+                            + ", retryCount=" + retryCount);
         }
 
-        mStateManager.sendMessage(clientId, sessionId, peerId, message, messageLength, messageId,
-                retryCount);
+        mStateManager.sendMessage(clientId, sessionId, peerId, message, messageId, retryCount);
     }
 
     @Override

@@ -27,7 +27,6 @@ import android.net.NetworkFactory;
 import android.net.NetworkInfo;
 import android.net.NetworkRequest;
 import android.net.RouteInfo;
-import android.net.UidRange;
 import android.net.wifi.nan.WifiNanManager;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
@@ -279,16 +278,13 @@ public class WifiNanDataPathStateManager {
      * @param mac           The discovery MAC address of the peer.
      * @param ndpId         The locally assigned ID for the data-path.
      * @param message       A message sent from the peer as part of the data-path setup process.
-     * @param messageLength The length of the {@code message}.
      * @return The network specifier of the data-path (or null if none/error)
      */
-    public String onDataPathRequest(int pubSubId, byte[] mac, int ndpId, byte[] message, int
-            messageLength) {
+    public String onDataPathRequest(int pubSubId, byte[] mac, int ndpId, byte[] message) {
         if (VDBG) {
             Log.v(TAG,
                     "onDataPathRequest: pubSubId=" + pubSubId + ", mac=" + String.valueOf(
-                            HexEncoding.encode(mac)) + ", ndpId=" + ndpId + ", messageLength="
-                            + messageLength);
+                            HexEncoding.encode(mac)) + ", ndpId=" + ndpId);
         }
 
         String networkSpecifier = null;
@@ -308,8 +304,7 @@ public class WifiNanDataPathStateManager {
                 continue;
             }
 
-            if (entry.getValue().token != null && !Arrays.equals(entry.getValue().token,
-                    Arrays.copyOfRange(message, 0, messageLength))) {
+            if (entry.getValue().token != null && !Arrays.equals(entry.getValue().token, message)) {
                 continue;
             }
 
@@ -325,8 +320,7 @@ public class WifiNanDataPathStateManager {
 
         if (nnri == null) {
             Log.w(TAG, "onDataPathRequest: can't find a request with specified pubSubId=" + pubSubId
-                    + ", mac=" + String.valueOf(HexEncoding.encode(mac)) + ", message=" + message
-                    + ", messageLength=" + messageLength);
+                    + ", mac=" + String.valueOf(HexEncoding.encode(mac)) + ", message=" + message);
             if (DBG) {
                 Log.d(TAG, "onDataPathRequest: network request cache = " + mNetworkRequestsCache);
             }
@@ -368,15 +362,13 @@ public class WifiNanDataPathStateManager {
      *                      rejection/failure.
      * @param message       The message provided by the peer as part of the data-path setup
      *                      process.
-     * @param messageLength Length of the {@code message}.
      * @return The network specifier of the data-path or a null if none/error.
      */
     public String onDataPathConfirm(int ndpId, byte[] mac, boolean accept, int reason,
-            byte[] message, int messageLength) {
+            byte[] message) {
         if (VDBG) {
             Log.v(TAG, "onDataPathConfirm: ndpId=" + ndpId + ", mac=" + String.valueOf(
-                    HexEncoding.encode(mac)) + ", accept=" + accept + ", reason=" + reason
-                    + ", messageLength=" + messageLength);
+                    HexEncoding.encode(mac)) + ", accept=" + accept + ", reason=" + reason);
         }
 
         Map.Entry<String, NanNetworkRequestInformation> nnriE = getNetworkRequestByNdpId(ndpId);

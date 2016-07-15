@@ -146,12 +146,12 @@ static void OnNanEventMatch(NanMatchInd* event) {
     helper.setByteArrayRegion(mfBytes, 0, event->sdf_match_filter_len,
                               (jbyte *) event->sdf_match_filter);
 
-    helper.reportEvent(mCls, "onMatchEvent", "(II[B[BI[BI)V",
+    helper.reportEvent(mCls, "onMatchEvent", "(II[B[B[B)V",
                        (int) event->publish_subscribe_id,
                        (int) event->requestor_instance_id,
                        macBytes.get(),
-                       ssiBytes.get(), event->service_specific_info_len,
-                       mfBytes.get(), event->sdf_match_filter_len);
+                       ssiBytes.get(),
+                       mfBytes.get());
 }
 
 static void OnNanEventMatchExpired(NanMatchExpiredInd* event) {
@@ -177,12 +177,11 @@ static void OnNanEventFollowup(NanFollowupInd* event) {
     JNIObject<jbyteArray> msgBytes = helper.newByteArray(event->service_specific_info_len);
     helper.setByteArrayRegion(msgBytes, 0, event->service_specific_info_len, (jbyte *) event->service_specific_info);
 
-    helper.reportEvent(mCls, "onFollowupEvent", "(II[B[BI)V",
+    helper.reportEvent(mCls, "onFollowupEvent", "(II[B[B)V",
                        (int) event->publish_subscribe_id,
                        (int) event->requestor_instance_id,
                        macBytes.get(),
-                       msgBytes.get(),
-                       (int) event->service_specific_info_len);
+                       msgBytes.get());
 }
 
 static void OnNanEventDiscEngEvent(NanDiscEngEventInd* event) {
@@ -230,10 +229,9 @@ static void OnNanEventDataRequest(NanDataPathRequestInd* event) {
   helper.setByteArrayRegion(msgBytes, 0, event->app_info.ndp_app_info_len,
                             (jbyte *)event->app_info.ndp_app_info);
 
-  helper.reportEvent(mCls, "onDataPathRequest", "(I[BI[BI)V",
+  helper.reportEvent(mCls, "onDataPathRequest", "(I[BI[B)V",
                      event->service_instance_id, peerBytes.get(),
-                     event->ndp_instance_id, msgBytes.get(),
-                     event->app_info.ndp_app_info_len);
+                     event->ndp_instance_id, msgBytes.get());
 }
 
 static void OnNanEventDataConfirm(NanDataPathConfirmInd* event) {
@@ -249,9 +247,9 @@ static void OnNanEventDataConfirm(NanDataPathConfirmInd* event) {
                             (jbyte *)event->app_info.ndp_app_info);
 
   helper.reportEvent(
-      mCls, "onDataPathConfirm", "(I[BZI[BI)V", event->ndp_instance_id,
+      mCls, "onDataPathConfirm", "(I[BZI[B)V", event->ndp_instance_id,
       peerBytes.get(), event->rsp_code == NAN_DP_REQUEST_ACCEPT,
-      event->reason_code, msgBytes.get(), event->app_info.ndp_app_info_len);
+      event->reason_code, msgBytes.get());
 }
 
 static void OnNanEventDataEnd(NanDataPathEndInd* event) {
@@ -401,32 +399,40 @@ static jint android_net_wifi_nan_publish(JNIEnv *env, jclass cls,
     /* configurable settings */
     msg.publish_id = publish_id;
 
-    size_t service_name_len;
+    size_t array_length;
     helper.getByteArrayField(publish_config, "mServiceName", msg.service_name,
-                             &service_name_len, NAN_MAX_SERVICE_NAME_LEN);
-    if (service_name_len > NAN_MAX_SERVICE_NAME_LEN) {
+                             &array_length, NAN_MAX_SERVICE_NAME_LEN);
+    msg.service_name_len = array_length;
+    if (array_length > NAN_MAX_SERVICE_NAME_LEN) {
         ALOGE("Length of service name field larger than max allowed");
         return 0;
     }
-    msg.service_name_len = service_name_len;
 
-    msg.service_specific_info_len = helper.getIntField(publish_config, "mServiceSpecificInfoLength");
-    if (msg.service_specific_info_len != 0) {
-        helper.getByteArrayField(publish_config, "mServiceSpecificInfo",
-                             msg.service_specific_info, msg.service_specific_info_len);
+    helper.getByteArrayField(publish_config, "mServiceSpecificInfo",
+                             msg.service_specific_info, &array_length,
+                             NAN_MAX_SERVICE_SPECIFIC_INFO_LEN);
+    msg.service_specific_info_len = array_length;
+    if (array_length > NAN_MAX_SERVICE_SPECIFIC_INFO_LEN) {
+        ALOGE("Length of service specific info field larger than max allowed");
+        return 0;
     }
 
-
-    msg.tx_match_filter_len = helper.getIntField(publish_config, "mTxFilterLength");
-    if (msg.tx_match_filter_len != 0) {
-        helper.getByteArrayField(publish_config, "mTxFilter",
-                             msg.tx_match_filter, msg.tx_match_filter_len);
+    helper.getByteArrayField(publish_config, "mTxFilter",
+                             msg.tx_match_filter, &array_length,
+                             NAN_MAX_MATCH_FILTER_LEN);
+    msg.tx_match_filter_len = array_length;
+    if (array_length > NAN_MAX_MATCH_FILTER_LEN) {
+        ALOGE("Length of tx filter info field larger than max allowed");
+        return 0;
     }
 
-    msg.rx_match_filter_len = helper.getIntField(publish_config, "mRxFilterLength");
-    if (msg.rx_match_filter_len != 0) {
-        helper.getByteArrayField(publish_config, "mRxFilter",
-                             msg.rx_match_filter, msg.rx_match_filter_len);
+    helper.getByteArrayField(publish_config, "mRxFilter",
+                             msg.rx_match_filter, &array_length,
+                             NAN_MAX_MATCH_FILTER_LEN);
+    msg.rx_match_filter_len = array_length;
+    if (array_length > NAN_MAX_MATCH_FILTER_LEN) {
+        ALOGE("Length of rx filter info field larger than max allowed");
+        return 0;
     }
 
     msg.publish_type = (NanPublishType)helper.getIntField(publish_config, "mPublishType");
@@ -472,31 +478,40 @@ static jint android_net_wifi_nan_subscribe(JNIEnv *env, jclass cls,
     /* configurable settings */
     msg.subscribe_id = subscribe_id;
 
-    size_t service_name_len;
+    size_t array_length;
     helper.getByteArrayField(subscribe_config, "mServiceName", msg.service_name,
-                             &service_name_len, NAN_MAX_SERVICE_NAME_LEN);
-    if (service_name_len > NAN_MAX_SERVICE_NAME_LEN) {
+                             &array_length, NAN_MAX_SERVICE_NAME_LEN);
+    msg.service_name_len = array_length;
+    if (array_length > NAN_MAX_SERVICE_NAME_LEN) {
         ALOGE("Length of service name field larger than max allowed");
         return 0;
     }
-    msg.service_name_len = service_name_len;
 
-    msg.service_specific_info_len = helper.getIntField(subscribe_config, "mServiceSpecificInfoLength");
-    if (msg.service_specific_info_len != 0) {
-        helper.getByteArrayField(subscribe_config, "mServiceSpecificInfo",
-                             msg.service_specific_info, msg.service_specific_info_len);
+    helper.getByteArrayField(subscribe_config, "mServiceSpecificInfo",
+                             msg.service_specific_info, &array_length,
+                             NAN_MAX_SERVICE_SPECIFIC_INFO_LEN);
+    msg.service_specific_info_len = array_length;
+    if (array_length > NAN_MAX_SERVICE_SPECIFIC_INFO_LEN) {
+        ALOGE("Length of service specific info field larger than max allowed");
+        return 0;
     }
 
-    msg.tx_match_filter_len = helper.getIntField(subscribe_config, "mTxFilterLength");
-    if (msg.tx_match_filter_len != 0) {
-        helper.getByteArrayField(subscribe_config, "mTxFilter",
-                             msg.tx_match_filter, msg.tx_match_filter_len);
+    helper.getByteArrayField(subscribe_config, "mTxFilter",
+                             msg.tx_match_filter, &array_length,
+                             NAN_MAX_MATCH_FILTER_LEN);
+    msg.tx_match_filter_len = array_length;
+    if (array_length > NAN_MAX_MATCH_FILTER_LEN) {
+        ALOGE("Length of tx filter field larger than max allowed");
+        return 0;
     }
 
-    msg.rx_match_filter_len = helper.getIntField(subscribe_config, "mRxFilterLength");
-    if (msg.rx_match_filter_len != 0) {
-        helper.getByteArrayField(subscribe_config, "mRxFilter",
-                             msg.rx_match_filter, msg.rx_match_filter_len);
+    helper.getByteArrayField(subscribe_config, "mRxFilter",
+                             msg.rx_match_filter, &array_length,
+                             NAN_MAX_MATCH_FILTER_LEN);
+    msg.rx_match_filter_len = array_length;
+    if (array_length > NAN_MAX_MATCH_FILTER_LEN) {
+        ALOGE("Length of rx filter field larger than max allowed");
+        return 0;
     }
 
     msg.subscribe_type = (NanSubscribeType)helper.getIntField(subscribe_config, "mSubscribeType");
@@ -520,8 +535,7 @@ static jint android_net_wifi_nan_send_message(JNIEnv *env, jclass cls,
                                               jint pub_sub_id,
                                               jint req_instance_id,
                                               jbyteArray dest,
-                                              jbyteArray message,
-                                              jint message_length) {
+                                              jbyteArray message) {
     JNIHelper helper(env);
     wifi_interface_handle handle = getIfaceHandle(helper, wifi_native_cls, iface);
 
@@ -537,10 +551,14 @@ static jint android_net_wifi_nan_send_message(JNIEnv *env, jclass cls,
     msg.dw_or_faw = NAN_TRANSMIT_IN_DW;
 
     /* configurable settings */
-    msg.service_specific_info_len = message_length;
+    if (message == NULL) {
+        msg.service_specific_info_len = 0;
+    } else {
+        msg.service_specific_info_len = helper.getArrayLength(message);
 
-    ScopedBytesRO messageBytes(env, message);
-    memcpy(msg.service_specific_info, (byte*) messageBytes.get(), message_length);
+        ScopedBytesRO messageBytes(env, message);
+        memcpy(msg.service_specific_info, (byte*) messageBytes.get(), msg.service_specific_info_len);
+    }
 
     ScopedBytesRO destBytes(env, dest);
     memcpy(msg.addr, (byte*) destBytes.get(), 6);
@@ -623,8 +641,7 @@ static jint android_net_wifi_nan_delete_nan_network_interface(
 static jint android_net_wifi_nan_initiate_nan_data_path(
     JNIEnv *env, jclass cls, jshort transaction_id, jclass wifi_native_cls,
     jint iface, jint pub_sub_id, jint channel_request_type, jint channel,
-    jbyteArray peer, jstring interface_name, jbyteArray message,
-    jint message_length) {
+    jbyteArray peer, jstring interface_name, jbyteArray message) {
   JNIHelper helper(env);
   wifi_interface_handle handle = getIfaceHandle(helper, wifi_native_cls, iface);
 
@@ -653,10 +670,10 @@ static jint android_net_wifi_nan_initiate_nan_data_path(
   // TODO: b/29065317: add QoS configuration
   msg.ndp_cfg.qos_cfg = NAN_DP_CONFIG_NO_QOS;
 
-  msg.app_info.ndp_app_info_len = message_length;
+  msg.app_info.ndp_app_info_len = helper.getArrayLength(message);
 
   ScopedBytesRO messageBytes(env, message);
-  memcpy(msg.app_info.ndp_app_info, (byte *)messageBytes.get(), message_length);
+  memcpy(msg.app_info.ndp_app_info, (byte *)messageBytes.get(), helper.getArrayLength(message));
 
   return hal_fn.wifi_nan_data_request_initiator(transaction_id, handle, &msg);
 }
@@ -664,7 +681,7 @@ static jint android_net_wifi_nan_initiate_nan_data_path(
 static jint android_net_wifi_nan_respond_nan_data_path_request(
     JNIEnv *env, jclass cls, jshort transaction_id, jclass wifi_native_cls,
     jint iface, jboolean accept, jint ndp_id, jstring interface_name,
-    jbyteArray message, jint message_length) {
+    jbyteArray message) {
   JNIHelper helper(env);
   wifi_interface_handle handle = getIfaceHandle(helper, wifi_native_cls, iface);
 
@@ -688,10 +705,10 @@ static jint android_net_wifi_nan_respond_nan_data_path_request(
   // TODO: b/29065317: add QoS configuration
   msg.ndp_cfg.qos_cfg = NAN_DP_CONFIG_NO_QOS;
 
-  msg.app_info.ndp_app_info_len = message_length;
+  msg.app_info.ndp_app_info_len = helper.getArrayLength(message);
 
   ScopedBytesRO messageBytes(env, message);
-  memcpy(msg.app_info.ndp_app_info, (byte *)messageBytes.get(), message_length);
+  memcpy(msg.app_info.ndp_app_info, (byte *)messageBytes.get(), helper.getArrayLength(message));
 
   msg.rsp_code = accept ? NAN_DP_REQUEST_ACCEPT : NAN_DP_REQUEST_REJECT;
 
@@ -735,13 +752,13 @@ static JNINativeMethod gWifiNanMethods[] = {
     {"disableNative", "(SLjava/lang/Class;I)I", (void*)android_net_wifi_nan_disable_request },
     {"publishNative", "(SILjava/lang/Class;ILandroid/net/wifi/nan/PublishConfig;)I", (void*)android_net_wifi_nan_publish },
     {"subscribeNative", "(SILjava/lang/Class;ILandroid/net/wifi/nan/SubscribeConfig;)I", (void*)android_net_wifi_nan_subscribe },
-    {"sendMessageNative", "(SLjava/lang/Class;III[B[BI)I", (void*)android_net_wifi_nan_send_message },
+    {"sendMessageNative", "(SLjava/lang/Class;III[B[B)I", (void*)android_net_wifi_nan_send_message },
     {"stopPublishNative", "(SLjava/lang/Class;II)I", (void*)android_net_wifi_nan_stop_publish },
     {"stopSubscribeNative", "(SLjava/lang/Class;II)I", (void*)android_net_wifi_nan_stop_subscribe },
     {"createNanNetworkInterfaceNative", "(SLjava/lang/Class;ILjava/lang/String;)I", (void*)android_net_wifi_nan_create_nan_network_interface },
     {"deleteNanNetworkInterfaceNative", "(SLjava/lang/Class;ILjava/lang/String;)I", (void*)android_net_wifi_nan_delete_nan_network_interface },
-    {"initiateDataPathNative", "(SLjava/lang/Class;IIII[BLjava/lang/String;[BI)I", (void*)android_net_wifi_nan_initiate_nan_data_path },
-    {"respondToDataPathRequestNative", "(SLjava/lang/Class;IZILjava/lang/String;[BI)I", (void*)android_net_wifi_nan_respond_nan_data_path_request },
+    {"initiateDataPathNative", "(SLjava/lang/Class;IIII[BLjava/lang/String;[B)I", (void*)android_net_wifi_nan_initiate_nan_data_path },
+    {"respondToDataPathRequestNative", "(SLjava/lang/Class;IZILjava/lang/String;[B)I", (void*)android_net_wifi_nan_respond_nan_data_path_request },
     {"endDataPathNative", "(SLjava/lang/Class;II)I", (void*)android_net_wifi_nan_end_nan_data_path },
 };
 

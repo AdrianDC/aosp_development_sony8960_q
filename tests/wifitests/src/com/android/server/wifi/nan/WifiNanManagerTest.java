@@ -310,22 +310,18 @@ public class WifiNanManagerTest {
         inOrder.verify(mockSessionCallback).onPublishStarted(publishSession.capture());
 
         // (3) ...
-        publishSession.getValue().sendMessage(peerId, string1.getBytes(), string1.length(),
-                messageId);
-        sessionProxyCallback.getValue().onMatch(peerId, string1.getBytes(),
-                string1.length(), string2.getBytes(), string2.length());
-        sessionProxyCallback.getValue().onMessageReceived(peerId, string1.getBytes(),
-                string1.length());
+        publishSession.getValue().sendMessage(peerId, string1.getBytes(), messageId);
+        sessionProxyCallback.getValue().onMatch(peerId, string1.getBytes(), string2.getBytes());
+        sessionProxyCallback.getValue().onMessageReceived(peerId, string1.getBytes());
         sessionProxyCallback.getValue().onMessageSendFail(messageId, reason);
         sessionProxyCallback.getValue().onMessageSendSuccess(messageId);
         mMockLooper.dispatchAll();
 
         inOrder.verify(mockNanService).sendMessage(eq(clientId), eq(sessionId), eq(peerId),
-                eq(string1.getBytes()), eq(string1.length()), eq(messageId), eq(0));
+                eq(string1.getBytes()), eq(messageId), eq(0));
         inOrder.verify(mockSessionCallback).onMatch(eq(peerId), eq(string1.getBytes()),
-                eq(string1.length()), eq(string2.getBytes()), eq(string2.length()));
-        inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()),
-                eq(string1.length()));
+                eq(string2.getBytes()));
+        inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()));
         inOrder.verify(mockSessionCallback).onMessageSendFail(eq(messageId), eq(reason));
         inOrder.verify(mockSessionCallback).onMessageSendSuccess(eq(messageId));
 
@@ -448,22 +444,18 @@ public class WifiNanManagerTest {
         inOrder.verify(mockSessionCallback).onSubscribeStarted(subscribeSession.capture());
 
         // (3) ...
-        subscribeSession.getValue().sendMessage(peerId, string1.getBytes(), string1.length(),
-                messageId);
-        sessionProxyCallback.getValue().onMatch(peerId, string1.getBytes(), string1.length(),
-                string2.getBytes(), string2.length());
-        sessionProxyCallback.getValue().onMessageReceived(peerId, string1.getBytes(),
-                string1.length());
+        subscribeSession.getValue().sendMessage(peerId, string1.getBytes(), messageId);
+        sessionProxyCallback.getValue().onMatch(peerId, string1.getBytes(), string2.getBytes());
+        sessionProxyCallback.getValue().onMessageReceived(peerId, string1.getBytes());
         sessionProxyCallback.getValue().onMessageSendFail(messageId, reason);
         sessionProxyCallback.getValue().onMessageSendSuccess(messageId);
         mMockLooper.dispatchAll();
 
         inOrder.verify(mockNanService).sendMessage(eq(clientId), eq(sessionId), eq(peerId),
-                eq(string1.getBytes()), eq(string1.length()), eq(messageId), eq(0));
+                eq(string1.getBytes()), eq(messageId), eq(0));
         inOrder.verify(mockSessionCallback).onMatch(eq(peerId), eq(string1.getBytes()),
-                eq(string1.length()), eq(string2.getBytes()), eq(string2.length()));
-        inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()),
-                eq(string1.length()));
+                eq(string2.getBytes()));
+        inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()));
         inOrder.verify(mockSessionCallback).onMessageSendFail(eq(messageId), eq(reason));
         inOrder.verify(mockSessionCallback).onMessageSendSuccess(eq(messageId));
 
@@ -659,10 +651,6 @@ public class WifiNanManagerTest {
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
 
         collector.checkThat("mServiceName", subscribeConfig.mServiceName, equalTo(null));
-        collector.checkThat("mServiceSpecificInfoLength",
-                subscribeConfig.mServiceSpecificInfoLength, equalTo(0));
-        collector.checkThat("mTxFilterLength", subscribeConfig.mTxFilterLength, equalTo(0));
-        collector.checkThat("mRxFilterLength", subscribeConfig.mRxFilterLength, equalTo(0));
         collector.checkThat("mSubscribeType", subscribeConfig.mSubscribeType,
                 equalTo(SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE));
         collector.checkThat("mSubscribeCount", subscribeConfig.mSubscribeCount, equalTo(0));
@@ -688,22 +676,17 @@ public class WifiNanManagerTest {
         final boolean enableTerminateNotification = false;
 
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
-                .setRxFilter(rxFilter, rxFilter.length).setSubscribeType(subscribeType)
+                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter)
+                .setRxFilter(rxFilter).setSubscribeType(subscribeType)
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
                 .setEnableTerminateNotification(enableTerminateNotification).build();
 
         collector.checkThat("mServiceName", serviceName.getBytes(),
                 equalTo(subscribeConfig.mServiceName));
         collector.checkThat("mServiceSpecificInfo",
-                utilAreArraysEqual(serviceSpecificInfo.getBytes(), serviceSpecificInfo.length(),
-                        subscribeConfig.mServiceSpecificInfo,
-                        subscribeConfig.mServiceSpecificInfoLength),
-                equalTo(true));
-        collector.checkThat("mTxFilter", utilAreArraysEqual(txFilter, txFilter.length,
-                subscribeConfig.mTxFilter, subscribeConfig.mTxFilterLength), equalTo(true));
-        collector.checkThat("mRxFilter", utilAreArraysEqual(rxFilter, rxFilter.length,
-                subscribeConfig.mRxFilter, subscribeConfig.mRxFilterLength), equalTo(true));
+                serviceSpecificInfo.getBytes(), equalTo(subscribeConfig.mServiceSpecificInfo));
+        collector.checkThat("mTxFilter", txFilter, equalTo(subscribeConfig.mTxFilter));
+        collector.checkThat("mRxFilter", rxFilter, equalTo(subscribeConfig.mRxFilter));
         collector.checkThat("mSubscribeType", subscribeType,
                 equalTo(subscribeConfig.mSubscribeType));
         collector.checkThat("mSubscribeCount", subscribeCount,
@@ -729,8 +712,8 @@ public class WifiNanManagerTest {
         final boolean enableTerminateNotification = true;
 
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
-                .setTxFilter(rxFilter, rxFilter.length).setSubscribeType(subscribeType)
+                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter)
+                .setTxFilter(rxFilter).setSubscribeType(subscribeType)
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
                 .setEnableTerminateNotification(enableTerminateNotification).build();
 
@@ -779,10 +762,6 @@ public class WifiNanManagerTest {
         PublishConfig publishConfig = new PublishConfig.Builder().build();
 
         collector.checkThat("mServiceName", publishConfig.mServiceName, equalTo(null));
-        collector.checkThat("mServiceSpecificInfoLength", publishConfig.mServiceSpecificInfoLength,
-                equalTo(0));
-        collector.checkThat("mTxFilterLength", publishConfig.mTxFilterLength, equalTo(0));
-        collector.checkThat("mRxFilterLength", publishConfig.mRxFilterLength, equalTo(0));
         collector.checkThat("mPublishType", publishConfig.mPublishType,
                 equalTo(PublishConfig.PUBLISH_TYPE_UNSOLICITED));
         collector.checkThat("mPublishCount", publishConfig.mPublishCount, equalTo(0));
@@ -805,22 +784,17 @@ public class WifiNanManagerTest {
         final boolean enableTerminateNotification = false;
 
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
-                .setRxFilter(rxFilter, rxFilter.length).setPublishType(publishType)
+                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter)
+                .setRxFilter(rxFilter).setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
                 .setEnableTerminateNotification(enableTerminateNotification).build();
 
         collector.checkThat("mServiceName", serviceName.getBytes(),
                 equalTo(publishConfig.mServiceName));
         collector.checkThat("mServiceSpecificInfo",
-                utilAreArraysEqual(serviceSpecificInfo.getBytes(), serviceSpecificInfo.length(),
-                        publishConfig.mServiceSpecificInfo,
-                        publishConfig.mServiceSpecificInfoLength),
-                equalTo(true));
-        collector.checkThat("mTxFilter", utilAreArraysEqual(txFilter, txFilter.length,
-                publishConfig.mTxFilter, publishConfig.mTxFilterLength), equalTo(true));
-        collector.checkThat("mRxFilter", utilAreArraysEqual(rxFilter, rxFilter.length,
-                publishConfig.mRxFilter, publishConfig.mRxFilterLength), equalTo(true));
+                serviceSpecificInfo.getBytes(), equalTo(publishConfig.mServiceSpecificInfo));
+        collector.checkThat("mTxFilter", txFilter, equalTo(publishConfig.mTxFilter));
+        collector.checkThat("mRxFilter", rxFilter, equalTo(publishConfig.mRxFilter));
         collector.checkThat("mPublishType", publishType, equalTo(publishConfig.mPublishType));
         collector.checkThat("mPublishCount", publishCount, equalTo(publishConfig.mPublishCount));
         collector.checkThat("mTtlSec", publishTtl, equalTo(publishConfig.mTtlSec));
@@ -842,8 +816,8 @@ public class WifiNanManagerTest {
         final boolean enableTerminateNotification = false;
 
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
-                .setTxFilter(rxFilter, rxFilter.length).setPublishType(publishType)
+                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter)
+                .setTxFilter(rxFilter).setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
                 .setEnableTerminateNotification(enableTerminateNotification).build();
 
@@ -1007,7 +981,7 @@ public class WifiNanManagerTest {
 
         // (3) request a network specifier from the session
         String networkSpecifier = publishSession.getValue().createNetworkSpecifier(role, peerId,
-                token.getBytes(), token.length());
+                token.getBytes());
 
         // validate format
         JSONObject jsonObject = new JSONObject(networkSpecifier);
@@ -1058,8 +1032,7 @@ public class WifiNanManagerTest {
         inOrder.verify(mockCallback).onConnectSuccess();
 
         /* (2) request a direct network specifier*/
-        String networkSpecifier = mDut.createNetworkSpecifier(role, someMac, token.getBytes(),
-                token.length());
+        String networkSpecifier = mDut.createNetworkSpecifier(role, someMac, token.getBytes());
 
         /* validate format*/
         JSONObject jsonObject = new JSONObject(networkSpecifier);
@@ -1075,27 +1048,5 @@ public class WifiNanManagerTest {
 
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService,
                 mockPublishSession, mockRttListener);
-    }
-
-    /*
-     * Utilities
-     */
-
-    private static boolean utilAreArraysEqual(byte[] x, int xLength, byte[] y, int yLength) {
-        if (xLength != yLength) {
-            return false;
-        }
-
-        if (x != null && y != null) {
-            for (int i = 0; i < xLength; ++i) {
-                if (x[i] != y[i]) {
-                    return false;
-                }
-            }
-        } else if (xLength != 0) {
-            return false; // invalid != invalid
-        }
-
-        return true;
     }
 }

@@ -46,7 +46,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.lang.reflect.Field;
-import java.util.Arrays;
 
 /**
  * Unit test harness for WifiNanNative + JNI code interfacing to the HAL.
@@ -244,8 +243,7 @@ public class WifiNanHalTest {
         final String msg = "Hello there - how are you doing?";
         final int messageId = 10; /* garbage - not used by HAL */
 
-        mDut.sendMessage(transactionId, pubSubId, reqInstanceId, peer, msg.getBytes(),
-                msg.length(), messageId);
+        mDut.sendMessage(transactionId, pubSubId, reqInstanceId, peer, msg.getBytes(), messageId);
 
         verify(mNanHalMock).transmitFollowupHalMockNative(eq(transactionId), mArgs.capture());
 
@@ -262,6 +260,35 @@ public class WifiNanHalTest {
                 argsData.getInt("service_specific_info_len"), equalTo(msg.length()));
         collector.checkThat("service_specific_info", argsData.getByteArray("service_specific_info"),
                 equalTo(msg.getBytes()));
+    }
+
+
+    @Test
+    public void testSendMessageNull() throws JSONException {
+        final short transactionId = 45;
+        final int pubSubId = 22;
+        final int reqInstanceId = 11;
+        final byte[] peer = HexEncoding.decode("000102030405".toCharArray(), false);
+        final byte[] msg = null;
+        final int messageId = 10; /* garbage - not used by HAL */
+
+        mDut.sendMessage(transactionId, pubSubId, reqInstanceId, peer, msg, messageId);
+
+        verify(mNanHalMock).transmitFollowupHalMockNative(eq(transactionId), mArgs.capture());
+
+        Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
+
+        collector.checkThat("publish_subscribe_id", argsData.getInt("publish_subscribe_id"),
+                equalTo(pubSubId));
+        collector.checkThat("requestor_instance_id", argsData.getInt("requestor_instance_id"),
+                equalTo(reqInstanceId));
+        collector.checkThat("addr", argsData.getByteArray("addr"), equalTo(peer));
+        collector.checkThat("priority", argsData.getInt("priority"), equalTo(0));
+        collector.checkThat("dw_or_faw", argsData.getInt("dw_or_faw"), equalTo(0));
+        collector.checkThat("service_specific_info_len",
+                argsData.getInt("service_specific_info_len"), equalTo(0));
+        collector.checkThat("service_specific_info", argsData.getByteArray("service_specific_info"),
+                equalTo(new byte[0]));
     }
 
     @Test
@@ -678,7 +705,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callFollowup(HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onMessageReceivedNotification(pubSubId, reqInstanceId, peer,
-                message.getBytes(), message.length());
+                message.getBytes());
         verifyNoMoreInteractions(mNanStateManager);
     }
 
@@ -702,7 +729,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callMatch(HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onMatchNotification(pubSubId, reqInstanceId, peer, ssi.getBytes(),
-                ssi.length(), filter.getBytes(), filter.length());
+                filter.getBytes());
         verifyNoMoreInteractions(mNanStateManager);
     }
 
@@ -831,7 +858,7 @@ public class WifiNanHalTest {
         final String msg = "let me talk!";
 
         mDut.initiateDataPath(transactionId, pubSubId, channelRequestType, channel, peer,
-                interfaceName, msg.getBytes(), msg.length());
+                interfaceName, msg.getBytes());
 
         verify(mNanHalMock).initiateDataPathMockNative(eq(transactionId), mArgs.capture());
 
@@ -864,7 +891,7 @@ public class WifiNanHalTest {
         final String msg = "fine - you can talk ...";
 
         mDut.respondToDataPathRequest(transactionId, accept, ndpId, interfaceName, msg
-                .getBytes(), msg.length());
+                .getBytes());
 
         verify(mNanHalMock).respondToDataPathRequestMockNative(eq(transactionId), mArgs.capture());
 
@@ -917,7 +944,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callDataPathRequest(HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onDataPathRequestNotification(pubSubId, peer, ndpId,
-                msg.getBytes(), msg.length());
+                msg.getBytes());
         verifyNoMoreInteractions(mNanStateManager);
     }
 
@@ -940,7 +967,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callDataPathConfirm(HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onDataPathConfirmNotification(ndpId, peer, accept, reason,
-                msg.getBytes(), msg.length());
+                msg.getBytes());
         verifyNoMoreInteractions(mNanStateManager);
     }
 
@@ -1069,8 +1096,8 @@ public class WifiNanHalTest {
             TlvBufferUtils.TlvConstructor tlvRx, int publishCount, int publishTtl,
             boolean enableTerminateNotification) throws JSONException {
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(ssi).setTxFilter(tlvTx.getArray(), tlvTx.getActualLength())
-                .setRxFilter(tlvRx.getArray(), tlvRx.getActualLength()).setPublishType(publishType)
+                .setServiceSpecificInfo(ssi).setTxFilter(tlvTx.getArray())
+                .setRxFilter(tlvRx.getArray()).setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
                 .setEnableTerminateNotification(enableTerminateNotification).build();
 
@@ -1097,14 +1124,10 @@ public class WifiNanHalTest {
                 equalTo(ssi.getBytes()));
         collector.checkThat("publish_match_indicator", argsData.getInt("publish_match_indicator"),
                 equalTo(0));
-        collector.checkThat("rx_match_filter_len", argsData.getInt("rx_match_filter_len"),
-                equalTo(tlvRx.getActualLength()));
         collector.checkThat("rx_match_filter", argsData.getByteArray("rx_match_filter"),
-                equalTo(Arrays.copyOf(tlvRx.getArray(), tlvRx.getActualLength())));
-        collector.checkThat("tx_match_filter_len", argsData.getInt("tx_match_filter_len"),
-                equalTo(tlvTx.getActualLength()));
+                equalTo(tlvRx.getArray()));
         collector.checkThat("tx_match_filter", argsData.getByteArray("tx_match_filter"),
-                equalTo(Arrays.copyOf(tlvTx.getArray(), tlvTx.getActualLength())));
+                equalTo(tlvTx.getArray()));
         collector.checkThat("rssi_threshold_flag", argsData.getInt("rssi_threshold_flag"),
                 equalTo(0));
         collector.checkThat("connmap", argsData.getInt("connmap"), equalTo(0));
@@ -1116,13 +1139,11 @@ public class WifiNanHalTest {
             String serviceName, String ssi, TlvBufferUtils.TlvConstructor tlvTx,
             TlvBufferUtils.TlvConstructor tlvRx, int subscribeCount, int subscribeTtl,
             int matchStyle, boolean enableTerminateNotification) throws JSONException {
-        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(ssi)
-                .setTxFilter(tlvTx.getArray(), tlvTx.getActualLength())
-                .setRxFilter(tlvRx.getArray(), tlvRx.getActualLength())
-                .setSubscribeType(subscribeType).setSubscribeCount(subscribeCount)
-                .setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
-                .setEnableTerminateNotification(enableTerminateNotification).build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(
+                serviceName).setServiceSpecificInfo(ssi).setTxFilter(tlvTx.getArray()).setRxFilter(
+                tlvRx.getArray()).setSubscribeType(subscribeType).setSubscribeCount(
+                subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(
+                matchStyle).setEnableTerminateNotification(enableTerminateNotification).build();
 
         mDut.subscribe(transactionId, subscribeId, subscribeConfig);
 
@@ -1155,14 +1176,10 @@ public class WifiNanHalTest {
                 argsData.getInt("service_specific_info_len"), equalTo(serviceName.length()));
         collector.checkThat("service_specific_info", argsData.getByteArray("service_specific_info"),
                 equalTo(ssi.getBytes()));
-        collector.checkThat("rx_match_filter_len", argsData.getInt("rx_match_filter_len"),
-                equalTo(tlvRx.getActualLength()));
         collector.checkThat("rx_match_filter", argsData.getByteArray("rx_match_filter"),
-                equalTo(Arrays.copyOf(tlvRx.getArray(), tlvRx.getActualLength())));
-        collector.checkThat("tx_match_filter_len", argsData.getInt("tx_match_filter_len"),
-                equalTo(tlvTx.getActualLength()));
+                equalTo(tlvRx.getArray()));
         collector.checkThat("tx_match_filter", argsData.getByteArray("tx_match_filter"),
-                equalTo(Arrays.copyOf(tlvTx.getArray(), tlvTx.getActualLength())));
+                equalTo(tlvTx.getArray()));
         collector.checkThat("rssi_threshold_flag", argsData.getInt("rssi_threshold_flag"),
                 equalTo(0));
         collector.checkThat("connmap", argsData.getInt("connmap"), equalTo(0));

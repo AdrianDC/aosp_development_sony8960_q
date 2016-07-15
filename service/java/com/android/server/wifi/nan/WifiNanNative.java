@@ -302,8 +302,7 @@ public class WifiNanNative {
     }
 
     private static native int sendMessageNative(short transactionId, Class<WifiNative> cls,
-            int iface, int pubSubId, int requestorInstanceId, byte[] dest, byte[] message,
-            int messageLength);
+            int iface, int pubSubId, int requestorInstanceId, byte[] dest, byte[] message);
 
     /**
      * Send a message through an existing discovery session.
@@ -316,25 +315,24 @@ public class WifiNanNative {
      * @param dest MAC address of the peer to communicate with - obtained
      *            together with requestorInstanceId.
      * @param message Message.
-     * @param messageLength Message byte array length.
      * @param messageId Arbitary integer from host (not sent to HAL - useful for
      *                  testing/debugging at this level)
      */
     public boolean sendMessage(short transactionId, int pubSubId, int requestorInstanceId,
-            byte[] dest, byte[] message, int messageLength, int messageId) {
+            byte[] dest, byte[] message, int messageId) {
         if (VDBG) {
             Log.d(TAG,
                     "sendMessage: transactionId=" + transactionId + ", pubSubId=" + pubSubId
                             + ", requestorInstanceId=" + requestorInstanceId + ", dest="
-                            + String.valueOf(HexEncoding.encode(dest)) + ", messageLength="
-                            + messageLength + ", messageId=" + messageId);
+                            + String.valueOf(HexEncoding.encode(dest)) + ", messageId="
+                            + messageId);
         }
 
         if (isNanInit()) {
             int ret;
             synchronized (WifiNative.sLock) {
                 ret = sendMessageNative(transactionId, WifiNative.class, WifiNative.sWlan0Index,
-                        pubSubId, requestorInstanceId, dest, message, messageLength);
+                        pubSubId, requestorInstanceId, dest, message);
             }
             if (ret != WIFI_SUCCESS) {
                 Log.w(TAG, "sendMessageNative: HAL API returned non-success -- " + ret);
@@ -480,10 +478,8 @@ public class WifiNanNative {
     }
 
     private static native int initiateDataPathNative(short transactionId, Class<WifiNative> cls,
-                                                     int iface, int peerId, int
-                                                             channelRequestType, int channel,
-                                                     byte[] peer, String interfaceName, byte[]
-                                                             message, int messageLength);
+            int iface, int peerId, int channelRequestType, int channel, byte[] peer,
+            String interfaceName, byte[] message);
 
     public static final int CHANNEL_REQUEST_TYPE_NONE = 0;
     public static final int CHANNEL_REQUEST_TYPE_REQUESTED = 1;
@@ -504,16 +500,14 @@ public class WifiNanNative {
      * @param interfaceName      The interface on which to create the data connection.
      * @param message An arbitrary byte array to forward to the peer as part of the data path
      *                request.
-     * @param messageLength The size of the message.
      */
     public boolean initiateDataPath(short transactionId, int peerId, int channelRequestType,
-                                    int channel, byte[] peer, String interfaceName, byte[]
-                                            message, int messageLength) {
+            int channel, byte[] peer, String interfaceName, byte[] message) {
         if (VDBG) {
             Log.v(TAG, "initiateDataPath: transactionId=" + transactionId + ", peerId=" + peerId
                     + ", channelRequestType=" + channelRequestType + ", channel=" + channel
                     + ", peer=" + String.valueOf(HexEncoding.encode(peer)) + ", interfaceName="
-                    + interfaceName + ", " + "messageLength=" + messageLength);
+                    + interfaceName);
         }
 
         if (isNanInit()) {
@@ -521,7 +515,7 @@ public class WifiNanNative {
             synchronized (WifiNative.sLock) {
                 ret = initiateDataPathNative(transactionId, WifiNative.class, WifiNative
                         .sWlan0Index, peerId, channelRequestType, channel, peer, interfaceName,
-                        message, messageLength);
+                        message);
             }
             if (ret != WIFI_SUCCESS) {
                 Log.w(TAG, "initiateDataPathNative: HAL API returned non-success -- " + ret);
@@ -534,10 +528,8 @@ public class WifiNanNative {
     }
 
     private static native int respondToDataPathRequestNative(short transactionId,
-                                                             Class<WifiNative> cls, int iface,
-                                                             boolean accept, int ndpId, String
-                                                                     interfaceName, byte[]
-                                                                     message, int messageLength);
+            Class<WifiNative> cls, int iface, boolean accept, int ndpId, String interfaceName,
+            byte[] message);
 
     /**
      * Responds to a data request from a peer.
@@ -549,22 +541,19 @@ public class WifiNanNative {
      * @param interfaceName The interface on which the data path will be setup. Obtained from the
      *                      request callback.
      * @param message An arbitrary byte array to forward to the peer in the respond message.
-     * @param messageLength The length of the message array.
      */
     public boolean respondToDataPathRequest(short transactionId, boolean accept, int ndpId,
-                                            String interfaceName, byte[] message, int
-                                                    messageLength) {
+            String interfaceName, byte[] message) {
         if (VDBG) {
             Log.v(TAG, "respondToDataPathRequest: transactionId=" + transactionId + ", accept="
-                    + accept + ", int ndpId=" + ndpId + ", interfaceName=" + interfaceName + ", "
-                    + "messageLength=" + messageLength);
+                    + accept + ", int ndpId=" + ndpId + ", interfaceName=" + interfaceName);
         }
 
         if (isNanInit()) {
             int ret;
             synchronized (WifiNative.sLock) {
                 ret = respondToDataPathRequestNative(transactionId, WifiNative.class, WifiNative
-                        .sWlan0Index, accept, ndpId, interfaceName, message, messageLength);
+                        .sWlan0Index, accept, ndpId, interfaceName, message);
             }
             if (ret != WIFI_SUCCESS) {
                 Log.w(TAG,
@@ -984,18 +973,16 @@ public class WifiNanNative {
 
     // callback from native
     private static void onMatchEvent(int pubSubId, int requestorInstanceId, byte[] mac,
-            byte[] serviceSpecificInfo, int serviceSpecificInfoLength, byte[] matchFilter,
-            int matchFilterLength) {
+            byte[] serviceSpecificInfo, byte[] matchFilter) {
         if (VDBG) {
             Log.v(TAG, "onMatchEvent: pubSubId=" + pubSubId + ", requestorInstanceId="
                     + requestorInstanceId + ", mac=" + String.valueOf(HexEncoding.encode(mac))
                     + ", serviceSpecificInfo=" + Arrays.toString(serviceSpecificInfo)
-                    + ", matchFilterLength=" + matchFilterLength + ", matchFilter="
-                    + Arrays.toString(matchFilter));
+                    + ", matchFilter=" + Arrays.toString(matchFilter));
         }
 
         WifiNanStateManager.getInstance().onMatchNotification(pubSubId, requestorInstanceId, mac,
-                serviceSpecificInfo, serviceSpecificInfoLength, matchFilter, matchFilterLength);
+                serviceSpecificInfo, matchFilter);
     }
 
     // callback from native
@@ -1018,15 +1005,14 @@ public class WifiNanNative {
 
     // callback from native
     private static void onFollowupEvent(int pubSubId, int requestorInstanceId, byte[] mac,
-            byte[] message, int messageLength) {
+            byte[] message) {
         if (VDBG) {
             Log.v(TAG, "onFollowupEvent: pubSubId=" + pubSubId + ", requestorInstanceId="
-                    + requestorInstanceId + ", mac=" + String.valueOf(HexEncoding.encode(mac))
-                    + ", messageLength=" + messageLength);
+                    + requestorInstanceId + ", mac=" + String.valueOf(HexEncoding.encode(mac)));
         }
 
         WifiNanStateManager.getInstance().onMessageReceivedNotification(pubSubId,
-                requestorInstanceId, mac, message, messageLength);
+                requestorInstanceId, mac, message);
     }
 
     // callback from native
@@ -1052,28 +1038,25 @@ public class WifiNanNative {
         }
     }
 
-    private static void onDataPathRequest(int pubSubId, byte[] mac, int ndpId, byte[] message, int
-            messageLength) {
+    private static void onDataPathRequest(int pubSubId, byte[] mac, int ndpId, byte[] message) {
         if (VDBG) {
             Log.v(TAG, "onDataPathRequest: pubSubId=" + pubSubId + ", mac=" + String.valueOf(
-                    HexEncoding.encode(mac)) + ", ndpId=" + ndpId + ", messageLength="
-                    + messageLength);
+                    HexEncoding.encode(mac)) + ", ndpId=" + ndpId);
         }
 
         WifiNanStateManager.getInstance()
-                .onDataPathRequestNotification(pubSubId, mac, ndpId, message, messageLength);
+                .onDataPathRequestNotification(pubSubId, mac, ndpId, message);
     }
 
-    private static void onDataPathConfirm(int ndpId, byte[] mac, boolean accept, int reason, byte[]
-            message, int messageLength) {
+    private static void onDataPathConfirm(int ndpId, byte[] mac, boolean accept, int reason,
+            byte[] message) {
         if (VDBG) {
             Log.v(TAG, "onDataPathConfirm: ndpId=" + ndpId + ", mac=" + String.valueOf(HexEncoding
-                    .encode(mac)) + ", accept=" + accept + ", reason=" + reason + ", "
-                    + "messageLength=" + messageLength);
+                    .encode(mac)) + ", accept=" + accept + ", reason=" + reason);
         }
 
         WifiNanStateManager.getInstance()
-                .onDataPathConfirmNotification(ndpId, mac, accept, reason, message, messageLength);
+                .onDataPathConfirmNotification(ndpId, mac, accept, reason, message);
     }
 
     private static void onDataPathEnd(int ndpId) {

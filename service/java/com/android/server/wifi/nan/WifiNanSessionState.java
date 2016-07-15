@@ -155,12 +155,10 @@ public class WifiNanSessionState {
      * @param peerId ID of the peer. Obtained through previous communication (a
      *            match indication).
      * @param message Message byte array to send to the peer.
-     * @param messageLength Length of the message byte array.
      * @param messageId A message ID provided by caller to be used in any
      *            callbacks related to the message (success/failure).
      */
-    public boolean sendMessage(short transactionId, int peerId, byte[] message, int messageLength,
-            int messageId) {
+    public boolean sendMessage(short transactionId, int peerId, byte[] message, int messageId) {
         String peerMacStr = mMacByRequestorInstanceId.get(peerId);
         if (peerMacStr == null) {
             Log.e(TAG, "sendMessage: attempting to send a message to an address which didn't "
@@ -176,7 +174,7 @@ public class WifiNanSessionState {
         byte[] peerMac = HexEncoding.decode(peerMacStr.toCharArray(), false);
 
         return WifiNanNative.getInstance().sendMessage(transactionId, mPubSubId, peerId, peerMac,
-                message, messageLength, messageId);
+                message, messageId);
     }
 
     /**
@@ -190,21 +188,18 @@ public class WifiNanSessionState {
      *            due to privacy concerns.
      * @param serviceSpecificInfo Information from the discovery advertisement
      *            (usually not used in the match decisions).
-     * @param serviceSpecificInfoLength Length of the above information field.
      * @param matchFilter The filter from the discovery advertisement (which was
      *            used in the match decision).
-     * @param matchFilterLength Length of the above filter field.
      */
     public void onMatch(int requestorInstanceId, byte[] peerMac, byte[] serviceSpecificInfo,
-            int serviceSpecificInfoLength, byte[] matchFilter, int matchFilterLength) {
+            byte[] matchFilter) {
         String prevMac = mMacByRequestorInstanceId.get(requestorInstanceId);
         mMacByRequestorInstanceId.put(requestorInstanceId, new String(HexEncoding.encode(peerMac)));
 
         if (DBG) Log.d(TAG, "onMatch: previous peer MAC replaced - " + prevMac);
 
         try {
-            mCallback.onMatch(requestorInstanceId, serviceSpecificInfo, serviceSpecificInfoLength,
-                    matchFilter, matchFilterLength);
+            mCallback.onMatch(requestorInstanceId, serviceSpecificInfo, matchFilter);
         } catch (RemoteException e) {
             Log.w(TAG, "onMatch: RemoteException (FYI): " + e);
         }
@@ -219,10 +214,8 @@ public class WifiNanSessionState {
      *            information is never propagated to the client due to privacy
      *            concerns.
      * @param message The received message.
-     * @param messageLength The length of the received message.
      */
-    public void onMessageReceived(int requestorInstanceId, byte[] peerMac, byte[] message,
-            int messageLength) {
+    public void onMessageReceived(int requestorInstanceId, byte[] peerMac, byte[] message) {
         String prevMac = mMacByRequestorInstanceId.get(requestorInstanceId);
         mMacByRequestorInstanceId.put(requestorInstanceId, new String(HexEncoding.encode(peerMac)));
 
@@ -231,7 +224,7 @@ public class WifiNanSessionState {
         }
 
         try {
-            mCallback.onMessageReceived(requestorInstanceId, message, messageLength);
+            mCallback.onMessageReceived(requestorInstanceId, message);
         } catch (RemoteException e) {
             Log.w(TAG, "onMessageReceived: RemoteException (FYI): " + e);
         }

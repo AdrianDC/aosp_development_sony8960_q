@@ -46,9 +46,7 @@ public class TlvBufferUtilsTest {
                 0, 1, 2 });
 
         collector.checkThat("tlv11-correct-construction",
-                utilAreArraysEqual(tlv11.getArray(), tlv11.getActualLength(), new byte[] {
-                        0, 1, 2, 2, 3, 0, 1, 2 }, 8),
-                equalTo(true));
+                tlv11.getArray(), equalTo(new byte[]{0, 1, 2, 2, 3, 0, 1, 2}));
 
         TlvBufferUtils.TlvConstructor tlv01 = new TlvBufferUtils.TlvConstructor(0, 1);
         tlv01.allocate(15);
@@ -57,15 +55,13 @@ public class TlvBufferUtilsTest {
                 0, 1, 2 });
 
         collector.checkThat("tlv01-correct-construction",
-                utilAreArraysEqual(tlv01.getArray(), tlv01.getActualLength(), new byte[] {
-                        1, 2, 3, 0, 1, 2 }, 6),
-                equalTo(true));
+                tlv01.getArray(), equalTo(new byte[] {1, 2, 3, 0, 1, 2 }));
 
         collector.checkThat("tlv11-valid",
-                TlvBufferUtils.isValid(tlv11.getArray(), tlv11.getActualLength(), 1, 1),
+                TlvBufferUtils.isValid(tlv11.getArray(), 1, 1),
                 equalTo(true));
         collector.checkThat("tlv01-valid",
-                TlvBufferUtils.isValid(tlv01.getArray(), tlv01.getActualLength(), 0, 1),
+                TlvBufferUtils.isValid(tlv01.getArray(), 0, 1),
                 equalTo(true));
     }
 
@@ -80,8 +76,7 @@ public class TlvBufferUtilsTest {
         tlv22.putShort(2, (short) 3);
         tlv22.putZeroLengthElement(55);
 
-        TlvBufferUtils.TlvIterable tlv22It = new TlvBufferUtils.TlvIterable(2, 2, tlv22.getArray(),
-                tlv22.getActualLength());
+        TlvBufferUtils.TlvIterable tlv22It = new TlvBufferUtils.TlvIterable(2, 2, tlv22.getArray());
         int count = 0;
         for (TlvBufferUtils.TlvElement tlv : tlv22It) {
             if (count == 0) {
@@ -113,8 +108,7 @@ public class TlvBufferUtilsTest {
         tlv02.putString(0, ascii);
         tlv02.putString(0, nonAscii);
 
-        TlvBufferUtils.TlvIterable tlv02It = new TlvBufferUtils.TlvIterable(0, 2, tlv02.getArray(),
-                tlv02.getActualLength());
+        TlvBufferUtils.TlvIterable tlv02It = new TlvBufferUtils.TlvIterable(0, 2, tlv02.getArray());
         count = 0;
         for (TlvBufferUtils.TlvElement tlv : tlv02It) {
             if (count == 0) {
@@ -141,10 +135,10 @@ public class TlvBufferUtilsTest {
                 equalTo(3));
 
         collector.checkThat("tlv22-valid",
-                TlvBufferUtils.isValid(tlv22.getArray(), tlv22.getActualLength(), 2, 2),
+                TlvBufferUtils.isValid(tlv22.getArray(), 2, 2),
                 equalTo(true));
         collector.checkThat("tlv02-valid",
-                TlvBufferUtils.isValid(tlv02.getArray(), tlv02.getActualLength(), 0, 2),
+                TlvBufferUtils.isValid(tlv02.getArray(), 0, 2),
                 equalTo(true));
     }
 
@@ -178,8 +172,7 @@ public class TlvBufferUtilsTest {
         final byte[] dummy = {
                 0, 1, 2 };
         final int dummyLength = 3;
-        TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(1, 0, dummy,
-                dummyLength);
+        TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(1, 0, dummy);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -187,8 +180,7 @@ public class TlvBufferUtilsTest {
         final byte[] dummy = {
                 0, 1, 2 };
         final int dummyLength = 3;
-        TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(-3, 2, dummy,
-                dummyLength);
+        TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(-3, 2, dummy);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -196,8 +188,7 @@ public class TlvBufferUtilsTest {
         final byte[] dummy = {
                 0, 1, 2 };
         final int dummyLength = 3;
-        TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(1, -2, dummy,
-                dummyLength);
+        TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(1, -2, dummy);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -205,8 +196,7 @@ public class TlvBufferUtilsTest {
         final byte[] dummy = {
                 0, 1, 2 };
         final int dummyLength = 3;
-        TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(1, 3, dummy,
-                dummyLength);
+        TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(1, 3, dummy);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -214,8 +204,7 @@ public class TlvBufferUtilsTest {
         final byte[] dummy = {
                 0, 1, 2 };
         final int dummyLength = 3;
-        TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(3, 1, dummy,
-                dummyLength);
+        TlvBufferUtils.TlvIterable tlvIt10 = new TlvBufferUtils.TlvIterable(3, 1, dummy);
     }
 
     /**
@@ -232,28 +221,6 @@ public class TlvBufferUtilsTest {
         array[0] = 10;
 
         collector.checkThat("tlv01-invalid",
-                TlvBufferUtils.isValid(array, tlv01.getActualLength(), 0, 1), equalTo(false));
-    }
-
-    /*
-     * Utilities
-     */
-
-    private static boolean utilAreArraysEqual(byte[] x, int xLength, byte[] y, int yLength) {
-        if (xLength != yLength) {
-            return false;
-        }
-
-        if (x != null && y != null) {
-            for (int i = 0; i < xLength; ++i) {
-                if (x[i] != y[i]) {
-                    return false;
-                }
-            }
-        } else if (xLength != 0) {
-            return false; // invalid != invalid
-        }
-
-        return true;
+                TlvBufferUtils.isValid(array, 0, 1), equalTo(false));
     }
 }
