@@ -1275,6 +1275,7 @@ public class WifiConfigManagerNew {
         // from the config store.
         mConfiguredNetworks.clear();
         mDeletedEphemeralSSIDs.clear();
+        mScanDetailCaches.clear();
         for (WifiConfiguration configuration : storeData.configurations) {
             configuration.networkId = mLastNetworkId++;
             if (mVerboseLoggingEnabled) {
