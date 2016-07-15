@@ -222,10 +222,6 @@ public class WifiConfigurationUtil {
         if (existingConfig.hiddenSSID != newConfig.hiddenSSID) {
             return true;
         }
-
-        if (existingConfig.requirePMF != newConfig.requirePMF) {
-            return true;
-        }
         if (hasEnterpriseConfigChanged(existingConfig.enterpriseConfig,
                 newConfig.enterpriseConfig)) {
             return true;

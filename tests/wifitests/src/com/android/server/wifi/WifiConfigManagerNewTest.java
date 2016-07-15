@@ -587,7 +587,8 @@ public class WifiConfigManagerNewTest {
         NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
 
         assertTrue(
-                mWifiConfigManager.checkAndUpdateLastConnectUid(result.getNetworkId(), TEST_CREATOR_UID));
+                mWifiConfigManager.checkAndUpdateLastConnectUid(
+                        result.getNetworkId(), TEST_CREATOR_UID));
         WifiConfiguration retrievedNetwork =
                 mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
         assertEquals(TEST_CREATOR_UID, retrievedNetwork.lastConnectUid);
@@ -917,6 +918,209 @@ public class WifiConfigManagerNewTest {
         // was added after the trim.
         scanDetailCache = mWifiConfigManager.getScanDetailCacheForNetwork(openNetwork.networkId);
         assertEquals(WifiConfigManagerNew.SCAN_CACHE_ENTRIES_TRIM_SIZE + 1, scanDetailCache.size());
+    }
+
+    /**
+     * Verifies that hasEverConnected is false for a newly added network.
+     */
+    @Test
+    public void testAddNetworkHasEverConnectedFalse() {
+        verifyAddNetworkHasEverConnectedFalse(WifiConfigurationTestUtil.createOpenNetwork());
+    }
+
+    /**
+     * Verifies that hasEverConnected is false for a newly added network even when new config has
+     * mistakenly set HasEverConnected to true.
+     */
+    @Test
+    public void testAddNetworkOverridesHasEverConnectedWhenTrueInNewConfig() {
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        openNetwork.getNetworkSelectionStatus().setHasEverConnected(true);
+        verifyAddNetworkHasEverConnectedFalse(openNetwork);
+    }
+
+    /**
+     * Verify that the |HasEverConnected| is set when
+     * {@link WifiConfigManagerNew#updateNetworkAfterConnect(int)} is invoked.
+     */
+    @Test
+    public void testUpdateConfigAfterConnect() {
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        verifyAddNetworkHasEverConnectedFalse(openNetwork);
+        verifyUpdateNetworkAfterConnectHasEverConnectedTrue(openNetwork.networkId);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config |preSharedKey| is updated.
+     */
+    @Test
+    public void testUpdatePreSharedKeyClearsHasEverConnected() {
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkHasEverConnectedFalse(pskNetwork);
+        verifyUpdateNetworkAfterConnectHasEverConnectedTrue(pskNetwork.networkId);
+
+        // Now update the same network with a different psk.
+        assertFalse(pskNetwork.preSharedKey.equals("newpassword"));
+        pskNetwork.preSharedKey = "newpassword";
+        verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(pskNetwork);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config |wepKeys| is updated.
+     */
+    @Test
+    public void testUpdateWepKeysClearsHasEverConnected() {
+        WifiConfiguration wepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        verifyAddNetworkHasEverConnectedFalse(wepNetwork);
+        verifyUpdateNetworkAfterConnectHasEverConnectedTrue(wepNetwork.networkId);
+
+        // Now update the same network with a different wep.
+        assertFalse(wepNetwork.wepKeys[0].equals("newpassword"));
+        wepNetwork.wepKeys[0] = "newpassword";
+        verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(wepNetwork);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config |wepTxKeyIndex| is updated.
+     */
+    @Test
+    public void testUpdateWepTxKeyClearsHasEverConnected() {
+        WifiConfiguration wepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        verifyAddNetworkHasEverConnectedFalse(wepNetwork);
+        verifyUpdateNetworkAfterConnectHasEverConnectedTrue(wepNetwork.networkId);
+
+        // Now update the same network with a different wep.
+        assertFalse(wepNetwork.wepTxKeyIndex == 3);
+        wepNetwork.wepTxKeyIndex = 3;
+        verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(wepNetwork);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config |allowedKeyManagement| is
+     * updated.
+     */
+    @Test
+    public void testUpdateAllowedKeyManagementClearsHasEverConnected() {
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkHasEverConnectedFalse(pskNetwork);
+        verifyUpdateNetworkAfterConnectHasEverConnectedTrue(pskNetwork.networkId);
+
+        assertFalse(pskNetwork.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X));
+        pskNetwork.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.IEEE8021X);
+        verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(pskNetwork);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config |allowedProtocol| is
+     * updated.
+     */
+    @Test
+    public void testUpdateProtocolsClearsHasEverConnected() {
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkHasEverConnectedFalse(pskNetwork);
+        verifyUpdateNetworkAfterConnectHasEverConnectedTrue(pskNetwork.networkId);
+
+        assertFalse(pskNetwork.allowedProtocols.get(WifiConfiguration.Protocol.OSEN));
+        pskNetwork.allowedProtocols.set(WifiConfiguration.Protocol.OSEN);
+        verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(pskNetwork);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config |allowedAuthAlgorithms| is
+     * updated.
+     */
+    @Test
+    public void testUpdateAllowedAuthAlgorithmsClearsHasEverConnected() {
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkHasEverConnectedFalse(pskNetwork);
+        verifyUpdateNetworkAfterConnectHasEverConnectedTrue(pskNetwork.networkId);
+
+        assertFalse(pskNetwork.allowedAuthAlgorithms.get(WifiConfiguration.AuthAlgorithm.LEAP));
+        pskNetwork.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.LEAP);
+        verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(pskNetwork);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config |allowedPairwiseCiphers| is
+     * updated.
+     */
+    @Test
+    public void testUpdateAllowedPairwiseCiphersClearsHasEverConnected() {
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkHasEverConnectedFalse(pskNetwork);
+        verifyUpdateNetworkAfterConnectHasEverConnectedTrue(pskNetwork.networkId);
+
+        assertFalse(pskNetwork.allowedPairwiseCiphers.get(WifiConfiguration.PairwiseCipher.NONE));
+        pskNetwork.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.NONE);
+        verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(pskNetwork);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config |allowedGroup| is
+     * updated.
+     */
+    @Test
+    public void testUpdateAllowedGroupCiphersClearsHasEverConnected() {
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkHasEverConnectedFalse(pskNetwork);
+        verifyUpdateNetworkAfterConnectHasEverConnectedTrue(pskNetwork.networkId);
+
+        assertTrue(pskNetwork.allowedGroupCiphers.get(WifiConfiguration.GroupCipher.WEP104));
+        pskNetwork.allowedGroupCiphers.clear(WifiConfiguration.GroupCipher.WEP104);
+        verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(pskNetwork);
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config |hiddenSSID| is
+     * updated.
+     */
+    @Test
+    public void testUpdateHiddenSSIDClearsHasEverConnected() {
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkHasEverConnectedFalse(pskNetwork);
+        verifyUpdateNetworkAfterConnectHasEverConnectedTrue(pskNetwork.networkId);
+
+        assertFalse(pskNetwork.hiddenSSID);
+        pskNetwork.hiddenSSID = true;
+        verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(pskNetwork);
+    }
+
+    /**
+     * Verifies that hasEverConnected is not cleared when a network config |requirePMF| is
+     * updated.
+     */
+    @Test
+    public void testUpdateRequirePMFDoesNotClearHasEverConnected() {
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkHasEverConnectedFalse(pskNetwork);
+        verifyUpdateNetworkAfterConnectHasEverConnectedTrue(pskNetwork.networkId);
+
+        assertFalse(pskNetwork.requirePMF);
+        pskNetwork.requirePMF = true;
+
+        NetworkUpdateResult result =
+                verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(pskNetwork);
+        WifiConfiguration retrievedNetwork =
+                mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        assertTrue("Updating network non-credentials config should not clear hasEverConnected.",
+                retrievedNetwork.getNetworkSelectionStatus().getHasEverConnected());
+    }
+
+    /**
+     * Verifies that hasEverConnected is cleared when a network config |enterpriseConfig| is
+     * updated.
+     */
+    @Test
+    public void testUpdateEnterpriseConfigClearsHasEverConnected() {
+        WifiConfiguration eapNetwork = WifiConfigurationTestUtil.createEapNetwork();
+        eapNetwork.enterpriseConfig =
+                WifiConfigurationTestUtil.createPEAPWifiEnterpriseConfigWithGTCPhase2();
+        verifyAddNetworkHasEverConnectedFalse(eapNetwork);
+        verifyUpdateNetworkAfterConnectHasEverConnectedTrue(eapNetwork.networkId);
+
+        assertFalse(eapNetwork.enterpriseConfig.getEapMethod() == WifiEnterpriseConfig.Eap.TLS);
+        eapNetwork.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
+        verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(eapNetwork);
     }
 
     /**
@@ -1391,4 +1595,41 @@ public class WifiConfigManagerNewTest {
 
         ScanTestUtil.assertScanResultEquals(scanResult, retrievedScanResult);
     }
+
+    /**
+     * Adds a new network and verifies that the |HasEverConnected| flag is set to false.
+     */
+    private void verifyAddNetworkHasEverConnectedFalse(WifiConfiguration network) {
+        NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(network);
+        WifiConfiguration retrievedNetwork =
+                mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        assertFalse("Adding a new network should not have hasEverConnected set to true.",
+                retrievedNetwork.getNetworkSelectionStatus().getHasEverConnected());
+    }
+
+    /**
+     * Updates an existing network with some credential change and verifies that the
+     * |HasEverConnected| flag is set to false.
+     */
+    private void verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(
+            WifiConfiguration network) {
+        NetworkUpdateResult result = verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(network);
+        WifiConfiguration retrievedNetwork =
+                mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        assertFalse("Updating network credentials config should clear hasEverConnected.",
+                retrievedNetwork.getNetworkSelectionStatus().getHasEverConnected());
+    }
+
+    /**
+     * Updates an existing network after connection using
+     * {@link WifiConfigManagerNew#updateNetworkAfterConnect(int)} and asserts that the
+     * |HasEverConnected| flag is set to true.
+     */
+    private void verifyUpdateNetworkAfterConnectHasEverConnectedTrue(int networkId) {
+        assertTrue(mWifiConfigManager.updateNetworkAfterConnect(networkId));
+        WifiConfiguration retrievedNetwork = mWifiConfigManager.getConfiguredNetwork(networkId);
+        assertTrue("hasEverConnected expected to be true after connection.",
+                retrievedNetwork.getNetworkSelectionStatus().getHasEverConnected());
+    }
+
 }
