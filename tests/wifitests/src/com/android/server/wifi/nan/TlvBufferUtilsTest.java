@@ -80,17 +80,17 @@ public class TlvBufferUtilsTest {
         int count = 0;
         for (TlvBufferUtils.TlvElement tlv : tlv22It) {
             if (count == 0) {
-                collector.checkThat("tlv22-correct-iteration-mType", tlv.mType, equalTo(0));
-                collector.checkThat("tlv22-correct-iteration-mLength", tlv.mLength, equalTo(4));
+                collector.checkThat("tlv22-correct-iteration-mType", tlv.type, equalTo(0));
+                collector.checkThat("tlv22-correct-iteration-mLength", tlv.length, equalTo(4));
                 collector.checkThat("tlv22-correct-iteration-DATA", tlv.getInt(), equalTo(2));
             } else if (count == 1) {
-                collector.checkThat("tlv22-correct-iteration-mType", tlv.mType, equalTo(2));
-                collector.checkThat("tlv22-correct-iteration-mLength", tlv.mLength, equalTo(2));
+                collector.checkThat("tlv22-correct-iteration-mType", tlv.type, equalTo(2));
+                collector.checkThat("tlv22-correct-iteration-mLength", tlv.length, equalTo(2));
                 collector.checkThat("tlv22-correct-iteration-DATA", (int) tlv.getShort(),
                         equalTo(3));
             } else if (count == 2) {
-                collector.checkThat("tlv22-correct-iteration-mType", tlv.mType, equalTo(55));
-                collector.checkThat("tlv22-correct-iteration-mLength", tlv.mLength, equalTo(0));
+                collector.checkThat("tlv22-correct-iteration-mType", tlv.type, equalTo(55));
+                collector.checkThat("tlv22-correct-iteration-mLength", tlv.length, equalTo(0));
             } else {
                 collector.checkThat("Invalid number of iterations in loop - tlv22", true,
                         equalTo(false));
@@ -112,16 +112,16 @@ public class TlvBufferUtilsTest {
         count = 0;
         for (TlvBufferUtils.TlvElement tlv : tlv02It) {
             if (count == 0) {
-                collector.checkThat("tlv02-correct-iteration-mLength", tlv.mLength, equalTo(1));
+                collector.checkThat("tlv02-correct-iteration-mLength", tlv.length, equalTo(1));
                 collector.checkThat("tlv02-correct-iteration-DATA", (int) tlv.getByte(),
                         equalTo(2));
             } else if (count == 1) {
-                collector.checkThat("tlv02-correct-iteration-mLength", tlv.mLength,
+                collector.checkThat("tlv02-correct-iteration-mLength", tlv.length,
                         equalTo(ascii.length()));
                 collector.checkThat("tlv02-correct-iteration-DATA", tlv.getString().equals(ascii),
                         equalTo(true));
             } else if (count == 2) {
-                collector.checkThat("tlv02-correct-iteration-mLength", tlv.mLength,
+                collector.checkThat("tlv02-correct-iteration-mLength", tlv.length,
                         equalTo(nonAscii.getBytes().length));
                 collector.checkThat("tlv02-correct-iteration-DATA",
                         tlv.getString().equals(nonAscii), equalTo(true));
