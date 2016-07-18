@@ -18,6 +18,7 @@ package com.android.server.wifi.nan;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 
+import android.net.wifi.nan.LvBufferUtils;
 import android.net.wifi.nan.TlvBufferUtils;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -48,9 +49,9 @@ public class TlvBufferUtilsTest {
         collector.checkThat("tlv11-correct-construction",
                 tlv11.getArray(), equalTo(new byte[]{0, 1, 2, 2, 3, 0, 1, 2}));
 
-        TlvBufferUtils.TlvConstructor tlv01 = new TlvBufferUtils.TlvConstructor(0, 1);
+        LvBufferUtils.LvConstructor tlv01 = new LvBufferUtils.LvConstructor(1);
         tlv01.allocate(15);
-        tlv01.putByte(0, (byte) 2);
+        tlv01.putByte((byte) 2);
         tlv01.putByteArray(2, new byte[] {
                 0, 1, 2 });
 
@@ -61,7 +62,7 @@ public class TlvBufferUtilsTest {
                 TlvBufferUtils.isValid(tlv11.getArray(), 1, 1),
                 equalTo(true));
         collector.checkThat("tlv01-valid",
-                TlvBufferUtils.isValid(tlv01.getArray(), 0, 1),
+                LvBufferUtils.isValid(tlv01.getArray(), 1),
                 equalTo(true));
     }
 
@@ -138,7 +139,7 @@ public class TlvBufferUtilsTest {
                 TlvBufferUtils.isValid(tlv22.getArray(), 2, 2),
                 equalTo(true));
         collector.checkThat("tlv02-valid",
-                TlvBufferUtils.isValid(tlv02.getArray(), 0, 2),
+                LvBufferUtils.isValid(tlv02.getArray(), 2),
                 equalTo(true));
     }
 
@@ -212,15 +213,15 @@ public class TlvBufferUtilsTest {
      */
     @Test
     public void testTlvInvalidByteArray() {
-        TlvBufferUtils.TlvConstructor tlv01 = new TlvBufferUtils.TlvConstructor(0, 1);
+        LvBufferUtils.LvConstructor tlv01 = new LvBufferUtils.LvConstructor(1);
         tlv01.allocate(15);
-        tlv01.putByte(0, (byte) 2);
+        tlv01.putByte((byte) 2);
         tlv01.putByteArray(2, new byte[]{0, 1, 2});
 
         byte[] array = tlv01.getArray();
         array[0] = 10;
 
         collector.checkThat("tlv01-invalid",
-                TlvBufferUtils.isValid(array, 0, 1), equalTo(false));
+                LvBufferUtils.isValid(array, 1), equalTo(false));
     }
 }
