@@ -775,6 +775,39 @@ public class WifiConfigManagerNewTest {
     }
 
     /**
+     * Verifies that the modification of a single network using
+     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)} does not modify
+     * existing configuration if there is a failure.
+     */
+    @Test
+    public void testUpdateSingleNetworkFailureDoesNotModifyOriginal() {
+        WifiConfiguration network = WifiConfigurationTestUtil.createEapNetwork();
+        network.enterpriseConfig =
+                WifiConfigurationTestUtil.createPEAPWifiEnterpriseConfigWithGTCPhase2();
+        verifyAddNetworkToWifiConfigManager(network);
+
+        // Save a copy of the original network for comparison.
+        WifiConfiguration originalNetwork = new WifiConfiguration(network);
+
+        // Now modify the network's EAP method.
+        network.enterpriseConfig =
+                WifiConfigurationTestUtil.createTLSWifiEnterpriseConfigWithNonePhase2();
+
+        // Fail this update because of cert installation failure.
+        when(mWifiKeyStore
+                .updateNetworkKeys(any(WifiConfiguration.class), any(WifiConfiguration.class)))
+                .thenReturn(false);
+        NetworkUpdateResult result =
+                mWifiConfigManager.addOrUpdateNetwork(network, TEST_UPDATE_UID);
+        assertTrue(result.getNetworkId() == WifiConfiguration.INVALID_NETWORK_ID);
+
+        // Now verify that there was no change to the network configurations.
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                originalNetwork,
+                mWifiConfigManager.getConfiguredNetworkWithPassword(originalNetwork.networkId));
+    }
+
+    /**
      * Verifies the matching of networks with different encryption types with the
      * corresponding scan detail using
      * {@link WifiConfigManagerNew#getSavedNetworkForScanDetailAndCache(ScanDetail)}.

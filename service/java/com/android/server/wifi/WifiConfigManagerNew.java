@@ -25,6 +25,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.IpConfiguration;
 import android.net.ProxyInfo;
+import android.net.StaticIpConfiguration;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
@@ -45,6 +46,7 @@ import com.android.server.wifi.util.ScanResultUtil;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.HashSet;
@@ -549,40 +551,52 @@ public class WifiConfigManagerNew {
             internalConfig.providerFriendlyName = externalConfig.providerFriendlyName;
         }
         if (externalConfig.roamingConsortiumIds != null) {
-            internalConfig.roamingConsortiumIds = externalConfig.roamingConsortiumIds;
+            internalConfig.roamingConsortiumIds = externalConfig.roamingConsortiumIds.clone();
         }
 
         // Copy over all the auth/protocol/key mgmt parameters if set.
         if (externalConfig.allowedAuthAlgorithms != null
                 && !externalConfig.allowedAuthAlgorithms.isEmpty()) {
-            internalConfig.allowedAuthAlgorithms = externalConfig.allowedAuthAlgorithms;
+            internalConfig.allowedAuthAlgorithms =
+                    (BitSet) externalConfig.allowedAuthAlgorithms.clone();
         }
         if (externalConfig.allowedProtocols != null
                 && !externalConfig.allowedProtocols.isEmpty()) {
-            internalConfig.allowedProtocols = externalConfig.allowedProtocols;
+            internalConfig.allowedProtocols = (BitSet) externalConfig.allowedProtocols.clone();
         }
         if (externalConfig.allowedKeyManagement != null
                 && !externalConfig.allowedKeyManagement.isEmpty()) {
-            internalConfig.allowedKeyManagement = externalConfig.allowedKeyManagement;
+            internalConfig.allowedKeyManagement =
+                    (BitSet) externalConfig.allowedKeyManagement.clone();
         }
         if (externalConfig.allowedPairwiseCiphers != null
                 && !externalConfig.allowedPairwiseCiphers.isEmpty()) {
-            internalConfig.allowedPairwiseCiphers = externalConfig.allowedPairwiseCiphers;
+            internalConfig.allowedPairwiseCiphers =
+                    (BitSet) externalConfig.allowedPairwiseCiphers.clone();
         }
         if (externalConfig.allowedGroupCiphers != null
                 && !externalConfig.allowedGroupCiphers.isEmpty()) {
-            internalConfig.allowedGroupCiphers = externalConfig.allowedGroupCiphers;
+            internalConfig.allowedGroupCiphers =
+                    (BitSet) externalConfig.allowedGroupCiphers.clone();
         }
 
         // Copy over the |IpConfiguration| parameters if set.
         if (externalConfig.getIpConfiguration() != null) {
-            if (externalConfig.getIpAssignment() != IpConfiguration.IpAssignment.UNASSIGNED) {
-                internalConfig.setIpAssignment(externalConfig.getIpAssignment());
-                internalConfig.setStaticIpConfiguration(externalConfig.getStaticIpConfiguration());
+            IpConfiguration.IpAssignment ipAssignment = externalConfig.getIpAssignment();
+            if (ipAssignment != IpConfiguration.IpAssignment.UNASSIGNED) {
+                internalConfig.setIpAssignment(ipAssignment);
+                if (ipAssignment == IpConfiguration.IpAssignment.STATIC) {
+                    internalConfig.setStaticIpConfiguration(
+                            new StaticIpConfiguration(externalConfig.getStaticIpConfiguration()));
+                }
             }
-            if (externalConfig.getProxySettings() != IpConfiguration.ProxySettings.UNASSIGNED) {
-                internalConfig.setProxySettings(externalConfig.getProxySettings());
-                internalConfig.setHttpProxy(externalConfig.getHttpProxy());
+            IpConfiguration.ProxySettings proxySettings = externalConfig.getProxySettings();
+            if (proxySettings != IpConfiguration.ProxySettings.UNASSIGNED) {
+                internalConfig.setProxySettings(proxySettings);
+                if (proxySettings == IpConfiguration.ProxySettings.PAC
+                        || proxySettings == IpConfiguration.ProxySettings.STATIC) {
+                    internalConfig.setHttpProxy(new ProxyInfo(externalConfig.getHttpProxy()));
+                }
             }
         }
 
@@ -665,16 +679,17 @@ public class WifiConfigManagerNew {
     }
 
     /**
-     * Merges the provided external WifiConfiguration object with the existing internal
+     * Merges the provided external WifiConfiguration object with a copy of the existing internal
      * WifiConfiguration object.
      *
      * @param config provided external WifiConfiguration object.
-     * @return Existing WifiConfiguration object with parameters merged from the provided
+     * @return Copy of existing WifiConfiguration object with parameters merged from the provided
      * configuration.
      */
     private WifiConfiguration updateExistingInternalWifiConfigurationFromExternal(
             WifiConfiguration config, int uid) {
-        WifiConfiguration existingConfig = getInternalConfiguredNetwork(config);
+        WifiConfiguration existingConfig =
+                new WifiConfiguration(getInternalConfiguredNetwork(config));
 
         // Copy over all the public elements from the provided configuration.
         mergeWithInternalWifiConfiguration(config, existingConfig);
@@ -780,7 +795,8 @@ public class WifiConfigManagerNew {
             }
         }
 
-        // Add it our internal map.
+        // Add it to our internal map. This will replace any existing network configuration for
+        // updates.
         mConfiguredNetworks.put(newInternalConfig);
 
         // Stage the backup of the SettingsProvider package which backs this up.
