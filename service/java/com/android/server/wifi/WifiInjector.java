@@ -68,6 +68,7 @@ public class WifiInjector {
     private final BuildProperties mBuildProperties = new SystemBuildProperties();
     private final KeyStore mKeyStore = KeyStore.getInstance();
     private final WifiBackupRestore mWifiBackupRestore = new WifiBackupRestore();
+    private final WifiMulticastLockManager mWifiMulticastLockManager;
 
     public WifiInjector(Context context) {
         if (context == null) {
@@ -109,6 +110,8 @@ public class WifiInjector {
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
                 mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade);
         mWifiLastResortWatchdog = new WifiLastResortWatchdog(mWifiController, mWifiMetrics);
+        mWifiMulticastLockManager = new WifiMulticastLockManager(mWifiStateMachine,
+                BatteryStatsService.getService());
     }
 
     /**
@@ -199,6 +202,10 @@ public class WifiInjector {
 
     public WifiBackupRestore getWifiBackupRestore() {
         return mWifiBackupRestore;
+    }
+
+    public WifiMulticastLockManager getWifiMulticastLockManager() {
+        return mWifiMulticastLockManager;
     }
 
     public IWificond makeWificond() {

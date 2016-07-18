@@ -145,7 +145,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @hide
  */
-public class WifiStateMachine extends StateMachine implements WifiNative.WifiRssiEventHandler {
+public class WifiStateMachine extends StateMachine implements WifiNative.WifiRssiEventHandler,
+        WifiMulticastLockManager.FilterController {
 
     private static final String NETWORKTYPE = "WIFI";
     private static final String NETWORKTYPE_UNTRUSTED = "WIFI_UT";

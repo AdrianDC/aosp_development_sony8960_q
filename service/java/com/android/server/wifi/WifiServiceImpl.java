@@ -81,12 +81,10 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.Slog;
 
-import com.android.internal.app.IBatteryStats;
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
-import com.android.server.am.BatteryStatsService;
 import com.android.server.wifi.configparse.ConfigBuilder;
 
 import org.xml.sax.SAXException;
@@ -127,12 +125,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private final Context mContext;
     private final FrameworkFacade mFacade;
 
-    private final List<Multicaster> mMulticasters =
-            new ArrayList<Multicaster>();
-    private int mMulticastEnabled;
-    private int mMulticastDisabled;
-
-    private final IBatteryStats mBatteryStats;
     private final PowerManager mPowerManager;
     private final AppOpsManager mAppOps;
     private final UserManager mUserManager;
@@ -306,9 +298,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     WifiStateMachineHandler mWifiStateMachineHandler;
-
     private WifiController mWifiController;
     private final WifiLockManager mWifiLockManager;
+    private final WifiMulticastLockManager mWifiMulticastLockManager;
 
     public WifiServiceImpl(Context context) {
         mContext = context;
@@ -322,7 +314,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mWifiStateMachine = mWifiInjector.getWifiStateMachine();
         mWifiStateMachine.enableRssiPolling(true);
         mSettingsStore = mWifiInjector.getWifiSettingsStore();
-        mBatteryStats = BatteryStatsService.getService();
         mPowerManager = mContext.getSystemService(PowerManager.class);
         mAppOps = (AppOpsManager) mContext.getSystemService(Context.APP_OPS_SERVICE);
         mCertManager = mWifiInjector.getWifiCertManager();
@@ -330,6 +321,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mNotificationController = mWifiInjector.getWifiNotificationController();
 
         mWifiLockManager = mWifiInjector.getWifiLockManager();
+        mWifiMulticastLockManager = mWifiInjector.getWifiMulticastLockManager();
         HandlerThread wifiServiceHandlerThread = mWifiInjector.getWifiServiceHandlerThread();
         mClientHandler = new ClientHandler(wifiServiceHandlerThread.getLooper());
         mWifiStateMachineHandler =
@@ -1505,8 +1497,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             pw.println("Stay-awake conditions: " +
                     Settings.Global.getInt(mContext.getContentResolver(),
                                            Settings.Global.STAY_ON_WHILE_PLUGGED_IN, 0));
-            pw.println("mMulticastEnabled " + mMulticastEnabled);
-            pw.println("mMulticastDisabled " + mMulticastDisabled);
             pw.println("mInIdleMode " + mInIdleMode);
             pw.println("mScanPending " + mScanPending);
             mWifiController.dump(fd, pw, args);
@@ -1543,12 +1533,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             pw.println("Locks held:");
             mWifiLockManager.dump(pw);
             pw.println();
-            pw.println("Multicast Locks held:");
-            for (Multicaster l : mMulticasters) {
-                pw.print("    ");
-                pw.println(l);
-            }
-
+            mWifiMulticastLockManager.dump(pw);
             pw.println();
             mWifiStateMachine.dump(fd, pw, args);
             pw.println();
@@ -1580,128 +1565,28 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         return false;
     }
 
-    private class Multicaster implements IBinder.DeathRecipient {
-        String mTag;
-        int mUid;
-        IBinder mBinder;
-
-        Multicaster(String tag, IBinder binder) {
-            mTag = tag;
-            mUid = Binder.getCallingUid();
-            mBinder = binder;
-            try {
-                mBinder.linkToDeath(this, 0);
-            } catch (RemoteException e) {
-                binderDied();
-            }
-        }
-
-        @Override
-        public void binderDied() {
-            Slog.e(TAG, "Multicaster binderDied");
-            synchronized (mMulticasters) {
-                int i = mMulticasters.indexOf(this);
-                if (i != -1) {
-                    removeMulticasterLocked(i, mUid);
-                }
-            }
-        }
-
-        void unlinkDeathRecipient() {
-            mBinder.unlinkToDeath(this, 0);
-        }
-
-        public int getUid() {
-            return mUid;
-        }
-
-        public String toString() {
-            return "Multicaster{" + mTag + " uid=" + mUid  + "}";
-        }
-    }
-
     @Override
     public void initializeMulticastFiltering() {
         enforceMulticastChangePermission();
-
-        synchronized (mMulticasters) {
-            // if anybody had requested filters be off, leave off
-            if (mMulticasters.size() != 0) {
-                return;
-            } else {
-                mWifiStateMachine.startFilteringMulticastPackets();
-            }
-        }
+        mWifiMulticastLockManager.initializeFiltering();
     }
 
     @Override
     public void acquireMulticastLock(IBinder binder, String tag) {
         enforceMulticastChangePermission();
-
-        synchronized (mMulticasters) {
-            mMulticastEnabled++;
-            mMulticasters.add(new Multicaster(tag, binder));
-            // Note that we could call stopFilteringMulticastPackets only when
-            // our new size == 1 (first call), but this function won't
-            // be called often and by making the stopPacket call each
-            // time we're less fragile and self-healing.
-            mWifiStateMachine.stopFilteringMulticastPackets();
-        }
-
-        int uid = Binder.getCallingUid();
-        final long ident = Binder.clearCallingIdentity();
-        try {
-            mBatteryStats.noteWifiMulticastEnabled(uid);
-        } catch (RemoteException e) {
-        } finally {
-            Binder.restoreCallingIdentity(ident);
-        }
+        mWifiMulticastLockManager.acquireLock(binder, tag);
     }
 
     @Override
     public void releaseMulticastLock() {
         enforceMulticastChangePermission();
-
-        int uid = Binder.getCallingUid();
-        synchronized (mMulticasters) {
-            mMulticastDisabled++;
-            int size = mMulticasters.size();
-            for (int i = size - 1; i >= 0; i--) {
-                Multicaster m = mMulticasters.get(i);
-                if ((m != null) && (m.getUid() == uid)) {
-                    removeMulticasterLocked(i, uid);
-                }
-            }
-        }
-    }
-
-    private void removeMulticasterLocked(int i, int uid)
-    {
-        Multicaster removed = mMulticasters.remove(i);
-
-        if (removed != null) {
-            removed.unlinkDeathRecipient();
-        }
-        if (mMulticasters.size() == 0) {
-            mWifiStateMachine.startFilteringMulticastPackets();
-        }
-
-        final long ident = Binder.clearCallingIdentity();
-        try {
-            mBatteryStats.noteWifiMulticastDisabled(uid);
-        } catch (RemoteException e) {
-        } finally {
-            Binder.restoreCallingIdentity(ident);
-        }
+        mWifiMulticastLockManager.releaseLock();
     }
 
     @Override
     public boolean isMulticastEnabled() {
         enforceAccessPermission();
-
-        synchronized (mMulticasters) {
-            return (mMulticasters.size() > 0);
-        }
+        return mWifiMulticastLockManager.isMulticastEnabled();
     }
 
     @Override
@@ -1715,6 +1600,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private void enableVerboseLoggingInternal(int verbose) {
         mWifiStateMachine.enableVerboseLogging(verbose);
         mWifiLockManager.enableVerboseLogging(verbose);
+        mWifiMulticastLockManager.enableVerboseLogging(verbose);
         mWifiInjector.getWifiLastResortWatchdog().enableVerboseLogging(verbose);
         mWifiInjector.getWifiBackupRestore().enableVerboseLogging(verbose);
     }
