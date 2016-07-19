@@ -23,8 +23,8 @@ import static com.android.server.wifi.util.ApConfigUtil.SUCCESS;
 import android.net.wifi.IApInterface;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiConfiguration.KeyMgmt;
 import android.os.IBinder.DeathRecipient;
-import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
@@ -34,6 +34,7 @@ import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.util.ApConfigUtil;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -44,17 +45,16 @@ import java.util.Locale;
 public class SoftApManager {
     private static final String TAG = "SoftApManager";
 
-    private final INetworkManagementService mNmService;
     private final WifiNative mWifiNative;
     private final ArrayList<Integer> mAllowed2GChannels;
 
     private final String mCountryCode;
 
-    private final String mInterfaceName;
-
     private final SoftApStateMachine mStateMachine;
 
     private final Listener mListener;
+
+    private final IApInterface mApInterface;
 
     /**
      * Listener for soft AP state changes.
@@ -70,20 +70,17 @@ public class SoftApManager {
 
     public SoftApManager(Looper looper,
                          WifiNative wifiNative,
-                         INetworkManagementService nmService,
                          String countryCode,
                          ArrayList<Integer> allowed2GChannels,
                          Listener listener,
                          IApInterface apInterface) {
-        mStateMachine = new SoftApStateMachine(looper, apInterface);
+        mStateMachine = new SoftApStateMachine(looper);
 
-        mNmService = nmService;
         mWifiNative = wifiNative;
         mCountryCode = countryCode;
         mAllowed2GChannels = allowed2GChannels;
         mListener = listener;
-
-        mInterfaceName = mWifiNative.getInterfaceName();
+        mApInterface = apInterface;
     }
 
     /**
@@ -118,8 +115,8 @@ public class SoftApManager {
      * @return integer result code
      */
     private int startSoftAp(WifiConfiguration config) {
-        if (config == null) {
-            Log.e(TAG, "Unable to start soft AP without configuration");
+        if (config == null || config.SSID == null) {
+            Log.e(TAG, "Unable to start soft AP without valid configuration");
             return ERROR_GENERIC;
         }
 
@@ -147,11 +144,30 @@ public class SoftApManager {
             }
         }
 
+        int encryptionType = getIApInterfaceEncryptionType(localConfig);
+
         try {
-            mNmService.startAccessPoint(localConfig, mInterfaceName);
-        } catch (Exception e) {
+            // Note that localConfig.SSID is intended to be either a hex string or "double quoted".
+            // However, it seems that whatever is handing us these configurations does not obey
+            // this convention.
+            boolean success = mApInterface.writeHostapdConfig(
+                    localConfig.SSID.getBytes(StandardCharsets.UTF_8), false,
+                    localConfig.apChannel, encryptionType,
+                    (localConfig.preSharedKey != null)
+                            ? localConfig.preSharedKey.getBytes(StandardCharsets.UTF_8)
+                            : new byte[0]);
+            if (!success) {
+                Log.e(TAG, "Failed to write hostapd configuration");
+                return ERROR_GENERIC;
+            }
+
+            success = mApInterface.startHostapd();
+            if (!success) {
+                Log.e(TAG, "Failed to start hostapd.");
+                return ERROR_GENERIC;
+            }
+        } catch (RemoteException e) {
             Log.e(TAG, "Exception in starting soft AP: " + e);
-            return ERROR_GENERIC;
         }
 
         Log.d(TAG, "Soft AP is started");
@@ -159,13 +175,34 @@ public class SoftApManager {
         return SUCCESS;
     }
 
+    private static int getIApInterfaceEncryptionType(WifiConfiguration localConfig) {
+        int encryptionType;
+        switch (localConfig.getAuthType()) {
+            case KeyMgmt.NONE:
+                encryptionType = IApInterface.ENCRYPTION_TYPE_NONE;
+                break;
+            case KeyMgmt.WPA_PSK:
+                encryptionType = IApInterface.ENCRYPTION_TYPE_WPA;
+                break;
+            case KeyMgmt.WPA2_PSK:
+                encryptionType = IApInterface.ENCRYPTION_TYPE_WPA2;
+                break;
+            default:
+                // We really shouldn't default to None, but this was how NetworkManagementService
+                // used to do this.
+                encryptionType = IApInterface.ENCRYPTION_TYPE_NONE;
+                break;
+        }
+        return encryptionType;
+    }
+
     /**
      * Teardown soft AP.
      */
     private void stopSoftAp() {
         try {
-            mNmService.stopAccessPoint(mInterfaceName);
-        } catch (Exception e) {
+            mApInterface.stopHostapd();
+        } catch (RemoteException e) {
             Log.e(TAG, "Exception in stopping soft AP: " + e);
             return;
         }
@@ -177,8 +214,6 @@ public class SoftApManager {
         public static final int CMD_START = 0;
         public static final int CMD_STOP = 1;
         public static final int CMD_AP_INTERFACE_BINDER_DEATH = 2;
-
-        private final IApInterface mApInterface;
 
         private final State mIdleState = new IdleState();
         private final State mStartedState = new StartedState();
@@ -193,9 +228,8 @@ public class SoftApManager {
         }
 
 
-        SoftApStateMachine(Looper looper, IApInterface apInterface) {
+        SoftApStateMachine(Looper looper) {
             super(TAG, looper);
-            mApInterface = apInterface;
 
             addState(mIdleState);
             addState(mStartedState);
