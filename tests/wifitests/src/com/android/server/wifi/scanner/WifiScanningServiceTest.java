@@ -39,6 +39,7 @@ import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Pair;
 
 import com.android.internal.app.IBatteryStats;
+import com.android.internal.util.AsyncChannel;
 import com.android.internal.util.Protocol;
 import com.android.server.wifi.BidirectionalAsyncChannel;
 import com.android.server.wifi.Clock;
@@ -1635,4 +1636,39 @@ public class WifiScanningServiceTest {
         expectSwPnoScan(order, scanSettings.second, scanResults);
         verifyPnoNetworkFoundRecieved(order, handler, requestId, scanResults.getRawScanResults());
     }
+
+    /**
+     * Tries to simulate the race scenario where a client is disconnected immediately after single
+     * scan request is sent to |SingleScanStateMachine|.
+     */
+    @Test
+    public void processSingleScanRequestAfterDisconnect() throws Exception {
+        startServiceAndLoadDriver();
+        BidirectionalAsyncChannel controlChannel = connectChannel(mock(Handler.class));
+        mLooper.dispatchAll();
+
+        // Send the single scan request and then send the disconnect immediately after.
+        WifiScanner.ScanSettings requestSettings = createRequest(WifiScanner.WIFI_BAND_BOTH, 0,
+                0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        int requestId = 10;
+
+        sendSingleScanRequest(controlChannel, requestId, requestSettings, null);
+        // Can't call |disconnect| here because that sends |CMD_CHANNEL_DISCONNECT| followed by
+        // |CMD_CHANNEL_DISCONNECTED|.
+        controlChannel.sendMessage(Message.obtain(null, AsyncChannel.CMD_CHANNEL_DISCONNECTED, 0,
+                0, null));
+
+        // Now process the above 2 actions. This should result in first processing the single scan
+        // request (which forwards the request to SingleScanStateMachine) and then processing the
+        // disconnect after.
+        mLooper.dispatchAll();
+
+        // Now check that we logged the invalid request.
+        String serviceDump = dumpService();
+        Pattern logLineRegex = Pattern.compile("^.+" + "singleScanInvalidRequest: "
+                + "ClientInfo\\[unknown\\],Id=" + requestId + ",bad request$", Pattern.MULTILINE);
+        assertTrue("dump did not contain log with ClientInfo[unknown]: " + serviceDump + "\n",
+                logLineRegex.matcher(serviceDump).find());
+    }
+
 }
