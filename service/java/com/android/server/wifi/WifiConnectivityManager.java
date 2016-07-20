@@ -1034,8 +1034,10 @@ public class WifiConnectivityManager {
 
         mWifiState = state;
 
-        // Kick off the watchdog timer if entering disconnected state
+        // Reset BSSID of last connection attempt and kick off
+        // the watchdog timer if entering disconnected state.
         if (mWifiState == WIFI_STATE_DISCONNECTED) {
+            mLastConnectionAttemptBssid = null;
             scheduleWatchdogTimer();
         }
 
@@ -1115,6 +1117,7 @@ public class WifiConnectivityManager {
         if (!mWifiEnabled) {
             stopConnectivityScan();
             resetLastPeriodicSingleScanTimeStamp();
+            mLastConnectionAttemptBssid = null;
         }
     }
 
@@ -1129,6 +1132,7 @@ public class WifiConnectivityManager {
         if (!mWifiConnectivityManagerEnabled) {
             stopConnectivityScan();
             resetLastPeriodicSingleScanTimeStamp();
+            mLastConnectionAttemptBssid = null;
         }
     }
 
