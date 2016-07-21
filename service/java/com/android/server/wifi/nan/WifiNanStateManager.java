@@ -150,13 +150,10 @@ public class WifiNanStateManager {
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE = "message";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_PEER_ID = "message_peer_id";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_ID = "message_id";
-    private static final String MESSAGE_BUNDLE_KEY_SSI_LENGTH = "ssi_length";
     private static final String MESSAGE_BUNDLE_KEY_SSI_DATA = "ssi_data";
-    private static final String MESSAGE_BUNDLE_KEY_FILTER_LENGTH = "filter_length";
     private static final String MESSAGE_BUNDLE_KEY_FILTER_DATA = "filter_data";
     private static final String MESSAGE_BUNDLE_KEY_MAC_ADDRESS = "mac_address";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_DATA = "message_data";
-    private static final String MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH = "message_length";
     private static final String MESSAGE_BUNDLE_KEY_REQ_INSTANCE_ID = "req_instance_id";
     private static final String MESSAGE_BUNDLE_KEY_RANGING_ID = "ranging_id";
     private static final String MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME = "message_queue_time";
@@ -164,7 +161,6 @@ public class WifiNanStateManager {
     private static final String MESSAGE_BUNDLE_KEY_SUCCESS_FLAG = "success_flag";
     private static final String MESSAGE_BUNDLE_KEY_STATUS_CODE = "status_code";
     private static final String MESSAGE_BUNDLE_KEY_INTERFACE_NAME = "interface_name";
-    private static final String MESSAGE_BUNDLE_KEY_PUB_SUB_ID = "pub_sub_id";
     private static final String MESSAGE_BUNDLE_KEY_CHANNEL_REQ_TYPE = "channel_request_type";
     private static final String MESSAGE_BUNDLE_KEY_CHANNEL = "channel";
     private static final String MESSAGE_BUNDLE_KEY_PEER_ID = "peer_id";
@@ -342,8 +338,8 @@ public class WifiNanStateManager {
      * Place a request to send a message on a discovery session on the state
      * machine queue.
      */
-    public void sendMessage(int clientId, int sessionId, int peerId, byte[] message,
-            int messageLength, int messageId, int retryCount) {
+    public void sendMessage(int clientId, int sessionId, int peerId, byte[] message, int messageId,
+            int retryCount) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_ENQUEUE_SEND_MESSAGE;
         msg.arg2 = clientId;
@@ -351,7 +347,6 @@ public class WifiNanStateManager {
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_PEER_ID, peerId);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE, message);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_ID, messageId);
-        msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH, messageLength);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_RETRY_COUNT, retryCount);
         mSm.sendMessage(msg);
     }
@@ -702,17 +697,14 @@ public class WifiNanStateManager {
      * matching service (to the one we were looking for).
      */
     public void onMatchNotification(int pubSubId, int requestorInstanceId, byte[] peerMac,
-            byte[] serviceSpecificInfo, int serviceSpecificInfoLength, byte[] matchFilter,
-            int matchFilterLength) {
+            byte[] serviceSpecificInfo, byte[] matchFilter) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_MATCH;
         msg.arg2 = pubSubId;
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_REQ_INSTANCE_ID, requestorInstanceId);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS, peerMac);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_SSI_DATA, serviceSpecificInfo);
-        msg.getData().putInt(MESSAGE_BUNDLE_KEY_SSI_LENGTH, serviceSpecificInfoLength);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_FILTER_DATA, matchFilter);
-        msg.getData().putInt(MESSAGE_BUNDLE_KEY_FILTER_LENGTH, matchFilterLength);
         mSm.sendMessage(msg);
     }
 
@@ -734,14 +726,13 @@ public class WifiNanStateManager {
      * received as part of a discovery session.
      */
     public void onMessageReceivedNotification(int pubSubId, int requestorInstanceId, byte[] peerMac,
-            byte[] message, int messageLength) {
+            byte[] message) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_MESSAGE_RECEIVED;
         msg.arg2 = pubSubId;
         msg.obj = requestorInstanceId;
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS, peerMac);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA, message);
-        msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH, messageLength);
         mSm.sendMessage(msg);
     }
 
@@ -780,15 +771,13 @@ public class WifiNanStateManager {
     /**
      * Place a callback request on the state machine queue: data-path request (from peer) received.
      */
-    public void onDataPathRequestNotification(int pubSubId, byte[] mac, int ndpId, byte[] message,
-            int messageLength) {
+    public void onDataPathRequestNotification(int pubSubId, byte[] mac, int ndpId, byte[] message) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST;
         msg.arg2 = pubSubId;
         msg.obj = ndpId;
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS, mac);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA, message);
-        msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH, messageLength);
         mSm.sendMessage(msg);
     }
 
@@ -797,7 +786,7 @@ public class WifiNanStateManager {
      * data-path is now up.
      */
     public void onDataPathConfirmNotification(int ndpId, byte[] mac, boolean accept, int reason,
-            byte[] message, int messageLength) {
+            byte[] message) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_ON_DATA_PATH_CONFIRM;
         msg.arg2 = ndpId;
@@ -805,7 +794,6 @@ public class WifiNanStateManager {
         msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG, accept);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_STATUS_CODE, reason);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA, message);
-        msg.getData().putInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH, messageLength);
         mSm.sendMessage(msg);
     }
 
@@ -1018,13 +1006,10 @@ public class WifiNanStateManager {
                     byte[] peerMac = msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS);
                     byte[] serviceSpecificInfo = msg.getData()
                             .getByteArray(MESSAGE_BUNDLE_KEY_SSI_DATA);
-                    int serviceSpecificInfoLength = msg.getData()
-                            .getInt(MESSAGE_BUNDLE_KEY_SSI_LENGTH);
                     byte[] matchFilter = msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_FILTER_DATA);
-                    int matchFilterLength = msg.getData().getInt(MESSAGE_BUNDLE_KEY_FILTER_LENGTH);
 
                     onMatchLocal(pubSubId, requestorInstanceId, peerMac, serviceSpecificInfo,
-                            serviceSpecificInfoLength, matchFilter, matchFilterLength);
+                            matchFilter);
                     break;
                 }
                 case NOTIFICATION_TYPE_SESSION_TERMINATED: {
@@ -1040,10 +1025,8 @@ public class WifiNanStateManager {
                     int requestorInstanceId = (Integer) msg.obj;
                     byte[] peerMac = msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS);
                     byte[] message = msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA);
-                    int messageLength = msg.getData().getInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH);
 
-                    onMessageReceivedLocal(pubSubId, requestorInstanceId, peerMac, message,
-                            messageLength);
+                    onMessageReceivedLocal(pubSubId, requestorInstanceId, peerMac, message);
                     break;
                 }
                 case NOTIFICATION_TYPE_NAN_DOWN: {
@@ -1125,8 +1108,7 @@ public class WifiNanStateManager {
                     String networkSpecifier = mDataPathMgr.onDataPathRequest(msg.arg2,
                             msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS),
                             (int) msg.obj,
-                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA),
-                            msg.getData().getInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH));
+                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA));
 
                     if (networkSpecifier != null) {
                         WakeupMessage timeout = new WakeupMessage(mContext, getHandler(),
@@ -1144,8 +1126,7 @@ public class WifiNanStateManager {
                             msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS),
                             msg.getData().getBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG),
                             msg.getData().getInt(MESSAGE_BUNDLE_KEY_STATUS_CODE),
-                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA),
-                            msg.getData().getInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH));
+                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA));
 
                     if (networkSpecifier != null) {
                         WakeupMessage timeout = mDataPathConfirmTimeoutMessages.remove(
@@ -1296,12 +1277,11 @@ public class WifiNanStateManager {
                         int peerId = data.getInt(MESSAGE_BUNDLE_KEY_MESSAGE_PEER_ID);
                         byte[] message = data.getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE);
                         int messageId = data.getInt(MESSAGE_BUNDLE_KEY_MESSAGE_ID);
-                        int messageLength = data.getInt(MESSAGE_BUNDLE_KEY_MESSAGE_LENGTH);
 
                         msg.getData().putParcelable(MESSAGE_BUNDLE_KEY_SENT_MESSAGE, sendMessage);
 
                         waitForResponse = sendFollowonMessageLocal(mCurrentTransactionId, clientId,
-                                sessionId, peerId, message, messageLength, messageId);
+                                sessionId, peerId, message, messageId);
                     }
                     break;
                 }
@@ -1920,12 +1900,12 @@ public class WifiNanStateManager {
     }
 
     private boolean sendFollowonMessageLocal(short transactionId, int clientId, int sessionId,
-            int peerId, byte[] message, int messageLength, int messageId) {
+            int peerId, byte[] message, int messageId) {
         if (VDBG) {
             Log.v(TAG,
                     "sendFollowonMessageLocal(): transactionId=" + transactionId + ", clientId="
                             + clientId + ", sessionId=" + sessionId + ", peerId=" + peerId
-                            + ", messageLength=" + messageLength + ", messageId=" + messageId);
+                            + ", messageId=" + messageId);
         }
 
         WifiNanClientState client = mClients.get(clientId);
@@ -1941,7 +1921,7 @@ public class WifiNanStateManager {
             return false;
         }
 
-        return session.sendMessage(transactionId, peerId, message, messageLength, messageId);
+        return session.sendMessage(transactionId, peerId, message, messageId);
     }
 
     private void enableUsageLocal() {
@@ -2020,7 +2000,7 @@ public class WifiNanStateManager {
         }
 
         return WifiNanNative.getInstance().initiateDataPath(transactionId, peerId,
-                channelRequestType, channel, peer, interfaceName, token, token.length);
+                channelRequestType, channel, peer, interfaceName, token);
     }
 
     private boolean respondToDataPathRequestLocal(short transactionId, boolean accept,
@@ -2035,7 +2015,7 @@ public class WifiNanStateManager {
         byte[] tokenBytes = token.getBytes();
 
         return WifiNanNative.getInstance().respondToDataPathRequest(transactionId, accept, ndpId,
-                interfaceName, tokenBytes, tokenBytes.length);
+                interfaceName, tokenBytes);
     }
 
     private boolean endDataPathLocal(short transactionId, int ndpId) {
@@ -2393,15 +2373,13 @@ public class WifiNanStateManager {
     }
 
     private void onMatchLocal(int pubSubId, int requestorInstanceId, byte[] peerMac,
-            byte[] serviceSpecificInfo, int serviceSpecificInfoLength, byte[] matchFilter,
-            int matchFilterLength) {
+            byte[] serviceSpecificInfo, byte[] matchFilter) {
         if (VDBG) {
-            Log.v(TAG, "onMatch: pubSubId=" + pubSubId + ", requestorInstanceId="
-                    + requestorInstanceId + ", peerDiscoveryMac="
-                    + String.valueOf(HexEncoding.encode(peerMac)) + ", serviceSpecificInfoLength="
-                    + serviceSpecificInfoLength + ", serviceSpecificInfo="
-                    + Arrays.toString(serviceSpecificInfo) + ", matchFilterLength="
-                    + matchFilterLength + ", matchFilter=" + Arrays.toString(matchFilter));
+            Log.v(TAG,
+                    "onMatch: pubSubId=" + pubSubId + ", requestorInstanceId=" + requestorInstanceId
+                            + ", peerDiscoveryMac=" + String.valueOf(HexEncoding.encode(peerMac))
+                            + ", serviceSpecificInfo=" + Arrays.toString(serviceSpecificInfo)
+                            + ", matchFilter=" + Arrays.toString(matchFilter));
         }
 
         Pair<WifiNanClientState, WifiNanSessionState> data = getClientSessionForPubSubId(pubSubId);
@@ -2410,8 +2388,7 @@ public class WifiNanStateManager {
             return;
         }
 
-        data.second.onMatch(requestorInstanceId, peerMac, serviceSpecificInfo,
-                serviceSpecificInfoLength, matchFilter, matchFilterLength);
+        data.second.onMatch(requestorInstanceId, peerMac, serviceSpecificInfo, matchFilter);
     }
 
     private void onSessionTerminatedLocal(int pubSubId, boolean isPublish, int reason) {
@@ -2436,13 +2413,12 @@ public class WifiNanStateManager {
     }
 
     private void onMessageReceivedLocal(int pubSubId, int requestorInstanceId, byte[] peerMac,
-            byte[] message, int messageLength) {
+            byte[] message) {
         if (VDBG) {
             Log.v(TAG,
                     "onMessageReceivedLocal: pubSubId=" + pubSubId + ", requestorInstanceId="
                             + requestorInstanceId + ", peerDiscoveryMac="
-                            + String.valueOf(HexEncoding.encode(peerMac)) + ", messageLength="
-                            + messageLength);
+                            + String.valueOf(HexEncoding.encode(peerMac)));
         }
 
         Pair<WifiNanClientState, WifiNanSessionState> data = getClientSessionForPubSubId(pubSubId);
@@ -2451,7 +2427,7 @@ public class WifiNanStateManager {
             return;
         }
 
-        data.second.onMessageReceived(requestorInstanceId, peerMac, message, messageLength);
+        data.second.onMessageReceived(requestorInstanceId, peerMac, message);
     }
 
     private void onNanDownLocal() {

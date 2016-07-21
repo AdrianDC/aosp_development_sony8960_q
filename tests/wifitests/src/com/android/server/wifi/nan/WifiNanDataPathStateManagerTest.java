@@ -128,15 +128,15 @@ public class WifiNanDataPathStateManagerTest {
         when(mMockNative.subscribe(anyShort(), anyInt(), any(SubscribeConfig.class)))
                 .thenReturn(true);
         when(mMockNative.sendMessage(anyShort(), anyInt(), anyInt(), any(byte[].class),
-                any(byte[].class), anyInt(), anyInt())).thenReturn(true);
+                any(byte[].class), anyInt())).thenReturn(true);
         when(mMockNative.stopPublish(anyShort(), anyInt())).thenReturn(true);
         when(mMockNative.stopSubscribe(anyShort(), anyInt())).thenReturn(true);
         when(mMockNative.createNanNetworkInterface(anyShort(), anyString())).thenReturn(true);
         when(mMockNative.deleteNanNetworkInterface(anyShort(), anyString())).thenReturn(true);
         when(mMockNative.initiateDataPath(anyShort(), anyInt(), anyInt(), anyInt(),
-                any(byte[].class), anyString(), any(byte[].class), anyInt())).thenReturn(true);
+                any(byte[].class), anyString(), any(byte[].class))).thenReturn(true);
         when(mMockNative.respondToDataPathRequest(anyShort(), anyBoolean(), anyInt(), anyString(),
-                any(byte[].class), anyInt())).thenReturn(true);
+                any(byte[].class))).thenReturn(true);
         when(mMockNative.endDataPath(anyShort(), anyInt())).thenReturn(true);
 
         when(mMockNetworkInterface.configureAgentProperties(
@@ -430,16 +430,14 @@ public class WifiNanDataPathStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).initiateDataPath(transactionId.capture(),
                 eq(useDirect ? 0 : peerId), eq(WifiNanNative.CHANNEL_REQUEST_TYPE_REQUESTED),
-                eq(2437), eq(peerDiscoveryMac), eq("nan0"), eq(token.getBytes()),
-                eq(token.length()));
+                eq(2437), eq(peerDiscoveryMac), eq("nan0"), eq(token.getBytes()));
         mDut.onInitiateDataPathResponseSuccess(transactionId.getValue(), ndpId);
         mMockLooper.dispatchAll();
 
         // (2) get confirmation OR timeout
         if (getConfirmation) {
             mDut.onDataPathConfirmNotification(ndpId, peerDataPathMac, true, 0,
-                    peerToken.getBytes(),
-                    peerToken.length());
+                    peerToken.getBytes());
             mMockLooper.dispatchAll();
             inOrder.verify(mMockCm).registerNetworkAgent(messengerCaptor.capture(),
                     any(NetworkInfo.class), any(LinkProperties.class),
@@ -511,19 +509,17 @@ public class WifiNanDataPathStateManagerTest {
         mMockLooper.dispatchAll();
 
         // (2) get request & respond
-        mDut.onDataPathRequestNotification(pubSubId, peerDiscoveryMac, ndpId, token.getBytes(),
-                token.length());
+        mDut.onDataPathRequestNotification(pubSubId, peerDiscoveryMac, ndpId, token.getBytes());
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).respondToDataPathRequest(transactionId.capture(), eq(true),
-                eq(ndpId), eq("nan0"), eq(new byte[0]), eq(0));
+                eq(ndpId), eq("nan0"), eq(new byte[0]));
         mDut.onRespondToDataPathSetupRequestResponse(transactionId.getValue(), true, 0);
         mMockLooper.dispatchAll();
 
         // (3) get confirmation OR timeout
         if (getConfirmation) {
             mDut.onDataPathConfirmNotification(ndpId, peerDataPathMac, true, 0,
-                    peerToken.getBytes(),
-                    peerToken.length());
+                    peerToken.getBytes());
             mMockLooper.dispatchAll();
             inOrder.verify(mMockCm).registerNetworkAgent(messengerCaptor.capture(),
                     any(NetworkInfo.class), any(LinkProperties.class),
@@ -624,7 +620,7 @@ public class WifiNanDataPathStateManagerTest {
         verify(mockSessionCallback).onPublishStarted(publishSession.capture());
 
         String ns = publishSession.getValue().createNetworkSpecifier(role, peerId,
-                (token == null) ? null : token.getBytes(), (token == null) ? 0 : token.length());
+                (token == null) ? null : token.getBytes());
 
         NetworkCapabilities nc = new NetworkCapabilities();
         nc.clearAll();
@@ -659,7 +655,7 @@ public class WifiNanDataPathStateManagerTest {
         mMockLooper.dispatchAll();
 
         String ns = mgr.createNetworkSpecifier(role, peer,
-                (token == null) ? null : token.getBytes(), (token == null) ? 0 : token.length());
+                (token == null) ? null : token.getBytes());
         NetworkCapabilities nc = new NetworkCapabilities();
         nc.clearAll();
         nc.addTransportType(NetworkCapabilities.TRANSPORT_WIFI_NAN);
@@ -724,11 +720,9 @@ public class WifiNanDataPathStateManagerTest {
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, pubSubId);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockSessionCallback).onSessionStarted(sessionId.capture());
-        mDut.onMessageReceivedNotification(pubSubId, peerId, peerDiscoveryMac, someMsg.getBytes(),
-                someMsg.length());
+        mDut.onMessageReceivedNotification(pubSubId, peerId, peerDiscoveryMac, someMsg.getBytes());
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockSessionCallback).onMessageReceived(peerId, someMsg.getBytes(),
-                someMsg.length());
+        inOrder.verify(mMockSessionCallback).onMessageReceived(peerId, someMsg.getBytes());
 
         return new Pair<>(sessionId.getValue(), messengerCaptor.getValue());
     }

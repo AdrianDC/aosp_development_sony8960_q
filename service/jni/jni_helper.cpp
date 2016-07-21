@@ -274,12 +274,12 @@ void JNIHelper::getByteArrayField(jobject obj, const char *name, byte *buf, size
     }
 
     jbyteArray byteArray = (jbyteArray)mEnv->GetObjectField(obj, field);
-    JNIObject<jbyteArray> array(*this, byteArray);
-    if (array == NULL) {
-        THROW(*this, "Error in accessing array");
+    if (byteArray == NULL) {
+        *size = 0;
         return;
     }
 
+    JNIObject<jbyteArray> array(*this, byteArray);
     *size = getArrayLength(byteArray);
     int use_size = *size;
     if (use_size > max_size) {
