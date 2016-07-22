@@ -25,6 +25,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.IpConfiguration;
 import android.net.ProxyInfo;
+import android.net.StaticIpConfiguration;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
@@ -45,11 +46,11 @@ import com.android.server.wifi.util.ScanResultUtil;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -549,40 +550,52 @@ public class WifiConfigManagerNew {
             internalConfig.providerFriendlyName = externalConfig.providerFriendlyName;
         }
         if (externalConfig.roamingConsortiumIds != null) {
-            internalConfig.roamingConsortiumIds = externalConfig.roamingConsortiumIds;
+            internalConfig.roamingConsortiumIds = externalConfig.roamingConsortiumIds.clone();
         }
 
         // Copy over all the auth/protocol/key mgmt parameters if set.
         if (externalConfig.allowedAuthAlgorithms != null
                 && !externalConfig.allowedAuthAlgorithms.isEmpty()) {
-            internalConfig.allowedAuthAlgorithms = externalConfig.allowedAuthAlgorithms;
+            internalConfig.allowedAuthAlgorithms =
+                    (BitSet) externalConfig.allowedAuthAlgorithms.clone();
         }
         if (externalConfig.allowedProtocols != null
                 && !externalConfig.allowedProtocols.isEmpty()) {
-            internalConfig.allowedProtocols = externalConfig.allowedProtocols;
+            internalConfig.allowedProtocols = (BitSet) externalConfig.allowedProtocols.clone();
         }
         if (externalConfig.allowedKeyManagement != null
                 && !externalConfig.allowedKeyManagement.isEmpty()) {
-            internalConfig.allowedKeyManagement = externalConfig.allowedKeyManagement;
+            internalConfig.allowedKeyManagement =
+                    (BitSet) externalConfig.allowedKeyManagement.clone();
         }
         if (externalConfig.allowedPairwiseCiphers != null
                 && !externalConfig.allowedPairwiseCiphers.isEmpty()) {
-            internalConfig.allowedPairwiseCiphers = externalConfig.allowedPairwiseCiphers;
+            internalConfig.allowedPairwiseCiphers =
+                    (BitSet) externalConfig.allowedPairwiseCiphers.clone();
         }
         if (externalConfig.allowedGroupCiphers != null
                 && !externalConfig.allowedGroupCiphers.isEmpty()) {
-            internalConfig.allowedGroupCiphers = externalConfig.allowedGroupCiphers;
+            internalConfig.allowedGroupCiphers =
+                    (BitSet) externalConfig.allowedGroupCiphers.clone();
         }
 
         // Copy over the |IpConfiguration| parameters if set.
         if (externalConfig.getIpConfiguration() != null) {
-            if (externalConfig.getIpAssignment() != IpConfiguration.IpAssignment.UNASSIGNED) {
-                internalConfig.setIpAssignment(externalConfig.getIpAssignment());
-                internalConfig.setStaticIpConfiguration(externalConfig.getStaticIpConfiguration());
+            IpConfiguration.IpAssignment ipAssignment = externalConfig.getIpAssignment();
+            if (ipAssignment != IpConfiguration.IpAssignment.UNASSIGNED) {
+                internalConfig.setIpAssignment(ipAssignment);
+                if (ipAssignment == IpConfiguration.IpAssignment.STATIC) {
+                    internalConfig.setStaticIpConfiguration(
+                            new StaticIpConfiguration(externalConfig.getStaticIpConfiguration()));
+                }
             }
-            if (externalConfig.getProxySettings() != IpConfiguration.ProxySettings.UNASSIGNED) {
-                internalConfig.setProxySettings(externalConfig.getProxySettings());
-                internalConfig.setHttpProxy(externalConfig.getHttpProxy());
+            IpConfiguration.ProxySettings proxySettings = externalConfig.getProxySettings();
+            if (proxySettings != IpConfiguration.ProxySettings.UNASSIGNED) {
+                internalConfig.setProxySettings(proxySettings);
+                if (proxySettings == IpConfiguration.ProxySettings.PAC
+                        || proxySettings == IpConfiguration.ProxySettings.STATIC) {
+                    internalConfig.setHttpProxy(new ProxyInfo(externalConfig.getHttpProxy()));
+                }
             }
         }
 
@@ -665,16 +678,17 @@ public class WifiConfigManagerNew {
     }
 
     /**
-     * Merges the provided external WifiConfiguration object with the existing internal
+     * Merges the provided external WifiConfiguration object with a copy of the existing internal
      * WifiConfiguration object.
      *
      * @param config provided external WifiConfiguration object.
-     * @return Existing WifiConfiguration object with parameters merged from the provided
+     * @return Copy of existing WifiConfiguration object with parameters merged from the provided
      * configuration.
      */
     private WifiConfiguration updateExistingInternalWifiConfigurationFromExternal(
             WifiConfiguration config, int uid) {
-        WifiConfiguration existingConfig = getInternalConfiguredNetwork(config);
+        WifiConfiguration existingConfig =
+                new WifiConfiguration(getInternalConfiguredNetwork(config));
 
         // Copy over all the public elements from the provided configuration.
         mergeWithInternalWifiConfiguration(config, existingConfig);
@@ -685,57 +699,6 @@ public class WifiConfigManagerNew {
         existingConfig.updateTime = createDebugTimeStampString(mClock.getWallClockMillis());
 
         return existingConfig;
-    }
-
-    /**
-     * Compare existing and new IpConfiguration and return if IP assignment has changed or not.
-     *
-     * @param existingConfig Existing config corresponding to the network already stored in our
-     *                       database.
-     * @param newConfig      New updated config object in our database.
-     * @return true if IP assignment have changed, false otherwise.
-     */
-    private boolean hasIpChanged(WifiConfiguration existingConfig, WifiConfiguration newConfig) {
-        switch (newConfig.getIpAssignment()) {
-            case STATIC:
-                if (existingConfig.getIpAssignment() != newConfig.getIpAssignment()) {
-                    return true;
-                } else {
-                    return !Objects.equals(
-                            existingConfig.getStaticIpConfiguration(),
-                            newConfig.getStaticIpConfiguration());
-                }
-            case DHCP:
-                return (existingConfig.getIpAssignment() != newConfig.getIpAssignment());
-            default:
-                return false;
-        }
-    }
-
-    /**
-     * Compare existing and new IpConfiguration and return if Proxy settings has changed or not.
-     *
-     * @param existingConfig Existing config corresponding to the network already stored in our
-     *                       database.
-     * @param newConfig      New updated config object in our database.
-     * @return true if proxy settings have changed, false otherwise.
-     */
-    private boolean hasProxyChanged(WifiConfiguration existingConfig, WifiConfiguration newConfig) {
-        switch (newConfig.getProxySettings()) {
-            case STATIC:
-            case PAC:
-                ProxyInfo newHttpProxy = newConfig.getHttpProxy();
-                ProxyInfo currentHttpProxy = existingConfig.getHttpProxy();
-                if (newHttpProxy != null) {
-                    return !newHttpProxy.equals(currentHttpProxy);
-                } else {
-                    return (currentHttpProxy != null);
-                }
-            case NONE:
-                return (existingConfig.getProxySettings() != newConfig.getProxySettings());
-            default:
-                return false;
-        }
     }
 
     /**
@@ -780,7 +743,16 @@ public class WifiConfigManagerNew {
             }
         }
 
-        // Add it our internal map.
+        // Reset the |hasEverConnected| flag if the credential parameters changed in this update.
+        boolean hasCredentialChanged =
+                newNetwork || WifiConfigurationUtil.hasCredentialChanged(
+                        existingInternalConfig, newInternalConfig);
+        if (hasCredentialChanged) {
+            newInternalConfig.getNetworkSelectionStatus().setHasEverConnected(false);
+        }
+
+        // Add it to our internal map. This will replace any existing network configuration for
+        // updates.
         mConfiguredNetworks.put(newInternalConfig);
 
         // Stage the backup of the SettingsProvider package which backs this up.
@@ -788,9 +760,11 @@ public class WifiConfigManagerNew {
 
         // This is needed to inform IpManager about any IP configuration changes.
         boolean hasIpChanged =
-                newNetwork || hasIpChanged(existingInternalConfig, newInternalConfig);
+                newNetwork || WifiConfigurationUtil.hasIpChanged(
+                        existingInternalConfig, newInternalConfig);
         boolean hasProxyChanged =
-                newNetwork || hasProxyChanged(existingInternalConfig, newInternalConfig);
+                newNetwork || WifiConfigurationUtil.hasProxyChanged(
+                        existingInternalConfig, newInternalConfig);
         NetworkUpdateResult result = new NetworkUpdateResult(hasIpChanged, hasProxyChanged);
         result.setIsNewNetwork(newNetwork);
         result.setNetworkId(newInternalConfig.networkId);
@@ -1071,7 +1045,7 @@ public class WifiConfigManagerNew {
      *
      * @param networkId network ID of the network that needs the update.
      * @param uid       uid of the app requesting the update.
-     * @return {@code true} if it succeeds, {@code false} otherwise
+     * @return true if it succeeds, false otherwise
      */
     public boolean enableNetwork(int networkId, int uid) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
@@ -1093,7 +1067,7 @@ public class WifiConfigManagerNew {
      *
      * @param networkId network ID of the network that needs the update.
      * @param uid       uid of the app requesting the update.
-     * @return {@code true} if it succeeds, {@code false} otherwise
+     * @return true if it succeeds, false otherwise
      */
     public boolean disableNetwork(int networkId, int uid) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
@@ -1116,8 +1090,8 @@ public class WifiConfigManagerNew {
      *
      * @param networkId network ID corresponding to the network.
      * @param uid       uid of the app requesting the connection.
-     * @return {@code true} if |uid| has the necessary permission to trigger connection to the
-     * network, {@code false} otherwise.
+     * @return true if |uid| has the necessary permission to trigger connection to the
+     * network, false otherwise.
      */
     public boolean checkAndUpdateLastConnectUid(int networkId, int uid) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
@@ -1131,6 +1105,30 @@ public class WifiConfigManagerNew {
             return false;
         }
         config.lastConnectUid = uid;
+        return true;
+    }
+
+    /**
+     * Updates a network configuration after a successful connection to it.
+     * This method updates the following WifiConfiguration elements:
+     * 1. Set the |lastConnected| timestamp.
+     * 2. Increment |numAssociation| counter.
+     * 3. Clear the disable reason counters in the associated |NetworkSelectionStatus|.
+     * 4. Set the hasEverConnected| flag in the associated |NetworkSelectionStatus|.
+     *
+     * @param networkId network ID corresponding to the network.
+     * @return true if the network was found, false otherwise.
+     */
+    public boolean updateNetworkAfterConnect(int networkId) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            Log.e(TAG, "Cannot find network with networkId " + networkId);
+            return false;
+        }
+        config.lastConnected = mClock.getWallClockMillis();
+        config.numAssociation++;
+        config.getNetworkSelectionStatus().clearDisableReasonCounter();
+        config.getNetworkSelectionStatus().setHasEverConnected(true);
         return true;
     }
 

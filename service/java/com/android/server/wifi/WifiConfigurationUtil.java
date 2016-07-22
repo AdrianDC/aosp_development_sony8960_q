@@ -17,10 +17,18 @@
 package com.android.server.wifi;
 
 import android.content.pm.UserInfo;
+import android.net.IpConfiguration;
+import android.net.ProxyInfo;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.os.UserHandle;
 
+import com.android.internal.annotations.VisibleForTesting;
+
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * WifiConfiguration utility for any {@link android.net.wifi.WifiConfiguration} related operations.
@@ -31,11 +39,12 @@ import java.util.List;
 public class WifiConfigurationUtil {
     /**
      * Check whether a network configuration is visible to a user or any of its managed profiles.
-     * @param config the network configuration whose visibility should be checked
+     *
+     * @param config   the network configuration whose visibility should be checked
      * @param profiles the user IDs of the user itself and all its managed profiles (can be obtained
-     *         via {@link android.os.UserManager#getProfiles})
+     *                 via {@link android.os.UserManager#getProfiles})
      * @return whether the network configuration is visible to the user or any of its managed
-     *         profiles
+     * profiles
      */
     public static boolean isVisibleToAnyProfile(WifiConfiguration config, List<UserInfo> profiles) {
         if (config.shared) {
@@ -91,6 +100,133 @@ public class WifiConfigurationUtil {
     public static boolean isConfigForOpenNetwork(WifiConfiguration config) {
         return !(isConfigForWepNetwork(config) || isConfigForPskNetwork(config)
                 || isConfigForEapNetwork(config));
+    }
+
+    /**
+     * Compare existing and new WifiConfiguration objects after a network update and return if
+     * IP parameters have changed or not.
+     *
+     * @param existingConfig Existing WifiConfiguration object corresponding to the network.
+     * @param newConfig      New WifiConfiguration object corresponding to the network.
+     * @return true if IP parameters have changed, false otherwise.
+     */
+    public static boolean hasIpChanged(WifiConfiguration existingConfig,
+            WifiConfiguration newConfig) {
+        if (existingConfig.getIpAssignment() != newConfig.getIpAssignment()) {
+            return true;
+        }
+        if (newConfig.getIpAssignment() == IpConfiguration.IpAssignment.STATIC) {
+            return !Objects.equals(existingConfig.getStaticIpConfiguration(),
+                    newConfig.getStaticIpConfiguration());
+        }
+        return false;
+    }
+
+    /**
+     * Compare existing and new WifiConfiguration objects after a network update and return if
+     * proxy parameters have changed or not.
+     *
+     * @param existingConfig Existing WifiConfiguration object corresponding to the network.
+     * @param newConfig      New WifiConfiguration object corresponding to the network.
+     * @return true if proxy parameters have changed, false otherwise.
+     */
+    public static boolean hasProxyChanged(WifiConfiguration existingConfig,
+            WifiConfiguration newConfig) {
+        if (existingConfig.getProxySettings() != newConfig.getProxySettings()) {
+            return true;
+        }
+        if (newConfig.getProxySettings() == IpConfiguration.ProxySettings.PAC) {
+            ProxyInfo existingHttpProxy = existingConfig.getHttpProxy();
+            ProxyInfo newHttpProxy = newConfig.getHttpProxy();
+            if (existingHttpProxy != null) {
+                return !existingHttpProxy.equals(newHttpProxy);
+            } else {
+                return (newHttpProxy != null);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Compare existing and new WifiEnterpriseConfig objects after a network update and return if
+     * credential parameters have changed or not.
+     *
+     * @param existingEnterpriseConfig Existing WifiConfiguration object corresponding to the
+     *                                 network.
+     * @param newEnterpriseConfig      New WifiConfiguration object corresponding to the network.
+     * @return true if credentials have changed, false otherwise.
+     */
+    @VisibleForTesting
+    public static boolean hasEnterpriseConfigChanged(WifiEnterpriseConfig existingEnterpriseConfig,
+            WifiEnterpriseConfig newEnterpriseConfig) {
+        if (existingEnterpriseConfig != null && newEnterpriseConfig != null) {
+            if (existingEnterpriseConfig.getEapMethod() != newEnterpriseConfig.getEapMethod()) {
+                return true;
+            }
+            if (existingEnterpriseConfig.getPhase2Method()
+                    != newEnterpriseConfig.getPhase2Method()) {
+                return true;
+            }
+            X509Certificate[] existingCaCerts = existingEnterpriseConfig.getCaCertificates();
+            X509Certificate[] newCaCerts = newEnterpriseConfig.getCaCertificates();
+            if (!Arrays.equals(existingCaCerts, newCaCerts)) {
+                return true;
+            }
+        } else {
+            // One of the configs may have an enterpriseConfig
+            if (existingEnterpriseConfig != null || newEnterpriseConfig != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Compare existing and new WifiConfiguration objects after a network update and return if
+     * credential parameters have changed or not.
+     *
+     * @param existingConfig Existing WifiConfiguration object corresponding to the network.
+     * @param newConfig      New WifiConfiguration object corresponding to the network.
+     * @return true if credentials have changed, false otherwise.
+     */
+    public static boolean hasCredentialChanged(WifiConfiguration existingConfig,
+            WifiConfiguration newConfig) {
+        if (!Objects.equals(existingConfig.allowedKeyManagement,
+                newConfig.allowedKeyManagement)) {
+            return true;
+        }
+        if (!Objects.equals(existingConfig.allowedProtocols, newConfig.allowedProtocols)) {
+            return true;
+        }
+        if (!Objects.equals(existingConfig.allowedAuthAlgorithms,
+                newConfig.allowedAuthAlgorithms)) {
+            return true;
+        }
+        if (!Objects.equals(existingConfig.allowedPairwiseCiphers,
+                newConfig.allowedPairwiseCiphers)) {
+            return true;
+        }
+        if (!Objects.equals(existingConfig.allowedGroupCiphers,
+                newConfig.allowedGroupCiphers)) {
+            return true;
+        }
+        if (!Objects.equals(existingConfig.preSharedKey, newConfig.preSharedKey)) {
+            return true;
+        }
+        if (!Arrays.equals(existingConfig.wepKeys, newConfig.wepKeys)) {
+            return true;
+        }
+        if (existingConfig.wepTxKeyIndex != newConfig.wepTxKeyIndex) {
+            return true;
+        }
+        if (existingConfig.hiddenSSID != newConfig.hiddenSSID) {
+            return true;
+        }
+        if (hasEnterpriseConfigChanged(existingConfig.enterpriseConfig,
+                newConfig.enterpriseConfig)) {
+            return true;
+        }
+        return false;
     }
 
 }
