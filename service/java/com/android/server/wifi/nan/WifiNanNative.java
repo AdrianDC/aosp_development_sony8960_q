@@ -131,6 +131,9 @@ public class WifiNanNative {
      * Tell the NAN JNI to re-initialize the NAN callback pointers next time it starts up.
      */
     public void deInitNan() {
+        if (VDBG) {
+            Log.v(TAG, "deInitNan: mNativeHandlersIsInitialized=" + mNativeHandlersIsInitialized);
+        }
         mNativeHandlersIsInitialized = false;
     }
 

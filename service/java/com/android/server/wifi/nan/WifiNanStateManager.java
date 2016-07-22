@@ -1925,9 +1925,13 @@ public class WifiNanStateManager {
     }
 
     private void enableUsageLocal() {
+        if (VDBG) Log.v(TAG, "enableUsageLocal: mUsageEnabled=" + mUsageEnabled);
+
         if (mUsageEnabled) {
             return;
         }
+
+        WifiNanNative.getInstance().deInitNan(); // force a re-init of NAN HAL
 
         mUsageEnabled = true;
         getCapabilities();
@@ -1936,16 +1940,19 @@ public class WifiNanStateManager {
     }
 
     private void disableUsageLocal() {
+        if (VDBG) Log.v(TAG, "disableUsageLocal: mUsageEnabled=" + mUsageEnabled);
+
         if (!mUsageEnabled) {
             return;
         }
 
+        onNanDownLocal();
+        deleteAllDataPathInterfaces();
+
         mUsageEnabled = false;
         WifiNanNative.getInstance().disable((short) 0);
         WifiNanNative.getInstance().deInitNan();
-        onNanDownLocal();
 
-        deleteAllDataPathInterfaces();
         sendNanStateChangedBroadcast(false);
     }
 
