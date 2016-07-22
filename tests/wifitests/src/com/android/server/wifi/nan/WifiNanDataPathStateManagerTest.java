@@ -699,6 +699,7 @@ public class WifiNanDataPathStateManagerTest {
         // (2) enable usage (creates interfaces)
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).createNanNetworkInterface(transactionId.capture(),
                 strCaptor.capture());
         collector.checkThat("interface created -- 0", sNanInterfacePrefix + 0,
