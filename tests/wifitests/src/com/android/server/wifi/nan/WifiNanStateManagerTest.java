@@ -134,6 +134,7 @@ public class WifiNanStateManagerTest {
         // (1) enable usage
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         validateCorrectNanStatusChangeBroadcast(inOrder, true);
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
@@ -144,9 +145,9 @@ public class WifiNanStateManagerTest {
         // (2) disable usage
         mDut.disableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNanDataPathStatemanager).onNanDownCleanupDataPaths();
         inOrder.verify(mMockNative).disable((short) 0);
         inOrder.verify(mMockNative).deInitNan();
-        inOrder.verify(mMockNanDataPathStatemanager).onNanDownCleanupDataPaths();
         validateCorrectNanStatusChangeBroadcast(inOrder, false);
         inOrder.verify(mMockNanDataPathStatemanager).deleteAllInterfaces();
         collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
@@ -171,6 +172,7 @@ public class WifiNanStateManagerTest {
         // (1) check initial state
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         validateCorrectNanStatusChangeBroadcast(inOrder, true);
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
@@ -211,6 +213,7 @@ public class WifiNanStateManagerTest {
         // (1) check initial state
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         validateCorrectNanStatusChangeBroadcast(inOrder, true);
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
@@ -249,6 +252,7 @@ public class WifiNanStateManagerTest {
         mDut.enableUsage();
         mMockLooper.dispatchAll();
         collector.checkThat("usage enabled", mDut.isUsageEnabled(), equalTo(true));
+        inOrder.verify(mMockNative).deInitNan();
         validateCorrectNanStatusChangeBroadcast(inOrder, true);
 
         // (7) connect (should be successful)
@@ -293,6 +297,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionIdCapture.capture());
         mDut.onCapabilitiesUpdateResponse(transactionIdCapture.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -349,6 +354,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -403,6 +409,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -454,6 +461,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -524,6 +532,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -594,6 +603,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -649,6 +659,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -700,6 +711,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -769,6 +781,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -839,6 +852,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -909,6 +923,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -1012,6 +1027,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -1103,6 +1119,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -1183,6 +1200,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -1246,6 +1264,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -1336,6 +1355,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -1419,6 +1439,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -1506,6 +1527,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -1618,6 +1640,7 @@ public class WifiNanStateManagerTest {
         // (0) initial conditions
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        verify(mMockNative).deInitNan();
         verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), cap);
         mMockLooper.dispatchAll();
@@ -1782,6 +1805,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -1863,6 +1887,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -1953,6 +1978,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -2025,6 +2051,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -2065,6 +2092,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -2097,6 +2125,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -2150,6 +2179,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -2202,6 +2232,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -2252,6 +2283,7 @@ public class WifiNanStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deInitNan();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
