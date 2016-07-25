@@ -801,8 +801,11 @@ public class WifiQualifiedNetworkSelector {
                     configurationCandidateForThisScan = network;
                     potentialCandidate = network;
                 }
+
                 // Update the cached candidate.
-                if (score > status.getCandidateScore()) {
+                if (score > status.getCandidateScore() || (score == status.getCandidateScore()
+                      && status.getCandidate() != null
+                      && scanResult.level > status.getCandidate().level)) {
                     status.setCandidate(scanResult);
                     status.setCandidateScore(score);
                 }
@@ -816,6 +819,7 @@ public class WifiQualifiedNetworkSelector {
                 currentHighestScore = highestScore;
                 scanResultCandidate = scanResult;
                 networkCandidate = configurationCandidateForThisScan;
+                networkCandidate.getNetworkSelectionStatus().setCandidate(scanResultCandidate);
             }
         }
 
