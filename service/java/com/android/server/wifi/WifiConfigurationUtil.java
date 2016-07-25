@@ -21,12 +21,14 @@ import android.net.IpConfiguration;
 import android.net.ProxyInfo;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.net.wifi.WifiScanner;
 import android.os.UserHandle;
 
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -229,4 +231,79 @@ public class WifiConfigurationUtil {
         return false;
     }
 
+    /**
+     * Create a PnoNetwork object from the provided WifiConfiguration.
+     *
+     * @param config      Configuration corresponding to the network.
+     * @param newPriority New priority to be assigned to the network.
+     * @return PnoNetwork object corresponding to the network.
+     */
+    public static WifiScanner.PnoSettings.PnoNetwork createPnoNetwork(
+            WifiConfiguration config, int newPriority) {
+        WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
+                new WifiScanner.PnoSettings.PnoNetwork(config.SSID);
+        pnoNetwork.networkId = config.networkId;
+        pnoNetwork.priority = newPriority;
+        if (config.hiddenSSID) {
+            pnoNetwork.flags |= WifiScanner.PnoSettings.PnoNetwork.FLAG_DIRECTED_SCAN;
+        }
+        pnoNetwork.flags |= WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND;
+        pnoNetwork.flags |= WifiScanner.PnoSettings.PnoNetwork.FLAG_G_BAND;
+        if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
+            pnoNetwork.authBitField |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_PSK;
+        } else if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP)
+                || config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
+            pnoNetwork.authBitField |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_EAPOL;
+        } else {
+            pnoNetwork.authBitField |= WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_OPEN;
+        }
+        return pnoNetwork;
+    }
+
+    /**
+     * General WifiConfiguration list sorting algorithm:
+     * 1, Place the fully enabled networks first.
+     * 2. Next place all the temporarily disabled networks.
+     * 3. Place the permanently disabled networks last (Permanently disabled networks are removed
+     * before WifiConfigManagerNew uses this comparator today!).
+     *
+     * Among the networks with the same status, sort them in the order determined by the return of
+     * {@link #compareNetworksWithSameStatus(WifiConfiguration, WifiConfiguration)} method
+     * implementation.
+     */
+    public abstract static class WifiConfigurationComparator implements
+            Comparator<WifiConfiguration> {
+        private static final int ENABLED_NETWORK_SCORE = 3;
+        private static final int TEMPORARY_DISABLED_NETWORK_SCORE = 2;
+        private static final int PERMANENTLY_DISABLED_NETWORK_SCORE = 1;
+
+        @Override
+        public int compare(WifiConfiguration a, WifiConfiguration b) {
+            int configAScore = getNetworkStatusScore(a);
+            int configBScore = getNetworkStatusScore(b);
+            if (configAScore == configBScore) {
+                return compareNetworksWithSameStatus(a, b);
+            } else {
+                return Integer.compare(configBScore, configAScore);
+            }
+        }
+
+        // This needs to be implemented by the connected/disconnected PNO list comparator.
+        abstract int compareNetworksWithSameStatus(WifiConfiguration a, WifiConfiguration b);
+
+        /**
+         * Returns an integer representing a score for each configuration. The scores are assigned
+         * based on the status of the configuration. The scores are assigned according to the order:
+         * Fully enabled network > Temporarily disabled network > Permanently disabled network.
+         */
+        private int getNetworkStatusScore(WifiConfiguration config) {
+            if (config.getNetworkSelectionStatus().isNetworkEnabled()) {
+                return ENABLED_NETWORK_SCORE;
+            } else if (config.getNetworkSelectionStatus().isNetworkTemporaryDisabled()) {
+                return TEMPORARY_DISABLED_NETWORK_SCORE;
+            } else {
+                return PERMANENTLY_DISABLED_NETWORK_SCORE;
+            }
+        }
+    }
 }
