@@ -154,6 +154,7 @@ public class WifiMetricsTest {
     private static final int NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_AUTHENTICATION = 8;
     private static final int NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_DHCP = 9;
     private static final int NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_OTHER = 10;
+    private static final int NUM_LAST_RESORT_WATCHDOG_SUCCESSES = 5;
     private static final int NUM_RSSI_LEVELS_TO_INCREMENT = 20;
     private static final int FIRST_RSSI_LEVEL = -80;
     /**
@@ -238,6 +239,9 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_OTHER; i++) {
             mWifiMetrics.incrementNumLastResortWatchdogTriggersWithBadOther();
         }
+        for (int i = 0; i < NUM_LAST_RESORT_WATCHDOG_SUCCESSES; i++) {
+            mWifiMetrics.incrementNumLastResortWatchdogSuccesses();
+        }
         for (int i = 0; i < NUM_RSSI_LEVELS_TO_INCREMENT; i++) {
             for (int j = 0; j <= i; j++) {
                 mWifiMetrics.incrementRssiPollRssiCount(FIRST_RSSI_LEVEL + i);
@@ -318,6 +322,8 @@ public class WifiMetricsTest {
                 mDeserializedWifiMetrics.numLastResortWatchdogTriggersWithBadDhcp);
         assertEquals(NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_OTHER,
                 mDeserializedWifiMetrics.numLastResortWatchdogTriggersWithBadOther);
+        assertEquals(NUM_LAST_RESORT_WATCHDOG_SUCCESSES,
+                mDeserializedWifiMetrics.numLastResortWatchdogSuccesses);
         assertEquals(TEST_RECORD_DURATION_SEC,
                 mDeserializedWifiMetrics.recordDurationSec);
         for (int i = 0; i < NUM_RSSI_LEVELS_TO_INCREMENT; i++) {

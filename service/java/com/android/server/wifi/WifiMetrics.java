@@ -806,6 +806,15 @@ public class WifiMetrics {
         }
     }
 
+    /**
+     * Increment count of Watchdog successes.
+     */
+    public void incrementNumLastResortWatchdogSuccesses() {
+        synchronized (mLock) {
+            mWifiLogProto.numLastResortWatchdogSuccesses++;
+        }
+    }
+
     public static final String PROTO_DUMP_ARG = "wifiMetricsProto";
     /**
      * Dump all WifiMetrics. Collects some metrics from ConfigStore, Settings and WifiManager
@@ -921,6 +930,8 @@ public class WifiMetrics {
                         + mWifiLogProto.numLastResortWatchdogTriggersWithBadDhcp);
                 pw.println("mWifiLogProto.numLastResortWatchdogTriggersWithBadOther="
                         + mWifiLogProto.numLastResortWatchdogTriggersWithBadOther);
+                pw.println("mWifiLogProto.numLastResortWatchdogSuccesses="
+                        + mWifiLogProto.numLastResortWatchdogSuccesses);
                 pw.println("mWifiLogProto.recordDurationSec="
                         + ((mClock.getElapsedSinceBootMillis() / 1000) - mRecordStartTimeSec));
                 pw.println("mWifiLogProto.rssiPollRssiCount: Printing counts for [" + MIN_RSSI_POLL
