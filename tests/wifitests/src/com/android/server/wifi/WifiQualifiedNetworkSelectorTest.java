@@ -2383,7 +2383,7 @@ public class WifiQualifiedNetworkSelectorTest {
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
 
         verifySelectedResult(chosenScanResult, candidate);
     }
