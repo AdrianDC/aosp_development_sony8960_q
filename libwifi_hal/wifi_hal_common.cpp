@@ -26,8 +26,8 @@
 #include <cutils/misc.h>
 #include <cutils/properties.h>
 
-extern int init_module(void *, unsigned long, const char *);
-extern int delete_module(const char *, unsigned int);
+extern "C" int init_module(void *, unsigned long, const char *);
+extern "C" int delete_module(const char *, unsigned int);
 
 #ifndef WIFI_DRIVER_FW_PATH_STA
 #define WIFI_DRIVER_FW_PATH_STA		NULL
