@@ -36,6 +36,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.database.ContentObserver;
@@ -70,6 +71,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
+import android.os.Process;
 import android.os.RemoteException;
 import android.os.ResultReceiver;
 import android.os.SystemClock;
@@ -151,6 +153,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * Asynchronous channel to WifiStateMachine
      */
     private AsyncChannel mWifiStateMachineChannel;
+
+    private final boolean mPermissionReviewRequired;
 
     /**
      * Handles client connections
@@ -329,6 +333,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mWifiController = mWifiInjector.getWifiController();
         mWifiBackupRestore = mWifiInjector.getWifiBackupRestore();
 
+        mPermissionReviewRequired = Build.PERMISSIONS_REVIEW_REQUIRED
+                || context.getResources().getBoolean(
+                com.android.internal.R.bool.config_permissionReviewRequired);
+
         enableVerboseLoggingInternal(getVerboseLoggingLevel());
     }
 
@@ -390,7 +398,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         // If we are already disabled (could be due to airplane mode), avoid changing persist
         // state here
-        if (wifiEnabled) setWifiEnabled(wifiEnabled);
+        if (wifiEnabled) {
+            try {
+                setWifiEnabled(mContext.getPackageName(), wifiEnabled);
+            } catch (RemoteException e) {
+                /* ignore - local call */
+            }
+        }
     }
 
     public void handleUserSwitch(int userId) {
@@ -533,7 +547,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *         started or is already in the queue.
      */
     @Override
-    public synchronized boolean setWifiEnabled(boolean enable) {
+    public synchronized boolean setWifiEnabled(String packageName, boolean enable)
+            throws RemoteException {
         enforceChangePermission();
         Slog.d(TAG, "setWifiEnabled: " + enable + " pid=" + Binder.getCallingPid()
                     + ", uid=" + Binder.getCallingUid());
@@ -542,7 +557,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         * Caller might not have WRITE_SECURE_SETTINGS,
         * only CHANGE_WIFI_STATE is enforced
         */
-
         long ident = Binder.clearCallingIdentity();
         try {
             if (! mSettingsStore.handleWifiToggled(enable)) {
@@ -551,6 +565,26 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             }
         } finally {
             Binder.restoreCallingIdentity(ident);
+        }
+
+
+        if (mPermissionReviewRequired) {
+            final int wiFiEnabledState = getWifiEnabledState();
+            if (enable) {
+                if (wiFiEnabledState == WifiManager.WIFI_STATE_DISABLING
+                        || wiFiEnabledState == WifiManager.WIFI_STATE_DISABLED) {
+                    if (startConsentUiIfNeeded(packageName, Binder.getCallingUid(),
+                            WifiManager.ACTION_REQUEST_ENABLE)) {
+                        return true;
+                    }
+                }
+            } else if (wiFiEnabledState == WifiManager.WIFI_STATE_ENABLING
+                    || wiFiEnabledState == WifiManager.WIFI_STATE_ENABLED) {
+                if (startConsentUiIfNeeded(packageName, Binder.getCallingUid(),
+                        WifiManager.ACTION_REQUEST_DISABLE)) {
+                    return true;
+                }
+            }
         }
 
         mWifiController.sendMessage(CMD_WIFI_TOGGLED);
@@ -1408,6 +1442,37 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
     };
 
+    private boolean startConsentUiIfNeeded(String packageName,
+            int callingUid, String intentAction) throws RemoteException {
+        if (UserHandle.getAppId(callingUid) == Process.SYSTEM_UID) {
+            return false;
+        }
+        try {
+            // Validate the package only if we are going to use it
+            ApplicationInfo applicationInfo = mContext.getPackageManager()
+                    .getApplicationInfoAsUser(packageName,
+                            PackageManager.MATCH_DEBUG_TRIAGED_MISSING,
+                            UserHandle.getUserId(callingUid));
+            if (applicationInfo.uid != callingUid) {
+                throw new SecurityException("Package " + callingUid
+                        + " not in uid " + callingUid);
+            }
+
+            // Legacy apps in permission review mode trigger a user prompt
+            if (applicationInfo.targetSdkVersion < Build.VERSION_CODES.M) {
+                Intent intent = new Intent(intentAction);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                        | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+                intent.putExtra(Intent.EXTRA_PACKAGE_NAME, packageName);
+                mContext.startActivity(intent);
+                return true;
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+            throw new RemoteException(e.getMessage());
+        }
+        return false;
+    }
+
     /**
      * Observes settings changes to scan always mode.
      */
@@ -1678,7 +1743,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         if (!mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI)) {
             // Enable wifi
-            setWifiEnabled(true);
+            try {
+                setWifiEnabled(mContext.getOpPackageName(), true);
+            } catch (RemoteException e) {
+                /* ignore - local call */
+            }
             // Delete all Wifi SSIDs
             List<WifiConfiguration> networks = getConfiguredNetworks();
             if (networks != null) {
