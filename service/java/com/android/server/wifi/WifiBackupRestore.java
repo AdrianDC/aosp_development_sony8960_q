@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.os.Process;
 import android.util.Log;
 import android.util.Pair;
 import android.util.SparseArray;
@@ -159,7 +160,9 @@ public class WifiBackupRestore {
         for (WifiConfiguration configuration : configurations) {
             // We don't want to backup/restore enterprise/passpoint configurations.
             if (configuration.isEnterprise() || configuration.isPasspoint()) {
-                Log.d(TAG, "Skipping enterprise network for backup: " + configuration.configKey());
+                continue;
+            }
+            if (configuration.creatorUid >= Process.FIRST_APPLICATION_UID) {
                 continue;
             }
             // Write this configuration data now.
@@ -687,6 +690,14 @@ public class WifiBackupRestore {
                         // UID is not preserved across backup/restore.
                         Log.w(TAG, "Configuration key does not match. Retrieved: " + configKey
                                 + ", Calculated: " + configuration.configKey());
+                    }
+                    // For wpa_supplicant backup data, parse out the creatorUid to ensure that
+                    // these networks were created by system apps.
+                    int creatorUid =
+                            Integer.parseInt(extras.get(
+                                    WifiSupplicantControl.ID_STRING_KEY_CREATOR_UID));
+                    if (creatorUid >= Process.FIRST_APPLICATION_UID) {
+                        return null;
                     }
                 }
                 return configuration;
