@@ -16,20 +16,22 @@
 
 package com.android.server.wifi;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 import android.content.pm.UserInfo;
 import android.net.wifi.FakeKeys;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.net.wifi.WifiScanner;
 import android.os.UserHandle;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import org.junit.Test;
 
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -183,6 +185,139 @@ public class WifiConfigurationUtilTest {
 
         assertFalse(WifiConfigurationUtil.hasEnterpriseConfigChanged(eapConfig.enterpriseConfig,
                 eapConfigSame.enterpriseConfig));
+    }
+
+    /**
+     * Verify the instance of {@link android.net.wifi.WifiScanner.PnoSettings.PnoNetwork} created
+     * for an open network using {@link WifiConfigurationUtil#createPnoNetwork(
+     * WifiConfiguration, int)}.
+     */
+    @Test
+    public void testCreatePnoNetworkWithOpenNetwork() {
+        WifiConfiguration network = WifiConfigurationTestUtil.createOpenNetwork();
+        network.networkId = 5;
+        WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
+                WifiConfigurationUtil.createPnoNetwork(network, 1);
+        assertEquals(network.networkId, pnoNetwork.networkId);
+        assertEquals(
+                WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND
+                        | WifiScanner.PnoSettings.PnoNetwork.FLAG_G_BAND, pnoNetwork.flags);
+        assertEquals(WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_OPEN, pnoNetwork.authBitField);
+    }
+
+    /**
+     * Verify the instance of {@link android.net.wifi.WifiScanner.PnoSettings.PnoNetwork} created
+     * for an open hidden network using {@link WifiConfigurationUtil#createPnoNetwork(
+     * WifiConfiguration, int)}.
+     */
+    @Test
+    public void testCreatePnoNetworkWithOpenHiddenNetwork() {
+        WifiConfiguration network = WifiConfigurationTestUtil.createOpenHiddenNetwork();
+        network.networkId = 5;
+        WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
+                WifiConfigurationUtil.createPnoNetwork(network, 1);
+        assertEquals(network.networkId, pnoNetwork.networkId);
+        assertEquals(
+                WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND
+                        | WifiScanner.PnoSettings.PnoNetwork.FLAG_G_BAND
+                        | WifiScanner.PnoSettings.PnoNetwork.FLAG_DIRECTED_SCAN, pnoNetwork.flags);
+        assertEquals(WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_OPEN, pnoNetwork.authBitField);
+    }
+
+    /**
+     * Verify the instance of {@link android.net.wifi.WifiScanner.PnoSettings.PnoNetwork} created
+     * for a PSK network using {@link WifiConfigurationUtil#createPnoNetwork(WifiConfiguration, int)
+     * }.
+     */
+    @Test
+    public void testCreatePnoNetworkWithPskNetwork() {
+        WifiConfiguration network = WifiConfigurationTestUtil.createPskNetwork();
+        network.networkId = 5;
+        WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
+                WifiConfigurationUtil.createPnoNetwork(network, 1);
+        assertEquals(network.networkId, pnoNetwork.networkId);
+        assertEquals(
+                WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND
+                        | WifiScanner.PnoSettings.PnoNetwork.FLAG_G_BAND, pnoNetwork.flags);
+        assertEquals(WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_PSK, pnoNetwork.authBitField);
+    }
+
+    /**
+     * Verify the instance of {@link android.net.wifi.WifiScanner.PnoSettings.PnoNetwork} created
+     * for a EAP network using {@link WifiConfigurationUtil#createPnoNetwork(WifiConfiguration, int)
+     * }.
+     */
+    @Test
+    public void testCreatePnoNetworkWithEapNetwork() {
+        WifiConfiguration network = WifiConfigurationTestUtil.createEapNetwork();
+        network.networkId = 5;
+        WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
+                WifiConfigurationUtil.createPnoNetwork(network, 1);
+        assertEquals(network.networkId, pnoNetwork.networkId);
+        assertEquals(
+                WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND
+                        | WifiScanner.PnoSettings.PnoNetwork.FLAG_G_BAND, pnoNetwork.flags);
+        assertEquals(WifiScanner.PnoSettings.PnoNetwork.AUTH_CODE_EAPOL, pnoNetwork.authBitField);
+    }
+
+    /**
+     * Verify that the generalized
+     * {@link com.android.server.wifi.WifiConfigurationUtil.WifiConfigurationComparator}
+     * can be used to sort a List given a 'compareNetworkWithSameStatus' method.
+     */
+    @Test
+    public void testPnoListComparator() {
+        List<WifiConfiguration> networks = new ArrayList<>();
+        final WifiConfiguration enabledNetwork1 = WifiConfigurationTestUtil.createEapNetwork();
+        enabledNetwork1.getNetworkSelectionStatus().setNetworkSelectionStatus(
+                WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLED);
+        final WifiConfiguration enabledNetwork2 = WifiConfigurationTestUtil.createEapNetwork();
+        enabledNetwork2.getNetworkSelectionStatus().setNetworkSelectionStatus(
+                WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLED);
+        final WifiConfiguration tempDisabledNetwork1 = WifiConfigurationTestUtil.createEapNetwork();
+        tempDisabledNetwork1.getNetworkSelectionStatus().setNetworkSelectionStatus(
+                WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED);
+        final WifiConfiguration tempDisabledNetwork2 = WifiConfigurationTestUtil.createEapNetwork();
+        tempDisabledNetwork2.getNetworkSelectionStatus().setNetworkSelectionStatus(
+                WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED);
+        WifiConfiguration permDisabledNetwork = WifiConfigurationTestUtil.createEapNetwork();
+        permDisabledNetwork.getNetworkSelectionStatus().setNetworkSelectionStatus(
+                WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_PERMANENTLY_DISABLED);
+
+        // Add all the networks to the list.
+        networks.add(tempDisabledNetwork1);
+        networks.add(enabledNetwork1);
+        networks.add(permDisabledNetwork);
+        networks.add(tempDisabledNetwork2);
+        networks.add(enabledNetwork2);
+
+        // Prefer |enabledNetwork1| over |enabledNetwork2| and |tempDisabledNetwork1| over
+        // |tempDisabledNetwork2|.
+        WifiConfigurationUtil.WifiConfigurationComparator comparator =
+                new WifiConfigurationUtil.WifiConfigurationComparator() {
+                    @Override
+                    public int compareNetworksWithSameStatus(
+                            WifiConfiguration a, WifiConfiguration b) {
+                        if (a == enabledNetwork1 && b == enabledNetwork2) {
+                            return -1;
+                        } else if (b == enabledNetwork1 && a == enabledNetwork2) {
+                            return 1;
+                        } else if (a == tempDisabledNetwork1 && b == tempDisabledNetwork2) {
+                            return -1;
+                        } else if (b == tempDisabledNetwork1 && a == tempDisabledNetwork2) {
+                            return 1;
+                        }
+                        return 0;
+                    }
+                };
+        Collections.sort(networks, comparator);
+
+        // Now ensure that the networks were sorted correctly.
+        assertEquals(enabledNetwork1, networks.get(0));
+        assertEquals(enabledNetwork2, networks.get(1));
+        assertEquals(tempDisabledNetwork1, networks.get(2));
+        assertEquals(tempDisabledNetwork2, networks.get(3));
+        assertEquals(permDisabledNetwork, networks.get(4));
     }
 
     private static class EnterpriseConfig {

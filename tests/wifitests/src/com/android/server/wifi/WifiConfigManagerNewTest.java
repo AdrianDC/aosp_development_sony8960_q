@@ -29,6 +29,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.os.SystemClock;
 import android.os.UserHandle;
@@ -1121,6 +1122,54 @@ public class WifiConfigManagerNewTest {
         assertFalse(eapNetwork.enterpriseConfig.getEapMethod() == WifiEnterpriseConfig.Eap.TLS);
         eapNetwork.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
         verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(eapNetwork);
+    }
+
+    /**
+     * Verifies the ordering of network list generated using
+     * {@link WifiConfigManagerNew#retrievePnoNetworkList()}.
+     */
+    @Test
+    public void testRetrievePnoList() {
+        // Create and add 3 networks.
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createEapNetwork();
+        WifiConfiguration network2 = WifiConfigurationTestUtil.createPskNetwork();
+        WifiConfiguration network3 = WifiConfigurationTestUtil.createOpenHiddenNetwork();
+        verifyAddNetworkToWifiConfigManager(network1);
+        verifyAddNetworkToWifiConfigManager(network2);
+        verifyAddNetworkToWifiConfigManager(network3);
+
+        // Enable all of them.
+        assertTrue(mWifiConfigManager.enableNetwork(network1.networkId, TEST_CREATOR_UID));
+        assertTrue(mWifiConfigManager.enableNetwork(network2.networkId, TEST_CREATOR_UID));
+        assertTrue(mWifiConfigManager.enableNetwork(network3.networkId, TEST_CREATOR_UID));
+
+        // Now set scan results in 2 of them to set the corresponding
+        // {@link NetworkSelectionStatus#mSeenInLastQualifiedNetworkSelection} field.
+        assertTrue(mWifiConfigManager.setNetworkCandidateScanResult(
+                network1.networkId, createScanDetailForNetwork(network1).getScanResult(), 54));
+        assertTrue(mWifiConfigManager.setNetworkCandidateScanResult(
+                network3.networkId, createScanDetailForNetwork(network3).getScanResult(), 54));
+
+        // Now increment |network3|'s association count. This should ensure that this network
+        // is preferred over |network1|.
+        assertTrue(mWifiConfigManager.updateNetworkAfterConnect(network3.networkId));
+
+        // Retrieve the Pno network list & verify the order of the networks returned.
+        List<WifiScanner.PnoSettings.PnoNetwork> pnoNetworks =
+                mWifiConfigManager.retrievePnoNetworkList();
+        assertEquals(3, pnoNetworks.size());
+        assertEquals(network3.SSID, pnoNetworks.get(0).ssid);
+        assertEquals(network1.SSID, pnoNetworks.get(1).ssid);
+        assertEquals(network2.SSID, pnoNetworks.get(2).ssid);
+
+        // Now permanently disable |network3|. This should remove network 3 from the list.
+        assertTrue(mWifiConfigManager.disableNetwork(network3.networkId, TEST_CREATOR_UID));
+
+        // Retrieve the Pno network list again & verify the order of the networks returned.
+        pnoNetworks = mWifiConfigManager.retrievePnoNetworkList();
+        assertEquals(2, pnoNetworks.size());
+        assertEquals(network1.SSID, pnoNetworks.get(0).ssid);
+        assertEquals(network2.SSID, pnoNetworks.get(1).ssid);
     }
 
     /**

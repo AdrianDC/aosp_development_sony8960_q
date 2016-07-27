@@ -31,6 +31,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiScanner;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -49,7 +50,9 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -145,6 +148,30 @@ public class WifiConfigManagerNew {
      * Log tag for this class.
      */
     private static final String TAG = "WifiConfigManagerNew";
+    /**
+     * Disconnected/Connected PnoNetwork list sorting algorithm:
+     * Place the configurations in descending order of their |numAssociation| values. If networks
+     * have the same |numAssociation|, place the configurations with
+     * |lastSeenInQualifiedNetworkSelection| set first.
+     */
+    private static final WifiConfigurationUtil.WifiConfigurationComparator sPnoListComparator =
+            new WifiConfigurationUtil.WifiConfigurationComparator() {
+                @Override
+                public int compareNetworksWithSameStatus(WifiConfiguration a, WifiConfiguration b) {
+                    if (a.numAssociation != b.numAssociation) {
+                        return Long.compare(b.numAssociation, a.numAssociation);
+                    } else {
+                        boolean isConfigALastSeen =
+                                a.getNetworkSelectionStatus()
+                                        .getSeenInLastQualifiedNetworkSelection();
+                        boolean isConfigBLastSeen =
+                                b.getNetworkSelectionStatus()
+                                        .getSeenInLastQualifiedNetworkSelection();
+                        return Boolean.compare(isConfigBLastSeen, isConfigALastSeen);
+                    }
+                }
+            };
+
     /**
      * List of external dependencies for WifiConfigManager.
      */
@@ -1247,6 +1274,91 @@ public class WifiConfigManagerNew {
         }
         saveToScanDetailCacheForNetwork(network, scanDetail);
         return getConfiguredNetworkWithPassword(network.networkId);
+    }
+
+    /**
+     * Helper method to clear the {@link NetworkSelectionStatus#mCandidate},
+     * {@link NetworkSelectionStatus#mCandidateScore} &
+     * {@link NetworkSelectionStatus#mSeenInLastQualifiedNetworkSelection} for the provided network.
+     *
+     * This is invoked by QNS at the start of every selection procedure to clear all configured
+     * networks' scan-result-candidates.
+     *
+     * @param networkId  network ID corresponding to the network.
+     * @return true if the network was found, false otherwise.
+     */
+    public boolean clearNetworkCandidateScanResult(int networkId) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            Log.e(TAG, "Cannot find network with networkId " + networkId);
+            return false;
+        }
+        config.getNetworkSelectionStatus().setCandidate(null);
+        config.getNetworkSelectionStatus().setCandidateScore(Integer.MIN_VALUE);
+        config.getNetworkSelectionStatus().setSeenInLastQualifiedNetworkSelection(false);
+        return true;
+    }
+
+    /**
+     * Helper method to set the {@link NetworkSelectionStatus#mCandidate},
+     * {@link NetworkSelectionStatus#mCandidateScore} &
+     * {@link NetworkSelectionStatus#mSeenInLastQualifiedNetworkSelection} for the provided network.
+     *
+     * This is invoked by QNS when it sees a network during network selection procedure to set the
+     * scan result candidate.
+     *
+     * @param networkId  network ID corresponding to the network.
+     * @param scanResult Candidate ScanResult associated with this network.
+     * @param score      Score assigned to the candidate.
+     * @return true if the network was found, false otherwise.
+     */
+    public boolean setNetworkCandidateScanResult(int networkId, ScanResult scanResult, int score) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            Log.e(TAG, "Cannot find network with networkId " + networkId);
+            return false;
+        }
+        config.getNetworkSelectionStatus().setCandidate(scanResult);
+        config.getNetworkSelectionStatus().setCandidateScore(score);
+        // Update the network selection status.
+        config.getNetworkSelectionStatus().setSeenInLastQualifiedNetworkSelection(true);
+        return true;
+    }
+
+    /**
+     * Retrieves an updated list of priorities for all the saved networks before
+     * enabling disconnected/connected PNO.
+     *
+     * PNO network list sent to the firmware has limited size. If there are a lot of saved
+     * networks, this list will be truncated and we might end up not sending the networks
+     * with the highest chance of connecting to the firmware.
+     * So, re-sort the network list based on the frequency of connection to those networks
+     * and whether it was last seen in the scan results.
+     *
+     * TODO (b/30399964): Recalculate the list whenever network status changes.
+     * @return list of networks with updated priorities.
+     */
+    public ArrayList<WifiScanner.PnoSettings.PnoNetwork> retrievePnoNetworkList() {
+        ArrayList<WifiScanner.PnoSettings.PnoNetwork> pnoList = new ArrayList<>();
+        ArrayList<WifiConfiguration> wifiConfigurations =
+                new ArrayList<>(getInternalConfiguredNetworks());
+        // Remove any permanently disabled networks.
+        Iterator<WifiConfiguration> iter = wifiConfigurations.iterator();
+        while (iter.hasNext()) {
+            WifiConfiguration config = iter.next();
+            if (config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled()) {
+                iter.remove();
+            }
+        }
+        Collections.sort(wifiConfigurations, sPnoListComparator);
+        // Let's use the network list size - 1 as the highest priority and then go down from there.
+        // So, the most frequently connected network has the highest priority now.
+        int priority = wifiConfigurations.size() - 1;
+        for (WifiConfiguration config : wifiConfigurations) {
+            pnoList.add(WifiConfigurationUtil.createPnoNetwork(config, priority));
+            priority--;
+        }
+        return pnoList;
     }
 
     /**
