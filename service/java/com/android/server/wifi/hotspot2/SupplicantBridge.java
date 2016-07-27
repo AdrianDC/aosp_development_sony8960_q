@@ -37,7 +37,6 @@ public class SupplicantBridge {
 
     static {
         sWpsNames.put("anqp_venue_name", Constants.ANQPElementType.ANQPVenueName);
-        sWpsNames.put("anqp_network_auth_type", Constants.ANQPElementType.ANQPNwkAuthType);
         sWpsNames.put("anqp_roaming_consortium", Constants.ANQPElementType.ANQPRoamingConsortium);
         sWpsNames.put("anqp_ip_addr_type_availability",
                 Constants.ANQPElementType.ANQPIPAddrAvailability);
@@ -47,7 +46,6 @@ public class SupplicantBridge {
         sWpsNames.put("hs20_operator_friendly_name", Constants.ANQPElementType.HSFriendlyName);
         sWpsNames.put("hs20_wan_metrics", Constants.ANQPElementType.HSWANMetrics);
         sWpsNames.put("hs20_connection_capability", Constants.ANQPElementType.HSConnCapability);
-        sWpsNames.put("hs20_operating_class", Constants.ANQPElementType.HSOperatingclass);
         sWpsNames.put("hs20_osu_providers_list", Constants.ANQPElementType.HSOSUProviders);
     }
 
