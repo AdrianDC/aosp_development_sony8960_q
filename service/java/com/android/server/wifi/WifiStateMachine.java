@@ -96,6 +96,7 @@ import android.util.Log;
 import android.util.SparseArray;
 
 import com.android.internal.R;
+import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.AsyncChannel;
@@ -544,10 +545,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private WifiScanner mWifiScanner;
 
-    private int mConnectionRequests = 0;
+    @GuardedBy("mWifiReqCountLock")
+    private int mConnectionReqCount = 0;
     private WifiNetworkFactory mNetworkFactory;
+    @GuardedBy("mWifiReqCountLock")
+    private int mUntrustedReqCount = 0;
     private UntrustedWifiNetworkFactory mUntrustedNetworkFactory;
     private WifiNetworkAgent mNetworkAgent;
+    private final Object mWifiReqCountLock = new Object();
 
     private String[] mWhiteListedSsids = null;
 
@@ -2535,7 +2540,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 sb.append(" known=").append(mNumScanResultsKnown);
                 sb.append(" got=").append(mNumScanResultsReturned);
                 sb.append(String.format(" bcn=%d", mRunningBeaconCount));
-                sb.append(String.format(" con=%d", mConnectionRequests));
+                sb.append(String.format(" con=%d", mConnectionReqCount));
+                sb.append(String.format(" untrustedcn=%d", mUntrustedReqCount));
                 key = mWifiConfigManager.getLastSelectedConfiguration();
                 if (key != null) {
                     sb.append(" last=").append(key);
@@ -3906,23 +3912,33 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         @Override
         protected void needNetworkFor(NetworkRequest networkRequest, int score) {
-            ++mConnectionRequests;
+            synchronized (mWifiReqCountLock) {
+                if (++mConnectionReqCount == 1) {
+                    if (mWifiConnectivityManager != null && mUntrustedReqCount == 0) {
+                        mWifiConnectivityManager.enable(true);
+                    }
+                }
+            }
         }
 
         @Override
         protected void releaseNetworkFor(NetworkRequest networkRequest) {
-            --mConnectionRequests;
+            synchronized (mWifiReqCountLock) {
+                if (--mConnectionReqCount == 0) {
+                    if (mWifiConnectivityManager != null && mUntrustedReqCount == 0) {
+                        mWifiConnectivityManager.enable(false);
+                    }
+                }
+            }
         }
 
         public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-            pw.println("mConnectionRequests " + mConnectionRequests);
+            pw.println("mConnectionReqCount " + mConnectionReqCount);
         }
 
     }
 
     private class UntrustedWifiNetworkFactory extends NetworkFactory {
-        private int mUntrustedReqCount;
-
         public UntrustedWifiNetworkFactory(Looper l, Context c, String tag, NetworkCapabilities f) {
             super(l, c, tag, f);
         }
@@ -3931,9 +3947,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         protected void needNetworkFor(NetworkRequest networkRequest, int score) {
             if (!networkRequest.networkCapabilities.hasCapability(
                     NetworkCapabilities.NET_CAPABILITY_TRUSTED)) {
-                if (++mUntrustedReqCount == 1) {
-                    if (mWifiConnectivityManager != null) {
-                        mWifiConnectivityManager.setUntrustedConnectionAllowed(true);
+                synchronized (mWifiReqCountLock) {
+                    if (++mUntrustedReqCount == 1) {
+                        if (mWifiConnectivityManager != null) {
+                            if (mConnectionReqCount == 0) {
+                                mWifiConnectivityManager.enable(true);
+                            }
+                            mWifiConnectivityManager.setUntrustedConnectionAllowed(true);
+                        }
                     }
                 }
             }
@@ -3943,9 +3964,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         protected void releaseNetworkFor(NetworkRequest networkRequest) {
             if (!networkRequest.networkCapabilities.hasCapability(
                     NetworkCapabilities.NET_CAPABILITY_TRUSTED)) {
-                if (--mUntrustedReqCount == 0) {
-                    if (mWifiConnectivityManager != null) {
-                        mWifiConnectivityManager.setUntrustedConnectionAllowed(false);
+                synchronized (mWifiReqCountLock) {
+                    if (--mUntrustedReqCount == 0) {
+                        if (mWifiConnectivityManager != null) {
+                            mWifiConnectivityManager.setUntrustedConnectionAllowed(false);
+                            if (mConnectionReqCount == 0) {
+                                mWifiConnectivityManager.enable(false);
+                            }
+                        }
                     }
                 }
             }
@@ -4682,10 +4708,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (mWifiScanner == null) {
                 mWifiScanner = mFacade.makeWifiScanner(mContext, getHandler().getLooper());
 
-                mWifiConnectivityManager = new WifiConnectivityManager(mContext,
-                    WifiStateMachine.this, mWifiScanner, mWifiConfigManager, mWifiInfo,
-                    mWifiQualifiedNetworkSelector, mWifiInjector,
-                    getHandler().getLooper());
+                synchronized (mWifiReqCountLock) {
+                    mWifiConnectivityManager = new WifiConnectivityManager(mContext,
+                        WifiStateMachine.this, mWifiScanner, mWifiConfigManager, mWifiInfo,
+                        mWifiQualifiedNetworkSelector, mWifiInjector,
+                        getHandler().getLooper(), hasConnectionRequests());
+                }
             }
 
             mWifiLogger.startLogging(DBG);
@@ -7063,8 +7091,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_UNWANTED_NETWORK:
                     if (message.arg1 == NETWORK_STATUS_UNWANTED_DISCONNECT) {
-                        mWifiConfigManager.handleBadNetworkDisconnectReport(
-                                mLastNetworkId, mWifiInfo);
                         mWifiNative.disconnect();
                         transitionTo(mDisconnectingState);
                     } else if (message.arg1 == NETWORK_STATUS_UNWANTED_DISABLE_AUTOJOIN ||
@@ -8073,7 +8099,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * @param bssid BSSID of the network
      */
     public void autoConnectToNetwork(int networkId, String bssid) {
-        sendMessage(CMD_AUTO_CONNECT, networkId, 0, bssid);
+        synchronized (mWifiReqCountLock) {
+            if (hasConnectionRequests()) {
+                sendMessage(CMD_AUTO_CONNECT, networkId, 0, bssid);
+            }
+        }
     }
 
     /**
@@ -8215,5 +8245,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             return currentConfig.SSID;
         }
         return null;
+    }
+
+    /**
+     * Check if there is any connection request for WiFi network.
+     * Note, caller of this helper function must acquire mWifiReqCountLock.
+     */
+    private boolean hasConnectionRequests() {
+        return mConnectionReqCount > 0 || mUntrustedReqCount > 0;
     }
 }

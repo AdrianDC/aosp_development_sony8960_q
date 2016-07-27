@@ -190,7 +190,7 @@ public class WifiConfigManager {
      */
     private static final int[] NETWORK_SELECTION_DISABLE_THRESHOLD = {
             -1, //  threshold for NETWORK_SELECTION_ENABLE
-            1,  //  threshold for DISABLED_BAD_LINK
+            1,  //  threshold for DISABLED_BAD_LINK (deprecated)
             5,  //  threshold for DISABLED_ASSOCIATION_REJECTION
             5,  //  threshold for DISABLED_AUTHENTICATION_FAILURE
             5,  //  threshold for DISABLED_DHCP_FAILURE
@@ -206,7 +206,7 @@ public class WifiConfigManager {
      */
     private static final int[] NETWORK_SELECTION_DISABLE_TIMEOUT = {
             Integer.MAX_VALUE,  // threshold for NETWORK_SELECTION_ENABLE
-            15,                 // threshold for DISABLED_BAD_LINK
+            15,                 // threshold for DISABLED_BAD_LINK (deprecated)
             5,                  // threshold for DISABLED_ASSOCIATION_REJECTION
             5,                  // threshold for DISABLED_AUTHENTICATION_FAILURE
             5,                  // threshold for DISABLED_DHCP_FAILURE
@@ -241,11 +241,6 @@ public class WifiConfigManager {
     public AtomicInteger mThresholdMinimumRssi24 = new AtomicInteger();
     public AtomicInteger mCurrentNetworkBoost = new AtomicInteger();
     public AtomicInteger mBandAward5Ghz = new AtomicInteger();
-
-    /**
-     * If Connectivity Service has triggered an unwanted network disconnect
-     */
-    public long mLastUnwantedNetworkDisconnectTimestamp = 0;
 
     /**
      * Framework keeps a list of ephemeral SSIDs that where deleted by user,
@@ -3220,29 +3215,6 @@ public class WifiConfigManager {
         } catch (RemoteException e) {
             return false;
         }
-    }
-
-    /** called when CS ask WiFistateMachine to disconnect the current network
-     * because the score is bad.
-     */
-    void handleBadNetworkDisconnectReport(int netId, WifiInfo info) {
-        /* TODO verify the bad network is current */
-        WifiConfiguration config = mConfiguredNetworks.getForCurrentUser(netId);
-        if (config != null) {
-            if ((info.is24GHz() && info.getRssi()
-                    <= WifiQualifiedNetworkSelector.QUALIFIED_RSSI_24G_BAND)
-                    || (info.is5GHz() && info.getRssi()
-                    <= WifiQualifiedNetworkSelector.QUALIFIED_RSSI_5G_BAND)) {
-                // We do not block due to bad RSSI since network selection should not select bad
-                // RSSI candidate
-            } else {
-                // We got disabled but RSSI is good, so disable hard
-                updateNetworkSelectionStatus(config,
-                        WifiConfiguration.NetworkSelectionStatus.DISABLED_BAD_LINK);
-            }
-        }
-        // Record last time Connectivity Service switched us away from WiFi and onto Cell
-        mLastUnwantedNetworkDisconnectTimestamp = mClock.currentTimeMillis();
     }
 
     int getMaxDhcpRetries() {
