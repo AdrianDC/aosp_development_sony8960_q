@@ -9,7 +9,6 @@ import android.util.Log;
 import com.android.server.wifi.anqp.ANQPElement;
 import com.android.server.wifi.anqp.Constants;
 import com.android.server.wifi.anqp.RawByteElement;
-import com.android.server.wifi.anqp.VenueNameElement;
 import com.android.server.wifi.util.InformationElementUtil;
 
 import java.nio.BufferUnderflowException;
@@ -91,12 +90,9 @@ public class NetworkDetail {
     /*
      * From Interworking element:
      * mAnt non null indicates the presence of Interworking, i.e. 802.11u
-     * mVenueGroup and mVenueType may be null if not present in the Interworking element.
      */
     private final Ant mAnt;
     private final boolean mInternet;
-    private final VenueNameElement.VenueGroup mVenueGroup;
-    private final VenueNameElement.VenueType mVenueType;
 
     /*
      * From HS20 Indication element:
@@ -243,8 +239,6 @@ public class NetworkDetail {
         mCapacity = bssLoad.capacity;
         mAnt = interworking.ant;
         mInternet = interworking.internet;
-        mVenueGroup = interworking.venueGroup;
-        mVenueType = interworking.venueType;
         mHSRelease = vsa.hsRelease;
         mAnqpDomainID = vsa.anqpDomainID;
         mAnqpOICount = roamingConsortium.anqpOICount;
@@ -323,8 +317,6 @@ public class NetworkDetail {
         mCapacity = base.mCapacity;
         mAnt = base.mAnt;
         mInternet = base.mInternet;
-        mVenueGroup = base.mVenueGroup;
-        mVenueType = base.mVenueType;
         mHSRelease = base.mHSRelease;
         mAnqpDomainID = base.mAnqpDomainID;
         mAnqpOICount = base.mAnqpOICount;
@@ -402,14 +394,6 @@ public class NetworkDetail {
 
     public boolean isInternet() {
         return mInternet;
-    }
-
-    public VenueNameElement.VenueGroup getVenueGroup() {
-        return mVenueGroup;
-    }
-
-    public VenueNameElement.VenueType getVenueType() {
-        return mVenueType;
     }
 
     public HSRelease getHSRelease() {
@@ -495,11 +479,11 @@ public class NetworkDetail {
     public String toString() {
         return String.format("NetworkInfo{SSID='%s', HESSID=%x, BSSID=%x, StationCount=%d, " +
                 "ChannelUtilization=%d, Capacity=%d, Ant=%s, Internet=%s, " +
-                "VenueGroup=%s, VenueType=%s, HSRelease=%s, AnqpDomainID=%d, " +
+                "HSRelease=%s, AnqpDomainID=%d, " +
                 "AnqpOICount=%d, RoamingConsortiums=%s}",
                 mSSID, mHESSID, mBSSID, mStationCount,
                 mChannelUtilization, mCapacity, mAnt, mInternet,
-                mVenueGroup, mVenueType, mHSRelease, mAnqpDomainID,
+                mHSRelease, mAnqpDomainID,
                 mAnqpOICount, Utils.roamingConsortiumsToString(mRoamingConsortiums));
     }
 

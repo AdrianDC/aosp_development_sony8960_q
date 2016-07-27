@@ -29,6 +29,7 @@ public class Constants {
     public static final int UTF8_INDICATOR = 1;
 
     public static final int LANG_CODE_LENGTH = 3;
+    public static final int VENUE_INFO_LENGTH = 2;
 
     public static final int ANQP_QUERY_LIST = 256;
     public static final int ANQP_CAPABILITY_LIST = 257;
