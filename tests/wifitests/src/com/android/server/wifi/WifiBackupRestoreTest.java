@@ -20,6 +20,7 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 import android.net.wifi.WifiConfiguration;
+import android.os.Process;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.server.net.IpConfigStore;
@@ -343,6 +344,44 @@ public class WifiBackupRestoreTest {
     }
 
     /**
+     * Verify that multiple networks of different types except the non system app created ones are
+     * serialized and deserialized correctly.
+     */
+    @Test
+    public void testMultipleNetworksSystemAppBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        List<WifiConfiguration> expectedConfigurations = new ArrayList<>();
+
+        WifiConfiguration wepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        configurations.add(wepNetwork);
+        expectedConfigurations.add(wepNetwork);
+
+        // These should not be in |expectedConfigurations|.
+        WifiConfiguration nonSystemAppWepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        nonSystemAppWepNetwork.creatorUid = Process.FIRST_APPLICATION_UID;
+        configurations.add(nonSystemAppWepNetwork);
+
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        configurations.add(pskNetwork);
+        expectedConfigurations.add(pskNetwork);
+
+        // These should not be in |expectedConfigurations|.
+        WifiConfiguration nonSystemAppPskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        nonSystemAppPskNetwork.creatorUid = Process.FIRST_APPLICATION_UID + 1;
+        configurations.add(nonSystemAppPskNetwork);
+
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        configurations.add(openNetwork);
+        expectedConfigurations.add(openNetwork);
+
+        byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromBackupData(backupData);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                expectedConfigurations, retrievedConfigurations);
+    }
+
+    /**
      * Verify that a single open network configuration is serialized & deserialized correctly from
      * old backups.
      */
@@ -538,6 +577,46 @@ public class WifiBackupRestoreTest {
                         supplicantData, null);
         WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
                 configurations, retrievedConfigurations);
+    }
+
+    /**
+     * Verify that multiple networks of different types except the non system app created ones are
+     * serialized and deserialized correctly from old backups.
+     */
+    @Test
+    public void testMultipleNetworksSystemAppSupplicantBackupRestore() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        List<WifiConfiguration> expectedConfigurations = new ArrayList<>();
+
+        WifiConfiguration wepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        configurations.add(wepNetwork);
+        expectedConfigurations.add(wepNetwork);
+
+        // These should not be in |expectedConfigurations|.
+        WifiConfiguration nonSystemAppWepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        nonSystemAppWepNetwork.creatorUid = Process.FIRST_APPLICATION_UID;
+        configurations.add(nonSystemAppWepNetwork);
+
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        configurations.add(pskNetwork);
+        expectedConfigurations.add(pskNetwork);
+
+        // These should not be in |expectedConfigurations|.
+        WifiConfiguration nonSystemAppPskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        nonSystemAppPskNetwork.creatorUid = Process.FIRST_APPLICATION_UID + 1;
+        configurations.add(nonSystemAppPskNetwork);
+
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        configurations.add(openNetwork);
+        expectedConfigurations.add(openNetwork);
+
+        byte[] supplicantData = createWpaSupplicantConfBackupData(configurations);
+        byte[] ipConfigData = createIpConfBackupData(configurations);
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, ipConfigData);
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                expectedConfigurations, retrievedConfigurations);
     }
 
     /**
