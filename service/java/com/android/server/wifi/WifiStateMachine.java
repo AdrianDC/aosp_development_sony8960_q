@@ -2300,10 +2300,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         pw.println("mUserWantsSuspendOpt " + mUserWantsSuspendOpt);
         pw.println("mSuspendOptNeedsDisabled " + mSuspendOptNeedsDisabled);
         pw.println("Supplicant status " + mWifiNative.status(true));
-        if (mCountryCode.getCurrentCountryCode() != null) {
-            pw.println("CurrentCountryCode " + mCountryCode.getCurrentCountryCode());
+        if (mCountryCode.getCountryCodeSentToDriver() != null) {
+            pw.println("CountryCode sent to driver " + mCountryCode.getCountryCodeSentToDriver());
         } else {
-            pw.println("CurrentCountryCode is not initialized");
+            if (mCountryCode.getCountryCode() != null) {
+                pw.println("CountryCode: " +
+                        mCountryCode.getCountryCode() + " was not sent to driver");
+            } else {
+                pw.println("CountryCode was not initialized");
+            }
         }
         pw.println("mConnectedModeGScanOffloadStarted " + mConnectedModeGScanOffloadStarted);
         pw.println("mGScanPeriodMilli " + mGScanPeriodMilli);
@@ -7669,7 +7674,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 checkAndSetConnectivityInstance();
                 mSoftApManager = mFacade.makeSoftApManager(
                         mContext, getHandler().getLooper(), mWifiNative, mNwService,
-                        mCm, mCountryCode.getCurrentCountryCode(),
+                        mCm, mCountryCode.getCountryCode(),
                         mWifiApConfigStore.getAllowed2GChannel(),
                         new SoftApListener());
                 mSoftApManager.start(config);
