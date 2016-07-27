@@ -1138,12 +1138,14 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
      /**
      * Get the country code
-     * @return ISO 3166 country code.
+     * @return Get the best choice country code for wifi, regardless of if it was set or
+     * not.
+     * Returns null when there is no country code available.
      */
     @Override
     public String getCountryCode() {
         enforceConnectivityInternalPermission();
-        String country = mCountryCode.getCurrentCountryCode();
+        String country = mCountryCode.getCountryCode();
         return country;
     }
     /**
