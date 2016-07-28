@@ -69,6 +69,7 @@ public class WifiInjector {
     private final KeyStore mKeyStore = KeyStore.getInstance();
     private final WifiBackupRestore mWifiBackupRestore = new WifiBackupRestore();
     private final WifiMulticastLockManager mWifiMulticastLockManager;
+    private final boolean mUseRealLogger;
 
     public WifiInjector(Context context) {
         if (context == null) {
@@ -84,6 +85,9 @@ public class WifiInjector {
         sWifiInjector = this;
 
         mContext = context;
+        mUseRealLogger = mContext.getResources().getBoolean(
+                R.bool.config_wifi_enable_wifi_firmware_debugging);
+
         // Now create and start handler threads
         mWifiServiceHandlerThread = new HandlerThread("WifiService");
         mWifiServiceHandlerThread.start();
@@ -234,5 +238,13 @@ public class WifiInjector {
                 mWifiServiceHandlerThread.getLooper(),
                 wifiNative, nmService, countryCode,
                 allowed2GChannels, listener, apInterface);
+    }
+
+    public BaseWifiDiagnostics makeWifiDiagnostics(WifiNative wifiNative) {
+        if (mUseRealLogger) {
+            return new WifiDiagnostics(mContext, mWifiStateMachine, wifiNative, mBuildProperties);
+        } else {
+            return new BaseWifiDiagnostics();
+        }
     }
 }

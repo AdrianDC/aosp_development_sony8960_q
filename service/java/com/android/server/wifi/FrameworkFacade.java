@@ -41,16 +41,6 @@ import android.telephony.CarrierConfigManager;
 public class FrameworkFacade {
     public static final String TAG = "FrameworkFacade";
 
-    public BaseWifiDiagnostics makeBaseDiagnostics() {
-        return new BaseWifiDiagnostics();
-    }
-
-    public BaseWifiDiagnostics makeRealDiagnostics(
-            Context context, WifiStateMachine stateMachine, WifiNative wifiNative,
-            BuildProperties buildProperties) {
-        return new WifiDiagnostics(context, stateMachine, wifiNative, buildProperties);
-    }
-
     public boolean setIntegerSetting(Context context, String name, int def) {
         return Settings.Global.putInt(context.getContentResolver(), name, def);
     }

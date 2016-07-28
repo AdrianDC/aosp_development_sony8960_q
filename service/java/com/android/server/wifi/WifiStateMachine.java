@@ -969,16 +969,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 mWifiInjector.getClock(), userManager, mWifiInjector.getKeyStore());
 
         mWifiMonitor = WifiMonitor.getInstance();
-
-        boolean enableFirmwareLogs = mContext.getResources().getBoolean(
-                R.bool.config_wifi_enable_wifi_firmware_debugging);
-
-        if (enableFirmwareLogs) {
-            mWifiDiagnostics = facade.makeRealDiagnostics(
-                    mContext, this, mWifiNative, mBuildProperties);
-        } else {
-            mWifiDiagnostics = facade.makeBaseDiagnostics();
-        }
+        mWifiDiagnostics = mWifiInjector.makeWifiDiagnostics(mWifiNative);
 
         mWifiInfo = new WifiInfo();
         mWifiQualifiedNetworkSelector = new WifiQualifiedNetworkSelector(mWifiConfigManager,
