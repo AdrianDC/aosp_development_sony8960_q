@@ -23,6 +23,7 @@
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
+#include <android-base/parseint.h>
 #include <android-base/stringprintf.h>
 #include <cutils/properties.h>
 #include <openssl/evp.h>
@@ -31,6 +32,8 @@
 
 #include "wifi_system/wifi.h"
 
+using android::base::ParseInt;
+using android::base::ReadFileToString;
 using android::base::StringPrintf;
 using android::base::WriteStringToFile;
 using std::string;
@@ -44,6 +47,8 @@ namespace {
 const int kDefaultApChannel = 6;
 const char kHostapdServiceName[] = "hostapd";
 const char kHostapdConfigFilePath[] = "/data/misc/wifi/hostapd.conf";
+const char kHostapdPidFile[] = "/data/misc/wifi/hostapd.pid";
+
 
 string GeneratePsk(const vector<uint8_t>& ssid,
                    const vector<uint8_t>& passphrase) {
@@ -73,14 +78,11 @@ string GeneratePsk(const vector<uint8_t>& ssid,
 }  // namespace
 
 bool HostapdManager::StartHostapd() {
-  if (hostapd_is_running_) {
-    LOG(ERROR) << "SoftAP is already running";
-    return false;
-  }
-
   if (ensure_entropy_file_exists() < 0) {
     LOG(WARNING) << "Wi-Fi entropy file was not created";
   }
+
+  unlink(kHostapdPidFile);
 
   if (property_set("ctl.start", kHostapdServiceName) != 0) {
     LOG(ERROR) << "Failed to start SoftAP";
@@ -88,20 +90,40 @@ bool HostapdManager::StartHostapd() {
   }
 
   LOG(DEBUG) << "SoftAP started successfully";
-  hostapd_is_running_ = true;
   return true;
 }
 
 bool HostapdManager::IsHostapdRunning() {
-  return hostapd_is_running_;
+  pid_t hostapd_pid;
+  if (!GetHostapdPid(&hostapd_pid)) {
+    return false;
+  }
+
+  if (kill(hostapd_pid, 0) != 0) {
+    LOG(DEBUG) << "hostapd has already died.";
+    return false;
+  }
+
+  return true;
+}
+
+bool HostapdManager::GetHostapdPid(pid_t* hostapd_pid) {
+  string pid_string;
+  if (!ReadFileToString(kHostapdPidFile, &pid_string)) {
+    LOG(DEBUG) << "Failed to read hostapd pid file.";
+    return false;
+  }
+  pid_t pid = 0;
+  if (!ParseInt(pid_string.c_str(), &pid) || pid <= 0) {
+    LOG(DEBUG) << "hostapd pid file contained bad pid: " << pid_string;
+    return false;
+  }
+
+  *hostapd_pid = pid;
+  return true;
 }
 
 bool HostapdManager::StopHostapd() {
-  if (!hostapd_is_running_) {
-    LOG(DEBUG) << "SoftAP is not running";
-    return true;  // Not really an error, hostapd is already stopped.
-  }
-
   LOG(DEBUG) << "Stopping the SoftAP service...";
 
   if (property_set("ctl.stop", kHostapdServiceName) < 0) {
@@ -109,8 +131,9 @@ bool HostapdManager::StopHostapd() {
     return false;
   }
 
+  unlink(kHostapdPidFile);
+
   LOG(DEBUG) << "SoftAP stopped successfully";
-  hostapd_is_running_ = false;
   return true;
 }
 
