@@ -189,6 +189,10 @@ message WifiLog {
 
   // Counts the occurrences of each individual RSSI poll level
   repeated RssiPollCount rssi_poll_rssi_count = 35;
+
+  // Total number of times WiFi connected immediately after a Last Resort Watchdog trigger,
+  // without new networks becoming available.
+  optional int32 num_last_resort_watchdog_successes = 36;
 }
 
 // Information that gets logged for every WiFi connection.
