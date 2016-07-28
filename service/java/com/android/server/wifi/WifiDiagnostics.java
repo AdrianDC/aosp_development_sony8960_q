@@ -43,15 +43,15 @@ import java.util.zip.Deflater;
 /**
  * Tracks various logs for framework.
  */
-class WifiLogger extends BaseWifiLogger {
+class WifiDiagnostics extends BaseWifiDiagnostics {
     /**
      * Thread-safety:
      * 1) All non-private methods are |synchronized|.
-     * 2) Callbacks into WifiLogger use non-private (and hence, synchronized) methods. See, e.g,
+     * 2) Callbacks into WifiDiagnostics use non-private (and hence, synchronized) methods. See, e.g,
      *    onRingBufferData(), onWifiAlert().
      */
 
-    private static final String TAG = "WifiLogger";
+    private static final String TAG = "WifiDiags";
     private static final boolean DBG = false;
 
     /** log level flags; keep these consistent with wifi_logger.h */
@@ -107,8 +107,8 @@ class WifiLogger extends BaseWifiLogger {
     private final BuildProperties mBuildProperties;
     private int mMaxRingBufferSizeBytes;
 
-    public WifiLogger(Context context, WifiStateMachine wifiStateMachine, WifiNative wifiNative,
-                      BuildProperties buildProperties) {
+    public WifiDiagnostics(Context context, WifiStateMachine wifiStateMachine, WifiNative wifiNative,
+                           BuildProperties buildProperties) {
         RING_BUFFER_BYTE_LIMIT_SMALL = context.getResources().getInteger(
                 R.integer.config_wifi_logger_ring_buffer_default_size_limit_kb) * 1024;
         RING_BUFFER_BYTE_LIMIT_LARGE = context.getResources().getInteger(
@@ -368,12 +368,12 @@ class WifiLogger extends BaseWifiLogger {
             new WifiNative.WifiLoggerEventHandler() {
         @Override
         public void onRingBufferData(WifiNative.RingBufferStatus status, byte[] buffer) {
-            WifiLogger.this.onRingBufferData(status, buffer);
+            WifiDiagnostics.this.onRingBufferData(status, buffer);
         }
 
         @Override
         public void onWifiAlert(int errorCode, byte[] buffer) {
-            WifiLogger.this.onWifiAlert(errorCode, buffer);
+            WifiDiagnostics.this.onWifiAlert(errorCode, buffer);
         }
     };
 

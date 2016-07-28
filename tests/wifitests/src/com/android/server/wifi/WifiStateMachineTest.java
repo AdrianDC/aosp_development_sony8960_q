@@ -158,7 +158,7 @@ public class WifiStateMachineTest {
 
         when(facade.makeWifiScanner(any(Context.class), any(Looper.class)))
                 .thenReturn(mWifiScanner);
-        when(facade.makeBaseLogger()).thenReturn(mock(BaseWifiLogger.class));
+        when(facade.makeBaseDiagnostics()).thenReturn(mock(BaseWifiDiagnostics.class));
         when(facade.getService(Context.NETWORKMANAGEMENT_SERVICE)).thenReturn(
                 mockWithInterfaces(IBinder.class, INetworkManagementService.class));
 

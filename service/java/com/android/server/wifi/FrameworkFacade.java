@@ -41,14 +41,14 @@ import android.telephony.CarrierConfigManager;
 public class FrameworkFacade {
     public static final String TAG = "FrameworkFacade";
 
-    public BaseWifiLogger makeBaseLogger() {
-        return new BaseWifiLogger();
+    public BaseWifiDiagnostics makeBaseDiagnostics() {
+        return new BaseWifiDiagnostics();
     }
 
-    public BaseWifiLogger makeRealLogger(
+    public BaseWifiDiagnostics makeRealDiagnostics(
             Context context, WifiStateMachine stateMachine, WifiNative wifiNative,
             BuildProperties buildProperties) {
-        return new WifiLogger(context, stateMachine, wifiNative, buildProperties);
+        return new WifiDiagnostics(context, stateMachine, wifiNative, buildProperties);
     }
 
     public boolean setIntegerSetting(Context context, String name, int def) {
