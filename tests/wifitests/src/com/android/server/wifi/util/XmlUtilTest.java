@@ -16,7 +16,7 @@
 
 package com.android.server.wifi.util;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 import android.net.IpConfiguration;
@@ -235,6 +235,103 @@ public class XmlUtilTest {
     }
 
     /**
+     * Verify that a network selection status deprecation is handled correctly during restore
+     * of data after upgrade.
+     * This test tries to simulate the scenario where we have a
+     * {@link NetworkSelectionStatus#getNetworkStatusString()} string stored
+     * in the XML file from a previous release which has now been deprecated. The network should
+     * be restored as enabled.
+     */
+    @Test
+    public void testDeprecatedNetworkSelectionStatusDeserialize()
+            throws IOException, XmlPullParserException {
+        // Create a dummy network selection status.
+        NetworkSelectionStatus status = new NetworkSelectionStatus();
+        status.setNetworkSelectionStatus(
+                NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED);
+        status.setNetworkSelectionDisableReason(
+                NetworkSelectionStatus.DISABLED_DHCP_FAILURE);
+        status.setConnectChoice(TEST_DUMMY_CONFIG_KEY);
+        status.setConnectChoiceTimestamp(867889);
+        status.setHasEverConnected(true);
+
+        // Serialize this to XML string.
+        byte[] xmlData = serializeNetworkSelectionStatus(status);
+
+        // Now modify the status string with some invalid string in XML data..
+        String xmlString = new String(xmlData);
+        String deprecatedXmlString =
+                xmlString.replaceAll(
+                        status.getNetworkStatusString(), "NETWORK_SELECTION_DEPRECATED");
+        // Ensure that the modification did take effect.
+        assertFalse(xmlString.equals(deprecatedXmlString));
+
+        // Now Deserialize the modified XML data.
+        byte[] deprecatedXmlData = xmlString.getBytes();
+        NetworkSelectionStatus retrievedStatus =
+                deserializeNetworkSelectionStatus(deprecatedXmlData);
+
+        // The status retrieved should have reset both the |Status| & |DisableReason| fields after
+        // deserialization, but should have restored all the other fields correctly.
+        NetworkSelectionStatus expectedStatus = new NetworkSelectionStatus();
+        expectedStatus.copy(status);
+        expectedStatus.setNetworkSelectionStatus(NetworkSelectionStatus.NETWORK_SELECTION_ENABLED);
+        expectedStatus.setNetworkSelectionDisableReason(
+                NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+
+        WifiConfigurationTestUtil.assertNetworkSelectionStatusEqualForConfigStore(
+                expectedStatus, retrievedStatus);
+    }
+
+    /**
+     * Verify that a network selection disable reason deprecation is handled correctly during
+     * restore of data after upgrade.
+     * This test tries to simulate the scenario where we have a
+     * {@link NetworkSelectionStatus#getNetworkDisableReasonString()} ()} string stored
+     * in the XML file from a previous release which has now been deprecated. The network should
+     * be restored as enabled.
+     */
+    @Test
+    public void testDeprecatedNetworkSelectionDisableReasonDeserialize()
+            throws IOException, XmlPullParserException {
+        // Create a dummy network selection status.
+        NetworkSelectionStatus status = new NetworkSelectionStatus();
+        status.setNetworkSelectionStatus(
+                NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED);
+        status.setNetworkSelectionDisableReason(
+                NetworkSelectionStatus.DISABLED_DHCP_FAILURE);
+        status.setConnectChoice(TEST_DUMMY_CONFIG_KEY);
+        status.setConnectChoiceTimestamp(867889);
+        status.setHasEverConnected(true);
+
+        // Serialize this to XML string.
+        byte[] xmlData = serializeNetworkSelectionStatus(status);
+
+        // Now modify the disable reason string with some invalid string in XML data.
+        String xmlString = new String(xmlData);
+        String deprecatedXmlString =
+                xmlString.replaceAll(status.getNetworkDisableReasonString(), "DISABLED_DEPRECATED");
+        // Ensure that the modification did take effect.
+        assertFalse(xmlString.equals(deprecatedXmlString));
+
+        // Now Deserialize the modified XML data.
+        byte[] deprecatedXmlData = xmlString.getBytes();
+        NetworkSelectionStatus retrievedStatus =
+                deserializeNetworkSelectionStatus(deprecatedXmlData);
+
+        // The status retrieved should have reset both the |Status| & |DisableReason| fields after
+        // deserialization, but should have restored all the other fields correctly.
+        NetworkSelectionStatus expectedStatus = new NetworkSelectionStatus();
+        expectedStatus.copy(status);
+        expectedStatus.setNetworkSelectionStatus(NetworkSelectionStatus.NETWORK_SELECTION_ENABLED);
+        expectedStatus.setNetworkSelectionDisableReason(
+                NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+
+        WifiConfigurationTestUtil.assertNetworkSelectionStatusEqualForConfigStore(
+                expectedStatus, retrievedStatus);
+    }
+
+    /**
      * Verify that a WifiEnterpriseConfig object is serialized & deserialized correctly.
      */
     @Test
@@ -358,7 +455,7 @@ public class XmlUtilTest {
         assertEquals(configuration, retrievedConfiguration);
     }
 
-    private void serializeDeserializeNetworkSelectionStatus(NetworkSelectionStatus status)
+    private byte[] serializeNetworkSelectionStatus(NetworkSelectionStatus status)
             throws IOException, XmlPullParserException {
         // Serialize the configuration object.
         final XmlSerializer out = new FastXmlSerializer();
@@ -367,14 +464,25 @@ public class XmlUtilTest {
         XmlUtil.writeDocumentStart(out, mXmlDocHeader);
         NetworkSelectionStatusXmlUtil.writeToXml(out, status);
         XmlUtil.writeDocumentEnd(out, mXmlDocHeader);
+        return outputStream.toByteArray();
+    }
 
-        // Deserialize the configuration object.
+    private NetworkSelectionStatus deserializeNetworkSelectionStatus(byte[] data)
+            throws IOException, XmlPullParserException {
         final XmlPullParser in = Xml.newPullParser();
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
         in.setInput(inputStream, StandardCharsets.UTF_8.name());
         XmlUtil.gotoDocumentStart(in, mXmlDocHeader);
-        NetworkSelectionStatus retrievedStatus =
-                NetworkSelectionStatusXmlUtil.parseFromXml(in, in.getDepth());
+        return NetworkSelectionStatusXmlUtil.parseFromXml(in, in.getDepth());
+    }
+
+    private void serializeDeserializeNetworkSelectionStatus(NetworkSelectionStatus status)
+            throws IOException, XmlPullParserException {
+        // Serialize the status object.
+        byte[] data = serializeNetworkSelectionStatus(status);
+        // Deserialize the status object.
+        NetworkSelectionStatus retrievedStatus = deserializeNetworkSelectionStatus(data);
+
         WifiConfigurationTestUtil.assertNetworkSelectionStatusEqualForConfigStore(
                 status, retrievedStatus);
     }

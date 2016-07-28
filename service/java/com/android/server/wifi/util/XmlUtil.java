@@ -39,6 +39,7 @@ import org.xmlpull.v1.XmlSerializer;
 import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.HashMap;
 
@@ -816,25 +817,21 @@ public class XmlUtil {
          * Write the NetworkSelectionStatus data elements from the provided status to the XML
          * stream.
          *
-         * @param out    XmlSerializer instance pointing to the XML stream.
-         * @param status NetworkSelectionStatus object to be serialized.
+         * @param out             XmlSerializer instance pointing to the XML stream.
+         * @param selectionStatus NetworkSelectionStatus object to be serialized.
          */
-        public static void writeToXml(XmlSerializer out, NetworkSelectionStatus status)
+        public static void writeToXml(XmlSerializer out, NetworkSelectionStatus selectionStatus)
                 throws XmlPullParserException, IOException {
-            // Don't persist blacklists across reboots. So, if the status is temporarily disabled,
-            // store the status as enabled. This will ensure that when the device reboots, it is
-            // still considered for network selection.
-            int selectionStatus = status.getNetworkSelectionStatus();
-            if (selectionStatus == NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED) {
-                selectionStatus = NetworkSelectionStatus.NETWORK_SELECTION_ENABLED;
-            }
-            XmlUtil.writeNextValue(out, XML_TAG_SELECTION_STATUS, selectionStatus);
             XmlUtil.writeNextValue(
-                    out, XML_TAG_DISABLE_REASON, status.getNetworkSelectionDisableReason());
-            XmlUtil.writeNextValue(out, XML_TAG_CONNECT_CHOICE, status.getConnectChoice());
+                    out, XML_TAG_SELECTION_STATUS, selectionStatus.getNetworkStatusString());
             XmlUtil.writeNextValue(
-                    out, XML_TAG_CONNECT_CHOICE_TIMESTAMP, status.getConnectChoiceTimestamp());
-            XmlUtil.writeNextValue(out, XML_TAG_HAS_EVER_CONNECTED, status.getHasEverConnected());
+                    out, XML_TAG_DISABLE_REASON, selectionStatus.getNetworkDisableReasonString());
+            XmlUtil.writeNextValue(out, XML_TAG_CONNECT_CHOICE, selectionStatus.getConnectChoice());
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_CONNECT_CHOICE_TIMESTAMP,
+                    selectionStatus.getConnectChoiceTimestamp());
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_HAS_EVER_CONNECTED, selectionStatus.getHasEverConnected());
         }
 
         /**
@@ -847,7 +844,9 @@ public class XmlUtil {
          */
         public static NetworkSelectionStatus parseFromXml(XmlPullParser in, int outerTagDepth)
                 throws XmlPullParserException, IOException {
-            NetworkSelectionStatus status = new NetworkSelectionStatus();
+            NetworkSelectionStatus selectionStatus = new NetworkSelectionStatus();
+            String statusString = "";
+            String disableReasonString = "";
 
             // Loop through and parse out all the elements from the stream within this section.
             while (!XmlUtil.isNextSectionEnd(in, outerTagDepth)) {
@@ -858,26 +857,45 @@ public class XmlUtil {
                 }
                 switch (valueName[0]) {
                     case XML_TAG_SELECTION_STATUS:
-                        status.setNetworkSelectionStatus((int) value);
+                        statusString = (String) value;
                         break;
                     case XML_TAG_DISABLE_REASON:
-                        status.setNetworkSelectionDisableReason((int) value);
+                        disableReasonString = (String) value;
                         break;
                     case XML_TAG_CONNECT_CHOICE:
-                        status.setConnectChoice((String) value);
+                        selectionStatus.setConnectChoice((String) value);
                         break;
                     case XML_TAG_CONNECT_CHOICE_TIMESTAMP:
-                        status.setConnectChoiceTimestamp((long) value);
+                        selectionStatus.setConnectChoiceTimestamp((long) value);
                         break;
                     case XML_TAG_HAS_EVER_CONNECTED:
-                        status.setHasEverConnected((boolean) value);
+                        selectionStatus.setHasEverConnected((boolean) value);
                         break;
                     default:
                         throw new XmlPullParserException(
                                 "Unknown value name found: " + valueName[0]);
                 }
             }
-            return status;
+            // Now figure out the network selection status codes from |selectionStatusString| &
+            // |disableReasonString|.
+            int status =
+                    Arrays.asList(NetworkSelectionStatus.QUALITY_NETWORK_SELECTION_STATUS)
+                            .indexOf(statusString);
+            int disableReason =
+                    Arrays.asList(NetworkSelectionStatus.QUALITY_NETWORK_SELECTION_DISABLE_REASON)
+                            .indexOf(disableReasonString);
+
+            // If either of the above codes are invalid or if the network was temporarily disabled
+            // (blacklisted), restore the status as enabled. We don't want to persist blacklists
+            // across reboots.
+            if (status == -1 || disableReason == -1 ||
+                    status == NetworkSelectionStatus.NETWORK_SELECTION_TEMPORARY_DISABLED) {
+                status = NetworkSelectionStatus.NETWORK_SELECTION_ENABLED;
+                disableReason = NetworkSelectionStatus.NETWORK_SELECTION_ENABLE;
+            }
+            selectionStatus.setNetworkSelectionStatus(status);
+            selectionStatus.setNetworkSelectionDisableReason(disableReason);
+            return selectionStatus;
         }
     }
 
