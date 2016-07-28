@@ -7173,7 +7173,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     deferMessage(message);
                     return HANDLED;
                 case CMD_DISCONNECT:
-                    if (DBG) log("Ignore CMD_DISCONNECT when already disconnecting.");
+                    if (mVerboseLoggingEnabled) log("Ignore CMD_DISCONNECT when already disconnecting.");
                     break;
                 case CMD_DISCONNECTING_WATCHDOG_TIMER:
                     if (disconnectingWatchdogCount == message.arg1) {
@@ -7276,7 +7276,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                     WifiConfiguration.INVALID_NETWORK_ID);
                     break;
                 case CMD_DISCONNECT:
-                    if (DBG) log("Ignore CMD_DISCONNECT when already disconnected.");
+                    if (mVerboseLoggingEnabled) log("Ignore CMD_DISCONNECT when already disconnected.");
                     break;
                 /* Ignore network disconnect */
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
