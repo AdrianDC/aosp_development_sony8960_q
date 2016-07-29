@@ -37,7 +37,7 @@ const int kTestChannel = 2;
 #define CONFIG_COMMON_PREFIX \
     "interface=foobar0\n" \
     "driver=nl80211\n" \
-    "ctrl_interface=/data/misc/wifi/hostapd\n" \
+    "ctrl_interface=/data/misc/wifi/hostapd/ctrl\n" \
     "ssid2=68656c6c6f" "6973" "6974" "6d65\n" \
     "channel=2\n" \
     "ieee80211n=1\n" \
