@@ -240,9 +240,18 @@ public class WifiInjector {
                 allowed2GChannels, listener, apInterface);
     }
 
+    /**
+     * Create a WifiLog instance.
+     * @param tag module name to include in all log messages
+     */
+    public WifiLog makeLog(String tag) {
+        return new LogcatLog(tag);
+    }
+
     public BaseWifiDiagnostics makeWifiDiagnostics(WifiNative wifiNative) {
         if (mUseRealLogger) {
-            return new WifiDiagnostics(mContext, mWifiStateMachine, wifiNative, mBuildProperties);
+            return new WifiDiagnostics(
+                    mContext, this, mWifiStateMachine, wifiNative, mBuildProperties);
         } else {
             return new BaseWifiDiagnostics();
         }

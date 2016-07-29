@@ -108,8 +108,8 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     private int mMaxRingBufferSizeBytes;
     private WifiLog mLog;
 
-    public WifiDiagnostics(Context context, WifiStateMachine wifiStateMachine, WifiNative wifiNative,
-                           BuildProperties buildProperties) {
+    public WifiDiagnostics(Context context, WifiInjector wifiInjector, WifiStateMachine wifiStateMachine,
+                     WifiNative wifiNative, BuildProperties buildProperties) {
         RING_BUFFER_BYTE_LIMIT_SMALL = context.getResources().getInteger(
                 R.integer.config_wifi_logger_ring_buffer_default_size_limit_kb) * 1024;
         RING_BUFFER_BYTE_LIMIT_LARGE = context.getResources().getInteger(
@@ -120,7 +120,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         mBuildProperties = buildProperties;
         mIsLoggingEventHandlerRegistered = false;
         mMaxRingBufferSizeBytes = RING_BUFFER_BYTE_LIMIT_SMALL;
-        mLog = new LogcatLog(TAG);
+        mLog = wifiInjector.makeLog(TAG);
     }
 
     @Override
