@@ -446,12 +446,15 @@ public class WifiConfigurationTestUtil {
             assertEquals(
                     NetworkSelectionStatus.NETWORK_SELECTION_ENABLED,
                     actual.getNetworkSelectionStatus());
+            assertEquals(
+                    NetworkSelectionStatus.NETWORK_SELECTION_ENABLE,
+                    actual.getNetworkSelectionDisableReason());
         } else {
             assertEquals(expected.getNetworkSelectionStatus(), actual.getNetworkSelectionStatus());
+            assertEquals(
+                    expected.getNetworkSelectionDisableReason(),
+                    actual.getNetworkSelectionDisableReason());
         }
-        assertEquals(
-                expected.getNetworkSelectionDisableReason(),
-                actual.getNetworkSelectionDisableReason());
         assertEquals(expected.getConnectChoice(), actual.getConnectChoice());
         assertEquals(expected.getConnectChoiceTimestamp(), actual.getConnectChoiceTimestamp());
         assertEquals(expected.getHasEverConnected(), actual.getHasEverConnected());
