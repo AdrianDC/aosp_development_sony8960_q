@@ -7457,6 +7457,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                     WifiConfiguration.INVALID_NETWORK_ID);
                     break;
                 case CMD_DISCONNECT:
+                    if (SupplicantState.isConnecting(mWifiInfo.getSupplicantState())) {
+                        if (DBG) {
+                            log("CMD_DISCONNECT when supplicant is connecting - do not ignore");
+                        }
+                        mWifiConfigManager.setAndEnableLastSelectedConfiguration(
+                                WifiConfiguration.INVALID_NETWORK_ID);
+                        mWifiNative.disconnect();
+                        break;
+                    }
                     if (DBG) log("Ignore CMD_DISCONNECT when already disconnected.");
                     break;
                 /* Ignore network disconnect */
