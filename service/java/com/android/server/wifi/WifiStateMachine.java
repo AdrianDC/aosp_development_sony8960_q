@@ -56,6 +56,7 @@ import android.net.StaticIpConfiguration;
 import android.net.dhcp.DhcpClient;
 import android.net.ip.IpManager;
 import android.net.wifi.IApInterface;
+import android.net.wifi.IClientInterface;
 import android.net.wifi.IWificond;
 import android.net.wifi.PasspointManagementObjectDefinition;
 import android.net.wifi.RssiPacketCountInfo;
@@ -222,6 +223,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private String mLastBssid;
     private int mLastNetworkId; // The network Id we successfully joined
     private boolean mIsLinkDebouncing = false;
+    private final StateMachineDeathRecipient mDeathRecipient =
+            new StateMachineDeathRecipient(this, CMD_CLIENT_INTERFACE_BINDER_DEATH);
 
     @Override
     public void onRssiThresholdBreached(byte curRssi) {
@@ -771,6 +774,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     /* Enable/disable Neighbor Discovery offload functionality. */
     static final int CMD_CONFIG_ND_OFFLOAD                              = BASE + 204;
+
+    /**
+     * Signals that IClientInterface instance underpinning our state is dead.
+     */
+    private static final int CMD_CLIENT_INTERFACE_BINDER_DEATH = BASE + 250;
 
     // For message logging.
     private static final Class[] sMessageClasses = {
@@ -3579,7 +3587,25 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiNative.disconnect();
     }
 
-    /* Driver/firmware setup for soft AP. */
+    private IClientInterface setupDriverForClientMode() {
+        if (mWificond == null) {
+            Log.e(TAG, "Failed to get reference to wificond");
+            return null;
+        }
+
+        IClientInterface clientInterface = null;
+        try {
+            clientInterface = mWificond.createClientInterface();
+        } catch (RemoteException e1) { }
+
+        if (clientInterface == null) {
+            Log.e(TAG, "Could not get IClientInterface instance from wificond");
+            return null;
+        }
+
+        return clientInterface;
+    }
+
     private IApInterface setupDriverForSoftAp() {
         if (mWificond == null) {
             Log.e(TAG, "Failed to get reference to wificond");
@@ -3597,8 +3623,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
 
         if (!mWifiNative.startHal()) {
-            /* starting HAL is optional */
-            Log.e(TAG, "Failed to start HAL");
+            //  starting HAL is optional
+            Log.e(TAG, "Failed to start HAL for AP mode");
         }
         return apInterface;
     }
@@ -3999,6 +4025,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mWifiNative.stopFilteringMulticastV4Packets();
                     }
                     break;
+                case CMD_CLIENT_INTERFACE_BINDER_DEATH:
+                    // We have lost contact with a client interface, which means that we cannot
+                    // trust that the driver is up or that the interface is ready.  We are fit
+                    // for no WiFi related work.
+                    transitionTo(mInitialState);
+                    break;
                 default:
                     loge("Error! unhandled message" + message);
                     break;
@@ -4008,8 +4040,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     class InitialState extends State {
-        @Override
-        public void enter() {
+
+        private void cleanup() {
+            /* Stop a running supplicant after a runtime restart
+            * Avoids issues with drivers that do not handle interface down
+            * on a running supplicant properly.
+            */
+            mWifiMonitor.killSupplicant(mP2pSupported);
+
+            mDeathRecipient.unlinkToDeath();
             if (mWificond != null) {
                 try {
                     mWificond.tearDownInterfaces();
@@ -4020,7 +4059,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 mWificond = null;
             }
             mWifiNative.stopHal();
-            mWifiNative.unloadDriver();
+        }
+
+        @Override
+        public void enter() {
+            cleanup();
             if (mWifiP2pChannel == null && mWifiP2pServiceImpl != null) {
                 mWifiP2pChannel = new AsyncChannel();
                 mWifiP2pChannel.connect(mContext, getHandler(),
@@ -4037,63 +4080,55 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             logStateAndMessage(message, this);
             switch (message.what) {
                 case CMD_START_SUPPLICANT:
-                    if (mWifiNative.loadDriver()) {
-                        try {
-                            mNwService.wifiFirmwareReload(mInterfaceName, "STA");
-                        } catch (Exception e) {
-                            loge("Failed to reload STA firmware " + e);
-                            setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
-                            return HANDLED;
-                        }
-
-                        try {
-                            // A runtime crash can leave the interface up and
-                            // IP addresses configured, and this affects
-                            // connectivity when supplicant starts up.
-                            // Ensure interface is down and we have no IP
-                            // addresses before a supplicant start.
-                            mNwService.setInterfaceDown(mInterfaceName);
-                            mNwService.clearInterfaceAddresses(mInterfaceName);
-
-                            // Set privacy extensions
-                            mNwService.setInterfaceIpv6PrivacyExtensions(mInterfaceName, true);
-
-                            // IPv6 is enabled only as long as access point is connected since:
-                            // - IPv6 addresses and routes stick around after disconnection
-                            // - kernel is unaware when connected and fails to start IPv6 negotiation
-                            // - kernel can start autoconfiguration when 802.1x is not complete
-                            mNwService.disableIpv6(mInterfaceName);
-                        } catch (RemoteException re) {
-                            loge("Unable to change interface settings: " + re);
-                        } catch (IllegalStateException ie) {
-                            loge("Unable to change interface settings: " + ie);
-                        }
-
-                       /* Stop a running supplicant after a runtime restart
-                        * Avoids issues with drivers that do not handle interface down
-                        * on a running supplicant properly.
-                        */
-                        mWifiMonitor.killSupplicant(mP2pSupported);
-
-                        if (mWifiNative.startHal() == false) {
-                            /* starting HAL is optional */
-                            loge("Failed to start HAL");
-                        }
-
-                        if (mWifiNative.startSupplicant(mP2pSupported)) {
-                            setSupplicantLogLevel();
-                            setWifiState(WIFI_STATE_ENABLING);
-                            if (mVerboseLoggingEnabled) log("Supplicant start successful");
-                            mWifiMonitor.startMonitoring(mInterfaceName);
-                            transitionTo(mSupplicantStartingState);
-                        } else {
-                            loge("Failed to start supplicant!");
-                            setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
-                        }
-                    } else {
-                        loge("Failed to load driver");
+                    // Refresh our reference to wificond.  This allows us to tolerate restarts.
+                    mWificond = mWifiInjector.makeWificond();
+                    IClientInterface clientInterface = setupDriverForClientMode();
+                    if (clientInterface == null ||
+                            !mDeathRecipient.linkToDeath(clientInterface.asBinder())) {
                         setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
+                        cleanup();
+                        break;
                     }
+
+                    try {
+                        // A runtime crash can leave the interface up and
+                        // IP addresses configured, and this affects
+                        // connectivity when supplicant starts up.
+                        // Ensure interface is down and we have no IP
+                        // addresses before a supplicant start.
+                        mNwService.setInterfaceDown(mInterfaceName);
+                        mNwService.clearInterfaceAddresses(mInterfaceName);
+
+                        // Set privacy extensions
+                        mNwService.setInterfaceIpv6PrivacyExtensions(mInterfaceName, true);
+
+                        // IPv6 is enabled only as long as access point is connected since:
+                        // - IPv6 addresses and routes stick around after disconnection
+                        // - kernel is unaware when connected and fails to start IPv6 negotiation
+                        // - kernel can start autoconfiguration when 802.1x is not complete
+                        mNwService.disableIpv6(mInterfaceName);
+                    } catch (RemoteException re) {
+                        loge("Unable to change interface settings: " + re);
+                    } catch (IllegalStateException ie) {
+                        loge("Unable to change interface settings: " + ie);
+                    }
+
+                    if (!mWifiNative.startHal()) {
+                        // starting HAL is optional
+                        Log.e(TAG, "Failed to start HAL for client mode");
+                    }
+
+                    if (!mWifiNative.startSupplicant(mP2pSupported)) {
+                        loge("Failed to start supplicant!");
+                        setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
+                        cleanup();
+                        break;
+                    }
+                    setSupplicantLogLevel();
+                    setWifiState(WIFI_STATE_ENABLING);
+                    if (mVerboseLoggingEnabled) log("Supplicant start successful");
+                    mWifiMonitor.startMonitoring(mInterfaceName);
+                    transitionTo(mSupplicantStartingState);
                     break;
                 case CMD_START_AP:
                     // Refresh our reference to wificond.  This allows us to tolerate restarts.
