@@ -16,7 +16,7 @@
 
 #include "wifi_system/hal_tool.h"
 
-#include <log/log.h>
+#include <android-base/logging.h>
 
 namespace android {
 namespace wifi_system {
@@ -564,12 +564,12 @@ bool init_wifi_stub_hal_func_table(wifi_hal_fn* hal_fn) {
 
 bool HalTool::InitFunctionTable(wifi_hal_fn* hal_fn) {
   if (!init_wifi_stub_hal_func_table(hal_fn)) {
-    ALOGE("Can not initialize the basic function pointer table");
+    LOG(ERROR) << "Can not initialize the basic function pointer table";
     return false;
   }
 
   if (init_wifi_vendor_hal_func_table(hal_fn) != WIFI_SUCCESS) {
-    ALOGE("Can not initialize the vendor function pointer table");
+    LOG(ERROR) << "Can not initialize the vendor function pointer table";
     return false;
   }
 

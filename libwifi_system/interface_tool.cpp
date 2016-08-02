@@ -22,8 +22,8 @@
    struct sockaddr and must be included after sys/socket.h. */
 #include <linux/if.h>
 
+#include <android-base/logging.h>
 #include <android-base/unique_fd.h>
-#include <log/log.h>
 
 namespace android {
 namespace wifi_system {
@@ -36,7 +36,8 @@ const char kWlan0InterfaceName[] = "wlan0";
 bool InterfaceTool::SetUpState(const char* if_name, bool request_up) {
   base::unique_fd sock(socket(PF_INET, SOCK_DGRAM, 0));
   if (sock.get() < 0) {
-    ALOGE("Bad socket: %d, errno: %d\n", sock.get(), errno);
+    LOG(ERROR) << "Failed to open socket to set up/down state ("
+               << strerror(errno) << ")";
     return false;
   }
 
@@ -44,12 +45,13 @@ bool InterfaceTool::SetUpState(const char* if_name, bool request_up) {
   memset(&ifr, 0, sizeof(ifr));
   if (strlcpy(ifr.ifr_name, if_name, sizeof(ifr.ifr_name)) >=
       sizeof(ifr.ifr_name)) {
-    ALOGE("Interface name is too long: %s\n", if_name);
+    LOG(ERROR) << "Interface name is too long: " << if_name;
     return false;
   }
 
   if (TEMP_FAILURE_RETRY(ioctl(sock.get(), SIOCGIFFLAGS, &ifr)) != 0) {
-    ALOGE("Could not read interface %s errno: %d\n", if_name, errno);
+    LOG(ERROR) << "Could not read interface state for " << if_name
+               << " (" << strerror(errno) << ")";
     return false;
   }
 
@@ -65,7 +67,8 @@ bool InterfaceTool::SetUpState(const char* if_name, bool request_up) {
   }
 
   if (TEMP_FAILURE_RETRY(ioctl(sock.get(), SIOCSIFFLAGS, &ifr)) != 0) {
-    ALOGE("Could not set interface %s flags: %d\n", if_name, errno);
+    LOG(ERROR) << "Could not set interface flags for " << if_name
+               << " (" << strerror(errno) << ")";
     return false;
   }
 
