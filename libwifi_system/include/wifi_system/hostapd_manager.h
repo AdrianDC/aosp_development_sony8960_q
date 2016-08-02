@@ -43,6 +43,10 @@ class HostapdManager {
   // Returns true if hostapd is currently running.
   virtual bool IsHostapdRunning();
 
+  // Returns true if hostapd is running, false otherwise.
+  // When true is returned, will write hostapd's pid to |hostapd_pid|.
+  virtual bool GetHostapdPid(pid_t* hostapd_pid);
+
   // Request that a running instance of hostapd be stopped.
   // Returns true on success.
   virtual bool StopHostapd();
@@ -70,8 +74,6 @@ class HostapdManager {
   virtual bool WriteHostapdConfig(const std::string& config_file);
 
  private:
-  bool hostapd_is_running_ = false;
-
   DISALLOW_COPY_AND_ASSIGN(HostapdManager);
 };  // class HostapdManager
 
