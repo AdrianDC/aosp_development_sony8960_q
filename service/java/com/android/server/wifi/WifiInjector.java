@@ -232,7 +232,7 @@ public class WifiInjector {
             SoftApManager.Listener listener, IApInterface apInterface) {
         return new SoftApManager(
                 mWifiServiceHandlerThread.getLooper(),
-                wifiNative, nmService, countryCode,
+                wifiNative, countryCode,
                 allowed2GChannels, listener, apInterface);
     }
 }
