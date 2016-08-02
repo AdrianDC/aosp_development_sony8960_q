@@ -271,7 +271,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private boolean mIsFullScanOngoing = false;
     private boolean mSendScanResultsBroadcast = false;
 
-    private final Queue<Message> mBufferedScanMsg = new LinkedList<Message>();
+    private final Queue<Message> mBufferedScanMsg = new LinkedList<>();
     private static final int UNKNOWN_SCAN_SOURCE = -1;
     private static final int ADD_OR_UPDATE_SOURCE = -3;
 
@@ -1353,37 +1353,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         sendMessage(CMD_START_SCAN, callingUid, scanCounter, bundle);
     }
 
-    // called from BroadcastListener
-
-    /**
-     * Start reading new scan data
-     * Data comes in as:
-     * "scancount=5\n"
-     * "nextcount=5\n"
-     * "apcount=3\n"
-     * "trunc\n" (optional)
-     * "bssid=...\n"
-     * "ssid=...\n"
-     * "freq=...\n" (in Mhz)
-     * "level=...\n"
-     * "dist=...\n" (in cm)
-     * "distsd=...\n" (standard deviation, in cm)
-     * "===="
-     * "bssid=...\n"
-     * etc
-     * "===="
-     * "bssid=...\n"
-     * etc
-     * "%%%%"
-     * "apcount=2\n"
-     * "bssid=...\n"
-     * etc
-     * "%%%%
-     * etc
-     * "----"
-     */
-    private final static boolean DEBUG_PARSE = false;
-
     private long mDisconnectedTimeStamp = 0;
 
     public long getDisconnectedTimeMilli() {
@@ -1528,7 +1497,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         Set<Integer> freqs = null;
         if (settings != null && settings.channelSet != null) {
-            freqs = new HashSet<Integer>();
+            freqs = new HashSet<>();
             for (WifiChannel channel : settings.channelSet) {
                 freqs.add(channel.freqMHz);
             }
@@ -1800,7 +1769,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     public List<ScanResult> syncGetScanResultsList() {
         synchronized (mScanResultsLock) {
-            List<ScanResult> scanList = new ArrayList<ScanResult>();
+            List<ScanResult> scanList = new ArrayList<>();
             for (ScanDetail result : mScanResults) {
                 scanList.add(new ScanResult(result.getScanResult()));
             }
