@@ -590,7 +590,7 @@ public class WifiNanDataPathStateManagerTest {
 
     private NetworkRequest getSessionNetworkRequest(int clientId, int sessionId, int peerId,
             int role, String token) throws Exception {
-        final WifiNanManager mgr = new WifiNanManager(mMockNanService);
+        final WifiNanManager mgr = new WifiNanManager(mMockContext, mMockNanService);
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
         final PublishConfig publishConfig = new PublishConfig.Builder().build();
 
@@ -604,12 +604,12 @@ public class WifiNanDataPathStateManagerTest {
         WifiNanEventCallback mockCallback = mock(WifiNanEventCallback.class);
         WifiNanSessionCallback mockSessionCallback = mock(WifiNanSessionCallback.class);
 
-        when(mMockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                any(ConfigRequest.class))).thenReturn(clientId);
+        when(mMockNanService.connect(any(IBinder.class), anyString(),
+                any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
 
         mgr.connect(mMockLooper.getLooper(), mockCallback, configRequest);
-        verify(mMockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
-                eq(configRequest));
+        verify(mMockNanService).connect(any(IBinder.class), anyString(),
+                clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess();
         mMockLooper.dispatchAll();
         mgr.publish(publishConfig, mockSessionCallback);
@@ -638,19 +638,19 @@ public class WifiNanDataPathStateManagerTest {
     private NetworkRequest getDirectNetworkRequest(int clientId, int role, byte[] peer,
             String token) throws Exception {
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
-        final WifiNanManager mgr = new WifiNanManager(mMockNanService);
+        final WifiNanManager mgr = new WifiNanManager(mMockContext, mMockNanService);
 
         ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
                 .forClass(IWifiNanEventCallback.class);
 
         WifiNanEventCallback mockCallback = mock(WifiNanEventCallback.class);
 
-        when(mMockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                any(ConfigRequest.class))).thenReturn(clientId);
+        when(mMockNanService.connect(any(IBinder.class), anyString(),
+                any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
 
         mgr.connect(mMockLooper.getLooper(), mockCallback, configRequest);
-        verify(mMockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
-                eq(configRequest));
+        verify(mMockNanService).connect(any(IBinder.class), anyString(),
+                clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess();
         mMockLooper.dispatchAll();
 
@@ -672,6 +672,8 @@ public class WifiNanDataPathStateManagerTest {
     private Pair<Integer, Messenger> initDataPathEndPoint(int clientId, int pubSubId, int peerId,
             byte[] peerDiscoveryMac, InOrder inOrder) throws Exception {
         final int uid = 1000;
+        final int pid = 2000;
+        final String callingPackage = "com.android.somePackage";
         final String someMsg = "some arbitrary message from peer";
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
         final PublishConfig publishConfig = new PublishConfig.Builder().build();
@@ -708,7 +710,7 @@ public class WifiNanDataPathStateManagerTest {
         mMockLooper.dispatchAll();
 
         // (3) create client & session & rx message
-        mDut.connect(clientId, uid, mMockCallback, configRequest);
+        mDut.connect(clientId, uid, pid, callingPackage, mMockCallback, configRequest);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
                 eq(configRequest), eq(true));

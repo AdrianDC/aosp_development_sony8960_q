@@ -20,6 +20,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.inOrder;
@@ -27,6 +28,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import android.content.Context;
 import android.net.wifi.RttManager;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventCallback;
@@ -70,6 +72,9 @@ public class WifiNanManagerTest {
     public ErrorCollector collector = new ErrorCollector();
 
     @Mock
+    public Context mockContext;
+
+    @Mock
     public WifiNanEventCallback mockCallback;
 
     @Mock
@@ -91,7 +96,7 @@ public class WifiNanManagerTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        mDut = new WifiNanManager(mockNanService);
+        mDut = new WifiNanManager(mockContext, mockNanService);
         mMockLooper = new MockLooper();
     }
 
@@ -141,8 +146,8 @@ public class WifiNanManagerTest {
     public void testConnectFlow() throws Exception {
         final int clientId = 4565;
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                any(ConfigRequest.class))).thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), anyString(),
+                any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService);
         ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
@@ -154,7 +159,7 @@ public class WifiNanManagerTest {
 
         // (2) connect + success
         mDut.connect(mMockLooper.getLooper(), mockCallback);
-        inOrder.verify(mockNanService).connect(binder.capture(),
+        inOrder.verify(mockNanService).connect(binder.capture(), anyString(),
                 clientProxyCallback.capture(), (ConfigRequest) isNull());
         clientProxyCallback.getValue().onConnectSuccess();
         mMockLooper.dispatchAll();
@@ -175,8 +180,8 @@ public class WifiNanManagerTest {
 
         // (6) connect
         mDut.connect(mMockLooper.getLooper(), mockCallback);
-        inOrder.verify(mockNanService).connect(binder.capture(), any(IWifiNanEventCallback.class),
-                (ConfigRequest) isNull());
+        inOrder.verify(mockNanService).connect(binder.capture(), anyString(),
+                any(IWifiNanEventCallback.class), (ConfigRequest) isNull());
 
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService);
     }
@@ -190,8 +195,8 @@ public class WifiNanManagerTest {
         final int clientId = 4565;
         final int reason = WifiNanEventCallback.REASON_OTHER;
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                any(ConfigRequest.class))).thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), anyString(),
+                any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService);
         ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
@@ -199,8 +204,8 @@ public class WifiNanManagerTest {
 
         // (1) connect + failure
         mDut.connect(mMockLooper.getLooper(), mockCallback);
-        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
-                (ConfigRequest) isNull());
+        inOrder.verify(mockNanService).connect(any(IBinder.class), anyString(),
+                clientProxyCallback.capture(), (ConfigRequest) isNull());
         clientProxyCallback.getValue().onConnectFail(reason);
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectFail(reason);
@@ -211,8 +216,8 @@ public class WifiNanManagerTest {
 
         // (3) connect + success
         mDut.connect(mMockLooper.getLooper(), mockCallback);
-        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
-                (ConfigRequest) isNull());
+        inOrder.verify(mockNanService).connect(any(IBinder.class), anyString(),
+                clientProxyCallback.capture(), (ConfigRequest) isNull());
         clientProxyCallback.getValue().onConnectSuccess();
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectSuccess();
@@ -234,8 +239,8 @@ public class WifiNanManagerTest {
     public void testInvalidConnectSequence() throws Exception {
         final int clientId = 4565;
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                any(ConfigRequest.class))).thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), anyString(),
+                any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService);
         ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
@@ -243,16 +248,16 @@ public class WifiNanManagerTest {
 
         // (1) connect + success
         mDut.connect(mMockLooper.getLooper(), mockCallback);
-        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
-                (ConfigRequest) isNull());
+        inOrder.verify(mockNanService).connect(any(IBinder.class), anyString(),
+                clientProxyCallback.capture(), (ConfigRequest) isNull());
         clientProxyCallback.getValue().onConnectSuccess();
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectSuccess();
 
         // (2) connect - forward to service (though will fail silently)
         mDut.connect(mMockLooper.getLooper(), mockCallback);
-        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
-                (ConfigRequest) isNull());
+        inOrder.verify(mockNanService).connect(any(IBinder.class), anyString(),
+                clientProxyCallback.capture(), (ConfigRequest) isNull());
 
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mockNanService);
     }
@@ -279,8 +284,8 @@ public class WifiNanManagerTest {
         final int messageId = 2123;
         final int reason = WifiNanSessionCallback.REASON_OTHER;
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                eq(configRequest))).thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), anyString(),
+                any(IWifiNanEventCallback.class), eq(configRequest))).thenReturn(clientId);
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
                 mockPublishSession);
@@ -293,7 +298,7 @@ public class WifiNanManagerTest {
 
         // (0) connect + success
         mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
-        inOrder.verify(mockNanService).connect(any(IBinder.class),
+        inOrder.verify(mockNanService).connect(any(IBinder.class), anyString(),
                 clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess();
         mMockLooper.dispatchAll();
@@ -358,8 +363,8 @@ public class WifiNanManagerTest {
         final PublishConfig publishConfig = new PublishConfig.Builder().build();
         final int reason = WifiNanSessionCallback.TERMINATE_REASON_DONE;
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                eq(configRequest))).thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), anyString(),
+                any(IWifiNanEventCallback.class), eq(configRequest))).thenReturn(clientId);
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
                 mockPublishSession);
@@ -372,8 +377,8 @@ public class WifiNanManagerTest {
 
         // (1) connect successfully
         mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
-        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
-                eq(configRequest));
+        inOrder.verify(mockNanService).connect(any(IBinder.class), anyString(),
+                clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess();
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectSuccess();
@@ -413,8 +418,8 @@ public class WifiNanManagerTest {
         final int messageId = 2123;
         final int reason = WifiNanSessionCallback.REASON_OTHER;
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                eq(configRequest))).thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), anyString(),
+                any(IWifiNanEventCallback.class), eq(configRequest))).thenReturn(clientId);
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
                 mockSubscribeSession);
@@ -427,8 +432,8 @@ public class WifiNanManagerTest {
 
         // (0) connect + success
         mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
-        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
-                eq(configRequest));
+        inOrder.verify(mockNanService).connect(any(IBinder.class), anyString(),
+                clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess();
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectSuccess();
@@ -492,8 +497,8 @@ public class WifiNanManagerTest {
         final SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
         final int reason = WifiNanSessionCallback.TERMINATE_REASON_DONE;
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                eq(configRequest))).thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), anyString(),
+                any(IWifiNanEventCallback.class), eq(configRequest))).thenReturn(clientId);
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
                 mockSubscribeSession);
@@ -506,8 +511,8 @@ public class WifiNanManagerTest {
 
         // (1) connect successfully
         mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
-        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
-                eq(configRequest));
+        inOrder.verify(mockNanService).connect(any(IBinder.class), anyString(),
+                clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess();
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectSuccess();
@@ -871,8 +876,8 @@ public class WifiNanManagerTest {
         final RttManager.RttResult rttResults = new RttManager.RttResult();
         rttResults.distance = 10;
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                eq(configRequest))).thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), anyString(),
+                any(IWifiNanEventCallback.class), eq(configRequest))).thenReturn(clientId);
         when(mockNanService.startRanging(anyInt(), anyInt(),
                 any(RttManager.ParcelableRttParams.class))).thenReturn(rangingId);
 
@@ -891,8 +896,8 @@ public class WifiNanManagerTest {
 
         // (1) connect successfully
         mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
-        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
-                eq(configRequest));
+        inOrder.verify(mockNanService).connect(any(IBinder.class), anyString(),
+                clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess();
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectSuccess();
@@ -957,16 +962,16 @@ public class WifiNanManagerTest {
         ArgumentCaptor<WifiNanPublishSession> publishSession = ArgumentCaptor
                 .forClass(WifiNanPublishSession.class);
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                any(ConfigRequest.class))).thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), anyString(),
+                any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
                 mockPublishSession, mockRttListener);
 
         // (1) connect successfully
         mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
-        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
-                eq(configRequest));
+        inOrder.verify(mockNanService).connect(any(IBinder.class), anyString(),
+                clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess();
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectSuccess();
@@ -1017,16 +1022,16 @@ public class WifiNanManagerTest {
         ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
                 .forClass(IWifiNanEventCallback.class);
 
-        when(mockNanService.connect(any(IBinder.class), any(IWifiNanEventCallback.class),
-                any(ConfigRequest.class))).thenReturn(clientId);
+        when(mockNanService.connect(any(IBinder.class), anyString(),
+                any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
                 mockPublishSession, mockRttListener);
 
         // (1) connect successfully
         mDut.connect(mMockLooper.getLooper(), mockCallback, configRequest);
-        inOrder.verify(mockNanService).connect(any(IBinder.class), clientProxyCallback.capture(),
-                eq(configRequest));
+        inOrder.verify(mockNanService).connect(any(IBinder.class), anyString(),
+                clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess();
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectSuccess();

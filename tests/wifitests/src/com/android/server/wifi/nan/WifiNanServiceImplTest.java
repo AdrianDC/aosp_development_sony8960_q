@@ -165,12 +165,14 @@ public class WifiNanServiceImplTest {
     @Test
     public void testConnectWithConfig() {
         ConfigRequest configRequest = new ConfigRequest.Builder().setMasterPreference(55).build();
+        String callingPackage = "com.google.somePackage";
 
-        int returnedClientId = mDut.connect(mBinderMock, mCallbackMock, configRequest);
+        int returnedClientId = mDut.connect(mBinderMock, callingPackage, mCallbackMock,
+                configRequest);
 
         ArgumentCaptor<Integer> clientId = ArgumentCaptor.forClass(Integer.class);
-        verify(mNanStateManagerMock).connect(clientId.capture(), anyInt(), eq(mCallbackMock),
-                eq(configRequest));
+        verify(mNanStateManagerMock).connect(clientId.capture(), anyInt(), anyInt(),
+                eq(callingPackage), eq(mCallbackMock), eq(configRequest));
         assertEquals(returnedClientId, (int) clientId.getValue());
     }
 
@@ -272,7 +274,7 @@ public class WifiNanServiceImplTest {
 
         int prevId = 0;
         for (int i = 0; i < loopCount; ++i) {
-            int id = mDut.connect(mBinderMock, mCallbackMock, null);
+            int id = mDut.connect(mBinderMock, "", mCallbackMock, null);
             if (i != 0) {
                 assertTrue("Client ID incrementing", id > prevId);
             }
@@ -480,11 +482,13 @@ public class WifiNanServiceImplTest {
      */
 
     private int doConnect() {
-        int returnedClientId = mDut.connect(mBinderMock, mCallbackMock, null);
+        String callingPackage = "com.google.somePackage";
+
+        int returnedClientId = mDut.connect(mBinderMock, callingPackage, mCallbackMock, null);
 
         ArgumentCaptor<Integer> clientId = ArgumentCaptor.forClass(Integer.class);
-        verify(mNanStateManagerMock).connect(clientId.capture(), anyInt(), eq(mCallbackMock),
-                eq(new ConfigRequest.Builder().build()));
+        verify(mNanStateManagerMock).connect(clientId.capture(), anyInt(), anyInt(),
+                eq(callingPackage), eq(mCallbackMock), eq(new ConfigRequest.Builder().build()));
         assertEquals(returnedClientId, (int) clientId.getValue());
 
         return returnedClientId;
