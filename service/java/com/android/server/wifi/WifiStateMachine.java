@@ -193,7 +193,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private INetworkManagementService mNwService;
     private IWificond mWificond;
     private ConnectivityManager mCm;
-    private BaseWifiLogger mWifiLogger;
+    private BaseWifiDiagnostics mWifiDiagnostics;
     private WifiApConfigStore mWifiApConfigStore;
     private final boolean mP2pSupported;
     private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
@@ -974,9 +974,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 R.bool.config_wifi_enable_wifi_firmware_debugging);
 
         if (enableFirmwareLogs) {
-            mWifiLogger = facade.makeRealLogger(mContext, this, mWifiNative, mBuildProperties);
+            mWifiDiagnostics = facade.makeRealDiagnostics(
+                    mContext, this, mWifiNative, mBuildProperties);
         } else {
-            mWifiLogger = facade.makeBaseLogger();
+            mWifiDiagnostics = facade.makeBaseDiagnostics();
         }
 
         mWifiInfo = new WifiInfo();
@@ -1244,7 +1245,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         configureVerboseHalLogging(mVerboseLoggingEnabled);
         setSupplicantLogLevel();
         mCountryCode.enableVerboseLogging(verbose);
-        mWifiLogger.startLogging(mVerboseLoggingEnabled);
+        mWifiDiagnostics.startLogging(mVerboseLoggingEnabled);
         mWifiMonitor.enableVerboseLogging(verbose);
         mWifiNative.enableVerboseLogging(verbose);
         mWifiConfigManager.enableVerboseLogging(verbose);
@@ -2215,8 +2216,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         mWifiConfigManager.dump(fd, pw, args);
         pw.println();
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_USER_ACTION);
-        mWifiLogger.dump(fd, pw, args);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_USER_ACTION);
+        mWifiDiagnostics.dump(fd, pw, args);
         mWifiQualifiedNetworkSelector.dump(fd, pw, args);
         dumpIpManager(fd, pw, args);
         if (mWifiConnectivityManager != null) {
@@ -3465,7 +3466,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     /**
-     * Inform other components (WifiMetrics, WifiLogger, etc.) that the current connection attempt
+     * Inform other components (WifiMetrics, WifiDiagnostics, etc.) that the current connection attempt
      * has concluded.
      */
     private void reportConnectionAttemptEnd(int level2FailureCode, int connectivityFailureCode) {
@@ -3474,10 +3475,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             case WifiMetrics.ConnectionEvent.FAILURE_NONE:
             case WifiMetrics.ConnectionEvent.FAILURE_REDUNDANT_CONNECTION_ATTEMPT:
             case WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED:
-                // WifiLogger doesn't care about success, or pre-empted connections.
+                // WifiDiagnostics doesn't care about success, or pre-empted connections.
                 break;
             default:
-                mWifiLogger.reportConnectionFailure();
+                mWifiDiagnostics.reportConnectionFailure();
         }
     }
 
@@ -3540,7 +3541,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private void handleIPv4Failure() {
         // TODO: Move this to provisioning failure, not DHCP failure.
         // DHCPv4 failure is expected on an IPv6-only network.
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_DHCP_FAILURE);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_DHCP_FAILURE);
         if (mVerboseLoggingEnabled) {
             int count = -1;
             WifiConfiguration config = getCurrentWifiConfiguration();
@@ -3926,9 +3927,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     replyToMessage(message, message.what, featureSet);
                     break;
                 case CMD_FIRMWARE_ALERT:
-                    if (mWifiLogger != null) {
+                    if (mWifiDiagnostics != null) {
                         byte[] buffer = (byte[])message.obj;
-                        mWifiLogger.captureAlertData(message.arg1, buffer);
+                        mWifiDiagnostics.captureAlertData(message.arg1, buffer);
                     }
                     break;
                 case CMD_GET_LINK_LAYER_STATS:
@@ -4464,7 +4465,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     getHandler().getLooper());
             }
 
-            mWifiLogger.startLogging(mVerboseLoggingEnabled);
+            mWifiDiagnostics.startLogging(mVerboseLoggingEnabled);
             mIsRunning = true;
             updateBatteryWorkSource(null);
             /**
@@ -4670,7 +4671,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         @Override
         public void exit() {
-            mWifiLogger.stopLogging();
+            mWifiDiagnostics.stopLogging();
 
             mIsRunning = false;
             updateBatteryWorkSource(null);
@@ -5123,7 +5124,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             switch (message.what) {
                 case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
-                    mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_ASSOC_FAILURE);
+                    mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_ASSOC_FAILURE);
                     didBlackListBSSID = false;
                     bssid = (String) message.obj;
                     if (bssid == null || TextUtils.isEmpty(bssid)) {
@@ -5153,7 +5154,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                     WifiLastResortWatchdog.FAILURE_CODE_ASSOCIATION);
                     break;
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
-                    mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_AUTH_FAILURE);
+                    mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_AUTH_FAILURE);
                     mSupplicantStateTracker.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT);
                     if (mTargetNetworkId != WifiConfiguration.INVALID_NETWORK_ID) {
                         mWifiConfigManager.updateNetworkSelectionStatus(mTargetNetworkId,
@@ -6661,7 +6662,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_IP_CONFIGURATION_LOST:
                     config = getCurrentWifiConfiguration();
                     if (config != null) {
-                        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_AUTOROAM_FAILURE);
+                        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_AUTOROAM_FAILURE);
                         mWifiConfigManager.noteRoamingFailure(config,
                                 WifiConfiguration.ROAMING_FAILURE_IP_CONFIG);
                     }
@@ -6782,8 +6783,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (message.arg1 == mLastNetworkId) {
                         config = getCurrentWifiConfiguration();
                         if (config != null) {
-                            mWifiLogger.captureBugReportData(
-                                    WifiLogger.REPORT_REASON_AUTOROAM_FAILURE);
+                            mWifiDiagnostics.captureBugReportData(
+                                    WifiDiagnostics.REPORT_REASON_AUTOROAM_FAILURE);
                             mWifiConfigManager.noteRoamingFailure(config,
                                     WifiConfiguration.ROAMING_FAILURE_AUTH_FAILURE);
                         }
@@ -6921,8 +6922,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mLastDriverRoamAttempt = 0;
                     }
                     if (unexpectedDisconnectedReason(message.arg2)) {
-                        mWifiLogger.captureBugReportData(
-                                WifiLogger.REPORT_REASON_UNEXPECTED_DISCONNECT);
+                        mWifiDiagnostics.captureBugReportData(
+                                WifiDiagnostics.REPORT_REASON_UNEXPECTED_DISCONNECT);
                     }
                     config = getCurrentWifiConfiguration();
                     if (mWifiConfigManager.mEnableLinkDebouncing

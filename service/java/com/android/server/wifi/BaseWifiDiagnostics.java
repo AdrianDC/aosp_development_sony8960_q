@@ -7,13 +7,13 @@ import java.io.PrintWriter;
 /**
  *
  */
-public class BaseWifiLogger {
+public class BaseWifiDiagnostics {
 
     protected String mFirmwareVersion;
     protected String mDriverVersion;
     protected int mSupportedFeatureSet;
 
-    public BaseWifiLogger() { }
+    public BaseWifiDiagnostics() { }
 
     public synchronized void startLogging(boolean verboseEnabled) {
         WifiNative wifiNative = WifiNative.getWlanNativeInterface();

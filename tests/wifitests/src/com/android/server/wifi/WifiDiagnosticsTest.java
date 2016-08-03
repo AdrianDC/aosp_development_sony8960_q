@@ -45,17 +45,17 @@ import java.io.StringWriter;
 import java.util.regex.Pattern;
 
 /**
- * Unit tests for {@link com.android.server.wifi.WifiLogger}.
+ * Unit tests for {@link WifiDiagnostics}.
  */
 @SmallTest
-public class WifiLoggerTest {
-    public static final String TAG = "WifiLoggerTest";
+public class WifiDiagnosticsTest {
+    public static final String TAG = "WifiDiagsTest";
 
     @Mock WifiStateMachine mWsm;
     @Mock WifiNative mWifiNative;
     @Mock BuildProperties mBuildProperties;
     @Mock Context mContext;
-    WifiLogger mWifiLogger;
+    WifiDiagnostics mWifiDiagnostics;
 
     private static final String FAKE_RING_BUFFER_NAME = "fake-ring-buffer";
     private static final int SMALL_RING_BUFFER_SIZE_KB = 32;
@@ -70,7 +70,7 @@ public class WifiLoggerTest {
      * dimension is the byte index within that record.
      */
     private final byte[][] getLoggerRingBufferData() throws Exception {
-        return mWifiLogger.getBugReports().get(0).ringBuffers.get(FAKE_RING_BUFFER_NAME);
+        return mWifiDiagnostics.getBugReports().get(0).ringBuffers.get(FAKE_RING_BUFFER_NAME);
     }
 
     /**
@@ -101,7 +101,7 @@ public class WifiLoggerTest {
                 LARGE_RING_BUFFER_SIZE_KB);
         when(mContext.getResources()).thenReturn(resources);
 
-        mWifiLogger = new WifiLogger(mContext, mWsm, mWifiNative, mBuildProperties);
+        mWifiDiagnostics = new WifiDiagnostics(mContext, mWsm, mWifiNative, mBuildProperties);
         mWifiNative.enableVerboseLogging(0);
     }
 
@@ -109,7 +109,7 @@ public class WifiLoggerTest {
     @Test
     public void startLoggingRegistersLogEventHandler() throws Exception {
         final boolean verbosityToggle = false;  // even default mode wants log events from HAL
-        mWifiLogger.startLogging(verbosityToggle);
+        mWifiDiagnostics.startLogging(verbosityToggle);
         verify(mWifiNative).setLoggingEventHandler(anyObject());
     }
 
@@ -123,12 +123,12 @@ public class WifiLoggerTest {
         final boolean verbosityToggle = false;  // even default mode wants log events from HAL
 
         when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(false);
-        mWifiLogger.startLogging(verbosityToggle);
+        mWifiDiagnostics.startLogging(verbosityToggle);
         verify(mWifiNative).setLoggingEventHandler(anyObject());
         reset(mWifiNative);
 
         when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(true);
-        mWifiLogger.startLogging(verbosityToggle);
+        mWifiDiagnostics.startLogging(verbosityToggle);
         verify(mWifiNative).setLoggingEventHandler(anyObject());
     }
 
@@ -139,11 +139,11 @@ public class WifiLoggerTest {
         final boolean verbosityToggle = false;  // even default mode wants log events from HAL
 
         when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(true);
-        mWifiLogger.startLogging(verbosityToggle);
+        mWifiDiagnostics.startLogging(verbosityToggle);
         verify(mWifiNative).setLoggingEventHandler(anyObject());
         reset(mWifiNative);
 
-        mWifiLogger.startLogging(verbosityToggle);
+        mWifiDiagnostics.startLogging(verbosityToggle);
         verify(mWifiNative, never()).setLoggingEventHandler(anyObject());
     }
 
@@ -157,12 +157,12 @@ public class WifiLoggerTest {
     @Test
     public void startLoggingStopsAndRestartsRingBufferLogging() throws Exception {
         final boolean verbosityToggle = false;
-        mWifiLogger.startLogging(verbosityToggle);
+        mWifiDiagnostics.startLogging(verbosityToggle);
         verify(mWifiNative).startLoggingRingBuffer(
-                eq(WifiLogger.VERBOSE_NO_LOG), anyInt(), anyInt(), anyInt(),
+                eq(WifiDiagnostics.VERBOSE_NO_LOG), anyInt(), anyInt(), anyInt(),
                 eq(FAKE_RING_BUFFER_NAME));
         verify(mWifiNative).startLoggingRingBuffer(
-                eq(WifiLogger.VERBOSE_NORMAL_LOG), anyInt(), anyInt(), anyInt(),
+                eq(WifiDiagnostics.VERBOSE_NORMAL_LOG), anyInt(), anyInt(), anyInt(),
                 eq(FAKE_RING_BUFFER_NAME));
     }
 
@@ -172,10 +172,10 @@ public class WifiLoggerTest {
         final boolean verbosityToggle = false;  // even default mode wants log events from HAL
 
         when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(true);
-        mWifiLogger.startLogging(verbosityToggle);
+        mWifiDiagnostics.startLogging(verbosityToggle);
         reset(mWifiNative);
 
-        mWifiLogger.stopLogging();
+        mWifiDiagnostics.stopLogging();
         verify(mWifiNative).resetLogHandler();
     }
 
@@ -183,7 +183,7 @@ public class WifiLoggerTest {
     @Test
     public void stopLoggingOnlyResetsLogHandlerIfHandlerWasRegistered() throws Exception {
         final boolean verbosityToggle = false;  // even default mode wants log events from HAL
-        mWifiLogger.stopLogging();
+        mWifiDiagnostics.stopLogging();
         verify(mWifiNative, never()).resetLogHandler();
     }
 
@@ -193,15 +193,15 @@ public class WifiLoggerTest {
         final boolean verbosityToggle = false;  // even default mode wants log events from HAL
 
         when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(true);
-        mWifiLogger.startLogging(verbosityToggle);
+        mWifiDiagnostics.startLogging(verbosityToggle);
         reset(mWifiNative);
 
         when(mWifiNative.resetLogHandler()).thenReturn(true);
-        mWifiLogger.stopLogging();
+        mWifiDiagnostics.stopLogging();
         verify(mWifiNative).resetLogHandler();
         reset(mWifiNative);
 
-        mWifiLogger.stopLogging();
+        mWifiDiagnostics.stopLogging();
         verify(mWifiNative, never()).resetLogHandler();
     }
 
@@ -211,11 +211,11 @@ public class WifiLoggerTest {
     @Test
     public void canCaptureAndStoreRingBufferData() throws Exception {
         final boolean verbosityToggle = false;
-        mWifiLogger.startLogging(verbosityToggle);
+        mWifiDiagnostics.startLogging(verbosityToggle);
 
         final byte[] data = new byte[SMALL_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE];
-        mWifiLogger.onRingBufferData(mFakeRbs, data);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.onRingBufferData(mFakeRbs, data);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
 
         byte[][] ringBufferData = getLoggerRingBufferData();
         assertEquals(1, ringBufferData.length);
@@ -228,13 +228,13 @@ public class WifiLoggerTest {
     @Test
     public void loggerDiscardsExtraneousData() throws Exception {
         final boolean verbosityToggle = false;
-        mWifiLogger.startLogging(verbosityToggle);
+        mWifiDiagnostics.startLogging(verbosityToggle);
 
         final byte[] data1 = new byte[SMALL_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE];
         final byte[] data2 = {1, 2, 3};
-        mWifiLogger.onRingBufferData(mFakeRbs, data1);
-        mWifiLogger.onRingBufferData(mFakeRbs, data2);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.onRingBufferData(mFakeRbs, data1);
+        mWifiDiagnostics.onRingBufferData(mFakeRbs, data2);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
 
         byte[][] ringBufferData = getLoggerRingBufferData();
         assertEquals(1, ringBufferData.length);
@@ -248,7 +248,7 @@ public class WifiLoggerTest {
     @Test
     public void startLoggingStartsPacketFateWithoutVerboseMode() {
         final boolean verbosityToggle = false;
-        mWifiLogger.startLogging(verbosityToggle);
+        mWifiDiagnostics.startLogging(verbosityToggle);
         verify(mWifiNative).startPktFateMonitoring();
     }
 
@@ -259,7 +259,7 @@ public class WifiLoggerTest {
     @Test
     public void startLoggingStartsPacketFateInVerboseMode() {
         final boolean verbosityToggle = true;
-        mWifiLogger.startLogging(verbosityToggle);
+        mWifiDiagnostics.startLogging(verbosityToggle);
         verify(mWifiNative).startPktFateMonitoring();
     }
 
@@ -270,8 +270,8 @@ public class WifiLoggerTest {
     @Test
     public void reportConnectionFailureIsIgnoredWithoutVerboseMode() {
         final boolean verbosityToggle = false;
-        mWifiLogger.startLogging(verbosityToggle);
-        mWifiLogger.reportConnectionFailure();
+        mWifiDiagnostics.startLogging(verbosityToggle);
+        mWifiDiagnostics.reportConnectionFailure();
         verify(mWifiNative).getTxPktFates(anyObject());
         verify(mWifiNative).getRxPktFates(anyObject());
     }
@@ -282,8 +282,8 @@ public class WifiLoggerTest {
     @Test
     public void reportConnectionFailureFetchesFatesInVerboseMode() {
         final boolean verbosityToggle = true;
-        mWifiLogger.startLogging(verbosityToggle);
-        mWifiLogger.reportConnectionFailure();
+        mWifiDiagnostics.startLogging(verbosityToggle);
+        mWifiDiagnostics.reportConnectionFailure();
         verify(mWifiNative).getTxPktFates(anyObject());
         verify(mWifiNative).getRxPktFates(anyObject());
     }
@@ -295,8 +295,8 @@ public class WifiLoggerTest {
     public void loggerFetchesTxFatesEvenIfFetchingRxFatesFails() {
         final boolean verbosityToggle = true;
         when(mWifiNative.getRxPktFates(anyObject())).thenReturn(false);
-        mWifiLogger.startLogging(verbosityToggle);
-        mWifiLogger.reportConnectionFailure();
+        mWifiDiagnostics.startLogging(verbosityToggle);
+        mWifiDiagnostics.reportConnectionFailure();
         verify(mWifiNative).getTxPktFates(anyObject());
         verify(mWifiNative).getRxPktFates(anyObject());
     }
@@ -308,8 +308,8 @@ public class WifiLoggerTest {
     public void loggerFetchesRxFatesEvenIfFetchingTxFatesFails() {
         final boolean verbosityToggle = true;
         when(mWifiNative.getTxPktFates(anyObject())).thenReturn(false);
-        mWifiLogger.startLogging(verbosityToggle);
-        mWifiLogger.reportConnectionFailure();
+        mWifiDiagnostics.startLogging(verbosityToggle);
+        mWifiDiagnostics.reportConnectionFailure();
         verify(mWifiNative).getTxPktFates(anyObject());
         verify(mWifiNative).getRxPktFates(anyObject());
     }
@@ -320,8 +320,8 @@ public class WifiLoggerTest {
         final boolean verbosityToggle = false;
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        mWifiLogger.startLogging(verbosityToggle);
-        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
+        mWifiDiagnostics.startLogging(verbosityToggle);
+        mWifiDiagnostics.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
         verify(mWifiNative).getTxPktFates(anyObject());
         verify(mWifiNative).getRxPktFates(anyObject());
     }
@@ -334,7 +334,7 @@ public class WifiLoggerTest {
     public void dumpSucceedsWhenNoFatesHaveNotBeenFetched() {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
+        mWifiDiagnostics.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
 
         String fateDumpString = sw.toString();
         assertTrue(fateDumpString.contains("Last failed"));
@@ -350,14 +350,14 @@ public class WifiLoggerTest {
     @Test
     public void dumpSucceedsWhenFatesHaveBeenFetchedButAreEmpty() {
         final boolean verbosityToggle = true;
-        mWifiLogger.startLogging(verbosityToggle);
-        mWifiLogger.reportConnectionFailure();
+        mWifiDiagnostics.startLogging(verbosityToggle);
+        mWifiDiagnostics.reportConnectionFailure();
         verify(mWifiNative).getTxPktFates(anyObject());
         verify(mWifiNative).getRxPktFates(anyObject());
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
+        mWifiDiagnostics.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
 
         String fateDumpString = sw.toString();
         assertTrue(fateDumpString.contains("Last failed"));
@@ -367,7 +367,7 @@ public class WifiLoggerTest {
     }
 
     private String getDumpString(boolean verbose) {
-        mWifiLogger.startLogging(verbose);
+        mWifiDiagnostics.startLogging(verbose);
         mWifiNative.enableVerboseLogging(verbose ? 1 : 0);
         when(mWifiNative.getTxPktFates(anyObject())).then(new AnswerWithArguments() {
             public boolean answer(WifiNative.TxFateReport[] fates) {
@@ -395,11 +395,11 @@ public class WifiLoggerTest {
                 return true;
             }
         });
-        mWifiLogger.reportConnectionFailure();
+        mWifiDiagnostics.reportConnectionFailure();
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
+        mWifiDiagnostics.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
         return sw.toString();
     }
 
@@ -501,7 +501,7 @@ public class WifiLoggerTest {
     @Test
     public void dumpOmitsFatesIfVerboseIsDisabledAfterFetch() {
         final boolean verbosityToggle = true;
-        mWifiLogger.startLogging(verbosityToggle);
+        mWifiDiagnostics.startLogging(verbosityToggle);
         when(mWifiNative.getTxPktFates(anyObject())).then(new AnswerWithArguments() {
             public boolean answer(WifiNative.TxFateReport[] fates) {
                 fates[0] = new WifiNative.TxFateReport(
@@ -520,16 +520,16 @@ public class WifiLoggerTest {
                 return true;
             }
         });
-        mWifiLogger.reportConnectionFailure();
+        mWifiDiagnostics.reportConnectionFailure();
         verify(mWifiNative).getTxPktFates(anyObject());
         verify(mWifiNative).getRxPktFates(anyObject());
 
         final boolean newVerbosityToggle = false;
-        mWifiLogger.startLogging(newVerbosityToggle);
+        mWifiDiagnostics.startLogging(newVerbosityToggle);
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
+        mWifiDiagnostics.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
 
         String fateDumpString = sw.toString();
         assertFalse(fateDumpString.contains("VERBOSE PACKET FATE DUMP"));
@@ -540,10 +540,10 @@ public class WifiLoggerTest {
     @Test
     public void ringBufferSizeIsSmallByDefault() throws Exception {
         final boolean verbosityToggle = false;
-        mWifiLogger.startLogging(verbosityToggle);
-        mWifiLogger.onRingBufferData(
+        mWifiDiagnostics.startLogging(verbosityToggle);
+        mWifiDiagnostics.onRingBufferData(
                 mFakeRbs, new byte[SMALL_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE + 1]);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         assertEquals(0, getLoggerRingBufferData().length);
     }
 
@@ -554,10 +554,10 @@ public class WifiLoggerTest {
         when(mBuildProperties.isUserdebugBuild()).thenReturn(true);
         when(mBuildProperties.isEngBuild()).thenReturn(false);
         when(mBuildProperties.isUserBuild()).thenReturn(false);
-        mWifiLogger.startLogging(verbosityToggle);
-        mWifiLogger.onRingBufferData(
+        mWifiDiagnostics.startLogging(verbosityToggle);
+        mWifiDiagnostics.onRingBufferData(
                 mFakeRbs, new byte[SMALL_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE + 1]);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         assertEquals(0, getLoggerRingBufferData().length);
     }
 
@@ -568,10 +568,10 @@ public class WifiLoggerTest {
         when(mBuildProperties.isEngBuild()).thenReturn(true);
         when(mBuildProperties.isUserdebugBuild()).thenReturn(false);
         when(mBuildProperties.isUserBuild()).thenReturn(false);
-        mWifiLogger.startLogging(verbosityToggle);
-        mWifiLogger.onRingBufferData(
+        mWifiDiagnostics.startLogging(verbosityToggle);
+        mWifiDiagnostics.onRingBufferData(
                 mFakeRbs, new byte[SMALL_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE + 1]);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         assertEquals(0, getLoggerRingBufferData().length);
     }
 
@@ -579,47 +579,47 @@ public class WifiLoggerTest {
     @Test
     public void ringBufferSizeIsLargeInVerboseMode() throws Exception {
         final boolean verbosityToggle = true;
-        mWifiLogger.startLogging(verbosityToggle);
-        mWifiLogger.onRingBufferData(
+        mWifiDiagnostics.startLogging(verbosityToggle);
+        mWifiDiagnostics.onRingBufferData(
                 mFakeRbs, new byte[LARGE_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE]);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         assertEquals(1, getLoggerRingBufferData().length);
     }
 
     /** Verifies that we use large ring buffers when switched from normal to verbose mode. */
     @Test
     public void startLoggingGrowsRingBuffersIfNeeded() throws Exception {
-        mWifiLogger.startLogging(false  /* verbose disabled */);
-        mWifiLogger.startLogging(true  /* verbose enabled */);
-        mWifiLogger.onRingBufferData(
+        mWifiDiagnostics.startLogging(false  /* verbose disabled */);
+        mWifiDiagnostics.startLogging(true  /* verbose enabled */);
+        mWifiDiagnostics.onRingBufferData(
                 mFakeRbs, new byte[LARGE_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE]);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         assertEquals(1, getLoggerRingBufferData().length);
     }
 
     /** Verifies that we use small ring buffers when switched from verbose to normal mode. */
     @Test
     public void startLoggingShrinksRingBuffersIfNeeded() throws Exception {
-        mWifiLogger.startLogging(true  /* verbose enabled */);
-        mWifiLogger.onRingBufferData(
+        mWifiDiagnostics.startLogging(true  /* verbose enabled */);
+        mWifiDiagnostics.onRingBufferData(
                 mFakeRbs, new byte[SMALL_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE + 1]);
 
         // Existing data is nuked (too large).
-        mWifiLogger.startLogging(false  /* verbose disabled */);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.startLogging(false  /* verbose disabled */);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         assertEquals(0, getLoggerRingBufferData().length);
 
         // New data must obey limit as well.
-        mWifiLogger.onRingBufferData(
+        mWifiDiagnostics.onRingBufferData(
                 mFakeRbs, new byte[SMALL_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE + 1]);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         assertEquals(0, getLoggerRingBufferData().length);
     }
 
     /** Verifies that we skip the firmware and driver dumps if verbose is not enabled. */
     @Test
     public void captureBugReportSkipsFirmwareAndDriverDumpsByDefault() {
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         verify(mWifiNative, never()).getFwMemoryDump();
         verify(mWifiNative, never()).getDriverStateDump();
     }
@@ -627,8 +627,8 @@ public class WifiLoggerTest {
     /** Verifies that we capture the firmware and driver dumps if verbose is enabled. */
     @Test
     public void captureBugReportTakesFirmwareAndDriverDumpsInVerboseMode() {
-        mWifiLogger.startLogging(true  /* verbose enabled */);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.startLogging(true  /* verbose enabled */);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         verify(mWifiNative).getFwMemoryDump();
         verify(mWifiNative).getDriverStateDump();
     }
@@ -638,27 +638,27 @@ public class WifiLoggerTest {
     public void dumpIncludesDriverStateDumpIfAvailable() {
         when(mWifiNative.getDriverStateDump()).thenReturn(new byte[]{0, 1, 2});
 
-        mWifiLogger.startLogging(true  /* verbose enabled */);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.startLogging(true  /* verbose enabled */);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         verify(mWifiNative).getDriverStateDump();
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
-        assertTrue(sw.toString().contains(WifiLogger.DRIVER_DUMP_SECTION_HEADER));
+        mWifiDiagnostics.dump(new FileDescriptor(), pw, new String[]{});
+        assertTrue(sw.toString().contains(WifiDiagnostics.DRIVER_DUMP_SECTION_HEADER));
     }
 
     /** Verifies that the dump skips driver state, if driver state was not provided by HAL. */
     @Test
     public void dumpOmitsDriverStateDumpIfUnavailable() {
-        mWifiLogger.startLogging(true  /* verbose enabled */);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.startLogging(true  /* verbose enabled */);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         verify(mWifiNative).getDriverStateDump();
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
-        assertFalse(sw.toString().contains(WifiLogger.DRIVER_DUMP_SECTION_HEADER));
+        mWifiDiagnostics.dump(new FileDescriptor(), pw, new String[]{});
+        assertFalse(sw.toString().contains(WifiDiagnostics.DRIVER_DUMP_SECTION_HEADER));
     }
 
     /** Verifies that the dump omits driver state, if verbose was disabled after capture. */
@@ -666,16 +666,16 @@ public class WifiLoggerTest {
     public void dumpOmitsDriverStateDumpIfVerboseDisabledAfterCapture() {
         when(mWifiNative.getDriverStateDump()).thenReturn(new byte[]{0, 1, 2});
 
-        mWifiLogger.startLogging(true  /* verbose enabled */);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.startLogging(true  /* verbose enabled */);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         verify(mWifiNative).getDriverStateDump();
 
-        mWifiLogger.startLogging(false  /* verbose no longer enabled */);
+        mWifiDiagnostics.startLogging(false  /* verbose no longer enabled */);
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
-        assertFalse(sw.toString().contains(WifiLogger.DRIVER_DUMP_SECTION_HEADER));
+        mWifiDiagnostics.dump(new FileDescriptor(), pw, new String[]{});
+        assertFalse(sw.toString().contains(WifiDiagnostics.DRIVER_DUMP_SECTION_HEADER));
     }
 
     /** Verifies that the dump includes firmware dump, if firmware dump was provided by HAL. */
@@ -683,27 +683,27 @@ public class WifiLoggerTest {
     public void dumpIncludesFirmwareMemoryDumpIfAvailable() {
         when(mWifiNative.getFwMemoryDump()).thenReturn(new byte[]{0, 1, 2});
 
-        mWifiLogger.startLogging(true  /* verbose enabled */);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.startLogging(true  /* verbose enabled */);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         verify(mWifiNative).getFwMemoryDump();
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
-        assertTrue(sw.toString().contains(WifiLogger.FIRMWARE_DUMP_SECTION_HEADER));
+        mWifiDiagnostics.dump(new FileDescriptor(), pw, new String[]{});
+        assertTrue(sw.toString().contains(WifiDiagnostics.FIRMWARE_DUMP_SECTION_HEADER));
     }
 
     /** Verifies that the dump skips firmware memory, if firmware memory was not provided by HAL. */
     @Test
     public void dumpOmitsFirmwareMemoryDumpIfUnavailable() {
-        mWifiLogger.startLogging(true  /* verbose enabled */);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.startLogging(true  /* verbose enabled */);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         verify(mWifiNative).getFwMemoryDump();
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
-        assertFalse(sw.toString().contains(WifiLogger.FIRMWARE_DUMP_SECTION_HEADER));
+        mWifiDiagnostics.dump(new FileDescriptor(), pw, new String[]{});
+        assertFalse(sw.toString().contains(WifiDiagnostics.FIRMWARE_DUMP_SECTION_HEADER));
     }
 
     /** Verifies that the dump omits firmware memory, if verbose was disabled after capture. */
@@ -711,16 +711,16 @@ public class WifiLoggerTest {
     public void dumpOmitsFirmwareMemoryDumpIfVerboseDisabledAfterCapture() {
         when(mWifiNative.getFwMemoryDump()).thenReturn(new byte[]{0, 1, 2});
 
-        mWifiLogger.startLogging(true  /* verbose enabled */);
-        mWifiLogger.captureBugReportData(WifiLogger.REPORT_REASON_NONE);
+        mWifiDiagnostics.startLogging(true  /* verbose enabled */);
+        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         verify(mWifiNative).getFwMemoryDump();
 
-        mWifiLogger.startLogging(false  /* verbose no longer enabled */);
+        mWifiDiagnostics.startLogging(false  /* verbose no longer enabled */);
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
-        assertFalse(sw.toString().contains(WifiLogger.FIRMWARE_DUMP_SECTION_HEADER));
+        mWifiDiagnostics.dump(new FileDescriptor(), pw, new String[]{});
+        assertFalse(sw.toString().contains(WifiDiagnostics.FIRMWARE_DUMP_SECTION_HEADER));
     }
 
     /** Verifies that the dump() includes contents of WifiNative's LocalLog. */
@@ -729,10 +729,10 @@ public class WifiLoggerTest {
         final String wifiNativeLogMessage = "This is a message";
         mWifiNativeLocalLog.log(wifiNativeLogMessage);
 
-        mWifiLogger.startLogging(false  /* verbose disabled */);
+        mWifiDiagnostics.startLogging(false  /* verbose disabled */);
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        mWifiLogger.dump(new FileDescriptor(), pw, new String[]{});
+        mWifiDiagnostics.dump(new FileDescriptor(), pw, new String[]{});
         assertTrue(sw.toString().contains(wifiNativeLogMessage));
     }
 }
