@@ -26,6 +26,8 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.contains;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.eq;
@@ -55,6 +57,8 @@ public class WifiDiagnosticsTest {
     @Mock WifiNative mWifiNative;
     @Mock BuildProperties mBuildProperties;
     @Mock Context mContext;
+    @Mock WifiInjector mWifiInjector;
+    @Mock WifiLog mLog;
     WifiDiagnostics mWifiDiagnostics;
 
     private static final String FAKE_RING_BUFFER_NAME = "fake-ring-buffer";
@@ -100,8 +104,10 @@ public class WifiDiagnosticsTest {
         resources.setInteger(R.integer.config_wifi_logger_ring_buffer_verbose_size_limit_kb,
                 LARGE_RING_BUFFER_SIZE_KB);
         when(mContext.getResources()).thenReturn(resources);
+        when(mWifiInjector.makeLog(anyString())).thenReturn(mLog);
 
-        mWifiDiagnostics = new WifiDiagnostics(mContext, mWsm, mWifiNative, mBuildProperties);
+        mWifiDiagnostics = new WifiDiagnostics(
+                mContext, mWifiInjector, mWsm, mWifiNative, mBuildProperties);
         mWifiNative.enableVerboseLogging(0);
     }
 
@@ -261,6 +267,15 @@ public class WifiDiagnosticsTest {
         final boolean verbosityToggle = true;
         mWifiDiagnostics.startLogging(verbosityToggle);
         verify(mWifiNative).startPktFateMonitoring();
+    }
+
+    // Verifies that startLogging() reports failure of startPktFateMonitoring().
+    @Test
+    public void startLoggingReportsFailureOfStartPktFateMonitoring() {
+        final boolean verbosityToggle = true;
+        when(mWifiNative.startPktFateMonitoring()).thenReturn(false);
+        mWifiDiagnostics.startLogging(verbosityToggle);
+        verify(mLog).e(contains("Failed"));
     }
 
     /**

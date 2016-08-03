@@ -158,7 +158,6 @@ public class WifiStateMachineTest {
 
         when(facade.makeWifiScanner(any(Context.class), any(Looper.class)))
                 .thenReturn(mWifiScanner);
-        when(facade.makeBaseDiagnostics()).thenReturn(mock(BaseWifiDiagnostics.class));
         when(facade.getService(Context.NETWORKMANAGEMENT_SERVICE)).thenReturn(
                 mockWithInterfaces(IBinder.class, INetworkManagementService.class));
 
@@ -349,6 +348,8 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getBuildProperties()).thenReturn(mBuildProperties);
         when(mWifiInjector.getKeyStore()).thenReturn(mock(KeyStore.class));
         when(mWifiInjector.getWifiBackupRestore()).thenReturn(mock(WifiBackupRestore.class));
+        when(mWifiInjector.makeWifiDiagnostics(anyObject())).thenReturn(
+                mock(BaseWifiDiagnostics.class));
         FrameworkFacade factory = getFrameworkFacade();
         Context context = getContext();
 

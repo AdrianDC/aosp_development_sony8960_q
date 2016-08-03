@@ -106,9 +106,10 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     private final WifiNative mWifiNative;
     private final BuildProperties mBuildProperties;
     private int mMaxRingBufferSizeBytes;
+    private WifiLog mLog;
 
-    public WifiDiagnostics(Context context, WifiStateMachine wifiStateMachine, WifiNative wifiNative,
-                           BuildProperties buildProperties) {
+    public WifiDiagnostics(Context context, WifiInjector wifiInjector, WifiStateMachine wifiStateMachine,
+                     WifiNative wifiNative, BuildProperties buildProperties) {
         RING_BUFFER_BYTE_LIMIT_SMALL = context.getResources().getInteger(
                 R.integer.config_wifi_logger_ring_buffer_default_size_limit_kb) * 1024;
         RING_BUFFER_BYTE_LIMIT_LARGE = context.getResources().getInteger(
@@ -119,6 +120,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         mBuildProperties = buildProperties;
         mIsLoggingEventHandlerRegistered = false;
         mMaxRingBufferSizeBytes = RING_BUFFER_BYTE_LIMIT_SMALL;
+        mLog = wifiInjector.makeLog(TAG);
     }
 
     @Override
@@ -153,7 +155,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         }
 
         if (!mWifiNative.startPktFateMonitoring()) {
-            Log.e(TAG, "Failed to start packet fate monitoring");
+            mLog.e("Failed to start packet fate monitoring");
         }
     }
 
@@ -162,7 +164,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         if (mPerPacketRingBuffer != null) {
             startLoggingRingBuffer(mPerPacketRingBuffer);
         } else {
-            if (DBG) Log.d(TAG, "There is no per packet ring buffer");
+            if (DBG) mLog.d("There is no per packet ring buffer");
         }
     }
 
@@ -171,7 +173,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         if (mPerPacketRingBuffer != null) {
             stopLoggingRingBuffer(mPerPacketRingBuffer);
         } else {
-            if (DBG) Log.d(TAG, "There is no per packet ring buffer");
+            if (DBG) mLog.d("There is no per packet ring buffer");
         }
     }
 
@@ -179,9 +181,9 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     public synchronized void stopLogging() {
         if (mIsLoggingEventHandlerRegistered) {
             if (!mWifiNative.resetLogHandler()) {
-                Log.e(TAG, "Fail to reset log handler");
+                mLog.e("Fail to reset log handler");
             } else {
-                if (DBG) Log.d(TAG, "Reset log handler");
+                if (DBG) mLog.d("Reset log handler");
             }
             // Clear mIsLoggingEventHandlerRegistered even if resetLogHandler() failed, because
             // the log handler is in an indeterminate state.
@@ -413,7 +415,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         mRingBuffers = mWifiNative.getRingBufferStatus();
         if (mRingBuffers != null) {
             for (WifiNative.RingBufferStatus buffer : mRingBuffers) {
-                if (DBG) Log.d(TAG, "RingBufferStatus is: \n" + buffer.name);
+                if (DBG) mLog.d("RingBufferStatus is: \n" + buffer.name);
                 if (mRingBufferData.containsKey(buffer.name) == false) {
                     mRingBufferData.put(buffer.name,
                             new ByteArrayRingBuffer(mMaxRingBufferSizeBytes));
@@ -423,7 +425,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
                 }
             }
         } else {
-            Log.e(TAG, "no ring buffers found");
+            mLog.e("no ring buffers found");
         }
 
         return mRingBuffers != null;
@@ -438,7 +440,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     private boolean startLoggingAllExceptPerPacketBuffers() {
 
         if (mRingBuffers == null) {
-            if (DBG) Log.d(TAG, "No ring buffers to log anything!");
+            if (DBG) mLog.d("No ring buffers to log anything!");
             return false;
         }
 
@@ -446,7 +448,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
 
             if ((buffer.flag & RING_BUFFER_FLAG_HAS_PER_PACKET_ENTRIES) != 0) {
                 /* skip per-packet-buffer */
-                if (DBG) Log.d(TAG, "skipped per packet logging ring " + buffer.name);
+                if (DBG) mLog.d("skipped per packet logging ring " + buffer.name);
                 continue;
             }
 
@@ -463,7 +465,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
 
         if (mWifiNative.startLoggingRingBuffer(
                 mLogLevel, 0, minInterval, minDataSize, buffer.name) == false) {
-            if (DBG) Log.e(TAG, "Could not start logging ring " + buffer.name);
+            if (DBG) mLog.e("Could not start logging ring " + buffer.name);
             return false;
         }
 
@@ -472,7 +474,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
 
     private boolean stopLoggingRingBuffer(WifiNative.RingBufferStatus buffer) {
         if (mWifiNative.startLoggingRingBuffer(0, 0, 0, 0, buffer.name) == false) {
-            if (DBG) Log.e(TAG, "Could not stop logging ring " + buffer.name);
+            if (DBG) mLog.e("Could not stop logging ring " + buffer.name);
         }
         return true;
     }
@@ -488,19 +490,19 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
 
     private boolean getAllRingBufferData() {
         if (mRingBuffers == null) {
-            Log.e(TAG, "Not ring buffers available to collect data!");
+            mLog.e("Not ring buffers available to collect data!");
             return false;
         }
 
         for (WifiNative.RingBufferStatus element : mRingBuffers){
             boolean result = mWifiNative.getRingBufferData(element.name);
             if (!result) {
-                Log.e(TAG, "Fail to get ring buffer data of: " + element.name);
+                mLog.e("Fail to get ring buffer data of: " + element.name);
                 return false;
             }
         }
 
-        Log.d(TAG, "getAllRingBufferData Successfully!");
+        mLog.d("getAllRingBufferData Successfully!");
         return true;
     }
 
@@ -542,7 +544,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         return mLastBugReports;
     }
 
-    private static String compressToBase64(byte[] input) {
+    private String compressToBase64(byte[] input) {
         String result;
         //compress
         Deflater compressor = new Deflater();
@@ -561,14 +563,14 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
             compressor.end();
             bos.close();
         } catch (IOException e) {
-            Log.e(TAG, "ByteArrayOutputStream close error");
+            mLog.e("ByteArrayOutputStream close error");
             result =  android.util.Base64.encodeToString(input, Base64.DEFAULT);
             return result;
         }
 
         byte[] compressed = bos.toByteArray();
         if (DBG) {
-            Log.d(TAG," length is:" + (compressed == null? "0" : compressed.length));
+            mLog.d(" length is:" + (compressed == null? "0" : compressed.length));
         }
 
         //encode
@@ -576,7 +578,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
                 compressed.length < input.length ? compressed : input , Base64.DEFAULT);
 
         if (DBG) {
-            Log.d(TAG, "FwMemoryDump length is :" + result.length());
+            mLog.d("FwMemoryDump length is :" + result.length());
         }
 
         return result;
@@ -599,20 +601,20 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
             }
             process.waitFor();
         } catch (InterruptedException|IOException e) {
-            Log.e(TAG, "Exception while capturing logcat" + e);
+            mLog.e("Exception while capturing logcat" + e);
         }
         return lines;
     }
 
     private LimitedCircularArray<String> getKernelLog(int maxLines) {
-        if (DBG) Log.d(TAG, "Reading kernel log ...");
+        if (DBG) mLog.d("Reading kernel log ...");
         LimitedCircularArray<String> lines = new LimitedCircularArray<String>(maxLines);
         String log = mWifiNative.readKernelLog();
         String logLines[] = log.split("\n");
         for (int i = 0; i < logLines.length; i++) {
             lines.addLast(logLines[i]);
         }
-        if (DBG) Log.d(TAG, "Added " + logLines.length + " lines");
+        if (DBG) mLog.d("Added " + logLines.length + " lines");
         return lines;
     }
 
