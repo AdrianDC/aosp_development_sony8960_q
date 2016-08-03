@@ -34,7 +34,7 @@ const char kWlan0InterfaceName[] = "wlan0";
 }  // namespace
 
 bool InterfaceTool::SetUpState(const char* if_name, bool request_up) {
-  base::unique_fd sock(socket(PF_INET, SOCK_DGRAM, 0));
+  base::unique_fd sock(socket(PF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0));
   if (sock.get() < 0) {
     LOG(ERROR) << "Failed to open socket to set up/down state ("
                << strerror(errno) << ")";
