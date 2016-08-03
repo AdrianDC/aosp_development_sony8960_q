@@ -703,7 +703,7 @@ public class WifiController extends StateMachine {
                 case CMD_WIFI_TOGGLED:
                     if (mSettingsStore.isWifiToggleEnabled()) {
                         mWifiStateMachine.setHostApRunning(null, false);
-                        mPendingState = mStaEnabledState;
+                        mPendingState = mDeviceActiveState;
                     }
                     break;
                 case CMD_SET_AP:
