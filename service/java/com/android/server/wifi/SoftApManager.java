@@ -218,15 +218,8 @@ public class SoftApManager {
         private final State mIdleState = new IdleState();
         private final State mStartedState = new StartedState();
 
-        private ApInterfaceDeathRecipient mDeathRecipient;
-
-        private class ApInterfaceDeathRecipient implements DeathRecipient {
-            @Override
-            public void binderDied() {
-                SoftApStateMachine.this.sendMessage(CMD_AP_INTERFACE_BINDER_DEATH);
-            }
-        }
-
+        private final StateMachineDeathRecipient mDeathRecipient =
+                new StateMachineDeathRecipient(this, CMD_AP_INTERFACE_BINDER_DEATH);
 
         SoftApStateMachine(Looper looper) {
             super(TAG, looper);
@@ -241,44 +234,34 @@ public class SoftApManager {
         private class IdleState extends State {
             @Override
             public void enter() {
-                if (mDeathRecipient != null) {
-                    mApInterface.asBinder().unlinkToDeath(mDeathRecipient, 0);
-                    mDeathRecipient = null;
-                }
+                mDeathRecipient.unlinkToDeath();
             }
 
             @Override
             public boolean processMessage(Message message) {
                 switch (message.what) {
                     case CMD_START:
-                        int result = SUCCESS;
                         updateApState(WifiManager.WIFI_AP_STATE_ENABLING, 0);
-                        mDeathRecipient = new ApInterfaceDeathRecipient();
-                        try {
-                            mApInterface.asBinder().linkToDeath(mDeathRecipient, 0);
-                        } catch (RemoteException e) {
-                            // The remote has already died.
-                            result = ERROR_GENERIC;
+                        if (!mDeathRecipient.linkToDeath(mApInterface.asBinder())) {
+                            mDeathRecipient.unlinkToDeath();
+                            updateApState(WifiManager.WIFI_AP_STATE_FAILED,
+                                    WifiManager.SAP_START_FAILURE_GENERAL);
                             break;
                         }
 
-                        if (result == SUCCESS) {
-                            result = startSoftAp((WifiConfiguration) message.obj);
-                        }
-                        if (result == SUCCESS) {
-                            updateApState(WifiManager.WIFI_AP_STATE_ENABLED, 0);
-                            transitionTo(mStartedState);
-                        } else {
-                            int reason = WifiManager.SAP_START_FAILURE_GENERAL;
+                        int result = startSoftAp((WifiConfiguration) message.obj);
+                        if (result != SUCCESS) {
+                            int failureReason = WifiManager.SAP_START_FAILURE_GENERAL;
                             if (result == ERROR_NO_CHANNEL) {
-                                reason = WifiManager.SAP_START_FAILURE_NO_CHANNEL;
+                                failureReason = WifiManager.SAP_START_FAILURE_NO_CHANNEL;
                             }
-                            updateApState(WifiManager.WIFI_AP_STATE_FAILED, reason);
-                            if (mDeathRecipient != null) {
-                                mApInterface.asBinder().unlinkToDeath(mDeathRecipient, 0);
-                                mDeathRecipient = null;
-                            }
+                            mDeathRecipient.unlinkToDeath();
+                            updateApState(WifiManager.WIFI_AP_STATE_FAILED, failureReason);
+                            break;
                         }
+
+                        updateApState(WifiManager.WIFI_AP_STATE_ENABLED, 0);
+                        transitionTo(mStartedState);
                         break;
                     default:
                         /* Ignore all other commands. */
