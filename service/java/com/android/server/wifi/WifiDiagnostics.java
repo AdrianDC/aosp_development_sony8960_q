@@ -489,24 +489,6 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         return true;
     }
 
-    private boolean getAllRingBufferData() {
-        if (mRingBuffers == null) {
-            mLog.e("Not ring buffers available to collect data!");
-            return false;
-        }
-
-        for (WifiNative.RingBufferStatus element : mRingBuffers){
-            boolean result = mWifiNative.getRingBufferData(element.name);
-            if (!result) {
-                mLog.e("Fail to get ring buffer data of: " + element.name);
-                return false;
-            }
-        }
-
-        mLog.d("getAllRingBufferData Successfully!");
-        return true;
-    }
-
     private boolean enableVerboseLoggingForDogfood() {
         return false;
     }
