@@ -272,6 +272,34 @@ public class WifiControllerTest {
     }
 
     /**
+     * When AP mode is enabled and wifi is toggled on, we should transition to
+     * DeviceActiveState after the AP is disabled.
+     * Enter DeviceActiveState, activate AP mode, toggle WiFi.
+     * <p>
+     * Expected: AP should successfully start and exit, then return to DeviceActiveState.
+     */
+    @Test
+    public void testReturnToDeviceActiveStateAfterWifiEnabledShutdown() throws Exception {
+        enableWifi();
+        assertEquals("DeviceActiveState", getCurrentState().getName());
+
+        mWifiController.obtainMessage(CMD_SET_AP, 1, 0).sendToTarget();
+        mLooper.dispatchAll();
+        assertEquals("ApEnabledState", getCurrentState().getName());
+
+        when(mSettingsStore.isWifiToggleEnabled()).thenReturn(true);
+        mWifiController.obtainMessage(CMD_WIFI_TOGGLED).sendToTarget();
+        mWifiController.obtainMessage(CMD_AP_STOPPED).sendToTarget();
+        mLooper.dispatchAll();
+
+        InOrder inOrder = inOrder(mWifiStateMachine);
+        inOrder.verify(mWifiStateMachine).setSupplicantRunning(true);
+        inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        inOrder.verify(mWifiStateMachine).setDriverStart(true);
+        assertEquals("DeviceActiveState", getCurrentState().getName());
+    }
+
+    /**
      * When the wifi device is idle, AP mode is enabled and disabled
      * we should return to the appropriate Idle state.
      * Enter DeviceActiveState, indicate idle device, activate AP mode, disable AP mode.
