@@ -174,29 +174,8 @@ public class WifiNative {
 
 
     /*
-     * Driver and Supplicant management
+     * Supplicant management
      */
-    private native static boolean loadDriverNative();
-    public boolean loadDriver() {
-        synchronized (sLock) {
-            return loadDriverNative();
-        }
-    }
-
-    private native static boolean isDriverLoadedNative();
-    public boolean isDriverLoaded() {
-        synchronized (sLock) {
-            return isDriverLoadedNative();
-        }
-    }
-
-    private native static boolean unloadDriverNative();
-    public boolean unloadDriver() {
-        synchronized (sLock) {
-            return unloadDriverNative();
-        }
-    }
-
     private native static boolean startSupplicantNative(boolean p2pSupported);
     public boolean startSupplicant(boolean p2pSupported) {
         synchronized (sLock) {
@@ -434,7 +413,7 @@ public class WifiNative {
             // an FQDN stored as a plain string. If such a value is encountered, the JSONObject
             // constructor will thrown a JSONException and the method will return null.
             final JSONObject json = new JSONObject(URLDecoder.decode(encoded, "UTF-8"));
-            final Map<String, String> values = new HashMap<String, String>();
+            final Map<String, String> values = new HashMap<>();
             final Iterator<?> it = json.keys();
             while (it.hasNext()) {
                 final String key = (String) it.next();
@@ -1206,7 +1185,7 @@ public class WifiNative {
         [persistent] [join|auth] [go_intent=<0..15>] [freq=<in MHz>] */
     public String p2pConnect(WifiP2pConfig config, boolean joinExistingGroup) {
         if (config == null) return null;
-        List<String> args = new ArrayList<String>();
+        List<String> args = new ArrayList<>();
         WpsInfo wps = config.wps;
         args.add(config.deviceAddress);
 
