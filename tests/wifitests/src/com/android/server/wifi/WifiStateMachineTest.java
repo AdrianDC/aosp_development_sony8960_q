@@ -34,6 +34,8 @@ import android.net.DhcpResults;
 import android.net.LinkProperties;
 import android.net.dhcp.DhcpClient;
 import android.net.ip.IpManager;
+import android.net.wifi.IClientInterface;
+import android.net.wifi.IWificond;
 import android.net.wifi.ScanResult;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
@@ -53,6 +55,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
+import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.test.TestLooper;
@@ -322,6 +325,9 @@ public class WifiStateMachineTest {
     @Mock WifiLastResortWatchdog mWifiLastResortWatchdog;
     @Mock PropertyService mPropertyService;
     @Mock BuildProperties mBuildProperties;
+    @Mock IWificond mWificond;
+    @Mock IClientInterface mClientInterface;
+    @Mock IBinder mClientInterfaceBinder;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -349,6 +355,8 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiBackupRestore()).thenReturn(mock(WifiBackupRestore.class));
         when(mWifiInjector.makeWifiDiagnostics(anyObject())).thenReturn(
                 mock(BaseWifiDiagnostics.class));
+        when(mWifiInjector.makeWificond()).thenReturn(mWificond);
+
         FrameworkFacade factory = getFrameworkFacade();
         Context context = getContext();
 
@@ -372,6 +380,9 @@ public class WifiStateMachineTest {
         when(mUserManager.getProfiles(UserHandle.USER_SYSTEM)).thenReturn(Arrays.asList(
                 new UserInfo(UserHandle.USER_SYSTEM, "owner", 0),
                 new UserInfo(11, "managed profile", 0)));
+
+        when(mWificond.createClientInterface()).thenReturn(mClientInterface);
+        when(mClientInterface.asBinder()).thenReturn(mClientInterfaceBinder);
 
         mWsm = new WifiStateMachine(context, factory, mLooper.getLooper(),
             mUserManager, mWifiInjector, mBackupManagerProxy, mCountryCode);
@@ -429,7 +440,6 @@ public class WifiStateMachineTest {
 
     @Test
     public void loadComponents() throws Exception {
-        when(mWifiNative.loadDriver()).thenReturn(true);
         when(mWifiNative.startHal()).thenReturn(true);
         when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(true);
         mWsm.setSupplicantRunning(true);
@@ -455,16 +465,50 @@ public class WifiStateMachineTest {
     }
 
     @Test
-    public void loadComponentsFailure() throws Exception {
-        when(mWifiNative.loadDriver()).thenReturn(false);
+    public void shouldRequireHalToLeaveInitialState() throws Exception {
         when(mWifiNative.startHal()).thenReturn(false);
-        when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(false);
+        mWsm.setSupplicantRunning(true);
+        mLooper.dispatchAll();
+        assertEquals("InitialState", getCurrentState().getName());
+    }
 
+    @Test
+    public void shouldRequireSupplicantStartupToLeaveInitialState() throws Exception {
+        when(mWifiNative.startSupplicant(true)).thenReturn(false);
+        mWsm.setSupplicantRunning(true);
+        mLooper.dispatchAll();
+        assertEquals("InitialState", getCurrentState().getName());
+    }
+
+    @Test
+    public void shouldRequireWificondToLeaveInitialState() throws Exception {
+        // We start out with valid default values, break them going backwards so that
+        // we test all the bailout cases.
+
+        // ClientInterface dies after creation.
+        doThrow(new RemoteException()).when(mClientInterfaceBinder).linkToDeath(any(), anyInt());
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
 
-        when(mWifiNative.loadDriver()).thenReturn(true);
+        // Failed to even create the client interface.
+        when(mWificond.createClientInterface()).thenReturn(null);
+        mWsm.setSupplicantRunning(true);
+        mLooper.dispatchAll();
+        assertEquals("InitialState", getCurrentState().getName());
+
+        // Failed to get wificond proxy.
+        when(mWifiInjector.makeWificond()).thenReturn(null);
+        mWsm.setSupplicantRunning(true);
+        mLooper.dispatchAll();
+        assertEquals("InitialState", getCurrentState().getName());
+    }
+
+    @Test
+    public void loadComponentsFailure() throws Exception {
+        when(mWifiNative.startHal()).thenReturn(false);
+        when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(false);
+
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
@@ -482,7 +526,7 @@ public class WifiStateMachineTest {
     private void addNetworkAndVerifySuccess(boolean isHidden) throws Exception {
         loadComponents();
 
-        final HashMap<String, String> nameToValue = new HashMap<String, String>();
+        final HashMap<String, String> nameToValue = new HashMap<>();
 
         when(mWifiNative.addNetwork()).thenReturn(0);
         when(mWifiNative.setNetworkVariable(anyInt(), anyString(), anyString()))
