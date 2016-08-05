@@ -62,6 +62,26 @@ class LogcatLog implements WifiLog {
         return makeLogMessage(Log.VERBOSE, format);
     }
 
+    @Override
+    public void eC(String msg) {
+        Log.e(mTag, msg);
+    }
+
+    @Override
+    public void wC(String msg) {
+        Log.w(mTag, msg);
+    }
+
+    @Override
+    public void iC(String msg) {
+        Log.i(mTag, msg);
+    }
+
+    @Override
+    public void tC(String msg) {
+        Log.d(mTag, msg);
+    }
+
     /* Legacy methods */
     @Override
     public void e(String msg) {

@@ -106,6 +106,40 @@ public interface WifiLog {
     LogMessage dump(@NonNull String format);
 
     /**
+     * Log a warning using the default tag for this WifiLog instance. Mark
+     * the message as 'clean' (i.e. _not_ containing any sensitive data).
+     *
+     * NOTE: this method should only be used for literal strings. For messages with
+     * parameters, use err().
+     *
+     * @param msg the message to be logged
+     */
+    void eC(String msg);
+
+    /**
+     * Like {@link #eC(String)} eC()}, except that a warning-level message
+     * is logged.
+     */
+    void wC(String msg);
+
+    /**
+     * Like {@link #eC(String)} eC()}, except that an info-level message
+     * is logged.
+     */
+    void iC(String msg);
+
+    /**
+     * Like {@link #eC(String)} eC()}, except that a trace-level message
+     * is logged.
+     */
+    void tC(String msg);
+
+    /**
+     * Note: dC() is deliberately omitted, as "dumping" is inherently at
+     * odds with the intention that the caller pass in a literal string.
+     */
+
+    /**
      * Represents a single log message.
      *
      * Implementations are expected _not_ to be thread-safe.

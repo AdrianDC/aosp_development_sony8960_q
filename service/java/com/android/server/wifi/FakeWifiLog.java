@@ -46,6 +46,26 @@ public class FakeWifiLog implements WifiLog {
         return sDummyLogMessage;
     }
 
+    @Override
+    public void eC(String msg) {
+        // Do nothing.
+    }
+
+    @Override
+    public void wC(String msg) {
+        // Do nothing.
+    }
+
+    @Override
+    public void iC(String msg) {
+        // Do nothing.
+    }
+
+    @Override
+    public void tC(String msg) {
+        // Do nothing.
+    }
+
     // Legacy methods.
     @Override
     public void e(String msg) {

@@ -275,7 +275,7 @@ public class WifiDiagnosticsTest {
         final boolean verbosityToggle = true;
         when(mWifiNative.startPktFateMonitoring()).thenReturn(false);
         mWifiDiagnostics.startLogging(verbosityToggle);
-        verify(mLog).e(contains("Failed"));
+        verify(mLog).wC(contains("Failed"));
     }
 
     /**

@@ -154,7 +154,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         }
 
         if (!mWifiNative.startPktFateMonitoring()) {
-            mLog.e("Failed to start packet fate monitoring");
+            mLog.wC("Failed to start packet fate monitoring");
         }
     }
 
@@ -163,7 +163,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         if (mPerPacketRingBuffer != null) {
             startLoggingRingBuffer(mPerPacketRingBuffer);
         } else {
-            if (DBG) mLog.d("There is no per packet ring buffer");
+            if (DBG) mLog.tC("There is no per packet ring buffer");
         }
     }
 
@@ -172,7 +172,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         if (mPerPacketRingBuffer != null) {
             stopLoggingRingBuffer(mPerPacketRingBuffer);
         } else {
-            if (DBG) mLog.d("There is no per packet ring buffer");
+            if (DBG) mLog.tC("There is no per packet ring buffer");
         }
     }
 
@@ -180,9 +180,9 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     public synchronized void stopLogging() {
         if (mIsLoggingEventHandlerRegistered) {
             if (!mWifiNative.resetLogHandler()) {
-                mLog.e("Fail to reset log handler");
+                mLog.wC("Fail to reset log handler");
             } else {
-                if (DBG) mLog.d("Reset log handler");
+                if (DBG) mLog.tC("Reset log handler");
             }
             // Clear mIsLoggingEventHandlerRegistered even if resetLogHandler() failed, because
             // the log handler is in an indeterminate state.
@@ -424,7 +424,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
                 }
             }
         } else {
-            mLog.e("no ring buffers found");
+            mLog.wC("no ring buffers found");
         }
 
         return mRingBuffers != null;
@@ -439,7 +439,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     private boolean startLoggingAllExceptPerPacketBuffers() {
 
         if (mRingBuffers == null) {
-            if (DBG) mLog.d("No ring buffers to log anything!");
+            if (DBG) mLog.tC("No ring buffers to log anything!");
             return false;
         }
 
@@ -544,7 +544,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
             compressor.end();
             bos.close();
         } catch (IOException e) {
-            mLog.e("ByteArrayOutputStream close error");
+            mLog.wC("ByteArrayOutputStream close error");
             result =  android.util.Base64.encodeToString(input, Base64.DEFAULT);
             return result;
         }
@@ -588,7 +588,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     }
 
     private LimitedCircularArray<String> getKernelLog(int maxLines) {
-        if (DBG) mLog.d("Reading kernel log ...");
+        if (DBG) mLog.tC("Reading kernel log ...");
         LimitedCircularArray<String> lines = new LimitedCircularArray<String>(maxLines);
         String log = mWifiNative.readKernelLog();
         String logLines[] = log.split("\n");
