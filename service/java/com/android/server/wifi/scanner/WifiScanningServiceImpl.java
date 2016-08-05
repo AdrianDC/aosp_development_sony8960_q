@@ -189,7 +189,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
             ClientInfo ci = mClients.get(msg.replyTo);
             if (ci == null) {
-                loge("Could not find client info for message " + msg.replyTo);
+                loge("Could not find client info for message " + msg.replyTo + ", msg=" + msg);
                 replyFailed(msg, WifiScanner.REASON_INVALID_LISTENER, "Could not find listener");
                 return;
             }
