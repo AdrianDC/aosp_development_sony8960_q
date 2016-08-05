@@ -1766,6 +1766,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     /**
+     * Allow tests to confirm the operational mode for WSM.
+     */
+    @VisibleForTesting
+    protected int getOperationalModeForTest() {
+        return mOperationalMode;
+    }
+
+    /**
      * TODO: doc
      */
     public List<ScanResult> syncGetScanResultsList() {
@@ -4135,6 +4143,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // Refresh our reference to wificond.  This allows us to tolerate restarts.
                     mWificond = mWifiInjector.makeWificond();
                     transitionTo(mSoftApState);
+                    break;
+                case CMD_SET_OPERATIONAL_MODE:
+                    mOperationalMode = message.arg1;
                     break;
                 default:
                     return NOT_HANDLED;
