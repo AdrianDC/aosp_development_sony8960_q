@@ -16,12 +16,6 @@
 
 package com.android.server.wifi;
 
-import android.app.test.MockAnswerUtil.AnswerWithArguments;
-import android.content.Context;
-import android.test.suitebuilder.annotation.SmallTest;
-import com.android.internal.R;
-import android.util.LocalLog;
-
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -36,10 +30,18 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.app.test.MockAnswerUtil.AnswerWithArguments;
+import android.content.Context;
+import android.test.suitebuilder.annotation.SmallTest;
+import android.util.LocalLog;
+
+import com.android.internal.R;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -51,14 +53,12 @@ import java.util.regex.Pattern;
  */
 @SmallTest
 public class WifiDiagnosticsTest {
-    public static final String TAG = "WifiDiagsTest";
-
     @Mock WifiStateMachine mWsm;
     @Mock WifiNative mWifiNative;
     @Mock BuildProperties mBuildProperties;
     @Mock Context mContext;
     @Mock WifiInjector mWifiInjector;
-    @Mock WifiLog mLog;
+    @Spy FakeWifiLog mLog;
     WifiDiagnostics mWifiDiagnostics;
 
     private static final String FAKE_RING_BUFFER_NAME = "fake-ring-buffer";
