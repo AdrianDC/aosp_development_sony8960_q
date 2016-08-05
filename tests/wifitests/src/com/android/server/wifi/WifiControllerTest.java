@@ -268,7 +268,6 @@ public class WifiControllerTest {
         InOrder inOrder = inOrder(mWifiStateMachine);
         inOrder.verify(mWifiStateMachine).setSupplicantRunning(true);
         inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        inOrder.verify(mWifiStateMachine).setDriverStart(true);
         assertEquals("DeviceActiveState", getCurrentState().getName());
     }
 
@@ -296,7 +295,6 @@ public class WifiControllerTest {
         InOrder inOrder = inOrder(mWifiStateMachine);
         inOrder.verify(mWifiStateMachine).setSupplicantRunning(true);
         inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        inOrder.verify(mWifiStateMachine).setDriverStart(true);
         assertEquals("DeviceActiveState", getCurrentState().getName());
     }
 
@@ -330,7 +328,6 @@ public class WifiControllerTest {
         InOrder inOrder = inOrder(mWifiStateMachine);
         inOrder.verify(mWifiStateMachine).setSupplicantRunning(true);
         inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        inOrder.verify(mWifiStateMachine).setDriverStart(true);
         assertEquals("FullLockHeldState", getCurrentState().getName());
     }
 
@@ -405,7 +402,6 @@ public class WifiControllerTest {
         inOrder.verify(mWifiStateMachine).setSupplicantRunning(false);
         inOrder.verify(mWifiStateMachine).setSupplicantRunning(true);
         inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        inOrder.verify(mWifiStateMachine).setDriverStart(true);
         assertEquals("DeviceActiveState", getCurrentState().getName());
     }
 
