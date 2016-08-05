@@ -20,6 +20,8 @@ import android.util.Log;
 
 import com.android.internal.annotations.Immutable;
 
+import javax.annotation.concurrent.ThreadSafe;
+
 /**
  * Provides a WifiLog implementation which uses logd as the
  * logging backend.
@@ -27,7 +29,7 @@ import com.android.internal.annotations.Immutable;
  * This class is trivially thread-safe, as instances are immutable.
  * Note, however, that LogMessage instances are _not_ thread-safe.
  */
-// @ThreadSafe
+@ThreadSafe
 @Immutable
 class LogcatLog implements WifiLog {
     private final String mTag;

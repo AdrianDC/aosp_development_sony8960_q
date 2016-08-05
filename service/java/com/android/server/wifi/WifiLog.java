@@ -18,6 +18,8 @@ package com.android.server.wifi;
 
 import android.annotation.NonNull;
 
+import javax.annotation.CheckReturnValue;
+
 /**
  * Provides an abstraction of logging back-ends.
  *
@@ -60,6 +62,7 @@ public interface WifiLog {
      *         mLog.err("error % while stopping interface %").c(errNum).c(ifaceName).flush();
      *     }
      */
+    @CheckReturnValue
     @NonNull
     LogMessage err(@NonNull String format);
 
@@ -71,6 +74,7 @@ public interface WifiLog {
      * but the malfunction is _unlikely_ to cause an externally visible problem
      * on its own. For example: if we fail to start the debugging subsystem.
      */
+    @CheckReturnValue
     @NonNull
     LogMessage warn(@NonNull String format);
 
@@ -82,6 +86,7 @@ public interface WifiLog {
      * that help understand the program's external behavior. For example: we
      * might log an info message before initiating a Wifi association.
      */
+    @CheckReturnValue
     @NonNull
     LogMessage info(@NonNull String format);
 
@@ -93,6 +98,7 @@ public interface WifiLog {
      * that help understand the program's internal behavior. For example:
      * "Reached myCoolMethod()".
      */
+    @CheckReturnValue
     @NonNull
     LogMessage trace(@NonNull String format);
 
@@ -102,6 +108,7 @@ public interface WifiLog {
      *
      * Dump-level messages should be used to report detailed internal state.
      */
+    @CheckReturnValue
     @NonNull
     LogMessage dump(@NonNull String format);
 
@@ -152,6 +159,7 @@ public interface WifiLog {
          *
          * @return |this|, to allow chaining of calls
          */
+        @CheckReturnValue
         @NonNull
         LogMessage r(String value);
 
@@ -160,18 +168,21 @@ public interface WifiLog {
          * as 'clean', to inform the logging daemon that the value does _not_
          * contain sensitive data.
          */
+        @CheckReturnValue
         @NonNull
         LogMessage c(String value);
 
         /**
          * Like {@link #c(String) c(String)}, except that the value is a long.
          */
+        @CheckReturnValue
         @NonNull
         LogMessage c(long value);
 
         /**
          * Like {@link #c(String) c(String)}, except that the value is a char.
          */
+        @CheckReturnValue
         @NonNull
         LogMessage c(char value);
 
