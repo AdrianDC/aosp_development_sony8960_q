@@ -1884,6 +1884,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     /**
+     * Allow tests to confirm the operational mode for WSM.
+     */
+    @VisibleForTesting
+    protected int getOperationalModeForTest() {
+        return mOperationalMode;
+    }
+
+    /**
      * TODO: doc
      */
     public List<ScanResult> syncGetScanResultsList() {
@@ -4333,6 +4341,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                          */
                         transitionTo(mInitialState);
                     }
+                    break;
+                case CMD_SET_OPERATIONAL_MODE:
+                    mOperationalMode = message.arg1;
                     break;
                 default:
                     return NOT_HANDLED;
