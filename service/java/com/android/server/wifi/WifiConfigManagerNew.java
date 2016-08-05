@@ -221,6 +221,10 @@ public class WifiConfigManagerNew {
      */
     private final boolean mOnlyLinkSameCredentialConfigurations;
     /**
+     * Number of channels to scan for during partial scans initiated while connected.
+     */
+    private final int mMaxNumActiveChannelsForPartialScans;
+    /**
      * Verbose logging flag. Toggled by developer options.
      */
     private boolean mVerboseLoggingEnabled = false;
@@ -254,6 +258,8 @@ public class WifiConfigManagerNew {
 
         mOnlyLinkSameCredentialConfigurations = mContext.getResources().getBoolean(
                 R.bool.config_wifi_only_link_same_credential_configurations);
+        mMaxNumActiveChannelsForPartialScans = mContext.getResources().getInteger(
+                R.integer.config_wifi_framework_associated_partial_scan_max_num_active_channels);
     }
 
     /**
@@ -1475,6 +1481,108 @@ public class WifiConfigManagerNew {
                 unlinkNetworks(config, linkConfig);
             }
         }
+    }
+
+    /**
+     * Helper method to fetch list of channels for a network from the associated ScanResult's cache
+     * and add it to the provided channel as long as the size of the set is less than
+     * |maxChannelSetSize|.
+     *
+     * @param channelSet        Channel set holding all the channels for the network.
+     * @param scanDetailCache   ScanDetailCache entry associated with the network.
+     * @param nowInMillis       current timestamp to be used for age comparison.
+     * @param ageInMillis       only consider scan details whose timestamps are earlier than this
+     *                          value.
+     * @param maxChannelSetSize Maximum number of channels to be added to the set.
+     * @return false if the list is full, true otherwise.
+     */
+    private boolean addToChannelSetForNetworkFromScanDetailCache(
+            Set<Integer> channelSet, ScanDetailCache scanDetailCache,
+            long nowInMillis, long ageInMillis, int maxChannelSetSize) {
+        if (scanDetailCache != null && scanDetailCache.size() > 0) {
+            for (ScanDetail scanDetail : scanDetailCache.values()) {
+                ScanResult result = scanDetail.getScanResult();
+                boolean valid = (nowInMillis - result.seen) < ageInMillis;
+                if (mVerboseLoggingEnabled) {
+                    Log.v(TAG, "fetchChannelSetForNetwork has " + result.BSSID + " freq "
+                            + result.frequency + " age " + (nowInMillis - result.seen)
+                            + " ?=" + valid);
+                }
+                if (valid) {
+                    channelSet.add(result.frequency);
+                }
+                if (channelSet.size() >= maxChannelSetSize) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Retrieve a set of channels on which AP's for the provided network was seen using the
+     * internal ScanResult's cache {@link #mScanDetailCaches}. This is used for initiating partial
+     * scans for the currently connected network.
+     *
+     * @param networkId   network ID corresponding to the network.
+     * @param ageInMillis only consider scan details whose timestamps are earlier than this value.
+     * @return Set containing the frequencies on which this network was found, null if the network
+     * was not found or there are no associated scan details in the cache.
+     */
+    public Set<Integer> fetchChannelSetForNetworkForPartialScan(int networkId, long ageInMillis) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            Log.e(TAG, "Cannot find network with networkId " + networkId);
+            return null;
+        }
+        ScanDetailCache scanDetailCache = getScanDetailCacheForNetwork(networkId);
+        if (scanDetailCache == null && config.linkedConfigurations == null) {
+            Log.i(TAG, "No scan detail and linked configs associated with networkId " + networkId);
+            return null;
+        }
+        if (mVerboseLoggingEnabled) {
+            StringBuilder dbg = new StringBuilder();
+            dbg.append("fetchChannelSetForNetworkForPartialScan ageInMillis ")
+                    .append(ageInMillis)
+                    .append(" for ")
+                    .append(config.configKey())
+                    .append(" max ")
+                    .append(mMaxNumActiveChannelsForPartialScans);
+            if (scanDetailCache != null) {
+                dbg.append(" bssids " + scanDetailCache.size());
+            }
+            if (config.linkedConfigurations != null) {
+                dbg.append(" linked " + config.linkedConfigurations.size());
+            }
+            Log.v(TAG, dbg.toString());
+        }
+        Set<Integer> channelSet = new HashSet<>();
+        long nowInMillis = mClock.getWallClockMillis();
+
+        // First get channels for the network.
+        if (!addToChannelSetForNetworkFromScanDetailCache(
+                channelSet, scanDetailCache, nowInMillis, ageInMillis,
+                mMaxNumActiveChannelsForPartialScans)) {
+            return channelSet;
+        }
+
+        // Now get channels for linked networks.
+        if (config.linkedConfigurations != null) {
+            for (String configKey : config.linkedConfigurations.keySet()) {
+                WifiConfiguration linkedConfig = getInternalConfiguredNetwork(configKey);
+                if (linkedConfig == null) {
+                    continue;
+                }
+                ScanDetailCache linkedScanDetailCache =
+                        getScanDetailCacheForNetwork(linkedConfig.networkId);
+                if (!addToChannelSetForNetworkFromScanDetailCache(
+                        channelSet, linkedScanDetailCache, nowInMillis, ageInMillis,
+                        mMaxNumActiveChannelsForPartialScans)) {
+                    break;
+                }
+            }
+        }
+        return channelSet;
     }
 
     /**
