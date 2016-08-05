@@ -1299,6 +1299,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     void enableVerboseLogging(int verbose) {
+        if (mVerboseLoggingLevel == verbose) {
+            // We are already at the desired verbosity, avoid resetting StateMachine log records by
+            // returning here until underlying bug is fixed (b/28027593)
+            return;
+        }
         mVerboseLoggingLevel = verbose;
         mFacade.setIntegerSetting(
                 mContext, Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, verbose);
