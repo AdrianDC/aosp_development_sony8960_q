@@ -37,6 +37,8 @@ import android.os.UserManager;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.text.TextUtils;
 
+import com.android.internal.R;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -62,6 +64,7 @@ public class WifiConfigManagerNewTest {
     private static final int TEST_UPDATE_UID = 4;
     private static final String TEST_CREATOR_NAME = "com.wificonfigmanagerNew.creator";
     private static final String TEST_UPDATE_NAME = "com.wificonfigmanagerNew.update";
+    private static final String TEST_DEFAULT_GW_MAC_ADDRESS = "0f:67:ad:ef:09:34";
 
     @Mock private Context mContext;
     @Mock private FrameworkFacade mFrameworkFacade;
@@ -88,6 +91,11 @@ public class WifiConfigManagerNewTest {
 
         // Set up the package name stuff & permission override.
         when(mContext.getPackageManager()).thenReturn(mPackageManager);
+        MockResources resources = new MockResources();
+        resources.setBoolean(
+                R.bool.config_wifi_only_link_same_credential_configurations, true);
+        when(mContext.getResources()).thenReturn(resources);
+
         doAnswer(new AnswerWithArguments() {
             public String answer(int uid) throws Exception {
                 if (uid == TEST_CREATOR_UID) {
@@ -1170,6 +1178,205 @@ public class WifiConfigManagerNewTest {
         assertEquals(2, pnoNetworks.size());
         assertEquals(network1.SSID, pnoNetworks.get(0).ssid);
         assertEquals(network2.SSID, pnoNetworks.get(1).ssid);
+    }
+
+    /**
+     * Verifies the linking of networks when they have the same default GW Mac address in
+     * {@link WifiConfigManagerNew#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}.
+     */
+    @Test
+    public void testNetworkLinkUsingGwMacAddress() {
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createPskNetwork();
+        WifiConfiguration network2 = WifiConfigurationTestUtil.createPskNetwork();
+        WifiConfiguration network3 = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkToWifiConfigManager(network1);
+        verifyAddNetworkToWifiConfigManager(network2);
+        verifyAddNetworkToWifiConfigManager(network3);
+
+        // Set the same default GW mac address for all of the networks.
+        assertTrue(mWifiConfigManager.setNetworkDefaultGwMacAddress(
+                network1.networkId, TEST_DEFAULT_GW_MAC_ADDRESS));
+        assertTrue(mWifiConfigManager.setNetworkDefaultGwMacAddress(
+                network2.networkId, TEST_DEFAULT_GW_MAC_ADDRESS));
+        assertTrue(mWifiConfigManager.setNetworkDefaultGwMacAddress(
+                network3.networkId, TEST_DEFAULT_GW_MAC_ADDRESS));
+
+        // Now create dummy scan detail corresponding to the networks.
+        ScanDetail networkScanDetail1 = createScanDetailForNetwork(network1);
+        ScanDetail networkScanDetail2 = createScanDetailForNetwork(network2);
+        ScanDetail networkScanDetail3 = createScanDetailForNetwork(network3);
+
+        // Now save all these scan details corresponding to each of this network and expect
+        // all of these networks to be linked with each other.
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(networkScanDetail1));
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(networkScanDetail2));
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(networkScanDetail3));
+
+        List<WifiConfiguration> retrievedNetworks =
+                mWifiConfigManager.getConfiguredNetworks();
+        for (WifiConfiguration network : retrievedNetworks) {
+            assertEquals(2, network.linkedConfigurations.size());
+            for (WifiConfiguration otherNetwork : retrievedNetworks) {
+                if (otherNetwork == network) {
+                    continue;
+                }
+                assertNotNull(network.linkedConfigurations.get(otherNetwork.configKey()));
+            }
+        }
+    }
+
+    /**
+     * Verifies the linking of networks when they have scan results with same first 16 ASCII of
+     * bssid in
+     * {@link WifiConfigManagerNew#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}.
+     */
+    @Test
+    public void testNetworkLinkUsingBSSIDMatch() {
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createPskNetwork();
+        WifiConfiguration network2 = WifiConfigurationTestUtil.createPskNetwork();
+        WifiConfiguration network3 = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkToWifiConfigManager(network1);
+        verifyAddNetworkToWifiConfigManager(network2);
+        verifyAddNetworkToWifiConfigManager(network3);
+
+        // Create scan results with bssid which is different in only the last char.
+        ScanDetail networkScanDetail1 = createScanDetailForNetwork(network1, "af:89:56:34:56:67");
+        ScanDetail networkScanDetail2 = createScanDetailForNetwork(network2, "af:89:56:34:56:68");
+        ScanDetail networkScanDetail3 = createScanDetailForNetwork(network3, "af:89:56:34:56:69");
+
+        // Now save all these scan details corresponding to each of this network and expect
+        // all of these networks to be linked with each other.
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(networkScanDetail1));
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(networkScanDetail2));
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(networkScanDetail3));
+
+        List<WifiConfiguration> retrievedNetworks =
+                mWifiConfigManager.getConfiguredNetworks();
+        for (WifiConfiguration network : retrievedNetworks) {
+            assertEquals(2, network.linkedConfigurations.size());
+            for (WifiConfiguration otherNetwork : retrievedNetworks) {
+                if (otherNetwork == network) {
+                    continue;
+                }
+                assertNotNull(network.linkedConfigurations.get(otherNetwork.configKey()));
+            }
+        }
+    }
+
+    /**
+     * Verifies the linking of networks does not happen for non WPA networks when they have scan
+     * results with same first 16 ASCII of bssid in
+     * {@link WifiConfigManagerNew#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}.
+     */
+    @Test
+    public void testNoNetworkLinkUsingBSSIDMatchForNonWpaNetworks() {
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createOpenNetwork();
+        WifiConfiguration network2 = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkToWifiConfigManager(network1);
+        verifyAddNetworkToWifiConfigManager(network2);
+
+        // Create scan results with bssid which is different in only the last char.
+        ScanDetail networkScanDetail1 = createScanDetailForNetwork(network1, "af:89:56:34:56:67");
+        ScanDetail networkScanDetail2 = createScanDetailForNetwork(network2, "af:89:56:34:56:68");
+
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(networkScanDetail1));
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(networkScanDetail2));
+
+        List<WifiConfiguration> retrievedNetworks =
+                mWifiConfigManager.getConfiguredNetworks();
+        for (WifiConfiguration network : retrievedNetworks) {
+            assertNull(network.linkedConfigurations);
+        }
+    }
+
+    /**
+     * Verifies the linking of networks does not happen for networks with more than
+     * //     * {@link WifiConfigManagerNew#LINK_CONFIGURATION_MAX_SCAN_CACHE_ENTRIES} scan
+     * results with same first 16 ASCII of bssid in
+     * {@link WifiConfigManagerNew#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}.
+     */
+    @Test
+    public void testNoNetworkLinkUsingBSSIDMatchForNetworksWithHighScanDetailCacheSize() {
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createPskNetwork();
+        WifiConfiguration network2 = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkToWifiConfigManager(network1);
+        verifyAddNetworkToWifiConfigManager(network2);
+
+        // Create 7 scan results with bssid which is different in only the last char.
+        String test_bssid_base = "af:89:56:34:56:6";
+        int scan_result_num = 0;
+        for (; scan_result_num < WifiConfigManagerNew.LINK_CONFIGURATION_MAX_SCAN_CACHE_ENTRIES + 1;
+                scan_result_num++) {
+            ScanDetail networkScanDetail =
+                    createScanDetailForNetwork(
+                            network1, test_bssid_base + Integer.toString(scan_result_num));
+            assertNotNull(
+                    mWifiConfigManager.getSavedNetworkForScanDetailAndCache(networkScanDetail));
+        }
+
+        // Now add 1 scan result to the other network with bssid which is different in only the
+        // last char.
+        ScanDetail networkScanDetail2 =
+                createScanDetailForNetwork(
+                        network2, test_bssid_base + Integer.toString(scan_result_num++));
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(networkScanDetail2));
+
+        List<WifiConfiguration> retrievedNetworks =
+                mWifiConfigManager.getConfiguredNetworks();
+        for (WifiConfiguration network : retrievedNetworks) {
+            assertNull(network.linkedConfigurations);
+        }
+    }
+
+    /**
+     * Verifies the linking of networks when they have scan results with same first 16 ASCII of
+     * bssid in {@link WifiConfigManagerNew#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}
+     * and then subsequently delinked when the networks have default gateway set which do not match.
+     */
+    @Test
+    public void testNetworkLinkUsingBSSIDMatchAndThenUnlinkDueToGwMacAddress() {
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createPskNetwork();
+        WifiConfiguration network2 = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkToWifiConfigManager(network1);
+        verifyAddNetworkToWifiConfigManager(network2);
+
+        // Create scan results with bssid which is different in only the last char.
+        ScanDetail networkScanDetail1 = createScanDetailForNetwork(network1, "af:89:56:34:56:67");
+        ScanDetail networkScanDetail2 = createScanDetailForNetwork(network2, "af:89:56:34:56:68");
+
+        // Now save all these scan details corresponding to each of this network and expect
+        // all of these networks to be linked with each other.
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(networkScanDetail1));
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(networkScanDetail2));
+
+        List<WifiConfiguration> retrievedNetworks =
+                mWifiConfigManager.getConfiguredNetworks();
+        for (WifiConfiguration network : retrievedNetworks) {
+            assertEquals(1, network.linkedConfigurations.size());
+            for (WifiConfiguration otherNetwork : retrievedNetworks) {
+                if (otherNetwork == network) {
+                    continue;
+                }
+                assertNotNull(network.linkedConfigurations.get(otherNetwork.configKey()));
+            }
+        }
+
+        // Now Set different GW mac address for both the networks and ensure they're unlinked.
+        assertTrue(mWifiConfigManager.setNetworkDefaultGwMacAddress(
+                network1.networkId, "de:ad:fe:45:23:34"));
+        assertTrue(mWifiConfigManager.setNetworkDefaultGwMacAddress(
+                network2.networkId, "ad:de:fe:45:23:34"));
+
+        // Add some dummy scan results again to re-evaluate the linking of networks.
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(
+                createScanDetailForNetwork(network1, "af:89:56:34:45:67")));
+        assertNotNull(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(
+                createScanDetailForNetwork(network1, "af:89:56:34:45:68")));
+
+        retrievedNetworks = mWifiConfigManager.getConfiguredNetworks();
+        for (WifiConfiguration network : retrievedNetworks) {
+            assertNull(network.linkedConfigurations);
+        }
     }
 
     /**

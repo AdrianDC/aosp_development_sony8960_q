@@ -40,6 +40,7 @@ import android.text.TextUtils;
 import android.util.LocalLog;
 import android.util.Log;
 
+import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalServices;
 import com.android.server.wifi.util.ScanResultUtil;
@@ -51,6 +52,7 @@ import java.util.BitSet;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -139,6 +141,17 @@ public class WifiConfigManagerNew {
     @VisibleForTesting
     public static final int SCAN_CACHE_ENTRIES_TRIM_SIZE = 128;
     /**
+     * Link networks only if they have less than this number of scan cache entries.
+     */
+    @VisibleForTesting
+    public static final int LINK_CONFIGURATION_MAX_SCAN_CACHE_ENTRIES = 6;
+    /**
+     * Link networks only if the bssid in scan results for the networks match in the first
+     * 16 ASCII chars in the bssid string. For example = "af:de:56;34:15:7"
+     */
+    @VisibleForTesting
+    public static final int LINK_CONFIGURATION_BSSID_MATCH_LENGTH = 16;
+    /**
      * Flags to be passed in for |canModifyNetwork| to decide if the change is minor and can
      * bypass the lockdown checks.
      */
@@ -202,7 +215,11 @@ public class WifiConfigManagerNew {
      * The SSIDs are encoded in a String as per definition of WifiConfiguration.SSID field.
      */
     private final Set<String> mDeletedEphemeralSSIDs;
-
+    /**
+     * Flag to indicate if only networks with the same psk should be linked.
+     * TODO(b/30706406): Remove this flag if unused.
+     */
+    private final boolean mOnlyLinkSameCredentialConfigurations;
     /**
      * Verbose logging flag. Toggled by developer options.
      */
@@ -233,7 +250,10 @@ public class WifiConfigManagerNew {
 
         mConfiguredNetworks = new ConfigurationMap(userManager);
         mScanDetailCaches = new ConcurrentHashMap<>(16, 0.75f, 2);
-        mDeletedEphemeralSSIDs = new HashSet<String>();
+        mDeletedEphemeralSSIDs = new HashSet<>();
+
+        mOnlyLinkSameCredentialConfigurations = mContext.getResources().getBoolean(
+                R.bool.config_wifi_only_link_same_credential_configurations);
     }
 
     /**
@@ -412,6 +432,14 @@ public class WifiConfigManagerNew {
      */
     private WifiConfiguration getInternalConfiguredNetwork(int networkId) {
         return mConfiguredNetworks.getForCurrentUser(networkId);
+    }
+
+    /**
+     * Helper method to retrieve the internal WifiConfiguration object corresponding to the
+     * provided configKey in our database.
+     */
+    private WifiConfiguration getInternalConfiguredNetwork(String configKey) {
+        return mConfiguredNetworks.getByConfigKeyForCurrentUser(configKey);
     }
 
     /**
@@ -1160,13 +1188,29 @@ public class WifiConfigManagerNew {
     }
 
     /**
+     * Set default GW MAC address for the provided network.
+     *
+     * @param networkId  network ID corresponding to the network.
+     * @param macAddress MAC address of the gateway to be set.
+     * @return true if the network was found, false otherwise.
+     */
+    public boolean setNetworkDefaultGwMacAddress(int networkId, String macAddress) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            Log.e(TAG, "Cannot find network with networkId " + networkId);
+            return false;
+        }
+        config.defaultGwMacAddress = macAddress;
+        return true;
+    }
+
+    /**
      * Helper method to get the scan detail cache entry {@link #mScanDetailCaches} for the provided
      * network.
      *
      * @param networkId network ID corresponding to the network.
      * @return existing {@link ScanDetailCache} entry if one exists or null.
      */
-    @VisibleForTesting
     public ScanDetailCache getScanDetailCacheForNetwork(int networkId) {
         return mScanDetailCaches.get(networkId);
     }
@@ -1226,8 +1270,9 @@ public class WifiConfigManagerNew {
         // Add the scan detail to this network's scan detail cache.
         scanDetailCache.put(scanDetail);
 
-        // Since we added a scan result to this configuration, re-attempt linking
-        // TODO: linkConfiguration(config);
+        // Since we added a scan result to this configuration, re-attempt linking.
+        // TODO: Do we really need to do this after every scan result?
+        attemptNetworkLinking(config);
     }
 
     /**
@@ -1277,6 +1322,162 @@ public class WifiConfigManagerNew {
     }
 
     /**
+     * Helper method to check if the 2 provided networks can be linked or not.
+     * Networks are considered for linking if:
+     * 1. Share the same GW MAC address.
+     * 2. Scan results for the networks have AP's with MAC address which differ only in the last
+     * nibble.
+     *
+     * @param network1         WifiConfiguration corresponding to network 1.
+     * @param network2         WifiConfiguration corresponding to network 2.
+     * @param scanDetailCache1 ScanDetailCache entry for network 1.
+     * @param scanDetailCache1 ScanDetailCache entry for network 2.
+     * @return true if the networks should be linked, false if the networks should be unlinked.
+     */
+    private boolean shouldNetworksBeLinked(
+            WifiConfiguration network1, WifiConfiguration network2,
+            ScanDetailCache scanDetailCache1, ScanDetailCache scanDetailCache2) {
+        // TODO (b/30706406): Link networks only with same passwords if the
+        // |mOnlyLinkSameCredentialConfigurations| flag is set.
+        if (mOnlyLinkSameCredentialConfigurations) {
+            if (!TextUtils.equals(network1.preSharedKey, network2.preSharedKey)) {
+                if (mVerboseLoggingEnabled) {
+                    Log.v(TAG, "shouldNetworksBeLinked unlink due to password mismatch");
+                }
+                return false;
+            }
+        }
+        if (network1.defaultGwMacAddress != null && network2.defaultGwMacAddress != null) {
+            // If both default GW are known, link only if they are equal
+            if (network1.defaultGwMacAddress.equals(network2.defaultGwMacAddress)) {
+                if (mVerboseLoggingEnabled) {
+                    Log.v(TAG, "shouldNetworksBeLinked link due to same gw " + network2.SSID
+                            + " and " + network1.SSID + " GW " + network1.defaultGwMacAddress);
+                }
+                return true;
+            }
+        } else {
+            // We do not know BOTH default gateways hence we will try to link
+            // hoping that WifiConfigurations are indeed behind the same gateway.
+            // once both WifiConfiguration have been tried and thus once both default gateways
+            // are known we will revisit the choice of linking them.
+            if (scanDetailCache1 != null && scanDetailCache2 != null) {
+                for (String abssid : scanDetailCache1.keySet()) {
+                    for (String bbssid : scanDetailCache2.keySet()) {
+                        if (abssid.regionMatches(
+                                true, 0, bbssid, 0, LINK_CONFIGURATION_BSSID_MATCH_LENGTH)) {
+                            // If first 16 ASCII characters of BSSID matches,
+                            // we assume this is a DBDC.
+                            if (mVerboseLoggingEnabled) {
+                                Log.v(TAG, "shouldNetworksBeLinked link due to DBDC BSSID match "
+                                        + network2.SSID + " and " + network1.SSID
+                                        + " bssida " + abssid + " bssidb " + bbssid);
+                            }
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Helper methods to link 2 networks together.
+     *
+     * @param network1 WifiConfiguration corresponding to network 1.
+     * @param network2 WifiConfiguration corresponding to network 2.
+     */
+    private void linkNetworks(WifiConfiguration network1, WifiConfiguration network2) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "linkNetworks will link " + network2.configKey()
+                    + " and " + network1.configKey());
+        }
+        if (network2.linkedConfigurations == null) {
+            network2.linkedConfigurations = new HashMap<>();
+        }
+        if (network1.linkedConfigurations == null) {
+            network1.linkedConfigurations = new HashMap<>();
+        }
+        // TODO (b/30638473): This needs to become a set instead of map, but it will need
+        // public interface changes and need some migration of existing store data.
+        network2.linkedConfigurations.put(network1.configKey(), 1);
+        network1.linkedConfigurations.put(network2.configKey(), 1);
+    }
+
+    /**
+     * Helper methods to unlink 2 networks from each other.
+     *
+     * @param network1 WifiConfiguration corresponding to network 1.
+     * @param network2 WifiConfiguration corresponding to network 2.
+     */
+    private void unlinkNetworks(WifiConfiguration network1, WifiConfiguration network2) {
+        if (network2.linkedConfigurations != null
+                && (network2.linkedConfigurations.get(network1.configKey()) != null)) {
+            if (mVerboseLoggingEnabled) {
+                Log.v(TAG, "unlinkNetworks un-link " + network1.configKey()
+                        + " from " + network2.configKey());
+            }
+            network2.linkedConfigurations.remove(network1.configKey());
+        }
+        if (network1.linkedConfigurations != null
+                && (network1.linkedConfigurations.get(network2.configKey()) != null)) {
+            if (mVerboseLoggingEnabled) {
+                Log.v(TAG, "unlinkNetworks un-link " + network2.configKey()
+                        + " from " + network1.configKey());
+            }
+            network1.linkedConfigurations.remove(network2.configKey());
+        }
+    }
+
+    /**
+     * This method runs through all the saved networks and checks if the provided network can be
+     * linked with any of them.
+     *
+     * @param config WifiConfiguration object corresponding to the network that needs to be
+     *               checked for potential links.
+     */
+    private void attemptNetworkLinking(WifiConfiguration config) {
+        // Only link WPA_PSK config.
+        if (!config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
+            return;
+        }
+        ScanDetailCache scanDetailCache = getScanDetailCacheForNetwork(config.networkId);
+        // Ignore configurations with large number of BSSIDs.
+        if (scanDetailCache != null
+                && scanDetailCache.size() > LINK_CONFIGURATION_MAX_SCAN_CACHE_ENTRIES) {
+            return;
+        }
+        for (WifiConfiguration linkConfig : getInternalConfiguredNetworks()) {
+            if (linkConfig.configKey().equals(config.configKey())) {
+                continue;
+            }
+            if (linkConfig.ephemeral) {
+                continue;
+            }
+            // QNS will be allowed to dynamically jump from a linked configuration
+            // to another, hence only link configurations that have WPA_PSK security type.
+            if (!linkConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
+                continue;
+            }
+            ScanDetailCache linkScanDetailCache =
+                    getScanDetailCacheForNetwork(linkConfig.networkId);
+            // Ignore configurations with large number of BSSIDs.
+            if (linkScanDetailCache != null
+                    && linkScanDetailCache.size() > LINK_CONFIGURATION_MAX_SCAN_CACHE_ENTRIES) {
+                continue;
+            }
+            // Check if the networks should be linked/unlinked.
+            if (shouldNetworksBeLinked(
+                    config, linkConfig, scanDetailCache, linkScanDetailCache)) {
+                linkNetworks(config, linkConfig);
+            } else {
+                unlinkNetworks(config, linkConfig);
+            }
+        }
+    }
+
+    /**
      * Helper method to clear the {@link NetworkSelectionStatus#mCandidate},
      * {@link NetworkSelectionStatus#mCandidateScore} &
      * {@link NetworkSelectionStatus#mSeenInLastQualifiedNetworkSelection} for the provided network.
@@ -1284,7 +1485,7 @@ public class WifiConfigManagerNew {
      * This is invoked by QNS at the start of every selection procedure to clear all configured
      * networks' scan-result-candidates.
      *
-     * @param networkId  network ID corresponding to the network.
+     * @param networkId network ID corresponding to the network.
      * @return true if the network was found, false otherwise.
      */
     public boolean clearNetworkCandidateScanResult(int networkId) {

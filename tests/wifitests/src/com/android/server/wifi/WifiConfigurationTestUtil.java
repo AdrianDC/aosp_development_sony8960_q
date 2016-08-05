@@ -60,7 +60,7 @@ public class WifiConfigurationTestUtil {
      */
     public static final int TEST_NETWORK_ID = -1;
     public static final int TEST_UID = 1;
-    public static final String TEST_SSID = "WifiConfigurationTestUtilSSID_";
+    public static final String TEST_SSID = "WifiConfigurationTestUtilSSID";
     public static final String TEST_PSK = "WifiConfigurationTestUtilPsk";
     public static final String[] TEST_WEP_KEYS =
             {"WifiConfigurationTestUtilWep1", "WifiConfigurationTestUtilWep2",
@@ -80,6 +80,7 @@ public class WifiConfigurationTestUtil {
     public static final String TEST_PAC_PROXY_LOCATION = "http://";
     public static final String TEST_CA_CERT_ALIAS = "WifiConfigurationTestUtilCaCertAlias";
 
+    private static final int MAX_SSID_LENGTH = 32;
     /**
      * Index used to assign unique SSIDs for the generation of predefined WifiConfiguration objects.
      */
@@ -214,7 +215,9 @@ public class WifiConfigurationTestUtil {
      * Create a new SSID for the the network being created.
      */
     private static String createNewSSID() {
-        return "\"" + TEST_SSID + sNetworkIndex++ + "\"";
+        String ssid = TEST_SSID + sNetworkIndex++;
+        assertTrue(ssid.length() <= MAX_SSID_LENGTH);
+        return "\"" + ssid + "\"";
     }
 
     /**
