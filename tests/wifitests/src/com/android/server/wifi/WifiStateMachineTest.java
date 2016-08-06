@@ -525,7 +525,6 @@ public class WifiStateMachineTest {
      */
     @Test
     public void checkOperationalModeInInitialState() throws Exception {
-        when(mWifiNative.loadDriver()).thenReturn(true);
         when(mWifiNative.startHal()).thenReturn(true);
         when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(true);
 
@@ -553,7 +552,6 @@ public class WifiStateMachineTest {
      */
     @Test
     public void checkStartInCorrectStateAfterChangingInitialState() throws Exception {
-        when(mWifiNative.loadDriver()).thenReturn(true);
         when(mWifiNative.startHal()).thenReturn(true);
         when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(true);
 
