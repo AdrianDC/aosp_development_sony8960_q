@@ -1767,12 +1767,6 @@ void *platform_init(struct audio_device *adev)
             ALOGE("%s: Could not find the symbol acdb_loader_send_voice_cal from %s",
                   __func__, LIB_ACDB_LOADER);
 
-        my_data->acdb_reload_vocvoltable = (acdb_reload_vocvoltable_t)dlsym(my_data->acdb_handle,
-                                                    "acdb_loader_reload_vocvoltable");
-        if (!my_data->acdb_reload_vocvoltable)
-            ALOGE("%s: Could not find the symbol acdb_loader_reload_vocvoltable from %s",
-                  __func__, LIB_ACDB_LOADER);
-
         my_data->acdb_send_gain_dep_cal = (acdb_send_gain_dep_cal_t)dlsym(my_data->acdb_handle,
                                                     "acdb_loader_send_gain_dep_cal");
         if (!my_data->acdb_send_gain_dep_cal)
