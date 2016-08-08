@@ -429,7 +429,12 @@ public class WifiConfigManagerNew {
         if (internalConfig != null) {
             return internalConfig;
         }
-        return mConfiguredNetworks.getByConfigKeyForCurrentUser(config.configKey());
+        internalConfig = mConfiguredNetworks.getByConfigKeyForCurrentUser(config.configKey());
+        if (internalConfig == null) {
+            Log.e(TAG, "Cannot find network with networkId " + config.networkId
+                    + " or configKey " + config.configKey());
+        }
+        return internalConfig;
     }
 
     /**
@@ -437,7 +442,11 @@ public class WifiConfigManagerNew {
      * provided network ID in our database.
      */
     private WifiConfiguration getInternalConfiguredNetwork(int networkId) {
-        return mConfiguredNetworks.getForCurrentUser(networkId);
+        WifiConfiguration internalConfig = mConfiguredNetworks.getForCurrentUser(networkId);
+        if (internalConfig == null) {
+            Log.e(TAG, "Cannot find network with networkId " + networkId);
+        }
+        return internalConfig;
     }
 
     /**
@@ -445,7 +454,12 @@ public class WifiConfigManagerNew {
      * provided configKey in our database.
      */
     private WifiConfiguration getInternalConfiguredNetwork(String configKey) {
-        return mConfiguredNetworks.getByConfigKeyForCurrentUser(configKey);
+        WifiConfiguration internalConfig =
+                mConfiguredNetworks.getByConfigKeyForCurrentUser(configKey);
+        if (internalConfig == null) {
+            Log.e(TAG, "Cannot find network with configKey " + configKey);
+        }
+        return internalConfig;
     }
 
     /**
@@ -904,7 +918,6 @@ public class WifiConfigManagerNew {
     public boolean removeNetwork(int networkId) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
-            Log.e(TAG, "Cannot find network with networkId " + networkId);
             return false;
         }
         if (!removeNetworkInternal(config)) {
@@ -1034,7 +1047,7 @@ public class WifiConfigManagerNew {
      *
      * Each network has 2 status:
      * 1. NetworkSelectionStatus: This is internal selection status of the network. This is used
-     * for temporarily disabling a network for QNS.
+     * for temporarily disabling a network for Network Selector.
      * 2. Status: This is the exposed status for a network. This is mostly set by
      * the public API's {@link WifiManager#enableNetwork(int, boolean)} &
      * {@link WifiManager#disableNetwork(int)}.
@@ -1046,7 +1059,6 @@ public class WifiConfigManagerNew {
     public boolean updateNetworkSelectionStatus(int networkId, int reason) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
-            Log.e(TAG, "Cannot find network with networkId " + networkId);
             return false;
         }
         return updateNetworkSelectionStatus(config, reason);
@@ -1095,7 +1107,6 @@ public class WifiConfigManagerNew {
     public boolean tryEnableNetwork(int networkId) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
-            Log.e(TAG, "Cannot find network with networkId " + networkId);
             return false;
         }
         return tryEnableNetwork(config);
@@ -1111,7 +1122,6 @@ public class WifiConfigManagerNew {
     public boolean enableNetwork(int networkId, int uid) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
-            Log.e(TAG, "Cannot find network with networkId " + networkId);
             return false;
         }
         if (!canModifyNetwork(config, uid, DISALLOW_LOCKDOWN_CHECK_BYPASS)) {
@@ -1133,7 +1143,6 @@ public class WifiConfigManagerNew {
     public boolean disableNetwork(int networkId, int uid) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
-            Log.e(TAG, "Cannot find network with networkId " + networkId);
             return false;
         }
         if (!canModifyNetwork(config, uid, DISALLOW_LOCKDOWN_CHECK_BYPASS)) {
@@ -1157,7 +1166,6 @@ public class WifiConfigManagerNew {
     public boolean checkAndUpdateLastConnectUid(int networkId, int uid) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
-            Log.e(TAG, "Cannot find network with networkId " + networkId);
             return false;
         }
         if (!canModifyNetwork(config, uid, ALLOW_LOCKDOWN_CHECK_BYPASS)) {
@@ -1183,7 +1191,6 @@ public class WifiConfigManagerNew {
     public boolean updateNetworkAfterConnect(int networkId) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
-            Log.e(TAG, "Cannot find network with networkId " + networkId);
             return false;
         }
         config.lastConnected = mClock.getWallClockMillis();
@@ -1203,10 +1210,56 @@ public class WifiConfigManagerNew {
     public boolean setNetworkDefaultGwMacAddress(int networkId, String macAddress) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
-            Log.e(TAG, "Cannot find network with networkId " + networkId);
             return false;
         }
         config.defaultGwMacAddress = macAddress;
+        return true;
+    }
+
+    /**
+     * Helper method to clear the {@link NetworkSelectionStatus#mCandidate},
+     * {@link NetworkSelectionStatus#mCandidateScore} &
+     * {@link NetworkSelectionStatus#mSeenInLastQualifiedNetworkSelection} for the provided network.
+     *
+     * This is invoked by Network Selector at the start of every selection procedure to clear all
+     * configured networks' scan-result-candidates.
+     *
+     * @param networkId network ID corresponding to the network.
+     * @return true if the network was found, false otherwise.
+     */
+    public boolean clearNetworkCandidateScanResult(int networkId) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return false;
+        }
+        config.getNetworkSelectionStatus().setCandidate(null);
+        config.getNetworkSelectionStatus().setCandidateScore(Integer.MIN_VALUE);
+        config.getNetworkSelectionStatus().setSeenInLastQualifiedNetworkSelection(false);
+        return true;
+    }
+
+    /**
+     * Helper method to set the {@link NetworkSelectionStatus#mCandidate},
+     * {@link NetworkSelectionStatus#mCandidateScore} &
+     * {@link NetworkSelectionStatus#mSeenInLastQualifiedNetworkSelection} for the provided network.
+     *
+     * This is invoked by Network Selector when it sees a network during network selection procedure to set the
+     * scan result candidate.
+     *
+     * @param networkId  network ID corresponding to the network.
+     * @param scanResult Candidate ScanResult associated with this network.
+     * @param score      Score assigned to the candidate.
+     * @return true if the network was found, false otherwise.
+     */
+    public boolean setNetworkCandidateScanResult(int networkId, ScanResult scanResult, int score) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return false;
+        }
+        config.getNetworkSelectionStatus().setCandidate(scanResult);
+        config.getNetworkSelectionStatus().setCandidateScore(score);
+        // Update the network selection status.
+        config.getNetworkSelectionStatus().setSeenInLastQualifiedNetworkSelection(true);
         return true;
     }
 
@@ -1233,9 +1286,8 @@ public class WifiConfigManagerNew {
         if (config == null) return null;
         ScanDetailCache cache = getScanDetailCacheForNetwork(config.networkId);
         if (cache == null && config.networkId != WifiConfiguration.INVALID_NETWORK_ID) {
-            cache =
-                    new ScanDetailCache(
-                            config, SCAN_CACHE_ENTRIES_MAX_SIZE, SCAN_CACHE_ENTRIES_TRIM_SIZE);
+            cache = new ScanDetailCache(
+                    config, SCAN_CACHE_ENTRIES_MAX_SIZE, SCAN_CACHE_ENTRIES_TRIM_SIZE);
             mScanDetailCaches.put(config.networkId, cache);
         }
         return cache;
@@ -1461,7 +1513,7 @@ public class WifiConfigManagerNew {
             if (linkConfig.ephemeral) {
                 continue;
             }
-            // QNS will be allowed to dynamically jump from a linked configuration
+            // Network Selector will be allowed to dynamically jump from a linked configuration
             // to another, hence only link configurations that have WPA_PSK security type.
             if (!linkConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
                 continue;
@@ -1532,7 +1584,6 @@ public class WifiConfigManagerNew {
     public Set<Integer> fetchChannelSetForNetworkForPartialScan(int networkId, long ageInMillis) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
-            Log.e(TAG, "Cannot find network with networkId " + networkId);
             return null;
         }
         ScanDetailCache scanDetailCache = getScanDetailCacheForNetwork(networkId);
@@ -1583,55 +1634,6 @@ public class WifiConfigManagerNew {
             }
         }
         return channelSet;
-    }
-
-    /**
-     * Helper method to clear the {@link NetworkSelectionStatus#mCandidate},
-     * {@link NetworkSelectionStatus#mCandidateScore} &
-     * {@link NetworkSelectionStatus#mSeenInLastQualifiedNetworkSelection} for the provided network.
-     *
-     * This is invoked by QNS at the start of every selection procedure to clear all configured
-     * networks' scan-result-candidates.
-     *
-     * @param networkId network ID corresponding to the network.
-     * @return true if the network was found, false otherwise.
-     */
-    public boolean clearNetworkCandidateScanResult(int networkId) {
-        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
-        if (config == null) {
-            Log.e(TAG, "Cannot find network with networkId " + networkId);
-            return false;
-        }
-        config.getNetworkSelectionStatus().setCandidate(null);
-        config.getNetworkSelectionStatus().setCandidateScore(Integer.MIN_VALUE);
-        config.getNetworkSelectionStatus().setSeenInLastQualifiedNetworkSelection(false);
-        return true;
-    }
-
-    /**
-     * Helper method to set the {@link NetworkSelectionStatus#mCandidate},
-     * {@link NetworkSelectionStatus#mCandidateScore} &
-     * {@link NetworkSelectionStatus#mSeenInLastQualifiedNetworkSelection} for the provided network.
-     *
-     * This is invoked by QNS when it sees a network during network selection procedure to set the
-     * scan result candidate.
-     *
-     * @param networkId  network ID corresponding to the network.
-     * @param scanResult Candidate ScanResult associated with this network.
-     * @param score      Score assigned to the candidate.
-     * @return true if the network was found, false otherwise.
-     */
-    public boolean setNetworkCandidateScanResult(int networkId, ScanResult scanResult, int score) {
-        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
-        if (config == null) {
-            Log.e(TAG, "Cannot find network with networkId " + networkId);
-            return false;
-        }
-        config.getNetworkSelectionStatus().setCandidate(scanResult);
-        config.getNetworkSelectionStatus().setCandidateScore(score);
-        // Update the network selection status.
-        config.getNetworkSelectionStatus().setSeenInLastQualifiedNetworkSelection(true);
-        return true;
     }
 
     /**
