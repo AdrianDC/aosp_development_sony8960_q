@@ -231,6 +231,11 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HWDEP_CAL)),true)
   LOCAL_SRC_FILES += audio_extn/hwdep_cal.c
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FM_POWER_OPT)),true)
+    LOCAL_CFLAGS += -DFM_POWER_OPT
+    LOCAL_SRC_FILES += audio_extn/fm.c
+endif
+
 LOCAL_MODULE := audio.primary.$(TARGET_BOARD_PLATFORM)
 
 LOCAL_MODULE_RELATIVE_PATH := hw

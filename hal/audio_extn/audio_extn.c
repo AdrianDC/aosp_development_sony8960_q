@@ -29,6 +29,19 @@
 #include "platform.h"
 #include "platform_api.h"
 
+#ifndef FM_POWER_OPT
+#define audio_extn_fm_set_parameters(adev, parms) (0)
+#else
+void audio_extn_fm_set_parameters(struct audio_device *adev,
+                                   struct str_parms *parms);
+#endif
+
+void audio_extn_set_parameters(struct audio_device *adev,
+                               struct str_parms *parms)
+{
+   audio_extn_fm_set_parameters(adev, parms);
+}
+
 struct snd_card_split cur_snd_card_split = {
     .device = {0},
     .snd_card = {0},
