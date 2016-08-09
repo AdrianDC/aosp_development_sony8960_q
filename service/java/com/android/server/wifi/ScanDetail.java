@@ -50,7 +50,7 @@ public class ScanDetail {
                 networkDetail.getAnqpDomainID(), networkDetail.getOsuProviders(),
                 caps, level, frequency, tsf);
         mSeen = System.currentTimeMillis();
-        //mScanResult.seen = mSeen;
+        mScanResult.seen = mSeen;
         mScanResult.channelWidth = networkDetail.getChannelWidth();
         mScanResult.centerFreq0 = networkDetail.getCenterfreq0();
         mScanResult.centerFreq1 = networkDetail.getCenterfreq1();
@@ -70,7 +70,7 @@ public class ScanDetail {
         mNetworkDetail = null;
         mScanResult = new ScanResult(wifiSsid, bssid, 0L, -1, null, caps, level, frequency, tsf);
         mSeen = seen;
-        //mScanResult.seen = mSeen;
+        mScanResult.seen = mSeen;
         mScanResult.channelWidth = 0;
         mScanResult.centerFreq0 = 0;
         mScanResult.centerFreq1 = 0;
