@@ -5640,8 +5640,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // For SIM & AKA/AKA' EAP method Only, get identity from ICC
                     if (targetWificonfiguration != null
                             && targetWificonfiguration.networkId == networkId
-                            && targetWificonfiguration.allowedKeyManagement
-                                    .get(WifiConfiguration.KeyMgmt.IEEE8021X)
+                            && (targetWificonfiguration.allowedKeyManagement
+                                    .get(WifiConfiguration.KeyMgmt.WPA_EAP)
+                            || targetWificonfiguration.allowedKeyManagement
+                                    .get(WifiConfiguration.KeyMgmt.IEEE8021X))
                             && TelephonyUtil.isSimEapMethod(eapMethod)) {
                         String identity = TelephonyUtil.getSimIdentity(mContext, eapMethod);
                         if (identity != null) {
