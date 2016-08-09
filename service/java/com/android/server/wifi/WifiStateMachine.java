@@ -5596,8 +5596,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // For SIM & AKA/AKA' EAP method Only, get identity from ICC
                     if (targetWificonfiguration != null
                             && targetWificonfiguration.networkId == networkId
-                            && targetWificonfiguration.allowedKeyManagement
-                                    .get(WifiConfiguration.KeyMgmt.IEEE8021X)
+                            &&  (targetWificonfiguration.allowedKeyManagement
+                                    .get(WifiConfiguration.KeyMgmt.WPA_EAP)
+                            || targetWificonfiguration.allowedKeyManagement
+                                    .get(WifiConfiguration.KeyMgmt.IEEE8021X))
                             &&  (eapMethod == WifiEnterpriseConfig.Eap.SIM
                             || eapMethod == WifiEnterpriseConfig.Eap.AKA
                             || eapMethod == WifiEnterpriseConfig.Eap.AKA_PRIME)) {
