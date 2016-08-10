@@ -316,7 +316,9 @@ public class WifiNative {
     public boolean setNetworkVariable(int netId, String name, String value) {
         if (TextUtils.isEmpty(name) || TextUtils.isEmpty(value)) return false;
         if (name.equals(WifiConfiguration.pskVarName)
-                || name.equals(WifiEnterpriseConfig.PASSWORD_KEY)) {
+                || name.equals(WifiEnterpriseConfig.PASSWORD_KEY)
+                || name.equals(WifiEnterpriseConfig.IDENTITY_KEY)
+                || name.equals(WifiEnterpriseConfig.ANON_IDENTITY_KEY)) {
             return doBooleanCommandWithoutLogging("SET_NETWORK " + netId + " " + name + " " + value);
         } else {
             return doBooleanCommand("SET_NETWORK " + netId + " " + name + " " + value);
