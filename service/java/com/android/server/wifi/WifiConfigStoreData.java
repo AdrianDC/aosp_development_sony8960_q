@@ -23,6 +23,7 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.util.Pair;
 import android.util.Xml;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.FastXmlSerializer;
 import com.android.server.wifi.util.XmlUtil;
 import com.android.server.wifi.util.XmlUtil.IpConfigurationXmlUtil;
@@ -123,6 +124,26 @@ public class WifiConfigStoreData {
         configurations.addAll(mSharedConfigurations);
         configurations.addAll(mUserConfigurations);
         return configurations;
+    }
+
+    /**
+     * Returns the list of shared network configurations in the store data instance.
+     *
+     * @return List of WifiConfiguration objects corresponding to the networks.
+     */
+    @VisibleForTesting
+    public List<WifiConfiguration> getSharedConfigurations() {
+        return mSharedConfigurations;
+    }
+
+    /**
+     * Returns the list of user network configurations in the store data instance.
+     *
+     * @return List of WifiConfiguration objects corresponding to the networks.
+     */
+    @VisibleForTesting
+    public List<WifiConfiguration> getUserConfigurations() {
+        return mUserConfigurations;
     }
 
     /**

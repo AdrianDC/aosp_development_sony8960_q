@@ -45,7 +45,10 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalServices;
 import com.android.server.wifi.util.ScanResultUtil;
 
+import org.xmlpull.v1.XmlPullParserException;
+
 import java.io.FileDescriptor;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -232,6 +235,11 @@ public class WifiConfigManagerNew {
      * Current logged in user ID.
      */
     private int mCurrentUserId = UserHandle.USER_SYSTEM;
+    /**
+     *
+     * Flag to indicate that the new user's store has not yet been read since user switch.
+     */
+    private boolean mPendingUnlockStoreRead = false;
     /**
      * This is keeping track of the last network ID assigned. Any new networks will be assigned
      * |mLastNetworkId + 1| as network ID.
@@ -1673,30 +1681,126 @@ public class WifiConfigManagerNew {
     }
 
     /**
-     * Read the config store and load the in-memory lists from the store data retrieved.
+     * Helper method to clear internal databases.
+     * This method clears the:
+     *  - List of configured networks.
+     *  - Map of scan detail caches.
+     *  - List of deleted ephemeral networks.
+     */
+    private void clearInternalData() {
+        mConfiguredNetworks.clear();
+        mDeletedEphemeralSSIDs.clear();
+        mScanDetailCaches.clear();
+    }
+
+    /**
+     * Helper method to perform the following operations during user switch:
+     * - Load from the new store files.
+     * - Save the store files again to migrate any user specific networks from the shared store
+     *   to user store.
+     */
+    private void loadFromStoreAndMigrateAfterUserSwitch() {
+        if (loadFromStore()) {
+            saveToStore(true);
+            mPendingUnlockStoreRead = false;
+        }
+    }
+
+    /**
+     * Handles the switch to a different foreground user:
+     * - Flush the current state to the old user's store file.
+     * - Switch the user specific store file.
+     * - Reload the networks from the store files (shared & user).
+     * - Write the store files to move any user specific private networks from shared store to user
+     *   store.
+     *
+     * Need to be called when {@link com.android.server.SystemService#onSwitchUser(int)} is invoked.
+     *
+     * @param userId The identifier of the new foreground user, after the switch.
+     */
+    public void handleUserSwitch(int userId) {
+        if (userId == mCurrentUserId) {
+            Log.w(TAG, "User already in foreground " + userId);
+            return;
+        }
+        if (mUserManager.isUserUnlockingOrUnlocked(mCurrentUserId)) {
+            saveToStore(true);
+        }
+        mCurrentUserId = userId;
+        mConfiguredNetworks.setNewUser(userId);
+        clearInternalData();
+
+        // Switch out the user store file.
+        mWifiConfigStore.switchUserStore(mWifiConfigStore.createUserFile(userId));
+        if (mUserManager.isUserUnlockingOrUnlocked(mCurrentUserId)) {
+            loadFromStoreAndMigrateAfterUserSwitch();
+        } else {
+            // Since the new user is not logged-in yet, we cannot read data from the store files
+            // yet.
+            mPendingUnlockStoreRead = true;
+            Log.i(TAG, "Waiting for user unlock to load from store");
+        }
+    }
+
+    /**
+     * Handles the unlock of foreground user. This maybe needed to read the store file if the user's
+     * CE storage is not visible when {@link #handleUserSwitch(int)} is invoked.
+     *
+     * Need to be called when {@link com.android.server.SystemService#onUnlockUser(int)} is invoked.
+     *
+     * @param userId The identifier of the user that unlocked.
+     */
+    public void handleUserUnlock(int userId) {
+        if (userId == mCurrentUserId && mPendingUnlockStoreRead) {
+            loadFromStoreAndMigrateAfterUserSwitch();
+        }
+    }
+
+    /**
+     * Handles the stop of foreground user. This is needed to write the store file to flush
+     * out any pending data before the user's CE store storage is unavailable.
+     *
+     * Need to be called when {@link com.android.server.SystemService#onStopUser(int)} is invoked.
+     *
+     * @param userId The identifier of the user that stopped.
+     */
+    public void handleUserStop(int userId) {
+        if (userId == mCurrentUserId && mUserManager.isUserUnlockingOrUnlocked(mCurrentUserId)) {
+            saveToStore(true);
+            clearInternalData();
+            mCurrentUserId = UserHandle.USER_SYSTEM;
+        }
+    }
+
+    /**
+     * Read the config store and load the in-memory lists from the store data retrieved and sends
+     * out the networks changed broadcast.
+     *
      * This reads all the network configurations from:
      * 1. Shared WifiConfigStore.xml
      * 2. User WifiConfigStore.xml
      * 3. PerProviderSubscription.conf
+     * @return true on success, false otherwise.
      */
-    private void loadFromStore() {
+    private boolean loadFromStore() {
         WifiConfigStoreData storeData;
 
         long readStartTime = mClock.getElapsedSinceBootMillis();
         try {
             storeData = mWifiConfigStore.read();
-        } catch (Exception e) {
-            Log.wtf(TAG, "Reading from new store failed " + e + ". All saved networks are lost!");
-            return;
+        } catch (IOException e) {
+            Log.wtf(TAG, "Reading from new store failed. All saved networks are lost!", e);
+            return false;
+        } catch (XmlPullParserException e) {
+            Log.wtf(TAG, "XML deserialization of store failed. All saved networks are lost!", e);
+            return false;
         }
         long readTime = mClock.getElapsedSinceBootMillis() - readStartTime;
         Log.d(TAG, "Loading from store completed in " + readTime + " ms.");
 
         // Clear out all the existing in-memory lists and load the lists from what was retrieved
         // from the config store.
-        mConfiguredNetworks.clear();
-        mDeletedEphemeralSSIDs.clear();
-        mScanDetailCaches.clear();
+        clearInternalData();
         for (WifiConfiguration configuration : storeData.getConfigurations()) {
             configuration.networkId = mLastNetworkId++;
             if (mVerboseLoggingEnabled) {
@@ -1710,6 +1814,8 @@ public class WifiConfigManagerNew {
         if (mConfiguredNetworks.sizeForAllUsers() == 0) {
             Log.w(TAG, "No stored networks found.");
         }
+        sendConfiguredNetworksChangedBroadcast();
+        return true;
     }
 
     /**
@@ -1746,10 +1852,14 @@ public class WifiConfigManagerNew {
         long writeStartTime = mClock.getElapsedSinceBootMillis();
         try {
             mWifiConfigStore.write(forceWrite, storeData);
-        } catch (Exception e) {
-            Log.wtf(TAG, "Writing to store failed " + e + ". Saved networks maybe lost!");
+        } catch (IOException e) {
+            Log.wtf(TAG, "Writing to store failed. Saved networks maybe lost!", e);
+            return false;
+        } catch (XmlPullParserException e) {
+            Log.wtf(TAG, "XML serialization for store failed. Saved networks maybe lost!", e);
             return false;
         }
+
         long writeTime = mClock.getElapsedSinceBootMillis() - writeStartTime;
         Log.d(TAG, "Writing to store completed in " + writeTime + " ms.");
         return true;

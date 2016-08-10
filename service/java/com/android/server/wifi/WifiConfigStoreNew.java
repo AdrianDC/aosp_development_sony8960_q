@@ -237,9 +237,9 @@ public class WifiConfigStoreNew {
      * @param userStore StoreFile instance pointing to the user specific store file. This should
      *                  be retrieved using {@link #createUserFile(int)} method.
      */
-    public void handleUserSwitch(StoreFile userStore) throws IOException {
-        // Flush out any stored data if present before switching the user stores.
-        writeBufferedData();
+    public void switchUserStore(StoreFile userStore) {
+        // Stop any pending buffered writes, if any.
+        stopBufferedWriteAlarm();
         mUserStore = userStore;
     }
 
