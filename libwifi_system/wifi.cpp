@@ -214,9 +214,6 @@ int wifi_start_supplicant() {
   /* Clear out any stale socket files that might be left over. */
   wpa_ctrl_cleanup();
 
-  /* Reset sockets used for exiting from hung state */
-  exit_sockets[0] = exit_sockets[1] = -1;
-
   /*
    * Get a reference to the status property, so we can distinguish
    * the case where it goes stopped => running => stopped (i.e.,
@@ -228,7 +225,6 @@ int wifi_start_supplicant() {
   if (pi != NULL) {
     serial = __system_property_serial(pi);
   }
-  property_get("wifi.interface", primary_iface, WIFI_TEST_INTERFACE);
 
   property_set("ctl.start", SUPPLICANT_SERVICE_NAME);
   sched_yield();
@@ -465,6 +461,8 @@ int wifi_wait_on_socket(char* buf, size_t buflen) {
 /* Establishes the control and monitor socket connections on the interface */
 int wifi_connect_to_supplicant() {
   static char path[PATH_MAX];
+
+  property_get("wifi.interface", primary_iface, WIFI_TEST_INTERFACE);
 
   if (access(IFACE_DIR, F_OK) == 0) {
     snprintf(path, sizeof(path), "%s/%s", IFACE_DIR, primary_iface);

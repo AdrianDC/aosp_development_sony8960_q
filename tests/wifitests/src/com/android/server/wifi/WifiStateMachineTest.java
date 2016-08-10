@@ -383,6 +383,8 @@ public class WifiStateMachineTest {
 
         when(mWificond.createClientInterface()).thenReturn(mClientInterface);
         when(mClientInterface.asBinder()).thenReturn(mClientInterfaceBinder);
+        when(mClientInterface.enableSupplicant()).thenReturn(true);
+        when(mClientInterface.disableSupplicant()).thenReturn(true);
 
         mWsm = new WifiStateMachine(context, factory, mLooper.getLooper(),
             mUserManager, mWifiInjector, mBackupManagerProxy, mCountryCode);
@@ -441,7 +443,6 @@ public class WifiStateMachineTest {
     @Test
     public void loadComponents() throws Exception {
         when(mWifiNative.startHal()).thenReturn(true);
-        when(mWifiNative.startSupplicant()).thenReturn(true);
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
 
@@ -465,16 +466,8 @@ public class WifiStateMachineTest {
     }
 
     @Test
-    public void shouldRequireHalToLeaveInitialState() throws Exception {
-        when(mWifiNative.startHal()).thenReturn(false);
-        mWsm.setSupplicantRunning(true);
-        mLooper.dispatchAll();
-        assertEquals("InitialState", getCurrentState().getName());
-    }
-
-    @Test
     public void shouldRequireSupplicantStartupToLeaveInitialState() throws Exception {
-        when(mWifiNative.startSupplicant()).thenReturn(false);
+        when(mClientInterface.enableSupplicant()).thenReturn(false);
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
@@ -507,7 +500,7 @@ public class WifiStateMachineTest {
     @Test
     public void loadComponentsFailure() throws Exception {
         when(mWifiNative.startHal()).thenReturn(false);
-        when(mWifiNative.startSupplicant()).thenReturn(false);
+        when(mClientInterface.enableSupplicant()).thenReturn(false);
 
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
@@ -534,7 +527,6 @@ public class WifiStateMachineTest {
     @Test
     public void shouldStartSupplicantWhenConnectModeRequested() throws Exception {
         when(mWifiNative.startHal()).thenReturn(true);
-        when(mWifiNative.startSupplicant()).thenReturn(true);
 
         // The first time we start out in InitialState, we sit around here.
         mLooper.dispatchAll();
@@ -554,7 +546,6 @@ public class WifiStateMachineTest {
     @Test
     public void checkStartInCorrectStateAfterChangingInitialState() throws Exception {
         when(mWifiNative.startHal()).thenReturn(true);
-        when(mWifiNative.startSupplicant()).thenReturn(true);
 
         // Check initial state
         mLooper.dispatchAll();
