@@ -1697,14 +1697,14 @@ public class WifiConfigManagerNew {
         mConfiguredNetworks.clear();
         mDeletedEphemeralSSIDs.clear();
         mScanDetailCaches.clear();
-        for (WifiConfiguration configuration : storeData.configurations) {
+        for (WifiConfiguration configuration : storeData.getConfigurations()) {
             configuration.networkId = mLastNetworkId++;
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, "Adding network from store " + configuration.configKey());
             }
             mConfiguredNetworks.put(configuration);
         }
-        for (String ssid : storeData.deletedEphemeralSSIDs) {
+        for (String ssid : storeData.getDeletedEphemeralSSIDs()) {
             mDeletedEphemeralSSIDs.add(ssid);
         }
         if (mConfiguredNetworks.sizeForAllUsers() == 0) {
@@ -1719,15 +1719,29 @@ public class WifiConfigManagerNew {
      * @return Whether the write was successful or not, this is applicable only for force writes.
      */
     private boolean saveToStore(boolean forceWrite) {
-        ArrayList<WifiConfiguration> configurations = new ArrayList<>();
-        // Don't persist ephemeral networks to store.
-        for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
+        ArrayList<WifiConfiguration> sharedConfigurations = new ArrayList<>();
+        ArrayList<WifiConfiguration> userConfigurations = new ArrayList<>();
+        for (WifiConfiguration config : mConfiguredNetworks.valuesForAllUsers()) {
+            // Don't persist ephemeral networks to store.
             if (!config.ephemeral) {
-                configurations.add(config);
+                // We push all shared networks & private networks not belonging to the current
+                // user to the shared store. Ideally, private networks for other users should
+                // not even be in memory,
+                // But, this logic is in place to deal with store migration from N to O
+                // because all networks were previously stored in a central file. We cannot
+                // write these private networks to the user specific store until the corresponding
+                // user logs in.
+                if (config.shared || !WifiConfigurationUtil.isVisibleToAnyProfile(
+                        config, mUserManager.getProfiles(mCurrentUserId))) {
+                    sharedConfigurations.add(config);
+                } else {
+                    userConfigurations.add(config);
+                }
             }
         }
         WifiConfigStoreData storeData =
-                new WifiConfigStoreData(configurations, mDeletedEphemeralSSIDs);
+                new WifiConfigStoreData(
+                        sharedConfigurations, userConfigurations, mDeletedEphemeralSSIDs);
 
         long writeStartTime = mClock.getElapsedSinceBootMillis();
         try {

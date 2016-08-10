@@ -80,26 +80,58 @@ public class WifiConfigStoreData {
     private static final String XML_TAG_SECTION_HEADER_DELETED_EPHEMERAL_SSID_LIST =
             "DeletedEphemeralSSIDList";
     /**
-     * List of saved networks visible to the current user to be stored (includes shared & private).
+     * List of saved shared networks visible to all the users to be stored in the shared store file.
      */
-    public List<WifiConfiguration> configurations;
+    private final List<WifiConfiguration> mSharedConfigurations;
+    /**
+     * List of saved private networks only visible to the current user to be stored in the user
+     * specific store file.
+     */
+    private final List<WifiConfiguration> mUserConfigurations;
     /**
      * List of deleted ephemeral ssids to be stored.
      */
-    public Set<String> deletedEphemeralSSIDs;
+    private final Set<String> mDeletedEphemeralSSIDs;
 
     /**
      * Create a new instance of store data to be written to the store files.
      *
-     * @param configurations        list of saved networks to be stored.
+     * @param userConfigurations    list of saved private networks to be stored.
+     *                              See {@link WifiConfigManager#mConfiguredNetworks}.
+     * @param sharedConfigurations  list of saved shared networks to be stored.
      *                              See {@link WifiConfigManager#mConfiguredNetworks}.
      * @param deletedEphemeralSSIDs list of deleted ephemeral ssids to be stored.
      *                              See {@link WifiConfigManager#mDeletedEphemeralSSIDs}
      */
     public WifiConfigStoreData(
-            List<WifiConfiguration> configurations, Set<String> deletedEphemeralSSIDs) {
-        this.configurations = configurations;
-        this.deletedEphemeralSSIDs = deletedEphemeralSSIDs;
+            List<WifiConfiguration> sharedConfigurations,
+            List<WifiConfiguration> userConfigurations,
+            Set<String> deletedEphemeralSSIDs) {
+        this.mSharedConfigurations = sharedConfigurations;
+        this.mUserConfigurations = userConfigurations;
+        this.mDeletedEphemeralSSIDs = deletedEphemeralSSIDs;
+    }
+
+    /**
+     * Returns the list of all network configurations in the store data instance. This includes both
+     * the shared networks and user private networks.
+     *
+     * @return List of WifiConfiguration objects corresponding to the networks.
+     */
+    public List<WifiConfiguration> getConfigurations() {
+        List<WifiConfiguration> configurations = new ArrayList<>();
+        configurations.addAll(mSharedConfigurations);
+        configurations.addAll(mUserConfigurations);
+        return configurations;
+    }
+
+    /**
+     * Returns the set of all deleted ephemeral SSIDs in the store data instance.
+     *
+     * @return List of Strings corresponding to the SSIDs of deleted ephemeral networks.
+     */
+    public Set<String> getDeletedEphemeralSSIDs() {
+        return mDeletedEphemeralSSIDs;
     }
 
     /**
@@ -137,11 +169,8 @@ public class WifiConfigStoreData {
      * Create a WifiConfigStoreData instance from the retrieved UserData & SharedData instance.
      */
     private static WifiConfigStoreData getStoreData(SharedData sharedData, UserData userData) {
-        List<WifiConfiguration> configurations = new ArrayList<>();
-        configurations.addAll(sharedData.configurations);
-        configurations.addAll(userData.configurations);
-        return new WifiConfigStoreData(configurations, userData.deletedEphemeralSSIDs);
-
+        return new WifiConfigStoreData(
+                sharedData.configurations, userData.configurations, userData.deletedEphemeralSSIDs);
     }
 
     /**
@@ -350,13 +379,7 @@ public class WifiConfigStoreData {
      * @return SharedData instance.
      */
     private SharedData getSharedData() {
-        List<WifiConfiguration> sharedConfigurations = new ArrayList<>();
-        for (WifiConfiguration configuration : configurations) {
-            if (configuration.shared) {
-                sharedConfigurations.add(configuration);
-            }
-        }
-        return new SharedData(sharedConfigurations);
+        return new SharedData(mSharedConfigurations);
     }
 
     /**
@@ -365,13 +388,7 @@ public class WifiConfigStoreData {
      * @return UserData instance.
      */
     private UserData getUserData() {
-        List<WifiConfiguration> userConfigurations = new ArrayList<>();
-        for (WifiConfiguration configuration : configurations) {
-            if (!configuration.shared) {
-                userConfigurations.add(configuration);
-            }
-        }
-        return new UserData(userConfigurations, deletedEphemeralSSIDs);
+        return new UserData(mUserConfigurations, mDeletedEphemeralSSIDs);
     }
 
     /**
@@ -398,7 +415,7 @@ public class WifiConfigStoreData {
          * @return new instance of store data.
          */
         public static SharedData parseRawData(byte[] sharedDataBytes)
-                throws XmlPullParserException, IOException{
+                throws XmlPullParserException, IOException {
             final XmlPullParser in = Xml.newPullParser();
             final ByteArrayInputStream inputStream = new ByteArrayInputStream(sharedDataBytes);
             in.setInput(inputStream, StandardCharsets.UTF_8.name());
@@ -419,7 +436,7 @@ public class WifiConfigStoreData {
          *
          * @return byte array with the serialized output.
          */
-        public byte[] createRawData() throws XmlPullParserException, IOException  {
+        public byte[] createRawData() throws XmlPullParserException, IOException {
             final XmlSerializer out = new FastXmlSerializer();
             final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             out.setOutput(outputStream, StandardCharsets.UTF_8.name());
@@ -453,7 +470,8 @@ public class WifiConfigStoreData {
          * @param configurations        list of user specific saved networks to be stored.
          * @param deletedEphemeralSSIDs list of deleted ephemeral ssids to be stored.
          */
-        public UserData(List<WifiConfiguration> configurations, Set<String> deletedEphemeralSSIDs) {
+        public UserData(
+                List<WifiConfiguration> configurations, Set<String> deletedEphemeralSSIDs) {
             this.configurations = configurations;
             this.deletedEphemeralSSIDs = deletedEphemeralSSIDs;
         }
@@ -467,7 +485,7 @@ public class WifiConfigStoreData {
          * @return new instance of store data.
          */
         public static UserData parseRawData(byte[] userDataBytes)
-            throws XmlPullParserException, IOException {
+                throws XmlPullParserException, IOException {
             final XmlPullParser in = Xml.newPullParser();
             final ByteArrayInputStream inputStream = new ByteArrayInputStream(userDataBytes);
             in.setInput(inputStream, StandardCharsets.UTF_8.name());

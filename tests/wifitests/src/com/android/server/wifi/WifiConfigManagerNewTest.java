@@ -1715,7 +1715,7 @@ public class WifiConfigManagerNewTest {
             WifiConfigStoreData storeData = storeDataCaptor.getValue();
 
             boolean foundNetworkInStoreData = false;
-            for (WifiConfiguration retrievedConfig : storeData.configurations) {
+            for (WifiConfiguration retrievedConfig : storeData.getConfigurations()) {
                 if (retrievedConfig.configKey().equals(configuration.configKey())) {
                     foundNetworkInStoreData = true;
                 }

@@ -116,8 +116,8 @@ public class WifiConfigStoreDataTest {
     public static void assertConfigStoreDataEqual(
             WifiConfigStoreData expected, WifiConfigStoreData actual) {
         WifiConfigurationTestUtil.assertConfigurationsEqualForConfigStore(
-                expected.configurations, actual.configurations);
-        assertEquals(expected.deletedEphemeralSSIDs, actual.deletedEphemeralSSIDs);
+                expected.getConfigurations(), actual.getConfigurations());
+        assertEquals(expected.getDeletedEphemeralSSIDs(), actual.getDeletedEphemeralSSIDs());
     }
 
     /**
@@ -128,7 +128,7 @@ public class WifiConfigStoreDataTest {
     public void testMultipleNetworkAllShared()
             throws XmlPullParserException, IOException {
         List<WifiConfiguration> configurations = createNetworks(true);
-        serializeDeserializeConfigStoreData(configurations);
+        serializeDeserializeConfigStoreData(configurations, new ArrayList<WifiConfiguration>());
     }
 
     /**
@@ -139,7 +139,7 @@ public class WifiConfigStoreDataTest {
     public void testMultipleNetworksAllUser()
             throws XmlPullParserException, IOException {
         List<WifiConfiguration> configurations = createNetworks(false);
-        serializeDeserializeConfigStoreData(configurations);
+        serializeDeserializeConfigStoreData(new ArrayList<WifiConfiguration>(), configurations);
     }
 
     /**
@@ -161,7 +161,7 @@ public class WifiConfigStoreDataTest {
         for (WifiConfiguration config : userConfigurations) {
             config.shared = false;
         }
-        serializeDeserializeConfigStoreData(configurations);
+        serializeDeserializeConfigStoreData(sharedConfigurations, userConfigurations);
     }
 
     /**
@@ -173,7 +173,8 @@ public class WifiConfigStoreDataTest {
     public void testMultipleNetworksSharedDataNullInParseRawData()
             throws XmlPullParserException, IOException {
         List<WifiConfiguration> configurations = createNetworks(false);
-        serializeDeserializeConfigStoreData(configurations, true, false);
+        serializeDeserializeConfigStoreData(
+                new ArrayList<WifiConfiguration>(), configurations, true, false);
     }
 
     /**
@@ -185,7 +186,8 @@ public class WifiConfigStoreDataTest {
     public void testMultipleNetworksUserDataNullInParseRawData()
             throws XmlPullParserException, IOException {
         List<WifiConfiguration> configurations = createNetworks(true);
-        serializeDeserializeConfigStoreData(configurations, false, true);
+        serializeDeserializeConfigStoreData(
+                configurations, new ArrayList<WifiConfiguration>(), false, true);
     }
 
     /**
@@ -203,11 +205,12 @@ public class WifiConfigStoreDataTest {
         userNetwork.shared = false;
 
         // Create the store data for comparison.
-        List<WifiConfiguration> networks = new ArrayList<>();
-        networks.add(sharedNetwork);
-        networks.add(userNetwork);
+        List<WifiConfiguration> sharedNetworks = new ArrayList<>();
+        List<WifiConfiguration> userNetworks = new ArrayList<>();
+        sharedNetworks.add(sharedNetwork);
+        userNetworks.add(userNetwork);
         WifiConfigStoreData storeData =
-                new WifiConfigStoreData(networks, new HashSet<String>());
+                new WifiConfigStoreData(sharedNetworks, userNetworks, new HashSet<String>());
 
         String sharedStoreXmlString =
                 String.format(SINGLE_OPEN_NETWORK_SHARED_DATA_XML_STRING_FORMAT,
@@ -365,9 +368,11 @@ public class WifiConfigStoreDataTest {
     /**
      * Helper method to serialize/deserialize store data.
      */
-    private void serializeDeserializeConfigStoreData(List<WifiConfiguration> configurations)
+    private void serializeDeserializeConfigStoreData(
+            List<WifiConfiguration> sharedConfigurations,
+            List<WifiConfiguration> userConfigurations)
             throws XmlPullParserException, IOException {
-        serializeDeserializeConfigStoreData(configurations, false, false);
+        serializeDeserializeConfigStoreData(sharedConfigurations, userConfigurations, false, false);
     }
 
     /**
@@ -377,15 +382,17 @@ public class WifiConfigStoreDataTest {
      * and then deserialzes the raw bytes back to a config store data instance. It then
      * compares that the original config store data matches with the deserialzed instance.
      *
-     * @param configurations list of configurations to be added in the store data instance.
+     * @param sharedConfigurations list of configurations to be added in the shared store data instance.
+     * @param userConfigurations list of configurations to be added in the user store data instance.
      * @param setSharedDataNull whether to set the shared data to null to simulate the non-existence
      *                          of the shared store file.
      * @param setUserDataNull whether to set the user data to null to simulate the non-existence
      *                        of the user store file.
      */
     private void serializeDeserializeConfigStoreData(
-            List<WifiConfiguration> configurations, boolean setSharedDataNull,
-            boolean setUserDataNull)
+            List<WifiConfiguration> sharedConfigurations,
+            List<WifiConfiguration> userConfigurations,
+            boolean setSharedDataNull, boolean setUserDataNull)
             throws XmlPullParserException, IOException {
         // Will not work if both the flags are set because then we need to ignore the configuration
         // list as well.
@@ -400,7 +407,8 @@ public class WifiConfigStoreDataTest {
 
         // Serialize the data.
         WifiConfigStoreData storeData =
-                new WifiConfigStoreData(configurations, deletedEphemeralList);
+                new WifiConfigStoreData(
+                        sharedConfigurations, userConfigurations, deletedEphemeralList);
 
         byte[] sharedDataBytes = null;
         byte[] userDataBytes = null;
