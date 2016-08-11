@@ -993,7 +993,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         IBinder s1 = mFacade.getService(Context.WIFI_P2P_SERVICE);
         mWifiP2pServiceImpl = (WifiP2pServiceImpl) IWifiP2pManager.Stub.asInterface(s1);
 
-        mWifiNanManager = (WifiNanManager) mContext.getSystemService(Context.WIFI_NAN_SERVICE);
+        if (mNanSupported) {
+            mWifiNanManager = mContext.getSystemService(WifiNanManager.class);
+        }
 
         mNetworkInfo.setIsAvailable(false);
         mLastBssid = null;
