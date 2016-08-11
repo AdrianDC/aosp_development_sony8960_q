@@ -321,14 +321,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private int mSupplicantStopFailureToken = 0;
 
     /**
-     * Driver start time out.
-     */
-    private static final int DRIVER_START_TIME_OUT_MSECS = 10000;
-
-    /* Tracks sequence number on a driver time out */
-    private int mDriverStartToken = 0;
-
-    /**
      * The link properties of the wifi interface.
      * Do not modify this directly; use updateLinkProperties instead.
      */
@@ -548,10 +540,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     static final int CMD_START_SUPPLICANT                               = BASE + 11;
     /* Stop the supplicant */
     static final int CMD_STOP_SUPPLICANT                                = BASE + 12;
-    /* Start the driver */
-    static final int CMD_START_DRIVER                                   = BASE + 13;
-    /* Stop the driver */
-    static final int CMD_STOP_DRIVER                                    = BASE + 14;
     /* Indicates Static IP succeeded */
     static final int CMD_STATIC_IP_SUCCESS                              = BASE + 15;
     /* Indicates Static IP failed */
@@ -848,19 +836,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private State mSupplicantStartedState = new SupplicantStartedState();
     /* Waiting for supplicant to stop and monitor to exit */
     private State mSupplicantStoppingState = new SupplicantStoppingState();
-    /* Driver start issued, waiting for completed event */
-    private State mDriverStartingState = new DriverStartingState();
-    /* Driver started */
-    private State mDriverStartedState = new DriverStartedState();
     /* Wait until p2p is disabled
      * This is a special state which is entered right after we exit out of DriverStartedState
      * before transitioning to another state.
      */
     private State mWaitForP2pDisableState = new WaitForP2pDisableState();
-    /* Driver stopping */
-    private State mDriverStoppingState = new DriverStoppingState();
-    /* Driver stopped */
-    private State mDriverStoppedState = new DriverStoppedState();
     /* Scan for networks, no connection will be established */
     private State mScanModeState = new ScanModeState();
     /* Connecting to an access point */
@@ -1079,10 +1059,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             addState(mInitialState, mDefaultState);
             addState(mSupplicantStartingState, mDefaultState);
             addState(mSupplicantStartedState, mDefaultState);
-                addState(mDriverStartingState, mSupplicantStartedState);
-                addState(mDriverStartedState, mSupplicantStartedState);
-                    addState(mScanModeState, mDriverStartedState);
-                    addState(mConnectModeState, mDriverStartedState);
+                    addState(mScanModeState, mSupplicantStartedState);
+                    addState(mConnectModeState, mSupplicantStartedState);
                         addState(mL2ConnectedState, mConnectModeState);
                             addState(mObtainingIpState, mL2ConnectedState);
                             addState(mConnectedState, mL2ConnectedState);
@@ -1091,8 +1069,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         addState(mDisconnectedState, mConnectModeState);
                         addState(mWpsRunningState, mConnectModeState);
                 addState(mWaitForP2pDisableState, mSupplicantStartedState);
-                addState(mDriverStoppingState, mSupplicantStartedState);
-                addState(mDriverStoppedState, mSupplicantStartedState);
             addState(mSupplicantStoppingState, mDefaultState);
             addState(mSoftApState, mDefaultState);
         // CHECKSTYLE:ON IndentationCheck
@@ -3852,8 +3828,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_START_SUPPLICANT:
                 case CMD_STOP_SUPPLICANT:
                 case CMD_STOP_SUPPLICANT_FAILED:
-                case CMD_START_DRIVER:
-                case CMD_STOP_DRIVER:
                 case CMD_DRIVER_START_TIMED_OUT:
                 case CMD_START_AP:
                 case CMD_START_AP_FAILURE:
@@ -4226,8 +4200,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_STOP_SUPPLICANT:
                 case CMD_START_AP:
                 case CMD_STOP_AP:
-                case CMD_START_DRIVER:
-                case CMD_STOP_DRIVER:
                 case CMD_SET_OPERATIONAL_MODE:
                 case CMD_SET_FREQUENCY_BAND:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
@@ -4604,8 +4576,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_STOP_SUPPLICANT:
                 case CMD_START_AP:
                 case CMD_STOP_AP:
-                case CMD_START_DRIVER:
-                case CMD_STOP_DRIVER:
                 case CMD_SET_OPERATIONAL_MODE:
                 case CMD_SET_FREQUENCY_BAND:
                     deferMessage(message);
@@ -4617,120 +4587,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    class DriverStartingState extends State {
-        private int mTries;
-        @Override
-        public void enter() {
-            mTries = 1;
-            /* Send ourselves a delayed message to start driver a second time */
-            sendMessageDelayed(obtainMessage(CMD_DRIVER_START_TIMED_OUT,
-                        ++mDriverStartToken, 0), DRIVER_START_TIME_OUT_MSECS);
-        }
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-
-            switch(message.what) {
-               case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
-                    SupplicantState state = handleSupplicantStateChange(message);
-                    /* If supplicant is exiting out of INTERFACE_DISABLED state into
-                     * a state that indicates driver has started, it is ready to
-                     * receive driver commands
-                     */
-                    if (SupplicantState.isDriverActive(state)) {
-                        transitionTo(mDriverStartedState);
-                    }
-                    break;
-                case CMD_DRIVER_START_TIMED_OUT:
-                    if (message.arg1 == mDriverStartToken) {
-                        if (mTries >= 2) {
-                            loge("Failed to start driver after " + mTries);
-                            setSupplicantRunning(false);
-                            setSupplicantRunning(true);
-                        } else {
-                            loge("Driver start failed, retrying");
-                            mWakeLock.acquire();
-                            mWifiNative.startDriver();
-                            mWakeLock.release();
-
-                            ++mTries;
-                            /* Send ourselves a delayed message to start driver again */
-                            sendMessageDelayed(obtainMessage(CMD_DRIVER_START_TIMED_OUT,
-                                        ++mDriverStartToken, 0), DRIVER_START_TIME_OUT_MSECS);
-                        }
-                    }
-                    break;
-                    /* Queue driver commands & connection events */
-                case CMD_START_DRIVER:
-                case CMD_STOP_DRIVER:
-                case WifiMonitor.NETWORK_CONNECTION_EVENT:
-                case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
-                case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
-                case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
-                case WifiMonitor.WPS_OVERLAP_EVENT:
-                case CMD_SET_FREQUENCY_BAND:
-                case CMD_START_SCAN:
-                case CMD_DISCONNECT:
-                case CMD_REASSOCIATE:
-                case CMD_RECONNECT:
-                    messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
-                    deferMessage(message);
-                    break;
-                case WifiMonitor.SCAN_RESULTS_EVENT:
-                case WifiMonitor.SCAN_FAILED_EVENT:
-                    // Loose scan results obtained in Driver Starting state, they can only confuse
-                    // the state machine
-                    break;
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
-        }
-    }
-
-    class DriverStartedState extends State {
-        @Override
-        public void enter() {
-        }
-
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-
-            switch(message.what) {
-                case CMD_STOP_DRIVER:
-                    log("stop driver");
-                    mWifiConfigManager.disableAllNetworksNative();
-
-                    if (getCurrentState() != mDisconnectedState) {
-                        mWifiNative.disconnect();
-                        handleNetworkDisconnect();
-                    }
-                    mWakeLock.acquire();
-                    mWifiNative.stopDriver();
-                    mWakeLock.release();
-                    if (mP2pSupported) {
-                        transitionTo(mWaitForP2pDisableState);
-                    } else {
-                        transitionTo(mDriverStoppingState);
-                    }
-                    break;
-                case CMD_START_DRIVER:
-                    if (mOperationalMode == CONNECT_MODE) {
-                        mWifiConfigManager.enableAllNetworks();
-                    }
-                    break;
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
-        }
-
-        @Override
-        public void exit() {
-        }
-    }
-
     class WaitForP2pDisableState extends State {
         private State mTransitionToState;
         @Override
@@ -4739,14 +4595,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case WifiMonitor.SUP_DISCONNECTION_EVENT:
                     mTransitionToState = mInitialState;
                     break;
-                case CMD_STOP_DRIVER:
-                    mTransitionToState = mDriverStoppingState;
-                    break;
                 case CMD_STOP_SUPPLICANT:
-                    mTransitionToState = mSupplicantStoppingState;
-                    break;
                 default:
-                    mTransitionToState = mDriverStoppingState;
+                    mTransitionToState = mSupplicantStoppingState;
                     break;
             }
             p2pSendMessage(WifiStateMachine.CMD_DISABLE_P2P_REQ);
@@ -4765,8 +4616,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_STOP_SUPPLICANT:
                 case CMD_START_AP:
                 case CMD_STOP_AP:
-                case CMD_START_DRIVER:
-                case CMD_STOP_DRIVER:
                 case CMD_SET_OPERATIONAL_MODE:
                 case CMD_SET_FREQUENCY_BAND:
                 case CMD_START_SCAN:
@@ -4775,63 +4624,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_RECONNECT:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
                     deferMessage(message);
-                    break;
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
-        }
-    }
-
-    class DriverStoppingState extends State {
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-
-            switch(message.what) {
-                case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
-                    SupplicantState state = handleSupplicantStateChange(message);
-                    if (state == SupplicantState.INTERFACE_DISABLED) {
-                        transitionTo(mDriverStoppedState);
-                    }
-                    break;
-                    /* Queue driver commands */
-                case CMD_START_DRIVER:
-                case CMD_STOP_DRIVER:
-                case CMD_SET_FREQUENCY_BAND:
-                case CMD_START_SCAN:
-                case CMD_DISCONNECT:
-                case CMD_REASSOCIATE:
-                case CMD_RECONNECT:
-                    messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
-                    deferMessage(message);
-                    break;
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
-        }
-    }
-
-    class DriverStoppedState extends State {
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-            switch (message.what) {
-                case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
-                    StateChangeResult stateChangeResult = (StateChangeResult) message.obj;
-                    SupplicantState state = stateChangeResult.state;
-                    // A WEXT bug means that we can be back to driver started state
-                    // unexpectedly
-                    if (SupplicantState.isDriverActive(state)) {
-                        transitionTo(mDriverStartedState);
-                    }
-                    break;
-                case CMD_START_DRIVER:
-                    mWakeLock.acquire();
-                    mWifiNative.startDriver();
-                    mWakeLock.release();
-                    transitionTo(mDriverStartingState);
                     break;
                 default:
                     return NOT_HANDLED;
@@ -7433,7 +7225,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                  * Defer all commands that can cause connections to a different network
                  * or put the state machine out of connect mode
                  */
-                case CMD_STOP_DRIVER:
                 case CMD_SET_OPERATIONAL_MODE:
                 case WifiManager.CONNECT_NETWORK:
                 case CMD_ENABLE_NETWORK:

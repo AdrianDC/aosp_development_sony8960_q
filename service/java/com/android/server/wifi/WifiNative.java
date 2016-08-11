@@ -745,15 +745,6 @@ public class WifiNative {
         return doStringCommand("BSS " + bssid);
     }
 
-    public boolean startDriver() {
-        return doBooleanCommand("DRIVER START");
-    }
-
-    public boolean stopDriver() {
-        return doBooleanCommand("DRIVER STOP");
-    }
-
-
     /**
      * Start filtering out Multicast V4 packets
      * @return {@code true} if the operation succeeded, {@code false} otherwise
