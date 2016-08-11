@@ -61,10 +61,15 @@ public class HandoverDataParser {
     private static final int BT_HANDOVER_TYPE_LONG_LOCAL_NAME = 0x09;
     private static final int BT_HANDOVER_TYPE_SHORT_LOCAL_NAME = 0x08;
     private static final int BT_HANDOVER_TYPE_SECURITY_MANAGER_TK = 0x10;
+    private static final int BT_HANDOVER_TYPE_APPEARANCE = 0x19;
+    private static final int BT_HANDOVER_TYPE_LE_SC_CONFIRMATION = 0x22;
+    private static final int BT_HANDOVER_TYPE_LE_SC_RANDOM = 0x23;
 
     public static final int BT_HANDOVER_LE_ROLE_CENTRAL_ONLY = 0x01;
 
     public static final int SECURITY_MANAGER_TK_SIZE = 16;
+    public static final int SECURITY_MANAGER_LE_SC_C_SIZE = 16;
+    public static final int SECURITY_MANAGER_LE_SC_R_SIZE = 16;
 
     private final BluetoothAdapter mBluetoothAdapter;
 
@@ -446,16 +451,48 @@ public class HandoverDataParser {
                         byte[] securityManagerTK = new byte[len - 1];
                         payload.get(securityManagerTK);
 
-                        result.oobData = new OobData();
+                        if (result.oobData == null)
+                            result.oobData = new OobData();
                         result.oobData.setSecurityManagerTk(securityManagerTK);
                         break;
+
+                    case BT_HANDOVER_TYPE_LE_SC_CONFIRMATION:
+                        if (len - 1 != SECURITY_MANAGER_LE_SC_C_SIZE) {
+                            Log.i(TAG, "BT OOB: invalid size of LE SC Confirmation, should be " +
+                                  SECURITY_MANAGER_LE_SC_C_SIZE + " bytes.");
+                            break;
+                        }
+
+                        byte[] leScC = new byte[len - 1];
+                        payload.get(leScC);
+
+                        if (result.oobData == null)
+                            result.oobData = new OobData();
+                        result.oobData.setLeSecureConnectionsConfirmation(leScC);
+                        break;
+
+                    case BT_HANDOVER_TYPE_LE_SC_RANDOM:
+                        if (len-1 != SECURITY_MANAGER_LE_SC_R_SIZE) {
+                            Log.i(TAG, "BT OOB: invalid size of LE SC Random, should be " +
+                                  SECURITY_MANAGER_LE_SC_R_SIZE + " bytes.");
+                            break;
+                        }
+
+                        byte[] leScR = new byte[len - 1];
+                        payload.get(leScR);
+
+                        if (result.oobData == null)
+                            result.oobData = new OobData();
+                        result.oobData.setLeSecureConnectionsRandom(leScR);
+                        break;
+
                     default:
                         payload.position(payload.position() + len - 1);
                         break;
                 }
             }
         } catch (IllegalArgumentException e) {
-            Log.i(TAG, "BT OOB: invalid BT address");
+            Log.i(TAG, "BLE OOB: error parsing OOB data", e);
         } catch (BufferUnderflowException e) {
             Log.i(TAG, "BT OOB: payload shorter than expected");
         }
