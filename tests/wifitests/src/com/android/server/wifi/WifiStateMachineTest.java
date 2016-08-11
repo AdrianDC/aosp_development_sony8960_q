@@ -519,31 +519,32 @@ public class WifiStateMachineTest {
         assertEquals("InitialState", getCurrentState().getName());
     }
 
-    /**
-     * Test to check that mode changes from WifiController will be properly handled in the
-     * InitialState by WifiStateMachine.
-     */
     @Test
-    public void checkOperationalModeInInitialState() throws Exception {
-        when(mWifiNative.startHal()).thenReturn(true);
-        when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(true);
-
+    public void checkInitialStateStickyWhenDisabledMode() throws Exception {
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
         assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
 
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE);
         mLooper.dispatchAll();
-        assertEquals(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE,
-                mWsm.getOperationalModeForTest());
+        assertEquals(WifiStateMachine.DISABLED_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("InitialState", getCurrentState().getName());
+    }
 
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
+    @Test
+    public void shouldStartSupplicantWhenConnectModeRequested() throws Exception {
+        when(mWifiNative.startHal()).thenReturn(true);
+        when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(true);
+
+        // The first time we start out in InitialState, we sit around here.
         mLooper.dispatchAll();
-        assertEquals(WifiStateMachine.SCAN_ONLY_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("InitialState", getCurrentState().getName());
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
 
+        // But if someone tells us to enter connect mode, we start up supplicant
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
-        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("SupplicantStartingState", getCurrentState().getName());
     }
 
     /**
