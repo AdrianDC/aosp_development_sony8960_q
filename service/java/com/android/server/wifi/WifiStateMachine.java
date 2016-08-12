@@ -3379,7 +3379,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         * or when the driver is hung. Ensure supplicant is stopped here.
         */
         if (killSupplicant) {
-            mWifiMonitor.killSupplicant(mP2pSupported);
+            mWifiMonitor.killSupplicant();
         }
         mWifiNative.closeSupplicantConnection();
         sendSupplicantConnectionChangedBroadcast(false);
@@ -4022,7 +4022,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             * Avoids issues with drivers that do not handle interface down
             * on a running supplicant properly.
             */
-            mWifiMonitor.killSupplicant(mP2pSupported);
+            mWifiMonitor.killSupplicant();
 
             mDeathRecipient.unlinkToDeath();
             if (mWificond != null) {
@@ -4094,7 +4094,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         Log.e(TAG, "Failed to start HAL for client mode");
                     }
 
-                    if (!mWifiNative.startSupplicant(mP2pSupported)) {
+                    if (!mWifiNative.startSupplicant()) {
                         loge("Failed to start supplicant!");
                         setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                         cleanup();
@@ -4185,7 +4185,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case WifiMonitor.SUP_DISCONNECTION_EVENT:
                     if (++mSupplicantRestartCount <= SUPPLICANT_RESTART_TRIES) {
                         loge("Failed to setup control channel, restart supplicant");
-                        mWifiMonitor.killSupplicant(mP2pSupported);
+                        mWifiMonitor.killSupplicant();
                         transitionTo(mInitialState);
                         sendMessageDelayed(CMD_START_SUPPLICANT, SUPPLICANT_RESTART_INTERVAL_MSECS);
                     } else {
@@ -4538,12 +4538,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             String suppState = System.getProperty("init.svc.wpa_supplicant");
             if (suppState == null) suppState = "unknown";
-            String p2pSuppState = System.getProperty("init.svc.p2p_supplicant");
-            if (p2pSuppState == null) p2pSuppState = "unknown";
 
             logd("SupplicantStoppingState: stopSupplicant "
-                    + " init.svc.wpa_supplicant=" + suppState
-                    + " init.svc.p2p_supplicant=" + p2pSuppState);
+                    + " init.svc.wpa_supplicant=" + suppState);
             mWifiMonitor.stopSupplicant();
 
             /* Send ourselves a delayed message to indicate failure after a wait time */

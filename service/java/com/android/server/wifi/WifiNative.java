@@ -176,19 +176,19 @@ public class WifiNative {
     /*
      * Supplicant management
      */
-    private native static boolean startSupplicantNative(boolean p2pSupported);
-    public boolean startSupplicant(boolean p2pSupported) {
+    private native static boolean startSupplicantNative();
+    public boolean startSupplicant() {
         synchronized (sLock) {
-            return startSupplicantNative(p2pSupported);
+            return startSupplicantNative();
         }
     }
 
     /* Sends a kill signal to supplicant. To be used when we have lost connection
        or when the supplicant is hung */
-    private native static boolean killSupplicantNative(boolean p2pSupported);
-    public boolean killSupplicant(boolean p2pSupported) {
+    private native static boolean killSupplicantNative();
+    public boolean killSupplicant() {
         synchronized (sLock) {
-            return killSupplicantNative(p2pSupported);
+            return killSupplicantNative();
         }
     }
 

@@ -441,7 +441,7 @@ public class WifiStateMachineTest {
     @Test
     public void loadComponents() throws Exception {
         when(mWifiNative.startHal()).thenReturn(true);
-        when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(true);
+        when(mWifiNative.startSupplicant()).thenReturn(true);
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
 
@@ -474,7 +474,7 @@ public class WifiStateMachineTest {
 
     @Test
     public void shouldRequireSupplicantStartupToLeaveInitialState() throws Exception {
-        when(mWifiNative.startSupplicant(true)).thenReturn(false);
+        when(mWifiNative.startSupplicant()).thenReturn(false);
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
@@ -507,7 +507,7 @@ public class WifiStateMachineTest {
     @Test
     public void loadComponentsFailure() throws Exception {
         when(mWifiNative.startHal()).thenReturn(false);
-        when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(false);
+        when(mWifiNative.startSupplicant()).thenReturn(false);
 
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
@@ -534,7 +534,7 @@ public class WifiStateMachineTest {
     @Test
     public void shouldStartSupplicantWhenConnectModeRequested() throws Exception {
         when(mWifiNative.startHal()).thenReturn(true);
-        when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(true);
+        when(mWifiNative.startSupplicant()).thenReturn(true);
 
         // The first time we start out in InitialState, we sit around here.
         mLooper.dispatchAll();
@@ -554,7 +554,7 @@ public class WifiStateMachineTest {
     @Test
     public void checkStartInCorrectStateAfterChangingInitialState() throws Exception {
         when(mWifiNative.startHal()).thenReturn(true);
-        when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(true);
+        when(mWifiNative.startSupplicant()).thenReturn(true);
 
         // Check initial state
         mLooper.dispatchAll();
