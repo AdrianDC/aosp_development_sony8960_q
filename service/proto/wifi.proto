@@ -226,6 +226,9 @@ message WifiLog {
 
   // Total number of scans handled by framework (oneshot or otherwise)
   optional int32 num_scans = 46;
+
+  // Counts the occurrences of each Wifi score
+  repeated WifiScoreCount wifi_score_count = 48;
 }
 
 // Information that gets logged for every WiFi connection.
@@ -396,5 +399,14 @@ message AlertReasonCount {
   optional int32 reason = 1;
 
   // Number of alerts with |reason|.
+  optional int32 count = 2;
+}
+
+// Counts the number of instances of a specific Wifi Score calculated by WifiScoreReport
+message WifiScoreCount {
+  // Wifi Score
+  optional int32 score = 1;
+
+  // Number of Wifi score reports with this score
   optional int32 count = 2;
 }
