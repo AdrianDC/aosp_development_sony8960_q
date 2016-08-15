@@ -34,6 +34,7 @@ import android.os.Looper;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.text.TextUtils;
+import android.util.ArrayMap;
 import android.util.Base64;
 import android.util.Log;
 
@@ -52,7 +53,6 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -90,7 +90,8 @@ public class WifiNanDataPathStateManager {
     private final NetworkInterfaceWrapper mNiWrapper = new NetworkInterfaceWrapper();
     private final NetworkCapabilities mNetworkCapabilitiesFilter = new NetworkCapabilities();
     private final Set<String> mInterfaces = new HashSet<>();
-    private final Map<String, NanNetworkRequestInformation> mNetworkRequestsCache = new HashMap<>();
+    private final Map<String, NanNetworkRequestInformation> mNetworkRequestsCache =
+            new ArrayMap<>();
     private Context mContext;
     private Looper mLooper;
     private WifiNanNetworkFactory mNetworkFactory;

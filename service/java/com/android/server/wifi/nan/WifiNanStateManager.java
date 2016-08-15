@@ -33,6 +33,7 @@ import android.os.Message;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.UserHandle;
+import android.util.ArrayMap;
 import android.util.Log;
 import android.util.Pair;
 import android.util.SparseArray;
@@ -48,7 +49,6 @@ import libcore.util.HexEncoding;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -834,7 +834,7 @@ public class WifiNanStateManager {
                 HAL_SEND_MESSAGE_TIMEOUT_TAG, MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT);
 
         private static final long NAN_WAIT_FOR_DP_CONFIRM_TIMEOUT = 5_000;
-        private final Map<String, WakeupMessage> mDataPathConfirmTimeoutMessages = new HashMap<>();
+        private final Map<String, WakeupMessage> mDataPathConfirmTimeoutMessages = new ArrayMap<>();
 
         WifiNanStateMachine(String name, Looper looper) {
             super(name, looper);
