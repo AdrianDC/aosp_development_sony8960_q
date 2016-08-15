@@ -159,7 +159,8 @@ public class WifiScoreReport {
      * @param aggressiveHandover int current aggressiveHandover setting.
      */
     public void calculateAndReportScore(
-            WifiInfo wifiInfo, NetworkAgent networkAgent, int aggressiveHandover) {
+            WifiInfo wifiInfo, NetworkAgent networkAgent, int aggressiveHandover,
+            WifiMetrics wifiMetrics) {
         StringBuilder sb = new StringBuilder();
 
         int score = STARTING_SCORE;
@@ -429,9 +430,9 @@ public class WifiScoreReport {
                 networkAgent.sendNetworkScore(score);
             }
         }
-
         mBadLinkspeedcount = badLinkspeedcount;
         mReport = sb.toString();
         mReportValid = true;
+        wifiMetrics.incrementWifiScoreCount(score);
     }
 }

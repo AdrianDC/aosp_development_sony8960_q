@@ -19,6 +19,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
+import android.net.NetworkAgent;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -186,6 +187,12 @@ public class WifiMetricsTest {
     private static final int NUM_HOTSPOT2_R2_NETWORK_SCAN_RESULTS = 2;
     private static final int NUM_SCANS = 5;
     private static final int NUM_TOTAL_SCAN_RESULTS = 8;
+    private static final int MIN_RSSI_LEVEL = -127;
+    private static final int MAX_RSSI_LEVEL = 0;
+    private static final int WIFI_SCORE_RANGE_MIN = 0;
+    private static final int NUM_WIFI_SCORES_TO_INCREMENT = 20;
+    private static final int WIFI_SCORE_RANGE_MAX = 60;
+    private static final int NUM_OUT_OF_BOUND_ENTRIES = 10;
 
     private ScanDetail buildMockScanDetail(boolean hidden, NetworkDetail.HSRelease hSRelease,
             String capabilities) {
@@ -305,8 +312,14 @@ public class WifiMetricsTest {
         }
         for (int i = 0; i < NUM_RSSI_LEVELS_TO_INCREMENT; i++) {
             for (int j = 0; j <= i; j++) {
-                mWifiMetrics.incrementRssiPollRssiCount(FIRST_RSSI_LEVEL + i);
+                mWifiMetrics.incrementRssiPollRssiCount(MIN_RSSI_LEVEL + i);
             }
+        }
+        for (int i = 1; i < NUM_OUT_OF_BOUND_ENTRIES; i++) {
+            mWifiMetrics.incrementRssiPollRssiCount(MIN_RSSI_LEVEL - i);
+        }
+        for (int i = 1; i < NUM_OUT_OF_BOUND_ENTRIES; i++) {
+            mWifiMetrics.incrementRssiPollRssiCount(MAX_RSSI_LEVEL + i);
         }
         // Test alert-reason clamping.
         mWifiMetrics.incrementAlertReasonCount(WifiLoggerHal.WIFI_ALERT_REASON_MIN - 1);
@@ -319,6 +332,17 @@ public class WifiMetricsTest {
         List<ScanDetail> mockScanDetails = buildMockScanDetailList();
         for (int i = 0; i < NUM_SCANS; i++) {
             mWifiMetrics.countScanResults(mockScanDetails);
+        }
+        for (int score = WIFI_SCORE_RANGE_MIN; score < NUM_WIFI_SCORES_TO_INCREMENT; score++) {
+            for (int offset = 0; offset <= score; offset++) {
+                mWifiMetrics.incrementWifiScoreCount(WIFI_SCORE_RANGE_MIN + score);
+            }
+        }
+        for (int i = 1; i < NUM_OUT_OF_BOUND_ENTRIES; i++) {
+            mWifiMetrics.incrementWifiScoreCount(WIFI_SCORE_RANGE_MIN - i);
+        }
+        for (int i = 1; i < NUM_OUT_OF_BOUND_ENTRIES; i++) {
+            mWifiMetrics.incrementWifiScoreCount(WIFI_SCORE_RANGE_MAX + i);
         }
     }
 
@@ -402,9 +426,13 @@ public class WifiMetricsTest {
         assertEquals(TEST_RECORD_DURATION_SEC,
                 mDeserializedWifiMetrics.recordDurationSec);
         for (int i = 0; i < NUM_RSSI_LEVELS_TO_INCREMENT; i++) {
-            assertEquals(FIRST_RSSI_LEVEL + i, mDeserializedWifiMetrics.rssiPollRssiCount[i].rssi);
+            assertEquals(MIN_RSSI_LEVEL + i, mDeserializedWifiMetrics.rssiPollRssiCount[i].rssi);
             assertEquals(i + 1, mDeserializedWifiMetrics.rssiPollRssiCount[i].count);
         }
+        StringBuilder sb_rssi = new StringBuilder();
+        sb_rssi.append("Number of RSSIs = " + mDeserializedWifiMetrics.rssiPollRssiCount.length);
+        assertTrue(sb_rssi.toString(), (mDeserializedWifiMetrics.rssiPollRssiCount.length
+                     <= (MAX_RSSI_LEVEL - MIN_RSSI_LEVEL + 1)));
         assertEquals(2, mDeserializedWifiMetrics.alertReasonCount[0].count);  // Clamped reasons.
         assertEquals(3, mDeserializedWifiMetrics.alertReasonCount[1].count);
         assertEquals(1, mDeserializedWifiMetrics.alertReasonCount[2].count);
@@ -425,6 +453,21 @@ public class WifiMetricsTest {
                 mDeserializedWifiMetrics.numHotspot2R2NetworkScanResults);
         assertEquals(NUM_SCANS,
                 mDeserializedWifiMetrics.numScans);
+        for (int score_index = 0; score_index < NUM_WIFI_SCORES_TO_INCREMENT; score_index++) {
+            assertEquals(WIFI_SCORE_RANGE_MIN + score_index,
+                    mDeserializedWifiMetrics.wifiScoreCount[score_index].score);
+            assertEquals(score_index + 1,
+                    mDeserializedWifiMetrics.wifiScoreCount[score_index].count);
+        }
+        StringBuilder sb_wifi_score = new StringBuilder();
+        sb_wifi_score.append("Number of wifi_scores = "
+                + mDeserializedWifiMetrics.wifiScoreCount.length);
+        assertTrue(sb_wifi_score.toString(), (mDeserializedWifiMetrics.wifiScoreCount.length
+                <= (WIFI_SCORE_RANGE_MAX - WIFI_SCORE_RANGE_MIN + 1)));
+        StringBuilder sb_wifi_limits = new StringBuilder();
+        sb_wifi_limits.append("Wifi Score limit is " +  NetworkAgent.WIFI_BASE_SCORE
+                + ">= " + WIFI_SCORE_RANGE_MAX);
+        assertTrue(sb_wifi_limits.toString(), NetworkAgent.WIFI_BASE_SCORE <= WIFI_SCORE_RANGE_MAX);
     }
 
     /**
