@@ -63,6 +63,8 @@ public class WifiConfigManagerNewTest {
     private static final long TEST_ELAPSED_UPDATE_NETWORK_SELECTION_TIME_MILLIS = 29457631;
     private static final int TEST_CREATOR_UID = 5;
     private static final int TEST_UPDATE_UID = 4;
+    private static final int TEST_SYSUI_UID = 56;
+    private static final int TEST_DEFAULT_USER = UserHandle.USER_SYSTEM;
     private static final int TEST_MAX_NUM_ACTIVE_CHANNELS_FOR_PARTIAL_SCAN = 5;
     private static final Integer[] TEST_FREQ_LIST = {2400, 2450, 5150, 5175, 5650};
     private static final String TEST_CREATOR_NAME = "com.wificonfigmanagerNew.creator";
@@ -102,17 +104,31 @@ public class WifiConfigManagerNewTest {
                 TEST_MAX_NUM_ACTIVE_CHANNELS_FOR_PARTIAL_SCAN);
         when(mContext.getResources()).thenReturn(mResources);
 
+        // Setup UserManager profiles for the default user.
+        setupUserProfiles(TEST_DEFAULT_USER);
+
         doAnswer(new AnswerWithArguments() {
             public String answer(int uid) throws Exception {
                 if (uid == TEST_CREATOR_UID) {
                     return TEST_CREATOR_NAME;
                 } else if (uid == TEST_UPDATE_UID) {
                     return TEST_UPDATE_NAME;
+                } else if (uid == TEST_SYSUI_UID) {
+                    return WifiConfigManagerNew.SYSUI_PACKAGE_NAME;
                 }
                 fail("Unexpected UID: " + uid);
                 return "";
             }
         }).when(mPackageManager).getNameForUid(anyInt());
+        doAnswer(new AnswerWithArguments() {
+            public int answer(String packageName, int flags, int userId) throws Exception {
+                if (packageName.equals(WifiConfigManagerNew.SYSUI_PACKAGE_NAME)) {
+                    return TEST_SYSUI_UID;
+                } else {
+                    return 0;
+                }
+            }
+        }).when(mPackageManager).getPackageUidAsUser(anyString(), anyInt(), anyInt());
 
         // Both the UID's in the test have the configuration override permission granted by
         // default. This maybe modified for particular tests if needed.
@@ -647,7 +663,7 @@ public class WifiConfigManagerNewTest {
 
         // Change the networkID to an invalid one.
         openNetwork.networkId++;
-        assertFalse(mWifiConfigManager.removeNetwork(openNetwork.networkId));
+        assertFalse(mWifiConfigManager.removeNetwork(openNetwork.networkId, TEST_CREATOR_UID));
     }
 
     /**
@@ -1585,10 +1601,8 @@ public class WifiConfigManagerNewTest {
      */
     @Test
     public void testHandleUserSwitchPushesOtherPrivateNetworksToSharedStore() throws Exception {
-        // Set up the user profiles stuff. Needed for |WifiConfigurationUtil.isVisibleToAnyProfile|
-        int user1 = UserHandle.USER_SYSTEM;
-        int user2 = UserHandle.USER_SYSTEM + 1;
-        setupUserProfiles(user1);
+        int user1 = TEST_DEFAULT_USER;
+        int user2 = TEST_DEFAULT_USER + 1;
         setupUserProfiles(user2);
 
         int appId = 674;
@@ -1655,10 +1669,8 @@ public class WifiConfigManagerNewTest {
      */
     @Test
     public void testHandleUserSwitchWhenUnlocked() throws Exception {
-        // Set up the user profiles stuff. Needed for |WifiConfigurationUtil.isVisibleToAnyProfile|
-        int user1 = UserHandle.USER_SYSTEM;
-        int user2 = UserHandle.USER_SYSTEM + 1;
-        setupUserProfiles(user1);
+        int user1 = TEST_DEFAULT_USER;
+        int user2 = TEST_DEFAULT_USER + 1;
         setupUserProfiles(user2);
 
         when(mWifiConfigStore.read()).thenReturn(
@@ -1683,10 +1695,8 @@ public class WifiConfigManagerNewTest {
      * read until the user is unlocked.
      */
     public void testHandleUserSwitchWhenLocked() throws Exception {
-        // Set up the user profiles stuff. Needed for |WifiConfigurationUtil.isVisibleToAnyProfile|
-        int user1 = UserHandle.USER_SYSTEM;
-        int user2 = UserHandle.USER_SYSTEM + 1;
-        setupUserProfiles(user1);
+        int user1 = TEST_DEFAULT_USER;
+        int user2 = TEST_DEFAULT_USER + 1;
         setupUserProfiles(user2);
 
         // user2 is locked and switched to foreground.
@@ -1716,10 +1726,8 @@ public class WifiConfigManagerNewTest {
      */
     @Test
     public void testHandleUserStop() throws Exception {
-        // Set up the user profiles stuff. Needed for |WifiConfigurationUtil.isVisibleToAnyProfile|
-        int user1 = UserHandle.USER_SYSTEM;
-        int user2 = UserHandle.USER_SYSTEM + 1;
-        setupUserProfiles(user1);
+        int user1 = TEST_DEFAULT_USER;
+        int user2 = TEST_DEFAULT_USER + 1;
         setupUserProfiles(user2);
 
         // Try stopping background user2 first, this should not do anything.
@@ -1732,6 +1740,46 @@ public class WifiConfigManagerNewTest {
         mContextConfigStoreMockOrder.verify(mWifiConfigStore, never()).read();
         mContextConfigStoreMockOrder.verify(mWifiConfigStore).write(
                 anyBoolean(), any(WifiConfigStoreData.class));
+    }
+
+    /**
+     * Verifies the private network addition using
+     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}
+     * by a non foreground user is rejected.
+     */
+    @Test
+    public void testAddNetworkUsingBackgroundUserUId() throws Exception {
+        int user2 = TEST_DEFAULT_USER + 1;
+        setupUserProfiles(user2);
+
+        int creatorUid = UserHandle.getUid(user2, 674);
+
+        // Create a network for user2 try adding it. This should be rejected.
+        final WifiConfiguration user2Network = WifiConfigurationTestUtil.createPskNetwork();
+        NetworkUpdateResult result =
+                mWifiConfigManager.addOrUpdateNetwork(user2Network, creatorUid);
+        assertFalse(result.isSuccess());
+    }
+
+    /**
+     * Verifies the private network addition using
+     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}
+     * by SysUI is always accepted.
+     */
+    @Test
+    public void testAddNetworkUsingSysUiUid() throws Exception {
+        // Set up the user profiles stuff. Needed for |WifiConfigurationUtil.isVisibleToAnyProfile|
+        int user2 = TEST_DEFAULT_USER + 1;
+        setupUserProfiles(user2);
+
+        when(mUserManager.isUserUnlockingOrUnlocked(user2)).thenReturn(false);
+        mWifiConfigManager.handleUserSwitch(user2);
+
+        // Create a network for user2 try adding it. This should be rejected.
+        final WifiConfiguration user2Network = WifiConfigurationTestUtil.createPskNetwork();
+        NetworkUpdateResult result =
+                mWifiConfigManager.addOrUpdateNetwork(user2Network, TEST_SYSUI_UID);
+        assertTrue(result.isSuccess());
     }
 
     private void createWifiConfigManager() {
@@ -2083,7 +2131,7 @@ public class WifiConfigManagerNewTest {
      */
     private void verifyRemoveNetworkFromWifiConfigManager(
             WifiConfiguration configuration) {
-        assertTrue(mWifiConfigManager.removeNetwork(configuration.networkId));
+        assertTrue(mWifiConfigManager.removeNetwork(configuration.networkId, TEST_CREATOR_UID));
 
         verifyNetworkRemoveBroadcast(configuration);
         // Verify if the config store write was triggered without this new configuration.

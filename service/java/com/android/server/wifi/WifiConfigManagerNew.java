@@ -90,6 +90,12 @@ public class WifiConfigManagerNew {
     @VisibleForTesting
     public static final String PASSWORD_MASK = "*";
     /**
+     * Package name for SysUI. This is used to lookup the UID of SysUI which is used to allow
+     * Quick settings to modify network configurations.
+     */
+    @VisibleForTesting
+    public static final String SYSUI_PACKAGE_NAME = "com.android.systemui";
+    /**
      * Network Selection disable reason thresholds. These numbers are used to debounce network
      * failures before we disable them.
      * These are indexed using the disable reason constants defined in
@@ -164,6 +170,7 @@ public class WifiConfigManagerNew {
      * Log tag for this class.
      */
     private static final String TAG = "WifiConfigManagerNew";
+
     /**
      * Disconnected/Connected PnoNetwork list sorting algorithm:
      * Place the configurations in descending order of their |numAssociation| values. If networks
@@ -244,7 +251,12 @@ public class WifiConfigManagerNew {
      * This is keeping track of the last network ID assigned. Any new networks will be assigned
      * |mLastNetworkId + 1| as network ID.
      */
-    private int mLastNetworkId;
+    private int mLastNetworkId = 0;
+    /**
+     * UID of system UI. This uid is allowed to modify network configurations regardless of which
+     * user is logged in.
+     */
+    private int mSystemUiUid = -1;
 
     /**
      * Create new instance of WifiConfigManager.
@@ -268,6 +280,13 @@ public class WifiConfigManagerNew {
                 R.bool.config_wifi_only_link_same_credential_configurations);
         mMaxNumActiveChannelsForPartialScans = mContext.getResources().getInteger(
                 R.integer.config_wifi_framework_associated_partial_scan_max_num_active_channels);
+
+        try {
+            mSystemUiUid = mContext.getPackageManager().getPackageUidAsUser(SYSUI_PACKAGE_NAME,
+                    PackageManager.MATCH_SYSTEM_ONLY, UserHandle.USER_SYSTEM);
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e(TAG, "Unable to resolve SystemUI's UID.");
+        }
     }
 
     /**
@@ -584,6 +603,19 @@ public class WifiConfigManagerNew {
     }
 
     /**
+     * Method to check if the provided UID belongs to the current foreground user or some other
+     * app (only SysUI today) running on behalf of the user.
+     * This is used to prevent any background user apps from modifying network configurations.
+     *
+     * @param uid uid of the app.
+     * @return true if the UID belongs to the current foreground app or SystemUI, false otherwise.
+     */
+    private boolean doesUidBelongToCurrentUser(int uid) {
+        return (WifiConfigurationUtil.doesUidBelongToAnyProfile(
+                uid, mUserManager.getProfiles(mCurrentUserId)) || (uid == mSystemUiUid));
+    }
+
+    /**
      * Copy over public elements from an external WifiConfiguration object to the internal
      * configuration object if element has been set in the provided external WifiConfiguration.
      * The only exception is the hidden |IpConfiguration| parameters, these need to be copied over
@@ -866,10 +898,14 @@ public class WifiConfigManagerNew {
      * network configuration. Otherwise, the networkId should refer to an existing configuration.
      *
      * @param config provided WifiConfiguration object.
-     * @param uid    UID of the app requesting the network addition/deletion.
+     * @param uid    UID of the app requesting the network addition/modification.
      * @return NetworkUpdateResult object representing status of the update.
      */
     public NetworkUpdateResult addOrUpdateNetwork(WifiConfiguration config, int uid) {
+        if (!doesUidBelongToCurrentUser(uid)) {
+            Log.e(TAG, "UID " + uid + " not visible to the current user");
+            return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
+        }
         if (config == null) {
             Log.e(TAG, "Cannot add/update network with null config");
             return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
@@ -921,11 +957,21 @@ public class WifiConfigManagerNew {
      * Removes the specified network configuration from our database.
      *
      * @param networkId network ID of the provided network.
+     * @param uid       UID of the app requesting the network deletion.
      * @return true if successful, false otherwise.
      */
-    public boolean removeNetwork(int networkId) {
+    public boolean removeNetwork(int networkId, int uid) {
+        if (!doesUidBelongToCurrentUser(uid)) {
+            Log.e(TAG, "UID " + uid + " not visible to the current user");
+            return false;
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
+            return false;
+        }
+        if (!canModifyNetwork(config, uid, DISALLOW_LOCKDOWN_CHECK_BYPASS)) {
+            Log.e(TAG, "UID " + uid + " does not have permission to delete configuration "
+                    + config.configKey());
             return false;
         }
         if (!removeNetworkInternal(config)) {
@@ -1128,6 +1174,10 @@ public class WifiConfigManagerNew {
      * @return true if it succeeds, false otherwise
      */
     public boolean enableNetwork(int networkId, int uid) {
+        if (!doesUidBelongToCurrentUser(uid)) {
+            Log.e(TAG, "UID " + uid + " not visible to the current user");
+            return false;
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
             return false;
@@ -1149,6 +1199,10 @@ public class WifiConfigManagerNew {
      * @return true if it succeeds, false otherwise
      */
     public boolean disableNetwork(int networkId, int uid) {
+        if (!doesUidBelongToCurrentUser(uid)) {
+            Log.e(TAG, "UID " + uid + " not visible to the current user");
+            return false;
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
             return false;
@@ -1172,6 +1226,10 @@ public class WifiConfigManagerNew {
      * network, false otherwise.
      */
     public boolean checkAndUpdateLastConnectUid(int networkId, int uid) {
+        if (!doesUidBelongToCurrentUser(uid)) {
+            Log.e(TAG, "UID " + uid + " not visible to the current user");
+            return false;
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
             return false;
@@ -1837,8 +1895,8 @@ public class WifiConfigManagerNew {
                 // because all networks were previously stored in a central file. We cannot
                 // write these private networks to the user specific store until the corresponding
                 // user logs in.
-                if (config.shared || !WifiConfigurationUtil.isVisibleToAnyProfile(
-                        config, mUserManager.getProfiles(mCurrentUserId))) {
+                if (config.shared || !WifiConfigurationUtil.doesUidBelongToAnyProfile(
+                        config.creatorUid, mUserManager.getProfiles(mCurrentUserId))) {
                     sharedConfigurations.add(config);
                 } else {
                     userConfigurations.add(config);
