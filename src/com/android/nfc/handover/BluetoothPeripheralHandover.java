@@ -410,6 +410,8 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
         if (!mDevice.equals(device)) return;
 
         if (ACTION_ALLOW_CONNECT.equals(action)) {
+            mHandler.removeMessages(MSG_TIMEOUT);
+            mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_TIMEOUT), TIMEOUT_MS);
             nextStepConnect();
         } else if (ACTION_DENY_CONNECT.equals(action)) {
             complete(false);
