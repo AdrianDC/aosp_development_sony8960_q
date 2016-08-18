@@ -100,9 +100,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     public void enableUsage() {
         enforceAccessPermission();
         enforceChangePermission();
-        /*
-         * TODO: enforce additional permissions b/27696149.
-         */
+        enforceConnectivityInternalPermission();
 
         mStateManager.enableUsage();
     }
@@ -111,9 +109,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     public void disableUsage() {
         enforceAccessPermission();
         enforceChangePermission();
-        /*
-         * TODO: enforce additional permissions b/27696149.
-         */
+        enforceConnectivityInternalPermission();
 
         mStateManager.disableUsage();
 
@@ -146,10 +142,9 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         }
 
         if (configRequest != null) {
-            /*
-             * TODO: enforce additional permissions if configuration is
-             * non-standard (i.e. the system API). (b/27696149)
-             */
+            if (configRequest.isNonDefaultOnTheAir()) {
+                enforceConnectivityInternalPermission();
+            }
         } else {
             configRequest = new ConfigRequest.Builder().build();
         }
@@ -417,6 +412,11 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
 
     private void enforceLocationPermission() {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION,
+                TAG);
+    }
+
+    private void enforceConnectivityInternalPermission() {
+        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.CONNECTIVITY_INTERNAL,
                 TAG);
     }
 }
