@@ -670,10 +670,8 @@ public class WifiNanManagerTest {
     public void testSubscribeConfigBuilder() {
         final String serviceName = "some_service_or_other";
         final String serviceSpecificInfo = "long arbitrary string with some info";
-        final byte[] txFilter = {
+        final byte[] matchFilter = {
                 0, 1, 16, 1, 22 };
-        final byte[] rxFilter = {
-                1, 127, 0, 1, -5, 1, 22 };
         final int subscribeType = SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE;
         final int subscribeCount = 10;
         final int subscribeTtl = 15;
@@ -681,8 +679,8 @@ public class WifiNanManagerTest {
         final boolean enableTerminateNotification = false;
 
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter)
-                .setRxFilter(rxFilter).setSubscribeType(subscribeType)
+                .setServiceSpecificInfo(serviceSpecificInfo).setMatchFilter(matchFilter)
+                .setSubscribeType(subscribeType)
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
                 .setEnableTerminateNotification(enableTerminateNotification).build();
 
@@ -690,8 +688,7 @@ public class WifiNanManagerTest {
                 equalTo(subscribeConfig.mServiceName));
         collector.checkThat("mServiceSpecificInfo",
                 serviceSpecificInfo.getBytes(), equalTo(subscribeConfig.mServiceSpecificInfo));
-        collector.checkThat("mTxFilter", txFilter, equalTo(subscribeConfig.mTxFilter));
-        collector.checkThat("mRxFilter", rxFilter, equalTo(subscribeConfig.mRxFilter));
+        collector.checkThat("mMatchFilter", matchFilter, equalTo(subscribeConfig.mMatchFilter));
         collector.checkThat("mSubscribeType", subscribeType,
                 equalTo(subscribeConfig.mSubscribeType));
         collector.checkThat("mSubscribeCount", subscribeCount,
@@ -706,10 +703,8 @@ public class WifiNanManagerTest {
     public void testSubscribeConfigParcel() {
         final String serviceName = "some_service_or_other";
         final String serviceSpecificInfo = "long arbitrary string with some info";
-        final byte[] txFilter = {
+        final byte[] matchFilter = {
                 0, 1, 16, 1, 22 };
-        final byte[] rxFilter = {
-                1, 127, 0, 1, -5, 1, 22 };
         final int subscribeType = SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE;
         final int subscribeCount = 10;
         final int subscribeTtl = 15;
@@ -717,8 +712,8 @@ public class WifiNanManagerTest {
         final boolean enableTerminateNotification = true;
 
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter)
-                .setTxFilter(rxFilter).setSubscribeType(subscribeType)
+                .setServiceSpecificInfo(serviceSpecificInfo).setMatchFilter(matchFilter)
+                .setSubscribeType(subscribeType)
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
                 .setEnableTerminateNotification(enableTerminateNotification).build();
 
@@ -779,18 +774,16 @@ public class WifiNanManagerTest {
     public void testPublishConfigBuilder() {
         final String serviceName = "some_service_or_other";
         final String serviceSpecificInfo = "long arbitrary string with some info";
-        final byte[] txFilter = {
+        final byte[] matchFilter = {
                 0, 1, 16, 1, 22 };
-        final byte[] rxFilter = {
-                1, 127, 0, 1, -5, 1, 22 };
         final int publishType = PublishConfig.PUBLISH_TYPE_SOLICITED;
         final int publishCount = 10;
         final int publishTtl = 15;
         final boolean enableTerminateNotification = false;
 
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter)
-                .setRxFilter(rxFilter).setPublishType(publishType)
+                .setServiceSpecificInfo(serviceSpecificInfo).setMatchFilter(matchFilter)
+                .setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
                 .setEnableTerminateNotification(enableTerminateNotification).build();
 
@@ -798,8 +791,7 @@ public class WifiNanManagerTest {
                 equalTo(publishConfig.mServiceName));
         collector.checkThat("mServiceSpecificInfo",
                 serviceSpecificInfo.getBytes(), equalTo(publishConfig.mServiceSpecificInfo));
-        collector.checkThat("mTxFilter", txFilter, equalTo(publishConfig.mTxFilter));
-        collector.checkThat("mRxFilter", rxFilter, equalTo(publishConfig.mRxFilter));
+        collector.checkThat("mMatchFilter", matchFilter, equalTo(publishConfig.mMatchFilter));
         collector.checkThat("mPublishType", publishType, equalTo(publishConfig.mPublishType));
         collector.checkThat("mPublishCount", publishCount, equalTo(publishConfig.mPublishCount));
         collector.checkThat("mTtlSec", publishTtl, equalTo(publishConfig.mTtlSec));
@@ -811,18 +803,16 @@ public class WifiNanManagerTest {
     public void testPublishConfigParcel() {
         final String serviceName = "some_service_or_other";
         final String serviceSpecificInfo = "long arbitrary string with some info";
-        final byte[] txFilter = {
+        final byte[] matchFilter = {
                 0, 1, 16, 1, 22 };
-        final byte[] rxFilter = {
-                1, 127, 0, 1, -5, 1, 22 };
         final int publishType = PublishConfig.PUBLISH_TYPE_SOLICITED;
         final int publishCount = 10;
         final int publishTtl = 15;
         final boolean enableTerminateNotification = false;
 
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter)
-                .setTxFilter(rxFilter).setPublishType(publishType)
+                .setServiceSpecificInfo(serviceSpecificInfo).setMatchFilter(matchFilter)
+                .setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
                 .setEnableTerminateNotification(enableTerminateNotification).build();
 
