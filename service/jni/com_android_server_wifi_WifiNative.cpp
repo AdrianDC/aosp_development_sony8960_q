@@ -115,16 +115,6 @@ static jstring doStringCommand(JNIEnv* env, jstring javaCommand) {
     return env->NewStringUTF(reply);
 }
 
-static jboolean android_net_wifi_startSupplicant(JNIEnv* env, jclass)
-{
-    return (wifi_system::wifi_start_supplicant() == 0);
-}
-
-static jboolean android_net_wifi_killSupplicant(JNIEnv* env, jclass)
-{
-    return (wifi_system::wifi_stop_supplicant() == 0);
-}
-
 static jboolean android_net_wifi_connectToSupplicant(JNIEnv* env, jclass)
 {
     return (wifi_system::wifi_connect_to_supplicant() == 0);
@@ -2456,8 +2446,6 @@ static jint android_net_wifi_configure_nd_offload(JNIEnv *env, jclass cls,
 static JNINativeMethod gWifiMethods[] = {
     /* name, signature, funcPtr */
 
-    { "startSupplicantNative", "()Z",  (void *)android_net_wifi_startSupplicant },
-    { "killSupplicantNative", "()Z",  (void *)android_net_wifi_killSupplicant },
     { "connectToSupplicantNative", "()Z", (void *)android_net_wifi_connectToSupplicant },
     { "closeSupplicantConnectionNative", "()V",
             (void *)android_net_wifi_closeSupplicantConnection },

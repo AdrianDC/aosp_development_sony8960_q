@@ -575,6 +575,7 @@ public class WifiMonitor {
     private void setMonitoring(String iface, boolean enabled) {
         mMonitoringMap.put(iface, enabled);
     }
+
     private void setMonitoringNone() {
         for (String iface : mMonitoringMap.keySet()) {
             setMonitoring(iface, false);
@@ -633,12 +634,7 @@ public class WifiMonitor {
         mWifiNative.stopSupplicant();
     }
 
-    public synchronized void killSupplicant() {
-        String suppState = System.getProperty("init.svc.wpa_supplicant");
-        if (suppState == null) suppState = "unknown";
-
-        Log.e(TAG, "killSupplicant init.svc.wpa_supplicant=" + suppState);
-        mWifiNative.killSupplicant();
+    public synchronized void stopAllMonitoring() {
         mConnected = false;
         setMonitoringNone();
     }

@@ -195,6 +195,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private WifiQualifiedNetworkSelector mWifiQualifiedNetworkSelector;
     private INetworkManagementService mNwService;
     private IWificond mWificond;
+    private IClientInterface mClientInterface;
     private ConnectivityManager mCm;
     private BaseWifiDiagnostics mWifiDiagnostics;
     private WifiApConfigStore mWifiApConfigStore;
@@ -3379,7 +3380,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         * or when the driver is hung. Ensure supplicant is stopped here.
         */
         if (killSupplicant) {
-            mWifiMonitor.killSupplicant();
+            mWifiMonitor.stopAllMonitoring();
+            try {
+                if (!mClientInterface.disableSupplicant()) {
+                    loge("Failed to disable supplicant after connection loss");
+                }
+            } catch (RemoteException e) {
+                // Remote interface has died, there is no cleanup we can do.
+            }
         }
         mWifiNative.closeSupplicantConnection();
         sendSupplicantConnectionChangedBroadcast(false);
@@ -3565,15 +3573,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiNative.disconnect();
     }
 
-    private IClientInterface setupDriverForClientMode() {
-        if (mWificond == null) {
+    private static IClientInterface setupDriverForClientMode(IWificond wificond) {
+        if (wificond == null) {
             Log.e(TAG, "Failed to get reference to wificond");
             return null;
         }
 
         IClientInterface clientInterface = null;
         try {
-            clientInterface = mWificond.createClientInterface();
+            clientInterface = wificond.createClientInterface();
         } catch (RemoteException e1) { }
 
         if (clientInterface == null) {
@@ -4018,11 +4026,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     class InitialState extends State {
 
         private void cleanup() {
-            /* Stop a running supplicant after a runtime restart
-            * Avoids issues with drivers that do not handle interface down
-            * on a running supplicant properly.
-            */
-            mWifiMonitor.killSupplicant();
+            // Tearing down the client interfaces below is going to stop our supplicant.
+            mWifiMonitor.stopAllMonitoring();
 
             mDeathRecipient.unlinkToDeath();
             if (mWificond != null) {
@@ -4058,9 +4063,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_START_SUPPLICANT:
                     // Refresh our reference to wificond.  This allows us to tolerate restarts.
                     mWificond = mWifiInjector.makeWificond();
-                    IClientInterface clientInterface = setupDriverForClientMode();
-                    if (clientInterface == null ||
-                            !mDeathRecipient.linkToDeath(clientInterface.asBinder())) {
+                    mClientInterface = setupDriverForClientMode(mWificond);
+                    if (mClientInterface == null ||
+                            !mDeathRecipient.linkToDeath(mClientInterface.asBinder())) {
                         setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                         cleanup();
                         break;
@@ -4094,9 +4099,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         Log.e(TAG, "Failed to start HAL for client mode");
                     }
 
-                    if (!mWifiNative.startSupplicant()) {
-                        loge("Failed to start supplicant!");
-                        setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
+                    try {
+                        if (!mClientInterface.enableSupplicant()) {
+                            loge("Failed to start supplicant!");
+                            setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
+                            cleanup();
+                            break;
+                        }
+                    } catch (RemoteException e) {
                         cleanup();
                         break;
                     }
@@ -4185,7 +4195,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case WifiMonitor.SUP_DISCONNECTION_EVENT:
                     if (++mSupplicantRestartCount <= SUPPLICANT_RESTART_TRIES) {
                         loge("Failed to setup control channel, restart supplicant");
-                        mWifiMonitor.killSupplicant();
+                        mWifiMonitor.stopAllMonitoring();
+                        try {
+                            mClientInterface.disableSupplicant();
+                        } catch (RemoteException e) {
+                            // The client interface is dead, there is nothing more we can do.
+                        }
                         transitionTo(mInitialState);
                         sendMessageDelayed(CMD_START_SUPPLICANT, SUPPLICANT_RESTART_INTERVAL_MSECS);
                     } else {

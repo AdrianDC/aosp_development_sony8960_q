@@ -176,22 +176,6 @@ public class WifiNative {
     /*
      * Supplicant management
      */
-    private native static boolean startSupplicantNative();
-    public boolean startSupplicant() {
-        synchronized (sLock) {
-            return startSupplicantNative();
-        }
-    }
-
-    /* Sends a kill signal to supplicant. To be used when we have lost connection
-       or when the supplicant is hung */
-    private native static boolean killSupplicantNative();
-    public boolean killSupplicant() {
-        synchronized (sLock) {
-            return killSupplicantNative();
-        }
-    }
-
     private native static boolean connectToSupplicantNative();
     public boolean connectToSupplicant() {
         synchronized (sLock) {
