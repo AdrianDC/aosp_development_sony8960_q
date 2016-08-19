@@ -214,6 +214,43 @@ public class SupplicantPnoScannerTest {
         verifyNoMoreInteractions(pnoEventHandler);
     }
 
+    /**
+     * Verify that the HW PNO scan stop failure still resets the PNO scan state.
+     * 1. Start Hw PNO.
+     * 2. Stop Hw PNO scan which raises a stop command to WifiNative which is failed.
+     * 3. Now restart a new PNO scan to ensure that the failure was cleanly handled.
+     */
+    @Test
+    public void ignoreHwDisconnectedPnoScanStopFailure() {
+        createScannerWithHwPnoScanSupport();
+
+        WifiNative.PnoEventHandler pnoEventHandler = mock(WifiNative.PnoEventHandler.class);
+        WifiNative.PnoSettings pnoSettings = createDummyPnoSettings(false);
+
+        // Start PNO scan
+        startSuccessfulPnoScan(null, pnoSettings, null, pnoEventHandler);
+
+        // Fail the PNO stop.
+        when(mWifiNative.setPnoScan(false)).thenReturn(false);
+        assertTrue(mScanner.resetHwPnoList());
+        assertTrue("dispatch pno monitor alarm",
+                mAlarmManager.dispatch(
+                        SupplicantWifiScannerImpl.HwPnoDebouncer.PNO_DEBOUNCER_ALARM_TAG));
+        mLooper.dispatchAll();
+        verify(mWifiNative).setPnoScan(false);
+
+        // Add a new PNO scan request and ensure it runs successfully.
+        startSuccessfulPnoScan(null, pnoSettings, null, pnoEventHandler);
+        assertTrue("dispatch pno monitor alarm",
+                mAlarmManager.dispatch(
+                        SupplicantWifiScannerImpl.HwPnoDebouncer.PNO_DEBOUNCER_ALARM_TAG));
+        mLooper.dispatchAll();
+        InOrder order = inOrder(pnoEventHandler, mWifiNative);
+        ScanResults scanResults = createDummyScanResults();
+        expectSuccessfulHwDisconnectedPnoScan(order, pnoSettings, pnoEventHandler, scanResults);
+        verifyNoMoreInteractions(pnoEventHandler);
+    }
+
     private void doSuccessfulSwPnoScanTest(boolean isConnectedPno) {
         WifiNative.PnoEventHandler pnoEventHandler = mock(WifiNative.PnoEventHandler.class);
         WifiNative.PnoSettings pnoSettings = createDummyPnoSettings(isConnectedPno);
@@ -275,6 +312,7 @@ public class SupplicantPnoScannerTest {
     private void startSuccessfulPnoScan(WifiNative.ScanSettings scanSettings,
             WifiNative.PnoSettings pnoSettings, WifiNative.ScanEventHandler scanEventHandler,
             WifiNative.PnoEventHandler pnoEventHandler) {
+        reset(mWifiNative);
         when(mWifiNative.setNetworkVariable(anyInt(), anyString(), anyString())).thenReturn(true);
         when(mWifiNative.enableNetworkWithoutConnect(anyInt())).thenReturn(true);
         // Scans succeed

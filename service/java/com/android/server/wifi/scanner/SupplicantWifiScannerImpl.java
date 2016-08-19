@@ -1041,7 +1041,6 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                 if (DBG) Log.d(TAG, "PNO state is already " + enable);
                 return true;
             }
-
             mLastPnoChangeTimeStamp = mClock.elapsedRealtime();
             if (mWifiNative.setPnoScan(enable)) {
                 Log.d(TAG, "Changed PNO state from " + mCurrentPnoState + " to " + enable);
@@ -1049,6 +1048,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                 return true;
             } else {
                 Log.e(TAG, "PNO state change to " + enable + " failed");
+                mCurrentPnoState = false;
                 return false;
             }
         }
