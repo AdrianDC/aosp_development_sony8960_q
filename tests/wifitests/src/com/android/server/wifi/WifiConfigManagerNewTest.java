@@ -39,6 +39,7 @@ import android.text.TextUtils;
 
 import com.android.internal.R;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -146,6 +147,14 @@ public class WifiConfigManagerNewTest {
                 .thenReturn(true);
 
         createWifiConfigManager();
+    }
+
+    /**
+     * Called after each test
+     */
+    @After
+    public void cleanup() {
+        validateMockitoUsage();
     }
 
     /**

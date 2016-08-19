@@ -637,6 +637,20 @@ public class WifiSupplicantControl {
     }
 
     /**
+     * Remove all the networks.
+     *
+     * @return {@code true} if it succeeds, {@code false} otherwise
+     */
+    public boolean removeAllNetworks() {
+        if (mVerboseLoggingEnabled) localLog("removeAllNetworks");
+        if (!mWifiNative.removeAllNetworks()) {
+            loge("Remove all networks in wpa_supplicant failed");
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Select a network in wpa_supplicant.
      *
      * @param config Config corresponding to the network.

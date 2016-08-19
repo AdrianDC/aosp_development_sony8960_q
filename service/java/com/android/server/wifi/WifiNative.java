@@ -432,6 +432,12 @@ public class WifiNative {
         return doBooleanCommand("REMOVE_NETWORK " + netId);
     }
 
+    /**
+     * Remove all saved networks from wpa_supplicant.
+     */
+    public boolean removeAllNetworks() {
+        return doBooleanCommand("REMOVE_NETWORK all");
+    }
 
     private void logDbg(String debug) {
         long now = SystemClock.elapsedRealtimeNanos();
