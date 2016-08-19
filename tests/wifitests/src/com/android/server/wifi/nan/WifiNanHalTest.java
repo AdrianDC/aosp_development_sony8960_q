@@ -124,16 +124,12 @@ public class WifiNanHalTest {
         final int publishTtl = 66;
         final boolean enableTerminateNotification = true;
 
-        TlvBufferUtils.TlvConstructor tlvTx = new TlvBufferUtils.TlvConstructor(0, 1);
-        tlvTx.allocate(150).putByte(0, (byte) 10).putInt(0, 100).putString(0, "some string")
+        TlvBufferUtils.TlvConstructor tlvMatch = new TlvBufferUtils.TlvConstructor(0, 1);
+        tlvMatch.allocate(150).putByte(0, (byte) 10).putInt(0, 100).putString(0, "some string")
                 .putZeroLengthElement(0);
 
-        TlvBufferUtils.TlvConstructor tlvRx = new TlvBufferUtils.TlvConstructor(0, 1);
-        tlvRx.allocate(150).putByte(0, (byte) 66).putInt(0, 127).putString(0, "some other string")
-                .putZeroLengthElement(0).putByteArray(0, serviceName.getBytes());
-
         testPublish(transactionId, publishId, PublishConfig.PUBLISH_TYPE_UNSOLICITED, serviceName,
-                ssi, tlvTx, tlvRx, publishCount, publishTtl, enableTerminateNotification);
+                ssi, tlvMatch, publishCount, publishTtl, enableTerminateNotification);
     }
 
     @Test
@@ -146,16 +142,12 @@ public class WifiNanHalTest {
         final int publishTtl = 33;
         final boolean enableTerminateNotification = false;
 
-        TlvBufferUtils.TlvConstructor tlvTx = new TlvBufferUtils.TlvConstructor(0, 1);
-        tlvTx.allocate(150).putByte(0, (byte) 10).putInt(0, 100).putString(0, "some string")
+        TlvBufferUtils.TlvConstructor tlvMatch = new TlvBufferUtils.TlvConstructor(0, 1);
+        tlvMatch.allocate(150).putByte(0, (byte) 10).putInt(0, 100).putString(0, "some string")
                 .putZeroLengthElement(0);
 
-        TlvBufferUtils.TlvConstructor tlvRx = new TlvBufferUtils.TlvConstructor(0, 1);
-        tlvRx.allocate(150).putByte(0, (byte) 66).putInt(0, 127).putString(0, "some other string")
-                .putZeroLengthElement(0).putByteArray(0, serviceName.getBytes());
-
         testPublish(transactionId, publishId, PublishConfig.PUBLISH_TYPE_SOLICITED, serviceName,
-                ssi, tlvTx, tlvRx, publishCount, publishTtl, enableTerminateNotification);
+                ssi, tlvMatch, publishCount, publishTtl, enableTerminateNotification);
     }
 
     @Test
@@ -183,16 +175,12 @@ public class WifiNanHalTest {
         final int matchStyle = SubscribeConfig.MATCH_STYLE_ALL;
         final boolean enableTerminateNotification = true;
 
-        TlvBufferUtils.TlvConstructor tlvTx = new TlvBufferUtils.TlvConstructor(0, 1);
-        tlvTx.allocate(150).putByte(0, (byte) 10).putInt(0, 100).putString(0, "some string")
+        TlvBufferUtils.TlvConstructor tlvMatch = new TlvBufferUtils.TlvConstructor(0, 1);
+        tlvMatch.allocate(150).putByte(0, (byte) 10).putInt(0, 100).putString(0, "some string")
                 .putZeroLengthElement(0);
 
-        TlvBufferUtils.TlvConstructor tlvRx = new TlvBufferUtils.TlvConstructor(0, 1);
-        tlvRx.allocate(150).putByte(0, (byte) 66).putInt(0, 127).putString(0, "some other string")
-                .putZeroLengthElement(0).putByteArray(0, serviceName.getBytes());
-
         testSubscribe(transactionId, subscribeId, SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE,
-                serviceName, ssi, tlvTx, tlvRx, subscribeCount, subscribeTtl, matchStyle,
+                serviceName, ssi, tlvMatch, subscribeCount, subscribeTtl, matchStyle,
                 enableTerminateNotification);
     }
 
@@ -207,16 +195,12 @@ public class WifiNanHalTest {
         final int matchStyle = SubscribeConfig.MATCH_STYLE_FIRST_ONLY;
         final boolean enableTerminateNotification = false;
 
-        TlvBufferUtils.TlvConstructor tlvTx = new TlvBufferUtils.TlvConstructor(0, 1);
-        tlvTx.allocate(150).putByte(0, (byte) 10).putInt(0, 100).putString(0, "some string")
+        TlvBufferUtils.TlvConstructor tlvMatch = new TlvBufferUtils.TlvConstructor(0, 1);
+        tlvMatch.allocate(150).putByte(0, (byte) 10).putInt(0, 100).putString(0, "some string")
                 .putZeroLengthElement(0);
 
-        TlvBufferUtils.TlvConstructor tlvRx = new TlvBufferUtils.TlvConstructor(0, 1);
-        tlvRx.allocate(150).putByte(0, (byte) 66).putInt(0, 127).putString(0, "some other string")
-                .putZeroLengthElement(0).putByteArray(0, serviceName.getBytes());
-
         testSubscribe(transactionId, subscribeId, SubscribeConfig.SUBSCRIBE_TYPE_ACTIVE,
-                serviceName, ssi, tlvTx, tlvRx, subscribeCount, subscribeTtl, matchStyle,
+                serviceName, ssi, tlvMatch, subscribeCount, subscribeTtl, matchStyle,
                 enableTerminateNotification);
     }
 
@@ -1092,12 +1076,12 @@ public class WifiNanHalTest {
     }
 
     private void testPublish(short transactionId, int publishId, int publishType,
-            String serviceName, String ssi, TlvBufferUtils.TlvConstructor tlvTx,
-            TlvBufferUtils.TlvConstructor tlvRx, int publishCount, int publishTtl,
-            boolean enableTerminateNotification) throws JSONException {
+            String serviceName, String ssi, TlvBufferUtils.TlvConstructor tlvMatch,
+            int publishCount, int publishTtl, boolean enableTerminateNotification)
+            throws JSONException {
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(ssi).setTxFilter(tlvTx.getArray())
-                .setRxFilter(tlvRx.getArray()).setPublishType(publishType)
+                .setServiceSpecificInfo(ssi).setMatchFilter(tlvMatch.getArray())
+                .setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
                 .setEnableTerminateNotification(enableTerminateNotification).build();
 
@@ -1124,10 +1108,13 @@ public class WifiNanHalTest {
                 equalTo(ssi.getBytes()));
         collector.checkThat("publish_match_indicator", argsData.getInt("publish_match_indicator"),
                 equalTo(0));
-        collector.checkThat("rx_match_filter", argsData.getByteArray("rx_match_filter"),
-                equalTo(tlvRx.getArray()));
-        collector.checkThat("tx_match_filter", argsData.getByteArray("tx_match_filter"),
-                equalTo(tlvTx.getArray()));
+        if (publishType == PublishConfig.PUBLISH_TYPE_SOLICITED) {
+            collector.checkThat("rx_match_filter", argsData.getByteArray("rx_match_filter"),
+                    equalTo(tlvMatch.getArray()));
+        } else {
+            collector.checkThat("tx_match_filter", argsData.getByteArray("tx_match_filter"),
+                    equalTo(tlvMatch.getArray()));
+        }
         collector.checkThat("rssi_threshold_flag", argsData.getInt("rssi_threshold_flag"),
                 equalTo(0));
         collector.checkThat("connmap", argsData.getInt("connmap"), equalTo(0));
@@ -1136,14 +1123,14 @@ public class WifiNanHalTest {
     }
 
     private void testSubscribe(short transactionId, int subscribeId, int subscribeType,
-            String serviceName, String ssi, TlvBufferUtils.TlvConstructor tlvTx,
-            TlvBufferUtils.TlvConstructor tlvRx, int subscribeCount, int subscribeTtl,
-            int matchStyle, boolean enableTerminateNotification) throws JSONException {
-        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(
-                serviceName).setServiceSpecificInfo(ssi).setTxFilter(tlvTx.getArray()).setRxFilter(
-                tlvRx.getArray()).setSubscribeType(subscribeType).setSubscribeCount(
-                subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(
-                matchStyle).setEnableTerminateNotification(enableTerminateNotification).build();
+            String serviceName, String ssi, TlvBufferUtils.TlvConstructor tlvMatch,
+            int subscribeCount, int subscribeTtl, int matchStyle,
+            boolean enableTerminateNotification) throws JSONException {
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder()
+                .setServiceName(serviceName).setServiceSpecificInfo(ssi)
+                .setMatchFilter(tlvMatch.getArray()).setSubscribeType(subscribeType)
+                .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
+                .setEnableTerminateNotification(enableTerminateNotification).build();
 
         mDut.subscribe(transactionId, subscribeId, subscribeConfig);
 
@@ -1176,10 +1163,13 @@ public class WifiNanHalTest {
                 argsData.getInt("service_specific_info_len"), equalTo(serviceName.length()));
         collector.checkThat("service_specific_info", argsData.getByteArray("service_specific_info"),
                 equalTo(ssi.getBytes()));
-        collector.checkThat("rx_match_filter", argsData.getByteArray("rx_match_filter"),
-                equalTo(tlvRx.getArray()));
-        collector.checkThat("tx_match_filter", argsData.getByteArray("tx_match_filter"),
-                equalTo(tlvTx.getArray()));
+        if (subscribeType == SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE) {
+            collector.checkThat("rx_match_filter", argsData.getByteArray("rx_match_filter"),
+                    equalTo(tlvMatch.getArray()));
+        } else {
+            collector.checkThat("tx_match_filter", argsData.getByteArray("tx_match_filter"),
+                    equalTo(tlvMatch.getArray()));
+        }
         collector.checkThat("rssi_threshold_flag", argsData.getInt("rssi_threshold_flag"),
                 equalTo(0));
         collector.checkThat("connmap", argsData.getInt("connmap"), equalTo(0));

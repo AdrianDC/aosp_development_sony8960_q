@@ -397,6 +397,7 @@ static jint android_net_wifi_nan_publish(JNIEnv *env, jclass cls,
 
     /* configurable settings */
     msg.publish_id = publish_id;
+    msg.publish_type = (NanPublishType)helper.getIntField(publish_config, "mPublishType");
 
     size_t array_length;
     helper.getByteArrayField(publish_config, "mServiceName", msg.service_name,
@@ -416,25 +417,26 @@ static jint android_net_wifi_nan_publish(JNIEnv *env, jclass cls,
         return 0;
     }
 
-    helper.getByteArrayField(publish_config, "mTxFilter",
-                             msg.tx_match_filter, &array_length,
-                             NAN_MAX_MATCH_FILTER_LEN);
-    msg.tx_match_filter_len = array_length;
-    if (array_length > NAN_MAX_MATCH_FILTER_LEN) {
-        ALOGE("Length of tx filter info field larger than max allowed");
-        return 0;
+    if (msg.publish_type == NAN_PUBLISH_TYPE_UNSOLICITED) {
+        helper.getByteArrayField(publish_config, "mMatchFilter",
+                                 msg.tx_match_filter, &array_length,
+                                 NAN_MAX_MATCH_FILTER_LEN);
+        msg.tx_match_filter_len = array_length;
+        if (array_length > NAN_MAX_MATCH_FILTER_LEN) {
+            ALOGE("Length of match filter info field larger than max allowed");
+            return 0;
+        }
+    } else {
+        helper.getByteArrayField(publish_config, "mMatchFilter",
+                                 msg.rx_match_filter, &array_length,
+                                 NAN_MAX_MATCH_FILTER_LEN);
+        msg.rx_match_filter_len = array_length;
+        if (array_length > NAN_MAX_MATCH_FILTER_LEN) {
+            ALOGE("Length of match filter info field larger than max allowed");
+            return 0;
+        }
     }
 
-    helper.getByteArrayField(publish_config, "mRxFilter",
-                             msg.rx_match_filter, &array_length,
-                             NAN_MAX_MATCH_FILTER_LEN);
-    msg.rx_match_filter_len = array_length;
-    if (array_length > NAN_MAX_MATCH_FILTER_LEN) {
-        ALOGE("Length of rx filter info field larger than max allowed");
-        return 0;
-    }
-
-    msg.publish_type = (NanPublishType)helper.getIntField(publish_config, "mPublishType");
     msg.publish_count = helper.getIntField(publish_config, "mPublishCount");
     msg.ttl = helper.getIntField(publish_config, "mTtlSec");
 
@@ -476,6 +478,7 @@ static jint android_net_wifi_nan_subscribe(JNIEnv *env, jclass cls,
 
     /* configurable settings */
     msg.subscribe_id = subscribe_id;
+    msg.subscribe_type = (NanSubscribeType)helper.getIntField(subscribe_config, "mSubscribeType");
 
     size_t array_length;
     helper.getByteArrayField(subscribe_config, "mServiceName", msg.service_name,
@@ -495,25 +498,26 @@ static jint android_net_wifi_nan_subscribe(JNIEnv *env, jclass cls,
         return 0;
     }
 
-    helper.getByteArrayField(subscribe_config, "mTxFilter",
-                             msg.tx_match_filter, &array_length,
-                             NAN_MAX_MATCH_FILTER_LEN);
-    msg.tx_match_filter_len = array_length;
-    if (array_length > NAN_MAX_MATCH_FILTER_LEN) {
-        ALOGE("Length of tx filter field larger than max allowed");
-        return 0;
+    if (msg.subscribe_type == NAN_SUBSCRIBE_TYPE_ACTIVE) {
+        helper.getByteArrayField(subscribe_config, "mMatchFilter",
+                                 msg.tx_match_filter, &array_length,
+                                 NAN_MAX_MATCH_FILTER_LEN);
+        msg.tx_match_filter_len = array_length;
+        if (array_length > NAN_MAX_MATCH_FILTER_LEN) {
+            ALOGE("Length of match filter field larger than max allowed");
+            return 0;
+        }
+    } else {
+        helper.getByteArrayField(subscribe_config, "mMatchFilter",
+                                 msg.rx_match_filter, &array_length,
+                                 NAN_MAX_MATCH_FILTER_LEN);
+        msg.rx_match_filter_len = array_length;
+        if (array_length > NAN_MAX_MATCH_FILTER_LEN) {
+            ALOGE("Length of match filter field larger than max allowed");
+            return 0;
+        }
     }
 
-    helper.getByteArrayField(subscribe_config, "mRxFilter",
-                             msg.rx_match_filter, &array_length,
-                             NAN_MAX_MATCH_FILTER_LEN);
-    msg.rx_match_filter_len = array_length;
-    if (array_length > NAN_MAX_MATCH_FILTER_LEN) {
-        ALOGE("Length of rx filter field larger than max allowed");
-        return 0;
-    }
-
-    msg.subscribe_type = (NanSubscribeType)helper.getIntField(subscribe_config, "mSubscribeType");
     msg.subscribe_count = helper.getIntField(subscribe_config, "mSubscribeCount");
     msg.ttl = helper.getIntField(subscribe_config, "mTtlSec");
     msg.subscribe_match_indicator = (NanMatchAlg) helper.getIntField(
