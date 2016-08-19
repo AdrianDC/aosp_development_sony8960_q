@@ -16,12 +16,18 @@
 
 package com.android.server.wifi.nan;
 
+import android.Manifest;
+import android.app.AppOpsManager;
+import android.content.Context;
+import android.content.pm.PackageManager;
 import android.net.wifi.RttManager;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.SparseArray;
+
+import libcore.util.HexEncoding;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -44,22 +50,32 @@ public class WifiNanClientState {
     /* package */ static final int CLUSTER_CHANGE_EVENT_STARTED = 0;
     /* package */ static final int CLUSTER_CHANGE_EVENT_JOINED = 1;
 
-    private IWifiNanEventCallback mCallback;
+    private final Context mContext;
+    private final IWifiNanEventCallback mCallback;
     private final SparseArray<WifiNanSessionState> mSessions = new SparseArray<>();
 
-    private int mClientId;
+    private final int mClientId;
     private ConfigRequest mConfigRequest;
-    private int mUid;
+    private final int mUid;
+    private final int mPid;
+    private final String mCallingPackage;
+
+    private AppOpsManager mAppOps;
 
     private static final byte[] ALL_ZERO_MAC = new byte[] {0, 0, 0, 0, 0, 0};
     private byte[] mLastDiscoveryInterfaceMac = ALL_ZERO_MAC;
 
-    public WifiNanClientState(int clientId, int uid, IWifiNanEventCallback callback,
-            ConfigRequest configRequest) {
+    public WifiNanClientState(Context context, int clientId, int uid, int pid,
+            String callingPackage, IWifiNanEventCallback callback, ConfigRequest configRequest) {
+        mContext = context;
         mClientId = clientId;
         mUid = uid;
+        mPid = pid;
+        mCallingPackage = callingPackage;
         mCallback = callback;
         mConfigRequest = configRequest;
+
+        mAppOps = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
     }
 
     /**
@@ -172,11 +188,21 @@ public class WifiNanClientState {
      *            client.
      */
     public void onInterfaceAddressChange(byte[] mac) {
+        if (VDBG) {
+            Log.v(TAG,
+                    "onInterfaceAddressChange: mClientId=" + mClientId
+                            + ", mEnableIdentityChangeCallback="
+                            + mConfigRequest.mEnableIdentityChangeCallback + ", mac="
+                            + String.valueOf(HexEncoding.encode(mac))
+                            + ", mLastDiscoveryInterfaceMac=" + String.valueOf(
+                            HexEncoding.encode(mLastDiscoveryInterfaceMac)));
+        }
         if (mConfigRequest.mEnableIdentityChangeCallback && !Arrays.equals(mac,
                 mLastDiscoveryInterfaceMac)) {
             try {
-                // TODO: b/30000323 - resolve privacy concerns
-                mCallback.onIdentityChanged(mac);
+                boolean hasPermission = hasLocationingPermission();
+                if (VDBG) Log.v(TAG, "hasPermission=" + hasPermission);
+                mCallback.onIdentityChanged(hasPermission ? mac : ALL_ZERO_MAC);
             } catch (RemoteException e) {
                 Log.w(TAG, "onIdentityChanged: RemoteException - ignored: " + e);
             }
@@ -196,17 +222,36 @@ public class WifiNanClientState {
      * @param currentDiscoveryInterfaceMac The MAC address of the discovery interface.
      */
     public void onClusterChange(int flag, byte[] mac, byte[] currentDiscoveryInterfaceMac) {
+        if (VDBG) {
+            Log.v(TAG,
+                    "onClusterChange: mClientId=" + mClientId + ", mEnableIdentityChangeCallback="
+                            + mConfigRequest.mEnableIdentityChangeCallback + ", mac="
+                            + String.valueOf(HexEncoding.encode(mac))
+                            + ", currentDiscoveryInterfaceMac=" + String.valueOf(
+                            HexEncoding.encode(currentDiscoveryInterfaceMac))
+                            + ", mLastDiscoveryInterfaceMac=" + String.valueOf(
+                            HexEncoding.encode(mLastDiscoveryInterfaceMac)));
+        }
         if (mConfigRequest.mEnableIdentityChangeCallback && !Arrays.equals(
                 currentDiscoveryInterfaceMac, mLastDiscoveryInterfaceMac)) {
             try {
-                // TODO: b/30000323 - resolve privacy concerns
-                mCallback.onIdentityChanged(currentDiscoveryInterfaceMac);
+                boolean hasPermission = hasLocationingPermission();
+                if (VDBG) Log.v(TAG, "hasPermission=" + hasPermission);
+                mCallback.onIdentityChanged(hasPermission ? mac : ALL_ZERO_MAC);
             } catch (RemoteException e) {
                 Log.w(TAG, "onIdentityChanged: RemoteException - ignored: " + e);
             }
         }
 
         mLastDiscoveryInterfaceMac = currentDiscoveryInterfaceMac;
+    }
+
+    private boolean hasLocationingPermission() {
+        // FINE provides COARSE, so only have to check for the latter
+        return mContext.checkPermission(Manifest.permission.ACCESS_COARSE_LOCATION, mPid, mUid)
+                == PackageManager.PERMISSION_GRANTED && mAppOps.noteOp(
+                AppOpsManager.OP_COARSE_LOCATION, mUid, mCallingPackage)
+                == AppOpsManager.MODE_ALLOWED;
     }
 
     /**

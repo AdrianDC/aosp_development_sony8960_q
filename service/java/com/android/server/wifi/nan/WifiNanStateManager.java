@@ -165,6 +165,8 @@ public class WifiNanStateManager {
     private static final String MESSAGE_BUNDLE_KEY_CHANNEL = "channel";
     private static final String MESSAGE_BUNDLE_KEY_PEER_ID = "peer_id";
     private static final String MESSAGE_BUNDLE_KEY_UID = "uid";
+    private static final String MESSAGE_BUNDLE_KEY_PID = "pid";
+    private static final String MESSAGE_BUNDLE_KEY_CALLING_PACKAGE = "calling_package";
     private static final String MESSAGE_BUNDLE_KEY_SENT_MESSAGE = "send_message";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_ARRIVAL_SEQ = "message_arrival_seq";
 
@@ -247,14 +249,16 @@ public class WifiNanStateManager {
     /**
      * Place a request for a new client connection on the state machine queue.
      */
-    public void connect(int clientId, int uid, IWifiNanEventCallback callback,
-            ConfigRequest configRequest) {
+    public void connect(int clientId, int uid, int pid, String callingPackage,
+            IWifiNanEventCallback callback, ConfigRequest configRequest) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_CONNECT;
         msg.arg2 = clientId;
         msg.obj = callback;
         msg.getData().putParcelable(MESSAGE_BUNDLE_KEY_CONFIG, configRequest);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_UID, uid);
+        msg.getData().putInt(MESSAGE_BUNDLE_KEY_PID, pid);
+        msg.getData().putString(MESSAGE_BUNDLE_KEY_CALLING_PACKAGE, callingPackage);
         mSm.sendMessage(msg);
     }
 
@@ -1178,9 +1182,12 @@ public class WifiNanStateManager {
                     ConfigRequest configRequest = (ConfigRequest) msg.getData()
                             .getParcelable(MESSAGE_BUNDLE_KEY_CONFIG);
                     int uid = msg.getData().getInt(MESSAGE_BUNDLE_KEY_UID);
+                    int pid = msg.getData().getInt(MESSAGE_BUNDLE_KEY_PID);
+                    String callingPackage = msg.getData().getString(
+                            MESSAGE_BUNDLE_KEY_CALLING_PACKAGE);
 
-                    waitForResponse = connectLocal(mCurrentTransactionId, clientId, uid, callback,
-                            configRequest);
+                    waitForResponse = connectLocal(mCurrentTransactionId, clientId, uid, pid,
+                            callingPackage, callback, configRequest);
                     break;
                 }
                 case COMMAND_TYPE_DISCONNECT: {
@@ -1730,12 +1737,12 @@ public class WifiNanStateManager {
      * COMMANDS
      */
 
-    private boolean connectLocal(short transactionId, int clientId, int uid,
-            IWifiNanEventCallback callback, ConfigRequest configRequest) {
+    private boolean connectLocal(short transactionId, int clientId, int uid, int pid,
+            String callingPackage, IWifiNanEventCallback callback, ConfigRequest configRequest) {
         if (VDBG) {
             Log.v(TAG, "connectLocal(): transactionId=" + transactionId + ", clientId=" + clientId
-                    + ", uid=" + uid + ", callback=" + callback + ", configRequest="
-                    + configRequest);
+                    + ", uid=" + uid + ", pid=" + pid + ", callingPackage=" + callingPackage
+                    + ", callback=" + callback + ", configRequest=" + configRequest);
         }
 
         if (!mUsageEnabled) {
@@ -1765,8 +1772,8 @@ public class WifiNanStateManager {
             } catch (RemoteException e) {
                 Log.w(TAG, "connectLocal onConnectSuccess(): RemoteException (FYI): " + e);
             }
-            WifiNanClientState client = new WifiNanClientState(clientId, uid, callback,
-                    configRequest);
+            WifiNanClientState client = new WifiNanClientState(mContext, clientId, uid, pid,
+                    callingPackage, callback, configRequest);
             client.onInterfaceAddressChange(mCurrentDiscoveryInterfaceMac);
             mClients.append(clientId, client);
             return false;
@@ -2051,9 +2058,11 @@ public class WifiNanStateManager {
             ConfigRequest configRequest = (ConfigRequest) data
                     .getParcelable(MESSAGE_BUNDLE_KEY_CONFIG);
             int uid = data.getInt(MESSAGE_BUNDLE_KEY_UID);
+            int pid = data.getInt(MESSAGE_BUNDLE_KEY_PID);
+            String callingPackage = data.getString(MESSAGE_BUNDLE_KEY_CALLING_PACKAGE);
 
-            WifiNanClientState client = new WifiNanClientState(clientId, uid, callback,
-                    configRequest);
+            WifiNanClientState client = new WifiNanClientState(mContext, clientId, uid, pid,
+                    callingPackage, callback, configRequest);
             mClients.put(clientId, client);
             try {
                 callback.onConnectSuccess();
