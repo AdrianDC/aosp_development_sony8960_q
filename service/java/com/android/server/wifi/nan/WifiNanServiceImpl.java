@@ -134,7 +134,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
-    public int connect(final IBinder binder, IWifiNanEventCallback callback,
+    public int connect(final IBinder binder, String callingPackage, IWifiNanEventCallback callback,
             ConfigRequest configRequest) {
         enforceAccessPermission();
         enforceChangePermission();
@@ -156,6 +156,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         configRequest.validate();
 
         final int uid = getMockableCallingUid();
+        int pid = getCallingPid();
 
         final int clientId;
         synchronized (mLock) {
@@ -199,7 +200,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             mUidByClientId.put(clientId, uid);
         }
 
-        mStateManager.connect(clientId, uid, callback, configRequest);
+        mStateManager.connect(clientId, uid, pid, callingPackage, callback, configRequest);
 
         return clientId;
     }
