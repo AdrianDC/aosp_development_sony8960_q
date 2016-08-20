@@ -45,7 +45,10 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalServices;
 import com.android.server.wifi.util.ScanResultUtil;
 
+import org.xmlpull.v1.XmlPullParserException;
+
 import java.io.FileDescriptor;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -86,6 +89,12 @@ public class WifiConfigManagerNew {
      */
     @VisibleForTesting
     public static final String PASSWORD_MASK = "*";
+    /**
+     * Package name for SysUI. This is used to lookup the UID of SysUI which is used to allow
+     * Quick settings to modify network configurations.
+     */
+    @VisibleForTesting
+    public static final String SYSUI_PACKAGE_NAME = "com.android.systemui";
     /**
      * Network Selection disable reason thresholds. These numbers are used to debounce network
      * failures before we disable them.
@@ -161,6 +170,7 @@ public class WifiConfigManagerNew {
      * Log tag for this class.
      */
     private static final String TAG = "WifiConfigManagerNew";
+
     /**
      * Disconnected/Connected PnoNetwork list sorting algorithm:
      * Place the configurations in descending order of their |numAssociation| values. If networks
@@ -233,10 +243,20 @@ public class WifiConfigManagerNew {
      */
     private int mCurrentUserId = UserHandle.USER_SYSTEM;
     /**
+     *
+     * Flag to indicate that the new user's store has not yet been read since user switch.
+     */
+    private boolean mPendingUnlockStoreRead = false;
+    /**
      * This is keeping track of the last network ID assigned. Any new networks will be assigned
      * |mLastNetworkId + 1| as network ID.
      */
-    private int mLastNetworkId;
+    private int mLastNetworkId = 0;
+    /**
+     * UID of system UI. This uid is allowed to modify network configurations regardless of which
+     * user is logged in.
+     */
+    private int mSystemUiUid = -1;
 
     /**
      * Create new instance of WifiConfigManager.
@@ -260,6 +280,13 @@ public class WifiConfigManagerNew {
                 R.bool.config_wifi_only_link_same_credential_configurations);
         mMaxNumActiveChannelsForPartialScans = mContext.getResources().getInteger(
                 R.integer.config_wifi_framework_associated_partial_scan_max_num_active_channels);
+
+        try {
+            mSystemUiUid = mContext.getPackageManager().getPackageUidAsUser(SYSUI_PACKAGE_NAME,
+                    PackageManager.MATCH_SYSTEM_ONLY, UserHandle.USER_SYSTEM);
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e(TAG, "Unable to resolve SystemUI's UID.");
+        }
     }
 
     /**
@@ -576,6 +603,19 @@ public class WifiConfigManagerNew {
     }
 
     /**
+     * Method to check if the provided UID belongs to the current foreground user or some other
+     * app (only SysUI today) running on behalf of the user.
+     * This is used to prevent any background user apps from modifying network configurations.
+     *
+     * @param uid uid of the app.
+     * @return true if the UID belongs to the current foreground app or SystemUI, false otherwise.
+     */
+    private boolean doesUidBelongToCurrentUser(int uid) {
+        return (WifiConfigurationUtil.doesUidBelongToAnyProfile(
+                uid, mUserManager.getProfiles(mCurrentUserId)) || (uid == mSystemUiUid));
+    }
+
+    /**
      * Copy over public elements from an external WifiConfiguration object to the internal
      * configuration object if element has been set in the provided external WifiConfiguration.
      * The only exception is the hidden |IpConfiguration| parameters, these need to be copied over
@@ -858,10 +898,14 @@ public class WifiConfigManagerNew {
      * network configuration. Otherwise, the networkId should refer to an existing configuration.
      *
      * @param config provided WifiConfiguration object.
-     * @param uid    UID of the app requesting the network addition/deletion.
+     * @param uid    UID of the app requesting the network addition/modification.
      * @return NetworkUpdateResult object representing status of the update.
      */
     public NetworkUpdateResult addOrUpdateNetwork(WifiConfiguration config, int uid) {
+        if (!doesUidBelongToCurrentUser(uid)) {
+            Log.e(TAG, "UID " + uid + " not visible to the current user");
+            return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
+        }
         if (config == null) {
             Log.e(TAG, "Cannot add/update network with null config");
             return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
@@ -913,11 +957,21 @@ public class WifiConfigManagerNew {
      * Removes the specified network configuration from our database.
      *
      * @param networkId network ID of the provided network.
+     * @param uid       UID of the app requesting the network deletion.
      * @return true if successful, false otherwise.
      */
-    public boolean removeNetwork(int networkId) {
+    public boolean removeNetwork(int networkId, int uid) {
+        if (!doesUidBelongToCurrentUser(uid)) {
+            Log.e(TAG, "UID " + uid + " not visible to the current user");
+            return false;
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
+            return false;
+        }
+        if (!canModifyNetwork(config, uid, DISALLOW_LOCKDOWN_CHECK_BYPASS)) {
+            Log.e(TAG, "UID " + uid + " does not have permission to delete configuration "
+                    + config.configKey());
             return false;
         }
         if (!removeNetworkInternal(config)) {
@@ -1120,6 +1174,10 @@ public class WifiConfigManagerNew {
      * @return true if it succeeds, false otherwise
      */
     public boolean enableNetwork(int networkId, int uid) {
+        if (!doesUidBelongToCurrentUser(uid)) {
+            Log.e(TAG, "UID " + uid + " not visible to the current user");
+            return false;
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
             return false;
@@ -1141,6 +1199,10 @@ public class WifiConfigManagerNew {
      * @return true if it succeeds, false otherwise
      */
     public boolean disableNetwork(int networkId, int uid) {
+        if (!doesUidBelongToCurrentUser(uid)) {
+            Log.e(TAG, "UID " + uid + " not visible to the current user");
+            return false;
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
             return false;
@@ -1164,6 +1226,10 @@ public class WifiConfigManagerNew {
      * network, false otherwise.
      */
     public boolean checkAndUpdateLastConnectUid(int networkId, int uid) {
+        if (!doesUidBelongToCurrentUser(uid)) {
+            Log.e(TAG, "UID " + uid + " not visible to the current user");
+            return false;
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
             return false;
@@ -1673,43 +1739,141 @@ public class WifiConfigManagerNew {
     }
 
     /**
-     * Read the config store and load the in-memory lists from the store data retrieved.
+     * Helper method to clear internal databases.
+     * This method clears the:
+     *  - List of configured networks.
+     *  - Map of scan detail caches.
+     *  - List of deleted ephemeral networks.
+     */
+    private void clearInternalData() {
+        mConfiguredNetworks.clear();
+        mDeletedEphemeralSSIDs.clear();
+        mScanDetailCaches.clear();
+    }
+
+    /**
+     * Helper method to perform the following operations during user switch:
+     * - Load from the new store files.
+     * - Save the store files again to migrate any user specific networks from the shared store
+     *   to user store.
+     */
+    private void loadFromStoreAndMigrateAfterUserSwitch() {
+        if (loadFromStore()) {
+            saveToStore(true);
+            mPendingUnlockStoreRead = false;
+        }
+    }
+
+    /**
+     * Handles the switch to a different foreground user:
+     * - Flush the current state to the old user's store file.
+     * - Switch the user specific store file.
+     * - Reload the networks from the store files (shared & user).
+     * - Write the store files to move any user specific private networks from shared store to user
+     *   store.
+     *
+     * Need to be called when {@link com.android.server.SystemService#onSwitchUser(int)} is invoked.
+     *
+     * @param userId The identifier of the new foreground user, after the switch.
+     */
+    public void handleUserSwitch(int userId) {
+        if (userId == mCurrentUserId) {
+            Log.w(TAG, "User already in foreground " + userId);
+            return;
+        }
+        if (mUserManager.isUserUnlockingOrUnlocked(mCurrentUserId)) {
+            saveToStore(true);
+        }
+        mCurrentUserId = userId;
+        mConfiguredNetworks.setNewUser(userId);
+        clearInternalData();
+
+        // Switch out the user store file.
+        mWifiConfigStore.switchUserStore(mWifiConfigStore.createUserFile(userId));
+        if (mUserManager.isUserUnlockingOrUnlocked(mCurrentUserId)) {
+            loadFromStoreAndMigrateAfterUserSwitch();
+        } else {
+            // Since the new user is not logged-in yet, we cannot read data from the store files
+            // yet.
+            mPendingUnlockStoreRead = true;
+            Log.i(TAG, "Waiting for user unlock to load from store");
+        }
+    }
+
+    /**
+     * Handles the unlock of foreground user. This maybe needed to read the store file if the user's
+     * CE storage is not visible when {@link #handleUserSwitch(int)} is invoked.
+     *
+     * Need to be called when {@link com.android.server.SystemService#onUnlockUser(int)} is invoked.
+     *
+     * @param userId The identifier of the user that unlocked.
+     */
+    public void handleUserUnlock(int userId) {
+        if (userId == mCurrentUserId && mPendingUnlockStoreRead) {
+            loadFromStoreAndMigrateAfterUserSwitch();
+        }
+    }
+
+    /**
+     * Handles the stop of foreground user. This is needed to write the store file to flush
+     * out any pending data before the user's CE store storage is unavailable.
+     *
+     * Need to be called when {@link com.android.server.SystemService#onStopUser(int)} is invoked.
+     *
+     * @param userId The identifier of the user that stopped.
+     */
+    public void handleUserStop(int userId) {
+        if (userId == mCurrentUserId && mUserManager.isUserUnlockingOrUnlocked(mCurrentUserId)) {
+            saveToStore(true);
+            clearInternalData();
+            mCurrentUserId = UserHandle.USER_SYSTEM;
+        }
+    }
+
+    /**
+     * Read the config store and load the in-memory lists from the store data retrieved and sends
+     * out the networks changed broadcast.
+     *
      * This reads all the network configurations from:
      * 1. Shared WifiConfigStore.xml
      * 2. User WifiConfigStore.xml
      * 3. PerProviderSubscription.conf
+     * @return true on success, false otherwise.
      */
-    private void loadFromStore() {
+    private boolean loadFromStore() {
         WifiConfigStoreData storeData;
 
         long readStartTime = mClock.getElapsedSinceBootMillis();
         try {
             storeData = mWifiConfigStore.read();
-        } catch (Exception e) {
-            Log.wtf(TAG, "Reading from new store failed " + e + ". All saved networks are lost!");
-            return;
+        } catch (IOException e) {
+            Log.wtf(TAG, "Reading from new store failed. All saved networks are lost!", e);
+            return false;
+        } catch (XmlPullParserException e) {
+            Log.wtf(TAG, "XML deserialization of store failed. All saved networks are lost!", e);
+            return false;
         }
         long readTime = mClock.getElapsedSinceBootMillis() - readStartTime;
         Log.d(TAG, "Loading from store completed in " + readTime + " ms.");
 
         // Clear out all the existing in-memory lists and load the lists from what was retrieved
         // from the config store.
-        mConfiguredNetworks.clear();
-        mDeletedEphemeralSSIDs.clear();
-        mScanDetailCaches.clear();
-        for (WifiConfiguration configuration : storeData.configurations) {
+        clearInternalData();
+        for (WifiConfiguration configuration : storeData.getConfigurations()) {
             configuration.networkId = mLastNetworkId++;
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, "Adding network from store " + configuration.configKey());
             }
             mConfiguredNetworks.put(configuration);
         }
-        for (String ssid : storeData.deletedEphemeralSSIDs) {
+        for (String ssid : storeData.getDeletedEphemeralSSIDs()) {
             mDeletedEphemeralSSIDs.add(ssid);
         }
         if (mConfiguredNetworks.sizeForAllUsers() == 0) {
             Log.w(TAG, "No stored networks found.");
         }
+        sendConfiguredNetworksChangedBroadcast();
+        return true;
     }
 
     /**
@@ -1719,23 +1883,41 @@ public class WifiConfigManagerNew {
      * @return Whether the write was successful or not, this is applicable only for force writes.
      */
     private boolean saveToStore(boolean forceWrite) {
-        ArrayList<WifiConfiguration> configurations = new ArrayList<>();
-        // Don't persist ephemeral networks to store.
-        for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
+        ArrayList<WifiConfiguration> sharedConfigurations = new ArrayList<>();
+        ArrayList<WifiConfiguration> userConfigurations = new ArrayList<>();
+        for (WifiConfiguration config : mConfiguredNetworks.valuesForAllUsers()) {
+            // Don't persist ephemeral networks to store.
             if (!config.ephemeral) {
-                configurations.add(config);
+                // We push all shared networks & private networks not belonging to the current
+                // user to the shared store. Ideally, private networks for other users should
+                // not even be in memory,
+                // But, this logic is in place to deal with store migration from N to O
+                // because all networks were previously stored in a central file. We cannot
+                // write these private networks to the user specific store until the corresponding
+                // user logs in.
+                if (config.shared || !WifiConfigurationUtil.doesUidBelongToAnyProfile(
+                        config.creatorUid, mUserManager.getProfiles(mCurrentUserId))) {
+                    sharedConfigurations.add(config);
+                } else {
+                    userConfigurations.add(config);
+                }
             }
         }
         WifiConfigStoreData storeData =
-                new WifiConfigStoreData(configurations, mDeletedEphemeralSSIDs);
+                new WifiConfigStoreData(
+                        sharedConfigurations, userConfigurations, mDeletedEphemeralSSIDs);
 
         long writeStartTime = mClock.getElapsedSinceBootMillis();
         try {
             mWifiConfigStore.write(forceWrite, storeData);
-        } catch (Exception e) {
-            Log.wtf(TAG, "Writing to store failed " + e + ". Saved networks maybe lost!");
+        } catch (IOException e) {
+            Log.wtf(TAG, "Writing to store failed. Saved networks maybe lost!", e);
+            return false;
+        } catch (XmlPullParserException e) {
+            Log.wtf(TAG, "XML serialization for store failed. Saved networks maybe lost!", e);
             return false;
         }
+
         long writeTime = mClock.getElapsedSinceBootMillis() - writeStartTime;
         Log.d(TAG, "Writing to store completed in " + writeTime + " ms.");
         return true;

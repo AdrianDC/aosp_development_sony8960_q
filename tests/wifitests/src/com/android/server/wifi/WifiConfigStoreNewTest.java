@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import static com.android.server.wifi.WifiConfigStoreDataTest.assertConfigStoreDataEqual;
+
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
@@ -188,7 +189,9 @@ public class WifiConfigStoreNewTest {
      * Returns an empty store data object.
      */
     private WifiConfigStoreData getEmptyStoreData() {
-        return new WifiConfigStoreData(new ArrayList<WifiConfiguration>(), new HashSet<String>());
+        return new WifiConfigStoreData(
+                new ArrayList<WifiConfiguration>(), new ArrayList<WifiConfiguration>(),
+                new HashSet<String>());
     }
 
     /**
@@ -197,7 +200,8 @@ public class WifiConfigStoreNewTest {
     private WifiConfigStoreData createSingleOpenNetworkStoreData() {
         List<WifiConfiguration> configurations = new ArrayList<>();
         configurations.add(WifiConfigurationTestUtil.createOpenNetwork());
-        return new WifiConfigStoreData(configurations, new HashSet<String>());
+        return new WifiConfigStoreData(
+                configurations, new ArrayList<WifiConfiguration>(), new HashSet<String>());
     }
 
     /**
@@ -206,7 +210,8 @@ public class WifiConfigStoreNewTest {
     private WifiConfigStoreData createSinglePskNetworkStoreData() {
         List<WifiConfiguration> configurations = new ArrayList<>();
         configurations.add(WifiConfigurationTestUtil.createPskNetwork());
-        return new WifiConfigStoreData(configurations, new HashSet<String>());
+        return new WifiConfigStoreData(
+                configurations, new ArrayList<WifiConfiguration>(), new HashSet<String>());
     }
 
     /**

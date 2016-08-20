@@ -23,6 +23,7 @@ import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.UserInfo;
 import android.net.IpConfiguration;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
@@ -62,6 +63,8 @@ public class WifiConfigManagerNewTest {
     private static final long TEST_ELAPSED_UPDATE_NETWORK_SELECTION_TIME_MILLIS = 29457631;
     private static final int TEST_CREATOR_UID = 5;
     private static final int TEST_UPDATE_UID = 4;
+    private static final int TEST_SYSUI_UID = 56;
+    private static final int TEST_DEFAULT_USER = UserHandle.USER_SYSTEM;
     private static final int TEST_MAX_NUM_ACTIVE_CHANNELS_FOR_PARTIAL_SCAN = 5;
     private static final Integer[] TEST_FREQ_LIST = {2400, 2450, 5150, 5175, 5650};
     private static final String TEST_CREATOR_NAME = "com.wificonfigmanagerNew.creator";
@@ -101,17 +104,31 @@ public class WifiConfigManagerNewTest {
                 TEST_MAX_NUM_ACTIVE_CHANNELS_FOR_PARTIAL_SCAN);
         when(mContext.getResources()).thenReturn(mResources);
 
+        // Setup UserManager profiles for the default user.
+        setupUserProfiles(TEST_DEFAULT_USER);
+
         doAnswer(new AnswerWithArguments() {
             public String answer(int uid) throws Exception {
                 if (uid == TEST_CREATOR_UID) {
                     return TEST_CREATOR_NAME;
                 } else if (uid == TEST_UPDATE_UID) {
                     return TEST_UPDATE_NAME;
+                } else if (uid == TEST_SYSUI_UID) {
+                    return WifiConfigManagerNew.SYSUI_PACKAGE_NAME;
                 }
                 fail("Unexpected UID: " + uid);
                 return "";
             }
         }).when(mPackageManager).getNameForUid(anyInt());
+        doAnswer(new AnswerWithArguments() {
+            public int answer(String packageName, int flags, int userId) throws Exception {
+                if (packageName.equals(WifiConfigManagerNew.SYSUI_PACKAGE_NAME)) {
+                    return TEST_SYSUI_UID;
+                } else {
+                    return 0;
+                }
+            }
+        }).when(mPackageManager).getPackageUidAsUser(anyString(), anyInt(), anyInt());
 
         // Both the UID's in the test have the configuration override permission granted by
         // default. This maybe modified for particular tests if needed.
@@ -646,7 +663,7 @@ public class WifiConfigManagerNewTest {
 
         // Change the networkID to an invalid one.
         openNetwork.networkId++;
-        assertFalse(mWifiConfigManager.removeNetwork(openNetwork.networkId));
+        assertFalse(mWifiConfigManager.removeNetwork(openNetwork.networkId, TEST_CREATOR_UID));
     }
 
     /**
@@ -1578,6 +1595,193 @@ public class WifiConfigManagerNewTest {
                         network2.networkId, 1).size());
     }
 
+    /**
+     * Verifies the foreground user switch using {@link WifiConfigManagerNew#handleUserSwitch(int)}
+     * and ensures that any non current user private networks are moved to shared store file.
+     */
+    @Test
+    public void testHandleUserSwitchPushesOtherPrivateNetworksToSharedStore() throws Exception {
+        int user1 = TEST_DEFAULT_USER;
+        int user2 = TEST_DEFAULT_USER + 1;
+        setupUserProfiles(user2);
+
+        int appId = 674;
+
+        // Create 3 networks. 1 for user1, 1 for user2 and 1 shared.
+        final WifiConfiguration user1Network = WifiConfigurationTestUtil.createPskNetwork();
+        user1Network.shared = false;
+        user1Network.creatorUid = UserHandle.getUid(user1, appId);
+        final WifiConfiguration user2Network = WifiConfigurationTestUtil.createPskNetwork();
+        user2Network.shared = false;
+        user2Network.creatorUid = UserHandle.getUid(user2, appId);
+        final WifiConfiguration sharedNetwork = WifiConfigurationTestUtil.createPskNetwork();
+
+        // Set up the store data first that is loaded.
+        List<WifiConfiguration> sharedNetworks = new ArrayList<WifiConfiguration>() {
+            {
+                add(sharedNetwork);
+                add(user2Network);
+            }
+        };
+        List<WifiConfiguration> userNetworks = new ArrayList<WifiConfiguration>() {
+            {
+                add(user1Network);
+            }
+        };
+        WifiConfigStoreData loadStoreData =
+                new WifiConfigStoreData(sharedNetworks, userNetworks, new HashSet<String>());
+        when(mWifiConfigStore.read()).thenReturn(loadStoreData);
+
+        // Now switch the user to user2
+        mWifiConfigManager.handleUserSwitch(user2);
+
+        // Set the expected network list before comparing. user1Network should be in shared data.
+        // Note: In the real world, user1Network will no longer be visible now because it should
+        // already be in user1's private store file. But, we're purposefully exposing it
+        // via |loadStoreData| to test if other user's private networks are pushed to shared store.
+        List<WifiConfiguration> expectedSharedNetworks = new ArrayList<WifiConfiguration>() {
+            {
+                add(sharedNetwork);
+                add(user1Network);
+            }
+        };
+        List<WifiConfiguration> expectedUserNetworks = new ArrayList<WifiConfiguration>() {
+            {
+                add(user2Network);
+            }
+        };
+        // Capture the written data for the old user and ensure that it was empty.
+        WifiConfigStoreData writtenStoreData = captureWriteStoreData();
+        assertTrue(writtenStoreData.getConfigurations().isEmpty());
+
+        // Now capture the next written data and ensure that user1Network is now in shared data.
+        writtenStoreData = captureWriteStoreData();
+        WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
+                expectedSharedNetworks, writtenStoreData.getSharedConfigurations());
+        WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
+                expectedUserNetworks, writtenStoreData.getUserConfigurations());
+    }
+
+    /**
+     * Verifies the foreground user switch using {@link WifiConfigManagerNew#handleUserSwitch(int)}
+     * and {@link WifiConfigManagerNew#handleUserUnlock(int)} and ensures that the new store is
+     * read immediately if the user is unlocked during the switch.
+     */
+    @Test
+    public void testHandleUserSwitchWhenUnlocked() throws Exception {
+        int user1 = TEST_DEFAULT_USER;
+        int user2 = TEST_DEFAULT_USER + 1;
+        setupUserProfiles(user2);
+
+        when(mWifiConfigStore.read()).thenReturn(
+                new WifiConfigStoreData(
+                        new ArrayList<WifiConfiguration>(), new ArrayList<WifiConfiguration>(),
+                        new HashSet<String>()));
+
+        // user2 is unlocked and switched to foreground.
+        when(mUserManager.isUserUnlockingOrUnlocked(user2)).thenReturn(true);
+        mWifiConfigManager.handleUserSwitch(user2);
+        // Ensure that the read was invoked.
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore).read();
+
+        // Unlock the user2 and ensure that we don't read the data now.
+        mWifiConfigManager.handleUserUnlock(user2);
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never()).read();
+    }
+
+    /**
+     * Verifies the foreground user switch using {@link WifiConfigManagerNew#handleUserSwitch(int)}
+     * and {@link WifiConfigManagerNew#handleUserUnlock(int)} and ensures that the new store is not
+     * read until the user is unlocked.
+     */
+    public void testHandleUserSwitchWhenLocked() throws Exception {
+        int user1 = TEST_DEFAULT_USER;
+        int user2 = TEST_DEFAULT_USER + 1;
+        setupUserProfiles(user2);
+
+        // user2 is locked and switched to foreground.
+        when(mUserManager.isUserUnlockingOrUnlocked(user2)).thenReturn(false);
+        mWifiConfigManager.handleUserSwitch(user2);
+
+        // Ensure that the read was not invoked.
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never()).read();
+
+        // Now try unlocking some other user (user1), this should be ignored.
+        mWifiConfigManager.handleUserUnlock(user1);
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never()).read();
+
+        when(mWifiConfigStore.read()).thenReturn(
+                new WifiConfigStoreData(
+                        new ArrayList<WifiConfiguration>(), new ArrayList<WifiConfiguration>(),
+                        new HashSet<String>()));
+
+        // Unlock the user2 and ensure that we read the data now.
+        mWifiConfigManager.handleUserUnlock(user2);
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore).read();
+    }
+
+    /**
+     * Verifies that the foreground user stop using {@link WifiConfigManagerNew#handleUserStop(int)}
+     * and ensures that the store is written only when the foreground user is stopped.
+     */
+    @Test
+    public void testHandleUserStop() throws Exception {
+        int user1 = TEST_DEFAULT_USER;
+        int user2 = TEST_DEFAULT_USER + 1;
+        setupUserProfiles(user2);
+
+        // Try stopping background user2 first, this should not do anything.
+        when(mUserManager.isUserUnlockingOrUnlocked(user2)).thenReturn(false);
+        mWifiConfigManager.handleUserStop(user2);
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never()).read();
+
+        // Now try stopping the foreground user1, this should trigger a write to store.
+        mWifiConfigManager.handleUserStop(user1);
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never()).read();
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore).write(
+                anyBoolean(), any(WifiConfigStoreData.class));
+    }
+
+    /**
+     * Verifies the private network addition using
+     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}
+     * by a non foreground user is rejected.
+     */
+    @Test
+    public void testAddNetworkUsingBackgroundUserUId() throws Exception {
+        int user2 = TEST_DEFAULT_USER + 1;
+        setupUserProfiles(user2);
+
+        int creatorUid = UserHandle.getUid(user2, 674);
+
+        // Create a network for user2 try adding it. This should be rejected.
+        final WifiConfiguration user2Network = WifiConfigurationTestUtil.createPskNetwork();
+        NetworkUpdateResult result =
+                mWifiConfigManager.addOrUpdateNetwork(user2Network, creatorUid);
+        assertFalse(result.isSuccess());
+    }
+
+    /**
+     * Verifies the private network addition using
+     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}
+     * by SysUI is always accepted.
+     */
+    @Test
+    public void testAddNetworkUsingSysUiUid() throws Exception {
+        // Set up the user profiles stuff. Needed for |WifiConfigurationUtil.isVisibleToAnyProfile|
+        int user2 = TEST_DEFAULT_USER + 1;
+        setupUserProfiles(user2);
+
+        when(mUserManager.isUserUnlockingOrUnlocked(user2)).thenReturn(false);
+        mWifiConfigManager.handleUserSwitch(user2);
+
+        // Create a network for user2 try adding it. This should be rejected.
+        final WifiConfiguration user2Network = WifiConfigurationTestUtil.createPskNetwork();
+        NetworkUpdateResult result =
+                mWifiConfigManager.addOrUpdateNetwork(user2Network, TEST_SYSUI_UID);
+        assertTrue(result.isSuccess());
+    }
+
     private void createWifiConfigManager() {
         mWifiConfigManager =
                 new WifiConfigManagerNew(
@@ -1703,28 +1907,36 @@ public class WifiConfigManagerNewTest {
     }
 
     /**
-     * Returns whether the provided network was in the store data or not.
+     * Helper method to capture the store data written in WifiConfigStore.write() method.
      */
-    private boolean isNetworkInConfigStoreData(WifiConfiguration configuration) {
+    private WifiConfigStoreData captureWriteStoreData() {
         try {
             ArgumentCaptor<WifiConfigStoreData> storeDataCaptor =
                     ArgumentCaptor.forClass(WifiConfigStoreData.class);
             mContextConfigStoreMockOrder.verify(mWifiConfigStore)
                     .write(anyBoolean(), storeDataCaptor.capture());
-
-            WifiConfigStoreData storeData = storeDataCaptor.getValue();
-
-            boolean foundNetworkInStoreData = false;
-            for (WifiConfiguration retrievedConfig : storeData.configurations) {
-                if (retrievedConfig.configKey().equals(configuration.configKey())) {
-                    foundNetworkInStoreData = true;
-                }
-            }
-            return foundNetworkInStoreData;
+            return storeDataCaptor.getValue();
         } catch (Exception e) {
             fail("Exception encountered during write " + e);
         }
-        return false;
+        return null;
+    }
+
+    /**
+     * Returns whether the provided network was in the store data or not.
+     */
+    private boolean isNetworkInConfigStoreData(WifiConfiguration configuration) {
+        WifiConfigStoreData storeData = captureWriteStoreData();
+        if (storeData == null) {
+            return false;
+        }
+        boolean foundNetworkInStoreData = false;
+        for (WifiConfiguration retrievedConfig : storeData.getConfigurations()) {
+            if (retrievedConfig.configKey().equals(configuration.configKey())) {
+                foundNetworkInStoreData = true;
+            }
+        }
+        return foundNetworkInStoreData;
     }
 
     /**
@@ -1919,7 +2131,7 @@ public class WifiConfigManagerNewTest {
      */
     private void verifyRemoveNetworkFromWifiConfigManager(
             WifiConfiguration configuration) {
-        assertTrue(mWifiConfigManager.removeNetwork(configuration.networkId));
+        assertTrue(mWifiConfigManager.removeNetwork(configuration.networkId, TEST_CREATOR_UID));
 
         verifyNetworkRemoveBroadcast(configuration);
         // Verify if the config store write was triggered without this new configuration.
@@ -2103,6 +2315,19 @@ public class WifiConfigManagerNewTest {
         WifiConfiguration retrievedNetwork = mWifiConfigManager.getConfiguredNetwork(networkId);
         assertTrue("hasEverConnected expected to be true after connection.",
                 retrievedNetwork.getNetworkSelectionStatus().getHasEverConnected());
+    }
+
+    /**
+     * Sets up a user profiles for WifiConfigManager testing.
+     *
+     * @param userId Id of the user.
+     */
+    private void setupUserProfiles(int userId) {
+        final UserInfo userInfo =
+                new UserInfo(userId, Integer.toString(userId), UserInfo.FLAG_PRIMARY);
+        List<UserInfo> userProfiles = Arrays.asList(userInfo);
+        when(mUserManager.getProfiles(userId)).thenReturn(userProfiles);
+        when(mUserManager.isUserUnlockingOrUnlocked(userId)).thenReturn(true);
     }
 
 }

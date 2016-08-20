@@ -49,12 +49,21 @@ public class WifiConfigurationUtil {
      * profiles
      */
     public static boolean isVisibleToAnyProfile(WifiConfiguration config, List<UserInfo> profiles) {
-        if (config.shared) {
-            return true;
-        }
-        final int creatorUserId = UserHandle.getUserId(config.creatorUid);
+        return (config.shared || doesUidBelongToAnyProfile(config.creatorUid, profiles));
+    }
+
+    /**
+     * Check whether a uid belong to a user or any of its managed profiles.
+     *
+     * @param uid      uid of the app.
+     * @param profiles the user IDs of the user itself and all its managed profiles (can be obtained
+     *                 via {@link android.os.UserManager#getProfiles})
+     * @return whether the uid belongs to the user or any of its managed profiles.
+     */
+    public static boolean doesUidBelongToAnyProfile(int uid, List<UserInfo> profiles) {
+        final int userId = UserHandle.getUserId(uid);
         for (UserInfo profile : profiles) {
-            if (profile.id == creatorUserId) {
+            if (profile.id == userId) {
                 return true;
             }
         }
