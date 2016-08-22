@@ -411,7 +411,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     private void enforceLocationPermission() {
-        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION,
+        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION,
                 TAG);
     }
 
