@@ -2491,7 +2491,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockContext).sendBroadcastAsUser(intent.capture(), eq(UserHandle.ALL));
 
         collector.checkThat("intent action", intent.getValue().getAction(),
-                equalTo(WifiNanManager.WIFI_NAN_STATE_CHANGED_ACTION));
+                equalTo(WifiNanManager.ACTION_WIFI_NAN_STATE_CHANGED));
         collector.checkThat("intent contains wifi status key",
                 intent.getValue().getExtras().containsKey(WifiNanManager.EXTRA_WIFI_STATE),
                 equalTo(true));

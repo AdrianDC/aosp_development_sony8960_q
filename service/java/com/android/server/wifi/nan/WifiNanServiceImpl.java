@@ -334,7 +334,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
-        if (retryCount < 0 || retryCount > WifiNanSession.MAX_SEND_RETRY_COUNT) {
+        if (retryCount < 0 || retryCount > WifiNanSession.getMaxSendRetryCount()) {
             throw new IllegalArgumentException("Invalid 'retryCount' must be non-negative "
                     + "and <= WifiNanSession.MAX_SEND_RETRY_COUNT");
         }
