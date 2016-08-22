@@ -43,7 +43,7 @@ import java.util.Set;
  * 4. /data/misc/wifi/PerProviderSubscription.conf
  *
  * The order of invocation of the public methods during migration is the following:
- * 1. Check if legacy stores are present using {@link #isStoresPresent()}.
+ * 1. Check if legacy stores are present using {@link #areStoresPresent()}.
  * 2. Load all the store data using {@link #read()}
  * 3. Write the store data to the new store.
  * 4. Remove all the legacy stores using {@link #removeStores()}
@@ -263,7 +263,7 @@ public class WifiConfigStoreLegacy {
      *
      * @return true if legacy store files are present, false otherwise.
      */
-    public boolean isStoresPresent() {
+    public boolean areStoresPresent() {
         // We may have to keep the wpa_supplicant.conf file around. So, just use networkhistory.txt
         // as a check to see if we have not yet migrated or not. This should be the last file
         // that is deleted after migration.

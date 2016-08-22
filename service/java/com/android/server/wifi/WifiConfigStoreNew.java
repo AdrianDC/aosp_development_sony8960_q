@@ -158,6 +158,16 @@ public class WifiConfigStoreNew {
     }
 
     /**
+     * API to check if any of the store files are present on the device. This can be used
+     * to detect if the device needs to perform data migration from legacy stores.
+     *
+     * @return true if any of the store file is present, false otherwise.
+     */
+    public boolean areStoresPresent() {
+        return (mSharedStore.exists() || mUserStore.exists());
+    }
+
+    /**
      * API to write the provided store data to config stores.
      * The method writes the user specific configurations to user specific config store and the
      * shared configurations to shared config store.
@@ -270,6 +280,15 @@ public class WifiConfigStoreNew {
         public StoreFile(File file) {
             mAtomicFile = new AtomicFile(file);
             mFileName = mAtomicFile.getBaseFile().getAbsolutePath();
+        }
+
+        /**
+         * Returns whether the store file already exists on disk or not.
+         *
+         * @return true if it exists, false otherwise.
+         */
+        public boolean exists() {
+            return mAtomicFile.exists();
         }
 
         /**

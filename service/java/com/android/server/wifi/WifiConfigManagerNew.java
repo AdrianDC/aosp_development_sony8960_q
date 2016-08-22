@@ -43,6 +43,7 @@ import android.util.Log;
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalServices;
+import com.android.server.wifi.WifiConfigStoreLegacy.WifiConfigStoreDataLegacy;
 import com.android.server.wifi.util.ScanResultUtil;
 
 import org.xmlpull.v1.XmlPullParserException;
@@ -203,8 +204,9 @@ public class WifiConfigManagerNew {
     private final Clock mClock;
     private final UserManager mUserManager;
     private final BackupManagerProxy mBackupManagerProxy;
-    private final WifiConfigStoreNew mWifiConfigStore;
     private final WifiKeyStore mWifiKeyStore;
+    private final WifiConfigStoreNew mWifiConfigStore;
+    private final WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     /**
      * Local log used for debugging any WifiConfigManager issues.
      */
@@ -263,14 +265,16 @@ public class WifiConfigManagerNew {
      */
     WifiConfigManagerNew(
             Context context, FrameworkFacade facade, Clock clock, UserManager userManager,
-            WifiKeyStore wifiKeyStore, WifiConfigStoreNew wifiConfigStore) {
+            WifiKeyStore wifiKeyStore, WifiConfigStoreNew wifiConfigStore,
+            WifiConfigStoreLegacy wifiConfigStoreLegacy) {
         mContext = context;
         mFacade = facade;
         mClock = clock;
         mUserManager = userManager;
         mBackupManagerProxy = new BackupManagerProxy();
-        mWifiConfigStore = wifiConfigStore;
         mWifiKeyStore = wifiKeyStore;
+        mWifiConfigStore = wifiConfigStore;
+        mWifiConfigStoreLegacy = wifiConfigStoreLegacy;
 
         mConfiguredNetworks = new ConfigurationMap(userManager);
         mScanDetailCaches = new ConcurrentHashMap<>(16, 0.75f, 2);
@@ -1831,18 +1835,77 @@ public class WifiConfigManagerNew {
     }
 
     /**
+     * Helper function to populate the internal (in-memory) data from the retrieved store (file)
+     * data. It also sends out the networks changed broadcast after loading all the data.
+     *
+     * @param configurations        list of configurations retrieved from store.
+     * @param deletedEphemeralSSIDs list of ssid's representing the ephemeral networks deleted by
+     *                              the user.
+     */
+    private void loadInternalData(
+            List<WifiConfiguration> configurations, Set<String> deletedEphemeralSSIDs) {
+        // Clear out all the existing in-memory lists and load the lists from what was retrieved
+        // from the config store.
+        clearInternalData();
+        for (WifiConfiguration configuration : configurations) {
+            configuration.networkId = mLastNetworkId++;
+            if (mVerboseLoggingEnabled) {
+                Log.v(TAG, "Adding network from store " + configuration.configKey());
+            }
+            mConfiguredNetworks.put(configuration);
+        }
+        for (String ssid : deletedEphemeralSSIDs) {
+            mDeletedEphemeralSSIDs.add(ssid);
+        }
+        if (mConfiguredNetworks.sizeForAllUsers() == 0) {
+            Log.w(TAG, "No stored networks found.");
+        }
+        sendConfiguredNetworksChangedBroadcast();
+    }
+
+    /**
+     * Migrate data from legacy store files. The function performs the following operations:
+     * 1. Check if the legacy store files are present.
+     * 2. If yes, read all the data from the store files.
+     * 3. Save it to the new store files.
+     * 4. Delete the legacy store file.
+     *
+     * @return true if migration was successful or not needed (fresh install), false if it failed.
+     */
+    private boolean migrateFromLegacyStore() {
+        if (mWifiConfigStoreLegacy.areStoresPresent()) {
+            WifiConfigStoreDataLegacy storeData = mWifiConfigStoreLegacy.read();
+            Log.d(TAG, "Reading from legacy store completed");
+            loadInternalData(storeData.getConfigurations(), storeData.getDeletedEphemeralSSIDs());
+            if (!saveToStore(true)) {
+                return false;
+            }
+            // TODO: Remove the legacy store files
+            // mWifiConfigStoreLegacy.removeStores();
+            Log.d(TAG, "Migration from legacy store completed");
+        }
+        return true;
+    }
+
+    /**
      * Read the config store and load the in-memory lists from the store data retrieved and sends
-     * out the networks changed broadcast.
+     * out the networks changed broadcast. This method first checks if there is any data to be
+     * migrated from legacy store files if the new store files aren't present on the device.
      *
      * This reads all the network configurations from:
      * 1. Shared WifiConfigStore.xml
      * 2. User WifiConfigStore.xml
      * 3. PerProviderSubscription.conf
+     *
      * @return true on success, false otherwise.
      */
-    private boolean loadFromStore() {
-        WifiConfigStoreData storeData;
+    @VisibleForTesting
+    public boolean loadFromStore() {
+        if (!mWifiConfigStore.areStoresPresent()) {
+            return migrateFromLegacyStore();
+        }
 
+        WifiConfigStoreData storeData;
         long readStartTime = mClock.getElapsedSinceBootMillis();
         try {
             storeData = mWifiConfigStore.read();
@@ -1854,25 +1917,9 @@ public class WifiConfigManagerNew {
             return false;
         }
         long readTime = mClock.getElapsedSinceBootMillis() - readStartTime;
-        Log.d(TAG, "Loading from store completed in " + readTime + " ms.");
+        Log.d(TAG, "Reading from store completed in " + readTime + " ms.");
 
-        // Clear out all the existing in-memory lists and load the lists from what was retrieved
-        // from the config store.
-        clearInternalData();
-        for (WifiConfiguration configuration : storeData.getConfigurations()) {
-            configuration.networkId = mLastNetworkId++;
-            if (mVerboseLoggingEnabled) {
-                Log.v(TAG, "Adding network from store " + configuration.configKey());
-            }
-            mConfiguredNetworks.put(configuration);
-        }
-        for (String ssid : storeData.getDeletedEphemeralSSIDs()) {
-            mDeletedEphemeralSSIDs.add(ssid);
-        }
-        if (mConfiguredNetworks.sizeForAllUsers() == 0) {
-            Log.w(TAG, "No stored networks found.");
-        }
-        sendConfiguredNetworksChangedBroadcast();
+        loadInternalData(storeData.getConfigurations(), storeData.getDeletedEphemeralSSIDs());
         return true;
     }
 
@@ -1917,7 +1964,6 @@ public class WifiConfigManagerNew {
             Log.wtf(TAG, "XML serialization for store failed. Saved networks maybe lost!", e);
             return false;
         }
-
         long writeTime = mClock.getElapsedSinceBootMillis() - writeStartTime;
         Log.d(TAG, "Writing to store completed in " + writeTime + " ms.");
         return true;

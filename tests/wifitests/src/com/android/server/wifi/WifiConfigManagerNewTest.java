@@ -38,6 +38,7 @@ import android.test.suitebuilder.annotation.SmallTest;
 import android.text.TextUtils;
 
 import com.android.internal.R;
+import com.android.server.wifi.WifiConfigStoreLegacy.WifiConfigStoreDataLegacy;
 
 import org.junit.After;
 import org.junit.Before;
@@ -78,6 +79,7 @@ public class WifiConfigManagerNewTest {
     @Mock private UserManager mUserManager;
     @Mock private WifiKeyStore mWifiKeyStore;
     @Mock private WifiConfigStoreNew mWifiConfigStore;
+    @Mock private WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     @Mock private PackageManager mPackageManager;
 
     private MockResources mResources;
@@ -145,6 +147,8 @@ public class WifiConfigManagerNewTest {
         when(mWifiKeyStore
                 .updateNetworkKeys(any(WifiConfiguration.class), any(WifiConfiguration.class)))
                 .thenReturn(true);
+
+        when(mWifiConfigStore.areStoresPresent()).thenReturn(true);
 
         createWifiConfigManager();
     }
@@ -1791,11 +1795,64 @@ public class WifiConfigManagerNewTest {
         assertTrue(result.isSuccess());
     }
 
+    /**
+     * Verifies the loading of networks using {@link WifiConfigManagerNew#loadFromStore()} attempts
+     * to migrate data from legacy stores when the new store files are absent.
+     */
+    @Test
+    public void testMigrationFromLegacyStore() throws Exception {
+        // Create the store data to be returned from legacy stores.
+        List<WifiConfiguration> networks = new ArrayList<>();
+        networks.add(WifiConfigurationTestUtil.createPskNetwork());
+        networks.add(WifiConfigurationTestUtil.createEapNetwork());
+        networks.add(WifiConfigurationTestUtil.createWepNetwork());
+        WifiConfigStoreDataLegacy storeData =
+                new WifiConfigStoreDataLegacy(networks, new HashSet<String>());
+
+        // New store files not present, so migrate from the old store.
+        when(mWifiConfigStore.areStoresPresent()).thenReturn(false);
+        when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(true);
+        when(mWifiConfigStoreLegacy.read()).thenReturn(storeData);
+
+        // Now trigger a load from store. This should populate the in memory list with all the
+        // networks above from the legacy store.
+        mWifiConfigManager.loadFromStore();
+
+        verify(mWifiConfigStore, never()).read();
+        verify(mWifiConfigStoreLegacy).read();
+
+        List<WifiConfiguration> retrievedNetworks =
+                mWifiConfigManager.getConfiguredNetworksWithPasswords();
+        WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
+                networks, retrievedNetworks);
+    }
+
+    /**
+     * Verifies the loading of networks using {@link WifiConfigManagerNew#loadFromStore()} does
+     * not attempt to read from any of the stores (new or legacy) when the store files are
+     * not present.
+     */
+    @Test
+    public void testFreshInstallDoesNotLoadFromStore() throws Exception {
+        // New store files not present, so migrate from the old store.
+        when(mWifiConfigStore.areStoresPresent()).thenReturn(false);
+        when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(false);
+
+        // Now trigger a load from store. This should populate the in memory list with all the
+        // networks above.
+        mWifiConfigManager.loadFromStore();
+
+        verify(mWifiConfigStore, never()).read();
+        verify(mWifiConfigStoreLegacy, never()).read();
+
+        assertTrue(mWifiConfigManager.getConfiguredNetworksWithPasswords().isEmpty());
+    }
+
     private void createWifiConfigManager() {
         mWifiConfigManager =
                 new WifiConfigManagerNew(
                         mContext, mFrameworkFacade, mClock, mUserManager, mWifiKeyStore,
-                        mWifiConfigStore);
+                        mWifiConfigStore, mWifiConfigStoreLegacy);
         mWifiConfigManager.enableVerboseLogging(1);
     }
 
