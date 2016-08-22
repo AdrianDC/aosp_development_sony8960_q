@@ -193,6 +193,9 @@ message WifiLog {
   // Total number of times WiFi connected immediately after a Last Resort Watchdog trigger,
   // without new networks becoming available.
   optional int32 num_last_resort_watchdog_successes = 36;
+
+  // Counts the occurrences of each alert reason.
+  repeated AlertReasonCount alert_reason_count = 47;
 }
 
 // Information that gets logged for every WiFi connection.
@@ -351,5 +354,14 @@ message RssiPollCount {
   optional int32 rssi = 1;
 
   // Number of RSSI polls with 'rssi'
+  optional int32 count = 2;
+}
+
+// Number of occurrences of a specific alert reason value
+message AlertReasonCount {
+  // Alert reason
+  optional int32 reason = 1;
+
+  // Number of alerts with |reason|.
   optional int32 count = 2;
 }
