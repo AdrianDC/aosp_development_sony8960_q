@@ -54,10 +54,9 @@ public class WifiConfigStoreNew {
      */
     private static final String STORE_FILE_NAME = "WifiConfigStore.xml";
     /**
-     * Directory to store the shared config store file.
+     * Directory to store the config store files in.
      */
-    private static final String SHARED_STORE_DIRECTORY =
-            new File(Environment.getDataDirectory(), "misc/wifi").getAbsolutePath();
+    private static final String STORE_DIRECTORY_NAME = "wifi";
     /**
      * Time interval for buffering file writes for non-forced writes
      */
@@ -130,12 +129,32 @@ public class WifiConfigStoreNew {
     }
 
     /**
+     * Helper method to create a store file instance for either the shared store or user store.
+     * Note: The method creates the store directory if not already present. This may be needed for
+     * user store files.
+     *
+     * @param storeBaseDir Base directory under which the store file is to be stored. The store file
+     *                     will be at <storeBaseDir>/wifi/WifiConfigStore.xml.
+     * @return new instance of the store file or null if the directory cannot be created.
+     */
+    private static StoreFile createFile(File storeBaseDir) {
+        File storeDir = new File(storeBaseDir, STORE_DIRECTORY_NAME);
+        if (!storeDir.exists()) {
+            if (!storeDir.mkdir()) {
+                Log.wtf(TAG, "Could not create store directory " + storeDir);
+                return null;
+            }
+        }
+        return new StoreFile(new File(storeDir, STORE_FILE_NAME));
+    }
+
+    /**
      * Create a new instance of the shared store file.
      *
-     * @return new instance of the store file.
+     * @return new instance of the store file or null if the directory cannot be created.
      */
     public static StoreFile createSharedFile() {
-        return new StoreFile(new File(SHARED_STORE_DIRECTORY, STORE_FILE_NAME));
+        return createFile(Environment.getDataMiscDirectory());
     }
 
     /**
@@ -143,11 +162,10 @@ public class WifiConfigStoreNew {
      * The user store file is inside the user's encrypted data directory.
      *
      * @param userId userId corresponding to the currently logged-in user.
-     * @return new instance of the store file.
+     * @return new instance of the store file or null if the directory cannot be created.
      */
     public static StoreFile createUserFile(int userId) {
-        final String userDir = Environment.getDataSystemCeDirectory(userId).getAbsolutePath();
-        return new StoreFile(new File(userDir, STORE_FILE_NAME));
+        return createFile(Environment.getDataMiscCeDirectory(userId));
     }
 
     /**
