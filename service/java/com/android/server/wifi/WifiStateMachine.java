@@ -208,6 +208,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private final PropertyService mPropertyService;
     private final BuildProperties mBuildProperties;
     private final WifiCountryCode mCountryCode;
+    // Object holding most recent wifi score report and bad Linkspeed count
+    private final WifiScoreReport mWifiScoreReport;
 
     /* Scan results handling */
     private List<ScanDetail> mScanResults = new ArrayList<>();
@@ -998,6 +1000,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         mCountryCode = countryCode;
 
+        mWifiScoreReport = new WifiScoreReport(mContext, mWifiConfigManager);
+
         mUserWantsSuspendOpt.set(mFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_SUSPEND_OPTIMIZATIONS_ENABLED, 1) == 1);
 
@@ -1226,6 +1230,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         configureVerboseHalLogging(mVerboseLoggingEnabled);
         setSupplicantLogLevel();
         mCountryCode.enableVerboseLogging(verbose);
+        mWifiScoreReport.enableVerboseLogging(mVerboseLoggingEnabled);
         mWifiDiagnostics.startLogging(mVerboseLoggingEnabled);
         mWifiMonitor.enableVerboseLogging(verbose);
         mWifiNative.enableVerboseLogging(verbose);
@@ -2493,8 +2498,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 if (report != null) {
                     sb.append(" ").append(report);
                 }
-                if (mWifiScoreReport != null) {
-                    sb.append(mWifiScoreReport.getReport());
+                if (mWifiScoreReport.isLastReportValid()) {
+                    sb.append(mWifiScoreReport.getLastReport());
                 }
                 break;
             case CMD_AUTO_CONNECT:
@@ -3033,11 +3038,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiInfo.txSuccessRate = 0;
         mWifiInfo.txRetriesRate = 0;
         mWifiInfo.rxSuccessRate = 0;
-        mWifiScoreReport = null;
+        mWifiScoreReport.reset();
     }
-
-    // Object holding most recent wifi score report and bad Linkspeed count
-    WifiScoreReport mWifiScoreReport = null;
 
     public double getTxPacketRate() {
         return mWifiInfo.txSuccessRate;
@@ -3349,7 +3351,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         stopIpManager();
 
         /* Reset data structures */
-        mWifiScoreReport = null;
+        mWifiScoreReport.reset();
         mWifiInfo.reset();
         mIsLinkDebouncing = false;
         /* Reset roaming parameters */
@@ -4850,7 +4852,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 networkSelectionStatus.setHasEverConnected(true);
             }
             // On connect, reset wifiScoreReport
-            mWifiScoreReport = null;
+            mWifiScoreReport.reset();
        }
     }
 
@@ -6262,14 +6264,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             }
                             // Get Info and continue polling
                             fetchRssiLinkSpeedAndFrequencyNative();
-                            mWifiScoreReport =
-                                    WifiScoreReport.calculateScore(mWifiInfo,
-                                                                   getCurrentWifiConfiguration(),
-                                                                   mWifiConfigManager,
-                                                                   mNetworkAgent,
-                                                                   mWifiScoreReport,
-                                                                   mAggressiveHandover,
-                                                                   mVerboseLoggingEnabled);
+                            // Send the update score to network agent.
+                            WifiConfiguration config = getCurrentWifiConfiguration();
+                            ScanDetailCache scanDetailCache =
+                                    mWifiConfigManager.getScanDetailCache(config);
+                            mWifiScoreReport.calculateAndReportScore(
+                                    mWifiInfo, mNetworkAgent, mAggressiveHandover);
                         }
                         sendMessageDelayed(obtainMessage(CMD_RSSI_POLL,
                                 mRssiPollToken, 0), POLL_RSSI_INTERVAL_MSECS);
