@@ -259,6 +259,15 @@ public class WifiConfigManagerNew {
      * user is logged in.
      */
     private int mSystemUiUid = -1;
+    /**
+     * This is used to remember which network was selected successfully last by an app. This is set
+     * when an app invokes {@link #enableNetwork(int, boolean, int)} with |disableOthers| flag set.
+     * This is the only way for an app to request connection to a specific network using the
+     * {@link WifiManager} API's.
+     */
+    private int mLastSelectedNetwork = WifiConfiguration.INVALID_NETWORK_ID;
+    private long mLastSelectedTimeStamp =
+            WifiConfiguration.NetworkSelectionStatus.INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP;
 
     /**
      * Create new instance of WifiConfigManager.
@@ -982,6 +991,9 @@ public class WifiConfigManagerNew {
             Log.e(TAG, "Failed to remove network " + config.getPrintableSsid());
             return false;
         }
+        if (networkId == mLastSelectedNetwork) {
+            clearLastSelectedNetwork();
+        }
         sendConfiguredNetworkChangedBroadcast(config, WifiManager.CHANGE_REASON_REMOVED);
         // External modification, persist it immediately.
         saveToStore(true);
@@ -1173,11 +1185,16 @@ public class WifiConfigManagerNew {
     /**
      * Enable a network using the public {@link WifiManager#enableNetwork(int, boolean)} API.
      *
-     * @param networkId network ID of the network that needs the update.
-     * @param uid       uid of the app requesting the update.
+     * @param networkId     network ID of the network that needs the update.
+     * @param disableOthers Whether to disable all other networks or not. This is used to indicate
+     *                      that the app requested connection to a specific network.
+     * @param uid           uid of the app requesting the update.
      * @return true if it succeeds, false otherwise
      */
-    public boolean enableNetwork(int networkId, int uid) {
+    public boolean enableNetwork(int networkId, boolean disableOthers, int uid) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Enabling network " + networkId + "(disableOthers " + disableOthers + ")");
+        }
         if (!doesUidBelongToCurrentUser(uid)) {
             Log.e(TAG, "UID " + uid + " not visible to the current user");
             return false;
@@ -1191,8 +1208,14 @@ public class WifiConfigManagerNew {
                     + config.configKey());
             return false;
         }
-        return updateNetworkSelectionStatus(
-                networkId, WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+        if (!updateNetworkSelectionStatus(
+                networkId, WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE)) {
+            return false;
+        }
+        if (disableOthers) {
+            setLastSelectedNetwork(networkId);
+        }
+        return true;
     }
 
     /**
@@ -1203,6 +1226,9 @@ public class WifiConfigManagerNew {
      * @return true if it succeeds, false otherwise
      */
     public boolean disableNetwork(int networkId, int uid) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Disabling network " + networkId);
+        }
         if (!doesUidBelongToCurrentUser(uid)) {
             Log.e(TAG, "UID " + uid + " not visible to the current user");
             return false;
@@ -1216,8 +1242,14 @@ public class WifiConfigManagerNew {
                     + config.configKey());
             return false;
         }
-        return updateNetworkSelectionStatus(
-                networkId, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER);
+        if (!updateNetworkSelectionStatus(
+                networkId, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER)) {
+            return false;
+        }
+        if (networkId == mLastSelectedNetwork) {
+            clearLastSelectedNetwork();
+        }
+        return true;
     }
 
     /**
@@ -1331,6 +1363,50 @@ public class WifiConfigManagerNew {
         // Update the network selection status.
         config.getNetworkSelectionStatus().setSeenInLastQualifiedNetworkSelection(true);
         return true;
+    }
+
+    /**
+     * Helper method to clear out the {@link #mLastNetworkId} user/app network selection. This
+     * is done when either the corresponding network is either removed or disabled.
+     */
+    private void clearLastSelectedNetwork() {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Clearing last selected network");
+        }
+        mLastSelectedNetwork = WifiConfiguration.INVALID_NETWORK_ID;
+        mLastSelectedTimeStamp = NetworkSelectionStatus.INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP;
+    }
+
+    /**
+     * Helper method to mark a network as the last selected one by an app/user. This is set
+     * when an app invokes {@link #enableNetwork(int, boolean, int)} with |disableOthers| flag set.
+     * This is used by network selector to assign a special bonus during network selection.
+     */
+    private void setLastSelectedNetwork(int networkId) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Setting last selected network to " + networkId);
+        }
+        mLastSelectedNetwork = networkId;
+        mLastSelectedTimeStamp = mClock.getElapsedSinceBootMillis();
+    }
+
+    /**
+     * Retrieve the network Id corresponding to the last network that was explicitly selected by
+     * an app/user.
+     *
+     * @return network Id corresponding to the last selected network.
+     */
+    public int getLastSelectedNetwork() {
+        return mLastSelectedNetwork;
+    }
+
+    /**
+     * Retrieve the time stamp at which a network was explicitly selected by an app/user.
+     *
+     * @return timestamp in milliseconds from boot when this was set.
+     */
+    public long getLastSelectedTimeStamp() {
+        return mLastSelectedTimeStamp;
     }
 
     /**
