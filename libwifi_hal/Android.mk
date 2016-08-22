@@ -43,8 +43,12 @@ endif
 ifdef WIFI_DRIVER_FW_PATH_P2P
 wifi_hal_cflags += -DWIFI_DRIVER_FW_PATH_P2P=\"$(WIFI_DRIVER_FW_PATH_P2P)\"
 endif
+
+# Some devices use a different path (e.g. devices with broadcom WiFi parts).
 ifdef WIFI_DRIVER_FW_PATH_PARAM
 wifi_hal_cflags += -DWIFI_DRIVER_FW_PATH_PARAM=\"$(WIFI_DRIVER_FW_PATH_PARAM)\"
+else
+wifi_hal_cflags += -DWIFI_DRIVER_FW_PATH_PARAM=\"/sys/module/wlan/parameters/fwpath\"
 endif
 
 ifdef WIFI_DRIVER_STATE_CTRL_PARAM
