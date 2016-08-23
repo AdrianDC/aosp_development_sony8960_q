@@ -40,13 +40,6 @@ class HostapdManager {
   // Returns true on success.
   virtual bool StartHostapd();
 
-  // Returns true if hostapd is currently running.
-  virtual bool IsHostapdRunning();
-
-  // Returns true if hostapd is running, false otherwise.
-  // When true is returned, will write hostapd's pid to |hostapd_pid|.
-  virtual bool GetHostapdPid(pid_t* hostapd_pid);
-
   // Request that a running instance of hostapd be stopped.
   // Returns true on success.
   virtual bool StopHostapd();
