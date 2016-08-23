@@ -47,7 +47,6 @@ namespace {
 const int kDefaultApChannel = 6;
 const char kHostapdServiceName[] = "hostapd";
 const char kHostapdConfigFilePath[] = "/data/misc/wifi/hostapd.conf";
-const char kHostapdPidFile[] = "/data/misc/wifi/hostapd.pid";
 
 
 string GeneratePsk(const vector<uint8_t>& ssid,
@@ -82,44 +81,12 @@ bool HostapdManager::StartHostapd() {
     LOG(WARNING) << "Wi-Fi entropy file was not created";
   }
 
-  unlink(kHostapdPidFile);
-
   if (property_set("ctl.start", kHostapdServiceName) != 0) {
     LOG(ERROR) << "Failed to start SoftAP";
     return false;
   }
 
   LOG(DEBUG) << "SoftAP started successfully";
-  return true;
-}
-
-bool HostapdManager::IsHostapdRunning() {
-  pid_t hostapd_pid;
-  if (!GetHostapdPid(&hostapd_pid)) {
-    return false;
-  }
-
-  if (kill(hostapd_pid, 0) != 0) {
-    LOG(DEBUG) << "hostapd has already died.";
-    return false;
-  }
-
-  return true;
-}
-
-bool HostapdManager::GetHostapdPid(pid_t* hostapd_pid) {
-  string pid_string;
-  if (!ReadFileToString(kHostapdPidFile, &pid_string)) {
-    LOG(DEBUG) << "Failed to read hostapd pid file.";
-    return false;
-  }
-  pid_t pid = 0;
-  if (!ParseInt(pid_string.c_str(), &pid) || pid <= 0) {
-    LOG(DEBUG) << "hostapd pid file contained bad pid: " << pid_string;
-    return false;
-  }
-
-  *hostapd_pid = pid;
   return true;
 }
 
@@ -130,8 +97,6 @@ bool HostapdManager::StopHostapd() {
     LOG(ERROR) << "Failed to stop hostapd service!";
     return false;
   }
-
-  unlink(kHostapdPidFile);
 
   LOG(DEBUG) << "SoftAP stopped successfully";
   return true;
