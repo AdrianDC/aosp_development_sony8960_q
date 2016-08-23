@@ -929,8 +929,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     public WifiStateMachine(Context context, FrameworkFacade facade, Looper looper,
                             UserManager userManager, WifiInjector wifiInjector,
-                            BackupManagerProxy backupManagerProxy,
-                            WifiCountryCode countryCode) {
+                            BackupManagerProxy backupManagerProxy, WifiCountryCode countryCode,
+                            WifiNative wifiNative) {
         super("WifiStateMachine", looper);
         mWifiInjector = wifiInjector;
         mWifiMetrics = mWifiInjector.getWifiMetrics();
@@ -939,7 +939,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mBuildProperties = wifiInjector.getBuildProperties();
         mContext = context;
         mFacade = facade;
-        mWifiNative = WifiNative.getWlanNativeInterface();
+        mWifiNative = wifiNative;
         mBackupManagerProxy = backupManagerProxy;
 
         // TODO refactor WifiNative use of context out into it's own class

@@ -344,7 +344,6 @@ public class WifiStateMachineTest {
         /** uncomment this to enable logs from WifiStateMachines */
         // enableDebugLogs();
 
-        TestUtil.installWlanWifiNative(mWifiNative);
         mWifiMonitor = new MockWifiMonitor();
         when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
         when(mWifiInjector.getClock()).thenReturn(mock(Clock.class));
@@ -356,6 +355,7 @@ public class WifiStateMachineTest {
         when(mWifiInjector.makeWifiDiagnostics(anyObject())).thenReturn(
                 mock(BaseWifiDiagnostics.class));
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
+        when(mWifiNative.getInterfaceName()).thenReturn("mockWlan");
 
         FrameworkFacade factory = getFrameworkFacade();
         Context context = getContext();
@@ -387,7 +387,7 @@ public class WifiStateMachineTest {
         when(mClientInterface.disableSupplicant()).thenReturn(true);
 
         mWsm = new WifiStateMachine(context, factory, mLooper.getLooper(),
-            mUserManager, mWifiInjector, mBackupManagerProxy, mCountryCode);
+            mUserManager, mWifiInjector, mBackupManagerProxy, mCountryCode, mWifiNative);
         mWsmThread = getWsmHandlerThread(mWsm);
 
         final AsyncChannel channel = new AsyncChannel();
