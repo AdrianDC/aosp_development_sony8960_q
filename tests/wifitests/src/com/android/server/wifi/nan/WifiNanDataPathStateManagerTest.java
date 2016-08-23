@@ -607,7 +607,7 @@ public class WifiNanDataPathStateManagerTest {
         when(mMockNanService.connect(any(IBinder.class), anyString(),
                 any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
 
-        mgr.connect(mMockLooper.getLooper(), mockCallback, configRequest);
+        mgr.connect(mMockLooper.getLooper(), configRequest, mockCallback);
         verify(mMockNanService).connect(any(IBinder.class), anyString(),
                 clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess();
@@ -648,7 +648,7 @@ public class WifiNanDataPathStateManagerTest {
         when(mMockNanService.connect(any(IBinder.class), anyString(),
                 any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
 
-        mgr.connect(mMockLooper.getLooper(), mockCallback, configRequest);
+        mgr.connect(mMockLooper.getLooper(), configRequest, mockCallback);
         verify(mMockNanService).connect(any(IBinder.class), anyString(),
                 clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess();

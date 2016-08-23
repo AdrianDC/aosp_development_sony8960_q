@@ -1722,7 +1722,7 @@ public class WifiNanStateManager {
         if (VDBG) {
             Log.v(TAG, "sendNanStateChangedBroadcast: enabled=" + enabled);
         }
-        final Intent intent = new Intent(WifiNanManager.WIFI_NAN_STATE_CHANGED_ACTION);
+        final Intent intent = new Intent(WifiNanManager.ACTION_WIFI_NAN_STATE_CHANGED);
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY);
         if (enabled) {
             intent.putExtra(WifiNanManager.EXTRA_WIFI_STATE, WifiNanManager.WIFI_NAN_STATE_ENABLED);
