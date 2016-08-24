@@ -102,6 +102,7 @@ public class ConfirmConnectToWifiNetworkActivity extends Activity
                         }
                     });
         }
+        finish();
     }
 
 
