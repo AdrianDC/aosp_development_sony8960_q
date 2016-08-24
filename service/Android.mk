@@ -140,6 +140,10 @@ LOCAL_MODULE_TAGS :=
 LOCAL_MODULE := wifi-service
 LOCAL_PROTOC_OPTIMIZE_TYPE := nano
 
+ifeq ($(EMMA_INSTRUMENT_FRAMEWORK),true)
+LOCAL_EMMA_INSTRUMENT := true
+endif
+
 include $(BUILD_JAVA_LIBRARY)
 
 endif
