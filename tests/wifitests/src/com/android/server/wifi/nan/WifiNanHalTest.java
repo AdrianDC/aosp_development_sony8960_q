@@ -1148,7 +1148,7 @@ public class WifiNanHalTest {
         collector.checkThat("serviceResponseInclude", argsData.getInt("serviceResponseInclude"),
                 equalTo(1));
         collector.checkThat("useServiceResponseFilter", argsData.getInt("useServiceResponseFilter"),
-                equalTo(1));
+                equalTo(0));
         collector.checkThat("ssiRequiredForMatchIndication",
                 argsData.getInt("ssiRequiredForMatchIndication"), equalTo(0));
         collector.checkThat("subscribe_match_indicator",
