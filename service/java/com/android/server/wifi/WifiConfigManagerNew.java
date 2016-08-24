@@ -1560,13 +1560,8 @@ public class WifiConfigManagerNew {
             Log.e(TAG, "No scan result found in scan detail");
             return null;
         }
-        // Add the double quotes to the scan result SSID for comparison with the network configs.
-        String ssidToCompare = "\"" + scanResult.SSID + "\"";
         for (WifiConfiguration config : getInternalConfiguredNetworks()) {
-            if (config.SSID == null || !config.SSID.equals(ssidToCompare)) {
-                continue;
-            }
-            if (ScanResultUtil.doesScanResultEncryptionMatchWithNetwork(scanResult, config)) {
+            if (ScanResultUtil.doesScanResultMatchWithNetwork(scanResult, config)) {
                 localLog("getSavedNetworkFromScanDetail: Found " + config.configKey()
                         + " for " + scanResult.SSID + "[" + scanResult.capabilities + "]");
                 return config;
