@@ -105,7 +105,7 @@ bool HostapdManager::StopHostapd() {
 bool HostapdManager::WriteHostapdConfig(const string& config) {
   if (!WriteStringToFile(config, kHostapdConfigFilePath,
                          S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP,
-                         AID_SYSTEM, AID_WIFI)) {
+                         AID_WIFI, AID_WIFI)) {
     int error = errno;
     LOG(ERROR) << "Cannot write hostapd config to \""
                << kHostapdConfigFilePath << "\": " << strerror(error);

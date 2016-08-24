@@ -25,6 +25,8 @@ const int DriverTool::kFirmwareModeSta = WIFI_GET_FW_PATH_STA;
 const int DriverTool::kFirmwareModeAp = WIFI_GET_FW_PATH_AP;
 const int DriverTool::kFirmwareModeP2p = WIFI_GET_FW_PATH_P2P;
 
+const char DriverTool::kFirmwareReloadPath[] = WIFI_DRIVER_FW_PATH_PARAM;
+
 bool DriverTool::LoadDriver() {
   return ::wifi_load_driver() == 0;
 }

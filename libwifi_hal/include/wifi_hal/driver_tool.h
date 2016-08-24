@@ -27,6 +27,8 @@ class DriverTool {
   static const int kFirmwareModeAp;
   static const int kFirmwareModeP2p;
 
+  static const char kFirmwareReloadPath[];
+
   DriverTool() = default;
   virtual ~DriverTool() = default;
 

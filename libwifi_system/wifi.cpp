@@ -167,12 +167,6 @@ int ensure_config_file_exists(const char* config_file) {
     return -1;
   }
 
-  if (chown(config_file, AID_SYSTEM, AID_WIFI) < 0) {
-    ALOGE("Error changing group ownership of %s to %d: %s", config_file,
-          AID_WIFI, strerror(errno));
-    unlink(config_file);
-    return -1;
-  }
   return 0;
 }
 
@@ -530,12 +524,6 @@ int ensure_entropy_file_exists() {
     return -1;
   }
 
-  if (chown(kWiFiEntropyFile, AID_SYSTEM, AID_WIFI) < 0) {
-    ALOGE("Error changing group ownership of %s to %d: %s", kWiFiEntropyFile,
-          AID_WIFI, strerror(errno));
-    unlink(kWiFiEntropyFile);
-    return -1;
-  }
   return 0;
 }
 
