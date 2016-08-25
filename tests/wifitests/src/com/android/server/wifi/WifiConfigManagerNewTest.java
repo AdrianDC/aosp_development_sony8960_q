@@ -38,7 +38,9 @@ import android.test.suitebuilder.annotation.SmallTest;
 import android.text.TextUtils;
 
 import com.android.internal.R;
+import com.android.server.wifi.WifiConfigStoreLegacy.WifiConfigStoreDataLegacy;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -77,6 +79,7 @@ public class WifiConfigManagerNewTest {
     @Mock private UserManager mUserManager;
     @Mock private WifiKeyStore mWifiKeyStore;
     @Mock private WifiConfigStoreNew mWifiConfigStore;
+    @Mock private WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     @Mock private PackageManager mPackageManager;
 
     private MockResources mResources;
@@ -145,7 +148,17 @@ public class WifiConfigManagerNewTest {
                 .updateNetworkKeys(any(WifiConfiguration.class), any(WifiConfiguration.class)))
                 .thenReturn(true);
 
+        when(mWifiConfigStore.areStoresPresent()).thenReturn(true);
+
         createWifiConfigManager();
+    }
+
+    /**
+     * Called after each test
+     */
+    @After
+    public void cleanup() {
+        validateMockitoUsage();
     }
 
     /**
@@ -541,7 +554,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the enabling of network using
-     * {@link WifiConfigManagerNew#enableNetwork(int, int)} and
+     * {@link WifiConfigManagerNew#enableNetwork(int, boolean, int)} and
      * {@link WifiConfigManagerNew#disableNetwork(int, int)}.
      */
     @Test
@@ -550,7 +563,8 @@ public class WifiConfigManagerNewTest {
 
         NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
 
-        assertTrue(mWifiConfigManager.enableNetwork(result.getNetworkId(), TEST_CREATOR_UID));
+        assertTrue(mWifiConfigManager.enableNetwork(
+                result.getNetworkId(), false, TEST_CREATOR_UID));
         WifiConfiguration retrievedNetwork =
                 mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
         NetworkSelectionStatus retrievedStatus = retrievedNetwork.getNetworkSelectionStatus();
@@ -567,7 +581,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the enabling of network using
-     * {@link WifiConfigManagerNew#enableNetwork(int, int)} with a UID which
+     * {@link WifiConfigManagerNew#enableNetwork(int, boolean, int)} with a UID which
      * has no permission to modify the network fails..
      */
     @Test
@@ -576,7 +590,8 @@ public class WifiConfigManagerNewTest {
 
         NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
 
-        assertTrue(mWifiConfigManager.enableNetwork(result.getNetworkId(), TEST_CREATOR_UID));
+        assertTrue(mWifiConfigManager.enableNetwork(
+                result.getNetworkId(), false, TEST_CREATOR_UID));
         WifiConfiguration retrievedNetwork =
                 mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
         NetworkSelectionStatus retrievedStatus = retrievedNetwork.getNetworkSelectionStatus();
@@ -669,7 +684,7 @@ public class WifiConfigManagerNewTest {
     /**
      * Verifies that any configuration update attempt with an invalid networkID is gracefully
      * handled.
-     * This invokes {@link WifiConfigManagerNew#enableNetwork(int, int)},
+     * This invokes {@link WifiConfigManagerNew#enableNetwork(int, boolean, int)},
      * {@link WifiConfigManagerNew#disableNetwork(int, int)},
      * {@link WifiConfigManagerNew#updateNetworkSelectionStatus(int, int)} and
      * {@link WifiConfigManagerNew#checkAndUpdateLastConnectUid(int, int)}.
@@ -680,7 +695,8 @@ public class WifiConfigManagerNewTest {
 
         NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
 
-        assertFalse(mWifiConfigManager.enableNetwork(result.getNetworkId() + 1, TEST_CREATOR_UID));
+        assertFalse(mWifiConfigManager.enableNetwork(
+                result.getNetworkId() + 1, false, TEST_CREATOR_UID));
         assertFalse(mWifiConfigManager.disableNetwork(result.getNetworkId() + 1, TEST_CREATOR_UID));
         assertFalse(mWifiConfigManager.updateNetworkSelectionStatus(
                 result.getNetworkId() + 1, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER));
@@ -1165,9 +1181,9 @@ public class WifiConfigManagerNewTest {
         verifyAddNetworkToWifiConfigManager(network3);
 
         // Enable all of them.
-        assertTrue(mWifiConfigManager.enableNetwork(network1.networkId, TEST_CREATOR_UID));
-        assertTrue(mWifiConfigManager.enableNetwork(network2.networkId, TEST_CREATOR_UID));
-        assertTrue(mWifiConfigManager.enableNetwork(network3.networkId, TEST_CREATOR_UID));
+        assertTrue(mWifiConfigManager.enableNetwork(network1.networkId, false, TEST_CREATOR_UID));
+        assertTrue(mWifiConfigManager.enableNetwork(network2.networkId, false, TEST_CREATOR_UID));
+        assertTrue(mWifiConfigManager.enableNetwork(network3.networkId, false, TEST_CREATOR_UID));
 
         // Now set scan results in 2 of them to set the corresponding
         // {@link NetworkSelectionStatus#mSeenInLastQualifiedNetworkSelection} field.
@@ -1782,11 +1798,96 @@ public class WifiConfigManagerNewTest {
         assertTrue(result.isSuccess());
     }
 
+    /**
+     * Verifies the loading of networks using {@link WifiConfigManagerNew#loadFromStore()} attempts
+     * to migrate data from legacy stores when the new store files are absent.
+     */
+    @Test
+    public void testMigrationFromLegacyStore() throws Exception {
+        // Create the store data to be returned from legacy stores.
+        List<WifiConfiguration> networks = new ArrayList<>();
+        networks.add(WifiConfigurationTestUtil.createPskNetwork());
+        networks.add(WifiConfigurationTestUtil.createEapNetwork());
+        networks.add(WifiConfigurationTestUtil.createWepNetwork());
+        WifiConfigStoreDataLegacy storeData =
+                new WifiConfigStoreDataLegacy(networks, new HashSet<String>());
+
+        // New store files not present, so migrate from the old store.
+        when(mWifiConfigStore.areStoresPresent()).thenReturn(false);
+        when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(true);
+        when(mWifiConfigStoreLegacy.read()).thenReturn(storeData);
+
+        // Now trigger a load from store. This should populate the in memory list with all the
+        // networks above from the legacy store.
+        mWifiConfigManager.loadFromStore();
+
+        verify(mWifiConfigStore, never()).read();
+        verify(mWifiConfigStoreLegacy).read();
+
+        List<WifiConfiguration> retrievedNetworks =
+                mWifiConfigManager.getConfiguredNetworksWithPasswords();
+        WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
+                networks, retrievedNetworks);
+    }
+
+    /**
+     * Verifies the loading of networks using {@link WifiConfigManagerNew#loadFromStore()} does
+     * not attempt to read from any of the stores (new or legacy) when the store files are
+     * not present.
+     */
+    @Test
+    public void testFreshInstallDoesNotLoadFromStore() throws Exception {
+        // New store files not present, so migrate from the old store.
+        when(mWifiConfigStore.areStoresPresent()).thenReturn(false);
+        when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(false);
+
+        // Now trigger a load from store. This should populate the in memory list with all the
+        // networks above.
+        mWifiConfigManager.loadFromStore();
+
+        verify(mWifiConfigStore, never()).read();
+        verify(mWifiConfigStoreLegacy, never()).read();
+
+        assertTrue(mWifiConfigManager.getConfiguredNetworksWithPasswords().isEmpty());
+    }
+
+    /**
+     * Verifies that the last user selected network parameter is set when
+     * {@link WifiConfigManagerNew#enableNetwork(int, boolean, int)} with disableOthers flag is set
+     * to true and cleared when either {@link WifiConfigManagerNew#disableNetwork(int, int)} or
+     * {@link WifiConfigManagerNew#removeNetwork(int, int)} is invoked using the same network ID.
+     */
+    @Test
+    public void testLastSelectedNetwork() throws Exception {
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
+
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(67L);
+        assertTrue(mWifiConfigManager.enableNetwork(
+                result.getNetworkId(), true, TEST_CREATOR_UID));
+        assertEquals(result.getNetworkId(), mWifiConfigManager.getLastSelectedNetwork());
+        assertEquals(67, mWifiConfigManager.getLastSelectedTimeStamp());
+
+        // Now disable the network and ensure that the last selected flag is cleared.
+        assertTrue(mWifiConfigManager.disableNetwork(result.getNetworkId(), TEST_CREATOR_UID));
+        assertEquals(
+                WifiConfiguration.INVALID_NETWORK_ID, mWifiConfigManager.getLastSelectedNetwork());
+
+        // Enable it again and remove the network to ensure that the last selected flag was cleared.
+        assertTrue(mWifiConfigManager.enableNetwork(
+                result.getNetworkId(), true, TEST_CREATOR_UID));
+        assertEquals(result.getNetworkId(), mWifiConfigManager.getLastSelectedNetwork());
+
+        assertTrue(mWifiConfigManager.removeNetwork(result.getNetworkId(), TEST_CREATOR_UID));
+        assertEquals(
+                WifiConfiguration.INVALID_NETWORK_ID, mWifiConfigManager.getLastSelectedNetwork());
+    }
+
     private void createWifiConfigManager() {
         mWifiConfigManager =
                 new WifiConfigManagerNew(
                         mContext, mFrameworkFacade, mClock, mUserManager, mWifiKeyStore,
-                        mWifiConfigStore);
+                        mWifiConfigStore, mWifiConfigStoreLegacy);
         mWifiConfigManager.enableVerboseLogging(1);
     }
 

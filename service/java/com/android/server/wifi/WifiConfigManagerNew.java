@@ -43,6 +43,7 @@ import android.util.Log;
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalServices;
+import com.android.server.wifi.WifiConfigStoreLegacy.WifiConfigStoreDataLegacy;
 import com.android.server.wifi.util.ScanResultUtil;
 
 import org.xmlpull.v1.XmlPullParserException;
@@ -203,8 +204,9 @@ public class WifiConfigManagerNew {
     private final Clock mClock;
     private final UserManager mUserManager;
     private final BackupManagerProxy mBackupManagerProxy;
-    private final WifiConfigStoreNew mWifiConfigStore;
     private final WifiKeyStore mWifiKeyStore;
+    private final WifiConfigStoreNew mWifiConfigStore;
+    private final WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     /**
      * Local log used for debugging any WifiConfigManager issues.
      */
@@ -257,20 +259,31 @@ public class WifiConfigManagerNew {
      * user is logged in.
      */
     private int mSystemUiUid = -1;
+    /**
+     * This is used to remember which network was selected successfully last by an app. This is set
+     * when an app invokes {@link #enableNetwork(int, boolean, int)} with |disableOthers| flag set.
+     * This is the only way for an app to request connection to a specific network using the
+     * {@link WifiManager} API's.
+     */
+    private int mLastSelectedNetwork = WifiConfiguration.INVALID_NETWORK_ID;
+    private long mLastSelectedTimeStamp =
+            WifiConfiguration.NetworkSelectionStatus.INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP;
 
     /**
      * Create new instance of WifiConfigManager.
      */
     WifiConfigManagerNew(
             Context context, FrameworkFacade facade, Clock clock, UserManager userManager,
-            WifiKeyStore wifiKeyStore, WifiConfigStoreNew wifiConfigStore) {
+            WifiKeyStore wifiKeyStore, WifiConfigStoreNew wifiConfigStore,
+            WifiConfigStoreLegacy wifiConfigStoreLegacy) {
         mContext = context;
         mFacade = facade;
         mClock = clock;
         mUserManager = userManager;
         mBackupManagerProxy = new BackupManagerProxy();
-        mWifiConfigStore = wifiConfigStore;
         mWifiKeyStore = wifiKeyStore;
+        mWifiConfigStore = wifiConfigStore;
+        mWifiConfigStoreLegacy = wifiConfigStoreLegacy;
 
         mConfiguredNetworks = new ConfigurationMap(userManager);
         mScanDetailCaches = new ConcurrentHashMap<>(16, 0.75f, 2);
@@ -978,6 +991,9 @@ public class WifiConfigManagerNew {
             Log.e(TAG, "Failed to remove network " + config.getPrintableSsid());
             return false;
         }
+        if (networkId == mLastSelectedNetwork) {
+            clearLastSelectedNetwork();
+        }
         sendConfiguredNetworkChangedBroadcast(config, WifiManager.CHANGE_REASON_REMOVED);
         // External modification, persist it immediately.
         saveToStore(true);
@@ -1169,11 +1185,16 @@ public class WifiConfigManagerNew {
     /**
      * Enable a network using the public {@link WifiManager#enableNetwork(int, boolean)} API.
      *
-     * @param networkId network ID of the network that needs the update.
-     * @param uid       uid of the app requesting the update.
+     * @param networkId     network ID of the network that needs the update.
+     * @param disableOthers Whether to disable all other networks or not. This is used to indicate
+     *                      that the app requested connection to a specific network.
+     * @param uid           uid of the app requesting the update.
      * @return true if it succeeds, false otherwise
      */
-    public boolean enableNetwork(int networkId, int uid) {
+    public boolean enableNetwork(int networkId, boolean disableOthers, int uid) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Enabling network " + networkId + "(disableOthers " + disableOthers + ")");
+        }
         if (!doesUidBelongToCurrentUser(uid)) {
             Log.e(TAG, "UID " + uid + " not visible to the current user");
             return false;
@@ -1187,8 +1208,14 @@ public class WifiConfigManagerNew {
                     + config.configKey());
             return false;
         }
-        return updateNetworkSelectionStatus(
-                networkId, WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+        if (!updateNetworkSelectionStatus(
+                networkId, WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE)) {
+            return false;
+        }
+        if (disableOthers) {
+            setLastSelectedNetwork(networkId);
+        }
+        return true;
     }
 
     /**
@@ -1199,6 +1226,9 @@ public class WifiConfigManagerNew {
      * @return true if it succeeds, false otherwise
      */
     public boolean disableNetwork(int networkId, int uid) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Disabling network " + networkId);
+        }
         if (!doesUidBelongToCurrentUser(uid)) {
             Log.e(TAG, "UID " + uid + " not visible to the current user");
             return false;
@@ -1212,8 +1242,14 @@ public class WifiConfigManagerNew {
                     + config.configKey());
             return false;
         }
-        return updateNetworkSelectionStatus(
-                networkId, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER);
+        if (!updateNetworkSelectionStatus(
+                networkId, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER)) {
+            return false;
+        }
+        if (networkId == mLastSelectedNetwork) {
+            clearLastSelectedNetwork();
+        }
+        return true;
     }
 
     /**
@@ -1327,6 +1363,50 @@ public class WifiConfigManagerNew {
         // Update the network selection status.
         config.getNetworkSelectionStatus().setSeenInLastQualifiedNetworkSelection(true);
         return true;
+    }
+
+    /**
+     * Helper method to clear out the {@link #mLastNetworkId} user/app network selection. This
+     * is done when either the corresponding network is either removed or disabled.
+     */
+    private void clearLastSelectedNetwork() {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Clearing last selected network");
+        }
+        mLastSelectedNetwork = WifiConfiguration.INVALID_NETWORK_ID;
+        mLastSelectedTimeStamp = NetworkSelectionStatus.INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP;
+    }
+
+    /**
+     * Helper method to mark a network as the last selected one by an app/user. This is set
+     * when an app invokes {@link #enableNetwork(int, boolean, int)} with |disableOthers| flag set.
+     * This is used by network selector to assign a special bonus during network selection.
+     */
+    private void setLastSelectedNetwork(int networkId) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Setting last selected network to " + networkId);
+        }
+        mLastSelectedNetwork = networkId;
+        mLastSelectedTimeStamp = mClock.getElapsedSinceBootMillis();
+    }
+
+    /**
+     * Retrieve the network Id corresponding to the last network that was explicitly selected by
+     * an app/user.
+     *
+     * @return network Id corresponding to the last selected network.
+     */
+    public int getLastSelectedNetwork() {
+        return mLastSelectedNetwork;
+    }
+
+    /**
+     * Retrieve the time stamp at which a network was explicitly selected by an app/user.
+     *
+     * @return timestamp in milliseconds from boot when this was set.
+     */
+    public long getLastSelectedTimeStamp() {
+        return mLastSelectedTimeStamp;
     }
 
     /**
@@ -1831,18 +1911,77 @@ public class WifiConfigManagerNew {
     }
 
     /**
+     * Helper function to populate the internal (in-memory) data from the retrieved store (file)
+     * data. It also sends out the networks changed broadcast after loading all the data.
+     *
+     * @param configurations        list of configurations retrieved from store.
+     * @param deletedEphemeralSSIDs list of ssid's representing the ephemeral networks deleted by
+     *                              the user.
+     */
+    private void loadInternalData(
+            List<WifiConfiguration> configurations, Set<String> deletedEphemeralSSIDs) {
+        // Clear out all the existing in-memory lists and load the lists from what was retrieved
+        // from the config store.
+        clearInternalData();
+        for (WifiConfiguration configuration : configurations) {
+            configuration.networkId = mLastNetworkId++;
+            if (mVerboseLoggingEnabled) {
+                Log.v(TAG, "Adding network from store " + configuration.configKey());
+            }
+            mConfiguredNetworks.put(configuration);
+        }
+        for (String ssid : deletedEphemeralSSIDs) {
+            mDeletedEphemeralSSIDs.add(ssid);
+        }
+        if (mConfiguredNetworks.sizeForAllUsers() == 0) {
+            Log.w(TAG, "No stored networks found.");
+        }
+        sendConfiguredNetworksChangedBroadcast();
+    }
+
+    /**
+     * Migrate data from legacy store files. The function performs the following operations:
+     * 1. Check if the legacy store files are present.
+     * 2. If yes, read all the data from the store files.
+     * 3. Save it to the new store files.
+     * 4. Delete the legacy store file.
+     *
+     * @return true if migration was successful or not needed (fresh install), false if it failed.
+     */
+    private boolean migrateFromLegacyStore() {
+        if (mWifiConfigStoreLegacy.areStoresPresent()) {
+            WifiConfigStoreDataLegacy storeData = mWifiConfigStoreLegacy.read();
+            Log.d(TAG, "Reading from legacy store completed");
+            loadInternalData(storeData.getConfigurations(), storeData.getDeletedEphemeralSSIDs());
+            if (!saveToStore(true)) {
+                return false;
+            }
+            // TODO: Remove the legacy store files
+            // mWifiConfigStoreLegacy.removeStores();
+            Log.d(TAG, "Migration from legacy store completed");
+        }
+        return true;
+    }
+
+    /**
      * Read the config store and load the in-memory lists from the store data retrieved and sends
-     * out the networks changed broadcast.
+     * out the networks changed broadcast. This method first checks if there is any data to be
+     * migrated from legacy store files if the new store files aren't present on the device.
      *
      * This reads all the network configurations from:
      * 1. Shared WifiConfigStore.xml
      * 2. User WifiConfigStore.xml
      * 3. PerProviderSubscription.conf
+     *
      * @return true on success, false otherwise.
      */
-    private boolean loadFromStore() {
-        WifiConfigStoreData storeData;
+    @VisibleForTesting
+    public boolean loadFromStore() {
+        if (!mWifiConfigStore.areStoresPresent()) {
+            return migrateFromLegacyStore();
+        }
 
+        WifiConfigStoreData storeData;
         long readStartTime = mClock.getElapsedSinceBootMillis();
         try {
             storeData = mWifiConfigStore.read();
@@ -1854,25 +1993,9 @@ public class WifiConfigManagerNew {
             return false;
         }
         long readTime = mClock.getElapsedSinceBootMillis() - readStartTime;
-        Log.d(TAG, "Loading from store completed in " + readTime + " ms.");
+        Log.d(TAG, "Reading from store completed in " + readTime + " ms.");
 
-        // Clear out all the existing in-memory lists and load the lists from what was retrieved
-        // from the config store.
-        clearInternalData();
-        for (WifiConfiguration configuration : storeData.getConfigurations()) {
-            configuration.networkId = mLastNetworkId++;
-            if (mVerboseLoggingEnabled) {
-                Log.v(TAG, "Adding network from store " + configuration.configKey());
-            }
-            mConfiguredNetworks.put(configuration);
-        }
-        for (String ssid : storeData.getDeletedEphemeralSSIDs()) {
-            mDeletedEphemeralSSIDs.add(ssid);
-        }
-        if (mConfiguredNetworks.sizeForAllUsers() == 0) {
-            Log.w(TAG, "No stored networks found.");
-        }
-        sendConfiguredNetworksChangedBroadcast();
+        loadInternalData(storeData.getConfigurations(), storeData.getDeletedEphemeralSSIDs());
         return true;
     }
 
@@ -1917,7 +2040,6 @@ public class WifiConfigManagerNew {
             Log.wtf(TAG, "XML serialization for store failed. Saved networks maybe lost!", e);
             return false;
         }
-
         long writeTime = mClock.getElapsedSinceBootMillis() - writeStartTime;
         Log.d(TAG, "Writing to store completed in " + writeTime + " ms.");
         return true;
