@@ -25,20 +25,6 @@ namespace wifi_system {
 extern const char kWiFiEntropyFile[];
 
 /**
- * Start supplicant.
- *
- * @return 0 on success, < 0 on failure.
- */
-int wifi_start_supplicant();
-
-/**
- * Stop supplicant.
- *
- * @return 0 on success, < 0 on failure.
- */
-int wifi_stop_supplicant();
-
-/**
  * Open a connection to supplicant
  *
  * @return 0 on success, < 0 on failure.

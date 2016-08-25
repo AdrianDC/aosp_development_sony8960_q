@@ -36,6 +36,8 @@
 #define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
 #include <sys/_system_properties.h>
 
+#include "wifi_system/supplicant_manager.h"
+
 #ifdef LIBWPA_CLIENT_EXISTS
 #include <libwpa_client/wpa_ctrl.h>
 #else
@@ -77,11 +79,6 @@ static char primary_iface[PROPERTY_VALUE_MAX];
 #define WIFI_DRIVER_LOADER_DELAY 1000000
 
 const char IFACE_DIR[] = "/data/system/wpa_supplicant";
-const char SUPPLICANT_SERVICE_NAME[] = "wpa_supplicant";
-const char SUPPLICANT_INIT_PROPERTY[] = "init.svc.wpa_supplicant";
-const char SUPP_CONFIG_TEMPLATE[] = "/system/etc/wifi/wpa_supplicant.conf";
-const char SUPP_CONFIG_FILE[] = "/data/misc/wifi/wpa_supplicant.conf";
-const char P2P_CONFIG_FILE[] = "/data/misc/wifi/p2p_supplicant.conf";
 
 const char IFNAME[] = "IFNAME=";
 #define IFNAMELEN (sizeof(IFNAME) - 1)
@@ -113,170 +110,16 @@ void wifi_close_sockets() {
   }
 }
 
-int ensure_config_file_exists(const char* config_file) {
-  char buf[2048];
-  int srcfd, destfd;
-  int nread;
-  int ret;
-
-  ret = access(config_file, R_OK | W_OK);
-  if ((ret == 0) || (errno == EACCES)) {
-    if ((ret != 0) &&
-        (chmod(config_file, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP) != 0)) {
-      ALOGE("Cannot set RW to \"%s\": %s", config_file, strerror(errno));
-      return -1;
-    }
-    return 0;
-  } else if (errno != ENOENT) {
-    ALOGE("Cannot access \"%s\": %s", config_file, strerror(errno));
-    return -1;
-  }
-
-  srcfd = TEMP_FAILURE_RETRY(open(SUPP_CONFIG_TEMPLATE, O_RDONLY));
-  if (srcfd < 0) {
-    ALOGE("Cannot open \"%s\": %s", SUPP_CONFIG_TEMPLATE, strerror(errno));
-    return -1;
-  }
-
-  destfd = TEMP_FAILURE_RETRY(open(config_file, O_CREAT | O_RDWR, 0660));
-  if (destfd < 0) {
-    close(srcfd);
-    ALOGE("Cannot create \"%s\": %s", config_file, strerror(errno));
-    return -1;
-  }
-
-  while ((nread = TEMP_FAILURE_RETRY(read(srcfd, buf, sizeof(buf)))) != 0) {
-    if (nread < 0) {
-      ALOGE("Error reading \"%s\": %s", SUPP_CONFIG_TEMPLATE, strerror(errno));
-      close(srcfd);
-      close(destfd);
-      unlink(config_file);
-      return -1;
-    }
-    TEMP_FAILURE_RETRY(write(destfd, buf, nread));
-  }
-
-  close(destfd);
-  close(srcfd);
-
-  /* chmod is needed because open() didn't set permisions properly */
-  if (chmod(config_file, 0660) < 0) {
-    ALOGE("Error changing permissions of %s to 0660: %s", config_file,
-          strerror(errno));
-    unlink(config_file);
-    return -1;
-  }
-
-  return 0;
-}
-
 }  // namespace
 
 const char kWiFiEntropyFile[] = "/data/misc/wifi/entropy.bin";
 
-int wifi_start_supplicant() {
-  char supp_status[PROPERTY_VALUE_MAX] = {'\0'};
-  int count = 200; /* wait at most 20 seconds for completion */
-  const prop_info* pi;
-  unsigned serial = 0;
-
-  /* Check whether already running */
-  if (property_get(SUPPLICANT_INIT_PROPERTY, supp_status, NULL) &&
-      strcmp(supp_status, "running") == 0) {
-    return 0;
-  }
-
-  /* Before starting the daemon, make sure its config file exists */
-  if (ensure_config_file_exists(SUPP_CONFIG_FILE) < 0) {
-    ALOGE("Wi-Fi will not be enabled");
-    return -1;
-  }
-
-  /*
-   * Some devices have another configuration file for the p2p interface.
-   * However, not all devices have this, and we'll let it slide if it
-   * is missing.  For devices that do expect this file to exist,
-   * supplicant will refuse to start and emit a good error message.
-   * No need to check for it here.
-   */
-  (void)ensure_config_file_exists(P2P_CONFIG_FILE);
-
-  if (ensure_entropy_file_exists() < 0) {
-    ALOGE("Wi-Fi entropy file was not created");
-  }
-
-  /* Clear out any stale socket files that might be left over. */
-  wpa_ctrl_cleanup();
-
-  /*
-   * Get a reference to the status property, so we can distinguish
-   * the case where it goes stopped => running => stopped (i.e.,
-   * it start up, but fails right away) from the case in which
-   * it starts in the stopped state and never manages to start
-   * running at all.
-   */
-  pi = __system_property_find(SUPPLICANT_INIT_PROPERTY);
-  if (pi != NULL) {
-    serial = __system_property_serial(pi);
-  }
-
-  property_set("ctl.start", SUPPLICANT_SERVICE_NAME);
-  sched_yield();
-
-  while (count-- > 0) {
-    if (pi == NULL) {
-      pi = __system_property_find(SUPPLICANT_INIT_PROPERTY);
-    }
-    if (pi != NULL) {
-      /*
-       * property serial updated means that init process is scheduled
-       * after we sched_yield, further property status checking is based on this
-       */
-      if (__system_property_serial(pi) != serial) {
-        __system_property_read(pi, NULL, supp_status);
-        if (strcmp(supp_status, "running") == 0) {
-          return 0;
-        } else if (strcmp(supp_status, "stopped") == 0) {
-          return -1;
-        }
-      }
-    }
-    usleep(100000);
-  }
-  return -1;
-}
-
-int wifi_stop_supplicant() {
-  char supp_status[PROPERTY_VALUE_MAX] = {'\0'};
-  int count = 50; /* wait at most 5 seconds for completion */
-
-  /* Check whether supplicant already stopped */
-  if (property_get(SUPPLICANT_INIT_PROPERTY, supp_status, NULL) &&
-      strcmp(supp_status, "stopped") == 0) {
-    return 0;
-  }
-
-  property_set("ctl.stop", SUPPLICANT_SERVICE_NAME);
-  sched_yield();
-
-  while (count-- > 0) {
-    if (property_get(SUPPLICANT_INIT_PROPERTY, supp_status, NULL)) {
-      if (strcmp(supp_status, "stopped") == 0) return 0;
-    }
-    usleep(100000);
-  }
-  ALOGE("Failed to stop supplicant");
-  return -1;
-}
-
 namespace {
 
 int wifi_connect_on_socket_path(const char* path) {
-  char supp_status[PROPERTY_VALUE_MAX] = {'\0'};
-
   /* Make sure supplicant is running */
-  if (!property_get(SUPPLICANT_INIT_PROPERTY, supp_status, NULL) ||
-      strcmp(supp_status, "running") != 0) {
+  android::wifi_system::SupplicantManager manager;
+  if (!manager.IsSupplicantRunning()) {
     ALOGE("Supplicant not running, cannot connect");
     return -1;
   }
@@ -331,20 +174,11 @@ int wifi_send_command(const char* cmd, char* reply, size_t* reply_len) {
   return 0;
 }
 
-int wifi_supplicant_connection_active() {
-  char supp_status[PROPERTY_VALUE_MAX] = {'\0'};
-
-  if (property_get(SUPPLICANT_INIT_PROPERTY, supp_status, NULL)) {
-    if (strcmp(supp_status, "stopped") == 0) return -1;
-  }
-
-  return 0;
-}
-
 int wifi_ctrl_recv(char* reply, size_t* reply_len) {
   int res;
   int ctrlfd = wpa_ctrl_get_fd(monitor_conn);
   struct pollfd rfds[2];
+  android::wifi_system::SupplicantManager manager;
 
   memset(rfds, 0, 2 * sizeof(struct pollfd));
   rfds[0].fd = ctrlfd;
@@ -360,8 +194,9 @@ int wifi_ctrl_recv(char* reply, size_t* reply_len) {
       /* timed out, check if supplicant is active
        * or not ..
        */
-      res = wifi_supplicant_connection_active();
-      if (res < 0) return -2;
+      if (!manager.IsSupplicantRunning()) {
+        return -2;
+      }
     }
   } while (res == 0);
 
@@ -467,15 +302,15 @@ int wifi_connect_to_supplicant() {
 }
 
 void wifi_close_supplicant_connection() {
-  char supp_status[PROPERTY_VALUE_MAX] = {'\0'};
   int count =
       50; /* wait at most 5 seconds to ensure init has stopped stupplicant */
 
   wifi_close_sockets();
 
+  android::wifi_system::SupplicantManager manager;
   while (count-- > 0) {
-    if (property_get(SUPPLICANT_INIT_PROPERTY, supp_status, NULL)) {
-      if (strcmp(supp_status, "stopped") == 0) return;
+    if (!manager.IsSupplicantRunning()) {
+      return;
     }
     usleep(100000);
   }

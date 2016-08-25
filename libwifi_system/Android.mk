@@ -54,6 +54,7 @@ LOCAL_SRC_FILES := \
     hostapd_manager.cpp \
     interface_tool.cpp \
     hal_tool.cpp \
+    supplicant_manager.cpp \
     wifi.cpp
 include $(BUILD_SHARED_LIBRARY)
 
