@@ -43,7 +43,6 @@
 #else
 #define WPA_EVENT_TERMINATING "CTRL-EVENT-TERMINATING "
 struct wpa_ctrl {};
-void wpa_ctrl_cleanup(void) {}
 struct wpa_ctrl* wpa_ctrl_open(const char* ctrl_path) {
   return NULL;
 }
