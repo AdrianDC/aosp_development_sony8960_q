@@ -4293,6 +4293,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         WifiStateMachine.this, mWifiScanner, mWifiConfigManager, mWifiInfo,
                         mWifiQualifiedNetworkSelector, mWifiInjector,
                         getHandler().getLooper(), hasConnectionRequests());
+                    mWifiConnectivityManager.setUntrustedConnectionAllowed(mUntrustedReqCount > 0);
                 }
             }
 
