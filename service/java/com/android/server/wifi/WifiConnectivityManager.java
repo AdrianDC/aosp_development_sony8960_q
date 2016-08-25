@@ -509,7 +509,7 @@ public class WifiConnectivityManager {
     public WifiConnectivityManager(Context context, WifiStateMachine stateMachine,
                 WifiScanner scanner, WifiConfigManager configManager, WifiInfo wifiInfo,
                 WifiQualifiedNetworkSelector qualifiedNetworkSelector,
-                WifiInjector wifiInjector, Looper looper) {
+                WifiInjector wifiInjector, Looper looper, boolean enable) {
         mStateMachine = stateMachine;
         mScanner = scanner;
         mConfigManager = configManager;
@@ -544,7 +544,10 @@ public class WifiConnectivityManager {
         // Register for all single scan results
         mScanner.registerScanListener(mAllSingleScanListener);
 
-        Log.i(TAG, "ConnectivityScanManager initialized ");
+        mWifiConnectivityManagerEnabled = enable;
+
+        Log.i(TAG, "ConnectivityScanManager initialized and "
+                + (enable ? "enabled" : "disabled"));
     }
 
     /**
@@ -1117,6 +1120,8 @@ public class WifiConnectivityManager {
             stopConnectivityScan();
             resetLastPeriodicSingleScanTimeStamp();
             mLastConnectionAttemptBssid = null;
+        } else if (mWifiConnectivityManagerEnabled) {
+           startConnectivityScan(SCAN_IMMEDIATELY);
         }
     }
 
@@ -1132,6 +1137,8 @@ public class WifiConnectivityManager {
             stopConnectivityScan();
             resetLastPeriodicSingleScanTimeStamp();
             mLastConnectionAttemptBssid = null;
+        } else if (mWifiEnabled) {
+           startConnectivityScan(SCAN_IMMEDIATELY);
         }
     }
 
