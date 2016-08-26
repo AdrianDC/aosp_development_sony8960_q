@@ -144,6 +144,8 @@ ifeq ($(EMMA_INSTRUMENT_FRAMEWORK),true)
 LOCAL_EMMA_INSTRUMENT := true
 endif
 
+LOCAL_JACK_COVERAGE_INCLUDE_FILTER := com.android.server.wifi.*
+
 include $(BUILD_JAVA_LIBRARY)
 
 endif
