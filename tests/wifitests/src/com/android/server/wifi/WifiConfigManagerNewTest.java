@@ -34,6 +34,7 @@ import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.telephony.TelephonyManager;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.text.TextUtils;
 
@@ -78,6 +79,7 @@ public class WifiConfigManagerNewTest {
     @Mock private FrameworkFacade mFrameworkFacade;
     @Mock private Clock mClock;
     @Mock private UserManager mUserManager;
+    @Mock private TelephonyManager mTelephonyManager;
     @Mock private WifiKeyStore mWifiKeyStore;
     @Mock private WifiConfigStoreNew mWifiConfigStore;
     @Mock private WifiConfigStoreLegacy mWifiConfigStoreLegacy;
@@ -1700,10 +1702,6 @@ public class WifiConfigManagerNewTest {
         mWifiConfigManager.handleUserSwitch(user2);
         // Ensure that the read was invoked.
         mContextConfigStoreMockOrder.verify(mWifiConfigStore).read();
-
-        // Unlock the user2 and ensure that we don't read the data now.
-        mWifiConfigManager.handleUserUnlock(user2);
-        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never()).read();
     }
 
     /**
@@ -1890,8 +1888,8 @@ public class WifiConfigManagerNewTest {
     private void createWifiConfigManager() {
         mWifiConfigManager =
                 new WifiConfigManagerNew(
-                        mContext, mFrameworkFacade, mClock, mUserManager, mWifiKeyStore,
-                        mWifiConfigStore, mWifiConfigStoreLegacy);
+                        mContext, mFrameworkFacade, mClock, mUserManager, mTelephonyManager,
+                        mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy);
         mWifiConfigManager.enableVerboseLogging(1);
     }
 

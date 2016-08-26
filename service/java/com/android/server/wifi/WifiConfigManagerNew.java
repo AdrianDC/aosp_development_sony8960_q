@@ -36,6 +36,7 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.LocalLog;
 import android.util.Log;
@@ -45,6 +46,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalServices;
 import com.android.server.wifi.WifiConfigStoreLegacy.WifiConfigStoreDataLegacy;
 import com.android.server.wifi.util.ScanResultUtil;
+import com.android.server.wifi.util.TelephonyUtil;
 
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -204,6 +206,7 @@ public class WifiConfigManagerNew {
     private final Clock mClock;
     private final UserManager mUserManager;
     private final BackupManagerProxy mBackupManagerProxy;
+    private final TelephonyManager mTelephonyManager;
     private final WifiKeyStore mWifiKeyStore;
     private final WifiConfigStoreNew mWifiConfigStore;
     private final WifiConfigStoreLegacy mWifiConfigStoreLegacy;
@@ -245,11 +248,6 @@ public class WifiConfigManagerNew {
      */
     private int mCurrentUserId = UserHandle.USER_SYSTEM;
     /**
-     *
-     * Flag to indicate that the new user's store has not yet been read since user switch.
-     */
-    private boolean mPendingUnlockStoreRead = false;
-    /**
      * This is keeping track of the last network ID assigned. Any new networks will be assigned
      * |mLastNetworkId + 1| as network ID.
      */
@@ -274,13 +272,14 @@ public class WifiConfigManagerNew {
      */
     WifiConfigManagerNew(
             Context context, FrameworkFacade facade, Clock clock, UserManager userManager,
-            WifiKeyStore wifiKeyStore, WifiConfigStoreNew wifiConfigStore,
-            WifiConfigStoreLegacy wifiConfigStoreLegacy) {
+            TelephonyManager telephonyManager, WifiKeyStore wifiKeyStore,
+            WifiConfigStoreNew wifiConfigStore, WifiConfigStoreLegacy wifiConfigStoreLegacy) {
         mContext = context;
         mFacade = facade;
         mClock = clock;
         mUserManager = userManager;
         mBackupManagerProxy = new BackupManagerProxy();
+        mTelephonyManager = telephonyManager;
         mWifiKeyStore = wifiKeyStore;
         mWifiConfigStore = wifiConfigStore;
         mWifiConfigStoreLegacy = wifiConfigStoreLegacy;
@@ -908,6 +907,12 @@ public class WifiConfigManagerNew {
         // Add it to our internal map. This will replace any existing network configuration for
         // updates.
         mConfiguredNetworks.put(newInternalConfig);
+
+        if (mDeletedEphemeralSSIDs.remove(config.SSID)) {
+            if (mVerboseLoggingEnabled) {
+                Log.v(TAG, "Removed from ephemeral blacklist: " + config.SSID);
+            }
+        }
 
         // Stage the backup of the SettingsProvider package which backs this up.
         mBackupManagerProxy.notifyDataChanged();
@@ -1892,6 +1897,71 @@ public class WifiConfigManagerNew {
     }
 
     /**
+     * Disable an ephemeral SSID for the purpose of network selection.
+     *
+     * The only way to "un-disable it" is if the user create a network for that SSID and then
+     * forget it.
+     *
+     * @param ssid caller must ensure that the SSID passed thru this API match
+     *             the WifiConfiguration.SSID rules, and thus be surrounded by quotes.
+     * @return the {@link WifiConfiguration} corresponding to this SSID, if any, so that we can
+     * disconnect if this is the current network.
+     */
+    public WifiConfiguration disableEphemeralNetwork(String ssid) {
+        if (ssid == null) {
+            return null;
+        }
+        WifiConfiguration foundConfig = null;
+        for (WifiConfiguration config : getInternalConfiguredNetworks()) {
+            if (config.ephemeral && TextUtils.equals(config.SSID, ssid)) {
+                foundConfig = config;
+                break;
+            }
+        }
+        mDeletedEphemeralSSIDs.add(ssid);
+        Log.d(TAG, "Forget ephemeral SSID " + ssid + " num=" + mDeletedEphemeralSSIDs.size());
+        if (foundConfig != null) {
+            Log.d(TAG, "Found ephemeral config in disableEphemeralNetwork: "
+                    + foundConfig.networkId);
+        }
+        return foundConfig;
+    }
+
+    /**
+     * Resets all sim networks state.
+     */
+    public void resetSimNetworks() {
+        if (mVerboseLoggingEnabled) localLog("resetSimNetworks");
+        for (WifiConfiguration config : getInternalConfiguredNetworks()) {
+            if (TelephonyUtil.isSimConfig(config)) {
+                String currentIdentity = TelephonyUtil.getSimIdentity(mTelephonyManager,
+                        config.enterpriseConfig.getEapMethod());
+                // Update the loaded config
+                config.enterpriseConfig.setIdentity(currentIdentity);
+                config.enterpriseConfig.setAnonymousIdentity("");
+            }
+        }
+    }
+
+    /**
+     * Any network using certificates to authenticate access requires unlocked key store; unless
+     * the certificates can be stored with hardware encryption
+     *
+     * @return true if we need an unlocked keystore, false otherwise.
+     */
+    public boolean needsUnlockedKeyStore() {
+        for (WifiConfiguration config : getInternalConfiguredNetworks()) {
+            if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP)
+                    && config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
+                if (mWifiKeyStore.needsSoftwareBackedKeyStore(config.enterpriseConfig)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * Helper method to clear internal databases.
      * This method clears the:
      *  - List of configured networks.
@@ -1902,6 +1972,7 @@ public class WifiConfigManagerNew {
         mConfiguredNetworks.clear();
         mDeletedEphemeralSSIDs.clear();
         mScanDetailCaches.clear();
+        clearLastSelectedNetwork();
     }
 
     /**
@@ -1909,11 +1980,14 @@ public class WifiConfigManagerNew {
      * - Load from the new store files.
      * - Save the store files again to migrate any user specific networks from the shared store
      *   to user store.
+     *
+     * @param userId The identifier of the new foreground user, after the switch.
      */
-    private void loadFromStoreAndMigrateAfterUserSwitch() {
+    private void loadFromStoreAndMigrateAfterUserSwitch(int userId) {
+        // Switch out the user store file.
+        mWifiConfigStore.switchUserStore(mWifiConfigStore.createUserFile(userId));
         if (loadFromStore()) {
             saveToStore(true);
-            mPendingUnlockStoreRead = false;
         }
     }
 
@@ -1941,14 +2015,11 @@ public class WifiConfigManagerNew {
         mConfiguredNetworks.setNewUser(userId);
         clearInternalData();
 
-        // Switch out the user store file.
-        mWifiConfigStore.switchUserStore(mWifiConfigStore.createUserFile(userId));
         if (mUserManager.isUserUnlockingOrUnlocked(mCurrentUserId)) {
-            loadFromStoreAndMigrateAfterUserSwitch();
+            loadFromStoreAndMigrateAfterUserSwitch(mCurrentUserId);
         } else {
             // Since the new user is not logged-in yet, we cannot read data from the store files
             // yet.
-            mPendingUnlockStoreRead = true;
             Log.i(TAG, "Waiting for user unlock to load from store");
         }
     }
@@ -1962,8 +2033,8 @@ public class WifiConfigManagerNew {
      * @param userId The identifier of the user that unlocked.
      */
     public void handleUserUnlock(int userId) {
-        if (userId == mCurrentUserId && mPendingUnlockStoreRead) {
-            loadFromStoreAndMigrateAfterUserSwitch();
+        if (userId == mCurrentUserId) {
+            loadFromStoreAndMigrateAfterUserSwitch(mCurrentUserId);
         }
     }
 
@@ -2048,7 +2119,6 @@ public class WifiConfigManagerNew {
      *
      * @return true on success, false otherwise.
      */
-    @VisibleForTesting
     public boolean loadFromStore() {
         if (!mWifiConfigStore.areStoresPresent()) {
             return migrateFromLegacyStore();
@@ -2078,7 +2148,7 @@ public class WifiConfigManagerNew {
      * @param forceWrite Whether the write needs to be forced or not.
      * @return Whether the write was successful or not, this is applicable only for force writes.
      */
-    private boolean saveToStore(boolean forceWrite) {
+    public boolean saveToStore(boolean forceWrite) {
         ArrayList<WifiConfiguration> sharedConfigurations = new ArrayList<>();
         ArrayList<WifiConfiguration> userConfigurations = new ArrayList<>();
         for (WifiConfiguration config : mConfiguredNetworks.valuesForAllUsers()) {
