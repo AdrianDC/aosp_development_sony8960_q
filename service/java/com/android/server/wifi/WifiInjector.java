@@ -25,6 +25,7 @@ import android.os.IBinder;
 import android.os.INetworkManagementService;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
+import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
 import android.security.KeyStore;
@@ -32,6 +33,8 @@ import android.telephony.TelephonyManager;
 
 import com.android.internal.R;
 import com.android.server.am.BatteryStatsService;
+import com.android.server.net.DelayedDiskWrite;
+import com.android.server.net.IpConfigStore;
 
 import java.util.ArrayList;
 
@@ -56,6 +59,7 @@ public class WifiInjector {
     private final WifiTrafficPoller mTrafficPoller;
     private final WifiCountryCode mCountryCode;
     private final BackupManagerProxy mBackupManagerProxy = new BackupManagerProxy();
+    private final WifiNative mWifiNative;
     private final WifiStateMachine mWifiStateMachine;
     private final WifiSettingsStore mSettingsStore;
     private final WifiCertManager mCertManager;
@@ -70,6 +74,14 @@ public class WifiInjector {
     private final KeyStore mKeyStore = KeyStore.getInstance();
     private final WifiBackupRestore mWifiBackupRestore = new WifiBackupRestore();
     private final WifiMulticastLockManager mWifiMulticastLockManager;
+    private final WifiConfigStoreNew mWifiConfigStore;
+    private final WifiKeyStore mWifiKeyStore;
+    private final WifiNetworkHistory mWifiNetworkHistory;
+    private final WifiSupplicantControl mWifiSupplicantControl;
+    private final IpConfigStore mIpConfigStore;
+    private final WifiConfigStoreLegacy mWifiConfigStoreLegacy;
+    private final WifiConfigManagerNew mWifiConfigManager;
+
     private final boolean mUseRealLogger;
 
     public WifiInjector(Context context) {
@@ -103,9 +115,10 @@ public class WifiInjector {
                 mFrameworkFacade.getStringSetting(mContext, Settings.Global.WIFI_COUNTRY_CODE),
                 mContext.getResources()
                         .getBoolean(R.bool.config_wifi_revert_country_code_on_cellular_loss));
+        mWifiNative = WifiNative.getWlanNativeInterface();
         mWifiStateMachine = new WifiStateMachine(mContext, mFrameworkFacade,
                 mWifiStateMachineHandlerThread.getLooper(), UserManager.get(mContext),
-                this, mBackupManagerProxy, mCountryCode);
+                this, mBackupManagerProxy, mCountryCode, mWifiNative);
         mSettingsStore = new WifiSettingsStore(mContext);
         mCertManager = new WifiCertManager(mContext);
         mNotificationController = new WifiNotificationController(mContext,
@@ -117,6 +130,25 @@ public class WifiInjector {
         mWifiLastResortWatchdog = new WifiLastResortWatchdog(mWifiController, mWifiMetrics);
         mWifiMulticastLockManager = new WifiMulticastLockManager(mWifiStateMachine,
                 BatteryStatsService.getService());
+
+        // WifiConfigManager/Store objects and their dependencies.
+        // New config store
+        mWifiConfigStore = new WifiConfigStoreNew(mContext,
+                mWifiStateMachineHandlerThread.getLooper(), mClock,
+                WifiConfigStoreNew.createSharedFile(),
+                WifiConfigStoreNew.createUserFile(UserHandle.USER_SYSTEM));
+        mWifiKeyStore = new WifiKeyStore(mKeyStore);
+        // Legacy config store
+        DelayedDiskWrite writer = new DelayedDiskWrite();
+        mWifiNetworkHistory = new WifiNetworkHistory(mContext, mWifiNative.getLocalLog(), writer);
+        mWifiSupplicantControl = new WifiSupplicantControl(
+                TelephonyManager.from(mContext), mWifiNative, mWifiNative.getLocalLog());
+        mIpConfigStore = new IpConfigStore(writer);
+        mWifiConfigStoreLegacy = new WifiConfigStoreLegacy(
+                mWifiNetworkHistory, mWifiSupplicantControl, mIpConfigStore);
+        // Config Manager
+        mWifiConfigManager = new WifiConfigManagerNew(mContext, mFrameworkFacade, mClock,
+                UserManager.get(mContext), mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy);
     }
 
     /**
@@ -211,6 +243,14 @@ public class WifiInjector {
 
     public WifiMulticastLockManager getWifiMulticastLockManager() {
         return mWifiMulticastLockManager;
+    }
+
+    public WifiSupplicantControl getWifiSupplicantControl() {
+        return mWifiSupplicantControl;
+    }
+
+    public WifiConfigManagerNew getWifiConfigManager() {
+        return mWifiConfigManager;
     }
 
     public TelephonyManager makeTelephonyManager() {

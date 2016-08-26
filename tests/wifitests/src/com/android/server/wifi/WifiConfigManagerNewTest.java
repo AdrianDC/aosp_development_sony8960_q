@@ -52,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiConfigManagerNew}.
@@ -1809,8 +1810,10 @@ public class WifiConfigManagerNewTest {
         networks.add(WifiConfigurationTestUtil.createPskNetwork());
         networks.add(WifiConfigurationTestUtil.createEapNetwork());
         networks.add(WifiConfigurationTestUtil.createWepNetwork());
+        String deletedEphemeralSSID = "EphemeralSSID";
+        Set<String> deletedEphermalSSIDs = new HashSet<>(Arrays.asList(deletedEphemeralSSID));
         WifiConfigStoreDataLegacy storeData =
-                new WifiConfigStoreDataLegacy(networks, new HashSet<String>());
+                new WifiConfigStoreDataLegacy(networks, deletedEphermalSSIDs);
 
         // New store files not present, so migrate from the old store.
         when(mWifiConfigStore.areStoresPresent()).thenReturn(false);
@@ -1828,6 +1831,7 @@ public class WifiConfigManagerNewTest {
                 mWifiConfigManager.getConfiguredNetworksWithPasswords();
         WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
                 networks, retrievedNetworks);
+        assertTrue(mWifiConfigManager.wasEphemeralNetworkDeleted(deletedEphemeralSSID));
     }
 
     /**
@@ -1899,7 +1903,6 @@ public class WifiConfigManagerNewTest {
     private void setDefaults(WifiConfiguration configuration) {
         if (configuration.allowedAuthAlgorithms.isEmpty()) {
             configuration.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.OPEN);
-            configuration.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.SHARED);
         }
         if (configuration.allowedProtocols.isEmpty()) {
             configuration.allowedProtocols.set(WifiConfiguration.Protocol.RSN);

@@ -354,6 +354,23 @@ public class WifiConfigManagerNew {
     }
 
     /**
+     * Helper method to create a copy of the provided internal WifiConfiguration object to be
+     * passed to external modules.
+     *
+     * @param configuration provided WifiConfiguration object.
+     * @param maskPasswords Mask passwords or not.
+     * @return Copy of the WifiConfiguration object.
+     */
+    private WifiConfiguration createExternalWifiConfiguration(
+            WifiConfiguration configuration, boolean maskPasswords) {
+        WifiConfiguration network = new WifiConfiguration(configuration);
+        if (maskPasswords) {
+            maskPasswordsInWifiConfiguration(network);
+        }
+        return network;
+    }
+
+    /**
      * Fetch the list of currently configured networks maintained in WifiConfigManager.
      *
      * This retrieves a copy of the internal configurations maintained by WifiConfigManager and
@@ -370,11 +387,7 @@ public class WifiConfigManagerNew {
             if (savedOnly && config.ephemeral) {
                 continue;
             }
-            WifiConfiguration newConfig = new WifiConfiguration(config);
-            if (maskPasswords) {
-                maskPasswordsInWifiConfiguration(newConfig);
-            }
-            networks.add(newConfig);
+            networks.add(createExternalWifiConfiguration(config, maskPasswords));
         }
         return networks;
     }
@@ -424,9 +437,24 @@ public class WifiConfigManagerNew {
         }
         // Create a new configuration object with the passwords masked to send out to the external
         // world.
-        WifiConfiguration network = new WifiConfiguration(config);
-        maskPasswordsInWifiConfiguration(network);
-        return network;
+        return createExternalWifiConfiguration(config, true);
+    }
+
+    /**
+     * Retrieves the configured network corresponding to the provided config key with password
+     * masked.
+     *
+     * @param configKey configKey of the requested network.
+     * @return WifiConfiguration object if found, null otherwise.
+     */
+    public WifiConfiguration getConfiguredNetwork(String configKey) {
+        WifiConfiguration config = getInternalConfiguredNetwork(configKey);
+        if (config == null) {
+            return null;
+        }
+        // Create a new configuration object with the passwords masked to send out to the external
+        // world.
+        return createExternalWifiConfiguration(config, true);
     }
 
     /**
@@ -446,8 +474,7 @@ public class WifiConfigManagerNew {
         }
         // Create a new configuration object without the passwords masked to send out to the
         // external world.
-        WifiConfiguration network = new WifiConfiguration(config);
-        return network;
+        return createExternalWifiConfiguration(config, false);
     }
 
     /**
@@ -744,7 +771,6 @@ public class WifiConfigManagerNew {
      */
     private void setDefaultsInWifiConfiguration(WifiConfiguration configuration) {
         configuration.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.OPEN);
-        configuration.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.SHARED);
 
         configuration.allowedProtocols.set(WifiConfiguration.Protocol.RSN);
         configuration.allowedProtocols.set(WifiConfiguration.Protocol.WPA);
@@ -1345,8 +1371,8 @@ public class WifiConfigManagerNew {
      * {@link NetworkSelectionStatus#mCandidateScore} &
      * {@link NetworkSelectionStatus#mSeenInLastQualifiedNetworkSelection} for the provided network.
      *
-     * This is invoked by Network Selector when it sees a network during network selection procedure to set the
-     * scan result candidate.
+     * This is invoked by Network Selector when it sees a network during network selection procedure
+     * to set the scan result candidate.
      *
      * @param networkId  network ID corresponding to the network.
      * @param scanResult Candidate ScanResult associated with this network.
@@ -1362,6 +1388,48 @@ public class WifiConfigManagerNew {
         config.getNetworkSelectionStatus().setCandidateScore(score);
         // Update the network selection status.
         config.getNetworkSelectionStatus().setSeenInLastQualifiedNetworkSelection(true);
+        return true;
+    }
+
+    /**
+     * Helper method to clear the {@link NetworkSelectionStatus#mConnectChoice} &
+     * {@link NetworkSelectionStatus#mConnectChoiceTimestamp} for the provided network.
+     *
+     * @param networkId network ID corresponding to the network.
+     * @return true if the network was found, false otherwise.
+     */
+    public boolean clearNetworkConnectChoice(int networkId) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return false;
+        }
+        config.getNetworkSelectionStatus().setConnectChoice(null);
+        config.getNetworkSelectionStatus().setConnectChoiceTimestamp(
+                NetworkSelectionStatus.INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP);
+        return true;
+    }
+
+    /**
+     * Helper method to set the {@link NetworkSelectionStatus#mConnectChoice} &
+     * {@link NetworkSelectionStatus#mConnectChoiceTimestamp} for the provided network.
+     *
+     * This is invoked by Network Selector when the user overrides the currently connected network
+     * choice.
+     *
+     * @param networkId              network ID corresponding to the network.
+     * @param connectChoiceConfigKey ConfigKey corresponding to the network which was chosen over
+     *                               this network.
+     * @param timestamp              timestamp at which the choice was made.
+     * @return true if the network was found, false otherwise.
+     */
+    public boolean setNetworkConnectChoice(
+            int networkId, String connectChoiceConfigKey, long timestamp) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return false;
+        }
+        config.getNetworkSelectionStatus().setConnectChoice(connectChoiceConfigKey);
+        config.getNetworkSelectionStatus().setConnectChoiceTimestamp(timestamp);
         return true;
     }
 
@@ -1492,13 +1560,8 @@ public class WifiConfigManagerNew {
             Log.e(TAG, "No scan result found in scan detail");
             return null;
         }
-        // Add the double quotes to the scan result SSID for comparison with the network configs.
-        String ssidToCompare = "\"" + scanResult.SSID + "\"";
         for (WifiConfiguration config : getInternalConfiguredNetworks()) {
-            if (config.SSID == null || !config.SSID.equals(ssidToCompare)) {
-                continue;
-            }
-            if (ScanResultUtil.doesScanResultEncryptionMatchWithNetwork(scanResult, config)) {
+            if (ScanResultUtil.doesScanResultMatchWithNetwork(scanResult, config)) {
                 localLog("getSavedNetworkFromScanDetail: Found " + config.configKey()
                         + " for " + scanResult.SSID + "[" + scanResult.capabilities + "]");
                 return config;
@@ -1816,6 +1879,16 @@ public class WifiConfigManagerNew {
             priority--;
         }
         return pnoList;
+    }
+
+    /**
+     * Check if the provided ephemeral network was deleted by the user or not.
+     *
+     * @param ssid ssid of the network
+     * @return true if network was deleted, false otherwise.
+     */
+    public boolean wasEphemeralNetworkDeleted(String ssid) {
+        return mDeletedEphemeralSSIDs.contains(ssid);
     }
 
     /**

@@ -18,7 +18,9 @@ package com.android.server.wifi.util;
 
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
+import android.text.TextUtils;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.ScanDetail;
 import com.android.server.wifi.WifiConfigurationUtil;
 import com.android.server.wifi.hotspot2.NetworkDetail;
@@ -78,28 +80,63 @@ public class ScanResultUtil {
     }
 
     /**
-     * Helper method to check if the provided |scanResult| and |config| have the same
-     * encryption type.
+     * Helper method to quote the SSID in Scan result to use for comparing/filling SSID stored in
+     * WifiConfiguration object.
      */
-    public static boolean doesScanResultEncryptionMatchWithNetwork(
+    @VisibleForTesting
+    public static String createQuotedSSID(String ssid) {
+        return "\"" + ssid + "\"";
+    }
+
+    /**
+     * Checks if the provided |scanResult| match with the provided |config|. Essentially checks
+     * if the network config and scan result have the same SSID and encryption type.
+     */
+    public static boolean doesScanResultMatchWithNetwork(
             ScanResult scanResult, WifiConfiguration config) {
-        if (ScanResultUtil.isScanResultForPskNetwork(scanResult)
-                && WifiConfigurationUtil.isConfigForPskNetwork(config)) {
-            return true;
-        }
-        if (ScanResultUtil.isScanResultForEapNetwork(scanResult)
-                && WifiConfigurationUtil.isConfigForEapNetwork(config)) {
-            return true;
-        }
-        if (ScanResultUtil.isScanResultForWepNetwork(scanResult)
-                && WifiConfigurationUtil.isConfigForWepNetwork(config)) {
-            return true;
-        }
-        if (ScanResultUtil.isScanResultForOpenNetwork(scanResult)
-                && WifiConfigurationUtil.isConfigForOpenNetwork(config)) {
-            return true;
+        // Add the double quotes to the scan result SSID for comparison with the network configs.
+        String configSSID = createQuotedSSID(scanResult.SSID);
+        if (TextUtils.equals(config.SSID, configSSID)) {
+            if (ScanResultUtil.isScanResultForPskNetwork(scanResult)
+                    && WifiConfigurationUtil.isConfigForPskNetwork(config)) {
+                return true;
+            }
+            if (ScanResultUtil.isScanResultForEapNetwork(scanResult)
+                    && WifiConfigurationUtil.isConfigForEapNetwork(config)) {
+                return true;
+            }
+            if (ScanResultUtil.isScanResultForWepNetwork(scanResult)
+                    && WifiConfigurationUtil.isConfigForWepNetwork(config)) {
+                return true;
+            }
+            if (ScanResultUtil.isScanResultForOpenNetwork(scanResult)
+                    && WifiConfigurationUtil.isConfigForOpenNetwork(config)) {
+                return true;
+            }
         }
         return false;
+    }
+
+    /**
+     * Creates a network configuration object using the provided |scanResult|.
+     * This is used to create ephemeral network configurations.
+     */
+    public static WifiConfiguration createNetworkFromScanResult(ScanResult scanResult) {
+        WifiConfiguration config = new WifiConfiguration();
+        config.SSID = createQuotedSSID(scanResult.SSID);
+        if (isScanResultForPskNetwork(scanResult)) {
+            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
+        } else if (isScanResultForEapNetwork(scanResult)) {
+            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_EAP);
+            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.IEEE8021X);
+        } else if (isScanResultForWepNetwork(scanResult)) {
+            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+            config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.OPEN);
+            config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.SHARED);
+        } else {
+            config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+        }
+        return config;
     }
 
 }
