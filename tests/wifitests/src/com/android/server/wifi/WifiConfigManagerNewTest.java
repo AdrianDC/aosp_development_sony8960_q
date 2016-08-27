@@ -2451,6 +2451,9 @@ public class WifiConfigManagerNewTest {
 
         WifiConfiguration retrievedNetwork =
                 mWifiConfigManager.getSavedNetworkForScanDetailAndCache(scanDetail);
+        // Retrieve the network with password data for comparison.
+        retrievedNetwork =
+                mWifiConfigManager.getConfiguredNetworkWithPassword(retrievedNetwork.networkId);
 
         WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
                 network, retrievedNetwork);

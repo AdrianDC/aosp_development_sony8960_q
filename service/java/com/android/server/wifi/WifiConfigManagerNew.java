@@ -34,7 +34,6 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
-import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -176,7 +175,10 @@ public class WifiConfigManagerNew {
      * Log tag for this class.
      */
     private static final String TAG = "WifiConfigManagerNew";
-
+    /**
+     * Maximum age of scan results that can be used for averaging out RSSI value.
+     */
+    private static final int SCAN_RESULT_MAXIMUM_AGE_MS = 40000;
     /**
      * Disconnected/Connected PnoNetwork list sorting algorithm:
      * Place the configurations in descending order of their |numAssociation| values. If networks
@@ -681,7 +683,8 @@ public class WifiConfigManagerNew {
             internalConfig.BSSID = externalConfig.BSSID;
         }
         internalConfig.hiddenSSID = externalConfig.hiddenSSID;
-        if (externalConfig.preSharedKey != null) {
+        if (externalConfig.preSharedKey != null
+                && !externalConfig.preSharedKey.equals(PASSWORD_MASK)) {
             internalConfig.preSharedKey = externalConfig.preSharedKey;
         }
         // Modify only wep keys are present in the provided configuration. This is a little tricky
@@ -690,7 +693,8 @@ public class WifiConfigManagerNew {
         if (externalConfig.wepKeys != null) {
             boolean hasWepKey = false;
             for (int i = 0; i < internalConfig.wepKeys.length; i++) {
-                if (externalConfig.wepKeys[i] != null) {
+                if (externalConfig.wepKeys[i] != null
+                        && !externalConfig.wepKeys[i].equals(PASSWORD_MASK)) {
                     internalConfig.wepKeys[i] = externalConfig.wepKeys[i];
                     hasWepKey = true;
                 }
@@ -1274,7 +1278,7 @@ public class WifiConfigManagerNew {
      */
     public boolean enableNetwork(int networkId, boolean disableOthers, int uid) {
         if (mVerboseLoggingEnabled) {
-            Log.v(TAG, "Enabling network " + networkId + "(disableOthers " + disableOthers + ")");
+            Log.v(TAG, "Enabling network " + networkId + " (disableOthers " + disableOthers + ")");
         }
         if (!doesUidBelongToCurrentUser(uid)) {
             Log.e(TAG, "UID " + uid + " not visible to the current user");
@@ -1343,6 +1347,9 @@ public class WifiConfigManagerNew {
      * network, false otherwise.
      */
     public boolean checkAndUpdateLastConnectUid(int networkId, int uid) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Update network last connect UID for " + networkId);
+        }
         if (!doesUidBelongToCurrentUser(uid)) {
             Log.e(TAG, "UID " + uid + " not visible to the current user");
             return false;
@@ -1433,7 +1440,7 @@ public class WifiConfigManagerNew {
     }
 
     /**
-     * Helper method to clear the {@link NetworkSelectionStatus#mCandidate},
+     * Clear the {@link NetworkSelectionStatus#mCandidate},
      * {@link NetworkSelectionStatus#mCandidateScore} &
      * {@link NetworkSelectionStatus#mSeenInLastQualifiedNetworkSelection} for the provided network.
      *
@@ -1444,6 +1451,9 @@ public class WifiConfigManagerNew {
      * @return true if the network was found, false otherwise.
      */
     public boolean clearNetworkCandidateScanResult(int networkId) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Clear network candidate scan result for " + networkId);
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
             return false;
@@ -1455,7 +1465,7 @@ public class WifiConfigManagerNew {
     }
 
     /**
-     * Helper method to set the {@link NetworkSelectionStatus#mCandidate},
+     * Set the {@link NetworkSelectionStatus#mCandidate},
      * {@link NetworkSelectionStatus#mCandidateScore} &
      * {@link NetworkSelectionStatus#mSeenInLastQualifiedNetworkSelection} for the provided network.
      *
@@ -1468,6 +1478,9 @@ public class WifiConfigManagerNew {
      * @return true if the network was found, false otherwise.
      */
     public boolean setNetworkCandidateScanResult(int networkId, ScanResult scanResult, int score) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Set network candidate scan result " + scanResult + " for " + networkId);
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
             return false;
@@ -1505,13 +1518,16 @@ public class WifiConfigManagerNew {
     }
 
     /**
-     * Helper method to clear the {@link NetworkSelectionStatus#mConnectChoice} &
+     * Clear the {@link NetworkSelectionStatus#mConnectChoice} &
      * {@link NetworkSelectionStatus#mConnectChoiceTimestamp} for the provided network.
      *
      * @param networkId network ID corresponding to the network.
      * @return true if the network was found, false otherwise.
      */
     public boolean clearNetworkConnectChoice(int networkId) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Clear network connect choice for " + networkId);
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
             return false;
@@ -1523,7 +1539,7 @@ public class WifiConfigManagerNew {
     }
 
     /**
-     * Helper method to set the {@link NetworkSelectionStatus#mConnectChoice} &
+     * Set the {@link NetworkSelectionStatus#mConnectChoice} &
      * {@link NetworkSelectionStatus#mConnectChoiceTimestamp} for the provided network.
      *
      * This is invoked by Network Selector when the user overrides the currently connected network
@@ -1537,6 +1553,9 @@ public class WifiConfigManagerNew {
      */
     public boolean setNetworkConnectChoice(
             int networkId, String connectChoiceConfigKey, long timestamp) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Set network connect choice " + connectChoiceConfigKey + " for " + networkId);
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
             return false;
@@ -1783,7 +1802,47 @@ public class WifiConfigManagerNew {
             return null;
         }
         saveToScanDetailCacheForNetwork(network, scanDetail);
-        return getConfiguredNetworkWithPassword(network.networkId);
+        // Cache DTIM values parsed from the beacon frame Traffic Indication Map (TIM)
+        // Information Element (IE), into the associated WifiConfigurations. Most of the
+        // time there is no TIM IE in the scan result (Probe Response instead of Beacon
+        // Frame), these scanResult DTIM's are negative and ignored.
+        // Used for metrics collection.
+        if (scanDetail.getNetworkDetail() != null
+                && scanDetail.getNetworkDetail().getDtimInterval() > 0) {
+            network.dtimInterval = scanDetail.getNetworkDetail().getDtimInterval();
+        }
+        return createExternalWifiConfiguration(network, true);
+    }
+
+    /**
+     * Update the scan detail cache associated with current connected network with latest
+     * RSSI value in the provided WifiInfo.
+     * This is invoked when we get an RSSI poll update after connection.
+     *
+     * @param info WifiInfo instance pointing to the current connected network.
+     */
+    public void updateScanDetailCacheFromWifiInfo(WifiInfo info) {
+        WifiConfiguration config = getInternalConfiguredNetwork(info.getNetworkId());
+        ScanDetailCache scanDetailCache = getScanDetailCacheForNetwork(info.getNetworkId());
+        if (config != null && scanDetailCache != null) {
+            ScanDetail scanDetail = scanDetailCache.getScanDetail(info.getBSSID());
+            if (scanDetail != null) {
+                ScanResult result = scanDetail.getScanResult();
+                long previousSeen = result.seen;
+                int previousRssi = result.level;
+                // Update the scan result
+                scanDetail.setSeen();
+                result.level = info.getRssi();
+                // Average the RSSI value
+                result.averageRssi(previousRssi, previousSeen, SCAN_RESULT_MAXIMUM_AGE_MS);
+                if (mVerboseLoggingEnabled) {
+                    Log.v(TAG, "Updating scan detail cache freq=" + result.frequency
+                            + " BSSID=" + result.BSSID
+                            + " RSSI=" + result.level
+                            + " for " + config.configKey());
+                }
+            }
+        }
     }
 
     /**
