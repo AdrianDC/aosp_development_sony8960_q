@@ -1927,6 +1927,45 @@ public class WifiConfigManagerNewTest {
         assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
     }
 
+    /**
+     * Verifies that the connect choice is removed from all networks when
+     * {@link WifiConfigManagerNew#removeNetwork(int, int)} is invoked.
+     */
+    @Test
+    public void testRemoveNetworkRemovesConnectChoice() throws Exception {
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createOpenNetwork();
+        WifiConfiguration network2 = WifiConfigurationTestUtil.createPskNetwork();
+        WifiConfiguration network3 = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkToWifiConfigManager(network1);
+        verifyAddNetworkToWifiConfigManager(network2);
+        verifyAddNetworkToWifiConfigManager(network3);
+
+        // Set connect choice of network 2 over network 1.
+        assertTrue(
+                mWifiConfigManager.setNetworkConnectChoice(
+                        network1.networkId, network2.configKey(), 78L));
+
+        WifiConfiguration retrievedNetwork =
+                mWifiConfigManager.getConfiguredNetwork(network1.networkId);
+        assertEquals(
+                network2.configKey(),
+                retrievedNetwork.getNetworkSelectionStatus().getConnectChoice());
+
+        // Remove network 3 and ensure that the connect choice on network 1 is not removed.
+        assertTrue(mWifiConfigManager.removeNetwork(network3.networkId, TEST_CREATOR_UID));
+        retrievedNetwork = mWifiConfigManager.getConfiguredNetwork(network1.networkId);
+        assertEquals(
+                network2.configKey(),
+                retrievedNetwork.getNetworkSelectionStatus().getConnectChoice());
+
+        // Now remove network 2 and ensure that the connect choice on network 1 is removed..
+        assertTrue(mWifiConfigManager.removeNetwork(network2.networkId, TEST_CREATOR_UID));
+        retrievedNetwork = mWifiConfigManager.getConfiguredNetwork(network1.networkId);
+        assertNotEquals(
+                network2.configKey(),
+                retrievedNetwork.getNetworkSelectionStatus().getConnectChoice());
+    }
+
     private void createWifiConfigManager() {
         mWifiConfigManager =
                 new WifiConfigManagerNew(

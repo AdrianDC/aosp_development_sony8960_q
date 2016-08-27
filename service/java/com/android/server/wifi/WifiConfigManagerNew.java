@@ -583,7 +583,7 @@ public class WifiConfigManagerNew {
      * @param uid uid of the app.
      * @return true if the app does have the permission, false otherwise.
      */
-    private boolean checkConfigOverridePermission(int uid) {
+    public boolean checkConfigOverridePermission(int uid) {
         try {
             int permission =
                     mFacade.checkUidPermission(
@@ -600,7 +600,7 @@ public class WifiConfigManagerNew {
      *
      * @param config         WifiConfiguration object corresponding to the network to be modified.
      * @param uid            UID of the app requesting the modification.
-     * @param ignoreLockdown Ignore the configuration lockdown checks for debug data updates.
+     * @param ignoreLockdown Ignore the configuration lockdown checks for connection attempts.
      */
     private boolean canModifyNetwork(WifiConfiguration config, int uid, boolean ignoreLockdown) {
         final DevicePolicyManagerInternal dpmi = LocalServices.getService(
@@ -616,10 +616,10 @@ public class WifiConfigManagerNew {
 
         final boolean isCreator = (config.creatorUid == uid);
 
-        // Check if the |uid| is either the creator of the network or holds the
-        // |OVERRIDE_CONFIG_WIFI| permission if the caller asks us to bypass the lockdown checks.
+        // Check if the |uid| holds the |OVERRIDE_CONFIG_WIFI| permission if the caller asks us to
+        // bypass the lockdown checks.
         if (ignoreLockdown) {
-            return isCreator || checkConfigOverridePermission(uid);
+            return checkConfigOverridePermission(uid);
         }
 
         // Check if device has DPM capability. If it has and |dpmi| is still null, then we
@@ -631,7 +631,6 @@ public class WifiConfigManagerNew {
         }
 
         // WiFi config lockdown related logic. At this point we know uid is NOT a Device Owner.
-
         final boolean isConfigEligibleForLockdown = dpmi != null && dpmi.isActiveAdminWithPolicy(
                 config.creatorUid, DeviceAdminInfo.USES_POLICY_DEVICE_OWNER);
         if (!isConfigEligibleForLockdown) {
@@ -989,6 +988,7 @@ public class WifiConfigManagerNew {
             mWifiKeyStore.removeKeys(config.enterpriseConfig);
         }
 
+        removeConnectChoiceFromAllNetworks(config.configKey());
         mConfiguredNetworks.remove(config.networkId);
         mScanDetailCaches.remove(config.networkId);
         // Stage the backup of the SettingsProvider package which backs this up.
@@ -1362,16 +1362,21 @@ public class WifiConfigManagerNew {
 
     /**
      * Updates a network configuration after a successful connection to it.
+     *
      * This method updates the following WifiConfiguration elements:
      * 1. Set the |lastConnected| timestamp.
      * 2. Increment |numAssociation| counter.
      * 3. Clear the disable reason counters in the associated |NetworkSelectionStatus|.
      * 4. Set the hasEverConnected| flag in the associated |NetworkSelectionStatus|.
+     * 5. Sets the status of network as |CURRENT|.
      *
      * @param networkId network ID corresponding to the network.
      * @return true if the network was found, false otherwise.
      */
     public boolean updateNetworkAfterConnect(int networkId) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Update network after connect for " + networkId);
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
             return false;
@@ -1380,6 +1385,34 @@ public class WifiConfigManagerNew {
         config.numAssociation++;
         config.getNetworkSelectionStatus().clearDisableReasonCounter();
         config.getNetworkSelectionStatus().setHasEverConnected(true);
+        setNetworkStatus(config, WifiConfiguration.Status.CURRENT);
+        return true;
+    }
+
+    /**
+     * Updates a network configuration after disconnection from it.
+     *
+     * This method updates the following WifiConfiguration elements:
+     * 1. Set the |lastDisConnected| timestamp.
+     * 2. Sets the status of network back to |ENABLED|.
+     *
+     * @param networkId network ID corresponding to the network.
+     * @return true if the network was found, false otherwise.
+     */
+    public boolean updateNetworkAfterDisconnect(int networkId) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Update network after disconnect for " + networkId);
+        }
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return false;
+        }
+        config.lastDisconnected = mClock.getWallClockMillis();
+        // If the network hasn't been disabled, mark it back as
+        // enabled after disconnection.
+        if (config.status == WifiConfiguration.Status.CURRENT) {
+            setNetworkStatus(config, WifiConfiguration.Status.ENABLED);
+        }
         return true;
     }
 
@@ -1441,9 +1474,34 @@ public class WifiConfigManagerNew {
         }
         config.getNetworkSelectionStatus().setCandidate(scanResult);
         config.getNetworkSelectionStatus().setCandidateScore(score);
-        // Update the network selection status.
         config.getNetworkSelectionStatus().setSeenInLastQualifiedNetworkSelection(true);
         return true;
+    }
+
+    /**
+     * Iterate through all the saved networks and remove the provided configuration from the
+     * {@link NetworkSelectionStatus#mConnectChoice} from them.
+     *
+     * This is invoked when a network is removed from our records.
+     *
+     * @param connectChoiceConfigKey ConfigKey corresponding to the network that is being removed.
+     */
+    private void removeConnectChoiceFromAllNetworks(String connectChoiceConfigKey) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Removing connect choice from all networks " + connectChoiceConfigKey);
+        }
+        if (connectChoiceConfigKey == null) {
+            return;
+        }
+        for (WifiConfiguration config : mConfiguredNetworks.valuesForCurrentUser()) {
+            WifiConfiguration.NetworkSelectionStatus status = config.getNetworkSelectionStatus();
+            String connectChoice = status.getConnectChoice();
+            if (TextUtils.equals(connectChoice, connectChoiceConfigKey)) {
+                Log.d(TAG, "remove connect choice:" + connectChoice + " from " + config.SSID
+                        + " : " + config.networkId);
+                clearNetworkConnectChoice(config.networkId);
+            }
+        }
     }
 
     /**
