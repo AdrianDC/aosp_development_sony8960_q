@@ -22,6 +22,7 @@ import android.app.admin.DevicePolicyManagerInternal;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.net.IpConfiguration;
 import android.net.ProxyInfo;
@@ -30,8 +31,10 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
+import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -1032,6 +1035,53 @@ public class WifiConfigManagerNew {
     }
 
     /**
+     * Remove all networks associated with an application.
+     *
+     * @param app Application info of the package of networks to remove.
+     * @return true if all networks removed successfully, false otherwise
+     */
+    public boolean removeNetworksForApp(ApplicationInfo app) {
+        if (app == null || app.packageName == null) {
+            return false;
+        }
+        Log.d(TAG, "Remove all networks for app " + app);
+        boolean success = true;
+        WifiConfiguration[] copiedConfigs =
+                mConfiguredNetworks.valuesForAllUsers().toArray(new WifiConfiguration[0]);
+        for (WifiConfiguration config : copiedConfigs) {
+            if (app.uid != config.creatorUid || !app.packageName.equals(config.creatorName)) {
+                continue;
+            }
+            localLog("Removing network " + config.SSID
+                    + ", application \"" + app.packageName + "\" uninstalled"
+                    + " from user " + UserHandle.getUserId(app.uid));
+            success &= removeNetwork(config.networkId, app.uid);
+        }
+        return success;
+    }
+
+    /**
+     * Remove all networks associated with a user.
+     *
+     * @param userId The identifier of the user which is being removed.
+     * @return true if all networks removed successfully, false otherwise
+     */
+    boolean removeNetworksForUser(int userId) {
+        Log.d(TAG, "Remove all networks for user " + userId);
+        boolean success = true;
+        WifiConfiguration[] copiedConfigs =
+                mConfiguredNetworks.valuesForAllUsers().toArray(new WifiConfiguration[0]);
+        for (WifiConfiguration config : copiedConfigs) {
+            if (userId != UserHandle.getUserId(config.creatorUid)) {
+                continue;
+            }
+            success &= removeNetwork(config.networkId, config.creatorUid);
+            localLog("Removing network " + config.SSID + ", user " + userId + " removed");
+        }
+        return success;
+    }
+
+    /**
      * Helper method to mark a network enabled for network selection.
      */
     private void setNetworkSelectionEnabled(NetworkSelectionStatus status) {
@@ -1439,6 +1489,77 @@ public class WifiConfigManagerNew {
     }
 
     /**
+     * Increments the number of no internet access reports in the provided network.
+     *
+     * @param networkId network ID corresponding to the network.
+     * @return true if the network was found, false otherwise.
+     */
+    public boolean incrementNetworkNoInternetAccessReports(int networkId) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return false;
+        }
+        config.numNoInternetAccessReports++;
+        return true;
+    }
+
+    /**
+     * Sets the internet access is validated or not in the provided network.
+     *
+     * @param networkId network ID corresponding to the network.
+     * @param validated Whether access is validated or not.
+     * @return true if the network was found, false otherwise.
+     */
+    public boolean setNetworkValidatedInternetAccess(int networkId, boolean validated) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return false;
+        }
+        config.validatedInternetAccess = validated;
+        config.numNoInternetAccessReports = 0;
+        return true;
+    }
+
+    /**
+     * Sets whether the internet access is expected or not in the provided network.
+     *
+     * @param networkId network ID corresponding to the network.
+     * @param expected  Whether access is expected or not.
+     * @return true if the network was found, false otherwise.
+     */
+    public boolean setNetworkNoInternetAccessExpected(int networkId, boolean expected) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return false;
+        }
+        config.noInternetAccessExpected = expected;
+        return true;
+    }
+
+    /**
+     * Sets the various RSSI stats in the provided network.
+     *
+     * @param networkId network ID corresponding to the network.
+     * @return true if the network was found, false otherwise.
+     */
+    public boolean setNetworkRSSIStats(
+            int networkId, int numUserTriggeredWifiDisableLowRSSI,
+            int numUserTriggeredWifiDisableBadRSSI, int numUserTriggeredWifiDisableNotHighRSSI,
+            int numTicksAtLowRSSI, int numTicksAtBadRSSI, int numTicksAtNotHighRSSI) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return false;
+        }
+        config.numUserTriggeredWifiDisableLowRSSI = numUserTriggeredWifiDisableLowRSSI;
+        config.numUserTriggeredWifiDisableBadRSSI = numUserTriggeredWifiDisableBadRSSI;
+        config.numUserTriggeredWifiDisableNotHighRSSI = numUserTriggeredWifiDisableNotHighRSSI;
+        config.numTicksAtLowRSSI = numTicksAtLowRSSI;
+        config.numTicksAtBadRSSI = numTicksAtBadRSSI;
+        config.numTicksAtNotHighRSSI = numTicksAtNotHighRSSI;
+        return true;
+    }
+
+    /**
      * Helper method to clear out the {@link #mLastNetworkId} user/app network selection. This
      * is done when either the corresponding network is either removed or disabled.
      */
@@ -1471,6 +1592,20 @@ public class WifiConfigManagerNew {
      */
     public int getLastSelectedNetwork() {
         return mLastSelectedNetwork;
+    }
+
+    /**
+     * Retrieve the configKey corresponding to the last network that was explicitly selected by
+     * an app/user.
+     *
+     * @return network Id corresponding to the last selected network.
+     */
+    public String getLastSelectedNetworkConfigKey() {
+        WifiConfiguration config = getInternalConfiguredNetwork(mLastSelectedNetwork);
+        if (config == null) {
+            return "";
+        }
+        return config.configKey();
     }
 
     /**
