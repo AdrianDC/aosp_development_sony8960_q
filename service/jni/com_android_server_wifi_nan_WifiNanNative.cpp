@@ -291,8 +291,7 @@ static jint android_net_wifi_nan_publish(JNIEnv *env, jclass cls,
                                          jint publish_id,
                                          jclass wifi_native_cls,
                                          jint iface,
-                                         jobject publish_data,
-                                         jobject publish_settings) {
+                                         jobject publish_config) {
     JNIHelper helper(env);
     wifi_interface_handle handle = getIfaceHandle(helper, wifi_native_cls, iface);
 
@@ -310,7 +309,7 @@ static jint android_net_wifi_nan_publish(JNIEnv *env, jclass cls,
     /* configurable settings */
     msg.publish_id = publish_id;
 
-    JNIObject<jstring> objStr1 = helper.getStringField(publish_data, "mServiceName");
+    JNIObject<jstring> objStr1 = helper.getStringField(publish_config, "mServiceName");
     if (objStr1 == NULL) {
         ALOGE("Error accessing mServiceName field");
         return 0;
@@ -324,28 +323,28 @@ static jint android_net_wifi_nan_publish(JNIEnv *env, jclass cls,
     msg.service_name_len = strlen(serviceName);
     strcpy((char*)msg.service_name, serviceName);
 
-    msg.service_specific_info_len = helper.getIntField(publish_data, "mServiceSpecificInfoLength");
+    msg.service_specific_info_len = helper.getIntField(publish_config, "mServiceSpecificInfoLength");
     if (msg.service_specific_info_len != 0) {
-        helper.getByteArrayField(publish_data, "mServiceSpecificInfo",
+        helper.getByteArrayField(publish_config, "mServiceSpecificInfo",
                              msg.service_specific_info, msg.service_specific_info_len);
     }
 
 
-    msg.tx_match_filter_len = helper.getIntField(publish_data, "mTxFilterLength");
+    msg.tx_match_filter_len = helper.getIntField(publish_config, "mTxFilterLength");
     if (msg.tx_match_filter_len != 0) {
-        helper.getByteArrayField(publish_data, "mTxFilter",
+        helper.getByteArrayField(publish_config, "mTxFilter",
                              msg.tx_match_filter, msg.tx_match_filter_len);
     }
 
-    msg.rx_match_filter_len = helper.getIntField(publish_data, "mRxFilterLength");
+    msg.rx_match_filter_len = helper.getIntField(publish_config, "mRxFilterLength");
     if (msg.rx_match_filter_len != 0) {
-        helper.getByteArrayField(publish_data, "mRxFilter",
+        helper.getByteArrayField(publish_config, "mRxFilter",
                              msg.rx_match_filter, msg.rx_match_filter_len);
     }
 
-    msg.publish_type = (NanPublishType)helper.getIntField(publish_settings, "mPublishType");
-    msg.publish_count = helper.getIntField(publish_settings, "mPublishCount");
-    msg.ttl = helper.getIntField(publish_settings, "mTtlSec");
+    msg.publish_type = (NanPublishType)helper.getIntField(publish_config, "mPublishType");
+    msg.publish_count = helper.getIntField(publish_config, "mPublishCount");
+    msg.ttl = helper.getIntField(publish_config, "mTtlSec");
 
     msg.tx_type = NAN_TX_TYPE_BROADCAST;
     if (msg.publish_type != NAN_PUBLISH_TYPE_UNSOLICITED)
@@ -359,8 +358,7 @@ static jint android_net_wifi_nan_subscribe(JNIEnv *env, jclass cls,
                                            jint subscribe_id,
                                            jclass wifi_native_cls,
                                            jint iface,
-                                           jobject subscribe_data,
-                                           jobject subscribe_settings) {
+                                           jobject subscribe_config) {
     JNIHelper helper(env);
     wifi_interface_handle handle = getIfaceHandle(helper, wifi_native_cls, iface);
 
@@ -383,7 +381,7 @@ static jint android_net_wifi_nan_subscribe(JNIEnv *env, jclass cls,
     /* configurable settings */
     msg.subscribe_id = subscribe_id;
 
-    JNIObject<jstring> objStr1 = helper.getStringField(subscribe_data, "mServiceName");
+    JNIObject<jstring> objStr1 = helper.getStringField(subscribe_config, "mServiceName");
     if (objStr1 == NULL) {
         ALOGE("Error accessing mServiceName field");
         return 0;
@@ -397,27 +395,27 @@ static jint android_net_wifi_nan_subscribe(JNIEnv *env, jclass cls,
     msg.service_name_len = strlen(serviceName);
     strcpy((char*)msg.service_name, serviceName);
 
-    msg.service_specific_info_len = helper.getIntField(subscribe_data, "mServiceSpecificInfoLength");
+    msg.service_specific_info_len = helper.getIntField(subscribe_config, "mServiceSpecificInfoLength");
     if (msg.service_specific_info_len != 0) {
-        helper.getByteArrayField(subscribe_data, "mServiceSpecificInfo",
+        helper.getByteArrayField(subscribe_config, "mServiceSpecificInfo",
                              msg.service_specific_info, msg.service_specific_info_len);
     }
 
-    msg.tx_match_filter_len = helper.getIntField(subscribe_data, "mTxFilterLength");
+    msg.tx_match_filter_len = helper.getIntField(subscribe_config, "mTxFilterLength");
     if (msg.tx_match_filter_len != 0) {
-        helper.getByteArrayField(subscribe_data, "mTxFilter",
+        helper.getByteArrayField(subscribe_config, "mTxFilter",
                              msg.tx_match_filter, msg.tx_match_filter_len);
     }
 
-    msg.rx_match_filter_len = helper.getIntField(subscribe_data, "mRxFilterLength");
+    msg.rx_match_filter_len = helper.getIntField(subscribe_config, "mRxFilterLength");
     if (msg.rx_match_filter_len != 0) {
-        helper.getByteArrayField(subscribe_data, "mRxFilter",
+        helper.getByteArrayField(subscribe_config, "mRxFilter",
                              msg.rx_match_filter, msg.rx_match_filter_len);
     }
 
-    msg.subscribe_type = (NanSubscribeType)helper.getIntField(subscribe_settings, "mSubscribeType");
-    msg.subscribe_count = helper.getIntField(subscribe_settings, "mSubscribeCount");
-    msg.ttl = helper.getIntField(subscribe_settings, "mTtlSec");
+    msg.subscribe_type = (NanSubscribeType)helper.getIntField(subscribe_config, "mSubscribeType");
+    msg.subscribe_count = helper.getIntField(subscribe_config, "mSubscribeCount");
+    msg.ttl = helper.getIntField(subscribe_config, "mTtlSec");
 
     return hal_fn.wifi_nan_subscribe_request(transaction_id, handle, &msg);
 }
@@ -506,8 +504,8 @@ static JNINativeMethod gWifiNanMethods[] = {
     {"getCapabilitiesNative", "(SLjava/lang/Object;I)I", (void*)android_net_wifi_nan_get_capabilities },
     {"enableAndConfigureNative", "(SLjava/lang/Object;ILandroid/net/wifi/nan/ConfigRequest;)I", (void*)android_net_wifi_nan_enable_request },
     {"disableNative", "(SLjava/lang/Object;I)I", (void*)android_net_wifi_nan_disable_request },
-    {"publishNative", "(SILjava/lang/Object;ILandroid/net/wifi/nan/PublishData;Landroid/net/wifi/nan/PublishSettings;)I", (void*)android_net_wifi_nan_publish },
-    {"subscribeNative", "(SILjava/lang/Object;ILandroid/net/wifi/nan/SubscribeData;Landroid/net/wifi/nan/SubscribeSettings;)I", (void*)android_net_wifi_nan_subscribe },
+    {"publishNative", "(SILjava/lang/Object;ILandroid/net/wifi/nan/PublishConfig;)I", (void*)android_net_wifi_nan_publish },
+    {"subscribeNative", "(SILjava/lang/Object;ILandroid/net/wifi/nan/SubscribeConfig;)I", (void*)android_net_wifi_nan_subscribe },
     {"sendMessageNative", "(SLjava/lang/Object;III[B[BI)I", (void*)android_net_wifi_nan_send_message },
     {"stopPublishNative", "(SLjava/lang/Object;II)I", (void*)android_net_wifi_nan_stop_publish },
     {"stopSubscribeNative", "(SLjava/lang/Object;II)I", (void*)android_net_wifi_nan_stop_subscribe },

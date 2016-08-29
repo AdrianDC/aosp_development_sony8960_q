@@ -21,6 +21,10 @@ import android.util.Log;
 
 import com.android.server.SystemService;
 
+/**
+ * Service implementing Wi-Fi NAN functionality. Delegates actual interface
+ * implementation to WifiNanServiceImpl.
+ */
 public final class WifiNanService extends SystemService {
     private static final String TAG = "WifiNanService";
     final WifiNanServiceImpl mImpl;

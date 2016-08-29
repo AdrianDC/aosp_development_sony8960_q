@@ -20,10 +20,8 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertEquals;
 
 import android.net.wifi.nan.ConfigRequest;
-import android.net.wifi.nan.PublishData;
-import android.net.wifi.nan.PublishSettings;
-import android.net.wifi.nan.SubscribeData;
-import android.net.wifi.nan.SubscribeSettings;
+import android.net.wifi.nan.PublishConfig;
+import android.net.wifi.nan.SubscribeConfig;
 import android.os.Parcel;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -146,237 +144,173 @@ public class WifiNanManagerTest {
     }
 
     /*
-     * SubscribeData Tests
+     * SubscribeConfig Tests
      */
 
     @Test
-    public void testSubscribeDataBuilder() {
+    public void testSubscribeConfigBuilder() {
         final String serviceName = "some_service_or_other";
         final String serviceSpecificInfo = "long arbitrary string with some info";
         final byte[] txFilter = {
                 0, 1, 16, 1, 22 };
         final byte[] rxFilter = {
                 1, 127, 0, 1, -5, 1, 22 };
-
-        SubscribeData subscribeData = new SubscribeData.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
-                .setRxFilter(rxFilter, rxFilter.length).build();
-
-        collector.checkThat("mServiceName", serviceName, equalTo(subscribeData.mServiceName));
-        String mServiceSpecificInfo = new String(subscribeData.mServiceSpecificInfo, 0,
-                subscribeData.mServiceSpecificInfoLength);
-        collector.checkThat("mServiceSpecificInfo",
-                utilAreArraysEqual(serviceSpecificInfo.getBytes(), serviceSpecificInfo.length(),
-                        subscribeData.mServiceSpecificInfo,
-                        subscribeData.mServiceSpecificInfoLength),
-                equalTo(true));
-        collector.checkThat("mTxFilter", utilAreArraysEqual(txFilter, txFilter.length,
-                subscribeData.mTxFilter, subscribeData.mTxFilterLength), equalTo(true));
-        collector.checkThat("mRxFilter", utilAreArraysEqual(rxFilter, rxFilter.length,
-                subscribeData.mRxFilter, subscribeData.mRxFilterLength), equalTo(true));
-    }
-
-    @Test
-    public void testSubscribeDataParcel() {
-        final String serviceName = "some_service_or_other";
-        final String serviceSpecificInfo = "long arbitrary string with some info";
-        final byte[] txFilter = {
-                0, 1, 16, 1, 22 };
-        final byte[] rxFilter = {
-                1, 127, 0, 1, -5, 1, 22 };
-
-        SubscribeData subscribeData = new SubscribeData.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
-                .setTxFilter(rxFilter, rxFilter.length).build();
-
-        Parcel parcelW = Parcel.obtain();
-        subscribeData.writeToParcel(parcelW, 0);
-        byte[] bytes = parcelW.marshall();
-        parcelW.recycle();
-
-        Parcel parcelR = Parcel.obtain();
-        parcelR.unmarshall(bytes, 0, bytes.length);
-        parcelR.setDataPosition(0);
-        SubscribeData rereadSubscribeData = SubscribeData.CREATOR.createFromParcel(parcelR);
-
-        assertEquals(subscribeData, rereadSubscribeData);
-    }
-
-    /*
-     * SubscribeSettings Tests
-     */
-
-    @Test
-    public void testSubscribeSettingsBuilder() {
-        final int subscribeType = SubscribeSettings.SUBSCRIBE_TYPE_PASSIVE;
+        final int subscribeType = SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE;
         final int subscribeCount = 10;
         final int subscribeTtl = 15;
 
-        SubscribeSettings subscribeSetting = new SubscribeSettings.Builder()
-                .setSubscribeType(subscribeType).setSubscribeCount(subscribeCount)
-                .setTtlSec(subscribeTtl).build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
+                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
+                .setRxFilter(rxFilter, rxFilter.length).setSubscribeType(subscribeType)
+                .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).build();
 
+        collector.checkThat("mServiceName", serviceName, equalTo(subscribeConfig.mServiceName));
+        collector.checkThat("mServiceSpecificInfo",
+                utilAreArraysEqual(serviceSpecificInfo.getBytes(), serviceSpecificInfo.length(),
+                        subscribeConfig.mServiceSpecificInfo,
+                        subscribeConfig.mServiceSpecificInfoLength),
+                equalTo(true));
+        collector.checkThat("mTxFilter", utilAreArraysEqual(txFilter, txFilter.length,
+                subscribeConfig.mTxFilter, subscribeConfig.mTxFilterLength), equalTo(true));
+        collector.checkThat("mRxFilter", utilAreArraysEqual(rxFilter, rxFilter.length,
+                subscribeConfig.mRxFilter, subscribeConfig.mRxFilterLength), equalTo(true));
         collector.checkThat("mSubscribeType", subscribeType,
-                equalTo(subscribeSetting.mSubscribeType));
+                equalTo(subscribeConfig.mSubscribeType));
         collector.checkThat("mSubscribeCount", subscribeCount,
-                equalTo(subscribeSetting.mSubscribeCount));
-        collector.checkThat("mTtlSec", subscribeTtl, equalTo(subscribeSetting.mTtlSec));
+                equalTo(subscribeConfig.mSubscribeCount));
+        collector.checkThat("mTtlSec", subscribeTtl, equalTo(subscribeConfig.mTtlSec));
     }
 
     @Test
-    public void testSubscribeSettingsBuilderBadSubscribeType() {
-        thrown.expect(IllegalArgumentException.class);
-        new SubscribeSettings.Builder().setSubscribeType(10);
-    }
-
-    @Test
-    public void testSubscribeSettingsBuilderNegativeCount() {
-        thrown.expect(IllegalArgumentException.class);
-        new SubscribeSettings.Builder().setSubscribeCount(-1);
-    }
-
-    @Test
-    public void testSubscribeSettingsBuilderNegativeTtl() {
-        thrown.expect(IllegalArgumentException.class);
-        new SubscribeSettings.Builder().setTtlSec(-100);
-    }
-
-    @Test
-    public void testSubscribeSettingsParcel() {
-        final int subscribeType = SubscribeSettings.SUBSCRIBE_TYPE_PASSIVE;
+    public void testSubscribeConfigParcel() {
+        final String serviceName = "some_service_or_other";
+        final String serviceSpecificInfo = "long arbitrary string with some info";
+        final byte[] txFilter = {
+                0, 1, 16, 1, 22 };
+        final byte[] rxFilter = {
+                1, 127, 0, 1, -5, 1, 22 };
+        final int subscribeType = SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE;
         final int subscribeCount = 10;
         final int subscribeTtl = 15;
 
-        SubscribeSettings subscribeSetting = new SubscribeSettings.Builder()
-                .setSubscribeType(subscribeType).setSubscribeCount(subscribeCount)
-                .setTtlSec(subscribeTtl).build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
+                .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
+                .setTxFilter(rxFilter, rxFilter.length).setSubscribeType(subscribeType)
+                .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).build();
 
         Parcel parcelW = Parcel.obtain();
-        subscribeSetting.writeToParcel(parcelW, 0);
+        subscribeConfig.writeToParcel(parcelW, 0);
         byte[] bytes = parcelW.marshall();
         parcelW.recycle();
 
         Parcel parcelR = Parcel.obtain();
         parcelR.unmarshall(bytes, 0, bytes.length);
         parcelR.setDataPosition(0);
-        SubscribeSettings rereadSubscribeSettings = SubscribeSettings.CREATOR
-                .createFromParcel(parcelR);
+        SubscribeConfig rereadSubscribeConfig = SubscribeConfig.CREATOR.createFromParcel(parcelR);
 
-        assertEquals(subscribeSetting, rereadSubscribeSettings);
+        assertEquals(subscribeConfig, rereadSubscribeConfig);
+    }
+
+    @Test
+    public void testSubscribeConfigBuilderBadSubscribeType() {
+        thrown.expect(IllegalArgumentException.class);
+        new SubscribeConfig.Builder().setSubscribeType(10);
+    }
+
+    @Test
+    public void testSubscribeConfigBuilderNegativeCount() {
+        thrown.expect(IllegalArgumentException.class);
+        new SubscribeConfig.Builder().setSubscribeCount(-1);
+    }
+
+    @Test
+    public void testSubscribeConfigBuilderNegativeTtl() {
+        thrown.expect(IllegalArgumentException.class);
+        new SubscribeConfig.Builder().setTtlSec(-100);
     }
 
     /*
-     * PublishData Tests
+     * PublishConfig Tests
      */
 
     @Test
-    public void testPublishDataBuilder() {
+    public void testPublishConfigBuilder() {
         final String serviceName = "some_service_or_other";
         final String serviceSpecificInfo = "long arbitrary string with some info";
         final byte[] txFilter = {
                 0, 1, 16, 1, 22 };
         final byte[] rxFilter = {
                 1, 127, 0, 1, -5, 1, 22 };
+        final int publishType = PublishConfig.PUBLISH_TYPE_SOLICITED;
+        final int publishCount = 10;
+        final int publishTtl = 15;
 
-        PublishData publishData = new PublishData.Builder().setServiceName(serviceName)
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
-                .setRxFilter(rxFilter, rxFilter.length).build();
+                .setRxFilter(rxFilter, rxFilter.length).setPublishType(publishType)
+                .setPublishCount(publishCount).setTtlSec(publishTtl).build();
 
-        collector.checkThat("mServiceName", serviceName, equalTo(publishData.mServiceName));
-        String mServiceSpecificInfo = new String(publishData.mServiceSpecificInfo, 0,
-                publishData.mServiceSpecificInfoLength);
+        collector.checkThat("mServiceName", serviceName, equalTo(publishConfig.mServiceName));
         collector.checkThat("mServiceSpecificInfo",
                 utilAreArraysEqual(serviceSpecificInfo.getBytes(), serviceSpecificInfo.length(),
-                        publishData.mServiceSpecificInfo, publishData.mServiceSpecificInfoLength),
+                        publishConfig.mServiceSpecificInfo,
+                        publishConfig.mServiceSpecificInfoLength),
                 equalTo(true));
         collector.checkThat("mTxFilter", utilAreArraysEqual(txFilter, txFilter.length,
-                publishData.mTxFilter, publishData.mTxFilterLength), equalTo(true));
+                publishConfig.mTxFilter, publishConfig.mTxFilterLength), equalTo(true));
         collector.checkThat("mRxFilter", utilAreArraysEqual(rxFilter, rxFilter.length,
-                publishData.mRxFilter, publishData.mRxFilterLength), equalTo(true));
+                publishConfig.mRxFilter, publishConfig.mRxFilterLength), equalTo(true));
+        collector.checkThat("mPublishType", publishType, equalTo(publishConfig.mPublishType));
+        collector.checkThat("mPublishCount", publishCount, equalTo(publishConfig.mPublishCount));
+        collector.checkThat("mTtlSec", publishTtl, equalTo(publishConfig.mTtlSec));
     }
 
     @Test
-    public void testPublishDataParcel() {
+    public void testPublishConfigParcel() {
         final String serviceName = "some_service_or_other";
         final String serviceSpecificInfo = "long arbitrary string with some info";
         final byte[] txFilter = {
                 0, 1, 16, 1, 22 };
         final byte[] rxFilter = {
                 1, 127, 0, 1, -5, 1, 22 };
+        final int publishType = PublishConfig.PUBLISH_TYPE_SOLICITED;
+        final int publishCount = 10;
+        final int publishTtl = 15;
 
-        PublishData publishData = new PublishData.Builder().setServiceName(serviceName)
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(serviceSpecificInfo).setTxFilter(txFilter, txFilter.length)
-                .setTxFilter(rxFilter, rxFilter.length).build();
+                .setTxFilter(rxFilter, rxFilter.length).setPublishType(publishType)
+                .setPublishCount(publishCount).setTtlSec(publishTtl).build();
 
         Parcel parcelW = Parcel.obtain();
-        publishData.writeToParcel(parcelW, 0);
+        publishConfig.writeToParcel(parcelW, 0);
         byte[] bytes = parcelW.marshall();
         parcelW.recycle();
 
         Parcel parcelR = Parcel.obtain();
         parcelR.unmarshall(bytes, 0, bytes.length);
         parcelR.setDataPosition(0);
-        PublishData rereadPublishData = PublishData.CREATOR.createFromParcel(parcelR);
+        PublishConfig rereadPublishConfig = PublishConfig.CREATOR.createFromParcel(parcelR);
 
-        assertEquals(publishData, rereadPublishData);
-    }
-
-    /*
-     * PublishSettings Tests
-     */
-
-    @Test
-    public void testPublishSettingsBuilder() {
-        final int publishType = PublishSettings.PUBLISH_TYPE_SOLICITED;
-        final int publishCount = 10;
-        final int publishTtl = 15;
-
-        PublishSettings publishSetting = new PublishSettings.Builder().setPublishType(publishType)
-                .setPublishCount(publishCount).setTtlSec(publishTtl).build();
-
-        collector.checkThat("mPublishType", publishType, equalTo(publishSetting.mPublishType));
-        collector.checkThat("mPublishCount", publishCount, equalTo(publishSetting.mPublishCount));
-        collector.checkThat("mTtlSec", publishTtl, equalTo(publishSetting.mTtlSec));
+        assertEquals(publishConfig, rereadPublishConfig);
     }
 
     @Test
-    public void testPublishSettingsBuilderBadPublishType() {
+    public void testPublishConfigBuilderBadPublishType() {
         thrown.expect(IllegalArgumentException.class);
-        new PublishSettings.Builder().setPublishType(5);
+        new PublishConfig.Builder().setPublishType(5);
     }
 
     @Test
-    public void testPublishSettingsBuilderNegativeCount() {
+    public void testPublishConfigBuilderNegativeCount() {
         thrown.expect(IllegalArgumentException.class);
-        new PublishSettings.Builder().setPublishCount(-4);
+        new PublishConfig.Builder().setPublishCount(-4);
     }
 
     @Test
-    public void testPublishSettingsBuilderNegativeTtl() {
+    public void testPublishConfigBuilderNegativeTtl() {
         thrown.expect(IllegalArgumentException.class);
-        new PublishSettings.Builder().setTtlSec(-10);
-    }
-
-    @Test
-    public void testPublishSettingsParcel() {
-        final int publishType = PublishSettings.PUBLISH_TYPE_SOLICITED;
-        final int publishCount = 10;
-        final int publishTtl = 15;
-
-        PublishSettings configSetting = new PublishSettings.Builder().setPublishType(publishType)
-                .setPublishCount(publishCount).setTtlSec(publishTtl).build();
-
-        Parcel parcelW = Parcel.obtain();
-        configSetting.writeToParcel(parcelW, 0);
-        byte[] bytes = parcelW.marshall();
-        parcelW.recycle();
-
-        Parcel parcelR = Parcel.obtain();
-        parcelR.unmarshall(bytes, 0, bytes.length);
-        parcelR.setDataPosition(0);
-        PublishSettings rereadPublishSettings = PublishSettings.CREATOR.createFromParcel(parcelR);
-
-        assertEquals(configSetting, rereadPublishSettings);
+        new PublishConfig.Builder().setTtlSec(-10);
     }
 
     /*
