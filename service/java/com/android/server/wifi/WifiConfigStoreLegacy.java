@@ -50,7 +50,7 @@ import java.util.Set;
  *
  * NOTE: This class should only be used from WifiConfigManager and is not thread-safe!
  *
- * TODO: Passpoint config store data migration & deletion.
+ * TODO(b/31065385): Passpoint config store data migration & deletion.
  */
 public class WifiConfigStoreLegacy {
     /**
