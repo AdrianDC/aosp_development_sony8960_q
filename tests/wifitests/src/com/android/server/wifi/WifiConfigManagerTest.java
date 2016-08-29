@@ -58,10 +58,10 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Unit tests for {@link com.android.server.wifi.WifiConfigManagerNew}.
+ * Unit tests for {@link com.android.server.wifi.WifiConfigManager}.
  */
 @SmallTest
-public class WifiConfigManagerNewTest {
+public class WifiConfigManagerTest {
 
     private static final String TEST_BSSID = "0a:08:5c:67:89:00";
     private static final long TEST_WALLCLOCK_CREATION_TIME_MILLIS = 9845637;
@@ -83,16 +83,16 @@ public class WifiConfigManagerNewTest {
     @Mock private UserManager mUserManager;
     @Mock private TelephonyManager mTelephonyManager;
     @Mock private WifiKeyStore mWifiKeyStore;
-    @Mock private WifiConfigStoreNew mWifiConfigStore;
+    @Mock private WifiConfigStore mWifiConfigStore;
     @Mock private WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     @Mock private PackageManager mPackageManager;
 
     private MockResources mResources;
     private InOrder mContextConfigStoreMockOrder;
-    private WifiConfigManagerNew mWifiConfigManager;
+    private WifiConfigManager mWifiConfigManager;
 
     /**
-     * Setup the mocks and an instance of WifiConfigManagerNew before each test.
+     * Setup the mocks and an instance of WifiConfigManager before each test.
      */
     @Before
     public void setUp() throws Exception {
@@ -122,7 +122,7 @@ public class WifiConfigManagerNewTest {
                 } else if (uid == TEST_UPDATE_UID) {
                     return TEST_UPDATE_NAME;
                 } else if (uid == TEST_SYSUI_UID) {
-                    return WifiConfigManagerNew.SYSUI_PACKAGE_NAME;
+                    return WifiConfigManager.SYSUI_PACKAGE_NAME;
                 }
                 fail("Unexpected UID: " + uid);
                 return "";
@@ -130,7 +130,7 @@ public class WifiConfigManagerNewTest {
         }).when(mPackageManager).getNameForUid(anyInt());
         doAnswer(new AnswerWithArguments() {
             public int answer(String packageName, int flags, int userId) throws Exception {
-                if (packageName.equals(WifiConfigManagerNew.SYSUI_PACKAGE_NAME)) {
+                if (packageName.equals(WifiConfigManager.SYSUI_PACKAGE_NAME)) {
                     return TEST_SYSUI_UID;
                 } else {
                     return 0;
@@ -168,7 +168,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the addition of a single network using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)}
      */
     @Test
     public void testAddSingleOpenNetwork() {
@@ -186,7 +186,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the modification of a single network using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)}
      */
     @Test
     public void testUpdateSingleOpenNetwork() {
@@ -209,8 +209,8 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the addition of a single ephemeral network using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)} and verifies that
-     * the {@link WifiConfigManagerNew#getSavedNetworks()} does not return this network.
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} and verifies that
+     * the {@link WifiConfigManager#getSavedNetworks()} does not return this network.
      */
     @Test
     public void testAddSingleEphemeralNetwork() {
@@ -232,7 +232,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies that the modification of a single open network using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)} with a UID which
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} with a UID which
      * has no permission to modify the network fails.
      */
     @Test
@@ -263,7 +263,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies that the modification of a single open network using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)} with the creator UID
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} with the creator UID
      * should always succeed.
      */
     @Test
@@ -298,8 +298,8 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the addition of a single PSK network using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)} and verifies that
-     * {@link WifiConfigManagerNew#getSavedNetworks()} masks the password.
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} and verifies that
+     * {@link WifiConfigManager#getSavedNetworks()} masks the password.
      */
     @Test
     public void testAddSinglePskNetwork() {
@@ -322,8 +322,8 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the addition of a single WEP network using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)} and verifies that
-     * {@link WifiConfigManagerNew#getSavedNetworks()} masks the password.
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} and verifies that
+     * {@link WifiConfigManager#getSavedNetworks()} masks the password.
      */
     @Test
     public void testAddSingleWepNetwork() {
@@ -346,7 +346,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the modification of an IpConfiguration using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)}
      */
     @Test
     public void testUpdateIpConfiguration() {
@@ -378,7 +378,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the removal of a single network using
-     * {@link WifiConfigManagerNew#removeNetwork(int)}
+     * {@link WifiConfigManager#removeNetwork(int)}
      */
     @Test
     public void testRemoveSingleOpenNetwork() {
@@ -396,9 +396,9 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the addition & update of multiple networks using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)} and the
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} and the
      * removal of networks using
-     * {@link WifiConfigManagerNew#removeNetwork(int)}
+     * {@link WifiConfigManager#removeNetwork(int)}
      */
     @Test
     public void testAddUpdateRemoveMultipleNetworks() {
@@ -446,7 +446,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the update of network status using
-     * {@link WifiConfigManagerNew#updateNetworkSelectionStatus(int, int)}.
+     * {@link WifiConfigManager#updateNetworkSelectionStatus(int, int)}.
      */
     @Test
     public void testNetworkSelectionStatus() {
@@ -462,7 +462,7 @@ public class WifiConfigManagerNewTest {
         // disable it 5 times to actually mark it temporarily disabled.
         int assocRejectReason = NetworkSelectionStatus.DISABLED_ASSOCIATION_REJECTION;
         int assocRejectThreshold =
-                WifiConfigManagerNew.NETWORK_SELECTION_DISABLE_THRESHOLD[assocRejectReason];
+                WifiConfigManager.NETWORK_SELECTION_DISABLE_THRESHOLD[assocRejectReason];
         for (int i = 1; i <= assocRejectThreshold; i++) {
             verifyUpdateNetworkSelectionStatus(result.getNetworkId(), assocRejectReason, i);
         }
@@ -478,7 +478,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the update of network status using
-     * {@link WifiConfigManagerNew#updateNetworkSelectionStatus(int, int)} and ensures that
+     * {@link WifiConfigManager#updateNetworkSelectionStatus(int, int)} and ensures that
      * enabling a network clears out all the temporary disable counters.
      */
     @Test
@@ -514,7 +514,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the enabling of temporarily disabled network using
-     * {@link WifiConfigManagerNew#tryEnableNetwork(int)}.
+     * {@link WifiConfigManager#tryEnableNetwork(int)}.
      */
     @Test
     public void testTryEnableNetwork() {
@@ -530,7 +530,7 @@ public class WifiConfigManagerNewTest {
         // disable it 5 times to actually mark it temporarily disabled.
         int assocRejectReason = NetworkSelectionStatus.DISABLED_ASSOCIATION_REJECTION;
         int assocRejectThreshold =
-                WifiConfigManagerNew.NETWORK_SELECTION_DISABLE_THRESHOLD[assocRejectReason];
+                WifiConfigManager.NETWORK_SELECTION_DISABLE_THRESHOLD[assocRejectReason];
         for (int i = 1; i <= assocRejectThreshold; i++) {
             verifyUpdateNetworkSelectionStatus(result.getNetworkId(), assocRejectReason, i);
         }
@@ -546,7 +546,7 @@ public class WifiConfigManagerNewTest {
         // Now advance time by the timeout for association rejection and ensure that the network
         // is now enabled.
         int assocRejectTimeout =
-                WifiConfigManagerNew.NETWORK_SELECTION_DISABLE_TIMEOUT_MS[assocRejectReason];
+                WifiConfigManager.NETWORK_SELECTION_DISABLE_TIMEOUT_MS[assocRejectReason];
         when(mClock.getElapsedSinceBootMillis())
                 .thenReturn(TEST_ELAPSED_UPDATE_NETWORK_SELECTION_TIME_MILLIS + assocRejectTimeout);
 
@@ -559,8 +559,8 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the enabling of network using
-     * {@link WifiConfigManagerNew#enableNetwork(int, boolean, int)} and
-     * {@link WifiConfigManagerNew#disableNetwork(int, int)}.
+     * {@link WifiConfigManager#enableNetwork(int, boolean, int)} and
+     * {@link WifiConfigManager#disableNetwork(int, int)}.
      */
     @Test
     public void testEnableDisableNetwork() {
@@ -586,7 +586,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the enabling of network using
-     * {@link WifiConfigManagerNew#enableNetwork(int, boolean, int)} with a UID which
+     * {@link WifiConfigManager#enableNetwork(int, boolean, int)} with a UID which
      * has no permission to modify the network fails..
      */
     @Test
@@ -625,7 +625,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the updation of network's connectUid using
-     * {@link WifiConfigManagerNew#checkAndUpdateLastConnectUid(int, int)}.
+     * {@link WifiConfigManager#checkAndUpdateLastConnectUid(int, int)}.
      */
     @Test
     public void testUpdateLastConnectUid() throws Exception {
@@ -662,7 +662,7 @@ public class WifiConfigManagerNewTest {
     /**
      * Verifies that any configuration update attempt with an null config is gracefully
      * handled.
-     * This invokes {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}.
+     * This invokes {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)}.
      */
     @Test
     public void testAddOrUpdateNetworkWithNullConfig() {
@@ -673,7 +673,7 @@ public class WifiConfigManagerNewTest {
     /**
      * Verifies that any configuration removal attempt with an invalid networkID is gracefully
      * handled.
-     * This invokes {@link WifiConfigManagerNew#removeNetwork(int)}.
+     * This invokes {@link WifiConfigManager#removeNetwork(int)}.
      */
     @Test
     public void testRemoveNetworkWithInvalidNetworkId() {
@@ -689,10 +689,10 @@ public class WifiConfigManagerNewTest {
     /**
      * Verifies that any configuration update attempt with an invalid networkID is gracefully
      * handled.
-     * This invokes {@link WifiConfigManagerNew#enableNetwork(int, boolean, int)},
-     * {@link WifiConfigManagerNew#disableNetwork(int, int)},
-     * {@link WifiConfigManagerNew#updateNetworkSelectionStatus(int, int)} and
-     * {@link WifiConfigManagerNew#checkAndUpdateLastConnectUid(int, int)}.
+     * This invokes {@link WifiConfigManager#enableNetwork(int, boolean, int)},
+     * {@link WifiConfigManager#disableNetwork(int, int)},
+     * {@link WifiConfigManager#updateNetworkSelectionStatus(int, int)} and
+     * {@link WifiConfigManager#checkAndUpdateLastConnectUid(int, int)}.
      */
     @Test
     public void testChangeConfigurationWithInvalidNetworkId() {
@@ -711,7 +711,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies multiple modification of a single network using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}.
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)}.
      * This test is basically checking if the apps can reset some of the fields of the config after
      * addition. The fields being reset in this test are the |preSharedKey| and |wepKeys|.
      * 1. Create an open network initially.
@@ -762,7 +762,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the modification of a WifiEnteriseConfig using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}.
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)}.
      */
     @Test
     public void testUpdateWifiEnterpriseConfig() {
@@ -790,7 +790,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the modification of a single network using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)} by passing in nulls
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} by passing in nulls
      * in all the publicly exposed fields.
      */
     @Test
@@ -825,7 +825,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies that the modification of a single network using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)} does not modify
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} does not modify
      * existing configuration if there is a failure.
      */
     @Test
@@ -859,7 +859,7 @@ public class WifiConfigManagerNewTest {
     /**
      * Verifies the matching of networks with different encryption types with the
      * corresponding scan detail using
-     * {@link WifiConfigManagerNew#getSavedNetworkForScanDetailAndCache(ScanDetail)}.
+     * {@link WifiConfigManager#getSavedNetworkForScanDetailAndCache(ScanDetail)}.
      * The test also verifies that the provided scan detail was cached,
      */
     @Test
@@ -878,7 +878,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies that scan details with wrong SSID/authentication types are not matched using
-     * {@link WifiConfigManagerNew#getSavedNetworkForScanDetailAndCache(ScanDetail)}
+     * {@link WifiConfigManager#getSavedNetworkForScanDetailAndCache(ScanDetail)}
      * to the added networks.
      */
     @Test
@@ -926,7 +926,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies that scan detail cache is trimmed down when the size of the cache for a network
-     * exceeds {@link WifiConfigManagerNew#SCAN_CACHE_ENTRIES_MAX_SIZE}.
+     * exceeds {@link WifiConfigManager#SCAN_CACHE_ENTRIES_MAX_SIZE}.
      */
     @Test
     public void testScanDetailCacheTrimForNetwork() {
@@ -940,7 +940,7 @@ public class WifiConfigManagerNewTest {
         // Modify |BSSID| field in the scan result and add copies of scan detail
         // |SCAN_CACHE_ENTRIES_MAX_SIZE| times.
         int scanDetailNum = 1;
-        for (; scanDetailNum <= WifiConfigManagerNew.SCAN_CACHE_ENTRIES_MAX_SIZE; scanDetailNum++) {
+        for (; scanDetailNum <= WifiConfigManager.SCAN_CACHE_ENTRIES_MAX_SIZE; scanDetailNum++) {
             // Create dummy scan detail caches with different BSSID for the network.
             ScanDetail scanDetail =
                     createScanDetailForNetwork(
@@ -965,7 +965,7 @@ public class WifiConfigManagerNewTest {
         // |SCAN_CACHE_ENTRIES_TRIM_SIZE + 1|. The "+1" is to account for the new entry that
         // was added after the trim.
         scanDetailCache = mWifiConfigManager.getScanDetailCacheForNetwork(openNetwork.networkId);
-        assertEquals(WifiConfigManagerNew.SCAN_CACHE_ENTRIES_TRIM_SIZE + 1, scanDetailCache.size());
+        assertEquals(WifiConfigManager.SCAN_CACHE_ENTRIES_TRIM_SIZE + 1, scanDetailCache.size());
     }
 
     /**
@@ -989,7 +989,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verify that the |HasEverConnected| is set when
-     * {@link WifiConfigManagerNew#updateNetworkAfterConnect(int)} is invoked.
+     * {@link WifiConfigManager#updateNetworkAfterConnect(int)} is invoked.
      */
     @Test
     public void testUpdateConfigAfterConnect() {
@@ -1173,7 +1173,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the ordering of network list generated using
-     * {@link WifiConfigManagerNew#retrievePnoNetworkList()}.
+     * {@link WifiConfigManager#retrievePnoNetworkList()}.
      */
     @Test
     public void testRetrievePnoList() {
@@ -1221,7 +1221,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the linking of networks when they have the same default GW Mac address in
-     * {@link WifiConfigManagerNew#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}.
+     * {@link WifiConfigManager#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}.
      */
     @Test
     public void testNetworkLinkUsingGwMacAddress() {
@@ -1267,7 +1267,7 @@ public class WifiConfigManagerNewTest {
     /**
      * Verifies the linking of networks when they have scan results with same first 16 ASCII of
      * bssid in
-     * {@link WifiConfigManagerNew#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}.
+     * {@link WifiConfigManager#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}.
      */
     @Test
     public void testNetworkLinkUsingBSSIDMatch() {
@@ -1305,7 +1305,7 @@ public class WifiConfigManagerNewTest {
     /**
      * Verifies the linking of networks does not happen for non WPA networks when they have scan
      * results with same first 16 ASCII of bssid in
-     * {@link WifiConfigManagerNew#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}.
+     * {@link WifiConfigManager#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}.
      */
     @Test
     public void testNoNetworkLinkUsingBSSIDMatchForNonWpaNetworks() {
@@ -1330,9 +1330,9 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the linking of networks does not happen for networks with more than
-     * {@link WifiConfigManagerNew#LINK_CONFIGURATION_MAX_SCAN_CACHE_ENTRIES} scan
+     * {@link WifiConfigManager#LINK_CONFIGURATION_MAX_SCAN_CACHE_ENTRIES} scan
      * results with same first 16 ASCII of bssid in
-     * {@link WifiConfigManagerNew#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}.
+     * {@link WifiConfigManager#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}.
      */
     @Test
     public void testNoNetworkLinkUsingBSSIDMatchForNetworksWithHighScanDetailCacheSize() {
@@ -1344,7 +1344,7 @@ public class WifiConfigManagerNewTest {
         // Create 7 scan results with bssid which is different in only the last char.
         String test_bssid_base = "af:89:56:34:56:6";
         int scan_result_num = 0;
-        for (; scan_result_num < WifiConfigManagerNew.LINK_CONFIGURATION_MAX_SCAN_CACHE_ENTRIES + 1;
+        for (; scan_result_num < WifiConfigManager.LINK_CONFIGURATION_MAX_SCAN_CACHE_ENTRIES + 1;
              scan_result_num++) {
             ScanDetail networkScanDetail =
                     createScanDetailForNetwork(
@@ -1369,7 +1369,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the linking of networks when they have scan results with same first 16 ASCII of
-     * bssid in {@link WifiConfigManagerNew#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}
+     * bssid in {@link WifiConfigManager#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}
      * and then subsequently delinked when the networks have default gateway set which do not match.
      */
     @Test
@@ -1420,7 +1420,7 @@ public class WifiConfigManagerNewTest {
 
     /*
      * Verifies the creation of channel list using
-     * {@link WifiConfigManagerNew#fetchChannelSetForNetworkForPartialScan(int, long)}.
+     * {@link WifiConfigManager#fetchChannelSetForNetworkForPartialScan(int, long)}.
      */
     @Test
     public void testFetchChannelSetForNetwork() {
@@ -1443,7 +1443,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the creation of channel list using
-     * {@link WifiConfigManagerNew#fetchChannelSetForNetworkForPartialScan(int, long)} and ensures
+     * {@link WifiConfigManager#fetchChannelSetForNetworkForPartialScan(int, long)} and ensures
      * that scan results which have a timestamp  beyond the provided age are not used in the
      * channel list.
      */
@@ -1479,12 +1479,12 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the creation of channel list using
-     * {@link WifiConfigManagerNew#fetchChannelSetForNetworkForPartialScan(int, long)} and ensures
+     * {@link WifiConfigManager#fetchChannelSetForNetworkForPartialScan(int, long)} and ensures
      * that the list size does not exceed the max configured for the device.
      */
     @Test
     public void testFetchChannelSetForNetworkIsLimitedToConfiguredSize() {
-        // Need to recreate the WifiConfigManagerNew instance for this test to modify the config
+        // Need to recreate the WifiConfigManager instance for this test to modify the config
         // value which is read only in the constructor.
         int maxListSize = 3;
         mResources.setInteger(
@@ -1513,7 +1513,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the creation of channel list using
-     * {@link WifiConfigManagerNew#fetchChannelSetForNetworkForPartialScan(int, long)} and ensures
+     * {@link WifiConfigManager#fetchChannelSetForNetworkForPartialScan(int, long)} and ensures
      * that scan results from linked networks are used in the channel list.
      */
     @Test
@@ -1560,13 +1560,13 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the creation of channel list using
-     * {@link WifiConfigManagerNew#fetchChannelSetForNetworkForPartialScan(int, long)} and ensures
+     * {@link WifiConfigManager#fetchChannelSetForNetworkForPartialScan(int, long)} and ensures
      * that scan results from linked networks are used in the channel list and that the list size
      * does not exceed the max configured for the device.
      */
     @Test
     public void testFetchChannelSetForNetworkIncludesLinkedNetworksIsLimitedToConfiguredSize() {
-        // Need to recreate the WifiConfigManagerNew instance for this test to modify the config
+        // Need to recreate the WifiConfigManager instance for this test to modify the config
         // value which is read only in the constructor.
         int maxListSize = 3;
         mResources.setInteger(
@@ -1617,7 +1617,7 @@ public class WifiConfigManagerNewTest {
     }
 
     /**
-     * Verifies the foreground user switch using {@link WifiConfigManagerNew#handleUserSwitch(int)}
+     * Verifies the foreground user switch using {@link WifiConfigManager#handleUserSwitch(int)}
      * and ensures that any non current user private networks are moved to shared store file.
      */
     @Test
@@ -1684,8 +1684,8 @@ public class WifiConfigManagerNewTest {
     }
 
     /**
-     * Verifies the foreground user switch using {@link WifiConfigManagerNew#handleUserSwitch(int)}
-     * and {@link WifiConfigManagerNew#handleUserUnlock(int)} and ensures that the new store is
+     * Verifies the foreground user switch using {@link WifiConfigManager#handleUserSwitch(int)}
+     * and {@link WifiConfigManager#handleUserUnlock(int)} and ensures that the new store is
      * read immediately if the user is unlocked during the switch.
      */
     @Test
@@ -1707,8 +1707,8 @@ public class WifiConfigManagerNewTest {
     }
 
     /**
-     * Verifies the foreground user switch using {@link WifiConfigManagerNew#handleUserSwitch(int)}
-     * and {@link WifiConfigManagerNew#handleUserUnlock(int)} and ensures that the new store is not
+     * Verifies the foreground user switch using {@link WifiConfigManager#handleUserSwitch(int)}
+     * and {@link WifiConfigManager#handleUserUnlock(int)} and ensures that the new store is not
      * read until the user is unlocked.
      */
     public void testHandleUserSwitchWhenLocked() throws Exception {
@@ -1738,7 +1738,7 @@ public class WifiConfigManagerNewTest {
     }
 
     /**
-     * Verifies that the foreground user stop using {@link WifiConfigManagerNew#handleUserStop(int)}
+     * Verifies that the foreground user stop using {@link WifiConfigManager#handleUserStop(int)}
      * and ensures that the store is written only when the foreground user is stopped.
      */
     @Test
@@ -1761,7 +1761,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the private network addition using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)}
      * by a non foreground user is rejected.
      */
     @Test
@@ -1780,7 +1780,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies the private network addition using
-     * {@link WifiConfigManagerNew#addOrUpdateNetwork(WifiConfiguration, int)}
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)}
      * by SysUI is always accepted.
      */
     @Test
@@ -1800,7 +1800,7 @@ public class WifiConfigManagerNewTest {
     }
 
     /**
-     * Verifies the loading of networks using {@link WifiConfigManagerNew#loadFromStore()} attempts
+     * Verifies the loading of networks using {@link WifiConfigManager#loadFromStore()} attempts
      * to migrate data from legacy stores when the new store files are absent.
      */
     @Test
@@ -1835,7 +1835,7 @@ public class WifiConfigManagerNewTest {
     }
 
     /**
-     * Verifies the loading of networks using {@link WifiConfigManagerNew#loadFromStore()} does
+     * Verifies the loading of networks using {@link WifiConfigManager#loadFromStore()} does
      * not attempt to read from any of the stores (new or legacy) when the store files are
      * not present.
      */
@@ -1857,9 +1857,9 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies that the last user selected network parameter is set when
-     * {@link WifiConfigManagerNew#enableNetwork(int, boolean, int)} with disableOthers flag is set
-     * to true and cleared when either {@link WifiConfigManagerNew#disableNetwork(int, int)} or
-     * {@link WifiConfigManagerNew#removeNetwork(int, int)} is invoked using the same network ID.
+     * {@link WifiConfigManager#enableNetwork(int, boolean, int)} with disableOthers flag is set
+     * to true and cleared when either {@link WifiConfigManager#disableNetwork(int, int)} or
+     * {@link WifiConfigManager#removeNetwork(int, int)} is invoked using the same network ID.
      */
     @Test
     public void testLastSelectedNetwork() throws Exception {
@@ -1890,7 +1890,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies that all the networks for the provided app is removed when
-     * {@link WifiConfigManagerNew#removeNetworksForApp(ApplicationInfo)} is invoked.
+     * {@link WifiConfigManager#removeNetworksForApp(ApplicationInfo)} is invoked.
      */
     @Test
     public void testRemoveNetworksForApp() throws Exception {
@@ -1911,7 +1911,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies that all the networks for the provided user is removed when
-     * {@link WifiConfigManagerNew#removeNetworksForUser(int)} is invoked.
+     * {@link WifiConfigManager#removeNetworksForUser(int)} is invoked.
      */
     @Test
     public void testRemoveNetworksForUser() throws Exception {
@@ -1929,7 +1929,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Verifies that the connect choice is removed from all networks when
-     * {@link WifiConfigManagerNew#removeNetwork(int, int)} is invoked.
+     * {@link WifiConfigManager#removeNetwork(int, int)} is invoked.
      */
     @Test
     public void testRemoveNetworkRemovesConnectChoice() throws Exception {
@@ -1968,7 +1968,7 @@ public class WifiConfigManagerNewTest {
 
     private void createWifiConfigManager() {
         mWifiConfigManager =
-                new WifiConfigManagerNew(
+                new WifiConfigManager(
                         mContext, mFrameworkFacade, mClock, mUserManager, mTelephonyManager,
                         mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy);
         mWifiConfigManager.enableVerboseLogging(1);
@@ -2017,7 +2017,7 @@ public class WifiConfigManagerNewTest {
         configuration.creatorUid = configuration.lastUpdateUid = TEST_CREATOR_UID;
         configuration.creatorName = configuration.lastUpdateName = TEST_CREATOR_NAME;
         configuration.creationTime = configuration.updateTime =
-                WifiConfigManagerNew.createDebugTimeStampString(
+                WifiConfigManager.createDebugTimeStampString(
                         TEST_WALLCLOCK_CREATION_TIME_MILLIS);
     }
 
@@ -2029,7 +2029,7 @@ public class WifiConfigManagerNewTest {
         configuration.lastUpdateUid = TEST_UPDATE_UID;
         configuration.lastUpdateName = TEST_UPDATE_NAME;
         configuration.updateTime =
-                WifiConfigManagerNew.createDebugTimeStampString(TEST_WALLCLOCK_UPDATE_TIME_MILLIS);
+                WifiConfigManager.createDebugTimeStampString(TEST_WALLCLOCK_UPDATE_TIME_MILLIS);
     }
 
     private void assertNotEquals(Object expected, Object actual) {
@@ -2138,18 +2138,18 @@ public class WifiConfigManagerNewTest {
 
     private void assertPasswordsMaskedInWifiConfiguration(WifiConfiguration configuration) {
         if (!TextUtils.isEmpty(configuration.preSharedKey)) {
-            assertEquals(WifiConfigManagerNew.PASSWORD_MASK, configuration.preSharedKey);
+            assertEquals(WifiConfigManager.PASSWORD_MASK, configuration.preSharedKey);
         }
         if (configuration.wepKeys != null) {
             for (int i = 0; i < configuration.wepKeys.length; i++) {
                 if (!TextUtils.isEmpty(configuration.wepKeys[i])) {
-                    assertEquals(WifiConfigManagerNew.PASSWORD_MASK, configuration.wepKeys[i]);
+                    assertEquals(WifiConfigManager.PASSWORD_MASK, configuration.wepKeys[i]);
                 }
             }
         }
         if (!TextUtils.isEmpty(configuration.enterpriseConfig.getPassword())) {
             assertEquals(
-                    WifiConfigManagerNew.PASSWORD_MASK,
+                    WifiConfigManager.PASSWORD_MASK,
                     configuration.enterpriseConfig.getPassword());
         }
     }
@@ -2360,7 +2360,7 @@ public class WifiConfigManagerNewTest {
         long retrievedDisableTime = retrievedStatus.getDisableTime();
         int retrievedDisableReasonCounter = retrievedStatus.getDisableReasonCounter(reason);
         int disableReasonThreshold =
-                WifiConfigManagerNew.NETWORK_SELECTION_DISABLE_THRESHOLD[reason];
+                WifiConfigManager.NETWORK_SELECTION_DISABLE_THRESHOLD[reason];
 
         if (reason == NetworkSelectionStatus.NETWORK_SELECTION_ENABLE) {
             assertEquals(reason, retrievedDisableReason);
@@ -2437,7 +2437,7 @@ public class WifiConfigManagerNewTest {
      * Adds the provided network and then creates a scan detail corresponding to the network. The
      * method then creates a ScanDetail corresponding to the network and ensures that the network
      * is properly matched using
-     * {@link WifiConfigManagerNew#getSavedNetworkForScanDetailAndCache(ScanDetail)} and also
+     * {@link WifiConfigManager#getSavedNetworkForScanDetailAndCache(ScanDetail)} and also
      * verifies that the provided scan detail was cached,
      */
     private void verifyAddSingleNetworkAndMatchScanDetailToNetworkAndCache(
@@ -2493,7 +2493,7 @@ public class WifiConfigManagerNewTest {
 
     /**
      * Updates an existing network after connection using
-     * {@link WifiConfigManagerNew#updateNetworkAfterConnect(int)} and asserts that the
+     * {@link WifiConfigManager#updateNetworkAfterConnect(int)} and asserts that the
      * |HasEverConnected| flag is set to true.
      */
     private void verifyUpdateNetworkAfterConnectHasEverConnectedTrue(int networkId) {
