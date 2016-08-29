@@ -25,8 +25,8 @@
 #include <ctype.h>
 #include <sys/socket.h>
 #include <linux/if.h>
-#include "wifi.h"
-#include "wifi_hal.h"
+#include "wifi_system/wifi.h"
+#include "hardware_legacy/wifi_hal.h"
 #include "jni_helper.h"
 #include "wifi_hal_mock.h"
 #include <sstream>
@@ -161,6 +161,7 @@ wifi_error wifi_nan_publish_request_mock(transaction_id id,
                        msg->tx_match_filter_len);
   jsonW.put_int("rssi_threshold_flag", msg->rssi_threshold_flag);
   jsonW.put_int("connmap", msg->connmap);
+  jsonW.put_int("recv_indication_cfg", msg->recv_indication_cfg);
   std::string str = jsonW.to_string();
 
   JNIObject < jstring > json_write_string = helper.newStringUTF(str.c_str());
@@ -222,6 +223,7 @@ wifi_error wifi_nan_subscribe_request_mock(transaction_id id,
   jsonW.put_int("connmap", msg->connmap);
   jsonW.put_int("num_intf_addr_present", msg->num_intf_addr_present);
   // TODO: jsonW.put_byte_array("intf_addr", msg->intf_addr, NAN_MAX_SUBSCRIBE_MAX_ADDRESS * NAN_MAC_ADDR_LEN);
+  jsonW.put_int("recv_indication_cfg", msg->recv_indication_cfg);
   std::string str = jsonW.to_string();
 
   JNIObject < jstring > json_write_string = helper.newStringUTF(str.c_str());
@@ -286,8 +288,41 @@ wifi_error wifi_nan_stats_request_mock(transaction_id id,
 wifi_error wifi_nan_config_request_mock(transaction_id id,
                                         wifi_interface_handle iface,
                                         NanConfigRequest* msg) {
+  JNIHelper helper(mock_mVM);
+
   ALOGD("wifi_nan_config_request_mock");
-  return WIFI_ERROR_UNINITIALIZED;
+  HalMockJsonWriter jsonW;
+  jsonW.put_int("config_sid_beacon", msg->config_sid_beacon);
+  jsonW.put_int("sid_beacon", msg->sid_beacon);
+  jsonW.put_int("config_rssi_proximity", msg->config_rssi_proximity);
+  jsonW.put_int("rssi_proximity", msg->rssi_proximity);
+  jsonW.put_int("config_master_pref", msg->config_master_pref);
+  jsonW.put_int("master_pref", msg->master_pref);
+  jsonW.put_int("config_5g_rssi_close_proximity", msg->config_5g_rssi_close_proximity);
+  jsonW.put_int("rssi_close_proximity_5g_val", msg->rssi_close_proximity_5g_val);
+  jsonW.put_int("config_rssi_window_size", msg->config_rssi_window_size);
+  jsonW.put_int("rssi_window_size_val", msg->rssi_window_size_val);
+  jsonW.put_int("config_cluster_attribute_val", msg->config_cluster_attribute_val);
+  jsonW.put_int("config_scan_params", msg->config_scan_params);
+  // TODO: NanSocialChannelScanParams scan_params_val
+  jsonW.put_int("config_random_factor_force", msg->config_random_factor_force);
+  jsonW.put_int("random_factor_force_val", msg->random_factor_force_val);
+  jsonW.put_int("config_hop_count_force", msg->config_hop_count_force);
+  jsonW.put_int("hop_count_force_val", msg->hop_count_force_val);
+  jsonW.put_int("config_conn_capability", msg->config_conn_capability);
+  // TODO: NanTransmitPostConnectivityCapability conn_capability_val
+  jsonW.put_int("num_config_discovery_attr", msg->num_config_discovery_attr);
+  // TODO: NanTransmitPostDiscovery discovery_attr_val[NAN_MAX_POSTDISCOVERY_LEN]
+  jsonW.put_int("config_fam", msg->config_fam);
+  // TODO: NanFurtherAvailabilityMap fam_val
+  std::string str = jsonW.to_string();
+
+  JNIObject < jstring > json_write_string = helper.newStringUTF(str.c_str());
+
+  helper.callMethod(mock_mObj, "configHalMockNative", "(SLjava/lang/String;)V",
+                    (short) id, json_write_string.get());
+
+  return WIFI_SUCCESS;
 }
 
 wifi_error wifi_nan_tca_request_mock(transaction_id id,
@@ -324,6 +359,119 @@ wifi_error wifi_nan_get_capabilities_mock(transaction_id id,
 
   helper.callMethod(mock_mObj, "getCapabilitiesHalMockNative", "(S)V",
                     (short) id);
+  return WIFI_SUCCESS;
+}
+
+wifi_error wifi_nan_data_interface_create_mock(transaction_id id,
+                                               wifi_interface_handle iface,
+                                               char* iface_name) {
+  JNIHelper helper(mock_mVM);
+
+  ALOGD("wifi_nan_data_interface_create_mock");
+  HalMockJsonWriter jsonW;
+  jsonW.put_byte_array("iface_name", (u8*) iface_name, strlen(iface_name));
+  std::string str = jsonW.to_string();
+
+  JNIObject<jstring> json_write_string = helper.newStringUTF(str.c_str());
+
+  helper.callMethod(mock_mObj, "createNanNetworkInterfaceMockNative",
+                    "(SLjava/lang/String;)V", (short)id,
+                    json_write_string.get());
+
+  return WIFI_SUCCESS;
+}
+
+wifi_error wifi_nan_data_interface_delete_mock(transaction_id id,
+                                               wifi_interface_handle iface,
+                                               char* iface_name) {
+  JNIHelper helper(mock_mVM);
+
+  ALOGD("wifi_nan_data_interface_delete_mock");
+  HalMockJsonWriter jsonW;
+  jsonW.put_byte_array("iface_name", (u8*) iface_name, strlen(iface_name));
+  std::string str = jsonW.to_string();
+
+  JNIObject<jstring> json_write_string = helper.newStringUTF(str.c_str());
+
+  helper.callMethod(mock_mObj, "deleteNanNetworkInterfaceMockNative",
+                    "(SLjava/lang/String;)V", (short)id,
+                    json_write_string.get());
+
+  return WIFI_SUCCESS;
+}
+
+wifi_error wifi_nan_data_request_initiator_mock(
+    transaction_id id, wifi_interface_handle iface,
+    NanDataPathInitiatorRequest* msg) {
+  JNIHelper helper(mock_mVM);
+
+  ALOGD("wifi_nan_data_request_initiator_mock");
+  HalMockJsonWriter jsonW;
+  jsonW.put_int("service_instance_id", msg->service_instance_id);
+  jsonW.put_int("channel_request_type", (int)msg->channel_request_type);
+  jsonW.put_int("channel", (int)msg->channel);
+  jsonW.put_byte_array("peer_disc_mac_addr", msg->peer_disc_mac_addr, 6);
+  jsonW.put_byte_array("ndp_iface", (u8*) msg->ndp_iface, strlen(msg->ndp_iface));
+  jsonW.put_int("ndp_cfg.security_cfg", (int)msg->ndp_cfg.security_cfg);
+  jsonW.put_int("ndp_cfg.qos_cfg", (int)msg->ndp_cfg.qos_cfg);
+  jsonW.put_int("app_info.ndp_app_info_len", msg->app_info.ndp_app_info_len);
+  jsonW.put_byte_array("app_info.ndp_app_info", msg->app_info.ndp_app_info,
+                       msg->app_info.ndp_app_info_len);
+  std::string str = jsonW.to_string();
+
+  JNIObject<jstring> json_write_string = helper.newStringUTF(str.c_str());
+
+  helper.callMethod(mock_mObj, "initiateDataPathMockNative",
+                    "(SLjava/lang/String;)V", (short)id,
+                    json_write_string.get());
+
+  return WIFI_SUCCESS;
+}
+
+wifi_error wifi_nan_data_indication_response_mock(
+    transaction_id id, wifi_interface_handle iface,
+    NanDataPathIndicationResponse* msg) {
+  JNIHelper helper(mock_mVM);
+
+  ALOGD("wifi_nan_data_indication_response_mock");
+  HalMockJsonWriter jsonW;
+  jsonW.put_int("ndp_instance_id", msg->ndp_instance_id);
+  jsonW.put_byte_array("ndp_iface", (u8*) msg->ndp_iface, strlen(msg->ndp_iface));
+  jsonW.put_int("ndp_cfg.security_cfg", (int)msg->ndp_cfg.security_cfg);
+  jsonW.put_int("ndp_cfg.qos_cfg", (int)msg->ndp_cfg.qos_cfg);
+  jsonW.put_int("app_info.ndp_app_info_len", msg->app_info.ndp_app_info_len);
+  jsonW.put_byte_array("app_info.ndp_app_info", msg->app_info.ndp_app_info,
+                       msg->app_info.ndp_app_info_len);
+  jsonW.put_int("rsp_code", (int)msg->rsp_code);
+  std::string str = jsonW.to_string();
+
+  JNIObject<jstring> json_write_string = helper.newStringUTF(str.c_str());
+
+  helper.callMethod(mock_mObj, "respondToDataPathRequestMockNative",
+                    "(SLjava/lang/String;)V", (short)id,
+                    json_write_string.get());
+
+  return WIFI_SUCCESS;
+}
+
+wifi_error wifi_nan_data_end_mock(transaction_id id,
+                                  wifi_interface_handle iface,
+                                  NanDataPathEndRequest* msg) {
+  JNIHelper helper(mock_mVM);
+
+  ALOGD("wifi_nan_data_end_mock");
+  HalMockJsonWriter jsonW;
+  jsonW.put_int("num_ndp_instances", msg->num_ndp_instances);
+  if (msg->num_ndp_instances == 1) {
+    jsonW.put_int("ndp_instance_id", msg->ndp_instance_id[0]);
+  }
+  std::string str = jsonW.to_string();
+
+  JNIObject<jstring> json_write_string = helper.newStringUTF(str.c_str());
+
+  helper.callMethod(mock_mObj, "endDataPathMockNative", "(SLjava/lang/String;)V",
+                    (short)id, json_write_string.get());
+
   return WIFI_SUCCESS;
 }
 
@@ -374,6 +522,11 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callNotifyRespon
         "body.nan_capabilities.max_ndp_sessions", &error);
     msg.body.nan_capabilities.max_app_info_len = jsonR.get_int(
         "body.nan_capabilities.max_app_info_len", &error);
+    msg.body.nan_capabilities.max_queued_transmit_followup_msgs = jsonR.get_int(
+        "body.nan_capabilities.max_queued_transmit_followup_msgs", &error);
+  } else if (msg.response_type == NAN_DP_INITIATOR_RESPONSE) {
+      msg.body.data_request_response.ndp_instance_id = jsonR.get_int(
+          "body.data_request_response.ndp_instance_id", &error);
   }
 
   if (error) {
@@ -541,8 +694,123 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDisabled(
   mCallbackHandlers.EventDisabled(&msg);
 }
 
+extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callTransmitFollowup(
+    JNIEnv* env, jclass clazz, jstring json_args_jstring) {
+  ScopedUtfChars chars(env, json_args_jstring);
+  HalMockJsonReader jsonR(chars.c_str());
+  bool error = false;
+
+  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callTransmitFollowup: '%s'",
+        chars.c_str());
+
+  NanTransmitFollowupInd msg;
+  msg.id = (transaction_id) jsonR.get_int("id", &error);
+  msg.reason = (NanStatusType) jsonR.get_int("reason", &error);
+
+  if (error) {
+    ALOGE("Java_com_android_server_wifi_nan_WifiNanHalMock_callTransmitFollowup: "
+          "error parsing args");
+    return;
+  }
+
+  mCallbackHandlers.EventTransmitFollowup(&msg);
+}
+
+extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathRequest(
+    JNIEnv* env, jclass clazz, jstring json_args_jstring) {
+  ScopedUtfChars chars(env, json_args_jstring);
+  HalMockJsonReader jsonR(chars.c_str());
+  bool error = false;
+
+  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathRequest: '%s'",
+        chars.c_str());
+
+  NanDataPathRequestInd msg;
+  msg.service_instance_id = jsonR.get_int("service_instance_id", &error);
+  jsonR.get_byte_array("peer_disc_mac_addr", &error, msg.peer_disc_mac_addr, 6);
+  msg.ndp_instance_id = (NanDataPathId)jsonR.get_int("ndp_instance_id", &error);
+  msg.ndp_cfg.security_cfg = (NanDataPathSecurityCfgStatus)jsonR.get_int(
+      "ndp_cfg.security_cfg", &error);
+  msg.ndp_cfg.qos_cfg =
+      (NanDataPathQosCfg)jsonR.get_int("ndp_cfg.qos_cfg", &error);
+  msg.app_info.ndp_app_info_len =
+      jsonR.get_int("app_info.ndp_app_info_len", &error);
+  jsonR.get_byte_array("app_info.ndp_app_info", &error,
+                       msg.app_info.ndp_app_info,
+                       msg.app_info.ndp_app_info_len);
+
+  if (error) {
+    ALOGE(
+        "Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathRequest: "
+        "error parsing args");
+    return;
+  }
+
+  mCallbackHandlers.EventDataRequest(&msg);
+}
+
+extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathConfirm(
+    JNIEnv* env, jclass clazz, jstring json_args_jstring) {
+  ScopedUtfChars chars(env, json_args_jstring);
+  HalMockJsonReader jsonR(chars.c_str());
+  bool error = false;
+
+  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathConfirm: '%s'",
+        chars.c_str());
+
+  NanDataPathConfirmInd msg;
+  msg.ndp_instance_id = (NanDataPathId)jsonR.get_int("ndp_instance_id", &error);
+  jsonR.get_byte_array("peer_ndi_mac_addr", &error, msg.peer_ndi_mac_addr, 6);
+  msg.app_info.ndp_app_info_len =
+      jsonR.get_int("app_info.ndp_app_info_len", &error);
+  jsonR.get_byte_array("app_info.ndp_app_info", &error,
+                       msg.app_info.ndp_app_info,
+                       msg.app_info.ndp_app_info_len);
+  msg.rsp_code = (NanDataPathResponseCode)jsonR.get_int("rsp_code", &error);
+  msg.reason_code = (NanStatusType)jsonR.get_int("reason_code", &error);
+
+  if (error) {
+    ALOGE(
+        "Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathConfirm: "
+        "error parsing args");
+    return;
+  }
+
+  mCallbackHandlers.EventDataConfirm(&msg);
+}
+
+extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathEnd(
+    JNIEnv* env, jclass clazz, jstring json_args_jstring) {
+  ScopedUtfChars chars(env, json_args_jstring);
+  HalMockJsonReader jsonR(chars.c_str());
+  bool error = false;
+
+  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathEnd: '%s'",
+        chars.c_str());
+
+  int num_ndp_instances = jsonR.get_int("num_ndp_instances", &error);
+
+  NanDataPathEndInd* msg = (NanDataPathEndInd*) malloc(sizeof(NanDataPathEndInd)
+                                                       + num_ndp_instances * sizeof(NanDataPathId));
+  msg->num_ndp_instances = num_ndp_instances;
+  for (int i = 0; i < num_ndp_instances; ++i) {
+    msg->ndp_instance_id[i] = jsonR.get_int("ndp_instance_id", &error) + i;
+  }
+
+  if (error) {
+    ALOGE(
+        "Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathEnd: "
+        "error parsing args");
+    return;
+  }
+
+  mCallbackHandlers.EventDataEnd(msg);
+
+  free(msg);
+}
+
 // TODO: Not currently used: add as needed
-//void (*EventUnMatch) (NanUnmatchInd* event);
+//void (*EventMatchExpired) (NanUnmatchInd* event);
 //void (*EventTca) (NanTCAInd* event);
 //void (*EventBeaconSdfPayload) (NanBeaconSdfPayloadInd* event);
 
@@ -569,6 +837,11 @@ int init_wifi_nan_hal_func_table_mock(wifi_hal_fn *fn) {
   fn->wifi_nan_register_handler = wifi_nan_register_handler_mock;
   fn->wifi_nan_get_version = wifi_nan_get_version_mock;
   fn->wifi_nan_get_capabilities = wifi_nan_get_capabilities_mock;
+  fn->wifi_nan_data_interface_create = wifi_nan_data_interface_create_mock;
+  fn->wifi_nan_data_interface_delete = wifi_nan_data_interface_delete_mock;
+  fn->wifi_nan_data_request_initiator = wifi_nan_data_request_initiator_mock;
+  fn->wifi_nan_data_indication_response = wifi_nan_data_indication_response_mock;
+  fn->wifi_nan_data_end = wifi_nan_data_end_mock;
 
   return 0;
 }

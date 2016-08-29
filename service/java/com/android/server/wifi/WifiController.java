@@ -583,7 +583,6 @@ public class WifiController extends StateMachine {
         public void enter() {
             mWifiStateMachine.setSupplicantRunning(true);
             mWifiStateMachine.setOperationalMode(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE);
-            mWifiStateMachine.setDriverStart(true);
             // Supplicant can't restart right away, so not the time we switched off
             mDisabledTimestamp = SystemClock.elapsedRealtime();
             mDeferredEnableSerialNumber++;
@@ -815,7 +814,6 @@ public class WifiController extends StateMachine {
         @Override
         public void enter() {
             mWifiStateMachine.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-            mWifiStateMachine.setDriverStart(true);
             mWifiStateMachine.setHighPerfModeEnabled(false);
         }
 
@@ -866,7 +864,6 @@ public class WifiController extends StateMachine {
         @Override
         public void enter() {
             mWifiStateMachine.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
-            mWifiStateMachine.setDriverStart(true);
         }
     }
 
@@ -875,7 +872,6 @@ public class WifiController extends StateMachine {
         @Override
         public void enter() {
             mWifiStateMachine.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-            mWifiStateMachine.setDriverStart(true);
             mWifiStateMachine.setHighPerfModeEnabled(false);
         }
     }
@@ -885,7 +881,6 @@ public class WifiController extends StateMachine {
         @Override
         public void enter() {
             mWifiStateMachine.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-            mWifiStateMachine.setDriverStart(true);
             mWifiStateMachine.setHighPerfModeEnabled(true);
         }
     }
@@ -894,7 +889,7 @@ public class WifiController extends StateMachine {
     class NoLockHeldState extends State {
         @Override
         public void enter() {
-            mWifiStateMachine.setDriverStart(false);
+            mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE);
         }
     }
 

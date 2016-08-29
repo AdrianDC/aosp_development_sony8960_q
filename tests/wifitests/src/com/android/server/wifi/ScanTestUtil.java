@@ -233,6 +233,18 @@ public class ScanTestUtil {
         return createScanDatas(freqs, new int[freqs.length] /* defaults all 0 */);
     }
 
+    private static void assertScanResultEquals(
+            String prefix, ScanResult expected, ScanResult actual) {
+        assertEquals(prefix + "SSID", expected.SSID, actual.SSID);
+        assertEquals(prefix + "wifiSsid", expected.wifiSsid.toString(), actual.wifiSsid.toString());
+        assertEquals(prefix + "BSSID", expected.BSSID, actual.BSSID);
+        assertEquals(prefix + "capabilities", expected.capabilities, actual.capabilities);
+        assertEquals(prefix + "level", expected.level, actual.level);
+        assertEquals(prefix + "frequency", expected.frequency, actual.frequency);
+        assertEquals(prefix + "timestamp", expected.timestamp, actual.timestamp);
+        assertEquals(prefix + "seen", expected.seen, actual.seen);
+    }
+
     private static void assertScanResultsEquals(String prefix, ScanResult[] expected,
             ScanResult[] actual) {
         assertNotNull(prefix + "expected ScanResults was null", expected);
@@ -241,23 +253,15 @@ public class ScanTestUtil {
         for (int j = 0; j < expected.length; ++j) {
             ScanResult expectedResult = expected[j];
             ScanResult actualResult = actual[j];
-            assertEquals(prefix + "results[" + j + "].SSID",
-                    expectedResult.SSID, actualResult.SSID);
-            assertEquals(prefix + "results[" + j + "].wifiSsid",
-                    expectedResult.wifiSsid.toString(), actualResult.wifiSsid.toString());
-            assertEquals(prefix + "results[" + j + "].BSSID",
-                    expectedResult.BSSID, actualResult.BSSID);
-            assertEquals(prefix + "results[" + j + "].capabilities",
-                    expectedResult.capabilities, actualResult.capabilities);
-            assertEquals(prefix + "results[" + j + "].level",
-                    expectedResult.level, actualResult.level);
-            assertEquals(prefix + "results[" + j + "].frequency",
-                    expectedResult.frequency, actualResult.frequency);
-            assertEquals(prefix + "results[" + j + "].timestamp",
-                    expectedResult.timestamp, actualResult.timestamp);
-            assertEquals(prefix + "results[" + j + "].seen",
-                    expectedResult.seen, actualResult.seen);
+            assertScanResultEquals(prefix + "results[" + j + "]", actualResult, expectedResult);
         }
+    }
+
+    /**
+     * Asserts if the provided scan results are the same.
+     */
+    public static void assertScanResultEquals(ScanResult expected, ScanResult actual) {
+        assertScanResultEquals("", expected, actual);
     }
 
     /**

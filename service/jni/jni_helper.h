@@ -82,7 +82,8 @@ public :
     bool getStringFieldValue(jobject obj, const char *name, char *buf, int size);
     JNIObject<jobject> getObjectField(jobject obj, const char *name, const char *type);
     JNIObject<jobjectArray> getArrayField(jobject obj, const char *name, const char *type);
-    void getByteArrayField(jobject obj, const char *name, byte* buf, int size);
+    void getByteArrayField(jobject obj, const char *name, byte *buf, size_t size);
+    void getByteArrayField(jobject obj, const char *name, byte *buf, size_t *size, int max_size);
     jlong getLongArrayField(jobject obj, const char *name, int index);
     JNIObject<jobject> getObjectArrayField(
             jobject obj, const char *name, const char *type, int index);

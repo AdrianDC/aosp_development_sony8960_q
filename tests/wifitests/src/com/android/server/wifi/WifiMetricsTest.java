@@ -33,6 +33,8 @@ import org.mockito.MockitoAnnotations;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -50,7 +52,7 @@ public class WifiMetricsTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         mDeserializedWifiMetrics = null;
-        when(mClock.elapsedRealtime()).thenReturn((long) 0);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn((long) 0);
         mWifiMetrics = new WifiMetrics(mClock);
     }
 
@@ -89,7 +91,7 @@ public class WifiMetricsTest {
         PrintWriter writer = new PrintWriter(stream);
         String[] args = new String[0];
 
-        when(mClock.elapsedRealtime()).thenReturn(TEST_RECORD_DURATION_MILLIS);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(TEST_RECORD_DURATION_MILLIS);
         //Test proto dump, by passing in proto arg option
         args = new String[]{WifiMetrics.PROTO_DUMP_ARG};
         mWifiMetrics.dump(null, writer, args);
@@ -104,15 +106,32 @@ public class WifiMetricsTest {
         mDeserializedWifiMetrics = WifiMetricsProto.WifiLog.parseFrom(protoBytes);
     }
 
+    /** Verifies that dump() includes the expected header */
     @Test
-    public void dumpHumanReadable() throws Exception {
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        PrintWriter writer = new PrintWriter(stream);
-        String[] args = new String[0];
-        mWifiMetrics.dump(null, writer, args);
-        writer.flush();
-        assertTrue("stream.toString().contains(\"WifiMetrics\")",
-                stream.toString().contains("WifiMetrics"));
+    public void stateDumpIncludesHeader() throws Exception {
+        assertStringContains(getStateDump(), "WifiMetrics");
+    }
+
+    /** Verifies that dump() includes correct alert count when there are no alerts. */
+    @Test
+    public void stateDumpAlertCountIsCorrectWithNoAlerts() throws Exception {
+        assertStringContains(getStateDump(), "mWifiLogProto.alertReasonCounts=()");
+    }
+
+    /** Verifies that dump() includes correct alert count when there is one alert. */
+    @Test
+    public void stateDumpAlertCountIsCorrectWithOneAlert() throws Exception {
+        mWifiMetrics.incrementAlertReasonCount(1);
+        assertStringContains(getStateDump(), "mWifiLogProto.alertReasonCounts=(1,1)");
+    }
+
+    /** Verifies that dump() includes correct alert count when there are multiple alerts. */
+    @Test
+    public void stateDumpAlertCountIsCorrectWithMultipleAlerts() throws Exception {
+        mWifiMetrics.incrementAlertReasonCount(1);
+        mWifiMetrics.incrementAlertReasonCount(1);
+        mWifiMetrics.incrementAlertReasonCount(16);
+        assertStringContains(getStateDump(), "mWifiLogProto.alertReasonCounts=(1,2),(16,1)");
     }
 
     @Test
@@ -126,6 +145,8 @@ public class WifiMetricsTest {
     private static final int NUM_OPEN_NETWORKS = 2;
     private static final int NUM_PERSONAL_NETWORKS = 3;
     private static final int NUM_ENTERPRISE_NETWORKS = 5;
+    private static final int NUM_HIDDEN_NETWORKS = 3;
+    private static final int NUM_PASSPOINT_NETWORKS = 4;
     private static final boolean TEST_VAL_IS_LOCATION_ENABLED = true;
     private static final boolean IS_SCANNING_ALWAYS_ENABLED = true;
     private static final int NUM_NEWTORKS_ADDED_BY_USER = 13;
@@ -154,8 +175,47 @@ public class WifiMetricsTest {
     private static final int NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_AUTHENTICATION = 8;
     private static final int NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_DHCP = 9;
     private static final int NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_OTHER = 10;
+    private static final int NUM_LAST_RESORT_WATCHDOG_SUCCESSES = 5;
     private static final int NUM_RSSI_LEVELS_TO_INCREMENT = 20;
     private static final int FIRST_RSSI_LEVEL = -80;
+    private static final int NUM_OPEN_NETWORK_SCAN_RESULTS = 1;
+    private static final int NUM_PERSONAL_NETWORK_SCAN_RESULTS = 4;
+    private static final int NUM_ENTERPRISE_NETWORK_SCAN_RESULTS = 3;
+    private static final int NUM_HIDDEN_NETWORK_SCAN_RESULTS = 1;
+    private static final int NUM_HOTSPOT2_R1_NETWORK_SCAN_RESULTS = 1;
+    private static final int NUM_HOTSPOT2_R2_NETWORK_SCAN_RESULTS = 2;
+    private static final int NUM_SCANS = 5;
+    private static final int NUM_TOTAL_SCAN_RESULTS = 8;
+
+    private ScanDetail buildMockScanDetail(boolean hidden, NetworkDetail.HSRelease hSRelease,
+            String capabilities) {
+        ScanDetail mockScanDetail = mock(ScanDetail.class);
+        NetworkDetail mockNetworkDetail = mock(NetworkDetail.class);
+        ScanResult mockScanResult = mock(ScanResult.class);
+        when(mockScanDetail.getNetworkDetail()).thenReturn(mockNetworkDetail);
+        when(mockScanDetail.getScanResult()).thenReturn(mockScanResult);
+        when(mockNetworkDetail.isHiddenBeaconFrame()).thenReturn(hidden);
+        when(mockNetworkDetail.getHSRelease()).thenReturn(hSRelease);
+        mockScanResult.capabilities = capabilities;
+        return mockScanDetail;
+    }
+
+    private List<ScanDetail> buildMockScanDetailList() {
+        List<ScanDetail> mockScanDetails = new ArrayList<ScanDetail>();
+        mockScanDetails.add(buildMockScanDetail(true, null, "[ESS]"));
+        mockScanDetails.add(buildMockScanDetail(false, null, "[WPA2-PSK-CCMP][ESS]"));
+        mockScanDetails.add(buildMockScanDetail(false, null, "[WPA-PSK-CCMP]"));
+        mockScanDetails.add(buildMockScanDetail(false, null, "[WPA-PSK-CCMP]"));
+        mockScanDetails.add(buildMockScanDetail(false, null, "[WEP]"));
+        mockScanDetails.add(buildMockScanDetail(false, NetworkDetail.HSRelease.R2,
+                "[WPA-EAP-CCMP]"));
+        mockScanDetails.add(buildMockScanDetail(false, NetworkDetail.HSRelease.R2,
+                "[WPA2-EAP+FT/EAP-CCMP]"));
+        mockScanDetails.add(buildMockScanDetail(false, NetworkDetail.HSRelease.R1,
+                "[WPA-EAP-CCMP]"));
+        return mockScanDetails;
+    }
+
     /**
      * Set simple metrics, increment others
      */
@@ -164,6 +224,8 @@ public class WifiMetricsTest {
         mWifiMetrics.setNumOpenNetworks(NUM_OPEN_NETWORKS);
         mWifiMetrics.setNumPersonalNetworks(NUM_PERSONAL_NETWORKS);
         mWifiMetrics.setNumEnterpriseNetworks(NUM_ENTERPRISE_NETWORKS);
+        mWifiMetrics.setNumHiddenNetworks(NUM_HIDDEN_NETWORKS);
+        mWifiMetrics.setNumPasspointNetworks(NUM_PASSPOINT_NETWORKS);
         mWifiMetrics.setNumNetworksAddedByUser(NUM_NEWTORKS_ADDED_BY_USER);
         mWifiMetrics.setNumNetworksAddedByApps(NUM_NEWTORKS_ADDED_BY_APPS);
         mWifiMetrics.setIsLocationEnabled(TEST_VAL_IS_LOCATION_ENABLED);
@@ -238,10 +300,25 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_OTHER; i++) {
             mWifiMetrics.incrementNumLastResortWatchdogTriggersWithBadOther();
         }
+        for (int i = 0; i < NUM_LAST_RESORT_WATCHDOG_SUCCESSES; i++) {
+            mWifiMetrics.incrementNumLastResortWatchdogSuccesses();
+        }
         for (int i = 0; i < NUM_RSSI_LEVELS_TO_INCREMENT; i++) {
             for (int j = 0; j <= i; j++) {
                 mWifiMetrics.incrementRssiPollRssiCount(FIRST_RSSI_LEVEL + i);
             }
+        }
+        // Test alert-reason clamping.
+        mWifiMetrics.incrementAlertReasonCount(WifiLoggerHal.WIFI_ALERT_REASON_MIN - 1);
+        mWifiMetrics.incrementAlertReasonCount(WifiLoggerHal.WIFI_ALERT_REASON_MAX + 1);
+        // Simple cases for alert reason.
+        mWifiMetrics.incrementAlertReasonCount(1);
+        mWifiMetrics.incrementAlertReasonCount(1);
+        mWifiMetrics.incrementAlertReasonCount(1);
+        mWifiMetrics.incrementAlertReasonCount(2);
+        List<ScanDetail> mockScanDetails = buildMockScanDetailList();
+        for (int i = 0; i < NUM_SCANS; i++) {
+            mWifiMetrics.countScanResults(mockScanDetails);
         }
     }
 
@@ -261,6 +338,8 @@ public class WifiMetricsTest {
         assertEquals("mDeserializedWifiMetrics.numNetworksAddedByUser "
                         + "== NUM_NEWTORKS_ADDED_BY_USER",
                 mDeserializedWifiMetrics.numNetworksAddedByUser, NUM_NEWTORKS_ADDED_BY_USER);
+        assertEquals(NUM_HIDDEN_NETWORKS, mDeserializedWifiMetrics.numHiddenNetworks);
+        assertEquals(NUM_PASSPOINT_NETWORKS, mDeserializedWifiMetrics.numPasspointNetworks);
         assertEquals("mDeserializedWifiMetrics.numNetworksAddedByApps "
                         + "== NUM_NEWTORKS_ADDED_BY_APPS",
                 mDeserializedWifiMetrics.numNetworksAddedByApps, NUM_NEWTORKS_ADDED_BY_APPS);
@@ -318,12 +397,34 @@ public class WifiMetricsTest {
                 mDeserializedWifiMetrics.numLastResortWatchdogTriggersWithBadDhcp);
         assertEquals(NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_OTHER,
                 mDeserializedWifiMetrics.numLastResortWatchdogTriggersWithBadOther);
+        assertEquals(NUM_LAST_RESORT_WATCHDOG_SUCCESSES,
+                mDeserializedWifiMetrics.numLastResortWatchdogSuccesses);
         assertEquals(TEST_RECORD_DURATION_SEC,
                 mDeserializedWifiMetrics.recordDurationSec);
         for (int i = 0; i < NUM_RSSI_LEVELS_TO_INCREMENT; i++) {
             assertEquals(FIRST_RSSI_LEVEL + i, mDeserializedWifiMetrics.rssiPollRssiCount[i].rssi);
             assertEquals(i + 1, mDeserializedWifiMetrics.rssiPollRssiCount[i].count);
         }
+        assertEquals(2, mDeserializedWifiMetrics.alertReasonCount[0].count);  // Clamped reasons.
+        assertEquals(3, mDeserializedWifiMetrics.alertReasonCount[1].count);
+        assertEquals(1, mDeserializedWifiMetrics.alertReasonCount[2].count);
+        assertEquals(3, mDeserializedWifiMetrics.alertReasonCount.length);
+        assertEquals(NUM_TOTAL_SCAN_RESULTS * NUM_SCANS,
+                mDeserializedWifiMetrics.numTotalScanResults);
+        assertEquals(NUM_OPEN_NETWORK_SCAN_RESULTS * NUM_SCANS,
+                mDeserializedWifiMetrics.numOpenNetworkScanResults);
+        assertEquals(NUM_PERSONAL_NETWORK_SCAN_RESULTS * NUM_SCANS,
+                mDeserializedWifiMetrics.numPersonalNetworkScanResults);
+        assertEquals(NUM_ENTERPRISE_NETWORK_SCAN_RESULTS * NUM_SCANS,
+                mDeserializedWifiMetrics.numEnterpriseNetworkScanResults);
+        assertEquals(NUM_HIDDEN_NETWORK_SCAN_RESULTS * NUM_SCANS,
+                mDeserializedWifiMetrics.numHiddenNetworkScanResults);
+        assertEquals(NUM_HOTSPOT2_R1_NETWORK_SCAN_RESULTS * NUM_SCANS,
+                mDeserializedWifiMetrics.numHotspot2R1NetworkScanResults);
+        assertEquals(NUM_HOTSPOT2_R2_NETWORK_SCAN_RESULTS * NUM_SCANS,
+                mDeserializedWifiMetrics.numHotspot2R2NetworkScanResults);
+        assertEquals(NUM_SCANS,
+                mDeserializedWifiMetrics.numScans);
     }
 
     /**
@@ -461,6 +562,8 @@ public class WifiMetricsTest {
         dumpProtoAndDeserialize();
         //Check there are only 3 connection events
         assertEquals(mDeserializedWifiMetrics.connectionEvent.length, 4);
+        assertEquals(mDeserializedWifiMetrics.rssiPollRssiCount.length, 0);
+        assertEquals(mDeserializedWifiMetrics.alertReasonCount.length, 0);
 
         // Create 2 ConnectionEvents
         mWifiMetrics.startConnectionEvent(null,  "BLUE",
@@ -479,4 +582,21 @@ public class WifiMetricsTest {
         //Check there are only 2 connection events
         assertEquals(mDeserializedWifiMetrics.connectionEvent.length, 2);
     }
+
+    private void assertStringContains(
+            String actualString, String expectedSubstring) {
+        assertTrue("Expected text not found in: " + actualString,
+                actualString.contains(expectedSubstring));
+    }
+
+    private String getStateDump() {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(stream);
+        String[] args = new String[0];
+        mWifiMetrics.dump(null, writer, args);
+        writer.flush();
+        return stream.toString();
+    }
 }
+
+

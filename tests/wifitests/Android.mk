@@ -28,30 +28,29 @@ LOCAL_C_INCLUDES += \
 	$(JNI_H_INCLUDE) \
 	$(LOCAL_PATH)/../../service/jni \
 	$(call include-path-for, libhardware)/hardware \
-	$(call include-path-for, libhardware_legacy)/hardware_legacy \
+	$(call include-path-for, libhardware_legacy) \
 	packages/apps/Test/connectivity/sl4n/rapidjson/include \
 	libcore/include
 
 LOCAL_SRC_FILES := \
 	jni/wifi_hal_mock.cpp
 
-ifdef INCLUDE_NAN_FEATURE
+ifeq ($(BOARD_HAS_NAN), true)
 LOCAL_SRC_FILES += \
 	jni/wifi_nan_hal_mock.cpp
 endif
 
 LOCAL_MODULE := libwifi-hal-mock
 
-LOCAL_STATIC_LIBRARIES += libwifi-hal
 LOCAL_SHARED_LIBRARIES += \
 	libnativehelper \
 	libcutils \
 	libutils \
 	libhardware \
-	libhardware_legacy \
 	libnl \
 	libdl \
-	libwifi-service
+	libwifi-service \
+	libwifi-system
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -63,7 +62,7 @@ LOCAL_MODULE_TAGS := tests
 
 LOCAL_SRC_FILES := $(call all-subdir-java-files)
 
-ifndef INCLUDE_NAN_FEATURE
+ifneq ($(BOARD_HAS_NAN), true)
 LOCAL_SRC_FILES := $(filter-out $(call all-java-files-under, \
           src/com/android/server/wifi/nan),$(LOCAL_SRC_FILES))
 endif
@@ -102,7 +101,8 @@ LOCAL_JACK_COVERAGE_EXCLUDE_FILTER := $(jacoco_exclude)
 # since neither is declared a static java library.
 LOCAL_STATIC_JAVA_LIBRARIES := \
 	android-support-test \
-	mockito-target \
+	mockito-target-minus-junit4 \
+	frameworks-base-testutils \
 	services \
 	wifi-service \
 
@@ -114,20 +114,40 @@ LOCAL_JAVA_LIBRARIES := \
 # These must be explicitly included because they are not normally accessible
 # from apps.
 LOCAL_JNI_SHARED_LIBRARIES := \
+	libcrypto \
 	libwifi-service \
-	libc++ \
-	libLLVM \
-	libutils \
-	libunwind \
-	libhardware_legacy \
-	libbase \
-	libhardware \
-	libnl \
-	libcutils \
-	libnetutils \
+	libEGL \
+	libGLESv2 \
+	libaudioutils \
 	libbacktrace \
-	libnativehelper \
+	libbase \
+	libbinder \
+	libc++ \
+	libcamera_client \
+	libcamera_metadata \
+	libcutils \
+	libexpat \
+	libgui \
+	libhardware \
+	libicui18n \
+	libicuuc \
 	liblzma \
+	libmedia \
+	libnativehelper \
+	libnbaio \
+	libnetutils \
+	libnl \
+	libpowermanager \
+	libsonivox \
+	libspeexresampler \
+	libstagefright_foundation \
+	libstdc++ \
+	libsync \
+	libwifi-hal \
+	libwifi-system \
+	libui \
+	libunwind \
+	libutils \
 
 ifdef WPA_SUPPLICANT_VERSION
 LOCAL_JNI_SHARED_LIBRARIES += libwpa_client

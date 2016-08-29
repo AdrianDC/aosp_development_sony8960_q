@@ -16,9 +16,11 @@
 
 package com.android.server.wifi.nan;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -26,22 +28,20 @@ import static org.mockito.Mockito.when;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.net.wifi.RttManager;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanEventCallback;
-import android.net.wifi.nan.WifiNanSessionCallback;
 import android.os.IBinder;
 import android.os.Looper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
+import android.util.SparseIntArray;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -53,7 +53,8 @@ import java.lang.reflect.Field;
  */
 @SmallTest
 public class WifiNanServiceImplTest {
-    private WifiNanServiceImpl mDut;
+    private WifiNanServiceImplSpy mDut;
+    private int mDefaultUid = 1500;
 
     @Mock
     private Context mContextMock;
@@ -64,10 +65,30 @@ public class WifiNanServiceImplTest {
     @Mock
     private IBinder mBinderMock;
     @Mock
-    IWifiNanEventCallback mCallbackMock;
+    private IWifiNanEventCallback mCallbackMock;
+    @Mock
+    private IWifiNanSessionCallback mSessionCallbackMock;
 
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
+    /**
+     * Using instead of spy to avoid native crash failures - possibly due to
+     * spy's copying of state.
+     */
+    private class WifiNanServiceImplSpy extends WifiNanServiceImpl {
+        public int fakeUid;
+
+        WifiNanServiceImplSpy(Context context) {
+            super(context);
+        }
+
+        /**
+         * Return the fake UID instead of the real one: pseudo-spy
+         * implementation.
+         */
+        @Override
+        public int getMockableCallingUid() {
+            return fakeUid;
+        }
+    }
 
     /**
      * Initializes mocks.
@@ -83,7 +104,8 @@ public class WifiNanServiceImplTest {
 
         installMockNanStateManager();
 
-        mDut = new WifiNanServiceImpl(mContextMock);
+        mDut = new WifiNanServiceImplSpy(mContextMock);
+        mDut.fakeUid = mDefaultUid;
     }
 
     /**
@@ -93,8 +115,41 @@ public class WifiNanServiceImplTest {
     public void testStart() {
         mDut.start();
 
-        verify(mNanStateManagerMock).start(any(Looper.class));
+        verify(mNanStateManagerMock).start(eq(mContextMock), any(Looper.class));
     }
+
+    /**
+     * Validate enableUsage() function
+     */
+    @Test
+    public void testEnableUsage() {
+        mDut.enableUsage();
+
+        verify(mNanStateManagerMock).enableUsage();
+    }
+
+    /**
+     * Validate disableUsage() function
+     */
+    @Test
+    public void testDisableUsage() throws Exception {
+        mDut.enableUsage();
+        doConnect();
+        mDut.disableUsage();
+
+        verify(mNanStateManagerMock).disableUsage();
+    }
+
+    /**
+     * Validate isUsageEnabled() function
+     */
+    @Test
+    public void testIsUsageEnabled() {
+        mDut.isUsageEnabled();
+
+        verify(mNanStateManagerMock).isUsageEnabled();
+    }
+
 
     /**
      * Validate connect() - returns and uses a client ID.
@@ -102,6 +157,23 @@ public class WifiNanServiceImplTest {
     @Test
     public void testConnect() {
         doConnect();
+    }
+
+    /**
+     * Validate connect() when a non-null config is passed.
+     */
+    @Test
+    public void testConnectWithConfig() {
+        ConfigRequest configRequest = new ConfigRequest.Builder().setMasterPreference(55).build();
+        String callingPackage = "com.google.somePackage";
+
+        int returnedClientId = mDut.connect(mBinderMock, callingPackage, mCallbackMock,
+                configRequest);
+
+        ArgumentCaptor<Integer> clientId = ArgumentCaptor.forClass(Integer.class);
+        verify(mNanStateManagerMock).connect(clientId.capture(), anyInt(), anyInt(),
+                eq(callingPackage), eq(mCallbackMock), eq(configRequest));
+        assertEquals(returnedClientId, (int) clientId.getValue());
     }
 
     /**
@@ -123,21 +195,17 @@ public class WifiNanServiceImplTest {
      * Validate that security exception thrown when attempting operation using
      * an invalid client ID.
      */
-    @Test
+    @Test(expected = SecurityException.class)
     public void testFailOnInvalidClientId() {
-        thrown.expect(SecurityException.class);
-
         mDut.disconnect(-1, mBinderMock);
     }
 
     /**
-     * Validate that security exception thrown when attempting operation using
-     * an a client ID which was already cleared-up.
+     * Validate that security exception thrown when attempting operation using a
+     * client ID which was already cleared-up.
      */
-    @Test
+    @Test(expected = SecurityException.class)
     public void testFailOnClearedUpClientId() throws Exception {
-        thrown.expect(SecurityException.class);
-
         int clientId = doConnect();
 
         mDut.disconnect(clientId, mBinderMock);
@@ -146,6 +214,39 @@ public class WifiNanServiceImplTest {
         validateInternalStateCleanedUp(clientId);
 
         mDut.disconnect(clientId, mBinderMock);
+    }
+
+    /**
+     * Validate that trying to use a client ID from a UID which is different
+     * from the one that created it fails - and that the internal state is not
+     * modified so that a valid call (from the correct UID) will subsequently
+     * succeed.
+     */
+    @Test
+    public void testFailOnAccessClientIdFromWrongUid() throws Exception {
+        int clientId = doConnect();
+
+        mDut.fakeUid = mDefaultUid + 1;
+
+        /*
+         * Not using thrown.expect(...) since want to test that subsequent
+         * access works.
+         */
+        boolean failsAsExpected = false;
+        try {
+            mDut.disconnect(clientId, mBinderMock);
+        } catch (SecurityException e) {
+            failsAsExpected = true;
+        }
+
+        mDut.fakeUid = mDefaultUid;
+
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName("valid.value")
+                .build();
+        mDut.publish(clientId, publishConfig, mSessionCallbackMock);
+
+        verify(mNanStateManagerMock).publish(clientId, publishConfig, mSessionCallbackMock);
+        assertTrue("SecurityException for invalid access from wrong UID thrown", failsAsExpected);
     }
 
     /**
@@ -173,8 +274,7 @@ public class WifiNanServiceImplTest {
 
         int prevId = 0;
         for (int i = 0; i < loopCount; ++i) {
-            int id = mDut.connect(mBinderMock, mCallbackMock,
-                    WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED);
+            int id = mDut.connect(mBinderMock, "", mCallbackMock, null);
             if (i != 0) {
                 assertTrue("Client ID incrementing", id > prevId);
             }
@@ -183,59 +283,16 @@ public class WifiNanServiceImplTest {
     }
 
     /**
-     * Validate requestConfig() - correct pass-through args.
+     * Validate terminateSession() - correct pass-through args.
      */
     @Test
-    public void testRequestConfig() {
-        int clientId = doConnect();
-        ConfigRequest configRequest = new ConfigRequest.Builder().build();
-
-        mDut.requestConfig(clientId, configRequest);
-
-        verify(mNanStateManagerMock).requestConfig(clientId, configRequest);
-    }
-
-    /**
-     * Validate stopSession() - correct pass-through args.
-     */
-    @Test
-    public void testStopSession() {
+    public void testTerminateSession() {
         int sessionId = 1024;
         int clientId = doConnect();
 
-        mDut.stopSession(clientId, sessionId);
+        mDut.terminateSession(clientId, sessionId);
 
-        verify(mNanStateManagerMock).stopSession(clientId, sessionId);
-    }
-
-    /**
-     * Validate destroySession() - correct pass-through args.
-     */
-    @Test
-    public void testDestroySession() {
-        int sessionId = 1024;
-        int clientId = doConnect();
-
-        mDut.destroySession(clientId, sessionId);
-
-        verify(mNanStateManagerMock).destroySession(clientId, sessionId);
-    }
-
-    /**
-     * Validate createSession() - correct pass-through args.
-     */
-    @Test
-    public void testCreateSession() {
-        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
-        int events = WifiNanSessionCallback.FLAG_LISTEN_MATCH;
-        int clientId = doConnect();
-
-        ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
-        int returnedSessionId = mDut.createSession(clientId, mockCallback, events);
-
-        verify(mNanStateManagerMock).createSession(eq(clientId), sessionId.capture(),
-                eq(mockCallback), eq(events));
-        assertEquals(returnedSessionId, (int) sessionId.getValue());
+        verify(mNanStateManagerMock).terminateSession(clientId, sessionId);
     }
 
     /**
@@ -243,13 +300,45 @@ public class WifiNanServiceImplTest {
      */
     @Test
     public void testPublish() {
-        int sessionId = 1024;
-        PublishConfig publishConfig = new PublishConfig.Builder().build();
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName("something.valid")
+                .build();
+        int clientId = doConnect();
+        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
+
+        mDut.publish(clientId, publishConfig, mockCallback);
+
+        verify(mNanStateManagerMock).publish(clientId, publishConfig, mockCallback);
+    }
+
+    /**
+     * Validate that publish() verifies the input PublishConfig and fails on an invalid service
+     * name.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testPublishBadServiceName() {
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(
+                "Including invalid characters - spaces").build();
+        int clientId = doConnect();
+        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
+
+        mDut.publish(clientId, publishConfig, mockCallback);
+
+        verify(mNanStateManagerMock).publish(clientId, publishConfig, mockCallback);
+    }
+
+    /**
+     * Validate updatePublish() - correct pass-through args.
+     */
+    @Test
+    public void testUpdatePublish() {
+        int sessionId = 1232;
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName("something.valid")
+                .build();
         int clientId = doConnect();
 
-        mDut.publish(clientId, sessionId, publishConfig);
+        mDut.updatePublish(clientId, sessionId, publishConfig);
 
-        verify(mNanStateManagerMock).publish(clientId, sessionId, publishConfig);
+        verify(mNanStateManagerMock).updatePublish(clientId, sessionId, publishConfig);
     }
 
     /**
@@ -257,13 +346,45 @@ public class WifiNanServiceImplTest {
      */
     @Test
     public void testSubscribe() {
-        int sessionId = 2678;
-        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder()
+                .setServiceName("something.valid").build();
+        int clientId = doConnect();
+        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
+
+        mDut.subscribe(clientId, subscribeConfig, mockCallback);
+
+        verify(mNanStateManagerMock).subscribe(clientId, subscribeConfig, mockCallback);
+    }
+
+    /**
+     * Validate that subscribe() verifies the input SubscribeConfig and fails on an invalid service
+     * name.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testSubscribeBadServiceName() {
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(
+                "InvalidServiceCharacters__").build();
+        int clientId = doConnect();
+        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
+
+        mDut.subscribe(clientId, subscribeConfig, mockCallback);
+
+        verify(mNanStateManagerMock).subscribe(clientId, subscribeConfig, mockCallback);
+    }
+
+    /**
+     * Validate updateSubscribe() - correct pass-through args.
+     */
+    @Test
+    public void testUpdateSubscribe() {
+        int sessionId = 1232;
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder()
+                .setServiceName("something.valid").build();
         int clientId = doConnect();
 
-        mDut.subscribe(clientId, sessionId, subscribeConfig);
+        mDut.updateSubscribe(clientId, sessionId, subscribeConfig);
 
-        verify(mNanStateManagerMock).subscribe(clientId, sessionId, subscribeConfig);
+        verify(mNanStateManagerMock).updateSubscribe(clientId, sessionId, subscribeConfig);
     }
 
     /**
@@ -277,10 +398,68 @@ public class WifiNanServiceImplTest {
         int messageId = 2043;
         int clientId = doConnect();
 
-        mDut.sendMessage(clientId, sessionId, peerId, message, message.length, messageId);
+        mDut.sendMessage(clientId, sessionId, peerId, message, messageId, 0);
 
-        verify(mNanStateManagerMock).sendMessage(clientId, sessionId, peerId, message,
-                message.length, messageId);
+        verify(mNanStateManagerMock).sendMessage(clientId, sessionId, peerId, message, messageId,
+                0);
+    }
+
+    /**
+     * Validate startRanging() - correct pass-through args
+     */
+    @Test
+    public void testStartRanging() {
+        int clientId = doConnect();
+        int sessionId = 65345;
+        RttManager.ParcelableRttParams params =
+                new RttManager.ParcelableRttParams(new RttManager.RttParams[1]);
+
+        ArgumentCaptor<RttManager.RttParams[]> paramsCaptor =
+                ArgumentCaptor.forClass(RttManager.RttParams[].class);
+
+        int rangingId = mDut.startRanging(clientId, sessionId, params);
+
+        verify(mNanStateManagerMock).startRanging(eq(clientId), eq(sessionId),
+                paramsCaptor.capture(), eq(rangingId));
+
+        assertArrayEquals(paramsCaptor.getValue(), params.mParams);
+    }
+
+    /**
+     * Validates that sequential startRanging() calls return increasing ranging IDs.
+     */
+    @Test
+    public void testRangingIdIncrementing() {
+        int loopCount = 100;
+        int clientId = doConnect();
+        int sessionId = 65345;
+        RttManager.ParcelableRttParams params =
+                new RttManager.ParcelableRttParams(new RttManager.RttParams[1]);
+
+        int prevRangingId = 0;
+        for (int i = 0; i < loopCount; ++i) {
+            int rangingId = mDut.startRanging(clientId, sessionId, params);
+            if (i != 0) {
+                assertTrue("Client ID incrementing", rangingId > prevRangingId);
+            }
+            prevRangingId = rangingId;
+        }
+    }
+
+    /**
+     * Validates that startRanging() requires a non-empty list
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testStartRangingZeroArgs() {
+        int clientId = doConnect();
+        int sessionId = 65345;
+        RttManager.ParcelableRttParams params =
+                new RttManager.ParcelableRttParams(new RttManager.RttParams[0]);
+
+        ArgumentCaptor<RttManager.RttParams[]> paramsCaptor =
+                ArgumentCaptor.forClass(RttManager.RttParams[].class);
+
+        int rangingId = mDut.startRanging(clientId, sessionId, params);
     }
 
     /*
@@ -291,8 +470,8 @@ public class WifiNanServiceImplTest {
      */
 
     private void validateInternalStateCleanedUp(int clientId) throws Exception {
-        Integer uidEntry = getInternalStateUid(clientId);
-        assertEquals(null, uidEntry);
+        int uidEntry = getInternalStateUid(clientId);
+        assertEquals(-1, uidEntry);
 
         IBinder.DeathRecipient dr = getInternalStateDeathRecipient(clientId);
         assertEquals(null, dr);
@@ -303,12 +482,13 @@ public class WifiNanServiceImplTest {
      */
 
     private int doConnect() {
-        int events = WifiNanEventCallback.FLAG_LISTEN_IDENTITY_CHANGED;
+        String callingPackage = "com.google.somePackage";
 
-        int returnedClientId = mDut.connect(mBinderMock, mCallbackMock, events);
+        int returnedClientId = mDut.connect(mBinderMock, callingPackage, mCallbackMock, null);
 
         ArgumentCaptor<Integer> clientId = ArgumentCaptor.forClass(Integer.class);
-        verify(mNanStateManagerMock).connect(clientId.capture(), eq(mCallbackMock), eq(events));
+        verify(mNanStateManagerMock).connect(clientId.capture(), anyInt(), anyInt(),
+                eq(callingPackage), eq(mCallbackMock), eq(new ConfigRequest.Builder().build()));
         assertEquals(returnedClientId, (int) clientId.getValue());
 
         return returnedClientId;
@@ -321,13 +501,13 @@ public class WifiNanServiceImplTest {
         field.set(null, mNanStateManagerMock);
     }
 
-    private Integer getInternalStateUid(int clientId) throws Exception {
+    private int getInternalStateUid(int clientId) throws Exception {
         Field field = WifiNanServiceImpl.class.getDeclaredField("mUidByClientId");
         field.setAccessible(true);
         @SuppressWarnings("unchecked")
-        SparseArray<Integer> uidByClientId = (SparseArray<Integer>) field.get(mDut);
+        SparseIntArray uidByClientId = (SparseIntArray) field.get(mDut);
 
-        return uidByClientId.get(clientId);
+        return uidByClientId.get(clientId, -1);
     }
 
     private IBinder.DeathRecipient getInternalStateDeathRecipient(int clientId) throws Exception {

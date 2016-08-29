@@ -323,7 +323,7 @@ public class WifiNetworkHistory {
      *         information read from wpa_supplicant.conf
      */
     public void readNetworkHistory(Map<String, WifiConfiguration> configs,
-            ConcurrentHashMap<Integer, ScanDetailCache> scanDetailCaches,
+            Map<Integer, ScanDetailCache> scanDetailCaches,
             Set<String> deletedEphemeralSSIDs) {
         localLog("readNetworkHistory() path:" + NETWORK_HISTORY_CONFIG_FILE);
 
@@ -629,11 +629,14 @@ public class WifiNetworkHistory {
     }
 
     private ScanDetailCache getScanDetailCache(WifiConfiguration config,
-            ConcurrentHashMap<Integer, ScanDetailCache> scanDetailCaches) {
+            Map<Integer, ScanDetailCache> scanDetailCaches) {
         if (config == null || scanDetailCaches == null) return null;
         ScanDetailCache cache = scanDetailCaches.get(config.networkId);
         if (cache == null && config.networkId != WifiConfiguration.INVALID_NETWORK_ID) {
-            cache = new ScanDetailCache(config);
+            cache =
+                    new ScanDetailCache(
+                            config, WifiConfigManager.MAX_NUM_SCAN_CACHE_ENTRIES + 64,
+                            WifiConfigManager.MAX_NUM_SCAN_CACHE_ENTRIES);
             scanDetailCaches.put(config.networkId, cache);
         }
         return cache;

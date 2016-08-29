@@ -33,6 +33,7 @@ import static org.mockito.Mockito.*;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.os.WorkSource;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
 
@@ -78,7 +79,7 @@ public class WifiControllerTest {
         when(mSettingsStore.isScanAlwaysAvailable()).thenReturn(true);
     }
 
-    MockLooper mLooper;
+    TestLooper mLooper;
     @Mock Context mContext;
     @Mock WifiServiceImpl mService;
     @Mock FrameworkFacade mFacade;
@@ -92,7 +93,7 @@ public class WifiControllerTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        mLooper = new MockLooper();
+        mLooper = new TestLooper();
 
         initializeSettingsStore();
 
@@ -267,7 +268,6 @@ public class WifiControllerTest {
         InOrder inOrder = inOrder(mWifiStateMachine);
         inOrder.verify(mWifiStateMachine).setSupplicantRunning(true);
         inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        inOrder.verify(mWifiStateMachine).setDriverStart(true);
         assertEquals("DeviceActiveState", getCurrentState().getName());
     }
 
@@ -295,7 +295,6 @@ public class WifiControllerTest {
         InOrder inOrder = inOrder(mWifiStateMachine);
         inOrder.verify(mWifiStateMachine).setSupplicantRunning(true);
         inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        inOrder.verify(mWifiStateMachine).setDriverStart(true);
         assertEquals("DeviceActiveState", getCurrentState().getName());
     }
 
@@ -329,7 +328,6 @@ public class WifiControllerTest {
         InOrder inOrder = inOrder(mWifiStateMachine);
         inOrder.verify(mWifiStateMachine).setSupplicantRunning(true);
         inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        inOrder.verify(mWifiStateMachine).setDriverStart(true);
         assertEquals("FullLockHeldState", getCurrentState().getName());
     }
 
@@ -404,7 +402,6 @@ public class WifiControllerTest {
         inOrder.verify(mWifiStateMachine).setSupplicantRunning(false);
         inOrder.verify(mWifiStateMachine).setSupplicantRunning(true);
         inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        inOrder.verify(mWifiStateMachine).setDriverStart(true);
         assertEquals("DeviceActiveState", getCurrentState().getName());
     }
 

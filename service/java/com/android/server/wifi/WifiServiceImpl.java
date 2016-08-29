@@ -36,6 +36,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.database.ContentObserver;
@@ -70,10 +71,10 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
+import android.os.Process;
 import android.os.RemoteException;
 import android.os.ResultReceiver;
 import android.os.SystemClock;
-import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.WorkSource;
@@ -82,13 +83,10 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.Slog;
 
-import com.android.internal.R;
-import com.android.internal.app.IBatteryStats;
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
-import com.android.server.am.BatteryStatsService;
 import com.android.server.wifi.configparse.ConfigBuilder;
 
 import org.xml.sax.SAXException;
@@ -123,19 +121,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private static final String TAG = "WifiService";
     private static final boolean DBG = true;
     private static final boolean VDBG = false;
-    private static final String BOOT_DEFAULT_WIFI_COUNTRY_CODE = "ro.boot.wificountrycode";
 
     final WifiStateMachine mWifiStateMachine;
 
     private final Context mContext;
     private final FrameworkFacade mFacade;
 
-    private final List<Multicaster> mMulticasters =
-            new ArrayList<Multicaster>();
-    private int mMulticastEnabled;
-    private int mMulticastDisabled;
-
-    private final IBatteryStats mBatteryStats;
     private final PowerManager mPowerManager;
     private final AppOpsManager mAppOps;
     private final UserManager mUserManager;
@@ -155,10 +146,15 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private final WifiCertManager mCertManager;
 
     private final WifiInjector mWifiInjector;
+    /* Backup/Restore Module */
+    private final WifiBackupRestore mWifiBackupRestore;
+
     /**
      * Asynchronous channel to WifiStateMachine
      */
     private AsyncChannel mWifiStateMachineChannel;
+
+    private final boolean mPermissionReviewRequired;
 
     /**
      * Handles client connections
@@ -254,7 +250,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
 
         private void replyFailed(Message msg, int what, int why) {
-            Message reply = msg.obtain();
+            Message reply = Message.obtain();
             reply.what = what;
             reply.arg1 = why;
             try {
@@ -306,48 +302,42 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     WifiStateMachineHandler mWifiStateMachineHandler;
-
     private WifiController mWifiController;
     private final WifiLockManager mWifiLockManager;
+    private final WifiMulticastLockManager mWifiMulticastLockManager;
 
     public WifiServiceImpl(Context context) {
         mContext = context;
-        mWifiInjector = WifiInjector.getInstance();
-        mFacade = new FrameworkFacade();
-        HandlerThread wifiThread = new HandlerThread("WifiService");
-        wifiThread.start();
+        mWifiInjector = new WifiInjector(context);
+
+        mFacade = mWifiInjector.getFrameworkFacade();
         mWifiMetrics = mWifiInjector.getWifiMetrics();
-        mTrafficPoller = new WifiTrafficPoller(mContext, wifiThread.getLooper(),
-                WifiNative.getWlanNativeInterface().getInterfaceName());
+        mTrafficPoller = mWifiInjector.getWifiTrafficPoller();
         mUserManager = UserManager.get(mContext);
-        HandlerThread wifiStateMachineThread = new HandlerThread("WifiStateMachine");
-        wifiStateMachineThread.start();
-        mCountryCode = new WifiCountryCode(
-                WifiNative.getWlanNativeInterface(),
-                SystemProperties.get(BOOT_DEFAULT_WIFI_COUNTRY_CODE),
-                mFacade.getStringSetting(mContext, Settings.Global.WIFI_COUNTRY_CODE),
-                mContext.getResources().getBoolean(
-                        R.bool.config_wifi_revert_country_code_on_cellular_loss));
-        mWifiStateMachine = new WifiStateMachine(mContext, mFacade,
-            wifiStateMachineThread.getLooper(), mUserManager, mWifiInjector,
-            new BackupManagerProxy(), mCountryCode);
-        mSettingsStore = new WifiSettingsStore(mContext);
+        mCountryCode = mWifiInjector.getWifiCountryCode();
+        mWifiStateMachine = mWifiInjector.getWifiStateMachine();
         mWifiStateMachine.enableRssiPolling(true);
-        mBatteryStats = BatteryStatsService.getService();
-        mPowerManager = context.getSystemService(PowerManager.class);
-        mAppOps = (AppOpsManager)context.getSystemService(Context.APP_OPS_SERVICE);
-        mCertManager = new WifiCertManager(mContext);
+        mSettingsStore = mWifiInjector.getWifiSettingsStore();
+        mPowerManager = mContext.getSystemService(PowerManager.class);
+        mAppOps = (AppOpsManager) mContext.getSystemService(Context.APP_OPS_SERVICE);
+        mCertManager = mWifiInjector.getWifiCertManager();
 
-        mNotificationController = new WifiNotificationController(mContext,
-                wifiThread.getLooper(), mWifiStateMachine, mFacade, null);
+        mNotificationController = mWifiInjector.getWifiNotificationController();
 
-        mWifiLockManager = new WifiLockManager(mContext, mBatteryStats);
-        mClientHandler = new ClientHandler(wifiThread.getLooper());
-        mWifiStateMachineHandler = new WifiStateMachineHandler(wifiThread.getLooper());
-        mWifiController = new WifiController(mContext, mWifiStateMachine,
-                mSettingsStore, mWifiLockManager, wifiThread.getLooper(), mFacade);
-        // Set the WifiController for WifiLastResortWatchdog
-        mWifiInjector.getWifiLastResortWatchdog().setWifiController(mWifiController);
+        mWifiLockManager = mWifiInjector.getWifiLockManager();
+        mWifiMulticastLockManager = mWifiInjector.getWifiMulticastLockManager();
+        HandlerThread wifiServiceHandlerThread = mWifiInjector.getWifiServiceHandlerThread();
+        mClientHandler = new ClientHandler(wifiServiceHandlerThread.getLooper());
+        mWifiStateMachineHandler =
+                new WifiStateMachineHandler(wifiServiceHandlerThread.getLooper());
+        mWifiController = mWifiInjector.getWifiController();
+        mWifiBackupRestore = mWifiInjector.getWifiBackupRestore();
+
+        mPermissionReviewRequired = Build.PERMISSIONS_REVIEW_REQUIRED
+                || context.getResources().getBoolean(
+                com.android.internal.R.bool.config_permissionReviewRequired);
+
+        enableVerboseLoggingInternal(getVerboseLoggingLevel());
     }
 
 
@@ -408,7 +398,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         // If we are already disabled (could be due to airplane mode), avoid changing persist
         // state here
-        if (wifiEnabled) setWifiEnabled(wifiEnabled);
+        if (wifiEnabled) {
+            try {
+                setWifiEnabled(mContext.getPackageName(), wifiEnabled);
+            } catch (RemoteException e) {
+                /* ignore - local call */
+            }
+        }
     }
 
     public void handleUserSwitch(int userId) {
@@ -419,6 +415,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * see {@link android.net.wifi.WifiManager#pingSupplicant()}
      * @return {@code true} if the operation succeeds, {@code false} otherwise
      */
+    @Override
     public boolean pingSupplicant() {
         enforceAccessPermission();
         if (mWifiStateMachineChannel != null) {
@@ -436,6 +433,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @param settings If null, use default parameter, i.e. full scan.
      * @param workSource If null, all blame is given to the calling uid.
      */
+    @Override
     public void startScan(ScanSettings settings, WorkSource workSource) {
         enforceChangePermission();
         synchronized (this) {
@@ -475,6 +473,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 settings, workSource);
     }
 
+    @Override
     public String getWpsNfcConfigurationToken(int netId) {
         enforceConnectivityInternalPermission();
         return mWifiStateMachine.syncGetWpsNfcConfigurationToken(netId);
@@ -547,7 +546,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @return {@code true} if the enable/disable operation was
      *         started or is already in the queue.
      */
-    public synchronized boolean setWifiEnabled(boolean enable) {
+    @Override
+    public synchronized boolean setWifiEnabled(String packageName, boolean enable)
+            throws RemoteException {
         enforceChangePermission();
         Slog.d(TAG, "setWifiEnabled: " + enable + " pid=" + Binder.getCallingPid()
                     + ", uid=" + Binder.getCallingUid());
@@ -556,7 +557,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         * Caller might not have WRITE_SECURE_SETTINGS,
         * only CHANGE_WIFI_STATE is enforced
         */
-
         long ident = Binder.clearCallingIdentity();
         try {
             if (! mSettingsStore.handleWifiToggled(enable)) {
@@ -565,6 +565,26 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             }
         } finally {
             Binder.restoreCallingIdentity(ident);
+        }
+
+
+        if (mPermissionReviewRequired) {
+            final int wiFiEnabledState = getWifiEnabledState();
+            if (enable) {
+                if (wiFiEnabledState == WifiManager.WIFI_STATE_DISABLING
+                        || wiFiEnabledState == WifiManager.WIFI_STATE_DISABLED) {
+                    if (startConsentUiIfNeeded(packageName, Binder.getCallingUid(),
+                            WifiManager.ACTION_REQUEST_ENABLE)) {
+                        return true;
+                    }
+                }
+            } else if (wiFiEnabledState == WifiManager.WIFI_STATE_ENABLING
+                    || wiFiEnabledState == WifiManager.WIFI_STATE_ENABLED) {
+                if (startConsentUiIfNeeded(packageName, Binder.getCallingUid(),
+                        WifiManager.ACTION_REQUEST_DISABLE)) {
+                    return true;
+                }
+            }
         }
 
         mWifiController.sendMessage(CMD_WIFI_TOGGLED);
@@ -579,6 +599,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *         {@link WifiManager#WIFI_STATE_ENABLING},
      *         {@link WifiManager#WIFI_STATE_UNKNOWN}
      */
+    @Override
     public int getWifiEnabledState() {
         enforceAccessPermission();
         return mWifiStateMachine.syncGetWifiState();
@@ -590,6 +611,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *        part of WifiConfiguration
      * @param enabled true to enable and false to disable
      */
+    @Override
     public void setWifiApEnabled(WifiConfiguration wifiConfig, boolean enabled) {
         enforceChangePermission();
         ConnectivityManager.enforceTetherChangePermission(mContext);
@@ -612,6 +634,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *         {@link WifiManager#WIFI_AP_STATE_ENABLING},
      *         {@link WifiManager#WIFI_AP_STATE_FAILED}
      */
+    @Override
     public int getWifiApEnabledState() {
         enforceAccessPermission();
         return mWifiStateMachine.syncGetWifiApState();
@@ -621,6 +644,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * see {@link WifiManager#getWifiApConfiguration()}
      * @return soft access point configuration
      */
+    @Override
     public WifiConfiguration getWifiApConfiguration() {
         enforceAccessPermission();
         return mWifiStateMachine.syncGetWifiApConfiguration();
@@ -630,6 +654,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * see {@link WifiManager#buildWifiConfig()}
      * @return a WifiConfiguration.
      */
+    @Override
     public WifiConfiguration buildWifiConfig(String uriString, String mimeType, byte[] data) {
         if (mimeType.equals(ConfigBuilder.WifiConfigType)) {
             try {
@@ -649,6 +674,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * see {@link WifiManager#setWifiApConfiguration(WifiConfiguration)}
      * @param wifiConfig WifiConfiguration details for soft access point
      */
+    @Override
     public void setWifiApConfiguration(WifiConfiguration wifiConfig) {
         enforceChangePermission();
         if (wifiConfig == null)
@@ -661,10 +687,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
-     * @param enable {@code true} to enable, {@code false} to disable.
-     * @return {@code true} if the enable/disable operation was
-     *         started or is already in the queue.
+     * see {@link android.net.wifi.WifiManager#isScanAlwaysAvailable()}
      */
+    @Override
     public boolean isScanAlwaysAvailable() {
         enforceAccessPermission();
         return mSettingsStore.isScanAlwaysAvailable();
@@ -673,6 +698,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     /**
      * see {@link android.net.wifi.WifiManager#disconnect()}
      */
+    @Override
     public void disconnect() {
         enforceChangePermission();
         mWifiStateMachine.disconnectCommand();
@@ -681,6 +707,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     /**
      * see {@link android.net.wifi.WifiManager#reconnect()}
      */
+    @Override
     public void reconnect() {
         enforceChangePermission();
         mWifiStateMachine.reconnectCommand();
@@ -689,6 +716,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     /**
      * see {@link android.net.wifi.WifiManager#reassociate()}
      */
+    @Override
     public void reassociate() {
         enforceChangePermission();
         mWifiStateMachine.reassociateCommand();
@@ -697,6 +725,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     /**
      * see {@link android.net.wifi.WifiManager#getSupportedFeatures}
      */
+    @Override
     public int getSupportedFeatures() {
         enforceAccessPermission();
         if (mWifiStateMachineChannel != null) {
@@ -717,6 +746,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     /**
      * see {@link android.net.wifi.WifiManager#getControllerActivityEnergyInfo(int)}
      */
+    @Override
     public WifiActivityEnergyInfo reportActivityInfo() {
         enforceAccessPermission();
         if ((getSupportedFeatures() & WifiManager.WIFI_FEATURE_LINK_LAYER_STATS) == 0) {
@@ -788,6 +818,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * see {@link android.net.wifi.WifiManager#getConfiguredNetworks()}
      * @return the list of configured networks
      */
+    @Override
     public List<WifiConfiguration> getConfiguredNetworks() {
         enforceAccessPermission();
         if (mWifiStateMachineChannel != null) {
@@ -803,6 +834,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * see {@link android.net.wifi.WifiManager#getPrivilegedConfiguredNetworks()}
      * @return the list of configured networks with real preSharedKey
      */
+    @Override
     public List<WifiConfiguration> getPrivilegedConfiguredNetworks() {
         enforceReadCredentialPermission();
         enforceAccessPermission();
@@ -819,6 +851,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @param scanResult scanResult that represents the BSSID
      * @return {@link WifiConfiguration} that matches this BSSID or null
      */
+    @Override
     public WifiConfiguration getMatchingWifiConfig(ScanResult scanResult) {
         enforceAccessPermission();
         return mWifiStateMachine.syncGetMatchingWifiConfig(scanResult, mWifiStateMachineChannel);
@@ -829,6 +862,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @return the supplicant-assigned identifier for the new or updated
      * network if the operation succeeds, or {@code -1} if it fails
      */
+    @Override
     public int addOrUpdateNetwork(WifiConfiguration config) {
         enforceChangePermission();
         if (isValid(config) && isValidPasspoint(config)) {
@@ -899,6 +933,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * to the supplicant
      * @return {@code true} if the operation succeeded
      */
+    @Override
     public boolean removeNetwork(int netId) {
         enforceChangePermission();
 
@@ -917,6 +952,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @param disableOthers if true, disable all other networks.
      * @return {@code true} if the operation succeeded
      */
+    @Override
     public boolean enableNetwork(int netId, boolean disableOthers) {
         enforceChangePermission();
         if (mWifiStateMachineChannel != null) {
@@ -934,6 +970,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * to the supplicant
      * @return {@code true} if the operation succeeded
      */
+    @Override
     public boolean disableNetwork(int netId) {
         enforceChangePermission();
         if (mWifiStateMachineChannel != null) {
@@ -948,6 +985,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * See {@link android.net.wifi.WifiManager#getConnectionInfo()}
      * @return the Wi-Fi information, contained in {@link WifiInfo}.
      */
+    @Override
     public WifiInfo getConnectionInfo() {
         enforceAccessPermission();
         /*
@@ -962,6 +1000,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * a list of {@link ScanResult} objects.
      * @return the list of results
      */
+    @Override
     public List<ScanResult> getScanResults(String callingPackage) {
         enforceAccessPermission();
         int userId = UserHandle.getCallingUserId();
@@ -998,6 +1037,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @param mo The MO in XML form
      * @return -1 for failure
      */
+    @Override
     public int addPasspointManagementObject(String mo) {
         return mWifiStateMachine.syncAddPasspointManagementObject(mWifiStateMachineChannel, mo);
     }
@@ -1008,6 +1048,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @param mos A List of MO definitions to be updated
      * @return the number of nodes updated, or -1 for failure
      */
+    @Override
     public int modifyPasspointManagementObject(String fqdn, List<PasspointManagementObjectDefinition> mos) {
         return mWifiStateMachine.syncModifyPasspointManagementObject(mWifiStateMachineChannel, fqdn, mos);
     }
@@ -1017,6 +1058,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @param bssid The BSSID of the AP
      * @param fileName Icon file name
      */
+    @Override
     public void queryPasspointIcon(long bssid, String fileName) {
         mWifiStateMachine.syncQueryPasspointIcon(mWifiStateMachineChannel, bssid, fileName);
     }
@@ -1026,6 +1068,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @param fqdn FQDN of the SP
      * @return ordinal [HomeProvider, RoamingProvider, Incomplete, None, Declined]
      */
+    @Override
     public int matchProviderWithCurrentNetwork(String fqdn) {
         return mWifiStateMachine.matchProviderWithCurrentNetwork(mWifiStateMachineChannel, fqdn);
     }
@@ -1035,6 +1078,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @param holdoff hold off time in milliseconds
      * @param ess set if the hold off pertains to an ESS rather than a BSS
      */
+    @Override
     public void deauthenticateNetwork(long holdoff, boolean ess) {
         mWifiStateMachine.deauthenticateNetwork(mWifiStateMachineChannel, holdoff, ess);
     }
@@ -1088,8 +1132,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *
      * TODO: deprecate this
      */
+    @Override
     public boolean saveConfiguration() {
-        boolean result = true;
         enforceChangePermission();
         if (mWifiStateMachineChannel != null) {
             return mWifiStateMachine.syncSaveConfig(mWifiStateMachineChannel);
@@ -1108,6 +1152,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * persisted country code on a restart, when the locale information is
      * not available from telephony.
      */
+    @Override
     public void setCountryCode(String countryCode, boolean persist) {
         Slog.i(TAG, "WifiService trying to set country code to " + countryCode +
                 " with persist set to " + persist);
@@ -1131,6 +1176,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * not.
      * Returns null when there is no country code available.
      */
+    @Override
     public String getCountryCode() {
         enforceConnectivityInternalPermission();
         String country = mCountryCode.getCountryCode();
@@ -1145,6 +1191,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @param persist {@code true} if the setting should be remembered.
      *
      */
+    @Override
     public void setFrequencyBand(int band, boolean persist) {
         enforceChangePermission();
         if (!isDualBandSupported()) return;
@@ -1162,11 +1209,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     /**
      * Get the operational frequency band
      */
+    @Override
     public int getFrequencyBand() {
         enforceAccessPermission();
         return mWifiStateMachine.getFrequencyBand();
     }
 
+    @Override
     public boolean isDualBandSupported() {
         //TODO: Should move towards adding a driver API that checks at runtime
         return mContext.getResources().getBoolean(
@@ -1179,6 +1228,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @return the DHCP information
      * @deprecated
      */
+    @Override
+    @Deprecated
     public DhcpInfo getDhcpInfo() {
         enforceAccessPermission();
         DhcpResults dhcpResults = mWifiStateMachine.syncGetDhcpResults();
@@ -1218,6 +1269,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * see {@link android.net.wifi.WifiManager#addToBlacklist}
      *
      */
+    @Override
     public void addToBlacklist(String bssid) {
         enforceChangePermission();
 
@@ -1228,6 +1280,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * see {@link android.net.wifi.WifiManager#clearBlacklist}
      *
      */
+    @Override
     public void clearBlacklist() {
         enforceChangePermission();
 
@@ -1308,6 +1361,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
     }
 
+    @Override
     public void enableTdls(String remoteAddress, boolean enable) {
         if (remoteAddress == null) {
           throw new IllegalArgumentException("remoteAddress cannot be null");
@@ -1320,6 +1374,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
 
+    @Override
     public void enableTdlsWithMacAddress(String remoteMacAddress, boolean enable) {
         if (remoteMacAddress == null) {
           throw new IllegalArgumentException("remoteMacAddress cannot be null");
@@ -1332,6 +1387,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * Get a reference to handler. This is used by a client to establish
      * an AsyncChannel communication with WifiService
      */
+    @Override
     public Messenger getWifiServiceMessenger() {
         enforceAccessPermission();
         enforceChangePermission();
@@ -1341,6 +1397,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     /**
      * Disable an ephemeral network, i.e. network that is created thru a WiFi Scorer
      */
+    @Override
     public void disableEphemeralNetwork(String SSID) {
         enforceAccessPermission();
         enforceChangePermission();
@@ -1350,6 +1407,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     /**
      * Get the IP and proxy configuration file
      */
+    @Override
     public String getConfigFile() {
         enforceAccessPermission();
         return mWifiStateMachine.getConfigFile();
@@ -1383,6 +1441,37 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             }
         }
     };
+
+    private boolean startConsentUiIfNeeded(String packageName,
+            int callingUid, String intentAction) throws RemoteException {
+        if (UserHandle.getAppId(callingUid) == Process.SYSTEM_UID) {
+            return false;
+        }
+        try {
+            // Validate the package only if we are going to use it
+            ApplicationInfo applicationInfo = mContext.getPackageManager()
+                    .getApplicationInfoAsUser(packageName,
+                            PackageManager.MATCH_DEBUG_TRIAGED_MISSING,
+                            UserHandle.getUserId(callingUid));
+            if (applicationInfo.uid != callingUid) {
+                throw new SecurityException("Package " + callingUid
+                        + " not in uid " + callingUid);
+            }
+
+            // Legacy apps in permission review mode trigger a user prompt
+            if (applicationInfo.targetSdkVersion < Build.VERSION_CODES.M) {
+                Intent intent = new Intent(intentAction);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                        | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+                intent.putExtra(Intent.EXTRA_PACKAGE_NAME, packageName);
+                mContext.startActivity(intent);
+                return true;
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+            throw new RemoteException(e.getMessage());
+        }
+        return false;
+    }
 
     /**
      * Observes settings changes to scan always mode.
@@ -1475,8 +1564,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             pw.println("Stay-awake conditions: " +
                     Settings.Global.getInt(mContext.getContentResolver(),
                                            Settings.Global.STAY_ON_WHILE_PLUGGED_IN, 0));
-            pw.println("mMulticastEnabled " + mMulticastEnabled);
-            pw.println("mMulticastDisabled " + mMulticastDisabled);
             pw.println("mInIdleMode " + mInIdleMode);
             pw.println("mScanPending " + mScanPending);
             mWifiController.dump(fd, pw, args);
@@ -1513,14 +1600,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             pw.println("Locks held:");
             mWifiLockManager.dump(pw);
             pw.println();
-            pw.println("Multicast Locks held:");
-            for (Multicaster l : mMulticasters) {
-                pw.print("    ");
-                pw.println(l);
-            }
-
+            mWifiMulticastLockManager.dump(pw);
             pw.println();
             mWifiStateMachine.dump(fd, pw, args);
+            pw.println();
+            mWifiBackupRestore.dump(fd, pw, args);
             pw.println();
         }
     }
@@ -1548,168 +1632,91 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         return false;
     }
 
-    private class Multicaster implements IBinder.DeathRecipient {
-        String mTag;
-        int mUid;
-        IBinder mBinder;
-
-        Multicaster(String tag, IBinder binder) {
-            mTag = tag;
-            mUid = Binder.getCallingUid();
-            mBinder = binder;
-            try {
-                mBinder.linkToDeath(this, 0);
-            } catch (RemoteException e) {
-                binderDied();
-            }
-        }
-
-        @Override
-        public void binderDied() {
-            Slog.e(TAG, "Multicaster binderDied");
-            synchronized (mMulticasters) {
-                int i = mMulticasters.indexOf(this);
-                if (i != -1) {
-                    removeMulticasterLocked(i, mUid);
-                }
-            }
-        }
-
-        void unlinkDeathRecipient() {
-            mBinder.unlinkToDeath(this, 0);
-        }
-
-        public int getUid() {
-            return mUid;
-        }
-
-        public String toString() {
-            return "Multicaster{" + mTag + " uid=" + mUid  + "}";
-        }
-    }
-
+    @Override
     public void initializeMulticastFiltering() {
         enforceMulticastChangePermission();
-
-        synchronized (mMulticasters) {
-            // if anybody had requested filters be off, leave off
-            if (mMulticasters.size() != 0) {
-                return;
-            } else {
-                mWifiStateMachine.startFilteringMulticastPackets();
-            }
-        }
+        mWifiMulticastLockManager.initializeFiltering();
     }
 
+    @Override
     public void acquireMulticastLock(IBinder binder, String tag) {
         enforceMulticastChangePermission();
-
-        synchronized (mMulticasters) {
-            mMulticastEnabled++;
-            mMulticasters.add(new Multicaster(tag, binder));
-            // Note that we could call stopFilteringMulticastPackets only when
-            // our new size == 1 (first call), but this function won't
-            // be called often and by making the stopPacket call each
-            // time we're less fragile and self-healing.
-            mWifiStateMachine.stopFilteringMulticastPackets();
-        }
-
-        int uid = Binder.getCallingUid();
-        final long ident = Binder.clearCallingIdentity();
-        try {
-            mBatteryStats.noteWifiMulticastEnabled(uid);
-        } catch (RemoteException e) {
-        } finally {
-            Binder.restoreCallingIdentity(ident);
-        }
+        mWifiMulticastLockManager.acquireLock(binder, tag);
     }
 
+    @Override
     public void releaseMulticastLock() {
         enforceMulticastChangePermission();
-
-        int uid = Binder.getCallingUid();
-        synchronized (mMulticasters) {
-            mMulticastDisabled++;
-            int size = mMulticasters.size();
-            for (int i = size - 1; i >= 0; i--) {
-                Multicaster m = mMulticasters.get(i);
-                if ((m != null) && (m.getUid() == uid)) {
-                    removeMulticasterLocked(i, uid);
-                }
-            }
-        }
+        mWifiMulticastLockManager.releaseLock();
     }
 
-    private void removeMulticasterLocked(int i, int uid)
-    {
-        Multicaster removed = mMulticasters.remove(i);
-
-        if (removed != null) {
-            removed.unlinkDeathRecipient();
-        }
-        if (mMulticasters.size() == 0) {
-            mWifiStateMachine.startFilteringMulticastPackets();
-        }
-
-        final long ident = Binder.clearCallingIdentity();
-        try {
-            mBatteryStats.noteWifiMulticastDisabled(uid);
-        } catch (RemoteException e) {
-        } finally {
-            Binder.restoreCallingIdentity(ident);
-        }
-    }
-
+    @Override
     public boolean isMulticastEnabled() {
         enforceAccessPermission();
-
-        synchronized (mMulticasters) {
-            return (mMulticasters.size() > 0);
-        }
+        return mWifiMulticastLockManager.isMulticastEnabled();
     }
 
+    @Override
     public void enableVerboseLogging(int verbose) {
         enforceAccessPermission();
+        mFacade.setIntegerSetting(
+                mContext, Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, verbose);
+        enableVerboseLoggingInternal(verbose);
+    }
+
+    private void enableVerboseLoggingInternal(int verbose) {
         mWifiStateMachine.enableVerboseLogging(verbose);
         mWifiLockManager.enableVerboseLogging(verbose);
+        mWifiMulticastLockManager.enableVerboseLogging(verbose);
+        mWifiInjector.getWifiLastResortWatchdog().enableVerboseLogging(verbose);
+        mWifiInjector.getWifiBackupRestore().enableVerboseLogging(verbose);
     }
 
+    @Override
     public int getVerboseLoggingLevel() {
         enforceAccessPermission();
-        return mWifiStateMachine.getVerboseLoggingLevel();
+        return mFacade.getIntegerSetting(
+                mContext, Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, 0);
     }
 
+    @Override
     public void enableAggressiveHandover(int enabled) {
         enforceAccessPermission();
         mWifiStateMachine.enableAggressiveHandover(enabled);
     }
 
+    @Override
     public int getAggressiveHandover() {
         enforceAccessPermission();
         return mWifiStateMachine.getAggressiveHandover();
     }
 
+    @Override
     public void setAllowScansWithTraffic(int enabled) {
         enforceAccessPermission();
         mWifiStateMachine.setAllowScansWithTraffic(enabled);
     }
 
+    @Override
     public int getAllowScansWithTraffic() {
         enforceAccessPermission();
         return mWifiStateMachine.getAllowScansWithTraffic();
     }
 
+    @Override
     public boolean setEnableAutoJoinWhenAssociated(boolean enabled) {
         enforceChangePermission();
         return mWifiStateMachine.setEnableAutoJoinWhenAssociated(enabled);
     }
 
+    @Override
     public boolean getEnableAutoJoinWhenAssociated() {
         enforceAccessPermission();
         return mWifiStateMachine.getEnableAutoJoinWhenAssociated();
     }
 
     /* Return the Wifi Connection statistics object */
+    @Override
     public WifiConnectionStatistics getConnectionStatistics() {
         enforceAccessPermission();
         enforceReadCredentialPermission();
@@ -1721,6 +1728,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
     }
 
+    @Override
     public void factoryReset() {
         enforceConnectivityInternalPermission();
 
@@ -1735,7 +1743,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         if (!mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI)) {
             // Enable wifi
-            setWifiEnabled(true);
+            try {
+                setWifiEnabled(mContext.getOpPackageName(), true);
+            } catch (RemoteException e) {
+                /* ignore - local call */
+            }
             // Delete all Wifi SSIDs
             List<WifiConfiguration> networks = getConfiguredNetworks();
             if (networks != null) {
@@ -1809,6 +1821,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         return null;
     }
 
+    @Override
     public Network getCurrentNetwork() {
         enforceAccessPermission();
         return mWifiStateMachine.getCurrentNetwork();
@@ -1890,8 +1903,96 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *
      * @param enabled true-enable; false-disable
      */
+    @Override
     public void enableWifiConnectivityManager(boolean enabled) {
         enforceConnectivityInternalPermission();
         mWifiStateMachine.enableWifiConnectivityManager(enabled);
+    }
+
+    /**
+     * Retrieve the data to be backed to save the current state.
+     *
+     * @return  Raw byte stream of the data to be backed up.
+     */
+    @Override
+    public byte[] retrieveBackupData() {
+        enforceReadCredentialPermission();
+        enforceAccessPermission();
+        if (mWifiStateMachineChannel == null) {
+            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
+            return null;
+        }
+
+        Slog.d(TAG, "Retrieving backup data");
+        List<WifiConfiguration> wifiConfigurations =
+                mWifiStateMachine.syncGetPrivilegedConfiguredNetwork(mWifiStateMachineChannel);
+        byte[] backupData =
+                mWifiBackupRestore.retrieveBackupDataFromConfigurations(wifiConfigurations);
+        Slog.d(TAG, "Retrieved backup data");
+        return backupData;
+    }
+
+    /**
+     * Helper method to restore networks retrieved from backup data.
+     *
+     * @param configurations list of WifiConfiguration objects parsed from the backup data.
+     */
+    private void restoreNetworks(List<WifiConfiguration> configurations) {
+        if (configurations == null) {
+            Slog.e(TAG, "Backup data parse failed");
+            return;
+        }
+        for (WifiConfiguration configuration : configurations) {
+            int networkId = mWifiStateMachine.syncAddOrUpdateNetwork(
+                    mWifiStateMachineChannel, configuration);
+            if (networkId == WifiConfiguration.INVALID_NETWORK_ID) {
+                Slog.e(TAG, "Restore network failed: " + configuration.configKey());
+                continue;
+            }
+            // Enable all networks restored.
+            mWifiStateMachine.syncEnableNetwork(mWifiStateMachineChannel, networkId, false);
+        }
+    }
+
+    /**
+     * Restore state from the backed up data.
+     *
+     * @param data Raw byte stream of the backed up data.
+     */
+    @Override
+    public void restoreBackupData(byte[] data) {
+        enforceChangePermission();
+        if (mWifiStateMachineChannel == null) {
+            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
+            return;
+        }
+
+        Slog.d(TAG, "Restoring backup data");
+        List<WifiConfiguration> wifiConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromBackupData(data);
+        restoreNetworks(wifiConfigurations);
+        Slog.d(TAG, "Restored backup data");
+    }
+
+    /**
+     * Restore state from the older supplicant back up data.
+     * The old backup data was essentially a backup of wpa_supplicant.conf & ipconfig.txt file.
+     *
+     * @param supplicantData Raw byte stream of wpa_supplicant.conf
+     * @param ipConfigData Raw byte stream of ipconfig.txt
+     */
+    public void restoreSupplicantBackupData(byte[] supplicantData, byte[] ipConfigData) {
+        enforceChangePermission();
+        if (mWifiStateMachineChannel == null) {
+            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
+            return;
+        }
+
+        Slog.d(TAG, "Restoring supplicant backup data");
+        List<WifiConfiguration> wifiConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, ipConfigData);
+        restoreNetworks(wifiConfigurations);
+        Slog.d(TAG, "Restored supplicant backup data");
     }
 }

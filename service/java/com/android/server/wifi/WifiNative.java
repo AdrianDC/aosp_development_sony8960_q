@@ -18,12 +18,7 @@ package com.android.server.wifi;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.app.AlarmManager;
-import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
@@ -46,6 +41,7 @@ import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.internal.annotations.Immutable;
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.HexDump;
 import com.android.server.connectivity.KeepalivePacketData;
 import com.android.server.wifi.hotspot2.NetworkDetail;
@@ -179,45 +175,8 @@ public class WifiNative {
 
 
     /*
-     * Driver and Supplicant management
+     * Supplicant management
      */
-    private native static boolean loadDriverNative();
-    public boolean loadDriver() {
-        synchronized (sLock) {
-            return loadDriverNative();
-        }
-    }
-
-    private native static boolean isDriverLoadedNative();
-    public boolean isDriverLoaded() {
-        synchronized (sLock) {
-            return isDriverLoadedNative();
-        }
-    }
-
-    private native static boolean unloadDriverNative();
-    public boolean unloadDriver() {
-        synchronized (sLock) {
-            return unloadDriverNative();
-        }
-    }
-
-    private native static boolean startSupplicantNative(boolean p2pSupported);
-    public boolean startSupplicant(boolean p2pSupported) {
-        synchronized (sLock) {
-            return startSupplicantNative(p2pSupported);
-        }
-    }
-
-    /* Sends a kill signal to supplicant. To be used when we have lost connection
-       or when the supplicant is hung */
-    private native static boolean killSupplicantNative(boolean p2pSupported);
-    public boolean killSupplicant(boolean p2pSupported) {
-        synchronized (sLock) {
-            return killSupplicantNative(p2pSupported);
-        }
-    }
-
     private native static boolean connectToSupplicantNative();
     public boolean connectToSupplicant() {
         synchronized (sLock) {
@@ -340,24 +299,6 @@ public class WifiNative {
     }
 
     /**
-     * Create a comma separate string from integer set.
-     * @param values List of integers.
-     * @return comma separated string.
-     */
-    private static String createCSVStringFromIntegerSet(Set<Integer> values) {
-        StringBuilder list = new StringBuilder();
-        boolean first = true;
-        for (Integer value : values) {
-            if (!first) {
-                list.append(",");
-            }
-            list.append(value);
-            first = false;
-        }
-        return list.toString();
-    }
-
-    /**
      * Start a scan using wpa_supplicant for the given frequencies.
      * @param freqs list of frequencies to scan for, if null scan all supported channels.
      * @param hiddenNetworkIds List of hidden networks to be scanned for.
@@ -366,10 +307,10 @@ public class WifiNative {
         String freqList = null;
         String hiddenNetworkIdList = null;
         if (freqs != null && freqs.size() != 0) {
-            freqList = createCSVStringFromIntegerSet(freqs);
+            freqList = TextUtils.join(",", freqs);
         }
         if (hiddenNetworkIds != null && hiddenNetworkIds.size() != 0) {
-            hiddenNetworkIdList = createCSVStringFromIntegerSet(hiddenNetworkIds);
+            hiddenNetworkIdList = TextUtils.join(",", hiddenNetworkIds);
         }
         return scanWithParams(freqList, hiddenNetworkIdList);
     }
@@ -409,17 +350,26 @@ public class WifiNative {
     }
 
     public boolean setNetworkExtra(int netId, String name, Map<String, String> values) {
+        String encoded = createNetworkExtra(values);
+        if (encoded == null) {
+            return false;
+        }
+        return setNetworkVariable(netId, name, "\"" + encoded + "\"");
+    }
+
+    @VisibleForTesting
+    public static String createNetworkExtra(Map<String, String> values) {
         final String encoded;
         try {
             encoded = URLEncoder.encode(new JSONObject(values).toString(), "UTF-8");
         } catch (NullPointerException e) {
             Log.e(TAG, "Unable to serialize networkExtra: " + e.toString());
-            return false;
+            return null;
         } catch (UnsupportedEncodingException e) {
             Log.e(TAG, "Unable to serialize networkExtra: " + e.toString());
-            return false;
+            return null;
         }
-        return setNetworkVariable(netId, name, "\"" + encoded + "\"");
+        return encoded;
     }
 
     public boolean setNetworkVariable(int netId, String name, String value) {
@@ -435,18 +385,22 @@ public class WifiNative {
     }
 
     public Map<String, String> getNetworkExtra(int netId, String name) {
-        final String wrapped = getNetworkVariable(netId, name);
-        if (wrapped == null || !wrapped.startsWith("\"") || !wrapped.endsWith("\"")) {
+        final String extraString = getNetworkVariable(netId, name);
+        return parseNetworkExtra(extraString);
+    }
+
+    public static Map<String, String> parseNetworkExtra(String extraSting) {
+        if (extraSting == null || !extraSting.startsWith("\"") || !extraSting.endsWith("\"")) {
             return null;
         }
         try {
-            final String encoded = wrapped.substring(1, wrapped.length() - 1);
+            final String encoded = extraSting.substring(1, extraSting.length() - 1);
             // This method reads a JSON dictionary that was written by setNetworkExtra(). However,
             // on devices that upgraded from Marshmallow, it may encounter a legacy value instead -
             // an FQDN stored as a plain string. If such a value is encountered, the JSONObject
             // constructor will thrown a JSONException and the method will return null.
             final JSONObject json = new JSONObject(URLDecoder.decode(encoded, "UTF-8"));
-            final Map<String, String> values = new HashMap<String, String>();
+            final Map<String, String> values = new HashMap<>();
             final Iterator<?> it = json.keys();
             while (it.hasNext()) {
                 final String key = (String) it.next();
@@ -478,6 +432,12 @@ public class WifiNative {
         return doBooleanCommand("REMOVE_NETWORK " + netId);
     }
 
+    /**
+     * Remove all saved networks from wpa_supplicant.
+     */
+    public boolean removeAllNetworks() {
+        return doBooleanCommand("REMOVE_NETWORK all");
+    }
 
     private void logDbg(String debug) {
         long now = SystemClock.elapsedRealtimeNanos();
@@ -776,15 +736,6 @@ public class WifiNative {
         return doStringCommand("BSS " + bssid);
     }
 
-    public boolean startDriver() {
-        return doBooleanCommand("DRIVER START");
-    }
-
-    public boolean stopDriver() {
-        return doBooleanCommand("DRIVER STOP");
-    }
-
-
     /**
      * Start filtering out Multicast V4 packets
      * @return {@code true} if the operation succeeded, {@code false} otherwise
@@ -885,7 +836,7 @@ public class WifiNative {
      * some of the low-level scan parameters used by the driver are changed to
      * reduce interference with A2DP streaming.
      *
-     * @param isSet whether to enable or disable this mode
+     * @param setCoexScanMode whether to enable or disable this mode
      * @return {@code true} if the command succeeded, {@code false} otherwise.
      */
     public boolean setBluetoothCoexistenceScanMode(boolean setCoexScanMode) {
@@ -1218,7 +1169,7 @@ public class WifiNative {
         [persistent] [join|auth] [go_intent=<0..15>] [freq=<in MHz>] */
     public String p2pConnect(WifiP2pConfig config, boolean joinExistingGroup) {
         if (config == null) return null;
-        List<String> args = new ArrayList<String>();
+        List<String> args = new ArrayList<>();
         WpsInfo wps = config.wps;
         args.add(config.deviceAddress);
 
@@ -1494,10 +1445,6 @@ public class WifiNative {
         doBooleanCommand("DRIVER MIRACAST " + mode);
     }
 
-    public boolean fetchAnqp(String bssid, String subtypes) {
-        return doBooleanCommand("ANQP_GET " + bssid + " " + subtypes);
-    }
-
     /*
      * NFC-related calls
      */
@@ -1560,6 +1507,7 @@ public class WifiNative {
     private static native void waitForHalEventNative();
 
     private static class MonitorThread extends Thread {
+        @Override
         public void run() {
             Log.i(TAG, "Waiting for HAL events mWifiHalHandle=" + Long.toString(sWifiHalHandle));
             waitForHalEventNative();
@@ -2196,13 +2144,12 @@ public class WifiNative {
         synchronized (sLock) {
             if (isHalStarted()) {
                 if (sRttCmdId != 0) {
-                    Log.v("TAG", "Last one is still under measurement!");
+                    Log.w(TAG, "Last one is still under measurement!");
                     return false;
                 } else {
                     sRttCmdId = getNewCmdIdLocked();
                 }
                 sRttEventHandler = handler;
-                Log.v(TAG, "native issue RTT request");
                 return requestRangeNative(sWlan0Index, sRttCmdId, params);
             } else {
                 return false;
@@ -2221,7 +2168,6 @@ public class WifiNative {
 
                 if (cancelRangeRequestNative(sWlan0Index, sRttCmdId, params)) {
                     sRttEventHandler = null;
-                    Log.v(TAG, "RTT cancel Request Successfully");
                     return true;
                 } else {
                     Log.e(TAG, "RTT cancel Request failed");

@@ -16,15 +16,15 @@
 
 #define LOG_TAG "wifi"
 
-#include "jni.h"
-#include <ScopedUtfChars.h>
-#include <utils/misc.h>
 #include <android_runtime/AndroidRuntime.h>
+#include <hardware_legacy/wifi_hal.h>
+#include <nativehelper/ScopedUtfChars.h>
+#include <nativehelper/jni.h>
 #include <utils/Log.h>
 #include <utils/String16.h>
+#include <utils/misc.h>
+#include <wifi_system/wifi.h>
 
-#include "wifi.h"
-#include "wifi_hal.h"
 #include "jni_helper.h"
 
 namespace android {
@@ -241,7 +241,7 @@ jlong JNIHelper::getLongArrayField(jobject obj, const char *name, int index)
     return value;
 }
 
-void JNIHelper::getByteArrayField(jobject obj, const char *name, byte* buf, int size) {
+void JNIHelper::getByteArrayField(jobject obj, const char *name, byte *buf, size_t size) {
     JNIObject<jclass> cls(*this, mEnv->GetObjectClass(obj));
     jfieldID field = mEnv->GetFieldID(cls, name, "[B");
     if (field == 0) {
@@ -262,6 +262,37 @@ void JNIHelper::getByteArrayField(jobject obj, const char *name, byte* buf, int 
     }
 
     memcpy(buf, elem, size);
+    mEnv->ReleaseByteArrayElements(array, elem, 0);
+}
+
+void JNIHelper::getByteArrayField(jobject obj, const char *name, byte *buf, size_t *size, int max_size) {
+    JNIObject<jclass> cls(*this, mEnv->GetObjectClass(obj));
+    jfieldID field = mEnv->GetFieldID(cls, name, "[B");
+    if (field == 0) {
+        THROW(*this, "Error in accessing field definition");
+        return;
+    }
+
+    jbyteArray byteArray = (jbyteArray)mEnv->GetObjectField(obj, field);
+    if (byteArray == NULL) {
+        *size = 0;
+        return;
+    }
+
+    JNIObject<jbyteArray> array(*this, byteArray);
+    *size = getArrayLength(byteArray);
+    int use_size = *size;
+    if (use_size > max_size) {
+        use_size = max_size;
+    }
+
+    jbyte *elem = mEnv->GetByteArrayElements(array, 0);
+    if (elem == NULL) {
+        THROW(*this, "Error in accessing index element");
+        return;
+    }
+
+    memcpy(buf, elem, use_size);
     mEnv->ReleaseByteArrayElements(array, elem, 0);
 }
 
@@ -514,6 +545,7 @@ void JNIHelper::reportEvent(jclass cls, const char *method, const char *signatur
     jmethodID methodID = mEnv->GetStaticMethodID(cls, method, signature);
     if (methodID == 0) {
         ALOGE("Error in getting method ID");
+        va_end(params);
         return;
     }
 
@@ -535,6 +567,7 @@ void JNIHelper::callMethod(jobject obj, const char *method, const char *signatur
     jmethodID methodID = mEnv->GetMethodID(cls, method, signature);
     if (methodID == 0) {
         ALOGE("Error in getting method ID");
+        va_end(params);
         return;
     }
 
@@ -555,6 +588,7 @@ jboolean JNIHelper::callStaticMethod(jclass cls, const char *method, const char 
     jmethodID methodID = mEnv->GetStaticMethodID(cls, method, signature);
     if (methodID == 0) {
         ALOGE("Error in getting method ID");
+        va_end(params);
         return false;
     }
 
@@ -562,6 +596,7 @@ jboolean JNIHelper::callStaticMethod(jclass cls, const char *method, const char 
     if (mEnv->ExceptionCheck()) {
         mEnv->ExceptionDescribe();
         mEnv->ExceptionClear();
+        va_end(params);
         return false;
     }
 
@@ -582,18 +617,21 @@ JNIObject<jobject> JNIHelper::createObjectWithArgs(
     JNIObject<jclass> cls(*this, mEnv->FindClass(className));
     if (cls == NULL) {
         ALOGE("Error in finding class %s", className);
+        va_end(params);
         return JNIObject<jobject>(*this, NULL);
     }
 
     jmethodID constructor = mEnv->GetMethodID(cls, "<init>", signature);
     if (constructor == 0) {
         ALOGE("Error in constructor ID for %s", className);
+        va_end(params);
         return JNIObject<jobject>(*this, NULL);
     }
 
     JNIObject<jobject> obj(*this, mEnv->NewObjectV(cls, constructor, params));
     if (obj == NULL) {
         ALOGE("Could not create new object of %s", className);
+        va_end(params);
         return JNIObject<jobject>(*this, NULL);
     }
 

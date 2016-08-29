@@ -21,14 +21,13 @@ import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.when;
 
+import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.pm.UserInfo;
 import android.net.wifi.WifiConfiguration;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
-
-import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
 
 import org.junit.Before;
 import org.junit.Test;

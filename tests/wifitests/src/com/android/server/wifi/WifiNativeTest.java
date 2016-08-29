@@ -49,7 +49,7 @@ public class WifiNativeTest {
         NETWORK_EXTRAS_VALUES.put("key2", "value2");
     }
     private static final String NETWORK_EXTRAS_SERIALIZED =
-            "\"%7B%22key2%22%3A%22value2%22%2C%22key1%22%3A%22value1%22%7D\"";
+            "\"%7B%22key1%22%3A%22value1%22%2C%22key2%22%3A%22value2%22%7D\"";
 
     private static final long FATE_REPORT_DRIVER_TIMESTAMP_USEC = 12345;
     private static final byte[] FATE_REPORT_FRAME_BYTES = new byte[] {

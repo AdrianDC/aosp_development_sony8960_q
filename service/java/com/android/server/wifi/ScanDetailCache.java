@@ -29,8 +29,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Maps BSSIDs to their individual ScanDetails for a given WifiConfiguration.
@@ -40,14 +40,29 @@ public class ScanDetailCache {
     private static final String TAG = "ScanDetailCache";
     private static final boolean DBG = false;
 
-    private WifiConfiguration mConfig;
-    private ConcurrentHashMap<String, ScanDetail> mMap;
-    private ConcurrentHashMap<String, PasspointMatchInfo> mPasspointMatches;
+    private final WifiConfiguration mConfig;
+    private final int mMaxSize;
+    private final int mTrimSize;
+    private final HashMap<String, ScanDetail> mMap;
+    private final HashMap<String, PasspointMatchInfo> mPasspointMatches;
 
-    ScanDetailCache(WifiConfiguration config) {
+    /**
+     * Scan Detail cache associated with each configured network.
+     *
+     * The cache size is trimmed down to |trimSize| once it crosses the provided |maxSize|.
+     * Since this operation is relatively expensive, ensure that |maxSize| and |trimSize| are not
+     * too close to each other. |trimSize| should always be <= |maxSize|.
+     *
+     * @param config   WifiConfiguration object corresponding to the network.
+     * @param maxSize  Max size desired for the cache.
+     * @param trimSize Size to trim the cache down to once it reaches |maxSize|.
+     */
+    ScanDetailCache(WifiConfiguration config, int maxSize, int trimSize) {
         mConfig = config;
-        mMap = new ConcurrentHashMap(16, 0.75f, 2);
-        mPasspointMatches = new ConcurrentHashMap(16, 0.75f, 2);
+        mMaxSize = maxSize;
+        mTrimSize = trimSize;
+        mMap = new HashMap(16, 0.75f);
+        mPasspointMatches = new HashMap(16, 0.75f);
     }
 
     void put(ScanDetail scanDetail) {
@@ -55,6 +70,10 @@ public class ScanDetailCache {
     }
 
     void put(ScanDetail scanDetail, PasspointMatch match, HomeSP homeSp) {
+        // First check if we have reached |maxSize|. if yes, trim it down to |trimSize|.
+        if (mMap.size() >= mMaxSize) {
+            trim();
+        }
 
         mMap.put(scanDetail.getBSSIDString(), scanDetail);
 
@@ -75,6 +94,7 @@ public class ScanDetailCache {
 
     void remove(String bssid) {
         mMap.remove(bssid);
+        mPasspointMatches.remove(bssid);
     }
 
     int size() {
@@ -94,13 +114,12 @@ public class ScanDetailCache {
     }
 
     /**
-     * Method to reduce the cache to the given size by removing the oldest entries.
-     *
-     * @param num int target cache size
+     * Method to reduce the cache to |mTrimSize| size by removing the oldest entries.
+     * TODO: Investigate if this method can be further optimized.
      */
-    public void trim(int num) {
+    private void trim() {
         int currentSize = mMap.size();
-        if (currentSize <= num) {
+        if (currentSize < mTrimSize) {
             return; // Nothing to trim
         }
         ArrayList<ScanDetail> list = new ArrayList<ScanDetail>(mMap.values());
@@ -120,7 +139,7 @@ public class ScanDetailCache {
                 }
             });
         }
-        for (int i = 0; i < currentSize - num; i++) {
+        for (int i = 0; i < currentSize - mTrimSize; i++) {
             // Remove oldest results from scan cache
             ScanDetail result = list.get(i);
             mMap.remove(result.getBSSIDString());
@@ -286,7 +305,6 @@ public class ScanDetailCache {
             return getVisibilityByRssi(age);
         }
     }
-
 
 
     @Override

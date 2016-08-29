@@ -22,6 +22,8 @@ import static com.android.server.wifi.WifiStateMachine.WIFI_WORK_SOURCE;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
+import android.app.test.TestAlarmManager;
+import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
 import android.content.res.Resources;
 import android.net.wifi.ScanResult;
@@ -38,10 +40,10 @@ import android.net.wifi.WifiScanner.ScanSettings;
 import android.net.wifi.WifiSsid;
 import android.os.SystemClock;
 import android.os.WorkSource;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.R;
-import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
 
 import org.junit.After;
 import org.junit.Before;
@@ -66,7 +68,7 @@ public class WifiConnectivityManagerTest {
     public void setUp() throws Exception {
         mWifiInjector = mockWifiInjector();
         mResource = mockResource();
-        mAlarmManager = new MockAlarmManager();
+        mAlarmManager = new TestAlarmManager();
         mContext = mockContext();
         mWifiStateMachine = mockWifiStateMachine();
         mWifiConfigManager = mockWifiConfigManager();
@@ -77,7 +79,7 @@ public class WifiConnectivityManagerTest {
                 mWifiScanner, mWifiConfigManager, mWifiInfo, mWifiQNS, mWifiInjector,
                 mLooper.getLooper(), true);
         mWifiConnectivityManager.setWifiEnabled(true);
-        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime());
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
     }
 
     /**
@@ -90,8 +92,8 @@ public class WifiConnectivityManagerTest {
 
     private Resources mResource;
     private Context mContext;
-    private MockAlarmManager mAlarmManager;
-    private MockLooper mLooper = new MockLooper();
+    private TestAlarmManager mAlarmManager;
+    private TestLooper mLooper = new TestLooper();
     private WifiConnectivityManager mWifiConnectivityManager;
     private WifiQualifiedNetworkSelector mWifiQNS;
     private WifiStateMachine mWifiStateMachine;
@@ -203,8 +205,8 @@ public class WifiConnectivityManagerTest {
         candidateScanResult.BSSID = CANDIDATE_BSSID;
         candidate.getNetworkSelectionStatus().setCandidate(candidateScanResult);
 
-        when(qns.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyObject(),
-              anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(candidate);
+        when(qns.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyBoolean(),
+              anyBoolean(), anyBoolean(), anyBoolean(), anyObject())).thenReturn(candidate);
         return qns;
     }
 
@@ -372,7 +374,7 @@ public class WifiConnectivityManagerTest {
         long currentTimeStamp = 0;
         for (int attempt = 0; attempt < maxAttemptRate; attempt++) {
             currentTimeStamp += connectionAttemptIntervals;
-            when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+            when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
             // Set WiFi to disconnected state to trigger PNO scan
             mWifiConnectivityManager.handleConnectionStateChanged(
                     WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
@@ -380,7 +382,7 @@ public class WifiConnectivityManagerTest {
         }
         // Now trigger another connection attempt before the rate interval, this should be
         // skipped because we've crossed rate limit.
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
         // Set WiFi to disconnected state to trigger PNO scan
         mWifiConnectivityManager.handleConnectionStateChanged(
                 WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
@@ -411,7 +413,7 @@ public class WifiConnectivityManagerTest {
         long currentTimeStamp = 0;
         for (int attempt = 0; attempt < maxAttemptRate; attempt++) {
             currentTimeStamp += connectionAttemptIntervals;
-            when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+            when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
             // Set WiFi to disconnected state to trigger PNO scan
             mWifiConnectivityManager.handleConnectionStateChanged(
                     WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
@@ -419,7 +421,7 @@ public class WifiConnectivityManagerTest {
         }
         // Now trigger another connection attempt after the rate interval, this should not be
         // skipped because we should've evicted the older attempt.
-        when(mClock.elapsedRealtime()).thenReturn(
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(
                 currentTimeStamp + connectionAttemptIntervals * 2);
         // Set WiFi to disconnected state to trigger PNO scan
         mWifiConnectivityManager.handleConnectionStateChanged(
@@ -451,7 +453,7 @@ public class WifiConnectivityManagerTest {
         long currentTimeStamp = 0;
         for (int attempt = 0; attempt < maxAttemptRate; attempt++) {
             currentTimeStamp += connectionAttemptIntervals;
-            when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+            when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
             // Set WiFi to disconnected state to trigger PNO scan
             mWifiConnectivityManager.handleConnectionStateChanged(
                     WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
@@ -462,7 +464,7 @@ public class WifiConnectivityManagerTest {
 
         for (int attempt = 0; attempt < maxAttemptRate; attempt++) {
             currentTimeStamp += connectionAttemptIntervals;
-            when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+            when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
             // Set WiFi to disconnected state to trigger PNO scan
             mWifiConnectivityManager.handleConnectionStateChanged(
                     WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
@@ -483,8 +485,8 @@ public class WifiConnectivityManagerTest {
      */
     @Test
     public void PnoRetryForLowRssiNetwork() {
-        when(mWifiQNS.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyObject(),
-              anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(null);
+        when(mWifiQNS.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyBoolean(),
+              anyBoolean(), anyBoolean(), anyBoolean(), anyObject())).thenReturn(null);
 
         // Set screen to off
         mWifiConnectivityManager.handleScreenStateChanged(false);
@@ -538,8 +540,8 @@ public class WifiConnectivityManagerTest {
     @Test
     public void watchdogBitePnoGoodIncrementsMetrics() {
         // Qns returns no candidate after watchdog single scan.
-        when(mWifiQNS.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyObject(),
-                anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(null);
+        when(mWifiQNS.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyBoolean(),
+                anyBoolean(), anyBoolean(), anyBoolean(), anyObject())).thenReturn(null);
 
         // Set screen to off
         mWifiConnectivityManager.handleScreenStateChanged(false);
@@ -566,7 +568,7 @@ public class WifiConnectivityManagerTest {
     @Test
     public void checkPeriodicScanIntervalWhenDisconnected() {
         long currentTimeStamp = CURRENT_SYSTEM_TIME_MS;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Set screen to ON
         mWifiConnectivityManager.handleScreenStateChanged(true);
@@ -574,7 +576,7 @@ public class WifiConnectivityManagerTest {
         // Wait for MAX_PERIODIC_SCAN_INTERVAL_MS so that any impact triggered
         // by screen state change can settle
         currentTimeStamp += WifiConnectivityManager.MAX_PERIODIC_SCAN_INTERVAL_MS;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Set WiFi to disconnected state to trigger periodic scan
         mWifiConnectivityManager.handleConnectionStateChanged(
@@ -587,7 +589,7 @@ public class WifiConnectivityManagerTest {
         assertEquals(firstIntervalMs, WifiConnectivityManager.PERIODIC_SCAN_INTERVAL_MS);
 
         currentTimeStamp += firstIntervalMs;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Now fire the first periodic scan alarm timer
         mAlarmManager.dispatch(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG);
@@ -602,7 +604,7 @@ public class WifiConnectivityManagerTest {
         assertEquals(firstIntervalMs * 2, secondIntervalMs);
 
         currentTimeStamp += secondIntervalMs;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Make sure we eventually stay at the maximum scan interval.
         long intervalMs = 0;
@@ -613,7 +615,7 @@ public class WifiConnectivityManagerTest {
                     .getTriggerTimeMillis(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG)
                     - currentTimeStamp;
             currentTimeStamp += intervalMs;
-            when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+            when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
         }
 
         assertEquals(intervalMs, WifiConnectivityManager.MAX_PERIODIC_SCAN_INTERVAL_MS);
@@ -629,7 +631,7 @@ public class WifiConnectivityManagerTest {
     @Test
     public void checkPeriodicScanIntervalWhenConnected() {
         long currentTimeStamp = CURRENT_SYSTEM_TIME_MS;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Set screen to ON
         mWifiConnectivityManager.handleScreenStateChanged(true);
@@ -637,7 +639,7 @@ public class WifiConnectivityManagerTest {
         // Wait for MAX_PERIODIC_SCAN_INTERVAL_MS so that any impact triggered
         // by screen state change can settle
         currentTimeStamp += WifiConnectivityManager.MAX_PERIODIC_SCAN_INTERVAL_MS;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Set WiFi to connected state to trigger periodic scan
         mWifiConnectivityManager.handleConnectionStateChanged(
@@ -650,7 +652,7 @@ public class WifiConnectivityManagerTest {
         assertEquals(firstIntervalMs, WifiConnectivityManager.PERIODIC_SCAN_INTERVAL_MS);
 
         currentTimeStamp += firstIntervalMs;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Now fire the first periodic scan alarm timer
         mAlarmManager.dispatch(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG);
@@ -665,7 +667,7 @@ public class WifiConnectivityManagerTest {
         assertEquals(firstIntervalMs * 2, secondIntervalMs);
 
         currentTimeStamp += secondIntervalMs;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Make sure we eventually stay at the maximum scan interval.
         long intervalMs = 0;
@@ -676,7 +678,7 @@ public class WifiConnectivityManagerTest {
                     .getTriggerTimeMillis(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG)
                     - currentTimeStamp;
             currentTimeStamp += intervalMs;
-            when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+            when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
         }
 
         assertEquals(intervalMs, WifiConnectivityManager.MAX_PERIODIC_SCAN_INTERVAL_MS);
@@ -692,7 +694,7 @@ public class WifiConnectivityManagerTest {
     @Test
     public void checkMinimumPeriodicScanIntervalWhenScreenOn() {
         long currentTimeStamp = CURRENT_SYSTEM_TIME_MS;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Set screen to ON
         mWifiConnectivityManager.handleScreenStateChanged(true);
@@ -701,7 +703,7 @@ public class WifiConnectivityManagerTest {
         // by screen state change can settle
         currentTimeStamp += WifiConnectivityManager.MAX_PERIODIC_SCAN_INTERVAL_MS;
         long firstScanTimeStamp = currentTimeStamp;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Set WiFi to connected state to trigger the periodic scan
         mWifiConnectivityManager.handleConnectionStateChanged(
@@ -709,7 +711,7 @@ public class WifiConnectivityManagerTest {
 
         // Set the second scan attempt time stamp.
         currentTimeStamp += 2000;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Set WiFi to disconnected state to trigger another periodic scan
         mWifiConnectivityManager.handleConnectionStateChanged(
@@ -737,7 +739,7 @@ public class WifiConnectivityManagerTest {
     @Test
     public void checkMinimumPeriodicScanIntervalNotEnforced() {
         long currentTimeStamp = CURRENT_SYSTEM_TIME_MS;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Set screen to ON
         mWifiConnectivityManager.handleScreenStateChanged(true);
@@ -746,7 +748,7 @@ public class WifiConnectivityManagerTest {
         // by screen state change can settle
         currentTimeStamp += WifiConnectivityManager.MAX_PERIODIC_SCAN_INTERVAL_MS;
         long firstScanTimeStamp = currentTimeStamp;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Set WiFi to connected state to trigger the periodic scan
         mWifiConnectivityManager.handleConnectionStateChanged(
@@ -754,7 +756,7 @@ public class WifiConnectivityManagerTest {
 
         // Set the second scan attempt time stamp
         currentTimeStamp += 2000;
-        when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Force a connectivity scan
         mWifiConnectivityManager.forceConnectivityScan();

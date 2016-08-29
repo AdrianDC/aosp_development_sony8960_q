@@ -30,10 +30,10 @@ import android.net.wifi.WifiScanner.BssidInfo;
 import android.net.wifi.WifiScanner.BssidListener;
 import android.os.Handler;
 import android.os.Message;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 
-import com.android.server.wifi.BidirectionalAsyncChannelServer;
-import com.android.server.wifi.MockLooper;
+import com.android.internal.util.test.BidirectionalAsyncChannelServer;
 
 import org.junit.After;
 import org.junit.Before;
@@ -55,7 +55,7 @@ public class WifiScannerTest {
     private BssidListener mBssidListener;
 
     private WifiScanner mWifiScanner;
-    private MockLooper mLooper;
+    private TestLooper mLooper;
     private Handler mHandler;
 
     /**
@@ -64,7 +64,7 @@ public class WifiScannerTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        mLooper = new MockLooper();
+        mLooper = new TestLooper();
         mHandler = mock(Handler.class);
         BidirectionalAsyncChannelServer server = new BidirectionalAsyncChannelServer(
                 mContext, mLooper.getLooper(), mHandler);

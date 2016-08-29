@@ -189,7 +189,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
             ClientInfo ci = mClients.get(msg.replyTo);
             if (ci == null) {
-                loge("Could not find client info for message " + msg.replyTo);
+                loge("Could not find client info for message " + msg.replyTo + ", msg=" + msg);
                 replyFailed(msg, WifiScanner.REASON_INVALID_LISTENER, "Could not find listener");
                 return;
             }
@@ -2284,7 +2284,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         long unchangedDelay = settings.unchangedSampleSize * settings.periodInMs;
                         mAlarmManager.cancel(mTimeoutIntent);
                         mAlarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                                mClock.elapsedRealtime() + unchangedDelay,
+                                mClock.getElapsedSinceBootMillis() + unchangedDelay,
                                 mTimeoutIntent);
                         break;
                     case WifiScanner.CMD_SCAN_RESULT:
@@ -2295,7 +2295,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                                     STATIONARY_SCAN_PERIOD_MS);
                             mWifiChangeDetected = false;
                             mAlarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                                    mClock.elapsedRealtime() + MOVING_STATE_TIMEOUT_MS,
+                                    mClock.getElapsedSinceBootMillis() + MOVING_STATE_TIMEOUT_MS,
                                     mTimeoutIntent);
                             mScanResultsPending = false;
                         }

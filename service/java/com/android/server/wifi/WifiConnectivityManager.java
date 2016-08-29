@@ -36,7 +36,7 @@ import android.util.Log;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.server.wifi.util.ScanDetailUtil;
+import com.android.server.wifi.util.ScanResultUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -220,12 +220,12 @@ public class WifiConnectivityManager {
         localLog(listenerName + " onResults: start QNS");
         WifiConfiguration candidate =
                 mQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                mUntrustedConnectionAllowed, scanDetails,
-                mStateMachine.isLinkDebouncing(), mStateMachine.isConnected(),
-                mStateMachine.isDisconnected(),
-                mStateMachine.isSupplicantTransientState());
+                mUntrustedConnectionAllowed, mStateMachine.isLinkDebouncing(),
+                mStateMachine.isConnected(), mStateMachine.isDisconnected(),
+                mStateMachine.isSupplicantTransientState(), scanDetails);
         mWifiLastResortWatchdog.updateAvailableNetworks(
                 mQualifiedNetworkSelector.getFilteredScanDetails());
+        mWifiMetrics.countScanResults(scanDetails);
         if (candidate != null) {
             localLog(listenerName + ": QNS candidate-" + candidate.SSID);
             connectToNetwork(candidate);
@@ -286,7 +286,7 @@ public class WifiConnectivityManager {
                             + fullScanResult.capabilities);
             }
 
-            mScanDetails.add(ScanDetailUtil.toScanDetail(fullScanResult));
+            mScanDetails.add(ScanResultUtil.toScanDetail(fullScanResult));
         }
     }
 
@@ -355,7 +355,7 @@ public class WifiConnectivityManager {
                             + fullScanResult.capabilities);
             }
 
-            mScanDetails.add(ScanDetailUtil.toScanDetail(fullScanResult));
+            mScanDetails.add(ScanResultUtil.toScanDetail(fullScanResult));
         }
     }
 
@@ -479,7 +479,7 @@ public class WifiConnectivityManager {
             localLog("PnoScanListener: onPnoNetworkFound: results len = " + results.length);
 
             for (ScanResult result: results) {
-                mScanDetails.add(ScanDetailUtil.toScanDetail(result));
+                mScanDetails.add(ScanResultUtil.toScanDetail(result));
             }
 
             boolean wasConnectAttempted;
@@ -618,7 +618,7 @@ public class WifiConnectivityManager {
             return;
         }
 
-        Long elapsedTimeMillis = mClock.elapsedRealtime();
+        Long elapsedTimeMillis = mClock.getElapsedSinceBootMillis();
         if (!mScreenOn && shouldSkipConnectionAttempt(elapsedTimeMillis)) {
             localLog("connectToNetwork: Too many connection attempts. Skipping this attempt!");
             mTotalConnectivityAttemptsRateLimited++;
@@ -708,7 +708,7 @@ public class WifiConnectivityManager {
 
     // Start a single scan and set up the interval for next single scan.
     private void startPeriodicSingleScan() {
-        long currentTimeStamp = mClock.elapsedRealtime();
+        long currentTimeStamp = mClock.getElapsedSinceBootMillis();
 
         if (mLastPeriodicSingleScanTimeStamp != RESET_TIME_STAMP) {
             long msSinceLastScan = currentTimeStamp - mLastPeriodicSingleScanTimeStamp;
@@ -926,7 +926,7 @@ public class WifiConnectivityManager {
         Log.i(TAG, "scheduleWatchdogTimer");
 
         mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                            mClock.elapsedRealtime() + WATCHDOG_INTERVAL_MS,
+                            mClock.getElapsedSinceBootMillis() + WATCHDOG_INTERVAL_MS,
                             WATCHDOG_TIMER_TAG,
                             mWatchdogListener, mEventHandler);
     }
@@ -934,7 +934,7 @@ public class WifiConnectivityManager {
     // Set up periodic scan timer
     private void schedulePeriodicScanTimer(int intervalMs) {
         mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                            mClock.elapsedRealtime() + intervalMs,
+                            mClock.getElapsedSinceBootMillis() + intervalMs,
                             PERIODIC_SCAN_TIMER_TAG,
                             mPeriodicScanTimerListener, mEventHandler);
         mPeriodicScanTimerSet = true;
@@ -955,7 +955,7 @@ public class WifiConnectivityManager {
         RestartSingleScanListener restartSingleScanListener =
                 new RestartSingleScanListener(isFullBandScan);
         mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                            mClock.elapsedRealtime() + RESTART_SCAN_DELAY_MS,
+                            mClock.getElapsedSinceBootMillis() + RESTART_SCAN_DELAY_MS,
                             RESTART_SINGLE_SCAN_TIMER_TAG,
                             restartSingleScanListener, mEventHandler);
     }
@@ -965,7 +965,7 @@ public class WifiConnectivityManager {
         localLog("scheduleDelayedConnectivityScan");
 
         mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                            mClock.elapsedRealtime() + msFromNow,
+                            mClock.getElapsedSinceBootMillis() + msFromNow,
                             RESTART_CONNECTIVITY_SCAN_TIMER_TAG,
                             mRestartScanListener, mEventHandler);
 

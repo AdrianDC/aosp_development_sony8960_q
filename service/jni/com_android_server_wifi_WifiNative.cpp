@@ -16,32 +16,40 @@
 
 #define LOG_TAG "wifi"
 
-#include "jni.h"
-#include "JniConstants.h"
-#include <ScopedUtfChars.h>
-#include <ScopedBytes.h>
-#include <utils/misc.h>
-#include <utils/Log.h>
-#include <utils/String16.h>
 #include <ctype.h>
 #include <stdlib.h>
-#include <sys/socket.h>
 #include <sys/klog.h>
-#include <linux/if.h>
+#include <sys/socket.h>
+/* We need linux/if_arp.h for ARPHRD_ETHER.  Sadly, it forward declares
+   struct sockaddr and must be included after sys/socket.h. */
 #include <linux/if_arp.h>
 
 #include <algorithm>
 #include <limits>
 #include <vector>
 
-#include "wifi.h"
-#include "wifi_hal.h"
+#include <hardware_legacy/rtt.h>
+#include <hardware_legacy/wifi.h>
+#include <hardware_legacy/wifi_hal.h>
+#include <log/log.h>
+#include <nativehelper/JniConstants.h>
+#include <nativehelper/ScopedBytes.h>
+#include <nativehelper/ScopedUtfChars.h>
+#include <nativehelper/jni.h>
+#include <utils/String16.h>
+#include <utils/misc.h>
+#include <wifi_system/hal_tool.h>
+#include <wifi_system/interface_tool.h>
+#include <wifi_system/wifi.h>
+
 #include "jni_helper.h"
-#include "rtt.h"
-#include "wifi_hal_stub.h"
+
 #define REPLY_BUF_SIZE (4096 + 1)         // wpa_supplicant's maximum size + 1 for nul
 #define EVENT_BUF_SIZE 2048
 #define WAKE_REASON_TYPE_MAX 10
+
+using android::wifi_system::HalTool;
+using android::wifi_system::InterfaceTool;
 
 namespace android {
 
@@ -64,7 +72,7 @@ static bool doCommand(JNIEnv* env, jstring javaCommand,
     }
 
     --reply_len; // Ensure we have room to add NUL termination.
-    if (::wifi_command(command.c_str(), reply, &reply_len) != 0) {
+    if (wifi_system::wifi_command(command.c_str(), reply, &reply_len) != 0) {
         return false;
     }
 
@@ -107,45 +115,20 @@ static jstring doStringCommand(JNIEnv* env, jstring javaCommand) {
     return env->NewStringUTF(reply);
 }
 
-static jboolean android_net_wifi_isDriverLoaded(JNIEnv* env, jclass)
-{
-    return (::is_wifi_driver_loaded() == 1);
-}
-
-static jboolean android_net_wifi_loadDriver(JNIEnv* env, jclass)
-{
-    return (::wifi_load_driver() == 0);
-}
-
-static jboolean android_net_wifi_unloadDriver(JNIEnv* env, jclass)
-{
-    return (::wifi_unload_driver() == 0);
-}
-
-static jboolean android_net_wifi_startSupplicant(JNIEnv* env, jclass, jboolean p2pSupported)
-{
-    return (::wifi_start_supplicant(p2pSupported) == 0);
-}
-
-static jboolean android_net_wifi_killSupplicant(JNIEnv* env, jclass, jboolean p2pSupported)
-{
-    return (::wifi_stop_supplicant(p2pSupported) == 0);
-}
-
 static jboolean android_net_wifi_connectToSupplicant(JNIEnv* env, jclass)
 {
-    return (::wifi_connect_to_supplicant() == 0);
+    return (wifi_system::wifi_connect_to_supplicant() == 0);
 }
 
 static void android_net_wifi_closeSupplicantConnection(JNIEnv* env, jclass)
 {
-    ::wifi_close_supplicant_connection();
+    wifi_system::wifi_close_supplicant_connection();
 }
 
 static jstring android_net_wifi_waitForEvent(JNIEnv* env, jclass)
 {
     char buf[EVENT_BUF_SIZE];
-    int nread = ::wifi_wait_for_event(buf, sizeof buf);
+    int nread = wifi_system::wifi_wait_for_event(buf, sizeof buf);
     if (nread > 0) {
         return env->NewStringUTF(buf);
     } else {
@@ -237,96 +220,38 @@ static JNIObject<jobject> createScanResult(JNIHelper &helper, wifi_scan_result *
     return scanResult;
 }
 
-int set_iface_flags(const char *ifname, bool dev_up) {
-    struct ifreq ifr;
-    int ret;
-    int sock = socket(PF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        ALOGD("Bad socket: %d\n", sock);
-        return -errno;
-    }
-
-    //ALOGD("setting interface %s flags (%s)\n", ifname, dev_up ? "UP" : "DOWN");
-
-    memset(&ifr, 0, sizeof(ifr));
-    strlcpy(ifr.ifr_name, ifname, IFNAMSIZ);
-
-    //ALOGD("reading old value\n");
-
-    if (ioctl(sock, SIOCGIFFLAGS, &ifr) != 0) {
-      ret = errno ? -errno : -999;
-      ALOGE("Could not read interface %s flags: %d\n", ifname, errno);
-      close(sock);
-      return ret;
-    } else {
-      //ALOGD("writing new value\n");
-    }
-
-    if (dev_up) {
-      if (ifr.ifr_flags & IFF_UP) {
-        // ALOGD("interface %s is already up\n", ifname);
-        close(sock);
-        return 0;
-      }
-      ifr.ifr_flags |= IFF_UP;
-    } else {
-      if (!(ifr.ifr_flags & IFF_UP)) {
-        // ALOGD("interface %s is already down\n", ifname);
-        close(sock);
-        return 0;
-      }
-      ifr.ifr_flags &= ~IFF_UP;
-    }
-
-    if (ioctl(sock, SIOCSIFFLAGS, &ifr) != 0) {
-      ALOGE("Could not set interface %s flags: %d\n", ifname, errno);
-      ret = errno ? -errno : -999;
-      close(sock);
-      return ret;
-    } else {
-      ALOGD("set interface %s flags (%s)\n", ifname, dev_up ? "UP" : "DOWN");
-    }
-    close(sock);
-    return 0;
-}
-
 static jboolean android_net_wifi_set_interface_up(JNIEnv* env, jclass cls, jboolean up) {
-    return (set_iface_flags("wlan0", (bool)up) == 0);
+    InterfaceTool if_tool;
+    return if_tool.SetWifiUpState((bool)up);
 }
 
 static jboolean android_net_wifi_startHal(JNIEnv* env, jclass cls) {
+    InterfaceTool if_tool;
     JNIHelper helper(env);
     wifi_handle halHandle = getWifiHandle(helper, cls);
-    if (halHandle == NULL) {
-
-        if(init_wifi_stub_hal_func_table(&hal_fn) != 0 ) {
-            ALOGE("Can not initialize the basic function pointer table");
-            return false;
-        }
-
-        wifi_error res = init_wifi_vendor_hal_func_table(&hal_fn);
-        if (res != WIFI_SUCCESS) {
-            ALOGE("Can not initialize the vendor function pointer table");
-	    return false;
-        }
-
-        int ret = set_iface_flags("wlan0", true);
-        if(ret != 0) {
-            return false;
-        }
-
-        res = hal_fn.wifi_initialize(&halHandle);
-        if (res == WIFI_SUCCESS) {
-            helper.setStaticLongField(cls, WifiHandleVarName, (jlong)halHandle);
-            ALOGD("Did set static halHandle = %p", halHandle);
-        }
-        env->GetJavaVM(&mVM);
-        mCls = (jclass) env->NewGlobalRef(cls);
-        ALOGD("halHandle = %p, mVM = %p, mCls = %p", halHandle, mVM, mCls);
-        return res == WIFI_SUCCESS;
-    } else {
-        return (set_iface_flags("wlan0", true) == 0);
+    if (halHandle != NULL) {
+        return if_tool.SetWifiUpState(true);
     }
+
+    HalTool hal_tool;
+    if (!hal_tool.InitFunctionTable(&hal_fn)) {
+        return false;
+    }
+
+    if(!if_tool.SetWifiUpState(true)) {
+        ALOGE("Failed to set WiFi interface up");
+        return false;
+    }
+
+    const bool was_started = hal_fn.wifi_initialize(&halHandle) == WIFI_SUCCESS;
+    if (was_started) {
+        helper.setStaticLongField(cls, WifiHandleVarName, (jlong)halHandle);
+        ALOGD("Did set static halHandle = %p", halHandle);
+    }
+    env->GetJavaVM(&mVM);
+    mCls = (jclass) env->NewGlobalRef(cls);
+    ALOGD("halHandle = %p, mVM = %p, mCls = %p", halHandle, mVM, mCls);
+    return was_started;
 }
 
 void android_net_wifi_hal_cleaned_up_handler(wifi_handle handle) {
@@ -359,7 +284,8 @@ static void android_net_wifi_waitForHalEvents(JNIEnv* env, jclass cls) {
     JNIHelper helper(env);
     wifi_handle halHandle = getWifiHandle(helper, cls);
     hal_fn.wifi_event_loop(halHandle);
-    set_iface_flags("wlan0", false);
+    InterfaceTool if_tool;
+    if_tool.SetWifiUpState(false);
 }
 
 static int android_net_wifi_getInterfaces(JNIEnv *env, jclass cls) {
@@ -1115,7 +1041,7 @@ static void onRttResults(wifi_request_id id, unsigned num_results, wifi_rtt_resu
 
     JNIHelper helper(mVM);
 
-    ALOGD("onRttResults called, vm = %p, obj = %p", mVM, mCls);
+    if (DBG) ALOGD("onRttResults called, vm = %p, obj = %p", mVM, mCls);
 
     JNIObject<jobjectArray> rttResults = helper.newObjectArray(
             num_results, "android/net/wifi/RttManager$RttResult", NULL);
@@ -1163,14 +1089,12 @@ static void onRttResults(wifi_request_id id, unsigned num_results, wifi_rtt_resu
         JNIObject<jobject> LCI = helper.createObject(
                 "android/net/wifi/RttManager$WifiInformationElement");
         if (result->LCI != NULL && result->LCI->len > 0) {
-            ALOGD("Add LCI in result");
             helper.setByteField(LCI, "id", result->LCI->id);
             JNIObject<jbyteArray> elements = helper.newByteArray(result->LCI->len);
             jbyte *bytes = (jbyte *)&(result->LCI->data[0]);
             helper.setByteArrayRegion(elements, 0, result->LCI->len, bytes);
             helper.setObjectField(LCI, "data", "[B", elements);
         } else {
-            ALOGD("No LCI in result");
             helper.setByteField(LCI, "id", (byte)(0xff));
         }
         helper.setObjectField(rttResult, "LCI",
@@ -1179,14 +1103,12 @@ static void onRttResults(wifi_request_id id, unsigned num_results, wifi_rtt_resu
         JNIObject<jobject> LCR = helper.createObject(
                 "android/net/wifi/RttManager$WifiInformationElement");
         if (result->LCR != NULL && result->LCR->len > 0) {
-            ALOGD("Add LCR in result");
             helper.setByteField(LCR, "id",           result->LCR->id);
             JNIObject<jbyteArray> elements = helper.newByteArray(result->LCI->len);
             jbyte *bytes = (jbyte *)&(result->LCR->data[0]);
             helper.setByteArrayRegion(elements, 0, result->LCI->len, bytes);
             helper.setObjectField(LCR, "data", "[B", elements);
         } else {
-            ALOGD("No LCR in result");
             helper.setByteField(LCR, "id", (byte)(0xff));
         }
         helper.setObjectField(rttResult, "LCR",
@@ -1207,7 +1129,7 @@ static jboolean android_net_wifi_requestRange(
     JNIHelper helper(env);
 
     wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
-    ALOGD("sending rtt request [%d] = %p", id, handle);
+    if (DBG) ALOGD("sending rtt request [%d] = %p", id, handle);
     if (params == NULL) {
         ALOGE("ranging params are empty");
         return false;
@@ -1225,7 +1147,7 @@ static jboolean android_net_wifi_requestRange(
 
         JNIObject<jobject> param = helper.getObjectArrayElement((jobjectArray)params, i);
         if (param == NULL) {
-            ALOGD("could not get element %d", i);
+            ALOGW("could not get element %d", i);
             continue;
         }
 
@@ -1250,18 +1172,6 @@ static jboolean android_net_wifi_requestRange(
         config.burst_duration = (unsigned) helper.getIntField(param, "burstTimeout");
         config.preamble = (wifi_rtt_preamble) helper.getIntField(param, "preamble");
         config.bw = (wifi_rtt_bw) helper.getIntField(param, "bandwidth");
-
-        ALOGD("RTT request destination %d: type is %d, peer is %d, bw is %d, center_freq is %d ", i,
-                config.type,config.peer, config.channel.width,  config.channel.center_freq);
-        ALOGD("center_freq0 is %d, center_freq1 is %d, num_burst is %d,interval is %d",
-                config.channel.center_freq0, config.channel.center_freq1, config.num_burst,
-                config.burst_period);
-        ALOGD("frames_per_burst is %d, retries of measurement frame is %d, retries_per_ftmr is %d",
-                config.num_frames_per_burst, config.num_retries_per_rtt_frame,
-                config.num_retries_per_ftmr);
-        ALOGD("LCI_requestis %d, LCR_request is %d,  burst_timeout is %d, preamble is %d, bw is %d",
-                config.LCI_request, config.LCR_request, config.burst_duration, config.preamble,
-                config.bw);
     }
 
     wifi_rtt_event_handler handler;
@@ -1275,7 +1185,7 @@ static jboolean android_net_wifi_cancelRange(
 
     JNIHelper helper(env);
     wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
-    ALOGD("cancelling rtt request [%d] = %p", id, handle);
+    if (DBG) ALOGD("cancelling rtt request [%d] = %p", id, handle);
 
     if (params == NULL) {
         ALOGE("ranging params are empty");
@@ -1294,7 +1204,7 @@ static jboolean android_net_wifi_cancelRange(
 
         JNIObject<jobject> param = helper.getObjectArrayElement(params, i);
         if (param == NULL) {
-            ALOGD("could not get element %d", i);
+            ALOGW("could not get element %d", i);
             continue;
         }
 
@@ -1388,7 +1298,8 @@ static jboolean android_net_wifi_setScanningMacOui(JNIEnv *env, jclass cls,
 }
 
 static jboolean android_net_wifi_is_get_channels_for_band_supported(JNIEnv *env, jclass cls){
-    return (hal_fn.wifi_get_valid_channels == wifi_get_valid_channels_stub);
+    HalTool hal_tool;
+    return hal_tool.CanGetValidChannels(&hal_fn);
 }
 
 static jintArray android_net_wifi_getValidChannels(JNIEnv *env, jclass cls,
@@ -2535,11 +2446,6 @@ static jint android_net_wifi_configure_nd_offload(JNIEnv *env, jclass cls,
 static JNINativeMethod gWifiMethods[] = {
     /* name, signature, funcPtr */
 
-    { "loadDriverNative", "()Z",  (void *)android_net_wifi_loadDriver },
-    { "isDriverLoadedNative", "()Z",  (void *)android_net_wifi_isDriverLoaded },
-    { "unloadDriverNative", "()Z",  (void *)android_net_wifi_unloadDriver },
-    { "startSupplicantNative", "(Z)Z",  (void *)android_net_wifi_startSupplicant },
-    { "killSupplicantNative", "(Z)Z",  (void *)android_net_wifi_killSupplicant },
     { "connectToSupplicantNative", "()Z", (void *)android_net_wifi_connectToSupplicant },
     { "closeSupplicantConnectionNative", "()V",
             (void *)android_net_wifi_closeSupplicantConnection },

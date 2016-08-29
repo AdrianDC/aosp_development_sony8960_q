@@ -25,7 +25,7 @@ public class AnqpCache {
     public AnqpCache(Clock clock) {
         mClock = clock;
         mANQPCache = new HashMap<>();
-        mLastSweep = mClock.currentTimeMillis();
+        mLastSweep = mClock.getWallClockMillis();
     }
 
     private static class CacheKey {
@@ -172,7 +172,7 @@ public class AnqpCache {
 
     public void clear(boolean all, boolean debug) {
         if (DBG) Log.d(Utils.hs2LogTag(getClass()), "Clearing ANQP cache: all: " + all);
-        long now = mClock.currentTimeMillis();
+        long now = mClock.getWallClockMillis();
         synchronized (mANQPCache) {
             if (all) {
                 mANQPCache.clear();
@@ -197,7 +197,7 @@ public class AnqpCache {
     }
 
     public void dump(PrintWriter out) {
-        out.println("Last sweep " + Utils.toHMS(mClock.currentTimeMillis() - mLastSweep) + " ago.");
+        out.println("Last sweep " + Utils.toHMS(mClock.getWallClockMillis() - mLastSweep) + " ago.");
         for (ANQPData anqpData : mANQPCache.values()) {
             out.println(anqpData.toString(false));
         }

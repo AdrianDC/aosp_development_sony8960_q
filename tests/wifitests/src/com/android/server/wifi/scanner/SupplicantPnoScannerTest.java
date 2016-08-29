@@ -22,16 +22,17 @@ import static com.android.server.wifi.ScanTestUtil.assertScanDataEquals;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
+import android.app.test.TestAlarmManager;
 import android.content.Context;
+import android.os.test.TestLooper;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiScanner;
 import android.os.SystemClock;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.R;
+
 import com.android.server.wifi.Clock;
-import com.android.server.wifi.MockAlarmManager;
-import com.android.server.wifi.MockLooper;
 import com.android.server.wifi.MockResources;
 import com.android.server.wifi.MockWifiMonitor;
 import com.android.server.wifi.ScanResults;
@@ -57,9 +58,9 @@ import java.util.Set;
 public class SupplicantPnoScannerTest {
 
     @Mock Context mContext;
-    MockAlarmManager mAlarmManager;
+    TestAlarmManager mAlarmManager;
     MockWifiMonitor mWifiMonitor;
-    MockLooper mLooper;
+    TestLooper mLooper;
     @Mock WifiNative mWifiNative;
     MockResources mResources;
     @Mock Clock mClock;
@@ -69,8 +70,8 @@ public class SupplicantPnoScannerTest {
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        mLooper = new MockLooper();
-        mAlarmManager = new MockAlarmManager();
+        mLooper = new TestLooper();
+        mAlarmManager = new TestAlarmManager();
         mWifiMonitor = new MockWifiMonitor();
         mResources = new MockResources();
 
@@ -78,7 +79,7 @@ public class SupplicantPnoScannerTest {
         when(mContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
         when(mContext.getResources()).thenReturn(mResources);
-        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime());
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
     }
 
     /**

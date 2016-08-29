@@ -20,14 +20,13 @@ import android.app.AppGlobals;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.net.ConnectivityManager;
+import android.content.pm.PackageManager;
 import android.net.TrafficStats;
 import android.net.ip.IpManager;
 import android.net.wifi.IWifiScanner;
 import android.net.wifi.WifiScanner;
 import android.os.Handler;
 import android.os.IBinder;
-import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.os.ServiceManager;
@@ -36,23 +35,11 @@ import android.provider.Settings;
 import android.security.KeyStore;
 import android.telephony.CarrierConfigManager;
 
-import java.util.ArrayList;
-
 /**
  * This class allows overriding objects with mocks to write unit tests
  */
 public class FrameworkFacade {
     public static final String TAG = "FrameworkFacade";
-
-    public BaseWifiLogger makeBaseLogger() {
-        return new BaseWifiLogger();
-    }
-
-    public BaseWifiLogger makeRealLogger(
-            Context context, WifiStateMachine stateMachine, WifiNative wifiNative,
-            BuildProperties buildProperties) {
-        return new WifiLogger(context, stateMachine, wifiNative, buildProperties);
-    }
 
     public boolean setIntegerSetting(Context context, String name, int def) {
         return Settings.Global.putInt(context.getContentResolver(), name, def);
@@ -125,28 +112,6 @@ public class FrameworkFacade {
     public IpManager makeIpManager(
             Context context, String iface, IpManager.Callback callback) {
         return new IpManager(context, iface, callback);
-    }
-
-    /**
-     * Create a SoftApManager.
-     * @param context current context
-     * @param looper current thread looper
-     * @param wifiNative reference to WifiNative
-     * @param nmService reference to NetworkManagementService
-     * @param cm reference to ConnectivityManager
-     * @param countryCode Country code
-     * @param allowed2GChannels list of allowed 2G channels
-     * @param listener listener for SoftApManager
-     * @return an instance of SoftApManager
-     */
-    public SoftApManager makeSoftApManager(
-            Context context, Looper looper, WifiNative wifiNative,
-            INetworkManagementService nmService, ConnectivityManager cm,
-            String countryCode, ArrayList<Integer> allowed2GChannels,
-            SoftApManager.Listener listener) {
-        return new SoftApManager(
-                looper, wifiNative, nmService, countryCode,
-                allowed2GChannels, listener);
     }
 
     /**

@@ -16,14 +16,18 @@
 
 package com.android.server.wifi;
 
+import android.content.Context;
 import android.net.NetworkAgent;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.util.Log;
 
+import com.android.internal.R;
 
 /**
-* Calculate scores for connected wifi networks.
+ * Class used to calculate scores for connected wifi networks and report it to the associated
+ * network agent.
+ * TODO: Add unit tests for this class.
 */
 public class WifiScoreReport {
     // TODO: switch to WifiScoreReport if it doesn't break any tools
@@ -52,72 +56,125 @@ public class WifiScoreReport {
     private static final int BAD_LINKSPEED_PENALTY = 4;
     private static final int GOOD_LINKSPEED_BONUS = 4;
 
+    // Device configs.
+    private final int mThresholdMinimumRssi5;
+    private final int mThresholdQualifiedRssi5;
+    private final int mThresholdSaturatedRssi5;
+    private final int mThresholdMinimumRssi24;
+    private final int mThresholdQualifiedRssi24;
+    private final int mThresholdSaturatedRssi24;
+    private final int mBadLinkSpeed24;
+    private final int mBadLinkSpeed5;
+    private final int mGoodLinkSpeed24;
+    private final int mGoodLinkSpeed5;
+    private final boolean mEnableWifiCellularHandoverUserTriggeredAdjustment;
 
+    private final WifiConfigManager mWifiConfigManager;
+    private boolean mVerboseLoggingEnabled = false;
+
+    // Cache of the last score report.
     private String mReport;
-    private int mBadLinkspeedcount;
+    private int mBadLinkspeedcount = 0;
+    private boolean mReportValid = false;
 
-    WifiScoreReport(String report, int badLinkspeedcount) {
-        mReport = report;
-        mBadLinkspeedcount = badLinkspeedcount;
+    WifiScoreReport(Context context, WifiConfigManager wifiConfigManager) {
+        // Fetch all the device configs.
+        mThresholdMinimumRssi5 = context.getResources().getInteger(
+                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz);
+        mThresholdQualifiedRssi5 = context.getResources().getInteger(
+                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_5GHz);
+        mThresholdSaturatedRssi5 = context.getResources().getInteger(
+                R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_5GHz);
+        mThresholdMinimumRssi24 = context.getResources().getInteger(
+                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_24GHz);
+        mThresholdQualifiedRssi24 = context.getResources().getInteger(
+                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_24GHz);
+        mThresholdSaturatedRssi24 = context.getResources().getInteger(
+                R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_24GHz);
+        mBadLinkSpeed24 = context.getResources().getInteger(
+                R.integer.config_wifi_framework_wifi_score_bad_link_speed_24);
+        mBadLinkSpeed5 = context.getResources().getInteger(
+                R.integer.config_wifi_framework_wifi_score_bad_link_speed_5);
+        mGoodLinkSpeed24 = context.getResources().getInteger(
+                R.integer.config_wifi_framework_wifi_score_good_link_speed_24);
+        mGoodLinkSpeed5 = context.getResources().getInteger(
+                R.integer.config_wifi_framework_wifi_score_good_link_speed_5);
+        mEnableWifiCellularHandoverUserTriggeredAdjustment = context.getResources().getBoolean(
+                R.bool.config_wifi_framework_cellular_handover_enable_user_triggered_adjustment);
+
+        mWifiConfigManager = wifiConfigManager;
     }
 
     /**
-     *  Method returning the String representation of the score report.
+     * Method returning the String representation of the last score report.
      *
      *  @return String score report
      */
-    public String getReport() {
+    public String getLastReport() {
         return mReport;
     }
 
     /**
-     *  Method returning the bad link speed count at the time of the current score report.
+     * Method returning the bad link speed count at the time of the last score report.
      *
      *  @return int bad linkspeed count
      */
-    public int getBadLinkspeedcount() {
+    public int getLastBadLinkspeedcount() {
         return mBadLinkspeedcount;
     }
 
     /**
-     * Calculate wifi network score based on updated link layer stats and return a new
-     * WifiScoreReport object.
+     * Reset the last calculated score.
+     */
+    public void reset() {
+        mBadLinkspeedcount = 0;
+        mReport = "";
+        mReportValid = false;
+    }
+
+    /**
+     * Checks if the last report data is valid or not. This will be cleared when {@link #reset()} is
+     * invoked.
+     *
+     * @return true if valid, false otherwise.
+     */
+    public boolean isLastReportValid() {
+        return mReportValid;
+    }
+
+    /**
+     * Enable/Disable verbose logging in score report generation.
+     */
+    public void enableVerboseLogging(boolean enable) {
+        mVerboseLoggingEnabled = enable;
+    }
+
+    /**
+     * Calculate wifi network score based on updated link layer stats and send the score to provided
+     * network agent.
      *
      * If the score has changed from the previous value, update the WifiNetworkAgent.
-     * @param wifiInfo WifiInfo information about current network connection
-     * @param currentConfiguration WifiConfiguration current wifi config
-     * @param wifiConfigManager WifiConfigManager Object holding current config state
-     * @param networkAgent NetworkAgent to be notified of new score
-     * @param lastReport String most recent score report
-     * @param aggressiveHandover int current aggressiveHandover setting
-     * @return WifiScoreReport Wifi Score report
+     * @param wifiInfo WifiInfo instance pointing to the currently connected network.
+     * @param networkAgent NetworkAgent to be notified of new score.
+     * @param aggressiveHandover int current aggressiveHandover setting.
      */
-    public static WifiScoreReport calculateScore(WifiInfo wifiInfo,
-                                                 WifiConfiguration currentConfiguration,
-                                                 WifiConfigManager wifiConfigManager,
-                                                 NetworkAgent networkAgent,
-                                                 WifiScoreReport lastReport,
-                                                 int aggressiveHandover) {
-        boolean debugLogging = false;
-        if (wifiConfigManager.mEnableVerboseLogging.get() > 0) {
-            debugLogging = true;
-        }
-
+    public void calculateAndReportScore(
+            WifiInfo wifiInfo, NetworkAgent networkAgent, int aggressiveHandover) {
         StringBuilder sb = new StringBuilder();
 
         int score = STARTING_SCORE;
         boolean isBadLinkspeed = (wifiInfo.is24GHz()
-                && wifiInfo.getLinkSpeed() < wifiConfigManager.mBadLinkSpeed24)
+                && wifiInfo.getLinkSpeed() < mBadLinkSpeed24)
                 || (wifiInfo.is5GHz() && wifiInfo.getLinkSpeed()
-                < wifiConfigManager.mBadLinkSpeed5);
+                < mBadLinkSpeed5);
         boolean isGoodLinkspeed = (wifiInfo.is24GHz()
-                && wifiInfo.getLinkSpeed() >= wifiConfigManager.mGoodLinkSpeed24)
+                && wifiInfo.getLinkSpeed() >= mGoodLinkSpeed24)
                 || (wifiInfo.is5GHz() && wifiInfo.getLinkSpeed()
-                >= wifiConfigManager.mGoodLinkSpeed5);
+                >= mGoodLinkSpeed5);
 
         int badLinkspeedcount = 0;
-        if (lastReport != null) {
-            badLinkspeedcount = lastReport.getBadLinkspeedcount();
+        if (mReportValid) {
+            badLinkspeedcount = mBadLinkspeedcount;
         }
 
         if (isBadLinkspeed) {
@@ -133,18 +190,19 @@ public class WifiScoreReport {
         if (isBadLinkspeed) sb.append(" bl(").append(badLinkspeedcount).append(")");
         if (isGoodLinkspeed) sb.append(" gl");
 
+        WifiConfiguration currentConfiguration =
+                mWifiConfigManager.getWifiConfiguration(wifiInfo.getNetworkId());
+        ScanDetailCache scanDetailCache =
+                mWifiConfigManager.getScanDetailCache(currentConfiguration);
         /**
          * We want to make sure that we use the 24GHz RSSI thresholds if
-         * there are 2.4GHz scan results
-         * otherwise we end up lowering the score based on 5GHz values
+         * there are 2.4GHz scan results otherwise we end up lowering the score based on 5GHz values
          * which may cause a switch to LTE before roaming has a chance to try 2.4GHz
          * We also might unblacklist the configuation based on 2.4GHz
          * thresholds but joining 5GHz anyhow, and failing over to 2.4GHz because 5GHz is not good
          */
         boolean use24Thresholds = false;
         boolean homeNetworkBoost = false;
-        ScanDetailCache scanDetailCache =
-                wifiConfigManager.getScanDetailCache(currentConfiguration);
         if (currentConfiguration != null && scanDetailCache != null) {
             currentConfiguration.setVisibility(
                     scanDetailCache.getVisibility(SCAN_CACHE_VISIBILITY_MS));
@@ -173,14 +231,14 @@ public class WifiScoreReport {
 
         boolean is24GHz = use24Thresholds || wifiInfo.is24GHz();
 
-        boolean isBadRSSI = (is24GHz && rssi < wifiConfigManager.mThresholdMinimumRssi24.get())
-                || (!is24GHz && rssi < wifiConfigManager.mThresholdMinimumRssi5.get());
-        boolean isLowRSSI = (is24GHz && rssi < wifiConfigManager.mThresholdQualifiedRssi24.get())
+        boolean isBadRSSI = (is24GHz && rssi < mThresholdMinimumRssi24)
+                || (!is24GHz && rssi < mThresholdMinimumRssi5);
+        boolean isLowRSSI = (is24GHz && rssi < mThresholdQualifiedRssi24)
                 || (!is24GHz
-                        && wifiInfo.getRssi() < wifiConfigManager.mThresholdMinimumRssi5.get());
-        boolean isHighRSSI = (is24GHz && rssi >= wifiConfigManager.mThresholdSaturatedRssi24.get())
+                        && wifiInfo.getRssi() < mThresholdMinimumRssi5);
+        boolean isHighRSSI = (is24GHz && rssi >= mThresholdSaturatedRssi24)
                 || (!is24GHz
-                        && wifiInfo.getRssi() >= wifiConfigManager.mThresholdSaturatedRssi5.get());
+                        && wifiInfo.getRssi() >= mThresholdSaturatedRssi5);
 
         if (isBadRSSI) sb.append(" br");
         if (isLowRSSI) sb.append(" lr");
@@ -206,7 +264,7 @@ public class WifiScoreReport {
                     }
                     currentConfiguration.numTicksAtBadRSSI = 0;
                 }
-                if (wifiConfigManager.mEnableWifiCellularHandoverUserTriggeredAdjustment
+                if (mEnableWifiCellularHandoverUserTriggeredAdjustment
                         && (currentConfiguration.numUserTriggeredWifiDisableBadRSSI > 0
                                 || currentConfiguration.numUserTriggeredWifiDisableLowRSSI > 0
                                 || currentConfiguration
@@ -228,7 +286,7 @@ public class WifiScoreReport {
                     }
                     currentConfiguration.numTicksAtLowRSSI = 0;
                 }
-                if (wifiConfigManager.mEnableWifiCellularHandoverUserTriggeredAdjustment
+                if (mEnableWifiCellularHandoverUserTriggeredAdjustment
                         && (currentConfiguration.numUserTriggeredWifiDisableLowRSSI > 0
                                 || currentConfiguration
                                         .numUserTriggeredWifiDisableNotHighRSSI > 0)) {
@@ -246,7 +304,7 @@ public class WifiScoreReport {
                     }
                     currentConfiguration.numTicksAtNotHighRSSI = 0;
                 }
-                if (wifiConfigManager.mEnableWifiCellularHandoverUserTriggeredAdjustment
+                if (mEnableWifiCellularHandoverUserTriggeredAdjustment
                         && currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI > 0) {
                     score = score - USER_DISCONNECT_PENALTY;
                     penalizedDueToUserTriggeredDisconnect = 3;
@@ -258,7 +316,7 @@ public class WifiScoreReport {
                     currentConfiguration.numTicksAtNotHighRSSI));
         }
 
-        if (debugLogging) {
+        if (mVerboseLoggingEnabled) {
             String rssiStatus = "";
             if (isBadRSSI) {
                 rssiStatus += " badRSSI ";
@@ -279,14 +337,15 @@ public class WifiScoreReport {
                     + " userTriggerdPenalty" + penalizedDueToUserTriggeredDisconnect);
         }
 
-        if ((wifiInfo.txBadRate >= 1) && (wifiInfo.txSuccessRate < MAX_SUCCESS_COUNT_OF_STUCK_LINK)
+        if ((wifiInfo.txBadRate >= 1)
+                && (wifiInfo.txSuccessRate < MAX_SUCCESS_COUNT_OF_STUCK_LINK)
                 && (isBadRSSI || isLowRSSI)) {
             // Link is stuck
             if (wifiInfo.linkStuckCount < MAX_STUCK_LINK_COUNT) {
                 wifiInfo.linkStuckCount += 1;
             }
             sb.append(String.format(" ls+=%d", wifiInfo.linkStuckCount));
-            if (debugLogging) {
+            if (mVerboseLoggingEnabled) {
                 Log.d(TAG, " bad link -> stuck count ="
                         + Integer.toString(wifiInfo.linkStuckCount));
             }
@@ -295,7 +354,7 @@ public class WifiScoreReport {
                 wifiInfo.linkStuckCount -= 1;
             }
             sb.append(String.format(" ls-=%d", wifiInfo.linkStuckCount));
-            if (debugLogging) {
+            if (mVerboseLoggingEnabled) {
                 Log.d(TAG, " good link -> stuck count ="
                         + Integer.toString(wifiInfo.linkStuckCount));
             }
@@ -311,8 +370,8 @@ public class WifiScoreReport {
 
         if (isBadLinkspeed) {
             score -= BAD_LINKSPEED_PENALTY;
-            if (debugLogging) {
-                Log.d(TAG, " isBadLinkspeed   ---> count=" + badLinkspeedcount
+            if (mVerboseLoggingEnabled) {
+                Log.d(TAG, " isBadLinkspeed   ---> count=" + mBadLinkspeedcount
                         + " score=" + Integer.toString(score));
             }
         } else if ((isGoodLinkspeed) && (wifiInfo.txSuccessRate > 5)) {
@@ -338,7 +397,7 @@ public class WifiScoreReport {
         score -= wifiInfo.badRssiCount * BAD_RSSI_COUNT_PENALTY + wifiInfo.lowRssiCount;
         sb.append(String.format(",%d", score));
 
-        if (debugLogging) {
+        if (mVerboseLoggingEnabled) {
             Log.d(TAG, " badRSSI count" + Integer.toString(wifiInfo.badRssiCount)
                     + " lowRSSI count" + Integer.toString(wifiInfo.lowRssiCount)
                     + " --> score " + Integer.toString(score));
@@ -346,7 +405,7 @@ public class WifiScoreReport {
 
         if (isHighRSSI) {
             score += 5;
-            if (debugLogging) Log.d(TAG, " isHighRSSI       ---> score=" + Integer.toString(score));
+            if (mVerboseLoggingEnabled) Log.d(TAG, " isHighRSSI       ---> score=" + score);
         }
         sb.append(String.format(",%d]", score));
 
@@ -362,7 +421,7 @@ public class WifiScoreReport {
 
         //report score
         if (score != wifiInfo.score) {
-            if (debugLogging) {
+            if (mVerboseLoggingEnabled) {
                 Log.d(TAG, "calculateWifiScore() report new score " + Integer.toString(score));
             }
             wifiInfo.score = score;
@@ -370,6 +429,9 @@ public class WifiScoreReport {
                 networkAgent.sendNetworkScore(score);
             }
         }
-        return new WifiScoreReport(sb.toString(), badLinkspeedcount);
+
+        mBadLinkspeedcount = badLinkspeedcount;
+        mReport = sb.toString();
+        mReportValid = true;
     }
 }

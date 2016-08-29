@@ -37,7 +37,6 @@ public class SupplicantBridge {
 
     static {
         sWpsNames.put("anqp_venue_name", Constants.ANQPElementType.ANQPVenueName);
-        sWpsNames.put("anqp_network_auth_type", Constants.ANQPElementType.ANQPNwkAuthType);
         sWpsNames.put("anqp_roaming_consortium", Constants.ANQPElementType.ANQPRoamingConsortium);
         sWpsNames.put("anqp_ip_addr_type_availability",
                 Constants.ANQPElementType.ANQPIPAddrAvailability);
@@ -47,7 +46,6 @@ public class SupplicantBridge {
         sWpsNames.put("hs20_operator_friendly_name", Constants.ANQPElementType.HSFriendlyName);
         sWpsNames.put("hs20_wan_metrics", Constants.ANQPElementType.HSWANMetrics);
         sWpsNames.put("hs20_connection_capability", Constants.ANQPElementType.HSConnCapability);
-        sWpsNames.put("hs20_operating_class", Constants.ANQPElementType.HSOperatingclass);
         sWpsNames.put("hs20_osu_providers_list", Constants.ANQPElementType.HSOSUProviders);
     }
 
@@ -179,18 +177,25 @@ public class SupplicantBridge {
         }
 
         if (scanDetail == null) {
+            // Icon queries are not held on the request map, so a null scanDetail is very likely
+            // the result of an Icon query. Notify the OSU app if the query was unsuccessful,
+            // else bail out.
             if (!success) {
                 mCallbacks.notifyIconFailed(bssid);
             }
             return;
+        } else if (!success) {
+            // If there is an associated ScanDetail, notify of a failed regular ANQP query.
+            mCallbacks.notifyANQPResponse(scanDetail, null);
+            return;
         }
 
         String bssData = mSupplicantHook.scanResult(scanDetail.getBSSIDString());
+        Map<Constants.ANQPElementType, ANQPElement> elements = null;
         try {
-            Map<Constants.ANQPElementType, ANQPElement> elements = parseWPSData(bssData);
-            Log.d(Utils.hs2LogTag(getClass()), String.format("%s ANQP response for %012x: %s",
-                    success ? "successful" : "failed", bssid, elements));
-            mCallbacks.notifyANQPResponse(scanDetail, success ? elements : null);
+            elements = parseWPSData(bssData);
+            Log.d(Utils.hs2LogTag(getClass()),
+                    String.format("Successful ANQP response for %012x: %s", bssid, elements));
         }
         catch (IOException ioe) {
             Log.e(Utils.hs2LogTag(getClass()), "Failed to parse ANQP: " +
@@ -200,7 +205,7 @@ public class SupplicantBridge {
             Log.e(Utils.hs2LogTag(getClass()), "Failed to parse ANQP: " +
                     rte.toString() + ": " + bssData, rte);
         }
-        mCallbacks.notifyANQPResponse(scanDetail, null);
+        mCallbacks.notifyANQPResponse(scanDetail, elements);
     }
 
     private static String escapeSSID(NetworkDetail networkDetail) {
@@ -371,119 +376,4 @@ public class SupplicantBridge {
         }
     }
 
-    private static final Map<Character,Integer> sMappings = new HashMap<Character, Integer>();
-
-    static {
-        sMappings.put('\\', (int)'\\');
-        sMappings.put('"', (int)'"');
-        sMappings.put('e', 0x1b);
-        sMappings.put('n', (int)'\n');
-        sMappings.put('r', (int)'\n');
-        sMappings.put('t', (int)'\t');
-    }
-
-    public static String unescapeSSID(String ssid) {
-
-        CharIterator chars = new CharIterator(ssid);
-        byte[] octets = new byte[ssid.length()];
-        int bo = 0;
-
-        while (chars.hasNext()) {
-            char ch = chars.next();
-            if (ch != '\\' || ! chars.hasNext()) {
-                octets[bo++] = (byte)ch;
-            }
-            else {
-                char suffix = chars.next();
-                Integer mapped = sMappings.get(suffix);
-                if (mapped != null) {
-                    octets[bo++] = mapped.byteValue();
-                }
-                else if (suffix == 'x' && chars.hasDoubleHex()) {
-                    octets[bo++] = (byte)chars.nextDoubleHex();
-                }
-                else {
-                    octets[bo++] = '\\';
-                    octets[bo++] = (byte)suffix;
-                }
-            }
-        }
-
-        boolean asciiOnly = true;
-        for (byte b : octets) {
-            if ((b&0x80) != 0) {
-                asciiOnly = false;
-                break;
-            }
-        }
-        if (asciiOnly) {
-            return new String(octets, 0, bo, StandardCharsets.UTF_8);
-        } else {
-            try {
-                // If UTF-8 decoding is successful it is almost certainly UTF-8
-                CharBuffer cb = StandardCharsets.UTF_8.newDecoder().decode(
-                        ByteBuffer.wrap(octets, 0, bo));
-                return cb.toString();
-            } catch (CharacterCodingException cce) {
-                return new String(octets, 0, bo, StandardCharsets.ISO_8859_1);
-            }
-        }
-    }
-
-    private static class CharIterator {
-        private final String mString;
-        private int mPosition;
-        private int mHex;
-
-        private CharIterator(String s) {
-            mString = s;
-        }
-
-        private boolean hasNext() {
-            return mPosition < mString.length();
-        }
-
-        private char next() {
-            return mString.charAt(mPosition++);
-        }
-
-        private boolean hasDoubleHex() {
-            if (mString.length() - mPosition < 2) {
-                return false;
-            }
-            int nh = Utils.fromHex(mString.charAt(mPosition), true);
-            if (nh < 0) {
-                return false;
-            }
-            int nl = Utils.fromHex(mString.charAt(mPosition + 1), true);
-            if (nl < 0) {
-                return false;
-            }
-            mPosition += 2;
-            mHex = (nh << 4) | nl;
-            return true;
-        }
-
-        private int nextDoubleHex() {
-            return mHex;
-        }
-    }
-
-    private static final String[] TestStrings = {
-            "test-ssid",
-            "test\\nss\\tid",
-            "test\\x2d\\x5f\\nss\\tid",
-            "test\\x2d\\x5f\\nss\\tid\\\\",
-            "test\\x2d\\x5f\\nss\\tid\\n",
-            "test\\x2d\\x5f\\nss\\tid\\x4a",
-            "another\\",
-            "an\\other",
-            "another\\x2"
-    };
-
-    public static void main(String[] args) {
-        for (String string : TestStrings) {
-            System.out.println(unescapeSSID(string));
-        }
-    }
 }

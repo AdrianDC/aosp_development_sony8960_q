@@ -20,7 +20,6 @@ public class ANQPFactory {
 
     private static final List<Constants.ANQPElementType> BaseANQPSet1 = Arrays.asList(
             Constants.ANQPElementType.ANQPVenueName,
-            Constants.ANQPElementType.ANQPNwkAuthType,
             Constants.ANQPElementType.ANQPRoamingConsortium,
             Constants.ANQPElementType.ANQPIPAddrAvailability,
             Constants.ANQPElementType.ANQPNAIRealm,
@@ -29,7 +28,6 @@ public class ANQPFactory {
 
     private static final List<Constants.ANQPElementType> BaseANQPSet2 = Arrays.asList(
             Constants.ANQPElementType.ANQPVenueName,
-            Constants.ANQPElementType.ANQPNwkAuthType,
             Constants.ANQPElementType.ANQPIPAddrAvailability,
             Constants.ANQPElementType.ANQPNAIRealm,
             Constants.ANQPElementType.ANQP3GPPNetwork,
@@ -200,14 +198,8 @@ public class ANQPFactory {
             elementPayload.limit(elementPayload.position() + length);
 
             switch (infoID) {
-                case ANQPCapabilityList:
-                    return new CapabilityListElement(infoID, elementPayload);
                 case ANQPVenueName:
                     return new VenueNameElement(infoID, elementPayload);
-                case ANQPEmergencyNumber:
-                    return new EmergencyNumberElement(infoID, elementPayload);
-                case ANQPNwkAuthType:
-                    return new NetworkAuthenticationTypeElement(infoID, elementPayload);
                 case ANQPRoamingConsortium:
                     return new RoamingConsortiumElement(infoID, elementPayload);
                 case ANQPIPAddrAvailability:
@@ -216,22 +208,8 @@ public class ANQPFactory {
                     return new NAIRealmElement(infoID, elementPayload);
                 case ANQP3GPPNetwork:
                     return new ThreeGPPNetworkElement(infoID, elementPayload);
-                case ANQPGeoLoc:
-                    return new GEOLocationElement(infoID, elementPayload);
-                case ANQPCivicLoc:
-                    return new CivicLocationElement(infoID, elementPayload);
-                case ANQPLocURI:
-                    return new GenericStringElement(infoID, elementPayload);
                 case ANQPDomName:
                     return new DomainNameElement(infoID, elementPayload);
-                case ANQPEmergencyAlert:
-                    return new GenericStringElement(infoID, elementPayload);
-                case ANQPTDLSCap:
-                    return new GenericBlobElement(infoID, elementPayload);
-                case ANQPEmergencyNAI:
-                    return new GenericStringElement(infoID, elementPayload);
-                case ANQPNeighborReport:
-                    return new GenericBlobElement(infoID, elementPayload);
                 case ANQPVendorSpec:
                     if (elementPayload.remaining() > 5) {
                         int oi = elementPayload.getInt();
@@ -264,20 +242,14 @@ public class ANQPFactory {
                                                 ByteBuffer payload) throws ProtocolException {
         try {
             switch (infoID) {
-                case HSCapabilityList:
-                    return new HSCapabilityListElement(infoID, payload);
                 case HSFriendlyName:
                     return new HSFriendlyNameElement(infoID, payload);
                 case HSWANMetrics:
                     return new HSWanMetricsElement(infoID, payload);
                 case HSConnCapability:
                     return new HSConnectionCapabilityElement(infoID, payload);
-                case HSOperatingclass:
-                    return new GenericBlobElement(infoID, payload);
                 case HSOSUProviders:
                     return new RawByteElement(infoID, payload);
-                case HSIconFile:
-                    return new HSIconFileElement(infoID, payload);
                 default:
                     return null;
             }

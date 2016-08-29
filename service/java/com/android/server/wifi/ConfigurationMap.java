@@ -86,14 +86,16 @@ public class ConfigurationMap {
      *
      * @param userId the id of the new foreground user
      * @return a list of {@link WifiConfiguration}s that became hidden because of the user switch
+     * @deprecated Remove this once we migrate to {@link WifiConfigManagerNew}.
      */
+    @Deprecated
     public List<WifiConfiguration> handleUserSwitch(int userId) {
         mPerIDForCurrentUser.clear();
         mPerFQDNForCurrentUser.clear();
         mHiddenNetworkIdsForCurrentUser.clear();
 
         final List<UserInfo> previousUserProfiles = mUserManager.getProfiles(mCurrentUserId);
-        mCurrentUserId = userId;
+        setNewUser(userId);
         final List<UserInfo> currentUserProfiles = mUserManager.getProfiles(mCurrentUserId);
 
         final List<WifiConfiguration> hiddenConfigurations = new ArrayList<>();
@@ -113,6 +115,15 @@ public class ConfigurationMap {
         }
 
         return hiddenConfigurations;
+    }
+
+    /**
+     * Sets the new foreground user ID.
+     *
+     * @param userId the id of the new foreground user
+     */
+    public void setNewUser(int userId) {
+        mCurrentUserId = userId;
     }
 
     // RO methods:

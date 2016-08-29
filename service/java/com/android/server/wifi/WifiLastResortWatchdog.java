@@ -34,8 +34,7 @@ import java.util.Map;
  */
 public class WifiLastResortWatchdog {
     private static final String TAG = "WifiLastResortWatchdog";
-    private static final boolean VDBG = false;
-    private static final boolean DBG = true;
+    private boolean mVerboseLoggingEnabled = false;
     /**
      * Association Failure code
      */
@@ -80,9 +79,10 @@ public class WifiLastResortWatchdog {
 
     private WifiMetrics mWifiMetrics;
 
-    private WifiController mWifiController = null;
+    private WifiController mWifiController;
 
-    WifiLastResortWatchdog(WifiMetrics wifiMetrics) {
+    WifiLastResortWatchdog(WifiController wifiController, WifiMetrics wifiMetrics) {
+        mWifiController = wifiController;
         mWifiMetrics = wifiMetrics;
     }
 
@@ -95,7 +95,9 @@ public class WifiLastResortWatchdog {
      */
     public void updateAvailableNetworks(
             List<Pair<ScanDetail, WifiConfiguration>> availableNetworks) {
-        if (VDBG) Log.v(TAG, "updateAvailableNetworks: size = " + availableNetworks.size());
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "updateAvailableNetworks: size = " + availableNetworks.size());
+        }
         // Add new networks to mRecentAvailableNetworks
         if (availableNetworks != null) {
             for (Pair<ScanDetail, WifiConfiguration> pair : availableNetworks) {
@@ -105,7 +107,9 @@ public class WifiLastResortWatchdog {
                 if (scanResult == null) continue;
                 String bssid = scanResult.BSSID;
                 String ssid = "\"" + scanDetail.getSSID() + "\"";
-                if (VDBG) Log.v(TAG, " " + bssid + ": " + scanDetail.getSSID());
+                if (mVerboseLoggingEnabled) {
+                    Log.v(TAG, " " + bssid + ": " + scanDetail.getSSID());
+                }
                 // Cache the scanResult & WifiConfig
                 AvailableNetworkFailureCount availableNetworkFailureCount =
                         mRecentAvailableNetworks.get(bssid);
@@ -161,15 +165,12 @@ public class WifiLastResortWatchdog {
                         mSsidFailureCount.remove(ssid);
                     }
                 } else {
-                    if (DBG) {
-                        Log.d(TAG, "updateAvailableNetworks: SSID to AP count mismatch for "
-                                + ssid);
-                    }
+                    Log.d(TAG, "updateAvailableNetworks: SSID to AP count mismatch for " + ssid);
                 }
                 it.remove();
             }
         }
-        if (VDBG) Log.v(TAG, toString());
+        if (mVerboseLoggingEnabled) Log.v(TAG, toString());
     }
 
     /**
@@ -180,7 +181,7 @@ public class WifiLastResortWatchdog {
      * @return true if watchdog triggers, returned for test visibility
      */
     public boolean noteConnectionFailureAndTriggerIfNeeded(String ssid, String bssid, int reason) {
-        if (VDBG) {
+        if (mVerboseLoggingEnabled) {
             Log.v(TAG, "noteConnectionFailureAndTriggerIfNeeded: [" + ssid + ", " + bssid + ", "
                     + reason + "]");
         }
@@ -189,7 +190,9 @@ public class WifiLastResortWatchdog {
 
         // Have we met conditions to trigger the Watchdog Wifi restart?
         boolean isRestartNeeded = checkTriggerCondition();
-        if (VDBG) Log.v(TAG, "isRestartNeeded = " + isRestartNeeded);
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "isRestartNeeded = " + isRestartNeeded);
+        }
         if (isRestartNeeded) {
             // Stop the watchdog from triggering until re-enabled
             setWatchdogTriggerEnabled(false);
@@ -207,8 +210,16 @@ public class WifiLastResortWatchdog {
      * @param isEntering true if called from ConnectedState.enter(), false for exit()
      */
     public void connectedStateTransition(boolean isEntering) {
-        if (VDBG) Log.v(TAG, "connectedStateTransition: isEntering = " + isEntering);
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "connectedStateTransition: isEntering = " + isEntering);
+        }
         mWifiIsConnected = isEntering;
+
+        if (!mWatchdogAllowedToTrigger) {
+            // WiFi has connected after a Watchdog trigger, without any new networks becoming
+            // available, log a Watchdog success in wifi metrics
+            mWifiMetrics.incrementNumLastResortWatchdogSuccesses();
+        }
         if (isEntering) {
             // We connected to something! Reset failure counts for everything
             clearAllFailureCounts();
@@ -228,7 +239,7 @@ public class WifiLastResortWatchdog {
      * @param reason Message id from WifiStateMachine for this failure
      */
     private void updateFailureCountForNetwork(String ssid, String bssid, int reason) {
-        if (VDBG) {
+        if (mVerboseLoggingEnabled) {
             Log.v(TAG, "updateFailureCountForNetwork: [" + ssid + ", " + bssid + ", "
                     + reason + "]");
         }
@@ -249,9 +260,7 @@ public class WifiLastResortWatchdog {
     private void incrementSsidFailureCount(String ssid, int reason) {
         Pair<AvailableNetworkFailureCount, Integer> ssidFails = mSsidFailureCount.get(ssid);
         if (ssidFails == null) {
-            if (DBG) {
-                Log.v(TAG, "updateFailureCountForNetwork: No networks for ssid = " + ssid);
-            }
+            Log.d(TAG, "updateFailureCountForNetwork: No networks for ssid = " + ssid);
             return;
         }
         AvailableNetworkFailureCount failureCount = ssidFails.first;
@@ -267,22 +276,18 @@ public class WifiLastResortWatchdog {
         AvailableNetworkFailureCount availableNetworkFailureCount =
                 mRecentAvailableNetworks.get(bssid);
         if (availableNetworkFailureCount == null) {
-            if (DBG) {
-                Log.d(TAG, "updateFailureCountForNetwork: Unable to find Network [" + ssid
-                        + ", " + bssid + "]");
-            }
+            Log.d(TAG, "updateFailureCountForNetwork: Unable to find Network [" + ssid
+                    + ", " + bssid + "]");
             return;
         }
         if (!availableNetworkFailureCount.ssid.equals(ssid)) {
-            if (DBG) {
-                Log.d(TAG, "updateFailureCountForNetwork: Failed connection attempt has"
-                        + " wrong ssid. Failed [" + ssid + ", " + bssid + "], buffered ["
-                        + availableNetworkFailureCount.ssid + ", " + bssid + "]");
-            }
+            Log.d(TAG, "updateFailureCountForNetwork: Failed connection attempt has"
+                    + " wrong ssid. Failed [" + ssid + ", " + bssid + "], buffered ["
+                    + availableNetworkFailureCount.ssid + ", " + bssid + "]");
             return;
         }
         if (availableNetworkFailureCount.config == null) {
-            if (VDBG) {
+            if (mVerboseLoggingEnabled) {
                 Log.v(TAG, "updateFailureCountForNetwork: network has no config ["
                         + ssid + ", " + bssid + "]");
             }
@@ -297,7 +302,7 @@ public class WifiLastResortWatchdog {
      * @return is the trigger condition true
      */
     private boolean checkTriggerCondition() {
-        if (VDBG) Log.v(TAG, "checkTriggerCondition.");
+        if (mVerboseLoggingEnabled) Log.v(TAG, "checkTriggerCondition.");
         // Don't check Watchdog trigger if wifi is in a connected state
         // (This should not occur, but we want to protect against any race conditions)
         if (mWifiIsConnected) return false;
@@ -319,7 +324,7 @@ public class WifiLastResortWatchdog {
         }
         // We have met the failure count for every available network & there is at-least one network
         // we have previously connected to present.
-        if (VDBG) {
+        if (mVerboseLoggingEnabled) {
             Log.v(TAG, "checkTriggerCondition: return = " + atleastOneNetworkHasEverConnected);
         }
         return atleastOneNetworkHasEverConnected;
@@ -329,7 +334,7 @@ public class WifiLastResortWatchdog {
      * Trigger a restart of the wifi stack.
      */
     private void restartWifiStack() {
-        if (VDBG) Log.v(TAG, "restartWifiStack.");
+        if (mVerboseLoggingEnabled) Log.v(TAG, "restartWifiStack.");
 
         // First verify that we can send the trigger message.
         if (mWifiController == null) {
@@ -337,17 +342,15 @@ public class WifiLastResortWatchdog {
             return;
         }
 
-        if (DBG) Log.d(TAG, toString());
-
         mWifiController.sendMessage(WifiController.CMD_RESTART_WIFI);
-        Log.i(TAG, "Triggered WiFi stack restart.");
+        Log.i(TAG, "Triggered WiFi stack restart.\n" + toString());
     }
 
     /**
      * Update WifiMetrics with various Watchdog stats (trigger counts, failed network counts)
      */
     private void incrementWifiMetricsTriggerCounts() {
-        if (VDBG) Log.v(TAG, "incrementWifiMetricsTriggerCounts.");
+        if (mVerboseLoggingEnabled) Log.v(TAG, "incrementWifiMetricsTriggerCounts.");
         mWifiMetrics.incrementNumLastResortWatchdogTriggers();
         mWifiMetrics.addCountToNumLastResortWatchdogAvailableNetworksTotal(
                 mSsidFailureCount.size());
@@ -379,7 +382,7 @@ public class WifiLastResortWatchdog {
      * Clear failure counts for each network in recentAvailableNetworks
      */
     private void clearAllFailureCounts() {
-        if (VDBG) Log.v(TAG, "clearAllFailureCounts.");
+        if (mVerboseLoggingEnabled) Log.v(TAG, "clearAllFailureCounts.");
         for (Map.Entry<String, AvailableNetworkFailureCount> entry
                 : mRecentAvailableNetworks.entrySet()) {
             final AvailableNetworkFailureCount failureCount = entry.getValue();
@@ -403,7 +406,7 @@ public class WifiLastResortWatchdog {
      * @param enable true to enable the Watchdog trigger, false to disable it
      */
     private void setWatchdogTriggerEnabled(boolean enable) {
-        if (VDBG) Log.v(TAG, "setWatchdogTriggerEnabled: enable = " + enable);
+        if (mVerboseLoggingEnabled) Log.v(TAG, "setWatchdogTriggerEnabled: enable = " + enable);
         mWatchdogAllowedToTrigger = enable;
     }
 
@@ -417,14 +420,15 @@ public class WifiLastResortWatchdog {
         sb.append("\nmRecentAvailableNetworks: ").append(mRecentAvailableNetworks.size());
         for (Map.Entry<String, AvailableNetworkFailureCount> entry
                 : mRecentAvailableNetworks.entrySet()) {
-            sb.append("\n ").append(entry.getKey()).append(": ").append(entry.getValue());
+            sb.append("\n ").append(entry.getKey()).append(": ").append(entry.getValue())
+                .append(", Age: ").append(entry.getValue().age);
         }
         sb.append("\nmSsidFailureCount:");
         for (Map.Entry<String, Pair<AvailableNetworkFailureCount, Integer>> entry :
                 mSsidFailureCount.entrySet()) {
             final AvailableNetworkFailureCount failureCount = entry.getValue().first;
             final Integer apCount = entry.getValue().second;
-            sb.append("\n").append(entry.getKey()).append(": ").append(apCount).append(", ")
+            sb.append("\n").append(entry.getKey()).append(": ").append(apCount).append(",")
                     .append(failureCount.toString());
         }
         return sb.toString();
@@ -457,9 +461,7 @@ public class WifiLastResortWatchdog {
         String ssid = availableNetworkFailureCount.ssid;
         Pair<AvailableNetworkFailureCount, Integer> ssidFails = mSsidFailureCount.get(ssid);
         if (ssidFails == null) {
-            if (DBG) {
-                Log.d(TAG, "getFailureCount: Could not find SSID count for " + ssid);
-            }
+            Log.d(TAG, "getFailureCount: Could not find SSID count for " + ssid);
             return 0;
         }
         final AvailableNetworkFailureCount failCount = ssidFails.first;
@@ -472,6 +474,14 @@ public class WifiLastResortWatchdog {
                 return failCount.dhcpFailure;
             default:
                 return 0;
+        }
+    }
+
+    protected void enableVerboseLogging(int verbose) {
+        if (verbose > 0) {
+            mVerboseLoggingEnabled = true;
+        } else {
+            mVerboseLoggingEnabled = false;
         }
     }
 
@@ -537,24 +547,13 @@ public class WifiLastResortWatchdog {
         }
 
         public String toString() {
-            return  ssid + ", HasEverConnected: " + ((config != null)
+            return  ssid + " HasEverConnected: " + ((config != null)
                     ? config.getNetworkSelectionStatus().getHasEverConnected() : "null_config")
                     + ", Failures: {"
                     + "Assoc: " + associationRejection
                     + ", Auth: " + authenticationFailure
                     + ", Dhcp: " + dhcpFailure
-                    + "}"
-                    + ", Age: " + age;
+                    + "}";
         }
-    }
-
-    /**
-     * Method used to set the WifiController for the this watchdog.
-     *
-     * The WifiController is used to send the restart wifi command to carry out the wifi restart.
-     * @param wifiController WifiController instance that will be sent the CMD_RESTART_WIFI message.
-     */
-    public void setWifiController(WifiController wifiController) {
-        mWifiController = wifiController;
     }
 }

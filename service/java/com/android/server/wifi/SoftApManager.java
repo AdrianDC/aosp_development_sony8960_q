@@ -20,19 +20,21 @@ import static com.android.server.wifi.util.ApConfigUtil.ERROR_GENERIC;
 import static com.android.server.wifi.util.ApConfigUtil.ERROR_NO_CHANNEL;
 import static com.android.server.wifi.util.ApConfigUtil.SUCCESS;
 
-import android.content.Context;
-import android.net.ConnectivityManager;
+import android.net.wifi.IApInterface;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
-import android.os.INetworkManagementService;
+import android.net.wifi.WifiConfiguration.KeyMgmt;
+import android.os.IBinder.DeathRecipient;
 import android.os.Looper;
 import android.os.Message;
+import android.os.RemoteException;
 import android.util.Log;
 
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.util.ApConfigUtil;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -43,17 +45,16 @@ import java.util.Locale;
 public class SoftApManager {
     private static final String TAG = "SoftApManager";
 
-    private final INetworkManagementService mNmService;
     private final WifiNative mWifiNative;
     private final ArrayList<Integer> mAllowed2GChannels;
 
     private final String mCountryCode;
 
-    private final String mInterfaceName;
-
     private final SoftApStateMachine mStateMachine;
 
     private final Listener mListener;
+
+    private final IApInterface mApInterface;
 
     /**
      * Listener for soft AP state changes.
@@ -69,19 +70,17 @@ public class SoftApManager {
 
     public SoftApManager(Looper looper,
                          WifiNative wifiNative,
-                         INetworkManagementService nmService,
                          String countryCode,
                          ArrayList<Integer> allowed2GChannels,
-                         Listener listener) {
+                         Listener listener,
+                         IApInterface apInterface) {
         mStateMachine = new SoftApStateMachine(looper);
 
-        mNmService = nmService;
         mWifiNative = wifiNative;
         mCountryCode = countryCode;
         mAllowed2GChannels = allowed2GChannels;
         mListener = listener;
-
-        mInterfaceName = mWifiNative.getInterfaceName();
+        mApInterface = apInterface;
     }
 
     /**
@@ -116,8 +115,8 @@ public class SoftApManager {
      * @return integer result code
      */
     private int startSoftAp(WifiConfiguration config) {
-        if (config == null) {
-            Log.e(TAG, "Unable to start soft AP without configuration");
+        if (config == null || config.SSID == null) {
+            Log.e(TAG, "Unable to start soft AP without valid configuration");
             return ERROR_GENERIC;
         }
 
@@ -145,11 +144,30 @@ public class SoftApManager {
             }
         }
 
+        int encryptionType = getIApInterfaceEncryptionType(localConfig);
+
         try {
-            mNmService.startAccessPoint(localConfig, mInterfaceName);
-        } catch (Exception e) {
+            // Note that localConfig.SSID is intended to be either a hex string or "double quoted".
+            // However, it seems that whatever is handing us these configurations does not obey
+            // this convention.
+            boolean success = mApInterface.writeHostapdConfig(
+                    localConfig.SSID.getBytes(StandardCharsets.UTF_8), false,
+                    localConfig.apChannel, encryptionType,
+                    (localConfig.preSharedKey != null)
+                            ? localConfig.preSharedKey.getBytes(StandardCharsets.UTF_8)
+                            : new byte[0]);
+            if (!success) {
+                Log.e(TAG, "Failed to write hostapd configuration");
+                return ERROR_GENERIC;
+            }
+
+            success = mApInterface.startHostapd();
+            if (!success) {
+                Log.e(TAG, "Failed to start hostapd.");
+                return ERROR_GENERIC;
+            }
+        } catch (RemoteException e) {
             Log.e(TAG, "Exception in starting soft AP: " + e);
-            return ERROR_GENERIC;
         }
 
         Log.d(TAG, "Soft AP is started");
@@ -157,13 +175,34 @@ public class SoftApManager {
         return SUCCESS;
     }
 
+    private static int getIApInterfaceEncryptionType(WifiConfiguration localConfig) {
+        int encryptionType;
+        switch (localConfig.getAuthType()) {
+            case KeyMgmt.NONE:
+                encryptionType = IApInterface.ENCRYPTION_TYPE_NONE;
+                break;
+            case KeyMgmt.WPA_PSK:
+                encryptionType = IApInterface.ENCRYPTION_TYPE_WPA;
+                break;
+            case KeyMgmt.WPA2_PSK:
+                encryptionType = IApInterface.ENCRYPTION_TYPE_WPA2;
+                break;
+            default:
+                // We really shouldn't default to None, but this was how NetworkManagementService
+                // used to do this.
+                encryptionType = IApInterface.ENCRYPTION_TYPE_NONE;
+                break;
+        }
+        return encryptionType;
+    }
+
     /**
      * Teardown soft AP.
      */
     private void stopSoftAp() {
         try {
-            mNmService.stopAccessPoint(mInterfaceName);
-        } catch (Exception e) {
+            mApInterface.stopHostapd();
+        } catch (RemoteException e) {
             Log.e(TAG, "Exception in stopping soft AP: " + e);
             return;
         }
@@ -174,15 +213,19 @@ public class SoftApManager {
         /* Commands for the state machine. */
         public static final int CMD_START = 0;
         public static final int CMD_STOP = 1;
+        public static final int CMD_AP_INTERFACE_BINDER_DEATH = 2;
 
         private final State mIdleState = new IdleState();
         private final State mStartedState = new StartedState();
+
+        private final StateMachineDeathRecipient mDeathRecipient =
+                new StateMachineDeathRecipient(this, CMD_AP_INTERFACE_BINDER_DEATH);
 
         SoftApStateMachine(Looper looper) {
             super(TAG, looper);
 
             addState(mIdleState);
-            addState(mStartedState, mIdleState);
+            addState(mStartedState);
 
             setInitialState(mIdleState);
             start();
@@ -190,26 +233,41 @@ public class SoftApManager {
 
         private class IdleState extends State {
             @Override
+            public void enter() {
+                mDeathRecipient.unlinkToDeath();
+            }
+
+            @Override
             public boolean processMessage(Message message) {
                 switch (message.what) {
                     case CMD_START:
                         updateApState(WifiManager.WIFI_AP_STATE_ENABLING, 0);
-                        int result = startSoftAp((WifiConfiguration) message.obj);
-                        if (result == SUCCESS) {
-                            updateApState(WifiManager.WIFI_AP_STATE_ENABLED, 0);
-                            transitionTo(mStartedState);
-                        } else {
-                            int reason = WifiManager.SAP_START_FAILURE_GENERAL;
-                            if (result == ERROR_NO_CHANNEL) {
-                                reason = WifiManager.SAP_START_FAILURE_NO_CHANNEL;
-                            }
-                            updateApState(WifiManager.WIFI_AP_STATE_FAILED, reason);
+                        if (!mDeathRecipient.linkToDeath(mApInterface.asBinder())) {
+                            mDeathRecipient.unlinkToDeath();
+                            updateApState(WifiManager.WIFI_AP_STATE_FAILED,
+                                    WifiManager.SAP_START_FAILURE_GENERAL);
+                            break;
                         }
+
+                        int result = startSoftAp((WifiConfiguration) message.obj);
+                        if (result != SUCCESS) {
+                            int failureReason = WifiManager.SAP_START_FAILURE_GENERAL;
+                            if (result == ERROR_NO_CHANNEL) {
+                                failureReason = WifiManager.SAP_START_FAILURE_NO_CHANNEL;
+                            }
+                            mDeathRecipient.unlinkToDeath();
+                            updateApState(WifiManager.WIFI_AP_STATE_FAILED, failureReason);
+                            break;
+                        }
+
+                        updateApState(WifiManager.WIFI_AP_STATE_ENABLED, 0);
+                        transitionTo(mStartedState);
                         break;
                     default:
                         /* Ignore all other commands. */
                         break;
                 }
+
                 return HANDLED;
             }
         }
@@ -221,10 +279,16 @@ public class SoftApManager {
                     case CMD_START:
                         /* Already started, ignore this command. */
                         break;
+                    case CMD_AP_INTERFACE_BINDER_DEATH:
                     case CMD_STOP:
                         updateApState(WifiManager.WIFI_AP_STATE_DISABLING, 0);
                         stopSoftAp();
-                        updateApState(WifiManager.WIFI_AP_STATE_DISABLED, 0);
+                        if (message.what == CMD_AP_INTERFACE_BINDER_DEATH) {
+                            updateApState(WifiManager.WIFI_AP_STATE_FAILED,
+                                    WifiManager.SAP_START_FAILURE_GENERAL);
+                        } else {
+                            updateApState(WifiManager.WIFI_AP_STATE_DISABLED, 0);
+                        }
                         transitionTo(mIdleState);
                         break;
                     default:

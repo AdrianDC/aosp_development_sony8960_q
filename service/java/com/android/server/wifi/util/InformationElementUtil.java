@@ -21,10 +21,8 @@ import android.net.wifi.ScanResult.InformationElement;
 import android.util.Log;
 
 import com.android.server.wifi.anqp.Constants;
-import com.android.server.wifi.anqp.VenueNameElement;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 
-import java.net.ProtocolException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -160,8 +158,6 @@ public class InformationElementUtil {
     public static class Interworking {
         public NetworkDetail.Ant ant = null;
         public boolean internet = false;
-        public VenueNameElement.VenueGroup venueGroup = null;
-        public VenueNameElement.VenueType venueType = null;
         public long hessid = 0L;
 
         public void from(InformationElement ie) {
@@ -172,22 +168,19 @@ public class InformationElementUtil {
             int anOptions = data.get() & Constants.BYTE_MASK;
             ant = NetworkDetail.Ant.values()[anOptions & 0x0f];
             internet = (anOptions & 0x10) != 0;
-            // Len 1 none, 3 venue-info, 7 HESSID, 9 venue-info & HESSID
-            if (ie.bytes.length == 3 || ie.bytes.length == 9) {
-                try {
-                    ByteBuffer vinfo = data.duplicate();
-                    vinfo.limit(vinfo.position() + 2);
-                    VenueNameElement vne = new VenueNameElement(
-                            Constants.ANQPElementType.ANQPVenueName, vinfo);
-                    venueGroup = vne.getGroup();
-                    venueType = vne.getType();
-                } catch (ProtocolException pe) {
-                    /*Cannot happen*/
-                }
-            } else if (ie.bytes.length != 1 && ie.bytes.length != 7) {
-                throw new IllegalArgumentException("Bad Interworking element length: "
-                        + ie.bytes.length);
+            // There are only three possible lengths for the Interworking IE:
+            // Len 1: Access Network Options only
+            // Len 3: Access Network Options & Venue Info
+            // Len 7: Access Network Options & HESSID
+            // Len 9: Access Network Options, Venue Info, & HESSID
+            if (ie.bytes.length != 1
+                    && ie.bytes.length != 3
+                    && ie.bytes.length != 7
+                    && ie.bytes.length != 9) {
+                throw new IllegalArgumentException(
+                        "Bad Interworking element length: " + ie.bytes.length);
             }
+
             if (ie.bytes.length == 7 || ie.bytes.length == 9) {
                 hessid = getInteger(data, ByteOrder.BIG_ENDIAN, 6);
             }
@@ -600,7 +593,7 @@ public class InformationElementUtil {
             } catch (BufferUnderflowException e) {
                 return;
             }
-            if (mLength <= MAX_TIM_LENGTH) {
+            if (mLength <= MAX_TIM_LENGTH && mDtimPeriod > 0) {
                 mValid = true;
             }
         }

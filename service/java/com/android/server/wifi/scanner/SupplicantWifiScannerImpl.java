@@ -68,7 +68,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
     private final ChannelHelper mChannelHelper;
     private final Clock mClock;
 
-    private Object mSettingsLock = new Object();
+    private final Object mSettingsLock = new Object();
 
     // Next scan settings to apply when the previous scan completes
     private WifiNative.ScanSettings mPendingBackgroundScanSettings = null;
@@ -346,7 +346,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
             ChannelCollection allFreqs = mChannelHelper.createChannelCollection();
             Set<Integer> hiddenNetworkIdSet = new HashSet<Integer>();
             final LastScanSettings newScanSettings =
-                    new LastScanSettings(mClock.elapsedRealtime());
+                    new LastScanSettings(mClock.getElapsedSinceBootMillis());
 
             // Update scan settings if there is a pending scan
             if (!mBackgroundScanPaused) {
@@ -402,7 +402,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                     mNextBackgroundScanPeriod++;
                     mBackgroundScanPeriodPending = false;
                     mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                            mClock.elapsedRealtime() + mBackgroundScanSettings.base_period_ms,
+                            mClock.getElapsedSinceBootMillis() + mBackgroundScanSettings.base_period_ms,
                             BACKGROUND_PERIOD_ALARM_TAG, mScanPeriodListener, mEventHandler);
                 }
             }
@@ -448,7 +448,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                     }
                     mLastScanSettings = newScanSettings;
                     mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                            mClock.elapsedRealtime() + SCAN_TIMEOUT_MS,
+                            mClock.getElapsedSinceBootMillis() + SCAN_TIMEOUT_MS,
                             TIMEOUT_ALARM_TAG, mScanTimeoutListener, mEventHandler);
                 } else {
                     Log.e(TAG, "Failed to start scan, freqs=" + freqs);
@@ -1063,7 +1063,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                 if (DBG) Log.d(TAG, "PNO state is already " + enable);
                 return true;
             }
-            mLastPnoChangeTimeStamp = mClock.elapsedRealtime();
+            mLastPnoChangeTimeStamp = mClock.getElapsedSinceBootMillis();
             if (mWifiNative.setPnoScan(enable)) {
                 Log.d(TAG, "Changed PNO state from " + mCurrentPnoState + " to " + enable);
                 mCurrentPnoState = enable;
@@ -1096,14 +1096,14 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
             boolean isSuccess = true;
             mExpectedPnoState = enable;
             if (!mWaitForTimer) {
-                long timeDifference = mClock.elapsedRealtime() - mLastPnoChangeTimeStamp;
+                long timeDifference = mClock.getElapsedSinceBootMillis() - mLastPnoChangeTimeStamp;
                 if (timeDifference >= MINIMUM_PNO_GAP_MS) {
                     isSuccess = updatePnoState(enable);
                 } else {
                     long alarmTimeout = MINIMUM_PNO_GAP_MS - timeDifference;
                     Log.d(TAG, "Start PNO timer with delay " + alarmTimeout);
                     mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                            mClock.elapsedRealtime() + alarmTimeout, PNO_DEBOUNCER_ALARM_TAG,
+                            mClock.getElapsedSinceBootMillis() + alarmTimeout, PNO_DEBOUNCER_ALARM_TAG,
                             mAlarmListener, mEventHandler);
                     mWaitForTimer = true;
                 }

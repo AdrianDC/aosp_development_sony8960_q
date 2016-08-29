@@ -29,66 +29,42 @@ public class Constants {
     public static final int UTF8_INDICATOR = 1;
 
     public static final int LANG_CODE_LENGTH = 3;
+    // From IEEE802.11-2012 section 8.4.1.34.
+    public static final int VENUE_INFO_LENGTH = 2;
 
     public static final int ANQP_QUERY_LIST = 256;
-    public static final int ANQP_CAPABILITY_LIST = 257;
     public static final int ANQP_VENUE_NAME = 258;
-    public static final int ANQP_EMERGENCY_NUMBER = 259;
-    public static final int ANQP_NWK_AUTH_TYPE = 260;
     public static final int ANQP_ROAMING_CONSORTIUM = 261;
     public static final int ANQP_IP_ADDR_AVAILABILITY = 262;
     public static final int ANQP_NAI_REALM = 263;
     public static final int ANQP_3GPP_NETWORK = 264;
-    public static final int ANQP_GEO_LOC = 265;
-    public static final int ANQP_CIVIC_LOC = 266;
-    public static final int ANQP_LOC_URI = 267;
     public static final int ANQP_DOM_NAME = 268;
-    public static final int ANQP_EMERGENCY_ALERT = 269;
-    public static final int ANQP_TDLS_CAP = 270;
-    public static final int ANQP_EMERGENCY_NAI = 271;
-    public static final int ANQP_NEIGHBOR_REPORT = 272;
     public static final int ANQP_VENDOR_SPEC = 56797;
 
     public static final int HS_QUERY_LIST = 1;
-    public static final int HS_CAPABILITY_LIST = 2;
     public static final int HS_FRIENDLY_NAME = 3;
     public static final int HS_WAN_METRICS = 4;
     public static final int HS_CONN_CAPABILITY = 5;
     public static final int HS_NAI_HOME_REALM_QUERY = 6;
-    public static final int HS_OPERATING_CLASS = 7;
     public static final int HS_OSU_PROVIDERS = 8;
     public static final int HS_ICON_REQUEST = 10;
-    public static final int HS_ICON_FILE = 11;
 
     public enum ANQPElementType {
         ANQPQueryList,
-        ANQPCapabilityList,
         ANQPVenueName,
-        ANQPEmergencyNumber,
-        ANQPNwkAuthType,
         ANQPRoamingConsortium,
         ANQPIPAddrAvailability,
         ANQPNAIRealm,
         ANQP3GPPNetwork,
-        ANQPGeoLoc,
-        ANQPCivicLoc,
-        ANQPLocURI,
         ANQPDomName,
-        ANQPEmergencyAlert,
-        ANQPTDLSCap,
-        ANQPEmergencyNAI,
-        ANQPNeighborReport,
         ANQPVendorSpec,
         HSQueryList,
-        HSCapabilityList,
         HSFriendlyName,
         HSWANMetrics,
         HSConnCapability,
         HSNAIHomeRealmQuery,
-        HSOperatingclass,
         HSOSUProviders,
-        HSIconRequest,
-        HSIconFile
+        HSIconRequest
     }
 
     private static final Map<Integer, ANQPElementType> sAnqpMap = new HashMap<>();
@@ -100,34 +76,21 @@ public class Constants {
 
     static {
         sAnqpMap.put(ANQP_QUERY_LIST, ANQPElementType.ANQPQueryList);
-        sAnqpMap.put(ANQP_CAPABILITY_LIST, ANQPElementType.ANQPCapabilityList);
         sAnqpMap.put(ANQP_VENUE_NAME, ANQPElementType.ANQPVenueName);
-        sAnqpMap.put(ANQP_EMERGENCY_NUMBER, ANQPElementType.ANQPEmergencyNumber);
-        sAnqpMap.put(ANQP_NWK_AUTH_TYPE, ANQPElementType.ANQPNwkAuthType);
         sAnqpMap.put(ANQP_ROAMING_CONSORTIUM, ANQPElementType.ANQPRoamingConsortium);
         sAnqpMap.put(ANQP_IP_ADDR_AVAILABILITY, ANQPElementType.ANQPIPAddrAvailability);
         sAnqpMap.put(ANQP_NAI_REALM, ANQPElementType.ANQPNAIRealm);
         sAnqpMap.put(ANQP_3GPP_NETWORK, ANQPElementType.ANQP3GPPNetwork);
-        sAnqpMap.put(ANQP_GEO_LOC, ANQPElementType.ANQPGeoLoc);
-        sAnqpMap.put(ANQP_CIVIC_LOC, ANQPElementType.ANQPCivicLoc);
-        sAnqpMap.put(ANQP_LOC_URI, ANQPElementType.ANQPLocURI);
         sAnqpMap.put(ANQP_DOM_NAME, ANQPElementType.ANQPDomName);
-        sAnqpMap.put(ANQP_EMERGENCY_ALERT, ANQPElementType.ANQPEmergencyAlert);
-        sAnqpMap.put(ANQP_TDLS_CAP, ANQPElementType.ANQPTDLSCap);
-        sAnqpMap.put(ANQP_EMERGENCY_NAI, ANQPElementType.ANQPEmergencyNAI);
-        sAnqpMap.put(ANQP_NEIGHBOR_REPORT, ANQPElementType.ANQPNeighborReport);
         sAnqpMap.put(ANQP_VENDOR_SPEC, ANQPElementType.ANQPVendorSpec);
 
         sHs20Map.put(HS_QUERY_LIST, ANQPElementType.HSQueryList);
-        sHs20Map.put(HS_CAPABILITY_LIST, ANQPElementType.HSCapabilityList);
         sHs20Map.put(HS_FRIENDLY_NAME, ANQPElementType.HSFriendlyName);
         sHs20Map.put(HS_WAN_METRICS, ANQPElementType.HSWANMetrics);
         sHs20Map.put(HS_CONN_CAPABILITY, ANQPElementType.HSConnCapability);
         sHs20Map.put(HS_NAI_HOME_REALM_QUERY, ANQPElementType.HSNAIHomeRealmQuery);
-        sHs20Map.put(HS_OPERATING_CLASS, ANQPElementType.HSOperatingclass);
         sHs20Map.put(HS_OSU_PROVIDERS, ANQPElementType.HSOSUProviders);
         sHs20Map.put(HS_ICON_REQUEST, ANQPElementType.HSIconRequest);
-        sHs20Map.put(HS_ICON_FILE, ANQPElementType.HSIconFile);
 
         for (Map.Entry<Integer, ANQPElementType> entry : sAnqpMap.entrySet()) {
             sRevAnqpmap.put(entry.getValue(), entry.getKey());

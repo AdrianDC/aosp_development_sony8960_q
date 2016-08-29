@@ -22,6 +22,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
 import android.app.ActivityManager;
+import android.app.test.MockAnswerUtil.AnswerWithArguments;
+import android.app.test.TestAlarmManager;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -32,6 +34,8 @@ import android.net.DhcpResults;
 import android.net.LinkProperties;
 import android.net.dhcp.DhcpClient;
 import android.net.ip.IpManager;
+import android.net.wifi.IClientInterface;
+import android.net.wifi.IWificond;
 import android.net.wifi.ScanResult;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
@@ -51,13 +55,14 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
+import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.os.test.TestLooper;
 import android.provider.Settings;
 import android.security.KeyStore;
 import android.telephony.TelephonyManager;
 import android.test.suitebuilder.annotation.SmallTest;
-import android.util.Base64;
 import android.util.Log;
 
 import com.android.internal.R;
@@ -65,7 +70,6 @@ import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.AsyncChannel;
 import com.android.internal.util.IState;
 import com.android.internal.util.StateMachine;
-import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
@@ -84,6 +88,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -155,7 +160,6 @@ public class WifiStateMachineTest {
 
         when(facade.makeWifiScanner(any(Context.class), any(Looper.class)))
                 .thenReturn(mWifiScanner);
-        when(facade.makeBaseLogger()).thenReturn(mock(BaseWifiLogger.class));
         when(facade.getService(Context.NETWORKMANAGEMENT_SERVICE)).thenReturn(
                 mockWithInterfaces(IBinder.class, INetworkManagementService.class));
 
@@ -165,20 +169,16 @@ public class WifiStateMachineTest {
         WifiP2pServiceImpl p2pm = (WifiP2pServiceImpl) p2pBinder.queryLocalInterface(
                 IWifiP2pManager.class.getCanonicalName());
 
-        final Object sync = new Object();
-        synchronized (sync) {
-            mP2pThread = new HandlerThread("WifiP2pMockThread") {
-                @Override
-                protected void onLooperPrepared() {
-                    synchronized (sync) {
-                        sync.notifyAll();
-                    }
-                }
-            };
+        final CountDownLatch untilDone = new CountDownLatch(1);
+        mP2pThread = new HandlerThread("WifiP2pMockThread") {
+            @Override
+            protected void onLooperPrepared() {
+                untilDone.countDown();
+            }
+        };
 
-            mP2pThread.start();
-            sync.wait();
-        }
+        mP2pThread.start();
+        untilDone.await();
 
         Handler handler = new Handler(mP2pThread.getLooper());
         when(p2pm.getP2pStateMachineMessenger()).thenReturn(new Messenger(handler));
@@ -229,7 +229,7 @@ public class WifiStateMachineTest {
         when(context.getSystemService(Context.POWER_SERVICE)).thenReturn(
                 new PowerManager(context, mock(IPowerManager.class), new Handler()));
 
-        mAlarmManager = new MockAlarmManager();
+        mAlarmManager = new TestAlarmManager();
         when(context.getSystemService(Context.ALARM_SERVICE)).thenReturn(
                 mAlarmManager.getAlarmManager());
 
@@ -307,10 +307,10 @@ public class WifiStateMachineTest {
     HandlerThread mP2pThread;
     HandlerThread mSyncThread;
     AsyncChannel  mWsmAsyncChannel;
-    MockAlarmManager mAlarmManager;
+    TestAlarmManager mAlarmManager;
     MockWifiMonitor mWifiMonitor;
     TestIpManager mTestIpManager;
-    MockLooper mLooper;
+    TestLooper mLooper;
     WifiConfigManager mWifiConfigManager;
 
     @Mock WifiNative mWifiNative;
@@ -325,6 +325,9 @@ public class WifiStateMachineTest {
     @Mock WifiLastResortWatchdog mWifiLastResortWatchdog;
     @Mock PropertyService mPropertyService;
     @Mock BuildProperties mBuildProperties;
+    @Mock IWificond mWificond;
+    @Mock IClientInterface mClientInterface;
+    @Mock IBinder mClientInterfaceBinder;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -334,14 +337,13 @@ public class WifiStateMachineTest {
         Log.d(TAG, "Setting up ...");
 
         // Ensure looper exists
-        mLooper = new MockLooper();
+        mLooper = new TestLooper();
 
         MockitoAnnotations.initMocks(this);
 
         /** uncomment this to enable logs from WifiStateMachines */
         // enableDebugLogs();
 
-        TestUtil.installWlanWifiNative(mWifiNative);
         mWifiMonitor = new MockWifiMonitor();
         when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
         when(mWifiInjector.getClock()).thenReturn(mock(Clock.class));
@@ -349,6 +351,12 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getPropertyService()).thenReturn(mPropertyService);
         when(mWifiInjector.getBuildProperties()).thenReturn(mBuildProperties);
         when(mWifiInjector.getKeyStore()).thenReturn(mock(KeyStore.class));
+        when(mWifiInjector.getWifiBackupRestore()).thenReturn(mock(WifiBackupRestore.class));
+        when(mWifiInjector.makeWifiDiagnostics(anyObject())).thenReturn(
+                mock(BaseWifiDiagnostics.class));
+        when(mWifiInjector.makeWificond()).thenReturn(mWificond);
+        when(mWifiNative.getInterfaceName()).thenReturn("mockWlan");
+
         FrameworkFacade factory = getFrameworkFacade();
         Context context = getContext();
 
@@ -373,8 +381,13 @@ public class WifiStateMachineTest {
                 new UserInfo(UserHandle.USER_SYSTEM, "owner", 0),
                 new UserInfo(11, "managed profile", 0)));
 
+        when(mWificond.createClientInterface()).thenReturn(mClientInterface);
+        when(mClientInterface.asBinder()).thenReturn(mClientInterfaceBinder);
+        when(mClientInterface.enableSupplicant()).thenReturn(true);
+        when(mClientInterface.disableSupplicant()).thenReturn(true);
+
         mWsm = new WifiStateMachine(context, factory, mLooper.getLooper(),
-            mUserManager, mWifiInjector, mBackupManagerProxy, mCountryCode);
+            mUserManager, mWifiInjector, mBackupManagerProxy, mCountryCode, mWifiNative);
         mWsmThread = getWsmHandlerThread(mWsm);
 
         final AsyncChannel channel = new AsyncChannel();
@@ -429,9 +442,7 @@ public class WifiStateMachineTest {
 
     @Test
     public void loadComponents() throws Exception {
-        when(mWifiNative.loadDriver()).thenReturn(true);
         when(mWifiNative.startHal()).thenReturn(true);
-        when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(true);
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
 
@@ -455,16 +466,42 @@ public class WifiStateMachineTest {
     }
 
     @Test
-    public void loadComponentsFailure() throws Exception {
-        when(mWifiNative.loadDriver()).thenReturn(false);
-        when(mWifiNative.startHal()).thenReturn(false);
-        when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(false);
+    public void shouldRequireSupplicantStartupToLeaveInitialState() throws Exception {
+        when(mClientInterface.enableSupplicant()).thenReturn(false);
+        mWsm.setSupplicantRunning(true);
+        mLooper.dispatchAll();
+        assertEquals("InitialState", getCurrentState().getName());
+    }
 
+    @Test
+    public void shouldRequireWificondToLeaveInitialState() throws Exception {
+        // We start out with valid default values, break them going backwards so that
+        // we test all the bailout cases.
+
+        // ClientInterface dies after creation.
+        doThrow(new RemoteException()).when(mClientInterfaceBinder).linkToDeath(any(), anyInt());
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
 
-        when(mWifiNative.loadDriver()).thenReturn(true);
+        // Failed to even create the client interface.
+        when(mWificond.createClientInterface()).thenReturn(null);
+        mWsm.setSupplicantRunning(true);
+        mLooper.dispatchAll();
+        assertEquals("InitialState", getCurrentState().getName());
+
+        // Failed to get wificond proxy.
+        when(mWifiInjector.makeWificond()).thenReturn(null);
+        mWsm.setSupplicantRunning(true);
+        mLooper.dispatchAll();
+        assertEquals("InitialState", getCurrentState().getName());
+    }
+
+    @Test
+    public void loadComponentsFailure() throws Exception {
+        when(mWifiNative.startHal()).thenReturn(false);
+        when(mClientInterface.enableSupplicant()).thenReturn(false);
+
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
@@ -475,32 +512,31 @@ public class WifiStateMachineTest {
         assertEquals("InitialState", getCurrentState().getName());
     }
 
-    /**
-     * Test to check that mode changes from WifiController will be properly handled in the
-     * InitialState by WifiStateMachine.
-     */
     @Test
-    public void checkOperationalModeInInitialState() throws Exception {
-        when(mWifiNative.loadDriver()).thenReturn(true);
-        when(mWifiNative.startHal()).thenReturn(true);
-        when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(true);
-
+    public void checkInitialStateStickyWhenDisabledMode() throws Exception {
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
         assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
 
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE);
         mLooper.dispatchAll();
-        assertEquals(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE,
-                mWsm.getOperationalModeForTest());
+        assertEquals(WifiStateMachine.DISABLED_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("InitialState", getCurrentState().getName());
+    }
 
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
+    @Test
+    public void shouldStartSupplicantWhenConnectModeRequested() throws Exception {
+        when(mWifiNative.startHal()).thenReturn(true);
+
+        // The first time we start out in InitialState, we sit around here.
         mLooper.dispatchAll();
-        assertEquals(WifiStateMachine.SCAN_ONLY_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("InitialState", getCurrentState().getName());
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
 
+        // But if someone tells us to enter connect mode, we start up supplicant
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
-        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("SupplicantStartingState", getCurrentState().getName());
     }
 
     /**
@@ -509,9 +545,7 @@ public class WifiStateMachineTest {
      */
     @Test
     public void checkStartInCorrectStateAfterChangingInitialState() throws Exception {
-        when(mWifiNative.loadDriver()).thenReturn(true);
         when(mWifiNative.startHal()).thenReturn(true);
-        when(mWifiNative.startSupplicant(anyBoolean())).thenReturn(true);
 
         // Check initial state
         mLooper.dispatchAll();
@@ -551,7 +585,7 @@ public class WifiStateMachineTest {
     private void addNetworkAndVerifySuccess(boolean isHidden) throws Exception {
         loadComponents();
 
-        final HashMap<String, String> nameToValue = new HashMap<String, String>();
+        final HashMap<String, String> nameToValue = new HashMap<>();
 
         when(mWifiNative.addNetwork()).thenReturn(0);
         when(mWifiNative.setNetworkVariable(anyInt(), anyString(), anyString()))
@@ -1079,59 +1113,6 @@ public class WifiStateMachineTest {
 
         verify(mWifiNative).doCustomSupplicantCommand(command);
         assertEquals(true, result);
-    }
-
-    private String createSimChallengeRequest(byte[] challengeValue) {
-        // Produce a base64 encoded length byte + data.
-        byte[] challengeLengthAndValue = new byte[challengeValue.length + 1];
-        challengeLengthAndValue[0] = (byte) challengeValue.length;
-        for (int i = 0; i < challengeValue.length; ++i) {
-            challengeLengthAndValue[i + 1] = challengeValue[i];
-        }
-        return Base64.encodeToString(challengeLengthAndValue, android.util.Base64.NO_WRAP);
-    }
-
-    private String createSimAuthResponse(byte[] sresValue, byte[] kcValue) {
-        // Produce a base64 encoded sres length byte + sres + kc length byte + kc.
-        int overallLength = sresValue.length + kcValue.length + 2;
-        byte[] result = new byte[sresValue.length + kcValue.length + 2];
-        int idx = 0;
-        result[idx++] = (byte) sresValue.length;
-        for (int i = 0; i < sresValue.length; ++i) {
-            result[idx++] = sresValue[i];
-        }
-        result[idx++] = (byte) kcValue.length;
-        for (int i = 0; i < kcValue.length; ++i) {
-            result[idx++] = kcValue[i];
-        }
-        return Base64.encodeToString(result, Base64.NO_WRAP);
-    }
-
-    /** Verifies function getGsmSimAuthResponse method. */
-    @Test
-    public void getGsmSimAuthResponseTest() throws Exception {
-        TelephonyManager tm = mock(TelephonyManager.class);
-        final String[] invalidRequests = { null, "", "XXXX" };
-        assertEquals("", mWsm.getGsmSimAuthResponse(invalidRequests, tm));
-
-        final String[] failedRequests = { "5E5F" };
-        when(tm.getIccAuthentication(anyInt(), anyInt(),
-                eq(createSimChallengeRequest(new byte[] { 0x5e, 0x5f })))).thenReturn(null);
-        assertEquals(null, mWsm.getGsmSimAuthResponse(failedRequests, tm));
-
-        when(tm.getIccAuthentication(2, tm.AUTHTYPE_EAP_SIM,
-                createSimChallengeRequest(new byte[] { 0x1a, 0x2b })))
-                .thenReturn(null);
-        when(tm.getIccAuthentication(1, tm.AUTHTYPE_EAP_SIM,
-                createSimChallengeRequest(new byte[] { 0x1a, 0x2b })))
-                .thenReturn(createSimAuthResponse(new byte[] { 0x1D, 0x2C },
-                       new byte[] { 0x3B, 0x4A }));
-        when(tm.getIccAuthentication(1, tm.AUTHTYPE_EAP_SIM,
-                createSimChallengeRequest(new byte[] { 0x01, 0x23 })))
-                .thenReturn(createSimAuthResponse(new byte[] { 0x33, 0x22 },
-                        new byte[] { 0x11, 0x00 }));
-        assertEquals(":3b4a:1d2c:1100:3322", mWsm.getGsmSimAuthResponse(
-                new String[] { "1A2B", "0123" }, tm));
     }
 
     /**

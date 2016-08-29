@@ -1,45 +1,56 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.android.server.wifi.anqp;
 
 import java.net.ProtocolException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 
 /**
- * The Venue Name ANQP Element, IEEE802.11-2012 section 8.4.4.4
+ * The Venue Name ANQP Element, IEEE802.11-2012 section 8.4.4.4.
+ *
+ * Format:
+ *
+ * | Info ID | Length | Venue Info | Venue Name Duple #1 (optional) | ...
+ *      2        2          2                  variable
+ * | Venue Name Duple #N (optional) |
+ *             variable
+ *
+ * Refer to {@link com.android.server.wifi.anqp.I18Name} for the format of the Venue Name Duple
+ * fields.
+ *
+ * Note: The payload parsed by this class already has 'Info ID' and 'Length' stripped off.
  */
 public class VenueNameElement extends ANQPElement {
-    private final VenueGroup mGroup;
-    private final VenueType mType;
     private final List<I18Name> mNames;
-
-    private static final Map<VenueGroup, Integer> sGroupBases =
-            new EnumMap<VenueGroup, Integer>(VenueGroup.class);
 
     public VenueNameElement(Constants.ANQPElementType infoID, ByteBuffer payload)
             throws ProtocolException {
         super(infoID);
 
-        if (payload.remaining() < 2)
-            throw new ProtocolException("Runt Venue Name");
+        if (payload.remaining() < 2) {
+            throw new ProtocolException("Venue Name Element cannot contain less than 2 bytes");
+        }
 
-        int group = payload.get() & Constants.BYTE_MASK;
-        int type = payload.get() & Constants.BYTE_MASK;
-
-        if (group >= VenueGroup.Reserved.ordinal()) {
-            mGroup = VenueGroup.Reserved;
-            mType = VenueType.Reserved;
-        } else {
-            mGroup = VenueGroup.values()[group];
-            type += sGroupBases.get(mGroup);
-            if (type >= VenueType.Reserved.ordinal()) {
-                mType = VenueType.Reserved;
-            } else {
-                mType = VenueType.values()[type];
-            }
+        // Skip the Venue Info field, which we don't use.
+        for (int i = 0; i < Constants.VENUE_INFO_LENGTH; ++i) {
+            payload.get();
         }
 
         mNames = new ArrayList<I18Name>();
@@ -48,145 +59,12 @@ public class VenueNameElement extends ANQPElement {
         }
     }
 
-    public VenueGroup getGroup() {
-        return mGroup;
-    }
-
-    public VenueType getType() {
-        return mType;
-    }
-
     public List<I18Name> getNames() {
         return Collections.unmodifiableList(mNames);
     }
 
     @Override
     public String toString() {
-        return "VenueName{" +
-                "m_group=" + mGroup +
-                ", m_type=" + mType +
-                ", m_names=" + mNames +
-                '}';
-    }
-
-    public enum VenueGroup {
-        Unspecified,
-        Assembly,
-        Business,
-        Educational,
-        FactoryIndustrial,
-        Institutional,
-        Mercantile,
-        Residential,
-        Storage,
-        UtilityMiscellaneous,
-        Vehicular,
-        Outdoor,
-        Reserved  // Note: this must be the last enum constant
-    }
-
-    public enum VenueType {
-        Unspecified,
-
-        UnspecifiedAssembly,
-        Arena,
-        Stadium,
-        PassengerTerminal,
-        Amphitheater,
-        AmusementPark,
-        PlaceOfWorship,
-        ConventionCenter,
-        Library,
-        Museum,
-        Restaurant,
-        Theater,
-        Bar,
-        CoffeeShop,
-        ZooOrAquarium,
-        EmergencyCoordinationCenter,
-
-        UnspecifiedBusiness,
-        DoctorDentistoffice,
-        Bank,
-        FireStation,
-        PoliceStation,
-        PostOffice,
-        ProfessionalOffice,
-        ResearchDevelopmentFacility,
-        AttorneyOffice,
-
-        UnspecifiedEducational,
-        SchoolPrimary,
-        SchoolSecondary,
-        UniversityCollege,
-
-        UnspecifiedFactoryIndustrial,
-        Factory,
-
-        UnspecifiedInstitutional,
-        Hospital,
-        LongTermCareFacility,
-        AlcoholAndDrugRehabilitationCenter,
-        GroupHome,
-        PrisonJail,
-
-        UnspecifiedMercantile,
-        RetailStore,
-        GroceryMarket,
-        AutomotiveServiceStation,
-        ShoppingMall,
-        GasStation,
-
-        UnspecifiedResidential,
-        PrivateResidence,
-        HotelMotel,
-        Dormitory,
-        BoardingHouse,
-
-        UnspecifiedStorage,
-
-        UnspecifiedUtilityMiscellaneous,
-
-        UnspecifiedVehicular,
-        AutomobileOrTruck,
-        Airplane,
-        Bus,
-        Ferry,
-        ShipOrBoat,
-        Train,
-        MotorBike,
-
-        UnspecifiedOutdoor,
-        MuniMeshNetwork,
-        CityPark,
-        RestArea,
-        TrafficControl,
-        BusStop,
-        Kiosk,
-
-        Reserved  // Note: this must be the last enum constant
-    }
-
-    private static final VenueType[] PerGroup =
-            {
-                    VenueType.Unspecified,
-                    VenueType.UnspecifiedAssembly,
-                    VenueType.UnspecifiedBusiness,
-                    VenueType.UnspecifiedEducational,
-                    VenueType.UnspecifiedFactoryIndustrial,
-                    VenueType.UnspecifiedInstitutional,
-                    VenueType.UnspecifiedMercantile,
-                    VenueType.UnspecifiedResidential,
-                    VenueType.UnspecifiedStorage,
-                    VenueType.UnspecifiedUtilityMiscellaneous,
-                    VenueType.UnspecifiedVehicular,
-                    VenueType.UnspecifiedOutdoor
-            };
-
-    static {
-        int index = 0;
-        for (VenueType venue : PerGroup) {
-            sGroupBases.put(VenueGroup.values()[index++], venue.ordinal());
-        }
+        return "VenueName{ mNames=" + mNames + "}";
     }
 }

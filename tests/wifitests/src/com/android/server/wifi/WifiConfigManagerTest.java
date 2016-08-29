@@ -20,6 +20,7 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
+import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
 import android.content.pm.UserInfo;
 import android.net.wifi.FakeKeys;
@@ -45,7 +46,6 @@ import android.util.Log;
 import android.util.SparseArray;
 
 import com.android.server.net.DelayedDiskWrite;
-import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
 import com.android.server.wifi.hotspot2.omadm.PasspointManagementObjectManager;
 import com.android.server.wifi.hotspot2.pps.Credential;
 import com.android.server.wifi.hotspot2.pps.HomeSP;
@@ -420,23 +420,15 @@ public class WifiConfigManagerTest {
                         assertEquals(WifiConfiguration.Status.ENABLED, config2.status);
                     }
                 } else {
-                    // If the network configuration is visible to the current user, verify that it
-                    // was enabled and all other network configurations visible to the user were
-                    // disabled.
+                    // If the network configuration is visible to the current user, verify that
+                    // a connection attempt was made to it. This does not modify the status of
+                    // other networks.
                     assertTrue(success);
                     verify(mWifiNative).selectNetwork(config.networkId);
                     verify(mWifiNative, never()).selectNetwork(intThat(not(config.networkId)));
                     verify(mWifiNative, never()).enableNetwork(config.networkId);
                     verify(mWifiNative, never()).enableNetwork(intThat(not(config.networkId)));
-                    for (WifiConfiguration config2 : mConfiguredNetworks.valuesForAllUsers()) {
-                        if (WifiConfigurationUtil.isVisibleToAnyProfile(config2,
-                                USER_PROFILES.get(userId))
-                                && config2.networkId != config.networkId) {
-                            assertEquals(WifiConfiguration.Status.DISABLED, config2.status);
-                        } else {
-                            assertEquals(WifiConfiguration.Status.ENABLED, config2.status);
-                        }
-                    }
+                    assertEquals(WifiConfiguration.Status.ENABLED, config.status);
                 }
             }
         }
@@ -471,12 +463,13 @@ public class WifiConfigManagerTest {
         // configuration.
         final Map<String, String> metadata = new HashMap<String, String>();
         if (CONFIGS.get(network).FQDN != null) {
-            metadata.put(WifiConfigStore.ID_STRING_KEY_FQDN, CONFIGS.get(network).FQDN);
+            metadata.put(WifiSupplicantControl.ID_STRING_KEY_FQDN, CONFIGS.get(network).FQDN);
         }
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(network).configKey());
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(
+                WifiSupplicantControl.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(network).configKey());
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(CONFIGS.get(network).creatorUid));
-        verify(mWifiNative).setNetworkExtra(network, WifiConfigStore.ID_STRING_VAR_NAME,
+        verify(mWifiNative).setNetworkExtra(network, WifiSupplicantControl.ID_STRING_VAR_NAME,
                 metadata);
 
         // Verify that an attempt to read back the requirePMF variable was made.
@@ -576,27 +569,27 @@ public class WifiConfigManagerTest {
                 .thenReturn(encodeConfigSSID(CONFIGS.get(i)));
         }
         // Legacy regular network configuration: No "id_str".
-        when(mWifiNative.getNetworkExtra(0, WifiConfigStore.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkExtra(0, WifiSupplicantControl.ID_STRING_VAR_NAME))
             .thenReturn(null);
         // Legacy Hotspot 2.0 network configuration: Quoted FQDN in "id_str".
-        when(mWifiNative.getNetworkExtra(1, WifiConfigStore.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkExtra(1, WifiSupplicantControl.ID_STRING_VAR_NAME))
             .thenReturn(null);
-        when(mWifiNative.getNetworkVariable(1, WifiConfigStore.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkVariable(1, WifiSupplicantControl.ID_STRING_VAR_NAME))
             .thenReturn('"' + CONFIGS.get(1).FQDN + '"');
         // Up-to-date Hotspot 2.0 network configuration: Metadata in "id_str".
         Map<String, String> metadata = new HashMap<String, String>();
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(2).configKey());
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(2).configKey());
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(CONFIGS.get(2).creatorUid));
-        metadata.put(WifiConfigStore.ID_STRING_KEY_FQDN, CONFIGS.get(2).FQDN);
-        when(mWifiNative.getNetworkExtra(2, WifiConfigStore.ID_STRING_VAR_NAME))
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_FQDN, CONFIGS.get(2).FQDN);
+        when(mWifiNative.getNetworkExtra(2, WifiSupplicantControl.ID_STRING_VAR_NAME))
             .thenReturn(metadata);
         // Up-to-date regular network configuration: Metadata in "id_str".
         metadata = new HashMap<String, String>();
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(3).configKey());
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CONFIG_KEY, CONFIGS.get(3).configKey());
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(CONFIGS.get(3).creatorUid));
-        when(mWifiNative.getNetworkExtra(3, WifiConfigStore.ID_STRING_VAR_NAME))
+        when(mWifiNative.getNetworkExtra(3, WifiSupplicantControl.ID_STRING_VAR_NAME))
             .thenReturn(metadata);
 
         // Set up networkHistory.txt file.
@@ -661,10 +654,10 @@ public class WifiConfigManagerTest {
         when(mWifiNative.getNetworkVariable(anyInt(), eq(WifiConfiguration.ssidVarName)))
             .thenReturn(encodeConfigSSID(config));
         final Map<String, String> metadata = new HashMap<String, String>();
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CONFIG_KEY, config.configKey());
-        metadata.put(WifiConfigStore.ID_STRING_KEY_CREATOR_UID,
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CONFIG_KEY, config.configKey());
+        metadata.put(WifiSupplicantControl.ID_STRING_KEY_CREATOR_UID,
                 Integer.toString(config.creatorUid));
-        when(mWifiNative.getNetworkExtra(anyInt(), eq(WifiConfigStore.ID_STRING_VAR_NAME)))
+        when(mWifiNative.getNetworkExtra(anyInt(), eq(WifiSupplicantControl.ID_STRING_VAR_NAME)))
             .thenReturn(metadata);
 
         // Load network configurations.
@@ -741,16 +734,20 @@ public class WifiConfigManagerTest {
         for (WifiConfiguration config : newConfigs) {
             if (oldUserOnlyConfigs.contains(config)) {
                 verify(mWifiNative).disableNetwork(config.networkId);
-                assertEquals(WifiConfiguration.Status.DISABLED, config.status);
+                assertNetworkStatus(
+                        config,
+                        WifiConfiguration.NetworkSelectionStatus.DISABLED_DUE_TO_USER_SWITCH);
             } else {
                 verify(mWifiNative, never()).disableNetwork(config.networkId);
                 if (neitherUserConfigs.contains(config)) {
-                    assertEquals(WifiConfiguration.Status.DISABLED, config.status);
+                    assertNetworkStatus(
+                            config,
+                            WifiConfiguration.NetworkSelectionStatus.DISABLED_DUE_TO_USER_SWITCH);
                 } else {
-                    // Only enabled in networkSelection.
-                    assertTrue(config.getNetworkSelectionStatus().isNetworkEnabled());
+                    assertNetworkStatus(
+                            config,
+                            WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
                 }
-
             }
         }
     }
@@ -1463,8 +1460,8 @@ public class WifiConfigManagerTest {
         updateRequirePMFConfig.requirePMF = true;
 
         // Set up mock to allow the new value to be read back into the config
-        // TODO: please see b/28088226  - this test is implemented as if WifiConfigStore correctly
-        // read back the boolean value.  When fixed, uncomment the following line and the
+        // TODO: please see b/28088226  - this test is implemented as if WifiSupplicantControl
+        // correctly read back the boolean value. When fixed, uncomment the following line and the
         // checkHasEverConnectedFalse below.
         //when(mWifiNative.getNetworkVariable(BASE_HAS_EVER_CONNECTED_CONFIG.networkId,
         //        WifiConfiguration.pmfVarName)).thenReturn("2");
@@ -1591,7 +1588,6 @@ public class WifiConfigManagerTest {
                 eapConfigSame.enterpriseConfig));
     }
 
-
     private void checkHasEverConnectedTrue(int networkId) {
         WifiConfiguration checkConfig = mWifiConfigManager.getWifiConfiguration(networkId);
         assertTrue("hasEverConnected expected to be true.",
@@ -1627,5 +1623,80 @@ public class WifiConfigManagerTest {
         return buf.toString();
     }
 
+    /**
+     * Test whether enableNetwork with the disableOthers flag set to false enables the
+     * input network, but does not attempt a connection.
+     */
+    @Test
+    public void testEnableNetworkWithoutDisableOthers() throws Exception {
+        addNetworks();
 
+        for (Map.Entry<Integer, List<WifiConfiguration>> entry : VISIBLE_CONFIGS.entrySet()) {
+            switchUser(entry.getKey());
+            // Iterate through all the configs for the current user and invoke |enableNetwork|
+            // on the corresponding config retrieved from WifiConfigManager.
+            for (WifiConfiguration config : entry.getValue()) {
+                WifiConfiguration retrievedConfig =
+                        mWifiConfigManager.getWifiConfiguration(config.networkId);
+                assertTrue(mWifiConfigManager.enableNetwork(retrievedConfig, false, 0));
+                assertNetworkStatus(retrievedConfig,
+                        WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+                verify(mWifiNative, never()).selectNetwork(anyInt());
+            }
+        }
+    }
+
+    /**
+     * Test whether enableNetwork without the disableOthers flag set to true enables the input
+     * network and attempts a connection to it immediately. It also checks if all the other
+     * networks are disabled.
+     */
+    @Test
+    public void testEnableNetworkWithDisableOthers() throws Exception {
+        addNetworks();
+
+        for (Map.Entry<Integer, List<WifiConfiguration>> entry : VISIBLE_CONFIGS.entrySet()) {
+            switchUser(entry.getKey());
+            // Iterate through all the configs for the current user and invoke |enableNetwork|
+            // on the corresponding config retrieved from WifiConfigManager.
+            for (WifiConfiguration config : entry.getValue()) {
+                reset(mWifiNative);
+                when(mWifiNative.selectNetwork(anyInt())).thenReturn(true);
+                WifiConfiguration retrievedConfig =
+                        mWifiConfigManager.getWifiConfiguration(config.networkId);
+                assertTrue(mWifiConfigManager.enableNetwork(retrievedConfig, true, 0));
+                assertNetworkStatus(retrievedConfig,
+                        WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE);
+                assertAllNetworksDisabledExcept(retrievedConfig.networkId,
+                        WifiConfiguration.NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER);
+                verify(mWifiNative).selectNetwork(retrievedConfig.networkId);
+                verify(mWifiNative, never()).selectNetwork(intThat(not(retrievedConfig.networkId)));
+            }
+        }
+    }
+
+    private void assertNetworkStatus(WifiConfiguration config, int disableReason) {
+        final WifiConfiguration.NetworkSelectionStatus status = config.getNetworkSelectionStatus();
+        assertEquals(disableReason, status.getNetworkSelectionDisableReason());
+        if (disableReason
+                == WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE) {
+            assertEquals(WifiConfiguration.Status.ENABLED, config.status);
+            assertTrue(config.getNetworkSelectionStatus().isNetworkEnabled());
+        } else if (disableReason
+                < WifiConfiguration.NetworkSelectionStatus.DISABLED_TLS_VERSION_MISMATCH) {
+            assertEquals(WifiConfiguration.Status.ENABLED, config.status);
+            assertTrue(config.getNetworkSelectionStatus().isNetworkTemporaryDisabled());
+        } else {
+            assertEquals(WifiConfiguration.Status.DISABLED, config.status);
+            assertTrue(config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled());
+        }
+    }
+
+    private void assertAllNetworksDisabledExcept(int netId, int disableReason) {
+        for (WifiConfiguration config : mWifiConfigManager.getSavedNetworks()) {
+            if (config.networkId != netId) {
+                assertNetworkStatus(config, disableReason);
+            }
+        }
+    }
 }
