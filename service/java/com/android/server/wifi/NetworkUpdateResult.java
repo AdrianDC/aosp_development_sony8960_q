@@ -18,7 +18,7 @@ package com.android.server.wifi;
 
 import static android.net.wifi.WifiConfiguration.INVALID_NETWORK_ID;
 
-class NetworkUpdateResult {
+public class NetworkUpdateResult {
     int netId;
     boolean ipChanged;
     boolean proxyChanged;
