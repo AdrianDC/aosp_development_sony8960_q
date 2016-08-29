@@ -56,6 +56,8 @@ public class NetworkDetail {
     private final String mSSID;
     private final long mHESSID;
     private final long mBSSID;
+    // True if the SSID is potentially from a hidden network
+    private final boolean mIsHiddenSsid;
 
     // BSS Load element:
     private final int mStationCount;
@@ -125,6 +127,7 @@ public class NetworkDetail {
         mBSSID = Utils.parseMac(bssid);
 
         String ssid = null;
+        boolean isHiddenSsid = false;
         byte[] ssidOctets = null;
 
         InformationElementUtil.BssLoad bssLoad = new InformationElementUtil.BssLoad();
@@ -230,10 +233,18 @@ public class NetworkDetail {
                     ssid = new String(ssidOctets, StandardCharsets.ISO_8859_1);
                 }
             }
+            isHiddenSsid = true;
+            for (byte byteVal : ssidOctets) {
+                if (byteVal != 0) {
+                    isHiddenSsid = false;
+                    break;
+                }
+            }
         }
 
         mSSID = ssid;
         mHESSID = interworking.hessid;
+        mIsHiddenSsid = isHiddenSsid;
         mStationCount = bssLoad.stationCount;
         mChannelUtilization = bssLoad.channelUtilization;
         mCapacity = bssLoad.capacity;
@@ -260,7 +271,9 @@ public class NetworkDetail {
         }
 
         // If trafficIndicationMap is not valid, mDtimPeriod will be negative
-        mDtimInterval = trafficIndicationMap.mDtimPeriod;
+        if (trafficIndicationMap.isValid()) {
+            mDtimInterval = trafficIndicationMap.mDtimPeriod;
+        }
 
         int maxRateA = 0;
         int maxRateB = 0;
@@ -310,6 +323,7 @@ public class NetworkDetail {
 
     private NetworkDetail(NetworkDetail base, Map<Constants.ANQPElementType, ANQPElement> anqpElements) {
         mSSID = base.mSSID;
+        mIsHiddenSsid = base.mIsHiddenSsid;
         mBSSID = base.mBSSID;
         mHESSID = base.mHESSID;
         mStationCount = base.mStationCount;
@@ -497,6 +511,28 @@ public class NetworkDetail {
         return toMACString(mBSSID);
     }
 
+    /**
+     * Evaluates the ScanResult this NetworkDetail is built from
+     * returns true if built from a Beacon Frame
+     * returns false if built from a Probe Response
+     */
+    public boolean isBeaconFrame() {
+        // Beacon frames have a 'Traffic Indication Map' Information element
+        // Probe Responses do not. This is indicated by a DTIM period > 0
+        return mDtimInterval > 0;
+    }
+
+    /**
+     * Evaluates the ScanResult this NetworkDetail is built from
+     * returns true if built from a hidden Beacon Frame
+     * returns false if not hidden or not a Beacon
+     */
+    public boolean isHiddenBeaconFrame() {
+        // Hidden networks are not 80211 standard, but it is common for a hidden network beacon
+        // frame to either send zero-value bytes as the SSID, or to send no bytes at all.
+        return isBeaconFrame() && mIsHiddenSsid;
+    }
+
     public static String toMACString(long mac) {
         StringBuilder sb = new StringBuilder();
         boolean first = true;
@@ -510,5 +546,4 @@ public class NetworkDetail {
         }
         return sb.toString();
     }
-
 }

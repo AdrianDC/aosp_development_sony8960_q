@@ -19,9 +19,10 @@ import static com.android.server.wifi.anqp.Constants.getInteger;
 
 import android.net.wifi.ScanResult.InformationElement;
 import android.util.Log;
+
 import com.android.server.wifi.anqp.Constants;
 import com.android.server.wifi.hotspot2.NetworkDetail;
-import java.net.ProtocolException;
+
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -592,7 +593,7 @@ public class InformationElementUtil {
             } catch (BufferUnderflowException e) {
                 return;
             }
-            if (mLength <= MAX_TIM_LENGTH) {
+            if (mLength <= MAX_TIM_LENGTH && mDtimPeriod > 0) {
                 mValid = true;
             }
         }
