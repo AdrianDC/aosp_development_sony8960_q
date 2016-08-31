@@ -50,6 +50,7 @@ import com.android.server.LocalServices;
 import com.android.server.wifi.WifiConfigStoreLegacy.WifiConfigStoreDataLegacy;
 import com.android.server.wifi.util.ScanResultUtil;
 import com.android.server.wifi.util.TelephonyUtil;
+import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -216,6 +217,7 @@ public class WifiConfigManager {
     private final WifiKeyStore mWifiKeyStore;
     private final WifiConfigStore mWifiConfigStore;
     private final WifiConfigStoreLegacy mWifiConfigStoreLegacy;
+    private final WifiPermissionsWrapper mWifiPermissionsWrapper;
     /**
      * Local log used for debugging any WifiConfigManager issues.
      */
@@ -285,7 +287,8 @@ public class WifiConfigManager {
     WifiConfigManager(
             Context context, FrameworkFacade facade, Clock clock, UserManager userManager,
             TelephonyManager telephonyManager, WifiKeyStore wifiKeyStore,
-            WifiConfigStore wifiConfigStore, WifiConfigStoreLegacy wifiConfigStoreLegacy) {
+            WifiConfigStore wifiConfigStore, WifiConfigStoreLegacy wifiConfigStoreLegacy,
+            WifiPermissionsWrapper wifiPermissionsWrapper) {
         mContext = context;
         mFacade = facade;
         mClock = clock;
@@ -295,6 +298,7 @@ public class WifiConfigManager {
         mWifiKeyStore = wifiKeyStore;
         mWifiConfigStore = wifiConfigStore;
         mWifiConfigStoreLegacy = wifiConfigStoreLegacy;
+        mWifiPermissionsWrapper = wifiPermissionsWrapper;
 
         mConfiguredNetworks = new ConfigurationMap(userManager);
         mScanDetailCaches = new HashMap<>(16, 0.75f);
@@ -897,6 +901,15 @@ public class WifiConfigManager {
             newInternalConfig =
                     updateExistingInternalWifiConfigurationFromExternal(
                             existingInternalConfig, config, uid);
+        }
+
+        // Only add networks with proxy settings if the user has permission to
+        if (WifiConfigurationUtil.hasProxyChanged(existingInternalConfig, newInternalConfig)
+                && !canModifyProxySettings(uid)) {
+            Log.e(TAG, "UID " + uid + " does not have permission to modify proxy Settings "
+                    + config.configKey() + ". Must have OVERRIDE_WIFI_CONFIG,"
+                    + " or be device or profile owner.");
+            return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
         }
 
         // Update the keys for non-Passpoint enterprise networks.  For Passpoint, the certificates
@@ -2617,5 +2630,29 @@ public class WifiConfigManager {
         pw.println("WifiConfigManager - Configured networks End ----");
         pw.println("WifiConfigManager - Next network ID to be allocated " + mNextNetworkId);
         pw.println("WifiConfigManager - Last selected network ID " + mLastSelectedNetworkId);
+    }
+
+    /**
+     * Returns true if the given uid has permission to add, update or remove proxy settings
+     */
+    private boolean canModifyProxySettings(int uid) {
+        final DevicePolicyManagerInternal dpmi =
+                mWifiPermissionsWrapper.getDevicePolicyManagerInternal();
+        final boolean isUidProfileOwner = dpmi != null && dpmi.isActiveAdminWithPolicy(uid,
+                DeviceAdminInfo.USES_POLICY_PROFILE_OWNER);
+        final boolean isUidDeviceOwner = dpmi != null && dpmi.isActiveAdminWithPolicy(uid,
+                DeviceAdminInfo.USES_POLICY_DEVICE_OWNER);
+        final boolean hasConfigOverridePermission = checkConfigOverridePermission(uid);
+        // If |uid| corresponds to the device owner, allow all modifications.
+        if (isUidDeviceOwner || isUidProfileOwner || hasConfigOverridePermission) {
+            return true;
+        }
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "UID: " + uid + " cannot modify WifiConfiguration proxy settings."
+                    + " ConfigOverride=" + hasConfigOverridePermission
+                    + " DeviceOwner=" + isUidDeviceOwner
+                    + " ProfileOwner=" + isUidProfileOwner);
+        }
+        return false;
     }
 }
