@@ -902,7 +902,6 @@ public class WifiMetrics {
         }
     }
 
-
     public static final String PROTO_DUMP_ARG = "wifiMetricsProto";
     /**
      * Dump all WifiMetrics. Collects some metrics from ConfigStore, Settings and WifiManager

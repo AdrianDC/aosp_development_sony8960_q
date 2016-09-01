@@ -226,6 +226,9 @@ message WifiLog {
 
   // Total number of scans handled by framework (oneshot or otherwise)
   optional int32 num_scans = 46;
+
+  // Counts the occurrences of each alert reason.
+  repeated AlertReasonCount alert_reason_count = 47;
 }
 
 // Information that gets logged for every WiFi connection.
