@@ -209,6 +209,12 @@ public class WifiLastResortWatchdog {
     public void connectedStateTransition(boolean isEntering) {
         if (VDBG) Log.v(TAG, "connectedStateTransition: isEntering = " + isEntering);
         mWifiIsConnected = isEntering;
+
+        if (!mWatchdogAllowedToTrigger) {
+            // WiFi has connected after a Watchdog trigger, without any new networks becoming
+            // available, log a Watchdog success in wifi metrics
+            mWifiMetrics.incrementNumLastResortWatchdogSuccesses();
+        }
         if (isEntering) {
             // We connected to something! Reset failure counts for everything
             clearAllFailureCounts();

@@ -810,6 +810,15 @@ public class WifiMetrics {
     }
 
     /**
+     * Increment count of Watchdog successes.
+     */
+    public void incrementNumLastResortWatchdogSuccesses() {
+        synchronized (mLock) {
+            mWifiLogProto.numLastResortWatchdogSuccesses++;
+        }
+    }
+
+    /**
      * Increments the count of alerts by alert reason.
      *
      * @param reason The cause of the alert. The reason values are driver-specific.
@@ -940,6 +949,8 @@ public class WifiMetrics {
                         + mWifiLogProto.numLastResortWatchdogTriggersWithBadDhcp);
                 pw.println("mWifiLogProto.numLastResortWatchdogTriggersWithBadOther="
                         + mWifiLogProto.numLastResortWatchdogTriggersWithBadOther);
+                pw.println("mWifiLogProto.numLastResortWatchdogSuccesses="
+                        + mWifiLogProto.numLastResortWatchdogSuccesses);
                 pw.println("mWifiLogProto.recordDurationSec="
                         + ((mClock.elapsedRealtime() / 1000) - mRecordStartTimeSec));
                 pw.println("mWifiLogProto.rssiPollRssiCount: Printing counts for [" + MIN_RSSI_POLL
