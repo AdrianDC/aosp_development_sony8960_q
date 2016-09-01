@@ -1458,10 +1458,6 @@ public class WifiNative {
         doBooleanCommand("DRIVER MIRACAST " + mode);
     }
 
-    public boolean fetchAnqp(String bssid, String subtypes) {
-        return doBooleanCommand("ANQP_GET " + bssid + " " + subtypes);
-    }
-
     /*
      * NFC-related calls
      */
