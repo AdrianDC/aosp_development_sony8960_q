@@ -1966,6 +1966,48 @@ public class WifiConfigManagerTest {
                 retrievedNetwork.getNetworkSelectionStatus().getConnectChoice());
     }
 
+    /**
+     * Verifies that the modification of a single network using
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} and ensures that any
+     * updates to the network config in
+     * {@link WifiKeyStore#updateNetworkKeys(WifiConfiguration, WifiConfiguration)} is reflected
+     * in the internal database.
+     */
+    @Test
+    public void testUpdateSingleNetworkWithKeysUpdate() {
+        WifiConfiguration network = WifiConfigurationTestUtil.createEapNetwork();
+        network.enterpriseConfig =
+                WifiConfigurationTestUtil.createPEAPWifiEnterpriseConfigWithGTCPhase2();
+        verifyAddNetworkToWifiConfigManager(network);
+
+        // Now verify that network configurations match before we make any change.
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                network,
+                mWifiConfigManager.getConfiguredNetworkWithPassword(network.networkId));
+
+        // Modify the network ca_cert field in updateNetworkKeys method during a network
+        // config update.
+        final String newCaCertAlias = "test";
+        assertNotEquals(newCaCertAlias, network.enterpriseConfig.getCaCertificateAlias());
+
+        doAnswer(new AnswerWithArguments() {
+            public boolean answer(WifiConfiguration newConfig, WifiConfiguration existingConfig) {
+                newConfig.enterpriseConfig.setCaCertificateAlias(newCaCertAlias);
+                return true;
+            }
+        }).when(mWifiKeyStore).updateNetworkKeys(
+                any(WifiConfiguration.class), any(WifiConfiguration.class));
+
+        verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(network);
+
+        // Now verify that the keys update is reflected in the configuration fetched from internal
+        // db.
+        network.enterpriseConfig.setCaCertificateAlias(newCaCertAlias);
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                network,
+                mWifiConfigManager.getConfiguredNetworkWithPassword(network.networkId));
+    }
+
     private void createWifiConfigManager() {
         mWifiConfigManager =
                 new WifiConfigManager(
