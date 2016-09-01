@@ -554,32 +554,32 @@ public class WifiNative {
      * RANGE=ID- gets results from ID
      * MASK=<N> BSS command information mask.
      *
-     * The mask used in this method, 0x29d87, gets the following fields:
+     * The mask used in this method, 0x21d97, gets the following fields:
      *
-     *     WPA_BSS_MASK_ID         (Bit 0)
-     *     WPA_BSS_MASK_BSSID      (Bit 1)
-     *     WPA_BSS_MASK_FREQ       (Bit 2)
-     *     WPA_BSS_MASK_LEVEL      (Bit 7)
-     *     WPA_BSS_MASK_TSF        (Bit 8)
-     *     WPA_BSS_MASK_IE         (Bit 10)
-     *     WPA_BSS_MASK_FLAGS      (Bit 11)
-     *     WPA_BSS_MASK_SSID       (Bit 12)
-     *     WPA_BSS_MASK_INTERNETW  (Bit 15) (adds ANQP info)
-     *     WPA_BSS_MASK_DELIM      (Bit 17)
+     *     WPA_BSS_MASK_ID            (Bit 0)
+     *     WPA_BSS_MASK_BSSID         (Bit 1)
+     *     WPA_BSS_MASK_FREQ          (Bit 2)
+     *     WPA_BSS_MASK_CAPABILITIES  (Bit 4)
+     *     WPA_BSS_MASK_LEVEL         (Bit 7)
+     *     WPA_BSS_MASK_TSF           (Bit 8)
+     *     WPA_BSS_MASK_IE            (Bit 10)
+     *     WPA_BSS_MASK_SSID          (Bit 12)
+     *     WPA_BSS_MASK_INTERNETW     (Bit 15) (adds ANQP info)
+     *     WPA_BSS_MASK_DELIM         (Bit 17)
      *
      * See wpa_supplicant/src/common/wpa_ctrl.h for details.
      */
     private String getRawScanResults(String range) {
-        return doStringCommandWithoutLogging("BSS RANGE=" + range + " MASK=0x29d87");
+        return doStringCommandWithoutLogging("BSS RANGE=" + range + " MASK=0x21d97");
     }
 
     private static final String BSS_IE_STR = "ie=";
     private static final String BSS_ID_STR = "id=";
+    private static final String BSS_CAPABILITIES_STR = "capabilities=";
     private static final String BSS_BSSID_STR = "bssid=";
     private static final String BSS_FREQ_STR = "freq=";
     private static final String BSS_LEVEL_STR = "level=";
     private static final String BSS_TSF_STR = "tsf=";
-    private static final String BSS_FLAGS_STR = "flags=";
     private static final String BSS_SSID_STR = "ssid=";
     private static final String BSS_DELIMITER_STR = "====";
     private static final String BSS_END_STR = "####";
@@ -601,12 +601,12 @@ public class WifiNative {
             // huge string buffer while the amount we really want is generally pretty small
             // so make copies instead (one example b/11087956 wasted 400k of heap here).
             final int bssidStrLen = BSS_BSSID_STR.length();
-            final int flagLen = BSS_FLAGS_STR.length();
 
             String bssid = "";
             int level = 0;
             int freq = 0;
             long tsf = 0;
+            int cap = 0;
             String flags = "";
             WifiSsid wifiSsid = null;
             String infoElementsStr = null;
@@ -643,8 +643,12 @@ public class WifiNative {
                     } catch (NumberFormatException e) {
                         tsf = 0;
                     }
-                } else if (line.startsWith(BSS_FLAGS_STR)) {
-                    flags = new String(line.getBytes(), flagLen, line.length() - flagLen);
+                } else if (line.startsWith(BSS_CAPABILITIES_STR)) {
+                    try {
+                        cap = Integer.decode(line.substring(BSS_CAPABILITIES_STR.length()));
+                    } catch (NumberFormatException e) {
+                        cap = 0;
+                    }
                 } else if (line.startsWith(BSS_SSID_STR)) {
                     wifiSsid = WifiSsid.createFromAsciiEncoded(
                             line.substring(BSS_SSID_STR.length()));
@@ -682,6 +686,14 @@ public class WifiNative {
                             if (networkDetail.hasInterworking()) {
                                 if (DBG) Log.d(TAG, "HSNwk: '" + networkDetail);
                             }
+                            BitSet beaconCapBits = new BitSet(16);
+                            for (int i = 0; i < 16; i++) {
+                                if ((cap & (1 << i)) != 0) {
+                                    beaconCapBits.set(i);
+                                }
+                            }
+                            flags = InformationElementUtil.Capabilities.
+                                buildCapabilities(infoElements, beaconCapBits);
                             ScanDetail scan = new ScanDetail(networkDetail, wifiSsid, bssid, flags,
                                     level, freq, tsf, infoElements, anqpLines);
                             results.add(scan);
@@ -693,6 +705,7 @@ public class WifiNative {
                     level = 0;
                     freq = 0;
                     tsf = 0;
+                    cap = 0;
                     flags = "";
                     wifiSsid = null;
                     infoElementsStr = null;
@@ -1443,6 +1456,10 @@ public class WifiNative {
     public void setMiracastMode(int mode) {
         // Note: optional feature on the driver. It is ok for this to fail.
         doBooleanCommand("DRIVER MIRACAST " + mode);
+    }
+
+    public boolean fetchAnqp(String bssid, String subtypes) {
+        return doBooleanCommand("ANQP_GET " + bssid + " " + subtypes);
     }
 
     /*
