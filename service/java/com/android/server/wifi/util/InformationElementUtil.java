@@ -600,7 +600,7 @@ public class InformationElementUtil {
             } catch (BufferUnderflowException e) {
                 return;
             }
-            if (mLength <= MAX_TIM_LENGTH) {
+            if (mLength <= MAX_TIM_LENGTH && mDtimPeriod > 0) {
                 mValid = true;
             }
         }

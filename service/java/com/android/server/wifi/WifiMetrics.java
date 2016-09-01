@@ -130,6 +130,8 @@ public class WifiMetrics {
                         mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
                                 .authentication = WifiMetricsProto.RouterFingerPrint.AUTH_PERSONAL;
                     }
+                    mCurrentConnectionEvent.mRouterFingerPrint.mRouterFingerPrintProto
+                            .passpoint = config.isPasspoint();
                     // If there's a ScanResult candidate associated with this config already, get it and
                     // log (more accurate) metrics from it
                     ScanResult candidate = config.getNetworkSelectionStatus().getCandidate();
@@ -515,6 +517,18 @@ public class WifiMetrics {
         }
     }
 
+    void setNumHiddenNetworks(int num) {
+        synchronized (mLock) {
+            mWifiLogProto.numHiddenNetworks = num;
+        }
+    }
+
+    void setNumPasspointNetworks(int num) {
+        synchronized (mLock) {
+            mWifiLogProto.numPasspointNetworks = num;
+        }
+    }
+
     void setNumNetworksAddedByUser(int num) {
         synchronized (mLock) {
             mWifiLogProto.numNetworksAddedByUser = num;
@@ -834,6 +848,59 @@ public class WifiMetrics {
         }
     }
 
+    /**
+     * Counts all the different types of networks seen in a set of scan results
+     */
+    public void countScanResults(List<ScanDetail> scanDetails) {
+        if (scanDetails == null) {
+            return;
+        }
+        int totalResults = 0;
+        int openNetworks = 0;
+        int personalNetworks = 0;
+        int enterpriseNetworks = 0;
+        int hiddenNetworks = 0;
+        int hotspot2r1Networks = 0;
+        int hotspot2r2Networks = 0;
+        for (ScanDetail scanDetail : scanDetails) {
+            NetworkDetail networkDetail = scanDetail.getNetworkDetail();
+            ScanResult scanResult = scanDetail.getScanResult();
+            totalResults++;
+            if (networkDetail != null) {
+                if (networkDetail.isHiddenBeaconFrame()) {
+                    hiddenNetworks++;
+                }
+                if (networkDetail.getHSRelease() != null) {
+                    if (networkDetail.getHSRelease() == NetworkDetail.HSRelease.R1) {
+                        hotspot2r1Networks++;
+                    } else if (networkDetail.getHSRelease() == NetworkDetail.HSRelease.R2) {
+                        hotspot2r2Networks++;
+                    }
+                }
+            }
+            if (scanResult != null && scanResult.capabilities != null) {
+                if (scanResult.capabilities.contains("EAP")) {
+                    enterpriseNetworks++;
+                } else if (scanResult.capabilities.contains("PSK")
+                        || scanResult.capabilities.contains("WEP")) {
+                    personalNetworks++;
+                } else {
+                    openNetworks++;
+                }
+            }
+        }
+        synchronized (mLock) {
+            mWifiLogProto.numTotalScanResults += totalResults;
+            mWifiLogProto.numOpenNetworkScanResults += openNetworks;
+            mWifiLogProto.numPersonalNetworkScanResults += personalNetworks;
+            mWifiLogProto.numEnterpriseNetworkScanResults += enterpriseNetworks;
+            mWifiLogProto.numHiddenNetworkScanResults += hiddenNetworks;
+            mWifiLogProto.numHotspot2R1NetworkScanResults += hotspot2r1Networks;
+            mWifiLogProto.numHotspot2R2NetworkScanResults += hotspot2r2Networks;
+            mWifiLogProto.numScans++;
+        }
+    }
+
     public static final String PROTO_DUMP_ARG = "wifiMetricsProto";
     /**
      * Dump all WifiMetrics. Collects some metrics from ConfigStore, Settings and WifiManager
@@ -876,6 +943,9 @@ public class WifiMetrics {
                         + mWifiLogProto.numPersonalNetworks);
                 pw.println("mWifiLogProto.numEnterpriseNetworks="
                         + mWifiLogProto.numEnterpriseNetworks);
+                pw.println("mWifiLogProto.numHiddenNetworks=" + mWifiLogProto.numHiddenNetworks);
+                pw.println("mWifiLogProto.numPasspointNetworks="
+                        + mWifiLogProto.numPasspointNetworks);
                 pw.println("mWifiLogProto.isLocationEnabled=" + mWifiLogProto.isLocationEnabled);
                 pw.println("mWifiLogProto.isScanningAlwaysEnabled="
                         + mWifiLogProto.isScanningAlwaysEnabled);
@@ -975,6 +1045,21 @@ public class WifiMetrics {
                 } else {
                     pw.println("()");
                 }
+                pw.println("mWifiLogProto.numTotalScanResults="
+                        + mWifiLogProto.numTotalScanResults);
+                pw.println("mWifiLogProto.numOpenNetworkScanResults="
+                        + mWifiLogProto.numOpenNetworkScanResults);
+                pw.println("mWifiLogProto.numPersonalNetworkScanResults="
+                        + mWifiLogProto.numPersonalNetworkScanResults);
+                pw.println("mWifiLogProto.numEnterpriseNetworkScanResults="
+                        + mWifiLogProto.numEnterpriseNetworkScanResults);
+                pw.println("mWifiLogProto.numHiddenNetworkScanResults="
+                        + mWifiLogProto.numHiddenNetworkScanResults);
+                pw.println("mWifiLogProto.numHotspot2R1NetworkScanResults="
+                        + mWifiLogProto.numHotspot2R1NetworkScanResults);
+                pw.println("mWifiLogProto.numHotspot2R2NetworkScanResults="
+                        + mWifiLogProto.numHotspot2R2NetworkScanResults);
+                pw.println("mWifiLogProto.numScans=" + mWifiLogProto.numScans);
             }
         }
     }

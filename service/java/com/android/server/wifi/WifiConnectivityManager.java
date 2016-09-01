@@ -226,6 +226,7 @@ public class WifiConnectivityManager {
                 mStateMachine.isSupplicantTransientState());
         mWifiLastResortWatchdog.updateAvailableNetworks(
                 mQualifiedNetworkSelector.getFilteredScanDetails());
+        mWifiMetrics.countScanResults(scanDetails);
         if (candidate != null) {
             localLog(listenerName + ": QNS candidate-" + candidate.SSID);
             connectToNetwork(candidate);

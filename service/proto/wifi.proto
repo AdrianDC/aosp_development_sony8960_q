@@ -196,6 +196,36 @@ message WifiLog {
 
   // Counts the occurrences of each alert reason.
   repeated AlertReasonCount alert_reason_count = 47;
+
+  // Total number of saved hidden networks
+  optional int32 num_hidden_networks = 37;
+
+  // Total number of saved passpoint / hotspot 2.0 networks
+  optional int32 num_passpoint_networks = 38;
+
+  // Total number of scan results
+  optional int32 num_total_scan_results = 39;
+
+  // Total number of scan results for open networks
+  optional int32 num_open_network_scan_results = 40;
+
+  // Total number of scan results for personal networks
+  optional int32 num_personal_network_scan_results = 41;
+
+  // Total number of scan results for enterprise networks
+  optional int32 num_enterprise_network_scan_results = 42;
+
+  // Total number of scan results for hidden networks
+  optional int32 num_hidden_network_scan_results = 43;
+
+  // Total number of scan results for hotspot 2.0 r1 networks
+  optional int32 num_hotspot2_r1_network_scan_results = 44;
+
+  // Total number of scan results for hotspot 2.0 r2 networks
+  optional int32 num_hotspot2_r2_network_scan_results = 45;
+
+  // Total number of scans handled by framework (oneshot or otherwise)
+  optional int32 num_scans = 46;
 }
 
 // Information that gets logged for every WiFi connection.
@@ -267,7 +297,7 @@ message RouterFingerPrint {
   // Authentication scheme of the router.
   optional Auth authentication = 4;
 
-  // If the router is hidded.
+  // If the router is hidden.
   optional bool hidden = 5;
 
   // Channel information.
@@ -275,6 +305,9 @@ message RouterFingerPrint {
 
   // whether ipv6 is supported.
   optional bool supports_ipv6 = 7;
+
+  // If the router is a passpoint / hotspot 2.0 network
+  optional bool passpoint = 8;
 }
 
 message ConnectionEvent {

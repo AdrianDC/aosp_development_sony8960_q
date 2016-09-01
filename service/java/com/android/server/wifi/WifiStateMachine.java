@@ -8173,6 +8173,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         int numEnterpriseNetworks = 0;
         int numNetworksAddedByUser = 0;
         int numNetworksAddedByApps = 0;
+        int numHiddenNetworks = 0;
+        int numPasspoint = 0;
         for (WifiConfiguration config : mWifiConfigManager.getSavedNetworks()) {
             if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)) {
                 numOpenNetworks++;
@@ -8186,6 +8188,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             } else {
                 numNetworksAddedByApps++;
             }
+            if (config.hiddenSSID) {
+                numHiddenNetworks++;
+            }
+            if (config.isPasspoint()) {
+                numPasspoint++;
+            }
         }
         mWifiMetrics.setNumSavedNetworks(numSavedNetworks);
         mWifiMetrics.setNumOpenNetworks(numOpenNetworks);
@@ -8193,17 +8201,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiMetrics.setNumEnterpriseNetworks(numEnterpriseNetworks);
         mWifiMetrics.setNumNetworksAddedByUser(numNetworksAddedByUser);
         mWifiMetrics.setNumNetworksAddedByApps(numNetworksAddedByApps);
-
-        /* <TODO> decide how to access WifiServiecImpl.isLocationEnabled() or if to do it manually
-        mWifiMetrics.setIsLocationEnabled(Settings.Secure.getInt(
-                mContext.getContentResolver(),
-                Settings.Secure.LOCATION_MODE, Settings.Secure.LOCATION_MODE_OFF)
-                != Settings.Secure.LOCATION_MODE_OFF);
-                */
-
-        /* <TODO> decide how statemachine will access WifiSettingsStore
-        mWifiMetrics.setIsScanningAlwaysEnabled(mSettingsStore.isScanningAlwaysAvailable());
-         */
+        mWifiMetrics.setNumHiddenNetworks(numHiddenNetworks);
+        mWifiMetrics.setNumPasspointNetworks(numPasspoint);
     }
 
     private static String getLinkPropertiesSummary(LinkProperties lp) {
