@@ -76,11 +76,14 @@ public class WifiMetrics {
      * combination. Indexed by WifiLog.WifiState * (1 + screenOn)
      */
     private final SparseIntArray mWifiSystemStateEntries = new SparseIntArray();
+    /** Mapping of RSSI values to counts. */
+    private final SparseIntArray mRssiPollCounts = new SparseIntArray();
+    /** Mapping of alert reason to the respective alert count. */
+    private final SparseIntArray mWifiAlertReasonCounts = new SparseIntArray();
     /**
      * Records the elapsedRealtime (in seconds) that represents the beginning of data
      * capture for for this WifiMetricsProto
      */
-    private final SparseIntArray mRssiPollCounts = new SparseIntArray();
     private long mRecordStartTimeSec;
 
     class RouterFingerPrint {
@@ -806,6 +809,22 @@ public class WifiMetrics {
         }
     }
 
+    /**
+     * Increments the count of alerts by alert reason.
+     *
+     * @param reason The cause of the alert. The reason values are driver-specific.
+     */
+    public void incrementAlertReasonCount(int reason) {
+        if (reason > WifiLoggerHal.WIFI_ALERT_REASON_MAX
+                || reason < WifiLoggerHal.WIFI_ALERT_REASON_MIN) {
+            reason = WifiLoggerHal.WIFI_ALERT_REASON_RESERVED;
+        }
+        synchronized (mLock) {
+            int alertCount = mWifiAlertReasonCounts.get(reason);
+            mWifiAlertReasonCounts.put(reason, alertCount + 1);
+        }
+    }
+
     public static final String PROTO_DUMP_ARG = "wifiMetricsProto";
     /**
      * Dump all WifiMetrics. Collects some metrics from ConfigStore, Settings and WifiManager
@@ -930,6 +949,21 @@ public class WifiMetrics {
                     sb.append(mRssiPollCounts.get(i) + " ");
                 }
                 pw.println("  " + sb.toString());
+                pw.print("mWifiLogProto.alertReasonCounts=");
+                sb.setLength(0);
+                for (int i = WifiLoggerHal.WIFI_ALERT_REASON_MIN;
+                        i <= WifiLoggerHal.WIFI_ALERT_REASON_MAX; i++) {
+                    int count = mWifiAlertReasonCounts.get(i);
+                    if (count > 0) {
+                        sb.append("(" + i + "," + count + "),");
+                    }
+                }
+                if (sb.length() > 1) {
+                    sb.setLength(sb.length() - 1);  // strip trailing comma
+                    pw.println(sb.toString());
+                } else {
+                    pw.println("()");
+                }
             }
         }
     }
@@ -943,6 +977,7 @@ public class WifiMetrics {
     private void consolidateProto(boolean incremental) {
         List<WifiMetricsProto.ConnectionEvent> events = new ArrayList<>();
         List<WifiMetricsProto.RssiPollCount> rssis = new ArrayList<>();
+        List<WifiMetricsProto.AlertReasonCount> alertReasons = new ArrayList<>();
         synchronized (mLock) {
             for (ConnectionEvent event : mConnectionEventList) {
                 // If this is not incremental, dump full ConnectionEvent list
@@ -1000,6 +1035,18 @@ public class WifiMetrics {
                 rssis.add(keyVal);
             }
             mWifiLogProto.rssiPollRssiCount = rssis.toArray(mWifiLogProto.rssiPollRssiCount);
+
+            /**
+             * Convert the SparseIntArray of alert reasons and counts to the proto's repeated
+             * IntKeyVal array.
+             */
+            for (int i = 0; i < mWifiAlertReasonCounts.size(); i++) {
+                WifiMetricsProto.AlertReasonCount keyVal = new WifiMetricsProto.AlertReasonCount();
+                keyVal.reason = mWifiAlertReasonCounts.keyAt(i);
+                keyVal.count = mWifiAlertReasonCounts.valueAt(i);
+                alertReasons.add(keyVal);
+            }
+            mWifiLogProto.alertReasonCount = alertReasons.toArray(mWifiLogProto.alertReasonCount);
         }
     }
 
@@ -1016,6 +1063,7 @@ public class WifiMetrics {
             mWifiSystemStateEntries.clear();
             mRecordStartTimeSec = mClock.elapsedRealtime() / 1000;
             mRssiPollCounts.clear();
+            mWifiAlertReasonCounts.clear();
             mWifiLogProto.clear();
         }
     }

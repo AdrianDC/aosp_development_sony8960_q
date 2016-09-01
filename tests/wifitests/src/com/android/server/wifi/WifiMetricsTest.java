@@ -104,15 +104,32 @@ public class WifiMetricsTest {
         mDeserializedWifiMetrics = WifiMetricsProto.WifiLog.parseFrom(protoBytes);
     }
 
+    /** Verifies that dump() includes the expected header */
     @Test
-    public void dumpHumanReadable() throws Exception {
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        PrintWriter writer = new PrintWriter(stream);
-        String[] args = new String[0];
-        mWifiMetrics.dump(null, writer, args);
-        writer.flush();
-        assertTrue("stream.toString().contains(\"WifiMetrics\")",
-                stream.toString().contains("WifiMetrics"));
+    public void stateDumpIncludesHeader() throws Exception {
+        assertStringContains(getStateDump(), "WifiMetrics");
+    }
+
+    /** Verifies that dump() includes correct alert count when there are no alerts. */
+    @Test
+    public void stateDumpAlertCountIsCorrectWithNoAlerts() throws Exception {
+        assertStringContains(getStateDump(), "mWifiLogProto.alertReasonCounts=()");
+    }
+
+    /** Verifies that dump() includes correct alert count when there is one alert. */
+    @Test
+    public void stateDumpAlertCountIsCorrectWithOneAlert() throws Exception {
+        mWifiMetrics.incrementAlertReasonCount(1);
+        assertStringContains(getStateDump(), "mWifiLogProto.alertReasonCounts=(1,1)");
+    }
+
+    /** Verifies that dump() includes correct alert count when there are multiple alerts. */
+    @Test
+    public void stateDumpAlertCountIsCorrectWithMultipleAlerts() throws Exception {
+        mWifiMetrics.incrementAlertReasonCount(1);
+        mWifiMetrics.incrementAlertReasonCount(1);
+        mWifiMetrics.incrementAlertReasonCount(16);
+        assertStringContains(getStateDump(), "mWifiLogProto.alertReasonCounts=(1,2),(16,1)");
     }
 
     @Test
@@ -243,6 +260,14 @@ public class WifiMetricsTest {
                 mWifiMetrics.incrementRssiPollRssiCount(FIRST_RSSI_LEVEL + i);
             }
         }
+        // Test alert-reason clamping.
+        mWifiMetrics.incrementAlertReasonCount(WifiLoggerHal.WIFI_ALERT_REASON_MIN - 1);
+        mWifiMetrics.incrementAlertReasonCount(WifiLoggerHal.WIFI_ALERT_REASON_MAX + 1);
+        // Simple cases for alert reason.
+        mWifiMetrics.incrementAlertReasonCount(1);
+        mWifiMetrics.incrementAlertReasonCount(1);
+        mWifiMetrics.incrementAlertReasonCount(1);
+        mWifiMetrics.incrementAlertReasonCount(2);
     }
 
     /**
@@ -324,6 +349,10 @@ public class WifiMetricsTest {
             assertEquals(FIRST_RSSI_LEVEL + i, mDeserializedWifiMetrics.rssiPollRssiCount[i].rssi);
             assertEquals(i + 1, mDeserializedWifiMetrics.rssiPollRssiCount[i].count);
         }
+        assertEquals(2, mDeserializedWifiMetrics.alertReasonCount[0].count);  // Clamped reasons.
+        assertEquals(3, mDeserializedWifiMetrics.alertReasonCount[1].count);
+        assertEquals(1, mDeserializedWifiMetrics.alertReasonCount[2].count);
+        assertEquals(3, mDeserializedWifiMetrics.alertReasonCount.length);
     }
 
     /**
@@ -461,6 +490,8 @@ public class WifiMetricsTest {
         dumpProtoAndDeserialize();
         //Check there are only 3 connection events
         assertEquals(mDeserializedWifiMetrics.connectionEvent.length, 4);
+        assertEquals(mDeserializedWifiMetrics.rssiPollRssiCount.length, 0);
+        assertEquals(mDeserializedWifiMetrics.alertReasonCount.length, 0);
 
         // Create 2 ConnectionEvents
         mWifiMetrics.startConnectionEvent(null,  "BLUE",
@@ -479,4 +510,21 @@ public class WifiMetricsTest {
         //Check there are only 2 connection events
         assertEquals(mDeserializedWifiMetrics.connectionEvent.length, 2);
     }
+
+    private void assertStringContains(
+            String actualString, String expectedSubstring) {
+        assertTrue("Expected text not found in: " + actualString,
+                actualString.contains(expectedSubstring));
+    }
+
+    private String getStateDump() {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(stream);
+        String[] args = new String[0];
+        mWifiMetrics.dump(null, writer, args);
+        writer.flush();
+        return stream.toString();
+    }
 }
+
+

@@ -4189,7 +4189,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_FIRMWARE_ALERT:
                     if (mWifiLogger != null) {
                         byte[] buffer = (byte[])message.obj;
-                        mWifiLogger.captureAlertData(message.arg1, buffer);
+                        int alertReason = message.arg1;
+                        mWifiLogger.captureAlertData(alertReason, buffer);
+                        mWifiMetrics.incrementAlertReasonCount(alertReason);
                     }
                     break;
                 case CMD_GET_LINK_LAYER_STATS:
