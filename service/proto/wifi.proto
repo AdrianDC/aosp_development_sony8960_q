@@ -194,9 +194,6 @@ message WifiLog {
   // without new networks becoming available.
   optional int32 num_last_resort_watchdog_successes = 36;
 
-  // Counts the occurrences of each alert reason.
-  repeated AlertReasonCount alert_reason_count = 47;
-
   // Total number of saved hidden networks
   optional int32 num_hidden_networks = 37;
 
