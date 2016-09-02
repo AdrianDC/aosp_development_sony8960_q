@@ -80,13 +80,14 @@ public class ConfigurationMap {
     }
 
     /**
+     * TODO(b/31195095): Remove this and it's usage from unit tests.
      * Handles the switch to a different foreground user:
      * - Hides private network configurations belonging to the previous foreground user
      * - Reveals private network configurations belonging to the new foreground user
      *
      * @param userId the id of the new foreground user
      * @return a list of {@link WifiConfiguration}s that became hidden because of the user switch
-     * @deprecated Remove this once we migrate to {@link WifiConfigManagerNew}.
+     * @deprecated Remove this once we migrate to {@link WifiConfigManager}.
      */
     @Deprecated
     public List<WifiConfiguration> handleUserSwitch(int userId) {

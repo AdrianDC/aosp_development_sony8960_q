@@ -39,7 +39,7 @@ import java.io.IOException;
  * store. Uses keystore for certificate/key management operations.
  * NOTE: This class should only be used from WifiConfigManager and is not thread-safe!
  */
-public class WifiConfigStoreNew {
+public class WifiConfigStore {
     /**
      * Alarm tag to use for starting alarms for buffering file writes.
      */
@@ -48,7 +48,7 @@ public class WifiConfigStoreNew {
     /**
      * Log tag.
      */
-    private static final String TAG = "WifiConfigStoreNew";
+    private static final String TAG = "WifiConfigStore";
     /**
      * Config store file name for both shared & user specific stores.
      */
@@ -116,7 +116,7 @@ public class WifiConfigStoreNew {
      * @param userStore   StoreFile instance pointing to the user specific store file. This should
      *                    be retrieved using {@link #createUserFile(int)} method.
      */
-    public WifiConfigStoreNew(Context context, Looper looper, Clock clock,
+    public WifiConfigStore(Context context, Looper looper, Clock clock,
             StoreFile sharedStore, StoreFile userStore) {
 
         mAlarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
