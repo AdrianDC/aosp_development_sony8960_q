@@ -5796,7 +5796,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             fetchRssiLinkSpeedAndFrequencyNative();
                             // Send the update score to network agent.
                             mWifiScoreReport.calculateAndReportScore(
-                                    mWifiInfo, mNetworkAgent, mAggressiveHandover);
+                                    mWifiInfo, mNetworkAgent, mAggressiveHandover,
+                                    mWifiMetrics);
                         }
                         sendMessageDelayed(obtainMessage(CMD_RSSI_POLL,
                                 mRssiPollToken, 0), POLL_RSSI_INTERVAL_MSECS);
