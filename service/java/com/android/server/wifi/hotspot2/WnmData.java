@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.hotspot2;
+
+import com.android.server.wifi.WifiMonitor;
 
 import java.io.IOException;
 
