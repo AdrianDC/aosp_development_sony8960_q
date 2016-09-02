@@ -897,7 +897,7 @@ public class WifiConfigManager {
         // Update the keys for enterprise networks.
         if (config.enterpriseConfig != null
                 && config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
-            if (!(mWifiKeyStore.updateNetworkKeys(config, existingInternalConfig))) {
+            if (!(mWifiKeyStore.updateNetworkKeys(newInternalConfig, existingInternalConfig))) {
                 return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
             }
         }
