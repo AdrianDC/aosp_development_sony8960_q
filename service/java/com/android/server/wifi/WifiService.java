@@ -48,4 +48,14 @@ public final class WifiService extends SystemService {
     public void onSwitchUser(int userId) {
         mImpl.handleUserSwitch(userId);
     }
+
+    @Override
+    public void onUnlockUser(int userId) {
+        mImpl.handleUserUnlock(userId);
+    }
+
+    @Override
+    public void onStopUser(int userId) {
+        mImpl.handleUserStop(userId);
+    }
 }
