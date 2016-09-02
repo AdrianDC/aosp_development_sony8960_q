@@ -1237,9 +1237,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public void addToBlacklist(String bssid) {
-        enforceChangePermission();
-
-        mWifiStateMachine.addToBlacklist(bssid);
+        // TODO(b/29449615)
     }
 
     /**
@@ -1248,9 +1246,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public void clearBlacklist() {
-        enforceChangePermission();
-
-        mWifiStateMachine.clearBlacklist();
+        // TODO(b/29449615)
     }
 
     /**
