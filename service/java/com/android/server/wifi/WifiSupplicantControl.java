@@ -31,7 +31,6 @@ import android.util.Log;
 import android.util.SparseArray;
 
 import com.android.server.wifi.hotspot2.Utils;
-import com.android.server.wifi.util.TelephonyUtil;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -45,7 +44,6 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +70,12 @@ public class WifiSupplicantControl {
     private final WpaConfigFileObserver mFileObserver;
     private final TelephonyManager mTelephonyManager;
     private final WifiNative mWifiNative;
+
+    // TODO (b/31080843): This will need to be a map when we have multiple networks in supplicant.
+    // Supplicant network ID of the only configured network in wpa_supplicant.
+    private int mSupplicantNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
+    // Corresponding framework network ID of the only configured network in wpa_supplicant.
+    private int mFrameworkNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
 
     private boolean mVerboseLoggingEnabled = false;
 
@@ -375,7 +379,7 @@ public class WifiSupplicantControl {
                     // Force an update of this legacy network configuration by writing
                     // the configKey for this network into wpa_supplicant.conf.
                     configKey = config.configKey();
-                    saveNetworkMetadata(config);
+                    saveNetworkMetadata(config, config.networkId);
                 }
                 final WifiConfiguration duplicateConfig = configs.put(configKey, config);
                 if (duplicateConfig != null) {
@@ -399,16 +403,17 @@ public class WifiSupplicantControl {
      * Update the network metadata info stored in wpa_supplicant network extra field.
      *
      * @param config Config corresponding to the network.
+     * @param netId  Net Id of the network.
      * @return true if successful, false otherwise.
      */
-    public boolean saveNetworkMetadata(WifiConfiguration config) {
+    public boolean saveNetworkMetadata(WifiConfiguration config, int netId) {
         final Map<String, String> metadata = new HashMap<String, String>();
         if (config.isPasspoint()) {
             metadata.put(ID_STRING_KEY_FQDN, config.FQDN);
         }
         metadata.put(ID_STRING_KEY_CONFIG_KEY, config.configKey());
         metadata.put(ID_STRING_KEY_CREATOR_UID, Integer.toString(config.creatorUid));
-        if (!mWifiNative.setNetworkExtra(config.networkId, ID_STRING_VAR_NAME, metadata)) {
+        if (!mWifiNative.setNetworkExtra(netId, ID_STRING_VAR_NAME, metadata)) {
             loge("failed to set id_str: " + metadata.toString());
             return false;
         }
@@ -422,7 +427,7 @@ public class WifiSupplicantControl {
      * @param netId  Net Id of the network.
      * @return true if successful, false otherwise.
      */
-    private boolean saveNetwork(WifiConfiguration config, int netId) {
+    private boolean saveNetworkVariables(WifiConfiguration config, int netId) {
         if (config == null) {
             return false;
         }
@@ -434,7 +439,7 @@ public class WifiSupplicantControl {
             loge("failed to set SSID: " + config.SSID);
             return false;
         }
-        if (!saveNetworkMetadata(config)) {
+        if (!saveNetworkMetadata(config, netId)) {
             return false;
         }
         //set selected BSSID to supplicant
@@ -560,80 +565,129 @@ public class WifiSupplicantControl {
             loge(config.SSID + ": failed to set updateIdentifier: " + config.updateIdentifier);
             return false;
         }
+        if (config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
+            return config.enterpriseConfig.saveToSupplicant(
+                    new WifiSupplicantControl.SupplicantSaver(netId, config.SSID));
+        }
         return true;
     }
 
     /**
-     * Save an enterprise network configuration to wpa_supplicant.
+     * Add a network configuration to wpa_supplicant.
      *
      * @param config Config corresponding to the network.
-     * @return true if successful, false otherwise.
+     * @return network ID of the added network in wpa_supplicant.
      */
-    public boolean saveEnterpriseConfiguration(WifiConfiguration config) {
-        if (config == null || config.enterpriseConfig == null) {
-            return false;
-        }
-        if (mVerboseLoggingEnabled) localLog("saveEnterpriseConfiguration: " + config.networkId);
-        return config.enterpriseConfig.saveToSupplicant(
-                new WifiSupplicantControl.SupplicantSaver(config.networkId, config.SSID));
-    }
-
-    /**
-     * Add or update a network configuration to wpa_supplicant.
-     *
-     * @param config         Config corresponding to the network.
-     * @return true if successful, false otherwise.
-     */
-    public boolean addOrUpdateNetwork(WifiConfiguration config) {
+    private int addNetwork(WifiConfiguration config) {
         if (config == null) {
-            return false;
+            return WifiConfiguration.INVALID_NETWORK_ID;
         }
         if (mVerboseLoggingEnabled) localLog("addOrUpdateNetwork: " + config.networkId);
-        int netId = config.networkId;
-        boolean newNetwork = false;
-        /*
-         * If the supplied networkId is INVALID_NETWORK_ID, we create a new empty
-         * network configuration. Otherwise, the networkId should
-         * refer to an existing configuration.
-         */
-        if (netId == WifiConfiguration.INVALID_NETWORK_ID) {
-            newNetwork = true;
-            netId = mWifiNative.addNetwork();
-            if (netId < 0) {
-                loge("Failed to add a network!");
-                return false;
-            } else {
-                logi("addOrUpdateNetwork created netId=" + netId);
-            }
-            // Save the new network ID to the config
-            config.networkId = netId;
+        int netId = mWifiNative.addNetwork();
+        if (netId < 0) {
+            loge("Failed to add a network!");
+            return WifiConfiguration.INVALID_NETWORK_ID;
+        } else {
+            logi("addOrUpdateNetwork created netId=" + netId);
         }
-        if (!saveNetwork(config, netId)) {
-            if (newNetwork) {
-                mWifiNative.removeNetwork(netId);
-                loge("Failed to set a network variable, removed network: " + netId);
-            }
+        if (!saveNetworkVariables(config, netId)) {
+            mWifiNative.removeNetwork(netId);
+            loge("Failed to set a network variable, removed network: " + netId);
+            return WifiConfiguration.INVALID_NETWORK_ID;
+        }
+        return netId;
+    }
+
+    /**
+     * Add the provided network configuration to wpa_supplicant and initiate connection to it.
+     * This method does the following:
+     * 1. Triggers disconnect command to wpa_supplicant (if |shouldDisconnect| is true).
+     * 2. Remove any existing network in wpa_supplicant.
+     * 3. Add a new network to wpa_supplicant.
+     * 4. Save the provided configuration to wpa_supplicant.
+     * 5. Select the new network in wpa_supplicant.
+     * 6. Triggers reconnect command to wpa_supplicant.
+     *
+     * @param configuration WifiConfiguration parameters for the provided network.
+     * @param shouldDisconnect whether to trigger a disconnection or not.
+     * @return {@code true} if it succeeds, {@code false} otherwise
+     */
+    public boolean connectToNetwork(WifiConfiguration configuration, boolean shouldDisconnect) {
+        mFrameworkNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
+        mSupplicantNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
+        logd("connectToNetwork " + configuration.configKey() +
+                " (shouldDisconnect " + shouldDisconnect + ")");
+        if (shouldDisconnect && !mWifiNative.disconnect()) {
+            loge("Failed to trigger disconnect");
+            return false;
+        }
+        if (!mWifiNative.removeAllNetworks()) {
+            loge("Failed to remove existing networks");
+            return false;
+        }
+        mSupplicantNetworkId = addNetwork(configuration);
+        if (mSupplicantNetworkId == WifiConfiguration.INVALID_NETWORK_ID) {
+            loge("Failed to add/save network configuration: " + configuration.configKey());
+            return false;
+        }
+        if (!mWifiNative.selectNetwork(mSupplicantNetworkId)) {
+            loge("Failed to select network configuration: " + configuration.configKey());
+            return false;
+        }
+        if (!mWifiNative.reconnect()) {
+            loge("Failed to trigger reconnect");
+            return false;
+        }
+        mFrameworkNetworkId = configuration.networkId;
+        return true;
+    }
+
+    /**
+     * Initiates roaming to the already configured network in wpa_supplicant. If the network
+     * configuration provided does not match the already configured network, then this triggers
+     * a new connection attempt (instead of roam).
+     * 1. First check if we're attempting to connect to the same network as we currently have
+     * configured.
+     * 2. Set the new bssid for the network in wpa_supplicant.
+     * 3. Triggers reassociate command to wpa_supplicant.
+     *
+     * @param configuration WifiConfiguration parameters for the provided network.
+     * @return {@code true} if it succeeds, {@code false} otherwise
+     */
+    public boolean roamToNetwork(WifiConfiguration configuration) {
+        if (mFrameworkNetworkId != configuration.networkId) {
+            Log.w(TAG, "Cant roam to a different network, initiate new connection. " +
+                    "Current network ID: " + mFrameworkNetworkId);
+            return connectToNetwork(configuration, false);
+        }
+        String bssid = configuration.getNetworkSelectionStatus().getNetworkSelectionBSSID();
+        logd("roamToNetwork" + configuration.configKey() + " (bssid " + bssid + ")");
+        if (!setConfiguredNetworkBSSID(bssid)) {
+            loge("Failed to set new bssid on network: " + configuration.configKey());
+            return false;
+        }
+        if (!mWifiNative.reassociate()) {
+            loge("Failed to trigger reassociate");
             return false;
         }
         return true;
     }
 
     /**
-     * Remove the specified network and save config
+     * Get the framework network ID corresponding to the provided supplicant network ID for the
+     * network configured in wpa_supplicant.
      *
-     * @param config Config corresponding to the network.
-     * @return {@code true} if it succeeds, {@code false} otherwise
+     * @param supplicantNetworkId network ID in wpa_supplicant for the network.
+     * @return Corresponding framework network ID if found, -1 if network not found.
      */
-    public boolean removeNetwork(WifiConfiguration config) {
-        if (config == null) {
-            return false;
+    public int getFrameworkNetworkId(int supplicantNetworkId) {
+        if (mSupplicantNetworkId == supplicantNetworkId) {
+            return mFrameworkNetworkId;
+        } else {
+            Log.e(TAG, "Unknown wpa_supplicant network ID " + supplicantNetworkId
+                    + " Current wpa_supplicant network ID " + mSupplicantNetworkId);
+            return WifiConfiguration.INVALID_NETWORK_ID;
         }
-        if (mVerboseLoggingEnabled) localLog("removeNetwork: " + config.networkId);
-        if (!mWifiNative.removeNetwork(config.networkId)) {
-            loge("Remove network in wpa_supplicant failed on " + config.networkId);
-            return false;
-        }
-        return true;
     }
 
     /**
@@ -651,149 +705,18 @@ public class WifiSupplicantControl {
     }
 
     /**
-     * Select a network in wpa_supplicant.
+     * Set the BSSID for the currently configured network in wpa_supplicant.
      *
-     * @param config Config corresponding to the network.
      * @return true if successful, false otherwise.
      */
-    public boolean selectNetwork(WifiConfiguration config) {
-        if (config == null) {
-            return false;
-        }
-        if (mVerboseLoggingEnabled) localLog("selectNetwork: " + config.networkId);
-        if (!mWifiNative.selectNetwork(config.networkId)) {
-            loge("Select network in wpa_supplicant failed on " + config.networkId);
+    public boolean setConfiguredNetworkBSSID(String bssid) {
+        if (mVerboseLoggingEnabled) localLog("setConfiguredNetworkBSSID: " + mSupplicantNetworkId);
+        if (!mWifiNative.setNetworkVariable(
+                mSupplicantNetworkId, WifiConfiguration.bssidVarName, bssid)) {
+            loge("Set BSSID of network in wpa_supplicant failed on " + mSupplicantNetworkId);
             return false;
         }
         return true;
-    }
-
-    /**
-     * Disable a network in wpa_supplicant.
-     *
-     * @param config Config corresponding to the network.
-     * @return true if successful, false otherwise.
-     */
-    boolean disableNetwork(WifiConfiguration config) {
-        if (config == null) {
-            return false;
-        }
-        if (mVerboseLoggingEnabled) localLog("disableNetwork: " + config.networkId);
-        if (!mWifiNative.disableNetwork(config.networkId)) {
-            loge("Disable network in wpa_supplicant failed on " + config.networkId);
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Set priority for a network in wpa_supplicant.
-     *
-     * @param config Config corresponding to the network.
-     * @return true if successful, false otherwise.
-     */
-    public boolean setNetworkPriority(WifiConfiguration config, int priority) {
-        if (config == null) {
-            return false;
-        }
-        if (mVerboseLoggingEnabled) localLog("setNetworkPriority: " + config.networkId);
-        if (!mWifiNative.setNetworkVariable(config.networkId,
-                WifiConfiguration.priorityVarName, Integer.toString(priority))) {
-            loge("Set priority of network in wpa_supplicant failed on " + config.networkId);
-            return false;
-        }
-        config.priority = priority;
-        return true;
-    }
-
-    /**
-     * Set SSID for a network in wpa_supplicant.
-     *
-     * @param config Config corresponding to the network.
-     * @return true if successful, false otherwise.
-     */
-    public boolean setNetworkSSID(WifiConfiguration config, String ssid) {
-        if (config == null) {
-            return false;
-        }
-        if (mVerboseLoggingEnabled) localLog("setNetworkSSID: " + config.networkId);
-        if (!mWifiNative.setNetworkVariable(config.networkId, WifiConfiguration.ssidVarName,
-                encodeSSID(ssid))) {
-            loge("Set SSID of network in wpa_supplicant failed on " + config.networkId);
-            return false;
-        }
-        config.SSID = ssid;
-        return true;
-    }
-
-    /**
-     * Set BSSID for a network in wpa_supplicant from network selection.
-     *
-     * @param config Config corresponding to the network.
-     * @param bssid  BSSID to be set.
-     * @return true if successful, false otherwise.
-     */
-    public boolean setNetworkBSSID(WifiConfiguration config, String bssid) {
-        // Sanity check the config is valid
-        if (config == null
-                || (config.networkId == WifiConfiguration.INVALID_NETWORK_ID
-                && config.SSID == null)) {
-            return false;
-        }
-        if (mVerboseLoggingEnabled) localLog("setNetworkBSSID: " + config.networkId);
-        if (!mWifiNative.setNetworkVariable(config.networkId, WifiConfiguration.bssidVarName,
-                bssid)) {
-            loge("Set BSSID of network in wpa_supplicant failed on " + config.networkId);
-            return false;
-        }
-        config.getNetworkSelectionStatus().setNetworkSelectionBSSID(bssid);
-        return true;
-    }
-
-    /**
-     * Get BSSID for a network in wpa_supplicant.
-     *
-     * @param config Config corresponding to the network.
-     * @return BSSID for the network, if it exists, null otherwise.
-     */
-    public String getNetworkBSSID(WifiConfiguration config) {
-      // Sanity check the config is valid
-        if (config == null
-                || (config.networkId == WifiConfiguration.INVALID_NETWORK_ID
-                && config.SSID == null)) {
-            return null;
-        }
-        if (mVerboseLoggingEnabled) localLog("getNetworkBSSID: " + config.networkId);
-        String bssid =
-                mWifiNative.getNetworkVariable(config.networkId, WifiConfiguration.bssidVarName);
-        return (TextUtils.isEmpty(bssid) ? null : bssid);
-    }
-
-    /**
-     * Enable/Disable HS20 parameter in wpa_supplicant.
-     *
-     * @param enable Enable/Disable the parameter.
-     */
-    public void enableHS20(boolean enable) {
-        mWifiNative.setHs20(enable);
-    }
-
-    /**
-     * Disables all the networks in the provided list in wpa_supplicant.
-     *
-     * @param configs Collection of configs which needs to be enabled.
-     * @return true if successful, false otherwise.
-     */
-    public boolean disableAllNetworks(Collection<WifiConfiguration> configs) {
-        if (mVerboseLoggingEnabled) localLog("disableAllNetworks");
-        boolean networkDisabled = false;
-        for (WifiConfiguration enabled : configs) {
-            if (disableNetwork(enabled)) {
-                networkDisabled = true;
-            }
-        }
-        saveConfig();
-        return networkDisabled;
     }
 
     /**
@@ -889,61 +812,6 @@ public class WifiSupplicantControl {
             }
         }
         return result;
-    }
-
-    /**
-     * Resets all sim networks from the provided network list.
-     *
-     * @param configs List of all the networks.
-     */
-    public void resetSimNetworks(Collection<WifiConfiguration> configs) {
-        if (mVerboseLoggingEnabled) localLog("resetSimNetworks");
-        for (WifiConfiguration config : configs) {
-            if (TelephonyUtil.isSimConfig(config)) {
-                String currentIdentity = TelephonyUtil.getSimIdentity(mTelephonyManager,
-                        config.enterpriseConfig.getEapMethod());
-                String supplicantIdentity =
-                        mWifiNative.getNetworkVariable(config.networkId, "identity");
-                if(supplicantIdentity != null) {
-                    supplicantIdentity = removeDoubleQuotes(supplicantIdentity);
-                }
-                if (currentIdentity == null || !currentIdentity.equals(supplicantIdentity)) {
-                    // Identity differs so update the identity
-                    mWifiNative.setNetworkVariable(config.networkId,
-                            WifiEnterpriseConfig.IDENTITY_KEY, WifiEnterpriseConfig.EMPTY_VALUE);
-                    // This configuration may have cached Pseudonym IDs; lets remove them
-                    mWifiNative.setNetworkVariable(config.networkId,
-                            WifiEnterpriseConfig.ANON_IDENTITY_KEY,
-                            WifiEnterpriseConfig.EMPTY_VALUE);
-                }
-                // Update the loaded config
-                config.enterpriseConfig.setIdentity(currentIdentity);
-                config.enterpriseConfig.setAnonymousIdentity("");
-            }
-        }
-    }
-
-    /**
-     * Clear BSSID blacklist in wpa_supplicant & HAL.
-     */
-    public void clearBssidBlacklist() {
-        if (mVerboseLoggingEnabled) localLog("clearBlacklist");
-        mWifiNative.clearBlacklist();
-        mWifiNative.setBssidBlacklist(null);
-    }
-
-    /**
-     * Add a BSSID to the blacklist.
-     *
-     * @param bssid     to be added.
-     * @param bssidList entire BSSID list.
-     */
-    public void blackListBssid(String bssid, String[] bssidList) {
-        if (mVerboseLoggingEnabled) localLog("blackListBssid: " + bssid);
-        // Blacklist at wpa_supplicant
-        mWifiNative.addToBlacklist(bssid);
-        // Blacklist at firmware
-        mWifiNative.setBssidBlacklist(bssidList);
     }
 
     /**
