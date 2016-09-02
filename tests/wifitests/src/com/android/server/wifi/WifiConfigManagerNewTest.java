@@ -19,9 +19,11 @@ package com.android.server.wifi;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
+import android.app.Application;
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.net.IpConfiguration;
@@ -34,6 +36,7 @@ import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.telephony.TelephonyManager;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.text.TextUtils;
 
@@ -78,6 +81,7 @@ public class WifiConfigManagerNewTest {
     @Mock private FrameworkFacade mFrameworkFacade;
     @Mock private Clock mClock;
     @Mock private UserManager mUserManager;
+    @Mock private TelephonyManager mTelephonyManager;
     @Mock private WifiKeyStore mWifiKeyStore;
     @Mock private WifiConfigStoreNew mWifiConfigStore;
     @Mock private WifiConfigStoreLegacy mWifiConfigStoreLegacy;
@@ -1700,10 +1704,6 @@ public class WifiConfigManagerNewTest {
         mWifiConfigManager.handleUserSwitch(user2);
         // Ensure that the read was invoked.
         mContextConfigStoreMockOrder.verify(mWifiConfigStore).read();
-
-        // Unlock the user2 and ensure that we don't read the data now.
-        mWifiConfigManager.handleUserUnlock(user2);
-        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never()).read();
     }
 
     /**
@@ -1881,17 +1881,96 @@ public class WifiConfigManagerNewTest {
         assertTrue(mWifiConfigManager.enableNetwork(
                 result.getNetworkId(), true, TEST_CREATOR_UID));
         assertEquals(result.getNetworkId(), mWifiConfigManager.getLastSelectedNetwork());
+        assertEquals(openNetwork.configKey(), mWifiConfigManager.getLastSelectedNetworkConfigKey());
 
         assertTrue(mWifiConfigManager.removeNetwork(result.getNetworkId(), TEST_CREATOR_UID));
         assertEquals(
                 WifiConfiguration.INVALID_NETWORK_ID, mWifiConfigManager.getLastSelectedNetwork());
     }
 
+    /**
+     * Verifies that all the networks for the provided app is removed when
+     * {@link WifiConfigManagerNew#removeNetworksForApp(ApplicationInfo)} is invoked.
+     */
+    @Test
+    public void testRemoveNetworksForApp() throws Exception {
+        verifyAddNetworkToWifiConfigManager(WifiConfigurationTestUtil.createOpenNetwork());
+        verifyAddNetworkToWifiConfigManager(WifiConfigurationTestUtil.createPskNetwork());
+        verifyAddNetworkToWifiConfigManager(WifiConfigurationTestUtil.createWepNetwork());
+
+        assertFalse(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+
+        ApplicationInfo app = new ApplicationInfo();
+        app.uid = TEST_CREATOR_UID;
+        app.packageName = TEST_CREATOR_NAME;
+        assertTrue(mWifiConfigManager.removeNetworksForApp(app));
+
+        // Ensure all the networks are removed now.
+        assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+    }
+
+    /**
+     * Verifies that all the networks for the provided user is removed when
+     * {@link WifiConfigManagerNew#removeNetworksForUser(int)} is invoked.
+     */
+    @Test
+    public void testRemoveNetworksForUser() throws Exception {
+        verifyAddNetworkToWifiConfigManager(WifiConfigurationTestUtil.createOpenNetwork());
+        verifyAddNetworkToWifiConfigManager(WifiConfigurationTestUtil.createPskNetwork());
+        verifyAddNetworkToWifiConfigManager(WifiConfigurationTestUtil.createWepNetwork());
+
+        assertFalse(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+
+        assertTrue(mWifiConfigManager.removeNetworksForUser(TEST_DEFAULT_USER));
+
+        // Ensure all the networks are removed now.
+        assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+    }
+
+    /**
+     * Verifies that the connect choice is removed from all networks when
+     * {@link WifiConfigManagerNew#removeNetwork(int, int)} is invoked.
+     */
+    @Test
+    public void testRemoveNetworkRemovesConnectChoice() throws Exception {
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createOpenNetwork();
+        WifiConfiguration network2 = WifiConfigurationTestUtil.createPskNetwork();
+        WifiConfiguration network3 = WifiConfigurationTestUtil.createPskNetwork();
+        verifyAddNetworkToWifiConfigManager(network1);
+        verifyAddNetworkToWifiConfigManager(network2);
+        verifyAddNetworkToWifiConfigManager(network3);
+
+        // Set connect choice of network 2 over network 1.
+        assertTrue(
+                mWifiConfigManager.setNetworkConnectChoice(
+                        network1.networkId, network2.configKey(), 78L));
+
+        WifiConfiguration retrievedNetwork =
+                mWifiConfigManager.getConfiguredNetwork(network1.networkId);
+        assertEquals(
+                network2.configKey(),
+                retrievedNetwork.getNetworkSelectionStatus().getConnectChoice());
+
+        // Remove network 3 and ensure that the connect choice on network 1 is not removed.
+        assertTrue(mWifiConfigManager.removeNetwork(network3.networkId, TEST_CREATOR_UID));
+        retrievedNetwork = mWifiConfigManager.getConfiguredNetwork(network1.networkId);
+        assertEquals(
+                network2.configKey(),
+                retrievedNetwork.getNetworkSelectionStatus().getConnectChoice());
+
+        // Now remove network 2 and ensure that the connect choice on network 1 is removed..
+        assertTrue(mWifiConfigManager.removeNetwork(network2.networkId, TEST_CREATOR_UID));
+        retrievedNetwork = mWifiConfigManager.getConfiguredNetwork(network1.networkId);
+        assertNotEquals(
+                network2.configKey(),
+                retrievedNetwork.getNetworkSelectionStatus().getConnectChoice());
+    }
+
     private void createWifiConfigManager() {
         mWifiConfigManager =
                 new WifiConfigManagerNew(
-                        mContext, mFrameworkFacade, mClock, mUserManager, mWifiKeyStore,
-                        mWifiConfigStore, mWifiConfigStoreLegacy);
+                        mContext, mFrameworkFacade, mClock, mUserManager, mTelephonyManager,
+                        mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy);
         mWifiConfigManager.enableVerboseLogging(1);
     }
 
@@ -2372,6 +2451,9 @@ public class WifiConfigManagerNewTest {
 
         WifiConfiguration retrievedNetwork =
                 mWifiConfigManager.getSavedNetworkForScanDetailAndCache(scanDetail);
+        // Retrieve the network with password data for comparison.
+        retrievedNetwork =
+                mWifiConfigManager.getConfiguredNetworkWithPassword(retrievedNetwork.networkId);
 
         WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
                 network, retrievedNetwork);
