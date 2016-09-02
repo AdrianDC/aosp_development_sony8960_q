@@ -907,15 +907,6 @@ public class WifiMetrics {
     }
 
     /**
-     * Increment count of Watchdog successes.
-     */
-    public void incrementNumLastResortWatchdogSuccesses() {
-        synchronized (mLock) {
-            mWifiLogProto.numLastResortWatchdogSuccesses++;
-        }
-    }
-
-    /**
      * Increments occurence of a particular wifi score calculated
      * in WifiScoreReport by current connected network. Scores are bounded
      * within  [MIN_WIFI_SCORE, MAX_WIFI_SCORE] to limit size of SparseArray
