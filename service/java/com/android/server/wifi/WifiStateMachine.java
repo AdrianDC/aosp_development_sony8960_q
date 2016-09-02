@@ -577,12 +577,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     static final int CMD_REMOVE_NETWORK                                 = BASE + 53;
     /* Enable a network. The device will attempt a connection to the given network. */
     static final int CMD_ENABLE_NETWORK                                 = BASE + 54;
-    /* Enable all networks */
-    static final int CMD_ENABLE_ALL_NETWORKS                            = BASE + 55;
-    /* Blacklist network. De-prioritizes the given BSSID for connection. */
-    static final int CMD_BLACKLIST_NETWORK                              = BASE + 56;
-    /* Clear the blacklist network list */
-    static final int CMD_CLEAR_BLACKLIST                                = BASE + 57;
     /* Save configuration */
     static final int CMD_SAVE_CONFIG                                    = BASE + 58;
     /* Get configured networks */
@@ -720,8 +714,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     static final int CMD_AUTO_ROAM                                      = BASE + 145;
 
-    static final int CMD_AUTO_SAVE_NETWORK                              = BASE + 146;
-
     static final int CMD_ASSOCIATED_BSSID                               = BASE + 147;
 
     static final int CMD_NETWORK_STATUS                                 = BASE + 148;
@@ -823,14 +815,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * from the default config if the setting is not set
      */
     private long mSupplicantScanIntervalMs;
-
-    /**
-     * Minimum time interval between enabling all networks.
-     * A device can end up repeatedly connecting to a bad network on screen on/off toggle
-     * due to enabling every time. We add a threshold to avoid this.
-     */
-    private static final int MIN_INTERVAL_ENABLE_ALL_NETWORKS_MS = 10 * 60 * 1000; /* 10 minutes */
-    private long mLastEnableAllNetworksTime;
 
     int mRunningBeaconCount = 0;
 
@@ -1974,29 +1958,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return mWifiNative.getNfcWpsConfigurationToken(netId);
     }
 
-    /**
-     * Blacklist a BSSID. This will avoid the AP if there are
-     * alternate APs to connect
-     *
-     * @param bssid BSSID of the network
-     */
-    public void addToBlacklist(String bssid) {
-        sendMessage(CMD_BLACKLIST_NETWORK, bssid);
-    }
-
-    /**
-     * Clear the blacklist list
-     */
-    public void clearBlacklist() {
-        sendMessage(CMD_CLEAR_BLACKLIST);
-    }
-
     public void enableRssiPolling(boolean enabled) {
         sendMessage(CMD_ENABLE_RSSI_POLL, enabled ? 1 : 0, 0);
-    }
-
-    public void enableAllNetworks() {
-        sendMessage(CMD_ENABLE_ALL_NETWORKS);
     }
 
     /**
@@ -2312,7 +2275,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 }
                 break;
             case WifiManager.SAVE_NETWORK:
-            case WifiStateMachine.CMD_AUTO_SAVE_NETWORK:
                 sb.append(" ");
                 sb.append(Integer.toString(msg.arg1));
                 sb.append(" ");
@@ -3883,12 +3845,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                 case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
                 case WifiMonitor.WPS_OVERLAP_EVENT:
-                case CMD_BLACKLIST_NETWORK:
-                case CMD_CLEAR_BLACKLIST:
                 case CMD_SET_OPERATIONAL_MODE:
                 case CMD_SET_FREQUENCY_BAND:
                 case CMD_RSSI_POLL:
-                case CMD_ENABLE_ALL_NETWORKS:
                 case DhcpClient.CMD_PRE_DHCP_ACTION:
                 case DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE:
                 case DhcpClient.CMD_POST_DHCP_ACTION:
@@ -3900,7 +3859,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_TARGET_BSSID:
                 case CMD_AUTO_CONNECT:
                 case CMD_AUTO_ROAM:
-                case CMD_AUTO_SAVE_NETWORK:
                 case CMD_ASSOCIATED_BSSID:
                 case CMD_UNWANTED_NETWORK:
                 case CMD_DISCONNECTING_WATCHDOG_TIMER:
@@ -5239,13 +5197,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
                     replyToMessage(message, message.what, ok ? SUCCESS : FAILURE);
                     break;
-                case CMD_ENABLE_ALL_NETWORKS:
-                    long time = android.os.SystemClock.elapsedRealtime();
-                    if (time - mLastEnableAllNetworksTime > MIN_INTERVAL_ENABLE_ALL_NETWORKS_MS) {
-                        mWifiConfigManager.enableAllNetworks();
-                        mLastEnableAllNetworksTime = time;
-                    }
-                    break;
                 case WifiManager.DISABLE_NETWORK:
                     if (mWifiConfigManager.updateNetworkSelectionStatus(message.arg1,
                             WifiConfiguration.NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER)) {
@@ -5264,12 +5215,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             sendMessage(CMD_DISCONNECT);
                         }
                     }
-                    break;
-                case CMD_BLACKLIST_NETWORK:
-                    mWifiConfigManager.blackListBssid((String) message.obj);
-                    break;
-                case CMD_CLEAR_BLACKLIST:
-                    mWifiConfigManager.clearBssidBlacklist();
                     break;
                 case CMD_SAVE_CONFIG:
                     ok = mWifiConfigManager.saveConfig();
@@ -5654,8 +5599,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case WifiManager.SAVE_NETWORK:
                     mWifiConnectionStatistics.numWifiManagerJoinAttempt++;
-                    // Fall thru
-                case WifiStateMachine.CMD_AUTO_SAVE_NETWORK:
                     // Only the current foreground user can modify networks.
                     if (!mWifiConfigManager.isCurrentUserProfile(
                             UserHandle.getUserId(message.sendingUid))) {
@@ -6468,7 +6411,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
                 case WifiManager.SAVE_NETWORK:
-                case WifiStateMachine.CMD_AUTO_SAVE_NETWORK:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
                     deferMessage(message);
                     break;
@@ -7271,7 +7213,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_ENABLE_NETWORK:
                 case CMD_RECONNECT:
                 case CMD_REASSOCIATE:
-                case CMD_ENABLE_ALL_NETWORKS:
                     deferMessage(message);
                     break;
                 case CMD_AUTO_CONNECT:
