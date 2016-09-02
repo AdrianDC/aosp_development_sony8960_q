@@ -361,6 +361,8 @@ public class WifiConfigurationTestUtil {
      */
     private static void assertCommonConfigurationElementsEqual(
             WifiConfiguration expected, WifiConfiguration actual) {
+        assertNotNull(expected);
+        assertNotNull(actual);
         assertEquals(expected.SSID, actual.SSID);
         assertEquals(expected.BSSID, actual.BSSID);
         assertEquals(expected.preSharedKey, actual.preSharedKey);
@@ -436,6 +438,17 @@ public class WifiConfigurationTestUtil {
                 expected.getNetworkSelectionStatus(), actual.getNetworkSelectionStatus());
         assertWifiEnterpriseConfigEqualForConfigStore(
                 expected.enterpriseConfig, actual.enterpriseConfig);
+    }
+
+    /**
+     * Asserts that the 2 WifiConfigurations are equal. This is a generic version of the comparator
+     * which is used in QNS tests for comparing the network selections.
+     * This importantly checks that the networkId's of the 2 configs are equal.
+     */
+    public static void assertConfigurationEqual(
+            WifiConfiguration expected, WifiConfiguration actual) {
+        assertCommonConfigurationElementsEqual(expected, actual);
+        assertEquals(expected.networkId, actual.networkId);
     }
 
     /**
