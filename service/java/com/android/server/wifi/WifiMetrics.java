@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.net.NetworkAgent;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.util.Base64;
@@ -47,6 +48,8 @@ public class WifiMetrics {
      */
     private static final int MAX_RSSI_POLL = 0;
     private static final int MIN_RSSI_POLL = -127;
+    private static final int MIN_WIFI_SCORE = 0;
+    private static final int MAX_WIFI_SCORE = NetworkAgent.WIFI_BASE_SCORE;
     private final Object mLock = new Object();
     private static final int MAX_CONNECTION_EVENTS = 256;
     private Clock mClock;
@@ -85,7 +88,8 @@ public class WifiMetrics {
      * capture for for this WifiMetricsProto
      */
     private long mRecordStartTimeSec;
-
+    /** Mapping of Wifi Scores to counts */
+    private final SparseIntArray mWifiScoreCounts = new SparseIntArray();
     class RouterFingerPrint {
         private WifiMetricsProto.RouterFingerPrint mRouterFingerPrintProto;
         RouterFingerPrint() {
@@ -901,6 +905,21 @@ public class WifiMetrics {
         }
     }
 
+    /**
+     * Increments occurence of a particular wifi score calculated
+     * in WifiScoreReport by current connected network. Scores are bounded
+     * within  [MIN_WIFI_SCORE, MAX_WIFI_SCORE] to limit size of SparseArray
+     */
+    public void incrementWifiScoreCount(int score) {
+        if (score < MIN_WIFI_SCORE || score > MAX_WIFI_SCORE) {
+            return;
+        }
+        synchronized (mLock) {
+            int count = mWifiScoreCounts.get(score);
+            mWifiScoreCounts.put(score, count + 1);
+        }
+    }
+
     public static final String PROTO_DUMP_ARG = "wifiMetricsProto";
     /**
      * Dump all WifiMetrics. Collects some metrics from ConfigStore, Settings and WifiManager
@@ -1060,6 +1079,12 @@ public class WifiMetrics {
                 pw.println("mWifiLogProto.numHotspot2R2NetworkScanResults="
                         + mWifiLogProto.numHotspot2R2NetworkScanResults);
                 pw.println("mWifiLogProto.numScans=" + mWifiLogProto.numScans);
+                pw.println("mWifiLogProto.WifiScoreCount: [" + MIN_WIFI_SCORE + ", "
+                        + MAX_WIFI_SCORE + "]");
+                for (int i = 0; i <= MAX_WIFI_SCORE; i++) {
+                    pw.print(mWifiScoreCounts.get(i) + " ");
+                }
+                pw.print("\n");
             }
         }
     }
@@ -1074,6 +1099,7 @@ public class WifiMetrics {
         List<WifiMetricsProto.ConnectionEvent> events = new ArrayList<>();
         List<WifiMetricsProto.RssiPollCount> rssis = new ArrayList<>();
         List<WifiMetricsProto.AlertReasonCount> alertReasons = new ArrayList<>();
+        List<WifiMetricsProto.WifiScoreCount> scores = new ArrayList<>();
         synchronized (mLock) {
             for (ConnectionEvent event : mConnectionEventList) {
                 // If this is not incremental, dump full ConnectionEvent list
@@ -1143,6 +1169,17 @@ public class WifiMetrics {
                 alertReasons.add(keyVal);
             }
             mWifiLogProto.alertReasonCount = alertReasons.toArray(mWifiLogProto.alertReasonCount);
+            /**
+            *  Convert the SparseIntArray of Wifi Score and counts to proto's repeated
+            * IntKeyVal array.
+            */
+            for (int score = 0; score < mWifiScoreCounts.size(); score++) {
+                WifiMetricsProto.WifiScoreCount keyVal = new WifiMetricsProto.WifiScoreCount();
+                keyVal.score = mWifiScoreCounts.keyAt(score);
+                keyVal.count = mWifiScoreCounts.valueAt(score);
+                scores.add(keyVal);
+            }
+            mWifiLogProto.wifiScoreCount = scores.toArray(mWifiLogProto.wifiScoreCount);
         }
     }
 
@@ -1160,6 +1197,7 @@ public class WifiMetrics {
             mRecordStartTimeSec = mClock.elapsedRealtime() / 1000;
             mRssiPollCounts.clear();
             mWifiAlertReasonCounts.clear();
+            mWifiScoreCounts.clear();
             mWifiLogProto.clear();
         }
     }

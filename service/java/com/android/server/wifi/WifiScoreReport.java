@@ -97,7 +97,8 @@ public class WifiScoreReport {
                                                  WifiConfigManager wifiConfigManager,
                                                  NetworkAgent networkAgent,
                                                  WifiScoreReport lastReport,
-                                                 int aggressiveHandover) {
+                                                 int aggressiveHandover,
+                                                 WifiMetrics wifiMetrics) {
         boolean debugLogging = false;
         if (wifiConfigManager.mEnableVerboseLogging.get() > 0) {
             debugLogging = true;
@@ -370,6 +371,7 @@ public class WifiScoreReport {
                 networkAgent.sendNetworkScore(score);
             }
         }
+        wifiMetrics.incrementWifiScoreCount(score);
         return new WifiScoreReport(sb.toString(), badLinkspeedcount);
     }
 }

@@ -6658,7 +6658,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                                                    mWifiConfigManager,
                                                                    mNetworkAgent,
                                                                    mWifiScoreReport,
-                                                                   mAggressiveHandover);
+                                                                   mAggressiveHandover,
+                                                                   mWifiMetrics);
                         }
                         sendMessageDelayed(obtainMessage(CMD_RSSI_POLL,
                                 mRssiPollToken, 0), POLL_RSSI_INTERVAL_MSECS);
