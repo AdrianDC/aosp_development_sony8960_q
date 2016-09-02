@@ -635,8 +635,8 @@ public class WifiNetworkHistory {
         if (cache == null && config.networkId != WifiConfiguration.INVALID_NETWORK_ID) {
             cache =
                     new ScanDetailCache(
-                            config, WifiConfigManager.MAX_NUM_SCAN_CACHE_ENTRIES + 64,
-                            WifiConfigManager.MAX_NUM_SCAN_CACHE_ENTRIES);
+                            config, WifiConfigManager.SCAN_CACHE_ENTRIES_MAX_SIZE,
+                            WifiConfigManager.SCAN_CACHE_ENTRIES_TRIM_SIZE);
             scanDetailCaches.put(config.networkId, cache);
         }
         return cache;

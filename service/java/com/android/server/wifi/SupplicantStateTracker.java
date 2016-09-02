@@ -118,9 +118,7 @@ public class SupplicantStateTracker extends StateMachine {
 
         /* If other networks disabled during connection, enable them */
         if (mNetworksDisabledDuringConnect) {
-            mWifiConfigManager.enableAllNetworks();
-            mNetworksDisabledDuringConnect = false;
-        }
+            mNetworksDisabledDuringConnect = false; }
         /* update network status */
         mWifiConfigManager.updateNetworkSelectionStatus(netId, disableReason);
     }
@@ -334,7 +332,6 @@ public class SupplicantStateTracker extends StateMachine {
              if (DBG) Log.d(TAG, getName() + "\n");
              /* Reset authentication failure count */
              if (mNetworksDisabledDuringConnect) {
-                 mWifiConfigManager.enableAllNetworks();
                  mNetworksDisabledDuringConnect = false;
              }
         }
