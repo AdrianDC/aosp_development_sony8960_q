@@ -27,7 +27,7 @@ import android.net.wifi.WifiConfiguration;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 
-import com.android.server.wifi.WifiConfigStoreNew.StoreFile;
+import com.android.server.wifi.WifiConfigStore.StoreFile;
 
 import org.junit.After;
 import org.junit.Before;
@@ -41,10 +41,10 @@ import java.util.HashSet;
 import java.util.List;
 
 /**
- * Unit tests for {@link com.android.server.wifi.WifiConfigStoreNew}.
+ * Unit tests for {@link com.android.server.wifi.WifiConfigStore}.
  */
 @SmallTest
-public class WifiConfigStoreNewTest {
+public class WifiConfigStoreTest {
     // Test mocks
     @Mock private Context mContext;
     private TestAlarmManager mAlarmManager;
@@ -56,7 +56,7 @@ public class WifiConfigStoreNewTest {
     /**
      * Test instance of WifiConfigStore.
      */
-    private WifiConfigStoreNew mWifiConfigStore;
+    private WifiConfigStore mWifiConfigStore;
 
     /**
      * Setup mocks before the test starts.
@@ -79,7 +79,7 @@ public class WifiConfigStoreNewTest {
         setupMocks();
 
         mWifiConfigStore =
-                new WifiConfigStoreNew(
+                new WifiConfigStore(
                         mContext, mLooper.getLooper(), mClock, mSharedStore, mUserStore);
 
         // Enable verbose logging before tests.
@@ -103,7 +103,7 @@ public class WifiConfigStoreNewTest {
     public void testForceWrite() throws Exception {
         mWifiConfigStore.write(true, getEmptyStoreData());
 
-        assertFalse(mAlarmManager.isPending(WifiConfigStoreNew.BUFFERED_WRITE_ALARM_TAG));
+        assertFalse(mAlarmManager.isPending(WifiConfigStore.BUFFERED_WRITE_ALARM_TAG));
         assertTrue(mSharedStore.isStoreWritten());
         assertTrue(mUserStore.isStoreWritten());
     }
@@ -116,12 +116,12 @@ public class WifiConfigStoreNewTest {
     public void testBufferedWrite() throws Exception {
         mWifiConfigStore.write(false, getEmptyStoreData());
 
-        assertTrue(mAlarmManager.isPending(WifiConfigStoreNew.BUFFERED_WRITE_ALARM_TAG));
+        assertTrue(mAlarmManager.isPending(WifiConfigStore.BUFFERED_WRITE_ALARM_TAG));
         assertFalse(mSharedStore.isStoreWritten());
         assertFalse(mUserStore.isStoreWritten());
 
         // Now send the alarm and ensure that the writes happen.
-        mAlarmManager.dispatch(WifiConfigStoreNew.BUFFERED_WRITE_ALARM_TAG);
+        mAlarmManager.dispatch(WifiConfigStore.BUFFERED_WRITE_ALARM_TAG);
         mLooper.dispatchAll();
         assertTrue(mSharedStore.isStoreWritten());
         assertTrue(mUserStore.isStoreWritten());
@@ -137,7 +137,7 @@ public class WifiConfigStoreNewTest {
         WifiConfigStoreData bufferedStoreData = createSingleOpenNetworkStoreData();
         mWifiConfigStore.write(false, bufferedStoreData);
 
-        assertTrue(mAlarmManager.isPending(WifiConfigStoreNew.BUFFERED_WRITE_ALARM_TAG));
+        assertTrue(mAlarmManager.isPending(WifiConfigStore.BUFFERED_WRITE_ALARM_TAG));
         assertFalse(mSharedStore.isStoreWritten());
         assertFalse(mUserStore.isStoreWritten());
 
@@ -146,7 +146,7 @@ public class WifiConfigStoreNewTest {
         WifiConfigStoreData forcedStoreData = createSinglePskNetworkStoreData();
         mWifiConfigStore.write(true, forcedStoreData);
 
-        assertFalse(mAlarmManager.isPending(WifiConfigStoreNew.BUFFERED_WRITE_ALARM_TAG));
+        assertFalse(mAlarmManager.isPending(WifiConfigStore.BUFFERED_WRITE_ALARM_TAG));
         assertTrue(mSharedStore.isStoreWritten());
         assertTrue(mUserStore.isStoreWritten());
 
@@ -215,8 +215,8 @@ public class WifiConfigStoreNewTest {
     }
 
     /**
-     * Mock Store File to redirect all file writes from WifiConfigStoreNew to local buffers.
-     * This can be used to examine the data output by WifiConfigStoreNew.
+     * Mock Store File to redirect all file writes from WifiConfigStore to local buffers.
+     * This can be used to examine the data output by WifiConfigStore.
      */
     private class MockStoreFile extends StoreFile {
         private byte[] mStoreBytes;
