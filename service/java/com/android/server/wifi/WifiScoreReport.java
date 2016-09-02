@@ -192,9 +192,9 @@ public class WifiScoreReport {
         if (isGoodLinkspeed) sb.append(" gl");
 
         WifiConfiguration currentConfiguration =
-                mWifiConfigManager.getWifiConfiguration(wifiInfo.getNetworkId());
+                mWifiConfigManager.getConfiguredNetwork(wifiInfo.getNetworkId());
         ScanDetailCache scanDetailCache =
-                mWifiConfigManager.getScanDetailCache(currentConfiguration);
+                mWifiConfigManager.getScanDetailCacheForNetwork(wifiInfo.getNetworkId());
         /**
          * We want to make sure that we use the 24GHz RSSI thresholds if
          * there are 2.4GHz scan results otherwise we end up lowering the score based on 5GHz values
@@ -312,6 +312,14 @@ public class WifiScoreReport {
                     sb.append(" p3");
                 }
             }
+            mWifiConfigManager.setNetworkRSSIStats(
+                    currentConfiguration.networkId,
+                    currentConfiguration.numUserTriggeredWifiDisableLowRSSI,
+                    currentConfiguration.numUserTriggeredWifiDisableBadRSSI,
+                    currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI,
+                    currentConfiguration.numTicksAtLowRSSI,
+                    currentConfiguration.numTicksAtBadRSSI,
+                    currentConfiguration.numTicksAtNotHighRSSI);
             sb.append(String.format(" ticks %d,%d,%d", currentConfiguration.numTicksAtBadRSSI,
                     currentConfiguration.numTicksAtLowRSSI,
                     currentConfiguration.numTicksAtNotHighRSSI));
