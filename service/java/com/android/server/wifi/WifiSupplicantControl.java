@@ -193,7 +193,6 @@ public class WifiSupplicantControl {
         if (config == null) {
             return;
         }
-        if (mVerboseLoggingEnabled) localLog("readNetworkVariables: " + config.networkId);
         int netId = config.networkId;
         if (netId < 0) {
             return;
@@ -431,7 +430,6 @@ public class WifiSupplicantControl {
         if (config == null) {
             return false;
         }
-        if (mVerboseLoggingEnabled) localLog("saveNetwork: " + netId);
         if (config.SSID != null && !mWifiNative.setNetworkVariable(
                 netId,
                 WifiConfiguration.ssidVarName,
@@ -582,13 +580,12 @@ public class WifiSupplicantControl {
         if (config == null) {
             return WifiConfiguration.INVALID_NETWORK_ID;
         }
-        if (mVerboseLoggingEnabled) localLog("addOrUpdateNetwork: " + config.networkId);
         int netId = mWifiNative.addNetwork();
         if (netId < 0) {
             loge("Failed to add a network!");
             return WifiConfiguration.INVALID_NETWORK_ID;
         } else {
-            logi("addOrUpdateNetwork created netId=" + netId);
+            logi("addNetwork created netId=" + netId);
         }
         if (!saveNetworkVariables(config, netId)) {
             mWifiNative.removeNetwork(netId);
@@ -696,7 +693,6 @@ public class WifiSupplicantControl {
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
     public boolean removeAllNetworks() {
-        if (mVerboseLoggingEnabled) localLog("removeAllNetworks");
         if (!mWifiNative.removeAllNetworks()) {
             loge("Remove all networks in wpa_supplicant failed");
             return false;
@@ -710,7 +706,6 @@ public class WifiSupplicantControl {
      * @return true if successful, false otherwise.
      */
     public boolean setConfiguredNetworkBSSID(String bssid) {
-        if (mVerboseLoggingEnabled) localLog("setConfiguredNetworkBSSID: " + mSupplicantNetworkId);
         if (!mWifiNative.setNetworkVariable(
                 mSupplicantNetworkId, WifiConfiguration.bssidVarName, bssid)) {
             loge("Set BSSID of network in wpa_supplicant failed on " + mSupplicantNetworkId);
@@ -739,18 +734,16 @@ public class WifiSupplicantControl {
             reader = new BufferedReader(new FileReader(SUPPLICANT_CONFIG_FILE));
             result = readNetworkVariablesFromReader(reader, key);
         } catch (FileNotFoundException e) {
-            if (mVerboseLoggingEnabled) loge("Could not open " + SUPPLICANT_CONFIG_FILE + ", " + e);
+            loge("Could not open " + SUPPLICANT_CONFIG_FILE + ", " + e);
         } catch (IOException e) {
-            if (mVerboseLoggingEnabled) loge("Could not read " + SUPPLICANT_CONFIG_FILE + ", " + e);
+            loge("Could not read " + SUPPLICANT_CONFIG_FILE + ", " + e);
         } finally {
             try {
                 if (reader != null) {
                     reader.close();
                 }
             } catch (IOException e) {
-                if (mVerboseLoggingEnabled) {
-                    loge("Could not close reader for " + SUPPLICANT_CONFIG_FILE + ", " + e);
-                }
+                loge("Could not close reader for " + SUPPLICANT_CONFIG_FILE + ", " + e);
             }
         }
         return result;
@@ -767,7 +760,6 @@ public class WifiSupplicantControl {
     public Map<String, String> readNetworkVariablesFromReader(BufferedReader reader, String key)
             throws IOException {
         Map<String, String> result = new HashMap<>();
-        if (mVerboseLoggingEnabled) localLog("readNetworkVariablesFromReader key=" + key);
         boolean found = false;
         String configKey = null;
         String value = null;
@@ -798,9 +790,7 @@ public class WifiSupplicantControl {
                             }
                         }
                     } catch (JSONException e) {
-                        if (mVerboseLoggingEnabled) {
-                            loge("Could not get " + ID_STRING_KEY_CONFIG_KEY + ", " + e);
-                        }
+                        loge("Could not get " + ID_STRING_KEY_CONFIG_KEY + ", " + e);
                     }
                 }
                 if (trimmedLine.startsWith(key + "=")) {
