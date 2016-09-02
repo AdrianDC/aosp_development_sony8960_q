@@ -197,18 +197,6 @@ public class WifiStateMachineTest {
 
         when(facade.checkUidPermission(eq(android.Manifest.permission.OVERRIDE_WIFI_CONFIG),
                 anyInt())).thenReturn(PackageManager.PERMISSION_GRANTED);
-
-        when(facade.makeWifiConfigManager(any(Context.class), any(WifiNative.class),
-                any(FrameworkFacade.class), any(Clock.class),
-                any(UserManager.class), any(KeyStore.class))).then(new AnswerWithArguments() {
-            public WifiConfigManager answer(Context context, WifiNative wifiNative,
-                    FrameworkFacade frameworkFacade, Clock clock,
-                    UserManager userManager, KeyStore keyStore){
-                mWifiConfigManager = new WifiConfigManager(context, wifiNative, frameworkFacade,
-                        clock, userManager, keyStore);
-                return mWifiConfigManager;
-            }
-        });
         return facade;
     }
 
@@ -311,7 +299,6 @@ public class WifiStateMachineTest {
     MockWifiMonitor mWifiMonitor;
     TestIpManager mTestIpManager;
     TestLooper mLooper;
-    WifiConfigManager mWifiConfigManager;
 
     @Mock WifiNative mWifiNative;
     @Mock WifiScanner mWifiScanner;
@@ -328,6 +315,8 @@ public class WifiStateMachineTest {
     @Mock IWificond mWificond;
     @Mock IClientInterface mClientInterface;
     @Mock IBinder mClientInterfaceBinder;
+    @Mock WifiConfigManager mWifiConfigManager;
+    @Mock WifiSupplicantControl mWifiSupplicantControl;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -355,7 +344,12 @@ public class WifiStateMachineTest {
         when(mWifiInjector.makeWifiDiagnostics(anyObject())).thenReturn(
                 mock(BaseWifiDiagnostics.class));
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
+        when(mWifiInjector.getWifiConfigManager()).thenReturn(mWifiConfigManager);
+        when(mWifiInjector.getWifiSupplicantControl()).thenReturn(mWifiSupplicantControl);
+
         when(mWifiNative.getInterfaceName()).thenReturn("mockWlan");
+        when(mWifiSupplicantControl.getFrameworkNetworkId(anyInt())).thenReturn(0);
+
 
         FrameworkFacade factory = getFrameworkFacade();
         Context context = getContext();
@@ -585,66 +579,21 @@ public class WifiStateMachineTest {
     private void addNetworkAndVerifySuccess(boolean isHidden) throws Exception {
         loadComponents();
 
-        final HashMap<String, String> nameToValue = new HashMap<>();
-
-        when(mWifiNative.addNetwork()).thenReturn(0);
-        when(mWifiNative.setNetworkVariable(anyInt(), anyString(), anyString()))
-                .then(new AnswerWithArguments() {
-                    public boolean answer(int netId, String name, String value) {
-                        if (netId != 0) {
-                            Log.d(TAG, "Can't set var " + name + " for " + netId);
-                            return false;
-                        }
-
-                        Log.d(TAG, "Setting var " + name + " to " + value + " for " + netId);
-                        nameToValue.put(name, value);
-                        return true;
-                    }
-                });
-
-        when(mWifiNative.setNetworkExtra(anyInt(), anyString(), (Map<String, String>) anyObject()))
-                .then(new AnswerWithArguments() {
-                    public boolean answer(int netId, String name, Map<String, String> values) {
-                        if (netId != 0) {
-                            Log.d(TAG, "Can't set extra " + name + " for " + netId);
-                            return false;
-                        }
-
-                        Log.d(TAG, "Setting extra for " + netId);
-                        return true;
-                    }
-                });
-
-        when(mWifiNative.getNetworkVariable(anyInt(), anyString()))
-                .then(new AnswerWithArguments() {
-                    public String answer(int netId, String name) throws Throwable {
-                        if (netId != 0) {
-                            Log.d(TAG, "Can't find var " + name + " for " + netId);
-                            return null;
-                        }
-                        String value = nameToValue.get(name);
-                        if (value != null) {
-                            Log.d(TAG, "Returning var " + name + " to " + value + " for " + netId);
-                        } else {
-                            Log.d(TAG, "Can't find var " + name + " for " + netId);
-                        }
-                        return value;
-                    }
-                });
-
         WifiConfiguration config = new WifiConfiguration();
         config.SSID = sSSID;
         config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
         config.hiddenSSID = isHidden;
+
+        when(mWifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
+                .thenReturn(new NetworkUpdateResult(0));
+        when(mWifiConfigManager.getSavedNetworks()).thenReturn(Arrays.asList(config));
+        when(mWifiConfigManager.getConfiguredNetwork(0)).thenReturn(config);
+
         mLooper.startAutoDispatch();
         mWsm.syncAddOrUpdateNetwork(mWsmAsyncChannel, config);
         mLooper.stopAutoDispatch();
 
-        verify(mWifiNative).addNetwork();
-        verify(mWifiNative).setNetworkVariable(0, "ssid", sHexSSID);
-        if (isHidden) {
-            verify(mWifiNative).setNetworkVariable(0, "scan_ssid", Integer.toString(1));
-        }
+        verify(mWifiConfigManager).addOrUpdateNetwork(eq(config), anyInt());
 
         mLooper.startAutoDispatch();
         List<WifiConfiguration> configs = mWsm.syncGetConfiguredNetworks(-1, mWsmAsyncChannel);
@@ -654,177 +603,6 @@ public class WifiStateMachineTest {
         WifiConfiguration config2 = configs.get(0);
         assertEquals("\"GoogleGuest\"", config2.SSID);
         assertTrue(config2.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE));
-    }
-
-    private void addNetworkAndVerifyFailure() throws Exception {
-        loadComponents();
-
-        final WifiConfiguration config = new WifiConfiguration();
-        config.SSID = sSSID;
-        config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
-
-        mLooper.startAutoDispatch();
-        mWsm.syncAddOrUpdateNetwork(mWsmAsyncChannel, config);
-        mLooper.stopAutoDispatch();
-
-        verify(mWifiNative, never()).addNetwork();
-        verify(mWifiNative, never()).setNetworkVariable(anyInt(), anyString(), anyString());
-
-        mLooper.startAutoDispatch();
-        assertTrue(mWsm.syncGetConfiguredNetworks(-1, mWsmAsyncChannel).isEmpty());
-        mLooper.stopAutoDispatch();
-    }
-
-    /**
-     * Verifies that the current foreground user is allowed to add a network.
-     */
-    @Test
-    public void addNetworkAsCurrentUser() throws Exception {
-        addNetworkAndVerifySuccess();
-    }
-
-    /**
-     * Verifies that a managed profile of the current foreground user is allowed to add a network.
-     */
-    @Test
-    public void addNetworkAsCurrentUsersManagedProfile() throws Exception {
-        BinderUtil.setUid(MANAGED_PROFILE_UID);
-        addNetworkAndVerifySuccess();
-    }
-
-    /**
-     * Verifies that a background user is not allowed to add a network.
-     */
-    @Test
-    public void addNetworkAsOtherUser() throws Exception {
-        BinderUtil.setUid(OTHER_USER_UID);
-        addNetworkAndVerifyFailure();
-    }
-
-    private void removeNetworkAndVerifySuccess() throws Exception {
-        when(mWifiNative.removeNetwork(0)).thenReturn(true);
-        mLooper.startAutoDispatch();
-        assertTrue(mWsm.syncRemoveNetwork(mWsmAsyncChannel, 0));
-        mLooper.stopAutoDispatch();
-
-        mLooper.startAutoDispatch();
-        assertTrue(mWsm.syncGetConfiguredNetworks(-1, mWsmAsyncChannel).isEmpty());
-        mLooper.stopAutoDispatch();
-    }
-
-    private void removeNetworkAndVerifyFailure() throws Exception {
-        mLooper.startAutoDispatch();
-        assertFalse(mWsm.syncRemoveNetwork(mWsmAsyncChannel, 0));
-        mLooper.stopAutoDispatch();
-
-        mLooper.startAutoDispatch();
-        assertEquals(1, mWsm.syncGetConfiguredNetworks(-1, mWsmAsyncChannel).size());
-        mLooper.stopAutoDispatch();
-        verify(mWifiNative, never()).removeNetwork(anyInt());
-    }
-
-    /**
-     * Verifies that the current foreground user is allowed to remove a network.
-     */
-    @Test
-    public void removeNetworkAsCurrentUser() throws Exception {
-        addNetworkAndVerifySuccess();
-        removeNetworkAndVerifySuccess();
-    }
-
-    /**
-     * Verifies that a managed profile of the current foreground user is allowed to remove a
-     * network.
-     */
-    @Test
-    public void removeNetworkAsCurrentUsersManagedProfile() throws Exception {
-        addNetworkAndVerifySuccess();
-        BinderUtil.setUid(MANAGED_PROFILE_UID);
-        removeNetworkAndVerifySuccess();
-    }
-
-    /**
-     * Verifies that a background user is not allowed to remove a network.
-     */
-    @Test
-    public void removeNetworkAsOtherUser() throws Exception {
-        addNetworkAndVerifySuccess();
-        BinderUtil.setUid(OTHER_USER_UID);
-        removeNetworkAndVerifyFailure();
-    }
-
-    private void enableNetworkAndVerifySuccess() throws Exception {
-        when(mWifiNative.selectNetwork(0)).thenReturn(true);
-
-        mLooper.startAutoDispatch();
-        assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
-        mLooper.stopAutoDispatch();
-
-        verify(mWifiNative).selectNetwork(0);
-    }
-
-    private void enableNetworkAndVerifyFailure() throws Exception {
-        mLooper.startAutoDispatch();
-        assertFalse(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
-        mLooper.stopAutoDispatch();
-
-        verify(mWifiNative, never()).selectNetwork(anyInt());
-    }
-
-    /**
-     * Verifies that the current foreground user is allowed to enable a network.
-     */
-    @Test
-    public void enableNetworkAsCurrentUser() throws Exception {
-        addNetworkAndVerifySuccess();
-        enableNetworkAndVerifySuccess();
-    }
-
-    /**
-     * Verifies that a managed profile of the current foreground user is allowed to enable a
-     * network.
-     */
-    @Test
-    public void enableNetworkAsCurrentUsersManagedProfile() throws Exception {
-        addNetworkAndVerifySuccess();
-        BinderUtil.setUid(MANAGED_PROFILE_UID);
-        enableNetworkAndVerifySuccess();
-    }
-
-    /**
-     * Verifies that a background user is not allowed to enable a network.
-     */
-    @Test
-    public void enableNetworkAsOtherUser() throws Exception {
-        addNetworkAndVerifySuccess();
-        BinderUtil.setUid(OTHER_USER_UID);
-        enableNetworkAndVerifyFailure();
-    }
-
-    private void forgetNetworkAndVerifySuccess() throws Exception {
-        when(mWifiNative.removeNetwork(0)).thenReturn(true);
-        mLooper.startAutoDispatch();
-        final Message result =
-                mWsmAsyncChannel.sendMessageSynchronously(WifiManager.FORGET_NETWORK, 0);
-        mLooper.stopAutoDispatch();
-        assertEquals(WifiManager.FORGET_NETWORK_SUCCEEDED, result.what);
-        result.recycle();
-        mLooper.startAutoDispatch();
-        assertTrue(mWsm.syncGetConfiguredNetworks(-1, mWsmAsyncChannel).isEmpty());
-        mLooper.stopAutoDispatch();
-    }
-
-    private void forgetNetworkAndVerifyFailure() throws Exception {
-        mLooper.startAutoDispatch();
-        final Message result =
-                mWsmAsyncChannel.sendMessageSynchronously(WifiManager.FORGET_NETWORK, 0);
-        mLooper.stopAutoDispatch();
-        assertEquals(WifiManager.FORGET_NETWORK_FAILED, result.what);
-        result.recycle();
-        mLooper.startAutoDispatch();
-        assertEquals(1, mWsm.syncGetConfiguredNetworks(-1, mWsmAsyncChannel).size());
-        mLooper.stopAutoDispatch();
-        verify(mWifiNative, never()).removeNetwork(anyInt());
     }
 
     /**
@@ -843,36 +621,6 @@ public class WifiStateMachineTest {
             }
         }
         return null;
-    }
-
-    /**
-     * Verifies that the current foreground user is allowed to forget a network.
-     */
-    @Test
-    public void forgetNetworkAsCurrentUser() throws Exception {
-        addNetworkAndVerifySuccess();
-        forgetNetworkAndVerifySuccess();
-    }
-
-    /**
-     * Verifies that a managed profile of the current foreground user is allowed to forget a
-     * network.
-     */
-    @Test
-    public void forgetNetworkAsCurrentUsersManagedProfile() throws Exception {
-        addNetworkAndVerifySuccess();
-        BinderUtil.setUid(MANAGED_PROFILE_UID);
-        forgetNetworkAndVerifySuccess();
-    }
-
-    /**
-     * Verifies that a background user is not allowed to forget a network.
-     */
-    @Test
-    public void forgetNetworkAsOtherUser() throws Exception {
-        addNetworkAndVerifySuccess();
-        BinderUtil.setUid(OTHER_USER_UID);
-        forgetNetworkAndVerifyFailure();
     }
 
     private void verifyScan(int band, int reportEvents, Set<Integer> configuredNetworkIds) {
@@ -927,10 +675,11 @@ public class WifiStateMachineTest {
         mWsm.startScan(-1, 0, null, null);
         mLooper.dispatchAll();
 
+        //TODO(b/29503772): Retrieve the list of hidden networks to scan for.
         verifyScan(WifiScanner.WIFI_BAND_BOTH_WITH_DFS,
                 WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
                 | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT,
-                mWifiConfigManager.getHiddenConfiguredNetworkIds());
+                null);
     }
 
     @Test
@@ -944,7 +693,7 @@ public class WifiStateMachineTest {
         mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
         mLooper.stopAutoDispatch();
 
-        verify(mWifiNative).selectNetwork(0);
+        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
 
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, sBSSID);
         mLooper.dispatchAll();
@@ -978,7 +727,7 @@ public class WifiStateMachineTest {
         mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
         mLooper.stopAutoDispatch();
 
-        verify(mWifiNative).selectNetwork(0);
+        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
 
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, sBSSID);
         mLooper.dispatchAll();
@@ -1006,7 +755,7 @@ public class WifiStateMachineTest {
         mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
         mLooper.stopAutoDispatch();
 
-        verify(mWifiNative).selectNetwork(0);
+        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
 
         mWsm.sendMessage(WifiMonitor.NETWORK_DISCONNECTION_EVENT, 0, 0, sBSSID);
         mLooper.dispatchAll();
@@ -1043,21 +792,6 @@ public class WifiStateMachineTest {
     }
 
     /**
-     * WifiConfigurations default to HasEverConnected to false,  creating and adding a config should
-     * not update this value to true.
-     *
-     * Test: Successfully add a network. Check the config and verify
-     * WifiConfiguration.getHasEverConnected() is false.
-     */
-    @Test
-    public void addNetworkDoesNotSetHasEverConnectedTrue() throws Exception {
-        addNetworkAndVerifySuccess();
-
-        WifiConfiguration checkConfig = getWifiConfigurationForNetwork(DEFAULT_TEST_SSID);
-        assertFalse(checkConfig.getNetworkSelectionStatus().getHasEverConnected());
-    }
-
-    /**
      * Successfully connecting to a network will set WifiConfiguration's value of HasEverConnected
      * to true.
      *
@@ -1067,9 +801,7 @@ public class WifiStateMachineTest {
     @Test
     public void setHasEverConnectedTrueOnConnect() throws Exception {
         connect();
-
-        WifiConfiguration checkConfig = getWifiConfigurationForNetwork(DEFAULT_TEST_SSID);
-        assertTrue(checkConfig.getNetworkSelectionStatus().getHasEverConnected());
+        verify(mWifiConfigManager, atLeastOnce()).updateNetworkAfterConnect(0);
     }
 
     /**
@@ -1081,38 +813,12 @@ public class WifiStateMachineTest {
     @Test
     public void connectionFailureDoesNotSetHasEverConnectedTrue() throws Exception {
         testDhcpFailure();
-
-        WifiConfiguration checkConfig = getWifiConfigurationForNetwork(DEFAULT_TEST_SSID);
-        assertFalse(checkConfig.getNetworkSelectionStatus().getHasEverConnected());
-    }
-
-    @Test
-    public void handleUserSwitch() throws Exception {
-        assertEquals(UserHandle.USER_SYSTEM, mWifiConfigManager.getCurrentUserId());
-
-        mWsm.handleUserSwitch(10);
-        mLooper.dispatchAll();
-
-        assertEquals(10, mWifiConfigManager.getCurrentUserId());
+        verify(mWifiConfigManager, never()).updateNetworkAfterConnect(0);
     }
 
     @Test
     public void iconQueryTest() throws Exception {
-        /* enable wi-fi */
-        addNetworkAndVerifySuccess();
-
-        long bssid = 0x1234567800FFL;
-        String filename = "iconFileName.png";
-        String command = "REQ_HS20_ICON " + Utils.macToString(bssid) + " " + filename;
-
-        when(mWifiNative.doCustomSupplicantCommand(command)).thenReturn("OK");
-
-        mLooper.startAutoDispatch();
-        boolean result = mWsm.syncQueryPasspointIcon(mWsmAsyncChannel, bssid, filename);
-        mLooper.stopAutoDispatch();
-
-        verify(mWifiNative).doCustomSupplicantCommand(command);
-        assertEquals(true, result);
+        // TODO(b/31065385): Passpoint config management.
     }
 
     /**
