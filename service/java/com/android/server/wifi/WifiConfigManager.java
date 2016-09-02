@@ -88,7 +88,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * NOTE: These API's are not thread safe and should only be used from WifiStateMachine thread.
  */
-public class WifiConfigManagerNew {
+public class WifiConfigManager {
     /**
      * String used to mask passwords to public interface.
      */
@@ -174,7 +174,7 @@ public class WifiConfigManagerNew {
     /**
      * Log tag for this class.
      */
-    private static final String TAG = "WifiConfigManagerNew";
+    private static final String TAG = "WifiConfigManager";
     /**
      * Maximum age of scan results that can be used for averaging out RSSI value.
      */
@@ -213,7 +213,7 @@ public class WifiConfigManagerNew {
     private final BackupManagerProxy mBackupManagerProxy;
     private final TelephonyManager mTelephonyManager;
     private final WifiKeyStore mWifiKeyStore;
-    private final WifiConfigStoreNew mWifiConfigStore;
+    private final WifiConfigStore mWifiConfigStore;
     private final WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     /**
      * Local log used for debugging any WifiConfigManager issues.
@@ -275,10 +275,10 @@ public class WifiConfigManagerNew {
     /**
      * Create new instance of WifiConfigManager.
      */
-    WifiConfigManagerNew(
+    WifiConfigManager(
             Context context, FrameworkFacade facade, Clock clock, UserManager userManager,
             TelephonyManager telephonyManager, WifiKeyStore wifiKeyStore,
-            WifiConfigStoreNew wifiConfigStore, WifiConfigStoreLegacy wifiConfigStoreLegacy) {
+            WifiConfigStore wifiConfigStore, WifiConfigStoreLegacy wifiConfigStoreLegacy) {
         mContext = context;
         mFacade = facade;
         mClock = clock;
