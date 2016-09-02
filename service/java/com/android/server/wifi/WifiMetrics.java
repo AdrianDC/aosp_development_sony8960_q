@@ -829,6 +829,15 @@ public class WifiMetrics {
     }
 
     /**
+     * Increment count of Watchdog successes.
+     */
+    public void incrementNumLastResortWatchdogSuccesses() {
+        synchronized (mLock) {
+            mWifiLogProto.numLastResortWatchdogSuccesses++;
+        }
+    }
+
+    /**
      * Increments the count of alerts by alert reason.
      *
      * @param reason The cause of the alert. The reason values are driver-specific.
