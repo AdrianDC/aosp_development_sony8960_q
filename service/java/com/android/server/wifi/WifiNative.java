@@ -45,7 +45,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.HexDump;
 import com.android.server.connectivity.KeepalivePacketData;
 import com.android.server.wifi.hotspot2.NetworkDetail;
-import com.android.server.wifi.hotspot2.SupplicantBridge;
+import com.android.server.wifi.hotspot2.PasspointEventHandler;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.util.FrameParser;
 import com.android.server.wifi.util.InformationElementUtil;
@@ -654,7 +654,7 @@ public class WifiNative {
                             line.substring(BSS_SSID_STR.length()));
                 } else if (line.startsWith(BSS_IE_STR)) {
                     infoElementsStr = line;
-                } else if (SupplicantBridge.isAnqpAttribute(line)) {
+                } else if (PasspointEventHandler.isAnqpAttribute(line)) {
                     if (anqpLines == null) {
                         anqpLines = new ArrayList<>();
                     }

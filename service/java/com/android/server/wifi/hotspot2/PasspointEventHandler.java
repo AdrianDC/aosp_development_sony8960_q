@@ -1,17 +1,28 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.android.server.wifi.hotspot2;
 
 import android.util.Base64;
 import android.util.Log;
 
-import com.android.server.wifi.ScanDetail;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.anqp.ANQPElement;
 import com.android.server.wifi.anqp.ANQPFactory;
 import com.android.server.wifi.anqp.Constants;
-import com.android.server.wifi.anqp.eap.AuthParam;
-import com.android.server.wifi.anqp.eap.EAP;
-import com.android.server.wifi.anqp.eap.EAPMethod;
-import com.android.server.wifi.hotspot2.pps.Credential;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -19,20 +30,20 @@ import java.io.StringReader;
 import java.net.ProtocolException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.CharBuffer;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class SupplicantBridge {
+/**
+ * This class handles passpoint specific interactions with the AP, such as ANQP
+ * elements requests, passpoint icon requests, and wireless network management
+ * event notifications.
+ */
+public class PasspointEventHandler {
     private final WifiNative mSupplicantHook;
-    private final SupplicantBridgeCallbacks mCallbacks;
-    private final Map<Long, ScanDetail> mRequestMap = new HashMap<>();
+    private final Callbacks mCallbacks;
 
-    private static final int IconChunkSize = 1400;  // 2K*3/4 - overhead
+    private static final int ICON_CHUNK_SIZE = 1400;  // 2K*3/4 - overhead
     private static final Map<String, Constants.ANQPElementType> sWpsNames = new HashMap<>();
 
     static {
@@ -50,35 +61,56 @@ public class SupplicantBridge {
     }
 
     /**
-     * Interface to be implemented by the client to receive callbacks from SupplicantBridge.
+     * Interface to be implemented by the client to receive callbacks for passpoint
+     * related events.
      */
-    public interface SupplicantBridgeCallbacks {
+    public interface Callbacks {
         /**
-         * Response from supplicant bridge for the initiated request.
-         * @param scanDetail
-         * @param anqpElements
+         * Invoked on received of ANQP response. |anqpElements| will be null on failure.
+         * @param bssid BSSID of the AP
+         * @param anqpElements ANQP elements to be queried
          */
-        void notifyANQPResponse(
-                ScanDetail scanDetail,
-                Map<Constants.ANQPElementType, ANQPElement> anqpElements);
+        void onANQPResponse(long bssid,
+                            Map<Constants.ANQPElementType, ANQPElement> anqpElements);
 
         /**
-         * Notify failure.
-         * @param bssid
+         * Invoked on received of icon response. |filename| and |data| will be null
+         * on failure.
+         * @param bssid BSSID of the AP
+         * @param filename Name of the icon file
+         * @data icon data bytes
          */
-        void notifyIconFailed(long bssid);
+        void onIconResponse(long bssid, String filename, byte[] data);
+
+        /**
+         * Invoked on received of Hotspot 2.0 Wireless Network Management frame.
+         * @param data Wireless Network Management frame data
+         */
+        void onWnmFrameReceived(WnmData data);
     }
 
+    public PasspointEventHandler(WifiNative supplicantHook, Callbacks callbacks) {
+        mSupplicantHook = supplicantHook;
+        mCallbacks = callbacks;
+    }
+
+    /**
+     * Determine the given |line| string is an ANQP element.
+     * TODO(zqiu): move this to different/new class (e.g. AnqpParser).
+     * @param line input text
+     * @return true if it is an ANQP element, false otherwise
+     */
     public static boolean isAnqpAttribute(String line) {
         int split = line.indexOf('=');
         return split >= 0 && sWpsNames.containsKey(line.substring(0, split));
     }
 
-    public SupplicantBridge(WifiNative supplicantHook, SupplicantBridgeCallbacks callbacks) {
-        mSupplicantHook = supplicantHook;
-        mCallbacks = callbacks;
-    }
-
+    /**
+     * Parse ANQP elements.
+     * TODO(zqiu): move this to different/new class (e.g. AnqpParser).
+     * @param lines input text
+     * @return a map of ANQP elements
+     */
     public static Map<Constants.ANQPElementType, ANQPElement> parseANQPLines(List<String> lines) {
         if (lines == null) {
             return null;
@@ -92,157 +124,118 @@ public class SupplicantBridge {
                 }
             }
             catch (ProtocolException pe) {
-                Log.e(Utils.hs2LogTag(SupplicantBridge.class), "Failed to parse ANQP: " + pe);
+                Log.e(Utils.hs2LogTag(PasspointEventHandler.class),
+                      "Failed to parse ANQP: " + pe);
             }
         }
         return elements;
     }
 
-    public boolean startANQP(ScanDetail scanDetail, List<Constants.ANQPElementType> elements) {
-        String anqpGet = buildWPSQueryRequest(scanDetail.getNetworkDetail(), elements);
+    /**
+     * Request the specified ANQP elements |elements| from the specified AP |bssid|.
+     * @param bssid BSSID of the AP
+     * @param elements ANQP elements to be queried
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean requestANQP(long bssid, List<Constants.ANQPElementType> elements) {
+        String anqpGet = buildWPSQueryRequest(bssid, elements);
         if (anqpGet == null) {
             return false;
-        }
-        synchronized (mRequestMap) {
-            mRequestMap.put(scanDetail.getNetworkDetail().getBSSID(), scanDetail);
         }
         String result = mSupplicantHook.doCustomSupplicantCommand(anqpGet);
         if (result != null && result.startsWith("OK")) {
             Log.d(Utils.hs2LogTag(getClass()), "ANQP initiated on "
-                    + scanDetail + " (" + anqpGet + ")");
+                    + Utils.macToString(bssid) + " (" + anqpGet + ")");
             return true;
         }
         else {
             Log.d(Utils.hs2LogTag(getClass()), "ANQP failed on " +
-                    scanDetail + ": " + result);
+                    Utils.macToString(bssid) + ": " + result);
             return false;
         }
     }
 
-    public boolean doIconQuery(long bssid, String fileName) {
+    /**
+     * Request a passpoint icon file |filename| from the specified AP |bssid|.
+     * @param bssid BSSID of the AP
+     * @param fileName name of the icon file
+     * @return true if request is sent successfully, false otherwise
+     */
+    public boolean requestIcon(long bssid, String fileName) {
         String result = mSupplicantHook.doCustomSupplicantCommand("REQ_HS20_ICON " +
                 Utils.macToString(bssid) + " " + fileName);
         return result != null && result.startsWith("OK");
     }
 
-    public byte[] retrieveIcon(IconEvent iconEvent) throws IOException {
-        byte[] iconData = new byte[iconEvent.getSize()];
-        try {
-            int offset = 0;
-            while (offset < iconEvent.getSize()) {
-                int size = Math.min(iconEvent.getSize() - offset, IconChunkSize);
-
-                String command = String.format("GET_HS20_ICON %s %s %d %d",
-                        Utils.macToString(iconEvent.getBSSID()), iconEvent.getFileName(),
-                        offset, size);
-                Log.d(Utils.hs2LogTag(getClass()), "Issuing '" + command + "'");
-                String response = mSupplicantHook.doCustomSupplicantCommand(command);
-                if (response == null) {
-                    throw new IOException("No icon data returned");
-                }
-
-                try {
-                    byte[] fragment = Base64.decode(response, Base64.DEFAULT);
-                    if (fragment.length == 0) {
-                        throw new IOException("Null data for '" + command + "': " + response);
-                    }
-                    if (fragment.length + offset > iconData.length) {
-                        throw new IOException("Icon chunk exceeds image size");
-                    }
-                    System.arraycopy(fragment, 0, iconData, offset, fragment.length);
-                    offset += fragment.length;
-                } catch (IllegalArgumentException iae) {
-                    throw new IOException("Failed to parse response to '" + command
-                            + "': " + response);
-                }
-            }
-            if (offset != iconEvent.getSize()) {
-                Log.w(Utils.hs2LogTag(getClass()), "Partial icon data: " + offset +
-                        ", expected " + iconEvent.getSize());
-            }
-        }
-        finally {
-            Log.d(Utils.hs2LogTag(getClass()), "Deleting icon for " + iconEvent);
-            String result = mSupplicantHook.doCustomSupplicantCommand("DEL_HS20_ICON " +
-                    Utils.macToString(iconEvent.getBSSID()) + " " + iconEvent.getFileName());
-        }
-
-        return iconData;
-    }
-
-    public void notifyANQPDone(Long bssid, boolean success) {
-        ScanDetail scanDetail;
-        synchronized (mRequestMap) {
-            scanDetail = mRequestMap.remove(bssid);
-        }
-
-        if (scanDetail == null) {
-            // Icon queries are not held on the request map, so a null scanDetail is very likely
-            // the result of an Icon query. Notify the OSU app if the query was unsuccessful,
-            // else bail out.
-            if (!success) {
-                mCallbacks.notifyIconFailed(bssid);
-            }
-            return;
-        } else if (!success) {
-            // If there is an associated ScanDetail, notify of a failed regular ANQP query.
-            mCallbacks.notifyANQPResponse(scanDetail, null);
-            return;
-        }
-
-        String bssData = mSupplicantHook.scanResult(scanDetail.getBSSIDString());
+    /**
+     * Invoked when ANQP query is completed.
+     * TODO(zqiu): currently ANQP completion notification is through WifiMonitor,
+     * this shouldn't be needed once we switch over to wificond for ANQP requests.
+     * @param bssid BSSID of the AP
+     * @param success true if query is completed successfully, false otherwise
+     */
+    public void notifyANQPDone(long bssid, boolean success) {
         Map<Constants.ANQPElementType, ANQPElement> elements = null;
-        try {
-            elements = parseWPSData(bssData);
-            Log.d(Utils.hs2LogTag(getClass()),
-                    String.format("Successful ANQP response for %012x: %s", bssid, elements));
-        }
-        catch (IOException ioe) {
-            Log.e(Utils.hs2LogTag(getClass()), "Failed to parse ANQP: " +
-                    ioe.toString() + ": " + bssData);
-        }
-        catch (RuntimeException rte) {
-            Log.e(Utils.hs2LogTag(getClass()), "Failed to parse ANQP: " +
-                    rte.toString() + ": " + bssData, rte);
-        }
-        mCallbacks.notifyANQPResponse(scanDetail, elements);
-    }
-
-    private static String escapeSSID(NetworkDetail networkDetail) {
-        return escapeString(networkDetail.getSSID(), networkDetail.isSSID_UTF8());
-    }
-
-    private static String escapeString(String s, boolean utf8) {
-        boolean asciiOnly = true;
-        for (int n = 0; n < s.length(); n++) {
-            char ch = s.charAt(n);
-            if (ch > 127) {
-                asciiOnly = false;
-                break;
+        if (success) {
+            String bssData =
+                    mSupplicantHook.scanResult(Utils.macToString(bssid));
+            try {
+                elements = parseWPSData(bssData);
+                Log.d(Utils.hs2LogTag(getClass()),
+                      String.format("Successful ANQP response for %012x: %s",
+                                    bssid, elements));
+            }
+            catch (IOException ioe) {
+                Log.e(Utils.hs2LogTag(getClass()), "Failed to parse ANQP: " +
+                        ioe.toString() + ": " + bssData);
+            }
+            catch (RuntimeException rte) {
+                Log.e(Utils.hs2LogTag(getClass()), "Failed to parse ANQP: " +
+                        rte.toString() + ": " + bssData, rte);
             }
         }
+        mCallbacks.onANQPResponse(bssid, elements);
+    }
 
-        if (asciiOnly) {
-            return '"' + s + '"';
-        }
-        else {
-            byte[] octets = s.getBytes(utf8 ? StandardCharsets.UTF_8 : StandardCharsets.ISO_8859_1);
-
-            StringBuilder sb = new StringBuilder();
-            for (byte octet : octets) {
-                sb.append(String.format("%02x", octet & Constants.BYTE_MASK));
+    /**
+     * Invoked when icon query is completed.
+     * TODO(zqiu): currently icon completion notification is through WifiMonitor,
+     * this shouldn't be needed once we switch over to wificond for icon requests.
+     * @param bssid BSSID of the AP
+     * @param iconEvent icon event data
+     */
+    public void notifyIconDone(long bssid, IconEvent iconEvent) {
+        String filename = null;
+        byte[] data = null;
+        if (iconEvent != null) {
+            try {
+                data = retrieveIcon(iconEvent);
+                filename = iconEvent.getFileName();
+            } catch (IOException ioe) {
+                Log.e(Utils.hs2LogTag(getClass()), "Failed to retrieve icon: " +
+                        ioe.toString() + ": " + iconEvent.getFileName());
             }
-            return sb.toString();
         }
+        mCallbacks.onIconResponse(bssid, filename, data);
+    }
+
+    /**
+     * Invoked when a Wireless Network Management (WNM) frame is received.
+     * TODO(zqiu): currently WNM frame notification is through WifiMonitor,
+     * this shouldn't be needed once we switch over to wificond for WNM frame monitoring.
+     * @param data WNM frame data
+     */
+    public void notifyWnmFrameReceived(WnmData data) {
+        mCallbacks.onWnmFrameReceived(data);
     }
 
     /**
      * Build a wpa_supplicant ANQP query command
-     * @param networkDetail The network to query.
+     * @param bssid BSSID of the AP to be queried
      * @param querySet elements to query
      * @return A command string.
      */
-    private static String buildWPSQueryRequest(NetworkDetail networkDetail,
+    private static String buildWPSQueryRequest(long bssid,
                                                List<Constants.ANQPElementType> querySet) {
 
         boolean baseANQPElements = Constants.hasBaseANQPElements(querySet);
@@ -251,9 +244,10 @@ public class SupplicantBridge {
             sb.append("ANQP_GET ");
         }
         else {
-            sb.append("HS20_ANQP_GET ");     // ANQP_GET does not work for a sole hs20:8 (OSU) query
+            // ANQP_GET does not work for a sole hs20:8 (OSU) query
+            sb.append("HS20_ANQP_GET ");
         }
-        sb.append(networkDetail.getBSSIDString()).append(' ');
+        sb.append(Utils.macToString(bssid)).append(' ');
 
         boolean first = true;
         for (Constants.ANQPElementType elementType : querySet) {
@@ -278,42 +272,6 @@ public class SupplicantBridge {
         }
 
         return sb.toString();
-    }
-
-    private static List<String> getWPSNetCommands(String netID, NetworkDetail networkDetail,
-                                                 Credential credential) {
-
-        List<String> commands = new ArrayList<String>();
-
-        EAPMethod eapMethod = credential.getEAPMethod();
-        commands.add(String.format("SET_NETWORK %s key_mgmt WPA-EAP", netID));
-        commands.add(String.format("SET_NETWORK %s ssid %s", netID, escapeSSID(networkDetail)));
-        commands.add(String.format("SET_NETWORK %s bssid %s",
-                netID, networkDetail.getBSSIDString()));
-        commands.add(String.format("SET_NETWORK %s eap %s",
-                netID, mapEAPMethodName(eapMethod.getEAPMethodID())));
-
-        AuthParam authParam = credential.getEAPMethod().getAuthParam();
-        if (authParam == null) {
-            return null;            // TLS or SIM/AKA
-        }
-        switch (authParam.getAuthInfoID()) {
-            case NonEAPInnerAuthType:
-            case InnerAuthEAPMethodType:
-                commands.add(String.format("SET_NETWORK %s identity %s",
-                        netID, escapeString(credential.getUserName(), true)));
-                commands.add(String.format("SET_NETWORK %s password %s",
-                        netID, escapeString(credential.getPassword(), true)));
-                commands.add(String.format("SET_NETWORK %s anonymous_identity \"anonymous\"",
-                        netID));
-                break;
-            default:                // !!! Needs work.
-                return null;
-        }
-        commands.add(String.format("SET_NETWORK %s priority 0", netID));
-        commands.add(String.format("ENABLE_NETWORK %s", netID));
-        commands.add(String.format("SAVE_CONFIG"));
-        return commands;
     }
 
     private static Map<Constants.ANQPElementType, ANQPElement> parseWPSData(String bssInfo)
@@ -350,7 +308,8 @@ public class SupplicantBridge {
             payload = Utils.hexToBytes(text.substring(separator + 1));
         }
         catch (NumberFormatException nfe) {
-            Log.e(Utils.hs2LogTag(SupplicantBridge.class), "Failed to parse hex string");
+            Log.e(Utils.hs2LogTag(PasspointEventHandler.class),
+                  "Failed to parse hex string");
             return null;
         }
         return Constants.getANQPElementID(elementType) != null ?
@@ -359,21 +318,50 @@ public class SupplicantBridge {
                         ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN));
     }
 
-    private static String mapEAPMethodName(EAP.EAPMethodID eapMethodID) {
-        switch (eapMethodID) {
-            case EAP_AKA:
-                return "AKA";
-            case EAP_AKAPrim:
-                return "AKA'";  // eap.c:1514
-            case EAP_SIM:
-                return "SIM";
-            case EAP_TLS:
-                return "TLS";
-            case EAP_TTLS:
-                return "TTLS";
-            default:
-                throw new IllegalArgumentException("No mapping for " + eapMethodID);
-        }
-    }
+    private byte[] retrieveIcon(IconEvent iconEvent) throws IOException {
+        byte[] iconData = new byte[iconEvent.getSize()];
+        try {
+            int offset = 0;
+            while (offset < iconEvent.getSize()) {
+                int size = Math.min(iconEvent.getSize() - offset, ICON_CHUNK_SIZE);
 
+                String command = String.format("GET_HS20_ICON %s %s %d %d",
+                        Utils.macToString(iconEvent.getBSSID()), iconEvent.getFileName(),
+                        offset, size);
+                Log.d(Utils.hs2LogTag(getClass()), "Issuing '" + command + "'");
+                String response = mSupplicantHook.doCustomSupplicantCommand(command);
+                if (response == null) {
+                    throw new IOException("No icon data returned");
+                }
+
+                try {
+                    byte[] fragment = Base64.decode(response, Base64.DEFAULT);
+                    if (fragment.length == 0) {
+                        throw new IOException("Null data for '" + command + "': " + response);
+                    }
+                    if (fragment.length + offset > iconData.length) {
+                        throw new IOException("Icon chunk exceeds image size");
+                    }
+                    System.arraycopy(fragment, 0, iconData, offset, fragment.length);
+                    offset += fragment.length;
+                } catch (IllegalArgumentException iae) {
+                    throw new IOException("Failed to parse response to '" + command
+                            + "': " + response);
+                }
+            }
+            if (offset != iconEvent.getSize()) {
+                Log.w(Utils.hs2LogTag(getClass()), "Partial icon data: " + offset +
+                        ", expected " + iconEvent.getSize());
+            }
+        }
+        finally {
+            // Delete the icon file in supplicant.
+            Log.d(Utils.hs2LogTag(getClass()), "Deleting icon for " + iconEvent);
+            String result = mSupplicantHook.doCustomSupplicantCommand("DEL_HS20_ICON " +
+                    Utils.macToString(iconEvent.getBSSID()) + " " + iconEvent.getFileName());
+            Log.d(Utils.hs2LogTag(getClass()), "Result: " + result);
+        }
+
+        return iconData;
+    }
 }

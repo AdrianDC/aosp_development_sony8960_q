@@ -37,6 +37,7 @@ import android.util.SparseArray;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.hotspot2.IconEvent;
+import com.android.server.wifi.hotspot2.WnmData;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl.P2pStatus;
 import com.android.server.wifi.util.TelephonyUtil.SimAuthRequestData;
