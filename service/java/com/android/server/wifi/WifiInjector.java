@@ -116,6 +116,27 @@ public class WifiInjector {
                 mContext.getResources()
                         .getBoolean(R.bool.config_wifi_revert_country_code_on_cellular_loss));
         mWifiNative = WifiNative.getWlanNativeInterface();
+
+        // WifiConfigManager/Store objects and their dependencies.
+        // New config store
+        mWifiKeyStore = new WifiKeyStore(mKeyStore);
+        mWifiConfigStore = new WifiConfigStoreNew(
+                mContext, mWifiStateMachineHandlerThread.getLooper(), mClock,
+                WifiConfigStoreNew.createSharedFile(),
+                WifiConfigStoreNew.createUserFile(UserHandle.USER_SYSTEM));
+        // Legacy config store
+        DelayedDiskWrite writer = new DelayedDiskWrite();
+        mWifiNetworkHistory = new WifiNetworkHistory(mContext, mWifiNative.getLocalLog(), writer);
+        mWifiSupplicantControl = new WifiSupplicantControl(
+                TelephonyManager.from(mContext), mWifiNative, mWifiNative.getLocalLog());
+        mIpConfigStore = new IpConfigStore(writer);
+        mWifiConfigStoreLegacy = new WifiConfigStoreLegacy(
+                mWifiNetworkHistory, mWifiSupplicantControl, mIpConfigStore);
+        // Config Manager
+        mWifiConfigManager = new WifiConfigManagerNew(mContext, mFrameworkFacade, mClock,
+                UserManager.get(mContext), TelephonyManager.from(mContext),
+                mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy);
+
         mWifiStateMachine = new WifiStateMachine(mContext, mFrameworkFacade,
                 mWifiStateMachineHandlerThread.getLooper(), UserManager.get(mContext),
                 this, mBackupManagerProxy, mCountryCode, mWifiNative);
@@ -130,25 +151,6 @@ public class WifiInjector {
         mWifiLastResortWatchdog = new WifiLastResortWatchdog(mWifiController, mWifiMetrics);
         mWifiMulticastLockManager = new WifiMulticastLockManager(mWifiStateMachine,
                 BatteryStatsService.getService());
-
-        // WifiConfigManager/Store objects and their dependencies.
-        // New config store
-        mWifiConfigStore = new WifiConfigStoreNew(mContext,
-                mWifiStateMachineHandlerThread.getLooper(), mClock,
-                WifiConfigStoreNew.createSharedFile(),
-                WifiConfigStoreNew.createUserFile(UserHandle.USER_SYSTEM));
-        mWifiKeyStore = new WifiKeyStore(mKeyStore);
-        // Legacy config store
-        DelayedDiskWrite writer = new DelayedDiskWrite();
-        mWifiNetworkHistory = new WifiNetworkHistory(mContext, mWifiNative.getLocalLog(), writer);
-        mWifiSupplicantControl = new WifiSupplicantControl(
-                TelephonyManager.from(mContext), mWifiNative, mWifiNative.getLocalLog());
-        mIpConfigStore = new IpConfigStore(writer);
-        mWifiConfigStoreLegacy = new WifiConfigStoreLegacy(
-                mWifiNetworkHistory, mWifiSupplicantControl, mIpConfigStore);
-        // Config Manager
-        mWifiConfigManager = new WifiConfigManagerNew(mContext, mFrameworkFacade, mClock,
-                UserManager.get(mContext), mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy);
     }
 
     /**
