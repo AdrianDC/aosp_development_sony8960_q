@@ -124,11 +124,4 @@ public class FrameworkFacade {
     public int checkUidPermission(String permName, int uid) throws RemoteException {
         return AppGlobals.getPackageManager().checkUidPermission(permName, uid);
     }
-
-    public WifiConfigManager makeWifiConfigManager(Context context, WifiNative wifiNative,
-            FrameworkFacade frameworkFacade, Clock clock, UserManager userManager,
-            KeyStore keyStore) {
-        return new WifiConfigManager(context, wifiNative, frameworkFacade, clock, userManager,
-                keyStore);
-    }
 }

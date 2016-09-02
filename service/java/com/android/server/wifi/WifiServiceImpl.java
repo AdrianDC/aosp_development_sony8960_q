@@ -397,6 +397,14 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mWifiStateMachine.handleUserSwitch(userId);
     }
 
+    public void handleUserUnlock(int userId) {
+        mWifiStateMachine.handleUserUnlock(userId);
+    }
+
+    public void handleUserStop(int userId) {
+        mWifiStateMachine.handleUserStop(userId);
+    }
+
     /**
      * see {@link android.net.wifi.WifiManager#pingSupplicant()}
      * @return {@code true} if the operation succeeds, {@code false} otherwise

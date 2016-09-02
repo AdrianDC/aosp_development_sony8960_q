@@ -274,7 +274,7 @@ public class WifiConfigurationUtil {
      * 1, Place the fully enabled networks first.
      * 2. Next place all the temporarily disabled networks.
      * 3. Place the permanently disabled networks last (Permanently disabled networks are removed
-     * before WifiConfigManagerNew uses this comparator today!).
+     * before WifiConfigManager uses this comparator today!).
      *
      * Among the networks with the same status, sort them in the order determined by the return of
      * {@link #compareNetworksWithSameStatus(WifiConfiguration, WifiConfiguration)} method
