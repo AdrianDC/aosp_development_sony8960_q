@@ -320,14 +320,6 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_SCANS; i++) {
             mWifiMetrics.countScanResults(mockScanDetails);
         }
-        // Test alert-reason clamping.
-        mWifiMetrics.incrementAlertReasonCount(WifiLoggerHal.WIFI_ALERT_REASON_MIN - 1);
-        mWifiMetrics.incrementAlertReasonCount(WifiLoggerHal.WIFI_ALERT_REASON_MAX + 1);
-        // Simple cases for alert reason.
-        mWifiMetrics.incrementAlertReasonCount(1);
-        mWifiMetrics.incrementAlertReasonCount(1);
-        mWifiMetrics.incrementAlertReasonCount(1);
-        mWifiMetrics.incrementAlertReasonCount(2);
     }
 
     /**
