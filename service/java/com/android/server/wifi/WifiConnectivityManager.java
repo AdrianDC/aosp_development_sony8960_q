@@ -106,6 +106,10 @@ public class WifiConnectivityManager {
     public static final int MAX_CONNECTION_ATTEMPTS_TIME_INTERVAL_MS = 4 * 60 * 1000; // 4 mins
     // Max number of connection attempts in the above time interval.
     public static final int MAX_CONNECTION_ATTEMPTS_RATE = 6;
+    // Packet tx/rx rates to determine if we want to do partial vs full scans.
+    // TODO(b/31180330): Make these device configs.
+    public static final int MAX_TX_PACKET_FOR_FULL_SCANS = 8;
+    public static final int MAX_RX_PACKET_FOR_FULL_SCANS = 16;
 
     // WifiStateMachine has a bunch of states. From the
     // WifiConnectivityManager's perspective it only cares
@@ -150,7 +154,8 @@ public class WifiConnectivityManager {
     private long mLastPeriodicSingleScanTimeStamp = RESET_TIME_STAMP;
     private boolean mPnoScanStarted = false;
     private boolean mPeriodicScanTimerSet = false;
-
+    // Device configs
+    private boolean mEnableAutoJoinWhenAssociated;
     // PNO settings
     private int mMin5GHzRssi;
     private int mMin24GHzRssi;
@@ -526,14 +531,20 @@ public class WifiConnectivityManager {
         mMin5GHzRssi = WifiQualifiedNetworkSelector.MINIMUM_5G_ACCEPT_RSSI;
         mMin24GHzRssi = WifiQualifiedNetworkSelector.MINIMUM_2G_ACCEPT_RSSI;
         mBand5GHzBonus = WifiQualifiedNetworkSelector.BAND_AWARD_5GHz;
-        mCurrentConnectionBonus = mConfigManager.mCurrentNetworkBoost.get();
+
+        mCurrentConnectionBonus = context.getResources().getInteger(
+                R.integer.config_wifi_framework_current_network_boost);
         mSameNetworkBonus = context.getResources().getInteger(
-                                R.integer.config_wifi_framework_SAME_BSSID_AWARD);
+                R.integer.config_wifi_framework_SAME_BSSID_AWARD);
         mSecureBonus = context.getResources().getInteger(
-                            R.integer.config_wifi_framework_SECURITY_AWARD);
-        mInitialScoreMax = (mConfigManager.mThresholdSaturatedRssi24.get()
-                            + WifiQualifiedNetworkSelector.RSSI_SCORE_OFFSET)
+                R.integer.config_wifi_framework_SECURITY_AWARD);
+        int thresholdSaturatedRssi24 = context.getResources().getInteger(
+                R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_24GHz);
+        mInitialScoreMax =
+                (thresholdSaturatedRssi24 + WifiQualifiedNetworkSelector.RSSI_SCORE_OFFSET)
                             * WifiQualifiedNetworkSelector.RSSI_SCORE_SLOPE;
+        mEnableAutoJoinWhenAssociated = context.getResources().getBoolean(
+                R.bool.config_wifi_framework_enable_associated_network_selection);
 
         Log.i(TAG, "PNO settings:" + " min5GHzRssi " + mMin5GHzRssi
                     + " min24GHzRssi " + mMin24GHzRssi
@@ -629,7 +640,7 @@ public class WifiConnectivityManager {
         mLastConnectionAttemptBssid = targetBssid;
 
         WifiConfiguration currentConnectedNetwork = mConfigManager
-                .getWifiConfiguration(mWifiInfo.getNetworkId());
+                .getConfiguredNetwork(mWifiInfo.getNetworkId());
         String currentAssociationId = (currentConnectedNetwork == null) ? "Disconnected" :
                 (mWifiInfo.getSSID() + " : " + mWifiInfo.getBSSID());
 
@@ -676,7 +687,9 @@ public class WifiConnectivityManager {
             return false;
         }
 
-        HashSet<Integer> freqs = mConfigManager.makeChannelList(config, CHANNEL_LIST_AGE_MS);
+        Set<Integer> freqs =
+                mConfigManager.fetchChannelSetForNetworkForPartialScan(
+                        config.networkId, CHANNEL_LIST_AGE_MS);
 
         if (freqs != null && freqs.size() != 0) {
             int index = 0;
@@ -724,10 +737,8 @@ public class WifiConnectivityManager {
 
         // If the WiFi traffic is heavy, only partial scan is initiated.
         if (mWifiState == WIFI_STATE_CONNECTED
-                && (mWifiInfo.txSuccessRate
-                            > mConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS
-                    || mWifiInfo.rxSuccessRate
-                            > mConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS)) {
+                && (mWifiInfo.txSuccessRate > MAX_TX_PACKET_FOR_FULL_SCANS
+                    || mWifiInfo.rxSuccessRate > MAX_RX_PACKET_FOR_FULL_SCANS)) {
             localLog("No full band scan due to heavy traffic, txSuccessRate="
                         + mWifiInfo.txSuccessRate + " rxSuccessRate="
                         + mWifiInfo.rxSuccessRate);
@@ -780,15 +791,7 @@ public class WifiConnectivityManager {
                             | WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN;
         settings.numBssidsPerScan = 0;
 
-        //Retrieve the list of hidden networkId's to scan for.
-        Set<Integer> hiddenNetworkIds = mConfigManager.getHiddenConfiguredNetworkIds();
-        if (hiddenNetworkIds != null && hiddenNetworkIds.size() > 0) {
-            int i = 0;
-            settings.hiddenNetworkIds = new int[hiddenNetworkIds.size()];
-            for (Integer netId : hiddenNetworkIds) {
-                settings.hiddenNetworkIds[i++] = netId;
-            }
-        }
+        //TODO(b/29503772): Retrieve the list of hidden networks to scan for.
 
         // re-enable this when b/27695292 is fixed
         // mSingleScanListener.clearScanDetails();
@@ -803,8 +806,7 @@ public class WifiConnectivityManager {
         mPnoScanListener.resetLowRssiNetworkRetryDelay();
 
         // No connectivity scan if auto roaming is disabled.
-        if (mWifiState == WIFI_STATE_CONNECTED
-                && !mConfigManager.getEnableAutoJoinWhenAssociated()) {
+        if (mWifiState == WIFI_STATE_CONNECTED && !mEnableAutoJoinWhenAssociated) {
             return;
         }
 
@@ -831,10 +833,11 @@ public class WifiConnectivityManager {
 
     // Start a DisconnectedPNO scan when screen is off and Wifi is disconnected
     private void startDisconnectedPnoScan() {
+        // TODO(b/29503772): Need to change this interface.
+
         // Initialize PNO settings
         PnoSettings pnoSettings = new PnoSettings();
-        ArrayList<PnoSettings.PnoNetwork> pnoNetworkList =
-                mConfigManager.retrieveDisconnectedPnoNetworkList();
+        ArrayList<PnoSettings.PnoNetwork> pnoNetworkList = mConfigManager.retrievePnoNetworkList();
         int listSize = pnoNetworkList.size();
 
         if (listSize == 0) {
@@ -870,6 +873,7 @@ public class WifiConnectivityManager {
 
     // Start a ConnectedPNO scan when screen is off and Wifi is connected
     private void startConnectedPnoScan() {
+        // TODO(b/29503772): Need to change this interface.
         // Disable ConnectedPNO for now due to b/28020168
         if (!ENABLE_CONNECTED_PNO_SCAN) {
             return;
@@ -877,8 +881,7 @@ public class WifiConnectivityManager {
 
         // Initialize PNO settings
         PnoSettings pnoSettings = new PnoSettings();
-        ArrayList<PnoSettings.PnoNetwork> pnoNetworkList =
-                mConfigManager.retrieveConnectedPnoNetworkList();
+        ArrayList<PnoSettings.PnoNetwork> pnoNetworkList = mConfigManager.retrievePnoNetworkList();
         int listSize = pnoNetworkList.size();
 
         if (listSize == 0) {

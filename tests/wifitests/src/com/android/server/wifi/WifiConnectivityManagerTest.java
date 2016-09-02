@@ -75,9 +75,7 @@ public class WifiConnectivityManagerTest {
         mWifiInfo = getWifiInfo();
         mWifiScanner = mockWifiScanner();
         mWifiQNS = mockWifiQualifiedNetworkSelector();
-        mWifiConnectivityManager = new WifiConnectivityManager(mContext, mWifiStateMachine,
-                mWifiScanner, mWifiConfigManager, mWifiInfo, mWifiQNS, mWifiInjector,
-                mLooper.getLooper(), true);
+        mWifiConnectivityManager = createConnectivityManager();
         mWifiConnectivityManager.setWifiEnabled(true);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
     }
@@ -104,6 +102,7 @@ public class WifiConnectivityManagerTest {
     private WifiLastResortWatchdog mWifiLastResortWatchdog;
     private WifiMetrics mWifiMetrics;
     private WifiInjector mWifiInjector;
+    private MockResources mResources;
 
     private static final int CANDIDATE_NETWORK_ID = 0;
     private static final String CANDIDATE_SSID = "\"AnSsid\"";
@@ -116,7 +115,14 @@ public class WifiConnectivityManagerTest {
 
         when(resource.getInteger(R.integer.config_wifi_framework_SECURITY_AWARD)).thenReturn(80);
         when(resource.getInteger(R.integer.config_wifi_framework_SAME_BSSID_AWARD)).thenReturn(24);
-
+        when(resource.getBoolean(
+                R.bool.config_wifi_framework_enable_associated_network_selection)).thenReturn(true);
+        when(resource.getInteger(
+                R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_24GHz))
+                .thenReturn(WifiQualifiedNetworkSelector.RSSI_SATURATION_2G_BAND);
+        when(resource.getInteger(
+                R.integer.config_wifi_framework_current_network_boost))
+                .thenReturn(WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD);
         return resource;
     }
 
@@ -223,19 +229,14 @@ public class WifiConnectivityManagerTest {
     WifiConfigManager mockWifiConfigManager() {
         WifiConfigManager wifiConfigManager = mock(WifiConfigManager.class);
 
-        when(wifiConfigManager.getWifiConfiguration(anyInt())).thenReturn(null);
-        when(wifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
-        wifiConfigManager.mThresholdSaturatedRssi24 = new AtomicInteger(
-                WifiQualifiedNetworkSelector.RSSI_SATURATION_2G_BAND);
-        wifiConfigManager.mCurrentNetworkBoost = new AtomicInteger(
-                WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD);
+        when(wifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(null);
 
         // Pass dummy pno network list, otherwise Pno scan requests will not be triggered.
         PnoSettings.PnoNetwork pnoNetwork = new PnoSettings.PnoNetwork(CANDIDATE_SSID);
         ArrayList<PnoSettings.PnoNetwork> pnoNetworkList = new ArrayList<>();
         pnoNetworkList.add(pnoNetwork);
-        when(wifiConfigManager.retrieveDisconnectedPnoNetworkList()).thenReturn(pnoNetworkList);
-        when(wifiConfigManager.retrieveConnectedPnoNetworkList()).thenReturn(pnoNetworkList);
+        when(wifiConfigManager.retrievePnoNetworkList()).thenReturn(pnoNetworkList);
+        when(wifiConfigManager.retrievePnoNetworkList()).thenReturn(pnoNetworkList);
 
         return wifiConfigManager;
     }
@@ -248,6 +249,11 @@ public class WifiConnectivityManagerTest {
         when(wifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
         when(wifiInjector.getClock()).thenReturn(mClock);
         return wifiInjector;
+    }
+
+    WifiConnectivityManager createConnectivityManager() {
+        return new WifiConnectivityManager(mContext, mWifiStateMachine, mWifiScanner,
+                mWifiConfigManager, mWifiInfo, mWifiQNS, mWifiInjector, mLooper.getLooper(), true);
     }
 
     /**
@@ -340,12 +346,15 @@ public class WifiConnectivityManagerTest {
      */
     @Test
     public void turnScreenOnWhenWifiInConnectedStateRoamingDisabled() {
+        // Turn off auto roaming
+        when(mResource.getBoolean(
+                R.bool.config_wifi_framework_enable_associated_network_selection))
+                .thenReturn(false);
+        mWifiConnectivityManager = createConnectivityManager();
+
         // Set WiFi to connected state
         mWifiConnectivityManager.handleConnectionStateChanged(
                 WifiConnectivityManager.WIFI_STATE_CONNECTED);
-
-        // Turn off auto roaming
-        when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(false);
 
         // Set screen to on
         mWifiConnectivityManager.handleScreenStateChanged(true);
@@ -789,7 +798,7 @@ public class WifiConnectivityManagerTest {
                 .thenReturn(new WifiConfiguration());
         when(mWifiStateMachine.getFrequencyBand())
                 .thenReturn(WifiManager.WIFI_FREQUENCY_BAND_5GHZ);
-        when(mWifiConfigManager.makeChannelList(any(WifiConfiguration.class), anyInt()))
+        when(mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(anyInt(), anyInt()))
                 .thenReturn(channelList);
 
         doAnswer(new AnswerWithArguments() {
@@ -818,8 +827,8 @@ public class WifiConnectivityManagerTest {
      */
     @Test
     public void checkSingleScanSettingsWhenConnectedWithHighDataRate() {
-        mWifiInfo.txSuccessRate = WifiConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS * 2;
-        mWifiInfo.rxSuccessRate = WifiConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS * 2;
+        mWifiInfo.txSuccessRate = WifiConnectivityManager.MAX_TX_PACKET_FOR_FULL_SCANS * 2;
+        mWifiInfo.rxSuccessRate = WifiConnectivityManager.MAX_RX_PACKET_FOR_FULL_SCANS * 2;
 
         final HashSet<Integer> channelList = new HashSet<>();
         channelList.add(1);
@@ -828,7 +837,7 @@ public class WifiConnectivityManagerTest {
 
         when(mWifiStateMachine.getCurrentWifiConfiguration())
                 .thenReturn(new WifiConfiguration());
-        when(mWifiConfigManager.makeChannelList(any(WifiConfiguration.class), anyInt()))
+        when(mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(anyInt(), anyInt()))
                 .thenReturn(channelList);
 
         doAnswer(new AnswerWithArguments() {
@@ -860,8 +869,8 @@ public class WifiConnectivityManagerTest {
      */
     @Test
     public void checkSingleScanSettingsWhenConnectedWithHighDataRateNotInCache() {
-        mWifiInfo.txSuccessRate = WifiConfigManager.MAX_TX_PACKET_FOR_FULL_SCANS * 2;
-        mWifiInfo.rxSuccessRate = WifiConfigManager.MAX_RX_PACKET_FOR_FULL_SCANS * 2;
+        mWifiInfo.txSuccessRate = WifiConnectivityManager.MAX_TX_PACKET_FOR_FULL_SCANS * 2;
+        mWifiInfo.rxSuccessRate = WifiConnectivityManager.MAX_RX_PACKET_FOR_FULL_SCANS * 2;
 
         final HashSet<Integer> channelList = new HashSet<>();
 
@@ -869,7 +878,7 @@ public class WifiConnectivityManagerTest {
                 .thenReturn(new WifiConfiguration());
         when(mWifiStateMachine.getFrequencyBand())
                 .thenReturn(WifiManager.WIFI_FREQUENCY_BAND_5GHZ);
-        when(mWifiConfigManager.makeChannelList(any(WifiConfiguration.class), anyInt()))
+        when(mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(anyInt(), anyInt()))
                 .thenReturn(channelList);
 
         doAnswer(new AnswerWithArguments() {
