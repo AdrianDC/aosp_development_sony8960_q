@@ -260,7 +260,7 @@ public class WifiConnectivityManagerTest {
      *  Wifi enters disconnected state while screen is on.
      *
      * Expected behavior: WifiConnectivityManager calls
-     * WifiStateMachine.autoConnectToNetwork() with the
+     * WifiStateMachine.startConnectToNetwork() with the
      * expected candidate network ID and BSSID.
      */
     @Test
@@ -272,7 +272,7 @@ public class WifiConnectivityManagerTest {
         mWifiConnectivityManager.handleConnectionStateChanged(
                 WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
 
-        verify(mWifiStateMachine).autoConnectToNetwork(
+        verify(mWifiStateMachine).startConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 
@@ -280,7 +280,7 @@ public class WifiConnectivityManagerTest {
      *  Wifi enters connected state while screen is on.
      *
      * Expected behavior: WifiConnectivityManager calls
-     * WifiStateMachine.autoConnectToNetwork() with the
+     * WifiStateMachine.startConnectToNetwork() with the
      * expected candidate network ID and BSSID.
      */
     @Test
@@ -292,7 +292,7 @@ public class WifiConnectivityManagerTest {
         mWifiConnectivityManager.handleConnectionStateChanged(
                 WifiConnectivityManager.WIFI_STATE_CONNECTED);
 
-        verify(mWifiStateMachine).autoConnectToNetwork(
+        verify(mWifiStateMachine).startConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 
@@ -300,7 +300,7 @@ public class WifiConnectivityManagerTest {
      *  Screen turned on while WiFi in disconnected state.
      *
      * Expected behavior: WifiConnectivityManager calls
-     * WifiStateMachine.autoConnectToNetwork() with the
+     * WifiStateMachine.startConnectToNetwork() with the
      * expected candidate network ID and BSSID.
      */
     @Test
@@ -312,7 +312,7 @@ public class WifiConnectivityManagerTest {
         // Set screen to on
         mWifiConnectivityManager.handleScreenStateChanged(true);
 
-        verify(mWifiStateMachine, atLeastOnce()).autoConnectToNetwork(
+        verify(mWifiStateMachine, atLeastOnce()).startConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 
@@ -320,7 +320,7 @@ public class WifiConnectivityManagerTest {
      *  Screen turned on while WiFi in connected state.
      *
      * Expected behavior: WifiConnectivityManager calls
-     * WifiStateMachine.autoConnectToNetwork() with the
+     * WifiStateMachine.startConnectToNetwork() with the
      * expected candidate network ID and BSSID.
      */
     @Test
@@ -332,7 +332,7 @@ public class WifiConnectivityManagerTest {
         // Set screen to on
         mWifiConnectivityManager.handleScreenStateChanged(true);
 
-        verify(mWifiStateMachine, atLeastOnce()).autoConnectToNetwork(
+        verify(mWifiStateMachine, atLeastOnce()).startConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 
@@ -341,7 +341,7 @@ public class WifiConnectivityManagerTest {
      *  auto roaming is disabled.
      *
      * Expected behavior: WifiConnectivityManager doesn't invoke
-     * WifiStateMachine.autoConnectToNetwork() because roaming
+     * WifiStateMachine.startConnectToNetwork() because roaming
      * is turned off.
      */
     @Test
@@ -359,14 +359,14 @@ public class WifiConnectivityManagerTest {
         // Set screen to on
         mWifiConnectivityManager.handleScreenStateChanged(true);
 
-        verify(mWifiStateMachine, times(0)).autoConnectToNetwork(
+        verify(mWifiStateMachine, times(0)).startConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 
     /**
      * Multiple back to back connection attempts within the rate interval should be rate limited.
      *
-     * Expected behavior: WifiConnectivityManager calls WifiStateMachine.autoConnectToNetwork()
+     * Expected behavior: WifiConnectivityManager calls WifiStateMachine.startConnectToNetwork()
      * with the expected candidate network ID and BSSID for only the expected number of times within
      * the given interval.
      */
@@ -397,7 +397,7 @@ public class WifiConnectivityManagerTest {
                 WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
 
         // Verify that we attempt to connect upto the rate.
-        verify(mWifiStateMachine, times(numAttempts)).autoConnectToNetwork(
+        verify(mWifiStateMachine, times(numAttempts)).startConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 
@@ -405,7 +405,7 @@ public class WifiConnectivityManagerTest {
      * Multiple back to back connection attempts outside the rate interval should not be rate
      * limited.
      *
-     * Expected behavior: WifiConnectivityManager calls WifiStateMachine.autoConnectToNetwork()
+     * Expected behavior: WifiConnectivityManager calls WifiStateMachine.startConnectToNetwork()
      * with the expected candidate network ID and BSSID for only the expected number of times within
      * the given interval.
      */
@@ -438,14 +438,14 @@ public class WifiConnectivityManagerTest {
         numAttempts++;
 
         // Verify that all the connection attempts went through
-        verify(mWifiStateMachine, times(numAttempts)).autoConnectToNetwork(
+        verify(mWifiStateMachine, times(numAttempts)).startConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 
     /**
      * Multiple back to back connection attempts after a user selection should not be rate limited.
      *
-     * Expected behavior: WifiConnectivityManager calls WifiStateMachine.autoConnectToNetwork()
+     * Expected behavior: WifiConnectivityManager calls WifiStateMachine.startConnectToNetwork()
      * with the expected candidate network ID and BSSID for only the expected number of times within
      * the given interval.
      */
@@ -481,7 +481,7 @@ public class WifiConnectivityManagerTest {
         }
 
         // Verify that all the connection attempts went through
-        verify(mWifiStateMachine, times(numAttempts)).autoConnectToNetwork(
+        verify(mWifiStateMachine, times(numAttempts)).startConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 
@@ -939,7 +939,7 @@ public class WifiConnectivityManagerTest {
      * act on them.
      *
      * Expected behavior: WifiConnectivityManager calls
-     * WifiStateMachine.autoConnectToNetwork() with the
+     * WifiStateMachine.startConnectToNetwork() with the
      * expected candidate network ID and BSSID.
      */
     @Test
@@ -952,7 +952,7 @@ public class WifiConnectivityManagerTest {
 
         // Verify that WCM receives the scan results and initiates a connection
         // to the network.
-        verify(mWifiStateMachine).autoConnectToNetwork(
+        verify(mWifiStateMachine).startConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 }
