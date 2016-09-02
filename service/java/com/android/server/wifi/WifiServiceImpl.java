@@ -1405,8 +1405,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public String getConfigFile() {
-        enforceAccessPermission();
-        return mWifiStateMachine.getConfigFile();
+        // TODO(b/29449615)
+        return "";
     }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {

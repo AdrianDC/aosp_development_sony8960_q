@@ -649,11 +649,11 @@ public class WifiConnectivityManager {
                 || currentConnectedNetwork.isLinked(candidate))) {
             localLog("connectToNetwork: Roaming from " + currentAssociationId + " to "
                         + targetAssociationId);
-            mStateMachine.autoRoamToNetwork(candidate.networkId, scanResultCandidate);
+            mStateMachine.startRoamToNetwork(candidate.networkId, scanResultCandidate);
         } else {
             localLog("connectToNetwork: Reconnect from " + currentAssociationId + " to "
                         + targetAssociationId);
-            mStateMachine.autoConnectToNetwork(candidate.networkId, scanResultCandidate.BSSID);
+            mStateMachine.startConnectToNetwork(candidate.networkId, scanResultCandidate.BSSID);
         }
     }
 
