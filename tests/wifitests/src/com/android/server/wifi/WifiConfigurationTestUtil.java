@@ -369,9 +369,12 @@ public class WifiConfigurationTestUtil {
         assertEquals(expected.wepKeys, actual.wepKeys);
         assertEquals(expected.wepTxKeyIndex, actual.wepTxKeyIndex);
         assertEquals(expected.hiddenSSID, actual.hiddenSSID);
+        assertEquals(expected.requirePMF, actual.requirePMF);
         assertEquals(expected.allowedKeyManagement, actual.allowedKeyManagement);
         assertEquals(expected.allowedProtocols, actual.allowedProtocols);
         assertEquals(expected.allowedAuthAlgorithms, actual.allowedAuthAlgorithms);
+        assertEquals(expected.allowedGroupCiphers, actual.allowedGroupCiphers);
+        assertEquals(expected.allowedPairwiseCiphers, actual.allowedPairwiseCiphers);
         assertEquals(expected.shared, actual.shared);
         assertEquals(expected.getIpConfiguration(), actual.getIpConfiguration());
     }
