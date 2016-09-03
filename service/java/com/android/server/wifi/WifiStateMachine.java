@@ -5048,7 +5048,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (!result.isSuccess()) {
                         messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
                     }
-                    replyToMessage(message, message.what, result.isSuccess() ? SUCCESS : FAILURE);
+                    replyToMessage(message, message.what, result.getNetworkId());
                     break;
                 case CMD_REMOVE_NETWORK:
                     netId = message.arg1;
