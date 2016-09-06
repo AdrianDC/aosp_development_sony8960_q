@@ -20,6 +20,7 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -29,6 +30,7 @@ import org.xmlpull.v1.XmlPullParserException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -188,6 +190,20 @@ public class WifiConfigStoreDataTest {
         List<WifiConfiguration> configurations = createNetworks(true);
         serializeDeserializeConfigStoreData(
                 configurations, new ArrayList<WifiConfiguration>(), false, true);
+    }
+
+    /**
+     * Verify that a network with invalid entepriseConfig data is serialized/deserialized
+     * correctly.
+     */
+    @Test
+    public void testInvalidEnterpriseConfig()
+            throws XmlPullParserException, IOException {
+        WifiConfiguration eapNetwork = WifiConfigurationTestUtil.createEapNetwork();
+        eapNetwork.enterpriseConfig = new WifiEnterpriseConfig();
+        List<WifiConfiguration> configurations = Arrays.asList(eapNetwork);
+        serializeDeserializeConfigStoreData(
+                new ArrayList<WifiConfiguration>(), configurations, false, false);
     }
 
     /**
