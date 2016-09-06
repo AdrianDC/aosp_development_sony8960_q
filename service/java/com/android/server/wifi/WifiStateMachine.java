@@ -6641,22 +6641,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
 
             WifiConfiguration config = (WifiConfiguration) message.obj;
-            if (config == null) {
-                /**
-                 * Configuration not provided in the command, fallback to use the current
-                 * configuration.
-                 */
-                config = mWifiApConfigStore.getApConfiguration();
-            } else {
-                /* Update AP configuration. */
-                mWifiApConfigStore.setApConfiguration(config);
-            }
 
             checkAndSetConnectivityInstance();
             mSoftApManager = mWifiInjector.makeSoftApManager(mNwService,
                                                              new SoftApListener(),
-                                                             apInterface);
-            mSoftApManager.start(config);
+                                                             apInterface,
+                                                             config);
+            mSoftApManager.start();
         }
 
         @Override
