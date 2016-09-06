@@ -60,7 +60,7 @@ public:
 
 private:
     template<typename T2>
-    JNIObject(const JNIObject<T2>& rhs);
+    JNIObject(const JNIObject<T2>& rhs);  // NOLINT(implicit)
 };
 
 class JNIHelper {
@@ -68,8 +68,8 @@ class JNIHelper {
     JNIEnv *mEnv;
 
 public :
-    JNIHelper(JavaVM *vm);
-    JNIHelper(JNIEnv *env);
+    explicit JNIHelper(JavaVM *vm);
+    explicit JNIHelper(JNIEnv *env);
     ~JNIHelper();
 
     void throwException(const char *message, int line);
