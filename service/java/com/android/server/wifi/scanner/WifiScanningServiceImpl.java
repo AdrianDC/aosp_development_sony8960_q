@@ -1258,6 +1258,10 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
 
         private void reportScanResults(ScanData[] results) {
+            if (results == null) {
+                Log.d(TAG,"The results is null, nothing to report.");
+                return;
+            }
             for (ScanData result : results) {
                 if (result != null && result.getResults() != null) {
                     if (result.getResults().length > 0) {
