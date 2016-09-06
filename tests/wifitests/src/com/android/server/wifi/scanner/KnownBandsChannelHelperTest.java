@@ -290,6 +290,7 @@ public class KnownBandsChannelHelperTest {
             assertTrue(mChannelCollection.isEmpty());
             assertFalse(mChannelCollection.containsChannel(2400));
             assertFalse(mChannelCollection.containsChannel(5150));
+            assertFalse(mChannelCollection.isAllChannels());
         }
 
         /**
@@ -310,6 +311,7 @@ public class KnownBandsChannelHelperTest {
             assertTrue(mChannelCollection.isEmpty());
             assertFalse(mChannelCollection.containsChannel(2400));
             assertFalse(mChannelCollection.containsChannel(5150));
+            assertFalse(mChannelCollection.isAllChannels());
         }
 
         /**
@@ -329,6 +331,7 @@ public class KnownBandsChannelHelperTest {
             assertFalse(mChannelCollection.isEmpty());
             assertTrue(mChannelCollection.containsChannel(2400));
             assertFalse(mChannelCollection.containsChannel(5150));
+            assertFalse(mChannelCollection.isAllChannels());
         }
 
         /**
@@ -348,6 +351,7 @@ public class KnownBandsChannelHelperTest {
             assertFalse(mChannelCollection.isEmpty());
             assertTrue(mChannelCollection.containsChannel(2400));
             assertFalse(mChannelCollection.containsChannel(5150));
+            assertFalse(mChannelCollection.isAllChannels());
         }
 
         /**
@@ -368,6 +372,7 @@ public class KnownBandsChannelHelperTest {
             assertFalse(mChannelCollection.isEmpty());
             assertTrue(mChannelCollection.containsChannel(2400));
             assertFalse(mChannelCollection.containsChannel(5150));
+            assertFalse(mChannelCollection.isAllChannels());
         }
 
         /**
@@ -388,6 +393,7 @@ public class KnownBandsChannelHelperTest {
             assertFalse(mChannelCollection.isEmpty());
             assertTrue(mChannelCollection.containsChannel(2400));
             assertFalse(mChannelCollection.containsChannel(5150));
+            assertFalse(mChannelCollection.isAllChannels());
         }
 
         /**
@@ -408,6 +414,7 @@ public class KnownBandsChannelHelperTest {
             assertFalse(mChannelCollection.isEmpty());
             assertTrue(mChannelCollection.containsChannel(2400));
             assertTrue(mChannelCollection.containsChannel(5150));
+            assertFalse(mChannelCollection.isAllChannels());
         }
 
         /**
@@ -428,6 +435,7 @@ public class KnownBandsChannelHelperTest {
             assertTrue(mChannelCollection.containsChannel(2400));
             assertTrue(mChannelCollection.containsChannel(5150));
             assertTrue(mChannelCollection.containsChannel(5600));
+            assertTrue(mChannelCollection.isAllChannels());
         }
 
         /**
@@ -442,6 +450,7 @@ public class KnownBandsChannelHelperTest {
             WifiNative.BucketSettings bucketSettings = new WifiNative.BucketSettings();
             mChannelCollection.fillBucketSettings(bucketSettings, 2);
             assertThat(bucketSettings, bandIs(WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY));
+            assertFalse(mChannelCollection.isAllChannels());
         }
 
         /**
@@ -456,6 +465,27 @@ public class KnownBandsChannelHelperTest {
             WifiNative.BucketSettings bucketSettings = new WifiNative.BucketSettings();
             mChannelCollection.fillBucketSettings(bucketSettings, 2);
             assertThat(bucketSettings, bandIs(WifiScanner.WIFI_BAND_BOTH));
+            assertFalse(mChannelCollection.isAllChannels());
+        }
+
+
+        /**
+         * Add enough channels across all bands that the max channels is exceeded
+         */
+        @Test
+        public void addChannel_addAllAvailableChannels() {
+            mChannelCollection.addChannel(2400);
+            mChannelCollection.addChannel(2450);
+            mChannelCollection.addChannel(5150);
+            mChannelCollection.addChannel(5175);
+            mChannelCollection.addChannel(5600);
+            mChannelCollection.addChannel(5650);
+            mChannelCollection.addChannel(5660);
+
+            WifiNative.BucketSettings bucketSettings = new WifiNative.BucketSettings();
+            mChannelCollection.fillBucketSettings(bucketSettings, Integer.MAX_VALUE);
+            assertThat(bucketSettings, channelsAre(2400, 2450, 5150, 5175, 5600, 5650, 5660));
+            assertTrue(mChannelCollection.isAllChannels());
         }
     }
 }

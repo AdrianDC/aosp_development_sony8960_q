@@ -112,6 +112,11 @@ public class NoBandChannelHelper extends ChannelHelper {
         }
 
         @Override
+        public boolean isAllChannels() {
+            return mAllChannels;
+        }
+
+        @Override
         public void clear() {
             mAllChannels = false;
             mChannels.clear();
