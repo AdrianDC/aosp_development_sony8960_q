@@ -6348,6 +6348,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         bssid = candidate.BSSID;
                     }
                     config = mWifiConfigManager.getConfiguredNetworkWithPassword(netId);
+                    if (config == null) {
+                        loge("CMD_START_ROAM and no config, bail out...");
+                        break;
+                    }
                     logd("CMD_START_ROAM sup state "
                             + mSupplicantStateTracker.getSupplicantStateName()
                             + " my state " + getCurrentState().getName()
@@ -6356,10 +6360,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             + " roam=" + Integer.toString(message.arg2)
                             + " to " + bssid
                             + " targetRoamBSSID " + mTargetRoamBSSID);
-                    if (config == null) {
-                        loge("AUTO_CONNECT and no config, bail out...");
-                        break;
-                    }
                     mTargetNetworkId = netId;
                     setTargetBssid(config, bssid);
 
