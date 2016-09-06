@@ -237,7 +237,8 @@ public class WifiConfigStoreData {
         XmlUtil.writeNextSectionEnd(out, XML_TAG_SECTION_HEADER_IP_CONFIGURATION);
 
         // Store the enterprise configuration for enterprise networks.
-        if (configuration.isEnterprise()) {
+        if (configuration.enterpriseConfig != null
+                && configuration.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
             XmlUtil.writeNextSectionStart(
                     out, XML_TAG_SECTION_HEADER_WIFI_ENTERPRISE_CONFIGURATION);
             WifiEnterpriseConfigXmlUtil.writeToXml(out, configuration.enterpriseConfig);
