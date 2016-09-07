@@ -1338,13 +1338,16 @@ public class WifiConfigManager {
     }
 
     /**
-     * Checks if the |uid| has the necessary permission to override wifi config and updates the last
-     * connected UID for the provided configuration.
+     * Checks if the |uid| has the necessary permission to force a connection to a network
+     * and updates the last connected UID for the provided configuration.
      *
      * @param networkId network ID corresponding to the network.
      * @param uid       uid of the app requesting the connection.
-     * @return true if |uid| has the necessary permission to trigger connection to the
+     * @return true if |uid| has the necessary permission to trigger explicit connection to the
      * network, false otherwise.
+     * Note: This returns true only for the system settings/sysui app which holds the
+     * {@link android.Manifest.permission#OVERRIDE_WIFI_CONFIG} permission. We don't want to let
+     * any other app force connection to a network.
      */
     public boolean checkAndUpdateLastConnectUid(int networkId, int uid) {
         if (mVerboseLoggingEnabled) {

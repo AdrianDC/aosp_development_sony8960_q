@@ -1257,37 +1257,29 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     /**
-     * Sets the network selected by the user. This is used to update the configured network's
-     * {@link android.net.wifi.WifiConfiguration.NetworkSelectionStatus#mConnectChoice} and the
-     * {@link WifiConfigManager#getLastSelectedNetwork()} param.
+     * Initiates connection to a network specified by the user/app. This method checks if the
+     * requesting app holds the WIFI_CONFIG_OVERRIDE permission.
+     * a) If yes, we start a new connection attempt to the specified network.
+     * b) if no, then we ask connectivity manager to start a new scan and trigger network selection.
      */
-    private boolean setUserSelectNetwork(int netId, int uid) {
+    private boolean connectToUserSelectNetwork(int netId, int uid) {
         if (!mWifiConfigManager.enableNetwork(netId, true, uid)) {
             loge("connectToUserSelectNetwork uid " + uid
                     + " did not have the permissions to enable=" + netId);
             return false;
         }
-        if (mWifiConnectivityManager != null) {
-            mWifiConnectivityManager.connectToUserSelectNetwork(netId, true);
-        }
-        return true;
-    }
-
-    /**
-     * Initiates connection to a network specified by the user/app. The method checks if the
-     * requesting app has the necessary permissions before sending a {@link #CMD_START_CONNECT}
-     * message with the specified network ID.
-     */
-    private boolean connectToUserSelectNetwork(int netId, int uid) {
-        if (!setUserSelectNetwork(netId, uid)) {
-            return false;
-        }
         if (!mWifiConfigManager.checkAndUpdateLastConnectUid(netId, uid)) {
             loge("connectToUserSelectNetwork uid " + uid
                     + " did not have the permissions to connect=" + netId);
-            return false;
+            // App does not have the permission to force a connection. But, we should still
+            // reconsider this newly enabled network for network selection.
+            mWifiConnectivityManager.forceConnectivityScan();
+        } else {
+            // Trigger an immediate connection to the specified network. We're also noting the user
+            // connect choice here, so that it will be considered in the next network selection.
+            mWifiConnectivityManager.setUserConnectChoice(netId);
+            startConnectToNetwork(netId, SUPPLICANT_BSSID_ANY);
         }
-        startConnectToNetwork(netId, SUPPLICANT_BSSID_ANY);
         return true;
     }
 
@@ -5304,12 +5296,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             log("Reconfiguring proxy on connection");
                             mIpManager.setHttpProxy(
                                     getCurrentWifiConfiguration().getHttpProxy());
-                        }
-                        if (!setUserSelectNetwork(netId, message.sendingUid)) {
-                            messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
-                            replyToMessage(message, WifiManager.SAVE_NETWORK_FAILED,
-                                    WifiManager.NOT_AUTHORIZED);
-                            break;
                         }
                     } else {
                         if (!connectToUserSelectNetwork(netId, message.sendingUid)) {
