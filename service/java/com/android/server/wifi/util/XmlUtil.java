@@ -933,29 +933,29 @@ public class XmlUtil {
         public static void writeToXml(XmlSerializer out, WifiEnterpriseConfig enterpriseConfig)
                 throws XmlPullParserException, IOException {
             XmlUtil.writeNextValue(out, XML_TAG_IDENTITY,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.IDENTITY_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.IDENTITY_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_ANON_IDENTITY,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ANON_IDENTITY_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ANON_IDENTITY_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_PASSWORD,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.PASSWORD_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.PASSWORD_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_CLIENT_CERT,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CLIENT_CERT_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CLIENT_CERT_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_CA_CERT,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CA_CERT_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CA_CERT_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_SUBJECT_MATCH,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.SUBJECT_MATCH_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.SUBJECT_MATCH_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_ENGINE,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ENGINE_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ENGINE_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_ENGINE_ID,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ENGINE_ID_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ENGINE_ID_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_PRIVATE_KEY_ID,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_ALT_SUBJECT_MATCH,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_DOM_SUFFIX_MATCH,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_CA_PATH,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CA_PATH_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CA_PATH_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_EAP_METHOD, enterpriseConfig.getEapMethod());
             XmlUtil.writeNextValue(out, XML_TAG_PHASE2_METHOD, enterpriseConfig.getPhase2Method());
         }
