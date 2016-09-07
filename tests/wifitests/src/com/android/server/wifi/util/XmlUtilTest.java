@@ -187,9 +187,14 @@ public class XmlUtilTest {
     public void testEapWifiConfigurationSerializeDeserializeForConfigStore()
             throws IOException, XmlPullParserException {
         WifiConfiguration configuration = WifiConfigurationTestUtil.createEapNetwork();
+        configuration.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP104);
+        configuration.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP40);
+        configuration.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP);
+        configuration.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.TKIP);
         configuration.linkedConfigurations = new HashMap<>();
         configuration.linkedConfigurations.put(TEST_DUMMY_CONFIG_KEY, Integer.valueOf(1));
         configuration.defaultGwMacAddress = TEST_STATIC_IP_GATEWAY_ADDRESS;
+        configuration.requirePMF = true;
         configuration.validatedInternetAccess = true;
         configuration.noInternetAccessExpected = true;
         configuration.userApproved = WifiConfiguration.USER_UNSPECIFIED;
