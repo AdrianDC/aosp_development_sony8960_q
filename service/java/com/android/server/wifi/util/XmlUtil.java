@@ -312,9 +312,12 @@ public class XmlUtil {
         public static final String XML_TAG_WEP_KEYS = "WEPKeys";
         public static final String XML_TAG_WEP_TX_KEY_INDEX = "WEPTxKeyIndex";
         public static final String XML_TAG_HIDDEN_SSID = "HiddenSSID";
+        public static final String XML_TAG_REQUIRE_PMF = "RequirePMF";
         public static final String XML_TAG_ALLOWED_KEY_MGMT = "AllowedKeyMgmt";
         public static final String XML_TAG_ALLOWED_PROTOCOLS = "AllowedProtocols";
         public static final String XML_TAG_ALLOWED_AUTH_ALGOS = "AllowedAuthAlgos";
+        public static final String XML_TAG_ALLOWED_GROUP_CIPHERS = "AllowedGroupCiphers";
+        public static final String XML_TAG_ALLOWED_PAIRWISE_CIPHERS = "AllowedPairwiseCiphers";
         public static final String XML_TAG_SHARED = "Shared";
         public static final String XML_TAG_FQDN = "FQDN";
         public static final String XML_TAG_PROVIDER_FRIENDLY_NAME = "ProviderFriendlyName";
@@ -377,6 +380,7 @@ public class XmlUtil {
             writeWepKeysToXml(out, configuration.wepKeys);
             XmlUtil.writeNextValue(out, XML_TAG_WEP_TX_KEY_INDEX, configuration.wepTxKeyIndex);
             XmlUtil.writeNextValue(out, XML_TAG_HIDDEN_SSID, configuration.hiddenSSID);
+            XmlUtil.writeNextValue(out, XML_TAG_REQUIRE_PMF, configuration.requirePMF);
             XmlUtil.writeNextValue(
                     out, XML_TAG_ALLOWED_KEY_MGMT,
                     configuration.allowedKeyManagement.toByteArray());
@@ -386,6 +390,12 @@ public class XmlUtil {
             XmlUtil.writeNextValue(
                     out, XML_TAG_ALLOWED_AUTH_ALGOS,
                     configuration.allowedAuthAlgorithms.toByteArray());
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_ALLOWED_GROUP_CIPHERS,
+                    configuration.allowedGroupCiphers.toByteArray());
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_ALLOWED_PAIRWISE_CIPHERS,
+                    configuration.allowedPairwiseCiphers.toByteArray());
             XmlUtil.writeNextValue(out, XML_TAG_SHARED, configuration.shared);
         }
 
@@ -508,6 +518,9 @@ public class XmlUtil {
                     case XML_TAG_HIDDEN_SSID:
                         configuration.hiddenSSID = (boolean) value;
                         break;
+                    case XML_TAG_REQUIRE_PMF:
+                        configuration.requirePMF = (boolean) value;
+                        break;
                     case XML_TAG_ALLOWED_KEY_MGMT:
                         byte[] allowedKeyMgmt = (byte[]) value;
                         configuration.allowedKeyManagement = BitSet.valueOf(allowedKeyMgmt);
@@ -519,6 +532,15 @@ public class XmlUtil {
                     case XML_TAG_ALLOWED_AUTH_ALGOS:
                         byte[] allowedAuthAlgorithms = (byte[]) value;
                         configuration.allowedAuthAlgorithms = BitSet.valueOf(allowedAuthAlgorithms);
+                        break;
+                    case XML_TAG_ALLOWED_GROUP_CIPHERS:
+                        byte[] allowedGroupCiphers = (byte[]) value;
+                        configuration.allowedGroupCiphers = BitSet.valueOf(allowedGroupCiphers);
+                        break;
+                    case XML_TAG_ALLOWED_PAIRWISE_CIPHERS:
+                        byte[] allowedPairwiseCiphers = (byte[]) value;
+                        configuration.allowedPairwiseCiphers =
+                                BitSet.valueOf(allowedPairwiseCiphers);
                         break;
                     case XML_TAG_SHARED:
                         configuration.shared = (boolean) value;
@@ -933,29 +955,29 @@ public class XmlUtil {
         public static void writeToXml(XmlSerializer out, WifiEnterpriseConfig enterpriseConfig)
                 throws XmlPullParserException, IOException {
             XmlUtil.writeNextValue(out, XML_TAG_IDENTITY,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.IDENTITY_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.IDENTITY_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_ANON_IDENTITY,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ANON_IDENTITY_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ANON_IDENTITY_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_PASSWORD,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.PASSWORD_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.PASSWORD_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_CLIENT_CERT,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CLIENT_CERT_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CLIENT_CERT_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_CA_CERT,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CA_CERT_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CA_CERT_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_SUBJECT_MATCH,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.SUBJECT_MATCH_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.SUBJECT_MATCH_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_ENGINE,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ENGINE_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ENGINE_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_ENGINE_ID,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ENGINE_ID_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ENGINE_ID_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_PRIVATE_KEY_ID,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_ALT_SUBJECT_MATCH,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_DOM_SUFFIX_MATCH,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_CA_PATH,
-                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CA_PATH_KEY, ""));
+                    enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CA_PATH_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_EAP_METHOD, enterpriseConfig.getEapMethod());
             XmlUtil.writeNextValue(out, XML_TAG_PHASE2_METHOD, enterpriseConfig.getPhase2Method());
         }
