@@ -469,7 +469,7 @@ public class WifiConnectivityManagerTest {
             numAttempts++;
         }
 
-        mWifiConnectivityManager.connectToUserSelectNetwork(CANDIDATE_NETWORK_ID, false);
+        mWifiConnectivityManager.setUserConnectChoice(CANDIDATE_NETWORK_ID);
 
         for (int attempt = 0; attempt < maxAttemptRate; attempt++) {
             currentTimeStamp += connectionAttemptIntervals;
