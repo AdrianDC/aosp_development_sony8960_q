@@ -1274,24 +1274,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
-     * see {@link android.net.wifi.WifiManager#addToBlacklist}
-     *
-     */
-    @Override
-    public void addToBlacklist(String bssid) {
-        // TODO(b/29449615)
-    }
-
-    /**
-     * see {@link android.net.wifi.WifiManager#clearBlacklist}
-     *
-     */
-    @Override
-    public void clearBlacklist() {
-        // TODO(b/29449615)
-    }
-
-    /**
      * enable TDLS for the local NIC to remote NIC
      * The APPs don't know the remote MAC address to identify NIC though,
      * so we need to do additional work to find it from remote IP address
@@ -1406,15 +1388,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
         mWifiStateMachine.disableEphemeralNetwork(SSID);
-    }
-
-    /**
-     * Get the IP and proxy configuration file
-     */
-    @Override
-    public String getConfigFile() {
-        // TODO(b/29449615)
-        return "";
     }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
