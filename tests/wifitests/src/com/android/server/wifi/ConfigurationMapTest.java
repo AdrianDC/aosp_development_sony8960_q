@@ -90,18 +90,15 @@ public class ConfigurationMapTest {
     }
 
     public void switchUser(int newUserId) {
-        Set<WifiConfiguration> hiddenConfigurations = new HashSet<>();
-        for (WifiConfiguration config : mConfigs.valuesForAllUsers()) {
-            if (WifiConfigurationUtil.isVisibleToAnyProfile(config,
-                    USER_PROFILES.get(mCurrentUserId))
-                    && !WifiConfigurationUtil.isVisibleToAnyProfile(config,
-                            USER_PROFILES.get(newUserId))) {
-                hiddenConfigurations.add(config);
-            }
-        }
-
         mCurrentUserId = newUserId;
-        assertEquals(hiddenConfigurations, new HashSet<>(mConfigs.handleUserSwitch(newUserId)));
+        mConfigs.setNewUser(newUserId);
+        mConfigs.clear();
+    }
+
+    public void addNetworks(List<WifiConfiguration> configs) {
+        for (WifiConfiguration config : configs) {
+            assertNull(mConfigs.put(config));
+        }
     }
 
     public void verifyGetters(List<WifiConfiguration> configs) {
@@ -124,8 +121,6 @@ public class ConfigurationMapTest {
             }
 
             assertEquals(config, mConfigs.getForAllUsers(config.networkId));
-            assertEquals(config,
-                    mConfigs.getByConfigKeyIDForAllUsers(config.configKey().hashCode()));
         }
 
         // Verify that *ForCurrentUser() methods can be used to access network configurations
@@ -177,16 +172,15 @@ public class ConfigurationMapTest {
      */
     @Test
     public void testGettersAndHandleUserSwitch() {
-        for (WifiConfiguration config : CONFIGS) {
-            assertNull(mConfigs.put(config));
-        }
-
+        addNetworks(CONFIGS);
         verifyGetters(CONFIGS);
 
         switchUser(10);
+        addNetworks(CONFIGS);
         verifyGetters(CONFIGS);
 
         switchUser(11);
+        addNetworks(CONFIGS);
         verifyGetters(CONFIGS);
     }
 
