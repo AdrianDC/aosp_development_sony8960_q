@@ -632,7 +632,7 @@ public class WifiNanDataPathStateManagerTest {
         nc.setLinkDownstreamBandwidthKbps(1);
         nc.setSignalStrength(1);
 
-        return new NetworkRequest(nc, 0, 0, NetworkRequest.Type.NONE);
+        return new NetworkRequest(nc, 0, 0);
     }
 
     private NetworkRequest getDirectNetworkRequest(int clientId, int role, byte[] peer,
@@ -666,7 +666,7 @@ public class WifiNanDataPathStateManagerTest {
         nc.setLinkDownstreamBandwidthKbps(1);
         nc.setSignalStrength(1);
 
-        return new NetworkRequest(nc, 0, 0, NetworkRequest.Type.REQUEST);
+        return new NetworkRequest(nc, 0, 0);
     }
 
     private Pair<Integer, Messenger> initDataPathEndPoint(int clientId, int pubSubId, int peerId,
