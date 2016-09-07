@@ -125,7 +125,7 @@ public class WifiEnterpriseConfigTest {
     }
 
     private String getCaCertField() {
-        return mEnterpriseConfig.getFieldValue(WifiEnterpriseConfig.CA_CERT_KEY, "");
+        return mEnterpriseConfig.getFieldValue(WifiEnterpriseConfig.CA_CERT_KEY);
     }
 
     private void setCaCertField(String value) {
