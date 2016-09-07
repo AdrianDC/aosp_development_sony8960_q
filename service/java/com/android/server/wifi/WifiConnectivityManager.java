@@ -1065,11 +1065,10 @@ public class WifiConnectivityManager {
     /**
      * Handler when user specifies a particular network to connect to
      */
-    public void connectToUserSelectNetwork(int netId, boolean persistent) {
-        Log.i(TAG, "connectToUserSelectNetwork: netId=" + netId
-                   + " persist=" + persistent);
+    public void setUserConnectChoice(int netId) {
+        Log.i(TAG, "setUserConnectChoice: netId=" + netId);
 
-        mQualifiedNetworkSelector.userSelectNetwork(netId, persistent);
+        mQualifiedNetworkSelector.setUserConnectChoice(netId);
 
         clearConnectionAttemptTimeStamps();
     }

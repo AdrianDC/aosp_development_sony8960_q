@@ -762,7 +762,7 @@ public class WifiQualifiedNetworkSelectorTest {
         }
         prepareConfigStore(configs);
 
-        mWifiQualifiedNetworkSelector.userSelectNetwork(configs.length - 1, true);
+        mWifiQualifiedNetworkSelector.setUserConnectChoice(configs.length - 1);
         String key = configs[configs.length - 1].configKey();
         for (int index = 0; index < configs.length; index++) {
             WifiConfiguration config = configs[index];
@@ -803,7 +803,7 @@ public class WifiQualifiedNetworkSelectorTest {
         prepareConfigStore(configs);
 
         //set user preference
-        mWifiQualifiedNetworkSelector.userSelectNetwork(ssids.length - 1, true);
+        mWifiQualifiedNetworkSelector.setUserConnectChoice(ssids.length - 1);
         //Generate mocked recent scan results
         String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4", "6c:f3:7f:ae:8c:f5"};
         int[] frequencies = {2437, 5180, 2437};

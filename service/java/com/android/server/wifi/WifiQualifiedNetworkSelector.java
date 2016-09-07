@@ -469,8 +469,8 @@ public class WifiQualifiedNetworkSelector {
     }
 
     /**
-     * This API is called when user explicitly selects a network. Currently, it is used in following
-     * cases:
+     * This API is called when user/app explicitly selects a network. Currently, it is used in
+     * following cases:
      * (1) User explicitly chooses to connect to a saved network.
      * (2) User saves a network after adding a new network.
      * (3) User saves a network after modifying a saved network.
@@ -480,20 +480,14 @@ public class WifiQualifiedNetworkSelector {
      *    selection procedure.
      *
      * @param netId  ID for the network chosen by the user
-     * @param persist  whether user has the authority to overwrite current connect choice
      * @return true -- There is change made to connection choice of any saved network.
      *         false -- There is no change made to connection choice of any saved network.
      */
-    public boolean userSelectNetwork(int netId, boolean persist) {
-        localLog("userSelectNetwork: network ID=" + netId + " persist=" + persist);
+    public boolean setUserConnectChoice(int netId) {
+        localLog("setUserConnectChoice: network ID=" + netId);
         WifiConfiguration selected = mWifiConfigManager.getConfiguredNetwork(netId);
         if (selected == null || selected.SSID == null) {
-            localLoge("userSelectNetwork: Invalid configuration with nid=" + netId);
-            return false;
-        }
-
-        if (!persist) {
-            localLog("User has no privilege to overwrite the current priority");
+            localLoge("setUserConnectChoice: Invalid configuration with nid=" + netId);
             return false;
         }
 
@@ -506,9 +500,9 @@ public class WifiQualifiedNetworkSelector {
             WifiConfiguration.NetworkSelectionStatus status = network.getNetworkSelectionStatus();
             if (network.networkId == selected.networkId) {
                 if (status.getConnectChoice() != null) {
-                    localLog("Remove user selection preference of " + status.getConnectChoice()
+                    localLog("Clear connection choice of " + status.getConnectChoice()
                             + " Set Time: " + status.getConnectChoiceTimestamp() + " from "
-                            + network.SSID + " : " + network.networkId);
+                            + getNetworkString(network));
                     mWifiConfigManager.clearNetworkConnectChoice(network.networkId);
                     change = true;
                 }
@@ -518,7 +512,7 @@ public class WifiQualifiedNetworkSelector {
             if (status.getSeenInLastQualifiedNetworkSelection()
                     && (status.getConnectChoice() == null
                     || !status.getConnectChoice().equals(key))) {
-                localLog("Add key: " + key + " Set Time: " + currentTime + " to "
+                localLog("Set connection choice of " + key + " Set Time: " + currentTime + " to "
                         + getNetworkString(network));
                 mWifiConfigManager.setNetworkConnectChoice(network.networkId, key, currentTime);
                 change = true;
