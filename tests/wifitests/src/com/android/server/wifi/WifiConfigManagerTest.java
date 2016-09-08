@@ -182,6 +182,8 @@ public class WifiConfigManagerTest {
                 mWifiConfigManager.getConfiguredNetworksWithPasswords();
         WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
                 networks, retrievedNetworks);
+        // Ensure that the newly added network is disabled.
+        assertEquals(WifiConfiguration.Status.DISABLED, retrievedNetworks.get(0).status);
     }
 
     /**
@@ -2049,6 +2051,9 @@ public class WifiConfigManagerTest {
         if (configuration.getProxySettings() == IpConfiguration.ProxySettings.UNASSIGNED) {
             configuration.setProxySettings(IpConfiguration.ProxySettings.NONE);
         }
+        configuration.status = WifiConfiguration.Status.DISABLED;
+        configuration.getNetworkSelectionStatus().setNetworkSelectionStatus(
+                NetworkSelectionStatus.NETWORK_SELECTION_PERMANENTLY_DISABLED);
     }
 
     /**
