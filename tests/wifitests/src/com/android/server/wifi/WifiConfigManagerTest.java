@@ -51,6 +51,9 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -2008,6 +2011,33 @@ public class WifiConfigManagerTest {
         WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
                 network,
                 mWifiConfigManager.getConfiguredNetworkWithPassword(network.networkId));
+    }
+
+    /**
+     * Verifies that the dump method prints out all the saved network details with passwords masked.
+     * {@link WifiConfigManager#dump(FileDescriptor, PrintWriter, String[])}.
+     */
+    @Test
+    public void testDump() {
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        WifiConfiguration eapNetwork = WifiConfigurationTestUtil.createEapNetwork();
+        eapNetwork.enterpriseConfig.setPassword("blah");
+
+        verifyAddNetworkToWifiConfigManager(pskNetwork);
+        verifyAddNetworkToWifiConfigManager(eapNetwork);
+
+        StringWriter stringWriter = new StringWriter();
+        mWifiConfigManager.dump(
+                new FileDescriptor(), new PrintWriter(stringWriter), new String[0]);
+        String dumpString = stringWriter.toString();
+
+        // Ensure that the network SSIDs were dumped out.
+        assertTrue(dumpString.contains(pskNetwork.SSID));
+        assertTrue(dumpString.contains(eapNetwork.SSID));
+
+        // Ensure that the network passwords were not dumped out.
+        assertFalse(dumpString.contains(pskNetwork.preSharedKey));
+        assertFalse(dumpString.contains(eapNetwork.enterpriseConfig.getPassword()));
     }
 
     private void createWifiConfigManager() {
