@@ -2407,15 +2407,14 @@ public class WifiQualifiedNetworkSelectorTest {
         // Choose BSSID2 as it has stronger RSSI
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
-                false, scanDetails, false, false, true, false);
+                false, false, false, true, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
-        when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
 
         // Choose BSSID2 as it has stronger RSSI and it is the currently connected BSSID
         chosenScanResult = scanDetails.get(1).getScanResult();
         candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(true,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
 
         // Pretend firmware roamed the device to BSSID1
@@ -2425,7 +2424,7 @@ public class WifiQualifiedNetworkSelectorTest {
         // higher RSSI value.
         chosenScanResult = scanDetails.get(0).getScanResult();
         candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(true,
-                false, scanDetails, false, true, false, false);
+                false, false, true, false, false, scanDetails);
         verifySelectedResult(chosenScanResult, candidate);
     }
 }
