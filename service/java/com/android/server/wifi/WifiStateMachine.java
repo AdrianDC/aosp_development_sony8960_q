@@ -108,8 +108,6 @@ import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.connectivity.KeepalivePacketData;
-import com.android.server.wifi.hotspot2.IconEvent;
-import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
 import com.android.server.wifi.util.TelephonyUtil;
@@ -4222,7 +4220,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // We can't do this in the constructor because WifiStateMachine is created before the
             // wifi scanning service is initialized
             if (mWifiScanner == null) {
-                mWifiScanner = mFacade.makeWifiScanner(mContext, getHandler().getLooper());
+                mWifiScanner = mWifiInjector.getWifiScanner();
 
                 synchronized (mWifiReqCountLock) {
                     mWifiConnectivityManager = new WifiConnectivityManager(mContext,

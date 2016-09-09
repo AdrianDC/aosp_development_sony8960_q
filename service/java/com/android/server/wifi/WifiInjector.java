@@ -19,7 +19,9 @@ package com.android.server.wifi;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.wifi.IApInterface;
+import android.net.wifi.IWifiScanner;
 import android.net.wifi.IWificond;
+import android.net.wifi.WifiScanner;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
@@ -81,6 +83,7 @@ public class WifiInjector {
     private final IpConfigStore mIpConfigStore;
     private final WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     private final WifiConfigManager mWifiConfigManager;
+    private WifiScanner mWifiScanner;
 
     private final boolean mUseRealLogger;
 
@@ -303,5 +306,20 @@ public class WifiInjector {
         } else {
             return new BaseWifiDiagnostics();
         }
+    }
+
+    /**
+     * Obtain an instance of WifiScanner.
+     * If it was not already created, then obtain an instance.  Note, this must be done lazily since
+     * WifiScannerService is separate and created later.
+     */
+    public synchronized WifiScanner getWifiScanner() {
+        if (mWifiScanner == null) {
+            mWifiScanner = new WifiScanner(mContext,
+                    IWifiScanner.Stub.asInterface(ServiceManager.getService(
+                            Context.WIFI_SCANNING_SERVICE)),
+                    mWifiStateMachineHandlerThread.getLooper());
+        }
+        return mWifiScanner;
     }
 }
