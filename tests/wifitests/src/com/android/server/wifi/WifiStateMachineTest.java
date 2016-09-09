@@ -17,7 +17,6 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -61,7 +60,6 @@ import android.os.UserManager;
 import android.os.test.TestLooper;
 import android.provider.Settings;
 import android.security.KeyStore;
-import android.telephony.TelephonyManager;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
 
@@ -71,7 +69,6 @@ import com.android.internal.util.AsyncChannel;
 import com.android.internal.util.IState;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.hotspot2.NetworkDetail;
-import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
 
 import org.junit.After;
@@ -88,12 +85,10 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.concurrent.CountDownLatch;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiStateMachine}.
@@ -158,8 +153,6 @@ public class WifiStateMachineTest {
     private FrameworkFacade getFrameworkFacade() throws Exception {
         FrameworkFacade facade = mock(FrameworkFacade.class);
 
-        when(facade.makeWifiScanner(any(Context.class), any(Looper.class)))
-                .thenReturn(mWifiScanner);
         when(facade.getService(Context.NETWORKMANAGEMENT_SERVICE)).thenReturn(
                 mockWithInterfaces(IBinder.class, INetworkManagementService.class));
 
@@ -346,6 +339,7 @@ public class WifiStateMachineTest {
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
         when(mWifiInjector.getWifiConfigManager()).thenReturn(mWifiConfigManager);
         when(mWifiInjector.getWifiSupplicantControl()).thenReturn(mWifiSupplicantControl);
+        when(mWifiInjector.getWifiScanner()).thenReturn(mWifiScanner);
 
         when(mWifiNative.getInterfaceName()).thenReturn("mockWlan");
         when(mWifiSupplicantControl.getFrameworkNetworkId(anyInt())).thenReturn(0);
