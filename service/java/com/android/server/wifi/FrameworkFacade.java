@@ -20,19 +20,13 @@ import android.app.AppGlobals;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.net.TrafficStats;
 import android.net.ip.IpManager;
-import android.net.wifi.IWifiScanner;
-import android.net.wifi.WifiScanner;
 import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.RemoteException;
 import android.os.ServiceManager;
-import android.os.UserManager;
 import android.provider.Settings;
-import android.security.KeyStore;
 import android.telephony.CarrierConfigManager;
 
 /**
@@ -63,11 +57,6 @@ public class FrameworkFacade {
 
     public IBinder getService(String serviceName) {
         return ServiceManager.getService(serviceName);
-    }
-
-    public WifiScanner makeWifiScanner(Context context, Looper looper) {
-        return new WifiScanner(context, IWifiScanner.Stub.asInterface(
-                        getService(Context.WIFI_SCANNING_SERVICE)), looper);
     }
 
     public PendingIntent getBroadcast(Context context, int requestCode, Intent intent, int flags) {
