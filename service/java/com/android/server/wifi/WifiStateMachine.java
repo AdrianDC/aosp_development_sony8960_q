@@ -7255,17 +7255,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         config = mWifiConfigManager.getWifiConfiguration(netId);
                     }
 
+                    setTargetBssid(config, bssid);
+                    mTargetNetworkId = netId;
+
                     logd("CMD_AUTO_ROAM sup state "
                             + mSupplicantStateTracker.getSupplicantStateName()
                             + " my state " + getCurrentState().getName()
                             + " nid=" + Integer.toString(netId)
                             + " config " + config.configKey()
-                            + " roam=" + Integer.toString(message.arg2)
-                            + " to " + bssid
                             + " targetRoamBSSID " + mTargetRoamBSSID);
-
-                    setTargetBssid(config, bssid);
-                    mTargetNetworkId = netId;
 
                     /* Determine if this is a regular roam (between BSSIDs sharing the same SSID),
                        or a DBDC roam (between 2.4 & 5GHz networks on different SSID's, but with
