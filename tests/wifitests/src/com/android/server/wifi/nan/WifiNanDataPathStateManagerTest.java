@@ -50,6 +50,7 @@ import android.net.wifi.nan.WifiNanManager;
 import android.net.wifi.nan.WifiNanPublishSession;
 import android.net.wifi.nan.WifiNanSessionCallback;
 import android.net.wifi.nan.WifiNanSubscribeSession;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
 import android.os.Message;
@@ -84,6 +85,7 @@ public class WifiNanDataPathStateManagerTest {
     private static final String sNanInterfacePrefix = "nan";
 
     private MockLooper mMockLooper;
+    private Handler mMockLooperHandler;
     private WifiNanStateManager mDut;
     @Mock private WifiNanNative mMockNative;
     @Mock private Context mMockContext;
@@ -115,6 +117,7 @@ public class WifiNanDataPathStateManagerTest {
         when(mMockContext.getSystemService(Context.CONNECTIVITY_SERVICE)).thenReturn(mMockCm);
 
         mMockLooper = new MockLooper();
+        mMockLooperHandler = new Handler(mMockLooper.getLooper());
 
         mDut = installNewNanStateManager();
         mDut.start(mMockContext, mMockLooper.getLooper());
@@ -607,7 +610,7 @@ public class WifiNanDataPathStateManagerTest {
         when(mMockNanService.connect(any(IBinder.class), anyString(),
                 any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
 
-        mgr.connect(mMockLooper.getLooper(), configRequest, mockCallback);
+        mgr.connect(mMockLooperHandler, configRequest, mockCallback);
         verify(mMockNanService).connect(any(IBinder.class), anyString(),
                 clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess();
@@ -648,7 +651,7 @@ public class WifiNanDataPathStateManagerTest {
         when(mMockNanService.connect(any(IBinder.class), anyString(),
                 any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
 
-        mgr.connect(mMockLooper.getLooper(), configRequest, mockCallback);
+        mgr.connect(mMockLooperHandler, configRequest, mockCallback);
         verify(mMockNanService).connect(any(IBinder.class), anyString(),
                 clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess();
