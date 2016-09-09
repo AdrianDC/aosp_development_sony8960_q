@@ -617,9 +617,9 @@ public class WifiQualifiedNetworkSelector {
                     mWifiConfigManager.getWifiConfiguration(mWifiInfo.getNetworkId());
         }
 
-        if (mCurrentBssid == null) {
-            mCurrentBssid = mWifiInfo.getBSSID();
-        }
+        // Always get the current BSSID from WifiInfo in case that firmware initiated roaming
+        // happened.
+        mCurrentBssid = mWifiInfo.getBSSID();
 
         if (!forceSelectNetwork && !needQualifiedNetworkSelection(isLinkDebouncing, isConnected,
                 isDisconnected, isSupplicantTransient)) {

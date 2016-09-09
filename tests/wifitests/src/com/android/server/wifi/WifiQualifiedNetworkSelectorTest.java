@@ -2270,4 +2270,59 @@ public class WifiQualifiedNetworkSelectorTest {
 
         verifySelectedResult(chosenScanResult, candidate);
     }
+
+    /**
+     * Case #47   Choose the currently connected BSSID after a firmware initiated roaming.
+     *
+     * In this test. we simulate following scenario:
+     * Two APs are found in scan results
+     * BSSID1 is @ 2.4GHz with RSSI -78
+     * BSSID2 is @ 2.4Ghz with RSSI -77
+     * BSSID2 is chosen because of stronger RSSI. Then firmware initiates
+     * a roaming to BSSID1. QNS now selects BSSID1 because of the bonus for currently
+     * connected network even if BSSID 2 has slightly stronger signal strengh.
+     *
+     * expect BSSID2 to be chosen after firmware roaming
+     */
+    @Test
+    public void chooseCurrentlyConnectedBssid() {
+        String[] ssids = {"\"test1\"", "\"test1\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] frequencies = {2437, 2437};
+        String[] caps = {"[ESS]", "[ESS]"};
+        int[] levels = {-78, -77};
+        int[] security = {SECURITY_NONE, SECURITY_NONE};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssids, security);
+        prepareConfigStore(savedConfigs);
+
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigManager.getSavedNetworks()).thenReturn(savedNetwork);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        // Choose BSSID2 as it has stronger RSSI
+        ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, false, true, false);
+        verifySelectedResult(chosenScanResult, candidate);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
+        when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
+
+        // Choose BSSID2 as it has stronger RSSI and it is the currently connected BSSID
+        chosenScanResult = scanDetails.get(1).getScanResult();
+        candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(true,
+                false, scanDetails, false, true, false, false);
+        verifySelectedResult(chosenScanResult, candidate);
+
+        // Pretend firmware roamed the device to BSSID1
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
+
+        // Choose BSSID1 as it is the currently connected BSSID even if BSSID2 has slightly
+        // higher RSSI value.
+        chosenScanResult = scanDetails.get(0).getScanResult();
+        candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(true,
+                false, scanDetails, false, true, false, false);
+        verifySelectedResult(chosenScanResult, candidate);
+    }
 }
