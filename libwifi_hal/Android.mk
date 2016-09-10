@@ -106,6 +106,7 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := \
     $(LOCAL_PATH)/include \
     $(call include-path-for, libhardware_legacy)
 LOCAL_SHARED_LIBRARIES := \
+    libbase \
     libcutils \
     liblog \
     libnl \

@@ -27,7 +27,9 @@ class DriverTool {
   static const int kFirmwareModeAp;
   static const int kFirmwareModeP2p;
 
-  static const char kFirmwareReloadPath[];
+  // Change the owner of the firmware reload path to wifi:wifi if
+  // firmware reload is supported.
+  static bool TakeOwnershipOfFirmwareReload();
 
   DriverTool() = default;
   virtual ~DriverTool() = default;

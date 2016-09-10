@@ -16,6 +16,9 @@
 
 #include "wifi_hal/driver_tool.h"
 
+#include <android-base/logging.h>
+#include <private/android_filesystem_config.h>
+
 #include "hardware_legacy/wifi.h"
 
 namespace android {
@@ -25,7 +28,21 @@ const int DriverTool::kFirmwareModeSta = WIFI_GET_FW_PATH_STA;
 const int DriverTool::kFirmwareModeAp = WIFI_GET_FW_PATH_AP;
 const int DriverTool::kFirmwareModeP2p = WIFI_GET_FW_PATH_P2P;
 
-const char DriverTool::kFirmwareReloadPath[] = WIFI_DRIVER_FW_PATH_PARAM;
+bool DriverTool::TakeOwnershipOfFirmwareReload() {
+  if (!wifi_get_fw_path(kFirmwareModeSta) &&
+      !wifi_get_fw_path(kFirmwareModeAp) &&
+      !wifi_get_fw_path(kFirmwareModeP2p)) {
+    return true;  // HAL doesn't think we need to load firmware for any mode.
+  }
+
+  if (chown(WIFI_DRIVER_FW_PATH_PARAM, AID_WIFI, AID_WIFI) != 0) {
+    PLOG(ERROR) << "Error changing ownership of '" << WIFI_DRIVER_FW_PATH_PARAM
+                << "' to wifi:wifi";
+    return false;
+  }
+
+  return true;
+}
 
 bool DriverTool::LoadDriver() {
   return ::wifi_load_driver() == 0;
