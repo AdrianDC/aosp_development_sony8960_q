@@ -1,4 +1,4 @@
-/*
+ /*
  * Copyright (C) 2016 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -371,7 +371,7 @@ public class WifiScanningServiceTest {
         assertTrue("dump did not contain log with type=" + type + ", id=" + id +
                 ": " + serviceDump + "\n",
                 logLineRegex.matcher(serviceDump).find());
-   }
+    }
 
     private void assertDumpContainsCallbackLog(String callback, int id, String extra) {
         String serviceDump = dumpService();
@@ -382,7 +382,7 @@ public class WifiScanningServiceTest {
         assertTrue("dump did not contain callback log with callback=" + callback + ", id=" + id +
                 ", extra=" + extra + ": " + serviceDump + "\n",
                 logLineRegex.matcher(serviceDump).find());
-   }
+    }
 
     @Test
     public void construct() throws Exception {
@@ -507,10 +507,10 @@ public class WifiScanningServiceTest {
      */
     @Test
     public void sendSingleScanBandRequest() throws Exception {
-        WifiScanner.ScanSettings requestSettings = createRequest(WifiScanner.WIFI_BAND_BOTH, 0,
-                0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        WifiScanner.ScanSettings requestSettings = createRequest(WifiScanner.WIFI_BAND_BOTH_WITH_DFS,
+                0, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
         doSuccessfulSingleScan(requestSettings, computeSingleScanNativeSettings(requestSettings),
-                ScanResults.create(0, 2400, 5150, 5175));
+                ScanResults.create(0, true, 2400, 5150, 5175));
     }
 
     /**
@@ -518,10 +518,22 @@ public class WifiScanningServiceTest {
      */
     @Test
     public void sendSingleScanChannelsRequest() throws Exception {
-        WifiScanner.ScanSettings requestSettings = createRequest(WifiScanner.WIFI_BAND_BOTH, 0,
-                0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        WifiScanner.ScanSettings requestSettings = createRequest(channelsToSpec(2400, 5150, 5175),
+                0, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
         doSuccessfulSingleScan(requestSettings, computeSingleScanNativeSettings(requestSettings),
                 ScanResults.create(0, 2400, 5150, 5175));
+    }
+
+    /**
+     * Do a single scan for a list of all channels and verify that it is successful.
+     */
+    @Test
+    public void sendSingleScanAllChannelsRequest() throws Exception {
+        WifiScanner.ScanSettings requestSettings = createRequest(
+                channelsToSpec(2400, 2450, 5150, 5175, 5600, 5650, 5660),
+                0, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        doSuccessfulSingleScan(requestSettings, computeSingleScanNativeSettings(requestSettings),
+                ScanResults.create(0, true, 2400, 5150, 5175));
     }
 
     /**

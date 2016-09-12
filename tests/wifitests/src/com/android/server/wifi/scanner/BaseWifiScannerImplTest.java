@@ -89,6 +89,12 @@ public abstract class BaseWifiScannerImplTest {
         when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime());
     }
 
+    protected boolean isAllChannelsScanned(int band) {
+        ChannelCollection collection = mScanner.getChannelHelper().createChannelCollection();
+        collection.addBand(band);
+        return collection.isAllChannels();
+    }
+
     protected Set<Integer> expectedBandScanFreqs(int band) {
         ChannelCollection collection = mScanner.getChannelHelper().createChannelCollection();
         collection.addBand(band);
@@ -115,7 +121,8 @@ public abstract class BaseWifiScannerImplTest {
 
         doSuccessfulSingleScanTest(settings, expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ),
                 new HashSet<Integer>(),
-                ScanResults.create(0, 2400, 2450, 2450, 2400, 2450, 2450, 2400, 2450, 2450), false);
+                ScanResults.create(0, isAllChannelsScanned(WifiScanner.WIFI_BAND_24_GHZ),
+                        2400, 2450, 2450, 2400, 2450, 2450, 2400, 2450, 2450), false);
     }
 
     @Test
@@ -144,7 +151,8 @@ public abstract class BaseWifiScannerImplTest {
 
         doSuccessfulSingleScanTest(settings, expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ),
                 new HashSet<Integer>(),
-                ScanResults.create(0, 2400, 2450, 2450, 2400, 2450, 2450, 2400, 2450, 2450), true);
+                ScanResults.create(0, isAllChannelsScanned(WifiScanner.WIFI_BAND_24_GHZ),
+                        2400, 2450, 2450, 2400, 2450, 2450, 2400, 2450, 2450), true);
     }
 
     /**
@@ -346,7 +354,7 @@ public abstract class BaseWifiScannerImplTest {
                 .withBasePeriod(10000)
                 .withMaxApPerScan(10)
                 .addBucketWithBand(10000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN,
-                        WifiScanner.WIFI_BAND_5_GHZ)
+                        WifiScanner.WIFI_BAND_BOTH_WITH_DFS)
                 .build();
 
         WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
@@ -361,15 +369,17 @@ public abstract class BaseWifiScannerImplTest {
         expectSuccessfulSingleScan(order, eventHandler,
                 expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ),
                 new HashSet<Integer>(),
-                ScanResults.create(0, 2400, 2450, 2450), false);
+                ScanResults.create(0, isAllChannelsScanned(WifiScanner.WIFI_BAND_24_GHZ),
+                        2400, 2450, 2450), false);
 
         // start second scan
         assertTrue(mScanner.startSingleScan(settings2, eventHandler));
 
         expectSuccessfulSingleScan(order, eventHandler,
-                expectedBandScanFreqs(WifiScanner.WIFI_BAND_5_GHZ),
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_BOTH_WITH_DFS),
                 new HashSet<Integer>(),
-                ScanResults.create(0, 5150, 5175), false);
+                ScanResults.create(0, true,
+                        5150, 5175), false);
 
         verifyNoMoreInteractions(eventHandler);
     }
@@ -412,7 +422,8 @@ public abstract class BaseWifiScannerImplTest {
         }
         ArrayList<ScanResult> scanDataResults = new ArrayList<>(fullResults);
         Collections.sort(scanDataResults, ScanResults.SCAN_RESULT_RSSI_COMPARATOR);
-        ScanData scanData = new ScanData(0, 0,
+        ScanData scanData = new ScanData(0, 0, 0,
+                isAllChannelsScanned(WifiScanner.WIFI_BAND_24_GHZ),
                 scanDataResults.toArray(new ScanResult[scanDataResults.size()]));
         Set<Integer> expectedScan = expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ);
 

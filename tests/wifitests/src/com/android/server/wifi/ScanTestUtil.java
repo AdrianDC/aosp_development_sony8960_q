@@ -217,7 +217,7 @@ public class ScanTestUtil {
         for (int i = 0; i < freqs.length; ++i) {
             results[i] = createScanResult(freqs[i]);
         }
-        return new ScanData(0, 0, bucketsScanned, results);
+        return new ScanData(0, 0, bucketsScanned, false, results);
     }
 
     public static ScanData[] createScanDatas(int[][] freqs, int[] bucketsScanned) {
@@ -272,6 +272,8 @@ public class ScanTestUtil {
         assertNotNull(prefix + "actual ScanData was null", actual);
         assertEquals(prefix + "id", expected.getId(), actual.getId());
         assertEquals(prefix + "flags", expected.getFlags(), actual.getFlags());
+        assertEquals(prefix + "all channels", expected.isAllChannelsScanned(),
+                actual.isAllChannelsScanned());
         assertScanResultsEquals(prefix, expected.getResults(), actual.getResults());
     }
 

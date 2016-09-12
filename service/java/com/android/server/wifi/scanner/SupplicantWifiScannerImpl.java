@@ -637,7 +637,8 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                     }
                 }
                 Collections.sort(singleScanResults, SCAN_RESULT_SORT_COMPARATOR);
-                mLatestSingleScanResult = new WifiScanner.ScanData(mLastScanSettings.scanId, 0,
+                mLatestSingleScanResult = new WifiScanner.ScanData(mLastScanSettings.scanId, 0, 0,
+                        mLastScanSettings.singleScanFreqs.isAllChannels(),
                         singleScanResults.toArray(new ScanResult[singleScanResults.size()]));
                 mLastScanSettings.singleScanEventHandler
                         .onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);

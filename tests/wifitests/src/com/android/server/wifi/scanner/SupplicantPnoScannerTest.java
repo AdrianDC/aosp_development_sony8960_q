@@ -91,7 +91,7 @@ public class SupplicantPnoScannerTest {
 
         WifiNative.PnoEventHandler pnoEventHandler = mock(WifiNative.PnoEventHandler.class);
         WifiNative.PnoSettings pnoSettings = createDummyPnoSettings(false);
-        ScanResults scanResults = createDummyScanResults();
+        ScanResults scanResults = createDummyScanResults(false);
 
         InOrder order = inOrder(pnoEventHandler, mWifiNative);
         // Start PNO scan
@@ -112,7 +112,7 @@ public class SupplicantPnoScannerTest {
         WifiNative.PnoSettings pnoSettings = createDummyPnoSettings(false);
         WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
         WifiNative.ScanSettings settings = createDummyScanSettings();
-        ScanResults scanResults = createDummyScanResults();
+        ScanResults scanResults = createDummyScanResults(true);
 
         InOrder order = inOrder(eventHandler, mWifiNative);
         // Start PNO scan
@@ -182,7 +182,7 @@ public class SupplicantPnoScannerTest {
         WifiNative.PnoSettings pnoSettings = createDummyPnoSettings(false);
         WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
         WifiNative.ScanSettings settings = createDummyScanSettings();
-        ScanResults scanResults = createDummyScanResults();
+        ScanResults scanResults = createDummyScanResults(true);
 
         InOrder order = inOrder(eventHandler, mWifiNative);
         // Start PNO scan
@@ -247,7 +247,7 @@ public class SupplicantPnoScannerTest {
                         SupplicantWifiScannerImpl.HwPnoDebouncer.PNO_DEBOUNCER_ALARM_TAG));
         mLooper.dispatchAll();
         InOrder order = inOrder(pnoEventHandler, mWifiNative);
-        ScanResults scanResults = createDummyScanResults();
+        ScanResults scanResults = createDummyScanResults(false);
         expectSuccessfulHwDisconnectedPnoScan(order, pnoSettings, pnoEventHandler, scanResults);
         verifyNoMoreInteractions(pnoEventHandler);
     }
@@ -334,7 +334,7 @@ public class SupplicantPnoScannerTest {
         WifiNative.PnoSettings pnoSettings = createDummyPnoSettings(isConnectedPno);
         WifiNative.ScanEventHandler scanEventHandler = mock(WifiNative.ScanEventHandler.class);
         WifiNative.ScanSettings scanSettings = createDummyScanSettings();
-        ScanResults scanResults = createDummyScanResults();
+        ScanResults scanResults = createDummyScanResults(false);
 
         InOrder order = inOrder(scanEventHandler, mWifiNative);
 
@@ -385,8 +385,9 @@ public class SupplicantPnoScannerTest {
         return settings;
     }
 
-    private ScanResults createDummyScanResults() {
-        return ScanResults.create(0, 2400, 2450, 2450, 2400, 2450, 2450, 2400, 2450, 2450);
+    private ScanResults createDummyScanResults(boolean allChannelsScanned) {
+        return ScanResults.create(0, allChannelsScanned, 2400, 2450, 2450, 2400, 2450, 2450, 2400,
+                2450, 2450);
     }
 
     private void startSuccessfulPnoScan(WifiNative.ScanSettings scanSettings,
