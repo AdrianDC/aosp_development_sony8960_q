@@ -289,11 +289,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private static final String CUSTOMIZED_SCAN_WORKSOURCE = "customized_scan_worksource";
     private static final String SCAN_REQUEST_TIME = "scan_request_time";
 
-    /* Tracks if state machine has received any screen state change broadcast yet.
-     * We can miss one of these at boot.
-     */
-    private AtomicBoolean mScreenBroadcastReceived = new AtomicBoolean(false);
-
     private boolean mBluetoothConnectionActive = false;
 
     private PowerManager.WakeLock mSuspendWakeLock;
@@ -1029,6 +1024,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         //start the state machine
         start();
+
+        // Learn the initial state of whether the screen is on.
+        // We update this field when we receive broadcasts from the system.
+        handleScreenStateChanged(powerManager.isInteractive());
 
         mWifiMonitor.registerHandler(mInterfaceName, CMD_TARGET_BSSID, getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, CMD_ASSOCIATED_BSSID, getHandler());
@@ -2722,7 +2721,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 sendMessage(CMD_SET_SUSPEND_OPT_ENABLED, 1, shouldReleaseWakeLock);
             }
         }
-        mScreenBroadcastReceived.set(true);
 
         getWifiLinkLayerStats();
         mOnTimeScreenStateChange = mOnTime;
@@ -4228,6 +4226,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mWifiQualifiedNetworkSelector, mWifiInjector,
                         getHandler().getLooper(), hasConnectionRequests());
                     mWifiConnectivityManager.setUntrustedConnectionAllowed(mUntrustedReqCount > 0);
+                    mWifiConnectivityManager.handleScreenStateChanged(mScreenOn);
                 }
             }
 
@@ -4271,21 +4270,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 transitionTo(mSupplicantStoppingState);
             }
 
-            // We may have missed screen update at boot
-            if (mScreenBroadcastReceived.get() == false) {
-                PowerManager powerManager = (PowerManager)mContext.getSystemService(
-                        Context.POWER_SERVICE);
-                handleScreenStateChanged(powerManager.isInteractive());
-            } else {
-                // Set the right suspend mode settings
-                mWifiNative.setSuspendOptimizations(mSuspendOptNeedsDisabled == 0
-                        && mUserWantsSuspendOpt.get());
+            // Set the right suspend mode settings
+            mWifiNative.setSuspendOptimizations(mSuspendOptNeedsDisabled == 0
+                    && mUserWantsSuspendOpt.get());
 
-                // Inform WifiConnectivtyManager the screen state in case
-                // WifiConnectivityManager missed the last screen update because
-                // it was not started yet.
-                mWifiConnectivityManager.handleScreenStateChanged(mScreenOn);
-            }
             mWifiNative.setPowerSave(true);
 
             if (mP2pSupported) {
