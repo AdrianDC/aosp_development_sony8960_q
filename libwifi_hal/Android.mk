@@ -66,8 +66,9 @@ endif
 include $(CLEAR_VARS)
 LOCAL_MODULE := libwifi-hal-common
 LOCAL_CFLAGS := $(wifi_hal_cflags)
-LOCAL_SRC_FILES := wifi_hal_common.cpp
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
+LOCAL_SHARED_LIBRARIES := libbase
+LOCAL_SRC_FILES := wifi_hal_common.cpp
 include $(BUILD_STATIC_LIBRARY)
 
 # A fallback "vendor" HAL library.
