@@ -1113,7 +1113,7 @@ static void onRttResults(wifi_request_id id, unsigned num_results, wifi_rtt_resu
 
     JNIHelper helper(mVM);
 
-    ALOGD("onRttResults called, vm = %p, obj = %p", mVM, mCls);
+    if (DBG) ALOGD("onRttResults called, vm = %p, obj = %p", mVM, mCls);
 
     JNIObject<jobjectArray> rttResults = helper.newObjectArray(
             num_results, "android/net/wifi/RttManager$RttResult", NULL);
@@ -1160,14 +1160,12 @@ static void onRttResults(wifi_request_id id, unsigned num_results, wifi_rtt_resu
         JNIObject<jobject> LCI = helper.createObject(
                 "android/net/wifi/RttManager$WifiInformationElement");
         if (result->LCI != NULL && result->LCI->len > 0) {
-            ALOGD("Add LCI in result");
             helper.setByteField(LCI, "id", result->LCI->id);
             JNIObject<jbyteArray> elements = helper.newByteArray(result->LCI->len);
             jbyte *bytes = (jbyte *)&(result->LCI->data[0]);
             helper.setByteArrayRegion(elements, 0, result->LCI->len, bytes);
             helper.setObjectField(LCI, "data", "[B", elements);
         } else {
-            ALOGD("No LCI in result");
             helper.setByteField(LCI, "id", (byte)(0xff));
         }
         helper.setObjectField(rttResult, "LCI",
@@ -1176,14 +1174,12 @@ static void onRttResults(wifi_request_id id, unsigned num_results, wifi_rtt_resu
         JNIObject<jobject> LCR = helper.createObject(
                 "android/net/wifi/RttManager$WifiInformationElement");
         if (result->LCR != NULL && result->LCR->len > 0) {
-            ALOGD("Add LCR in result");
             helper.setByteField(LCR, "id",           result->LCR->id);
             JNIObject<jbyteArray> elements = helper.newByteArray(result->LCI->len);
             jbyte *bytes = (jbyte *)&(result->LCR->data[0]);
             helper.setByteArrayRegion(elements, 0, result->LCI->len, bytes);
             helper.setObjectField(LCR, "data", "[B", elements);
         } else {
-            ALOGD("No LCR in result");
             helper.setByteField(LCR, "id", (byte)(0xff));
         }
         helper.setObjectField(rttResult, "LCR",
@@ -1204,7 +1200,7 @@ static jboolean android_net_wifi_requestRange(
     JNIHelper helper(env);
 
     wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
-    ALOGD("sending rtt request [%d] = %p", id, handle);
+    if (DBG) ALOGD("sending rtt request [%d] = %p", id, handle);
     if (params == NULL) {
         ALOGE("ranging params are empty");
         return false;
@@ -1222,7 +1218,7 @@ static jboolean android_net_wifi_requestRange(
 
         JNIObject<jobject> param = helper.getObjectArrayElement((jobjectArray)params, i);
         if (param == NULL) {
-            ALOGD("could not get element %d", i);
+            ALOGW("could not get element %d", i);
             continue;
         }
 
@@ -1247,18 +1243,6 @@ static jboolean android_net_wifi_requestRange(
         config.burst_duration = (unsigned) helper.getIntField(param, "burstTimeout");
         config.preamble = (wifi_rtt_preamble) helper.getIntField(param, "preamble");
         config.bw = (wifi_rtt_bw) helper.getIntField(param, "bandwidth");
-
-        ALOGD("RTT request destination %d: type is %d, peer is %d, bw is %d, center_freq is %d ", i,
-                config.type,config.peer, config.channel.width,  config.channel.center_freq);
-        ALOGD("center_freq0 is %d, center_freq1 is %d, num_burst is %d,interval is %d",
-                config.channel.center_freq0, config.channel.center_freq1, config.num_burst,
-                config.burst_period);
-        ALOGD("frames_per_burst is %d, retries of measurement frame is %d, retries_per_ftmr is %d",
-                config.num_frames_per_burst, config.num_retries_per_rtt_frame,
-                config.num_retries_per_ftmr);
-        ALOGD("LCI_requestis %d, LCR_request is %d,  burst_timeout is %d, preamble is %d, bw is %d",
-                config.LCI_request, config.LCR_request, config.burst_duration, config.preamble,
-                config.bw);
     }
 
     wifi_rtt_event_handler handler;
@@ -1272,7 +1256,7 @@ static jboolean android_net_wifi_cancelRange(
 
     JNIHelper helper(env);
     wifi_interface_handle handle = getIfaceHandle(helper, cls, iface);
-    ALOGD("cancelling rtt request [%d] = %p", id, handle);
+    if (DBG) ALOGD("cancelling rtt request [%d] = %p", id, handle);
 
     if (params == NULL) {
         ALOGE("ranging params are empty");
@@ -1291,7 +1275,7 @@ static jboolean android_net_wifi_cancelRange(
 
         JNIObject<jobject> param = helper.getObjectArrayElement(params, i);
         if (param == NULL) {
-            ALOGD("could not get element %d", i);
+            ALOGW("could not get element %d", i);
             continue;
         }
 

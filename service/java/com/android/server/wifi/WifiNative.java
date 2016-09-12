@@ -2194,13 +2194,12 @@ public class WifiNative {
         synchronized (sLock) {
             if (isHalStarted()) {
                 if (sRttCmdId != 0) {
-                    Log.v("TAG", "Last one is still under measurement!");
+                    Log.w(TAG, "Last one is still under measurement!");
                     return false;
                 } else {
                     sRttCmdId = getNewCmdIdLocked();
                 }
                 sRttEventHandler = handler;
-                Log.v(TAG, "native issue RTT request");
                 return requestRangeNative(sWlan0Index, sRttCmdId, params);
             } else {
                 return false;
@@ -2219,7 +2218,6 @@ public class WifiNative {
 
                 if (cancelRangeRequestNative(sWlan0Index, sRttCmdId, params)) {
                     sRttEventHandler = null;
-                    Log.v(TAG, "RTT cancel Request Successfully");
                     return true;
                 } else {
                     Log.e(TAG, "RTT cancel Request failed");
