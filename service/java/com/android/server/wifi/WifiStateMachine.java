@@ -108,7 +108,10 @@ import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.connectivity.KeepalivePacketData;
+import com.android.server.wifi.hotspot2.IconEvent;
+import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.Utils;
+import com.android.server.wifi.hotspot2.WnmData;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
 import com.android.server.wifi.util.TelephonyUtil;
 import com.android.server.wifi.util.TelephonyUtil.SimAuthRequestData;
@@ -162,6 +165,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private static final String GOOGLE_OUI = "DA-A1-19";
 
+    private static final String EXTRA_OSU_ICON_QUERY_BSSID = "BSSID";
+    private static final String EXTRA_OSU_ICON_QUERY_FILENAME = "FILENAME";
+
     private boolean mVerboseLoggingEnabled = false;
 
     /* debug flag, indicating if handling of ASSOCIATION_REJECT ended up blacklisting
@@ -211,6 +217,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private final WifiCountryCode mCountryCode;
     // Object holding most recent wifi score report and bad Linkspeed count
     private final WifiScoreReport mWifiScoreReport;
+    private final PasspointManager mPasspointManager;
 
     /* Scan results handling */
     private List<ScanDetail> mScanResults = new ArrayList<>();
@@ -873,6 +880,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         mWifiConfigManager = mWifiInjector.getWifiConfigManager();
         mWifiSupplicantControl = mWifiInjector.getWifiSupplicantControl();
+
+        mPasspointManager = mWifiInjector.getPasspointManager();
 
         mWifiMonitor = WifiMonitor.getInstance();
         mWifiDiagnostics = mWifiInjector.makeWifiDiagnostics(mWifiNative);
@@ -1762,8 +1771,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     public boolean syncQueryPasspointIcon(AsyncChannel channel, long bssid, String fileName) {
         Bundle bundle = new Bundle();
-        bundle.putLong("BSSID", bssid);
-        bundle.putString("FILENAME", fileName);
+        bundle.putLong(EXTRA_OSU_ICON_QUERY_BSSID, bssid);
+        bundle.putString(EXTRA_OSU_ICON_QUERY_FILENAME, fileName);
         Message resultMsg = channel.sendMessageSynchronously(CMD_QUERY_OSU_ICON, bundle);
         int result = resultMsg.arg1;
         resultMsg.recycle();
@@ -4348,7 +4357,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case WifiMonitor.ANQP_DONE_EVENT:
-                    // TODO(b/31065385)
+                    // TODO(zqiu): remove this when switch over to wificond for ANQP requests.
+                    mPasspointManager.notifyANQPDone((long) message.obj, message.arg1 != 0);
                     break;
                 case CMD_STOP_IP_PACKET_OFFLOAD: {
                     int slot = message.arg1;
@@ -4359,10 +4369,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 }
                 case WifiMonitor.RX_HS20_ANQP_ICON_EVENT:
-                    // TODO(b/31065385)
+                    // TODO(zqiu): remove this when switch over to wificond for icon requests.
+                    IconEvent event = (IconEvent) message.obj;
+                    mPasspointManager.notifyIconDone(event.getBSSID(), event);
                     break;
                 case WifiMonitor.HS20_REMEDIATION_EVENT:
-                    // TODO(b/31065385)
+                    // TODO(zqiu): remove this when switch over to wificond for WNM frames
+                    // monitoring.
+                    mPasspointManager.receivedWnmFrame((WnmData) message.obj);
                     break;
                 case CMD_CONFIG_ND_OFFLOAD:
                     final boolean enabled = (message.arg1 > 0);
@@ -5290,8 +5304,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     replyToMessage(message, message.what, 0);
                     break;
                 case CMD_QUERY_OSU_ICON:
-                    // TODO(b/31065385): Passpoint config management.
-                    replyToMessage(message, message.what, 0);
+                    mPasspointManager.queryPasspointIcon(
+                            ((Bundle) message.obj).getLong(EXTRA_OSU_ICON_QUERY_BSSID),
+                            ((Bundle) message.obj).getString(EXTRA_OSU_ICON_QUERY_FILENAME));
                     break;
                 case CMD_MATCH_PROVIDER_NETWORK:
                     // TODO(b/31065385): Passpoint config management.
