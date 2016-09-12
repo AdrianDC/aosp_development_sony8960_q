@@ -461,6 +461,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
      * Get a reference to handler. This is used by a client to establish
      * an AsyncChannel communication with WifiP2pService
      */
+    @Override
     public Messenger getMessenger() {
         enforceAccessPermission();
         enforceChangePermission();
@@ -472,6 +473,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
      * an AsyncChannel communication with P2pStateMachine
      * @hide
      */
+    @Override
     public Messenger getP2pStateMachineMessenger() {
         enforceConnectivityInternalOrLocationHardwarePermission();
         enforceAccessPermission();
@@ -488,6 +490,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
      * As an example, the driver could reduce the channel dwell time during scanning
      * when acting as a source or sink to minimize impact on miracast.
      */
+    @Override
     public void setMiracastMode(int mode) {
         enforceConnectivityInternalPermission();
         mP2pStateMachine.sendMessage(SET_MIRACAST_MODE, mode);
