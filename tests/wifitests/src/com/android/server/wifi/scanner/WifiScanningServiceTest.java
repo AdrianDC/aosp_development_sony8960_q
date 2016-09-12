@@ -1440,9 +1440,6 @@ public class WifiScanningServiceTest {
         for (i = 0; i < requestPnoSettings.networkList.length; i++) {
             nativePnoSettings.networkList[i] = new WifiNative.PnoNetwork();
             nativePnoSettings.networkList[i].ssid = requestPnoSettings.networkList[i].ssid;
-            nativePnoSettings.networkList[i].networkId =
-                    requestPnoSettings.networkList[i].networkId;
-            nativePnoSettings.networkList[i].priority = requestPnoSettings.networkList[i].priority;
             nativePnoSettings.networkList[i].flags = requestPnoSettings.networkList[i].flags;
             nativePnoSettings.networkList[i].auth_bit_field =
                     requestPnoSettings.networkList[i].authBitField;

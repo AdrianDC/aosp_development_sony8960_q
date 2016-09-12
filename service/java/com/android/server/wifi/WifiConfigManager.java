@@ -2179,7 +2179,7 @@ public class WifiConfigManager {
         int priority = networks.size() - 1;
         for (WifiConfiguration config : networks) {
             hiddenList.add(
-                    new WifiScanner.ScanSettings.HiddenNetwork(config.SSID, priority));
+                    new WifiScanner.ScanSettings.HiddenNetwork(config.SSID));
             priority--;
         }
         return hiddenList;

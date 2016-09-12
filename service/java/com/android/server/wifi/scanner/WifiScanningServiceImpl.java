@@ -67,6 +67,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
 public class WifiScanningServiceImpl extends IWifiScanner.Stub {
@@ -707,16 +708,18 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 return false;
             }
 
-            if (settings.hiddenNetworkIds != null) {
-                if (mActiveScanSettings.hiddenNetworkIds == null) {
+            if (settings.hiddenNetworks != null) {
+                if (mActiveScanSettings.hiddenNetworks == null) {
                     return false;
                 }
-                Set<Integer> activeHiddenNetworkIds = new HashSet<>();
-                for (int id : mActiveScanSettings.hiddenNetworkIds) {
-                    activeHiddenNetworkIds.add(id);
+                List<WifiNative.HiddenNetwork> activeHiddenNetworks = new ArrayList<>();
+                for (WifiNative.HiddenNetwork hiddenNetwork : mActiveScanSettings.hiddenNetworks) {
+                    activeHiddenNetworks.add(hiddenNetwork);
                 }
-                for (int id : settings.hiddenNetworkIds) {
-                    if (!activeHiddenNetworkIds.contains(id)) {
+                for (ScanSettings.HiddenNetwork hiddenNetwork : settings.hiddenNetworks) {
+                    WifiNative.HiddenNetwork nativeHiddenNetwork = new WifiNative.HiddenNetwork();
+                    nativeHiddenNetwork.ssid = hiddenNetwork.ssid;
+                    if (!activeHiddenNetworks.contains(nativeHiddenNetwork)) {
                         return false;
                     }
                 }
@@ -755,12 +758,14 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             bucketSettings.report_events = WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN;
 
             ChannelCollection channels = mChannelHelper.createChannelCollection();
-            HashSet<Integer> hiddenNetworkIdSet = new HashSet<>();
+            List<WifiNative.HiddenNetwork> hiddenNetworkList = new ArrayList<>();
             for (RequestInfo<ScanSettings> entry : mPendingScans) {
                 channels.addChannels(entry.settings);
-                if (entry.settings.hiddenNetworkIds != null) {
-                    for (int i = 0; i < entry.settings.hiddenNetworkIds.length; i++) {
-                        hiddenNetworkIdSet.add(entry.settings.hiddenNetworkIds[i]);
+                if (entry.settings.hiddenNetworks != null) {
+                    for (int i = 0; i < entry.settings.hiddenNetworks.length; i++) {
+                        WifiNative.HiddenNetwork hiddenNetwork = new WifiNative.HiddenNetwork();
+                        hiddenNetwork.ssid = entry.settings.hiddenNetworks[i].ssid;
+                        hiddenNetworkList.add(hiddenNetwork);
                     }
                 }
                 if ((entry.settings.reportEvents & WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT)
@@ -768,11 +773,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     bucketSettings.report_events |= WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT;
                 }
             }
-            if (hiddenNetworkIdSet.size() > 0) {
-                settings.hiddenNetworkIds = new int[hiddenNetworkIdSet.size()];
+            if (hiddenNetworkList.size() > 0) {
+                settings.hiddenNetworks = new WifiNative.HiddenNetwork[hiddenNetworkList.size()];
                 int numHiddenNetworks = 0;
-                for (Integer hiddenNetworkId : hiddenNetworkIdSet) {
-                    settings.hiddenNetworkIds[numHiddenNetworks++] = hiddenNetworkId;
+                for (WifiNative.HiddenNetwork hiddenNetwork : hiddenNetworkList) {
+                    settings.hiddenNetworks[numHiddenNetworks++] = hiddenNetwork;
                 }
             }
 
@@ -1740,8 +1745,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             for (int i = 0; i < pnoSettings.networkList.length; i++) {
                 nativePnoSetting.networkList[i] = new WifiNative.PnoNetwork();
                 nativePnoSetting.networkList[i].ssid = pnoSettings.networkList[i].ssid;
-                nativePnoSetting.networkList[i].networkId = pnoSettings.networkList[i].networkId;
-                nativePnoSetting.networkList[i].priority = pnoSettings.networkList[i].priority;
                 nativePnoSetting.networkList[i].flags = pnoSettings.networkList[i].flags;
                 nativePnoSetting.networkList[i].auth_bit_field =
                         pnoSettings.networkList[i].authBitField;
@@ -2727,10 +2730,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
           .append(" networks:[ ");
         if (pnoSettings.networkList != null) {
             for (int i = 0; i < pnoSettings.networkList.length; i++) {
-                sb.append(pnoSettings.networkList[i].ssid)
-                  .append(",")
-                  .append(pnoSettings.networkList[i].networkId)
-                  .append(" ");
+                sb.append(pnoSettings.networkList[i].ssid).append(",");
             }
         }
         sb.append(" ] ")
