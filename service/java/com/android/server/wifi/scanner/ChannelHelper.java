@@ -100,6 +100,10 @@ public abstract class ChannelHelper {
          */
         public abstract boolean isEmpty();
         /**
+         * @return true if the collection contains all available channels
+         */
+        public abstract boolean isAllChannels();
+        /**
          * Remove all channels from the collection
          */
         public abstract void clear();
