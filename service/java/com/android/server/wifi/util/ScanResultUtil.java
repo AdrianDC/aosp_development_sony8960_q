@@ -42,7 +42,7 @@ public class ScanResultUtil {
     public static ScanDetail toScanDetail(ScanResult scanResult) {
         NetworkDetail networkDetail = new NetworkDetail(scanResult.BSSID,
                 scanResult.informationElements, scanResult.anqpLines, scanResult.frequency);
-        return new ScanDetail(scanResult, networkDetail, null);
+        return new ScanDetail(scanResult, networkDetail);
     }
 
     /**

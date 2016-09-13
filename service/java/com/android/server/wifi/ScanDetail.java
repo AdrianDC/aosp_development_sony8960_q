@@ -26,9 +26,7 @@ import com.android.server.wifi.anqp.HSFriendlyNameElement;
 import com.android.server.wifi.anqp.RawByteElement;
 import com.android.server.wifi.anqp.VenueNameElement;
 import com.android.server.wifi.hotspot2.NetworkDetail;
-import com.android.server.wifi.hotspot2.PasspointMatch;
 import com.android.server.wifi.hotspot2.Utils;
-import com.android.server.wifi.hotspot2.pps.HomeSP;
 
 import java.util.List;
 import java.util.Map;
@@ -39,7 +37,6 @@ import java.util.Map;
 public class ScanDetail {
     private final ScanResult mScanResult;
     private volatile NetworkDetail mNetworkDetail;
-    private final Map<HomeSP, PasspointMatch> mMatches;
     private long mSeen = 0;
 
     public ScanDetail(NetworkDetail networkDetail, WifiSsid wifiSsid, String bssid,
@@ -62,7 +59,6 @@ public class ScanDetail {
         if (networkDetail.isInterworking()) {
             mScanResult.setFlag(ScanResult.FLAG_PASSPOINT_NETWORK);
         }
-        mMatches = null;
     }
 
     public ScanDetail(WifiSsid wifiSsid, String bssid, String caps, int level, int frequency,
@@ -75,14 +71,11 @@ public class ScanDetail {
         mScanResult.centerFreq0 = 0;
         mScanResult.centerFreq1 = 0;
         mScanResult.flags = 0;
-        mMatches = null;
     }
 
-    public ScanDetail(ScanResult scanResult, NetworkDetail networkDetail,
-                       Map<HomeSP, PasspointMatch> matches) {
+    public ScanDetail(ScanResult scanResult, NetworkDetail networkDetail) {
         mScanResult = scanResult;
         mNetworkDetail = networkDetail;
-        mMatches = matches;
         // Only inherit |mScanResult.seen| if it was previously set. This ensures that |mSeen|
         // will always contain a valid timestamp.
         mSeen = (mScanResult.seen == 0) ? System.currentTimeMillis() : mScanResult.seen;
