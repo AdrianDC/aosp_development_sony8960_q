@@ -220,11 +220,6 @@ static JNIObject<jobject> createScanResult(JNIHelper &helper, wifi_scan_result *
     return scanResult;
 }
 
-static jboolean android_net_wifi_set_interface_up(JNIEnv* env, jclass cls, jboolean up) {
-    InterfaceTool if_tool;
-    return if_tool.SetWifiUpState((bool)up);
-}
-
 static jboolean android_net_wifi_startHal(JNIEnv* env, jclass cls) {
     InterfaceTool if_tool;
     JNIHelper helper(env);
@@ -2492,7 +2487,6 @@ static JNINativeMethod gWifiMethods[] = {
     { "setScanningMacOuiNative", "(I[B)Z",  (void*) android_net_wifi_setScanningMacOui},
     { "getChannelsForBandNative", "(II)[I", (void*) android_net_wifi_getValidChannels},
     { "setDfsFlagNative",         "(IZ)Z",  (void*) android_net_wifi_setDfsFlag},
-    { "setInterfaceUpNative", "(Z)Z",  (void*) android_net_wifi_set_interface_up},
     { "getRttCapabilitiesNative", "(I)Landroid/net/wifi/RttManager$RttCapabilities;",
             (void*) android_net_wifi_get_rtt_capabilities},
     { "getApfCapabilitiesNative", "(I)Landroid/net/apf/ApfCapabilities;",
