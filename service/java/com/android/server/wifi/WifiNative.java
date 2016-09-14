@@ -2281,17 +2281,6 @@ public class WifiNative {
         }
     }
 
-    private static native boolean setInterfaceUpNative(boolean up);
-    public boolean setInterfaceUp(boolean up) {
-        synchronized (sLock) {
-            if (isHalStarted()) {
-                return setInterfaceUpNative(up);
-            } else {
-                return false;
-            }
-        }
-    }
-
     private static native RttManager.RttCapabilities getRttCapabilitiesNative(int iface);
     public RttManager.RttCapabilities getRttCapabilities() {
         synchronized (sLock) {
