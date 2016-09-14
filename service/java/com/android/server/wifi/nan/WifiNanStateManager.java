@@ -20,13 +20,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.RttManager;
 import android.net.wifi.nan.ConfigRequest;
+import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.IWifiNanEventCallback;
-import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.WifiNanEventCallback;
 import android.net.wifi.nan.WifiNanManager;
-import android.net.wifi.nan.WifiNanSessionCallback;
 import android.os.Bundle;
 import android.os.Looper;
 import android.os.Message;
@@ -289,7 +289,7 @@ public class WifiNanStateManager {
      * machine queue.
      */
     public void publish(int clientId, PublishConfig publishConfig,
-            IWifiNanSessionCallback callback) {
+            IWifiNanDiscoverySessionCallback callback) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_PUBLISH;
         msg.arg2 = clientId;
@@ -316,7 +316,7 @@ public class WifiNanStateManager {
      * machine queue.
      */
     public void subscribe(int clientId, SubscribeConfig subscribeConfig,
-            IWifiNanSessionCallback callback) {
+            IWifiNanDiscoverySessionCallback callback) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_SUBSCRIBE;
         msg.arg2 = clientId;
@@ -1087,7 +1087,8 @@ public class WifiNanStateManager {
 
                         int retryCount = sentMessage.getData()
                                 .getInt(MESSAGE_BUNDLE_KEY_RETRY_COUNT);
-                        if (retryCount > 0 && reason == WifiNanSessionCallback.REASON_TX_FAIL) {
+                        if (retryCount > 0
+                                && reason == WifiNanDiscoverySessionCallback.REASON_TX_FAIL) {
                             if (DBG) {
                                 Log.d(TAG,
                                         "NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL: transactionId="
@@ -1206,7 +1207,8 @@ public class WifiNanStateManager {
                 }
                 case COMMAND_TYPE_PUBLISH: {
                     int clientId = msg.arg2;
-                    IWifiNanSessionCallback callback = (IWifiNanSessionCallback) msg.obj;
+                    IWifiNanDiscoverySessionCallback callback =
+                            (IWifiNanDiscoverySessionCallback) msg.obj;
                     PublishConfig publishConfig = (PublishConfig) msg.getData()
                             .getParcelable(MESSAGE_BUNDLE_KEY_CONFIG);
 
@@ -1225,7 +1227,8 @@ public class WifiNanStateManager {
                 }
                 case COMMAND_TYPE_SUBSCRIBE: {
                     int clientId = msg.arg2;
-                    IWifiNanSessionCallback callback = (IWifiNanSessionCallback) msg.obj;
+                    IWifiNanDiscoverySessionCallback callback =
+                            (IWifiNanDiscoverySessionCallback) msg.obj;
                     SubscribeConfig subscribeConfig = (SubscribeConfig) msg.getData()
                             .getParcelable(MESSAGE_BUNDLE_KEY_CONFIG);
 
@@ -1545,22 +1548,22 @@ public class WifiNanStateManager {
                 }
                 case COMMAND_TYPE_PUBLISH: {
                     onSessionConfigFailLocal(mCurrentCommand, true,
-                            WifiNanSessionCallback.REASON_OTHER);
+                            WifiNanDiscoverySessionCallback.REASON_OTHER);
                     break;
                 }
                 case COMMAND_TYPE_UPDATE_PUBLISH: {
                     onSessionConfigFailLocal(mCurrentCommand, true,
-                            WifiNanSessionCallback.REASON_OTHER);
+                            WifiNanDiscoverySessionCallback.REASON_OTHER);
                     break;
                 }
                 case COMMAND_TYPE_SUBSCRIBE: {
                     onSessionConfigFailLocal(mCurrentCommand, false,
-                            WifiNanSessionCallback.REASON_OTHER);
+                            WifiNanDiscoverySessionCallback.REASON_OTHER);
                     break;
                 }
                 case COMMAND_TYPE_UPDATE_SUBSCRIBE: {
                     onSessionConfigFailLocal(mCurrentCommand, false,
-                            WifiNanSessionCallback.REASON_OTHER);
+                            WifiNanDiscoverySessionCallback.REASON_OTHER);
                     break;
                 }
                 case COMMAND_TYPE_ENQUEUE_SEND_MESSAGE: {
@@ -1570,7 +1573,8 @@ public class WifiNanStateManager {
                 case COMMAND_TYPE_TRANSMIT_NEXT_MESSAGE: {
                     Message sentMessage = mCurrentCommand.getData().getParcelable(
                             MESSAGE_BUNDLE_KEY_SENT_MESSAGE);
-                    onMessageSendFailLocal(sentMessage, WifiNanSessionCallback.REASON_TX_FAIL);
+                    onMessageSendFailLocal(sentMessage,
+                            WifiNanDiscoverySessionCallback.REASON_TX_FAIL);
                     mSendQueueBlocked = false;
                     transmitNextMessage();
                     break;
@@ -1679,7 +1683,7 @@ public class WifiNanStateManager {
                                 + ", due to messageEnqueueTime=" + messageEnqueueTime
                                 + ", currentTime=" + currentTime);
                     }
-                    onMessageSendFailLocal(message, WifiNanSessionCallback.REASON_TX_FAIL);
+                    onMessageSendFailLocal(message, WifiNanDiscoverySessionCallback.REASON_TX_FAIL);
                     it.remove();
                     first = false;
                 } else {
@@ -1827,7 +1831,7 @@ public class WifiNanStateManager {
     }
 
     private boolean publishLocal(short transactionId, int clientId, PublishConfig publishConfig,
-            IWifiNanSessionCallback callback) {
+            IWifiNanDiscoverySessionCallback callback) {
         if (VDBG) {
             Log.v(TAG, "publishLocal(): transactionId=" + transactionId + ", clientId=" + clientId
                     + ", publishConfig=" + publishConfig + ", callback=" + callback);
@@ -1855,7 +1859,7 @@ public class WifiNanStateManager {
             return false;
         }
 
-        WifiNanSessionState session = client.getSession(sessionId);
+        WifiNanDiscoverySessionState session = client.getSession(sessionId);
         if (session == null) {
             Log.e(TAG, "updatePublishLocal: no session exists for clientId=" + clientId
                     + ", sessionId=" + sessionId);
@@ -1866,7 +1870,7 @@ public class WifiNanStateManager {
     }
 
     private boolean subscribeLocal(short transactionId, int clientId,
-            SubscribeConfig subscribeConfig, IWifiNanSessionCallback callback) {
+            SubscribeConfig subscribeConfig, IWifiNanDiscoverySessionCallback callback) {
         if (VDBG) {
             Log.v(TAG, "subscribeLocal(): transactionId=" + transactionId + ", clientId=" + clientId
                     + ", subscribeConfig=" + subscribeConfig + ", callback=" + callback);
@@ -1896,7 +1900,7 @@ public class WifiNanStateManager {
             return false;
         }
 
-        WifiNanSessionState session = client.getSession(sessionId);
+        WifiNanDiscoverySessionState session = client.getSession(sessionId);
         if (session == null) {
             Log.e(TAG, "updateSubscribeLocal: no session exists for clientId=" + clientId
                     + ", sessionId=" + sessionId);
@@ -1921,7 +1925,7 @@ public class WifiNanStateManager {
             return false;
         }
 
-        WifiNanSessionState session = client.getSession(sessionId);
+        WifiNanDiscoverySessionState session = client.getSession(sessionId);
         if (session == null) {
             Log.e(TAG, "sendFollowonMessageLocal: no session exists for clientId=" + clientId
                     + ", sessionId=" + sessionId);
@@ -1976,7 +1980,7 @@ public class WifiNanStateManager {
             return;
         }
 
-        WifiNanSessionState session = client.getSession(sessionId);
+        WifiNanDiscoverySessionState session = client.getSession(sessionId);
         if (session == null) {
             Log.e(TAG, "startRangingLocal: no session exists for clientId=" + clientId
                     + ", sessionId=" + sessionId);
@@ -2120,7 +2124,8 @@ public class WifiNanStateManager {
         if (completedCommand.arg1 == COMMAND_TYPE_PUBLISH
                 || completedCommand.arg1 == COMMAND_TYPE_SUBSCRIBE) {
             int clientId = completedCommand.arg2;
-            IWifiNanSessionCallback callback = (IWifiNanSessionCallback) completedCommand.obj;
+            IWifiNanDiscoverySessionCallback callback =
+                    (IWifiNanDiscoverySessionCallback) completedCommand.obj;
 
             WifiNanClientState client = mClients.get(clientId);
             if (client == null) {
@@ -2137,8 +2142,8 @@ public class WifiNanStateManager {
                 return;
             }
 
-            WifiNanSessionState session = new WifiNanSessionState(sessionId, pubSubId, callback,
-                    isPublish);
+            WifiNanDiscoverySessionState session = new WifiNanDiscoverySessionState(sessionId,
+                    pubSubId, callback, isPublish);
             client.addSession(session);
         } else if (completedCommand.arg1 == COMMAND_TYPE_UPDATE_PUBLISH
                 || completedCommand.arg1 == COMMAND_TYPE_UPDATE_SUBSCRIBE) {
@@ -2152,7 +2157,7 @@ public class WifiNanStateManager {
                 return;
             }
 
-            WifiNanSessionState session = client.getSession(sessionId);
+            WifiNanDiscoverySessionState session = client.getSession(sessionId);
             if (session == null) {
                 Log.e(TAG, "onSessionConfigSuccessLocal: no session exists for clientId=" + clientId
                         + ", sessionId=" + sessionId);
@@ -2179,7 +2184,8 @@ public class WifiNanStateManager {
 
         if (failedCommand.arg1 == COMMAND_TYPE_PUBLISH
                 || failedCommand.arg1 == COMMAND_TYPE_SUBSCRIBE) {
-            IWifiNanSessionCallback callback = (IWifiNanSessionCallback) failedCommand.obj;
+            IWifiNanDiscoverySessionCallback callback =
+                    (IWifiNanDiscoverySessionCallback) failedCommand.obj;
             try {
                 callback.onSessionConfigFail(reason);
             } catch (RemoteException e) {
@@ -2197,7 +2203,7 @@ public class WifiNanStateManager {
                 return;
             }
 
-            WifiNanSessionState session = client.getSession(sessionId);
+            WifiNanDiscoverySessionState session = client.getSession(sessionId);
             if (session == null) {
                 Log.e(TAG, "onSessionConfigFailLocal: no session exists for clientId=" + clientId
                         + ", sessionId=" + sessionId);
@@ -2229,7 +2235,7 @@ public class WifiNanStateManager {
             return;
         }
 
-        WifiNanSessionState session = client.getSession(sessionId);
+        WifiNanDiscoverySessionState session = client.getSession(sessionId);
         if (session == null) {
             Log.e(TAG, "onMessageSendSuccessLocal: no session exists for clientId=" + clientId
                     + ", sessionId=" + sessionId);
@@ -2258,7 +2264,7 @@ public class WifiNanStateManager {
             return;
         }
 
-        WifiNanSessionState session = client.getSession(sessionId);
+        WifiNanDiscoverySessionState session = client.getSession(sessionId);
         if (session == null) {
             Log.e(TAG, "onMessageSendFailLocal: no session exists for clientId=" + clientId
                     + ", sessionId=" + sessionId);
@@ -2398,7 +2404,8 @@ public class WifiNanStateManager {
                             + ", matchFilter=" + Arrays.toString(matchFilter));
         }
 
-        Pair<WifiNanClientState, WifiNanSessionState> data = getClientSessionForPubSubId(pubSubId);
+        Pair<WifiNanClientState, WifiNanDiscoverySessionState> data = getClientSessionForPubSubId(
+                pubSubId);
         if (data == null) {
             Log.e(TAG, "onMatch: no session found for pubSubId=" + pubSubId);
             return;
@@ -2413,7 +2420,8 @@ public class WifiNanStateManager {
                     + ", reason=" + reason);
         }
 
-        Pair<WifiNanClientState, WifiNanSessionState> data = getClientSessionForPubSubId(pubSubId);
+        Pair<WifiNanClientState, WifiNanDiscoverySessionState> data = getClientSessionForPubSubId(
+                pubSubId);
         if (data == null) {
             Log.e(TAG, "onSessionTerminatedLocal: no session found for pubSubId=" + pubSubId);
             return;
@@ -2437,7 +2445,8 @@ public class WifiNanStateManager {
                             + String.valueOf(HexEncoding.encode(peerMac)));
         }
 
-        Pair<WifiNanClientState, WifiNanSessionState> data = getClientSessionForPubSubId(pubSubId);
+        Pair<WifiNanClientState, WifiNanDiscoverySessionState> data = getClientSessionForPubSubId(
+                pubSubId);
         if (data == null) {
             Log.e(TAG, "onMessageReceivedLocal: no session found for pubSubId=" + pubSubId);
             return;
@@ -2462,11 +2471,11 @@ public class WifiNanStateManager {
      * Utilities
      */
 
-    private Pair<WifiNanClientState, WifiNanSessionState> getClientSessionForPubSubId(
+    private Pair<WifiNanClientState, WifiNanDiscoverySessionState> getClientSessionForPubSubId(
             int pubSubId) {
         for (int i = 0; i < mClients.size(); ++i) {
             WifiNanClientState client = mClients.valueAt(i);
-            WifiNanSessionState session = client.getNanSessionStateForPubSubId(pubSubId);
+            WifiNanDiscoverySessionState session = client.getNanSessionStateForPubSubId(pubSubId);
             if (session != null) {
                 return new Pair<>(client, session);
             }
