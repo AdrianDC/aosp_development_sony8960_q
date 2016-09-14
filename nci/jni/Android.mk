@@ -17,7 +17,6 @@ LOCAL_SRC_FILES := $(call all-subdir-cpp-files) $(call all-subdir-c-files)
 LOCAL_C_INCLUDES += \
     external/libxml2/include \
     frameworks/native/include \
-    libcore/include \
     $(NFA)/include \
     $(NFA)/brcm \
     $(NFC)/include \
