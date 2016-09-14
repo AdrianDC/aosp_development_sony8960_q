@@ -997,7 +997,7 @@ public class WifiConfigManagerTest {
      * {@link WifiConfigManager#updateNetworkAfterConnect(int)} is invoked.
      */
     @Test
-    public void testUpdateConfigAfterConnect() {
+    public void testUpdateConfigAfterConnectHasEverConnectedTrue() {
         WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
         verifyAddNetworkHasEverConnectedFalse(openNetwork);
         verifyUpdateNetworkAfterConnectHasEverConnectedTrue(openNetwork.networkId);
@@ -1969,6 +1969,11 @@ public class WifiConfigManagerTest {
         assertNotEquals(
                 network2.configKey(),
                 retrievedNetwork.getNetworkSelectionStatus().getConnectChoice());
+
+        // This should have triggered 2 buffered writes. 1 for setting the connect choice, 1 for
+        // clearing it after network removal.
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, times(2))
+                .write(eq(false), any(WifiConfigStoreData.class));
     }
 
     /**
