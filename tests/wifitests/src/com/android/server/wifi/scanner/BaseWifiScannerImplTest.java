@@ -95,6 +95,12 @@ public abstract class BaseWifiScannerImplTest {
         return collection.isAllChannels();
     }
 
+    protected boolean isAllChannelsScanned(int band) {
+        ChannelCollection collection = mScanner.getChannelHelper().createChannelCollection();
+        collection.addBand(band);
+        return collection.isAllChannels();
+    }
+
     protected Set<Integer> expectedBandScanFreqs(int band) {
         ChannelCollection collection = mScanner.getChannelHelper().createChannelCollection();
         collection.addBand(band);
