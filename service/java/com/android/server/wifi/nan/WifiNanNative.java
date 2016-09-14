@@ -19,8 +19,8 @@ package com.android.server.wifi.nan;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.WifiNanEventCallback;
-import android.net.wifi.nan.WifiNanSessionCallback;
 import android.util.Log;
 
 import com.android.server.wifi.WifiNative;
@@ -751,7 +751,7 @@ public class WifiNanNative {
             case NAN_TERMINATED_REASON_TIMEOUT:
             case NAN_TERMINATED_REASON_USER_REQUEST:
             case NAN_TERMINATED_REASON_COUNT_REACHED:
-                return WifiNanSessionCallback.TERMINATE_REASON_DONE;
+                return WifiNanDiscoverySessionCallback.TERMINATE_REASON_DONE;
 
             case NAN_TERMINATED_REASON_INVALID:
             case NAN_TERMINATED_REASON_FAILURE:
@@ -760,10 +760,10 @@ public class WifiNanNative {
             case NAN_TERMINATED_REASON_POST_DISC_ATTR_EXPIRED:
             case NAN_TERMINATED_REASON_POST_DISC_LEN_EXCEEDED:
             case NAN_TERMINATED_REASON_FURTHER_AVAIL_MAP_EMPTY:
-                return WifiNanSessionCallback.TERMINATE_REASON_FAIL;
+                return WifiNanDiscoverySessionCallback.TERMINATE_REASON_FAIL;
         }
 
-        return WifiNanSessionCallback.TERMINATE_REASON_FAIL;
+        return WifiNanDiscoverySessionCallback.TERMINATE_REASON_FAIL;
     }
 
     private static int translateHalStatusToNanSessionCallbackReason(int halStatus) {
@@ -774,13 +774,13 @@ public class WifiNanNative {
             case NAN_STATUS_INVALID_MSG_LEN:
             case NAN_STATUS_INVALID_MSG_ID:
             case NAN_STATUS_INVALID_HANDLE:
-                return WifiNanSessionCallback.REASON_OTHER;
+                return WifiNanDiscoverySessionCallback.REASON_OTHER;
             case NAN_STATUS_NO_SPACE_AVAILABLE:
-                return WifiNanSessionCallback.REASON_NO_RESOURCES;
+                return WifiNanDiscoverySessionCallback.REASON_NO_RESOURCES;
             case NAN_STATUS_INVALID_PUBLISH_TYPE:
             case NAN_STATUS_INVALID_TX_TYPE:
             case NAN_STATUS_INVALID_MATCH_ALGORITHM:
-                return WifiNanSessionCallback.REASON_INVALID_ARGS;
+                return WifiNanDiscoverySessionCallback.REASON_INVALID_ARGS;
             case NAN_STATUS_DISABLE_IN_PROGRESS:
             case NAN_STATUS_INVALID_TLV_LEN:
             case NAN_STATUS_INVALID_TLV_TYPE:
@@ -793,13 +793,13 @@ public class WifiNanNative {
             case NAN_STATUS_INVALID_TCA_ID:
             case NAN_STATUS_INVALID_STATS_ID:
             case NAN_STATUS_NAN_NOT_ALLOWED:
-                return WifiNanSessionCallback.REASON_OTHER;
+                return WifiNanDiscoverySessionCallback.REASON_OTHER;
             case NAN_STATUS_NO_OTA_ACK:
             case NAN_STATUS_TX_FAIL:
-                return WifiNanSessionCallback.REASON_TX_FAIL;
+                return WifiNanDiscoverySessionCallback.REASON_TX_FAIL;
         }
 
-        return WifiNanSessionCallback.REASON_OTHER;
+        return WifiNanDiscoverySessionCallback.REASON_OTHER;
     }
 
     // callback from native

@@ -16,10 +16,10 @@
 
 package com.android.server.wifi.nan;
 
-import android.net.wifi.nan.IWifiNanSessionCallback;
+import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanSessionCallback;
+import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.SparseArray;
@@ -35,20 +35,20 @@ import java.io.PrintWriter;
  * executed as well as state related to currently active discovery sessions:
  * publish/subscribe ID, and MAC address caching (hiding) from clients.
  */
-public class WifiNanSessionState {
-    private static final String TAG = "WifiNanSessionState";
+public class WifiNanDiscoverySessionState {
+    private static final String TAG = "WifiNanDiscoverySessionState";
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
 
     private int mSessionId;
     private int mPubSubId;
-    private IWifiNanSessionCallback mCallback;
+    private IWifiNanDiscoverySessionCallback mCallback;
     private boolean mIsPublishSession;
 
     private final SparseArray<String> mMacByRequestorInstanceId = new SparseArray<>();
 
-    public WifiNanSessionState(int sessionId, int pubSubId, IWifiNanSessionCallback callback,
-                               boolean isPublishSession) {
+    public WifiNanDiscoverySessionState(int sessionId, int pubSubId,
+            IWifiNanDiscoverySessionCallback callback, boolean isPublishSession) {
         mSessionId = sessionId;
         mPubSubId = pubSubId;
         mCallback = callback;
@@ -63,7 +63,7 @@ public class WifiNanSessionState {
         return mPubSubId;
     }
 
-    public IWifiNanSessionCallback getCallback() {
+    public IWifiNanDiscoverySessionCallback getCallback() {
         return mCallback;
     }
 
@@ -116,7 +116,7 @@ public class WifiNanSessionState {
         if (!mIsPublishSession) {
             Log.e(TAG, "A SUBSCRIBE session is being used to publish");
             try {
-                mCallback.onSessionConfigFail(WifiNanSessionCallback.REASON_OTHER);
+                mCallback.onSessionConfigFail(WifiNanDiscoverySessionCallback.REASON_OTHER);
             } catch (RemoteException e) {
                 Log.e(TAG, "updatePublish: RemoteException=" + e);
             }
@@ -137,7 +137,7 @@ public class WifiNanSessionState {
         if (mIsPublishSession) {
             Log.e(TAG, "A PUBLISH session is being used to subscribe");
             try {
-                mCallback.onSessionConfigFail(WifiNanSessionCallback.REASON_OTHER);
+                mCallback.onSessionConfigFail(WifiNanDiscoverySessionCallback.REASON_OTHER);
             } catch (RemoteException e) {
                 Log.e(TAG, "updateSubscribe: RemoteException=" + e);
             }
@@ -165,7 +165,7 @@ public class WifiNanSessionState {
                     + "match/contact us");
             try {
                 mCallback.onMessageSendFail(messageId,
-                        WifiNanSessionCallback.REASON_NO_MATCH_SESSION);
+                        WifiNanDiscoverySessionCallback.REASON_NO_MATCH_SESSION);
             } catch (RemoteException e) {
                 Log.e(TAG, "sendMessage: RemoteException=" + e);
             }
