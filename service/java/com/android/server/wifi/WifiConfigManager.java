@@ -253,10 +253,10 @@ public class WifiConfigManager {
      */
     private int mCurrentUserId = UserHandle.USER_SYSTEM;
     /**
-     * This is keeping track of the last network ID assigned. Any new networks will be assigned
-     * |mLastNetworkId + 1| as network ID.
+     * This is keeping track of the next network ID to be assigned. Any new networks will be
+     * assigned |mNextNetworkId| as network ID.
      */
-    private int mLastNetworkId = 0;
+    private int mNextNetworkId = 0;
     /**
      * UID of system UI. This uid is allowed to modify network configurations regardless of which
      * user is logged in.
@@ -268,7 +268,7 @@ public class WifiConfigManager {
      * This is the only way for an app to request connection to a specific network using the
      * {@link WifiManager} API's.
      */
-    private int mLastSelectedNetwork = WifiConfiguration.INVALID_NETWORK_ID;
+    private int mLastSelectedNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
     private long mLastSelectedTimeStamp =
             WifiConfiguration.NetworkSelectionStatus.INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP;
 
@@ -812,7 +812,7 @@ public class WifiConfigManager {
         WifiConfiguration newConfig = new WifiConfiguration();
 
         // First allocate a new network ID for the configuration.
-        newConfig.networkId = mLastNetworkId++;
+        newConfig.networkId = mNextNetworkId++;
 
         // First set defaults in the new configuration created.
         setDefaultsInWifiConfiguration(newConfig);
@@ -1033,7 +1033,7 @@ public class WifiConfigManager {
             Log.e(TAG, "Failed to remove network " + config.getPrintableSsid());
             return false;
         }
-        if (networkId == mLastSelectedNetwork) {
+        if (networkId == mLastSelectedNetworkId) {
             clearLastSelectedNetwork();
         }
         sendConfiguredNetworkChangedBroadcast(config, WifiManager.CHANGE_REASON_REMOVED);
@@ -1335,7 +1335,7 @@ public class WifiConfigManager {
                 networkId, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER)) {
             return false;
         }
-        if (networkId == mLastSelectedNetwork) {
+        if (networkId == mLastSelectedNetworkId) {
             clearLastSelectedNetwork();
         }
         return true;
@@ -1644,14 +1644,14 @@ public class WifiConfigManager {
     }
 
     /**
-     * Helper method to clear out the {@link #mLastNetworkId} user/app network selection. This
+     * Helper method to clear out the {@link #mNextNetworkId} user/app network selection. This
      * is done when either the corresponding network is either removed or disabled.
      */
     private void clearLastSelectedNetwork() {
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "Clearing last selected network");
         }
-        mLastSelectedNetwork = WifiConfiguration.INVALID_NETWORK_ID;
+        mLastSelectedNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
         mLastSelectedTimeStamp = NetworkSelectionStatus.INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP;
     }
 
@@ -1664,7 +1664,7 @@ public class WifiConfigManager {
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "Setting last selected network to " + networkId);
         }
-        mLastSelectedNetwork = networkId;
+        mLastSelectedNetworkId = networkId;
         mLastSelectedTimeStamp = mClock.getElapsedSinceBootMillis();
     }
 
@@ -1675,7 +1675,7 @@ public class WifiConfigManager {
      * @return network Id corresponding to the last selected network.
      */
     public int getLastSelectedNetwork() {
-        return mLastSelectedNetwork;
+        return mLastSelectedNetworkId;
     }
 
     /**
@@ -1685,7 +1685,7 @@ public class WifiConfigManager {
      * @return network Id corresponding to the last selected network.
      */
     public String getLastSelectedNetworkConfigKey() {
-        WifiConfiguration config = getInternalConfiguredNetwork(mLastSelectedNetwork);
+        WifiConfiguration config = getInternalConfiguredNetwork(mLastSelectedNetworkId);
         if (config == null) {
             return "";
         }
@@ -2327,7 +2327,7 @@ public class WifiConfigManager {
         // from the config store.
         clearInternalData();
         for (WifiConfiguration configuration : configurations) {
-            configuration.networkId = mLastNetworkId++;
+            configuration.networkId = mNextNetworkId++;
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, "Adding network from store " + configuration.configKey());
             }
@@ -2457,12 +2457,19 @@ public class WifiConfigManager {
     }
 
     /**
-     * Dump the local log buffer.
+     * Dump the local log buffer and other internal state of WifiConfigManager.
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("Dump of WifiConfigManager");
         pw.println("WifiConfigManager - Log Begin ----");
         mLocalLog.dump(fd, pw, args);
         pw.println("WifiConfigManager - Log End ----");
+        pw.println("WifiConfigManager - Configured networks Begin ----");
+        for (WifiConfiguration network: getInternalConfiguredNetworks()) {
+            pw.println(network);
+        }
+        pw.println("WifiConfigManager - Configured networks End ----");
+        pw.println("WifiConfigManager - Next network ID to be allocated " + mNextNetworkId);
+        pw.println("WifiConfigManager - Last selected network ID " + mLastSelectedNetworkId);
     }
 }
