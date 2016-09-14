@@ -135,14 +135,13 @@ public class WifiConfigStore {
      *
      * @param storeBaseDir Base directory under which the store file is to be stored. The store file
      *                     will be at <storeBaseDir>/wifi/WifiConfigStore.xml.
-     * @return new instance of the store file or null if the directory cannot be created.
+     * @return new instance of the store file.
      */
     private static StoreFile createFile(File storeBaseDir) {
         File storeDir = new File(storeBaseDir, STORE_DIRECTORY_NAME);
         if (!storeDir.exists()) {
             if (!storeDir.mkdir()) {
-                Log.wtf(TAG, "Could not create store directory " + storeDir);
-                return null;
+                Log.w(TAG, "Could not create store directory " + storeDir);
             }
         }
         return new StoreFile(new File(storeDir, STORE_FILE_NAME));
