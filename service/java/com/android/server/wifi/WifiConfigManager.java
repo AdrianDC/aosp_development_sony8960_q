@@ -64,6 +64,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -227,7 +228,7 @@ public class WifiConfigManager {
     /**
      * Stores a map of NetworkId to ScanDetailCache.
      */
-    private final ConcurrentHashMap<Integer, ScanDetailCache> mScanDetailCaches;
+    private final Map<Integer, ScanDetailCache> mScanDetailCaches;
     /**
      * Framework keeps a list of ephemeral SSIDs that where deleted by user,
      * so as, framework knows not to autoconnect again those SSIDs based on scorer input.
@@ -290,7 +291,7 @@ public class WifiConfigManager {
         mWifiConfigStoreLegacy = wifiConfigStoreLegacy;
 
         mConfiguredNetworks = new ConfigurationMap(userManager);
-        mScanDetailCaches = new ConcurrentHashMap<>(16, 0.75f, 2);
+        mScanDetailCaches = new HashMap<>(16, 0.75f);
         mDeletedEphemeralSSIDs = new HashSet<>();
 
         mOnlyLinkSameCredentialConfigurations = mContext.getResources().getBoolean(
@@ -1167,6 +1168,7 @@ public class WifiConfigManager {
                 + " networkStatus=" + networkStatus.getNetworkStatusString() + " disableReason="
                 + networkStatus.getNetworkDisableReasonString() + " at="
                 + createDebugTimeStampString(mClock.getWallClockMillis()));
+        saveToStore(false);
         return true;
     }
 
@@ -1400,6 +1402,7 @@ public class WifiConfigManager {
         config.getNetworkSelectionStatus().clearDisableReasonCounter();
         config.getNetworkSelectionStatus().setHasEverConnected(true);
         setNetworkStatus(config, WifiConfiguration.Status.CURRENT);
+        saveToStore(false);
         return true;
     }
 
@@ -1427,6 +1430,7 @@ public class WifiConfigManager {
         if (config.status == WifiConfiguration.Status.CURRENT) {
             setNetworkStatus(config, WifiConfiguration.Status.ENABLED);
         }
+        saveToStore(false);
         return true;
     }
 
@@ -1542,6 +1546,7 @@ public class WifiConfigManager {
         config.getNetworkSelectionStatus().setConnectChoice(null);
         config.getNetworkSelectionStatus().setConnectChoiceTimestamp(
                 NetworkSelectionStatus.INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP);
+        saveToStore(false);
         return true;
     }
 
@@ -1569,6 +1574,7 @@ public class WifiConfigManager {
         }
         config.getNetworkSelectionStatus().setConnectChoice(connectChoiceConfigKey);
         config.getNetworkSelectionStatus().setConnectChoiceTimestamp(timestamp);
+        saveToStore(false);
         return true;
     }
 
@@ -1601,6 +1607,7 @@ public class WifiConfigManager {
         }
         config.validatedInternetAccess = validated;
         config.numNoInternetAccessReports = 0;
+        saveToStore(false);
         return true;
     }
 
