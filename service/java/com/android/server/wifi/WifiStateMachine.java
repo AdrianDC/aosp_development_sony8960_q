@@ -278,7 +278,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private int mOperationalMode = CONNECT_MODE;
     private boolean mIsScanOngoing = false;
     private boolean mIsFullScanOngoing = false;
-    private boolean mSendScanResultsBroadcast = false;
 
     private final Queue<Message> mBufferedScanMsg = new LinkedList<>();
     private static final int UNKNOWN_SCAN_SOURCE = -1;
@@ -1478,11 +1477,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (freqs == null)
                 mBufferedScanMsg.clear();
             messageHandlingStatus = MESSAGE_HANDLING_STATUS_OK;
-            if (workSource != null) {
-                // External worksource was passed along the scan request,
-                // hence always send a broadcast
-                mSendScanResultsBroadcast = true;
-            }
             return;
         }
 
@@ -3105,13 +3099,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return address;
     }
 
-    void sendScanResultsAvailableBroadcast(boolean scanSucceeded) {
-        Intent intent = new Intent(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
-        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-        intent.putExtra(WifiManager.EXTRA_RESULTS_UPDATED, scanSucceeded);
-        mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
-    }
-
     private void sendRssiChangeBroadcast(final int newRssi) {
         try {
             mBatteryStats.noteWifiRssiChanged(newRssi);
@@ -4331,18 +4318,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     sendMessageDelayed(CMD_START_SUPPLICANT, SUPPLICANT_RESTART_INTERVAL_MSECS);
                     break;
                 case CMD_START_SCAN:
+                    // TODO: remove scan request path (b/31445200)
                     handleScanRequest(message);
                     break;
                 case WifiMonitor.SCAN_RESULTS_EVENT:
                 case WifiMonitor.SCAN_FAILED_EVENT:
+                    // TODO: remove handing of SCAN_RESULTS_EVENT and SCAN_FAILED_EVENT when scan
+                    // results are retrieved from WifiScanner (b/31444878)
                     maybeRegisterNetworkFactory(); // Make sure our NetworkFactory is registered
                     setScanResults();
-                    if (mIsFullScanOngoing || mSendScanResultsBroadcast) {
-                        /* Just updated results from full scan, let apps know about this */
-                        boolean scanSucceeded = message.what == WifiMonitor.SCAN_RESULTS_EVENT;
-                        sendScanResultsAvailableBroadcast(scanSucceeded);
-                    }
-                    mSendScanResultsBroadcast = false;
                     mIsScanOngoing = false;
                     mIsFullScanOngoing = false;
                     if (mBufferedScanMsg.size() > 0)
