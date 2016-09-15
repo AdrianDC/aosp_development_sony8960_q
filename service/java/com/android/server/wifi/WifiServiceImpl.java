@@ -58,6 +58,7 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiScanner;
 import android.os.AsyncTask;
 import android.os.BatteryStats;
 import android.os.Binder;
@@ -146,6 +147,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private final WifiInjector mWifiInjector;
     /* Backup/Restore Module */
     private final WifiBackupRestore mWifiBackupRestore;
+
+    private WifiScanner mWifiScanner;
 
     /**
      * Asynchronous channel to WifiStateMachine
@@ -431,6 +434,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public void startScan(ScanSettings settings, WorkSource workSource) {
         enforceChangePermission();
         synchronized (this) {
+            if (mWifiScanner == null) {
+                mWifiScanner = mWifiInjector.getWifiScanner();
+            }
             if (mInIdleMode) {
                 // Need to send an immediate scan result broadcast in case the
                 // caller is waiting for a result ..
@@ -438,7 +444,14 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 // clear calling identity to send broadcast
                 long callingIdentity = Binder.clearCallingIdentity();
                 try {
-                    mWifiStateMachine.sendScanResultsAvailableBroadcast(/* scanSucceeded = */ false);
+                    // TODO: investigate if the logic to cancel scans when idle can move to
+                    // WifiScanningServiceImpl.  This will 1 - clean up WifiServiceImpl and 2 -
+                    // avoid plumbing an awkward path to report a cancelled/failed scan.  This will
+                    // be sent directly until b/31398592 is fixed.
+                    Intent intent = new Intent(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
+                    intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+                    intent.putExtra(WifiManager.EXTRA_RESULTS_UPDATED, false);
+                    mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
                 } finally {
                     // restore calling identity
                     Binder.restoreCallingIdentity(callingIdentity);
