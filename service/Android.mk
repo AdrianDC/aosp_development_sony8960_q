@@ -25,7 +25,6 @@ LOCAL_CFLAGS += -Wall -Werror -Wextra -Wno-unused-parameter -Wno-unused-function
 
 LOCAL_C_INCLUDES += \
 	$(JNI_H_INCLUDE) \
-	libcore/include
 
 LOCAL_SHARED_LIBRARIES += \
 	liblog \
