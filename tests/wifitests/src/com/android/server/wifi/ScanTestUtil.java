@@ -111,12 +111,16 @@ public class ScanTestUtil {
         }
 
         /**
-         * Add the provided hidden network IDs to scan request.
-         * @param networkIds List of hidden network IDs
+         * Add the provided hidden network SSIDs to scan request.
+         * @param networkSSIDs List of hidden network SSIDs
          * @return builder object
          */
-        public NativeScanSettingsBuilder withHiddenNetworkIds(int[] networkIds) {
-            mSettings.hiddenNetworkIds = networkIds;
+        public NativeScanSettingsBuilder withHiddenNetworkSSIDs(String[] networkSSIDs) {
+            mSettings.hiddenNetworks = new WifiNative.HiddenNetwork[networkSSIDs.length];
+            for (int i = 0; i < networkSSIDs.length; i++) {
+                mSettings.hiddenNetworks[i] = new WifiNative.HiddenNetwork();
+                mSettings.hiddenNetworks[i].ssid = networkSSIDs[i];
+            }
             return this;
         }
 
@@ -371,10 +375,6 @@ public class ScanTestUtil {
         for (int i = 0; i < expected.networkList.length; i++) {
             assertEquals("networkList[" + i + "].ssid",
                     expected.networkList[i].ssid, actual.networkList[i].ssid);
-            assertEquals("networkList[" + i + "].networkId",
-                    expected.networkList[i].networkId, actual.networkList[i].networkId);
-            assertEquals("networkList[" + i + "].priority",
-                    expected.networkList[i].priority, actual.networkList[i].priority);
             assertEquals("networkList[" + i + "].flags",
                     expected.networkList[i].flags, actual.networkList[i].flags);
             assertEquals("networkList[" + i + "].auth_bit_field",

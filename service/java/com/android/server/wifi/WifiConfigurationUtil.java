@@ -251,8 +251,6 @@ public class WifiConfigurationUtil {
             WifiConfiguration config, int newPriority) {
         WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
                 new WifiScanner.PnoSettings.PnoNetwork(config.SSID);
-        pnoNetwork.networkId = config.networkId;
-        pnoNetwork.priority = newPriority;
         if (config.hiddenSSID) {
             pnoNetwork.flags |= WifiScanner.PnoSettings.PnoNetwork.FLAG_DIRECTED_SCAN;
         }

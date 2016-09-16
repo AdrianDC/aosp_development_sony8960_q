@@ -38,7 +38,6 @@ import org.junit.Test;
 import org.mockito.InOrder;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -327,7 +326,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         assertBackgroundPeriodAlarmPending();
 
         expectFailedScanStart(order, eventHandler,
-                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>());
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ));
 
         // Fire alarm to start next scan
         dispatchBackgroundPeriodAlarm();
@@ -335,7 +334,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         assertBackgroundPeriodAlarmPending();
 
         expectFailedScanStart(order, eventHandler,
-                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>());
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ));
 
         verifyNoMoreInteractions(eventHandler);
     }
@@ -362,7 +361,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         assertBackgroundPeriodAlarmPending();
 
         expectFailedEventScan(order, eventHandler,
-                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>());
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ));
 
         // Fire alarm to start next scan
         dispatchBackgroundPeriodAlarm();
@@ -370,7 +369,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         assertBackgroundPeriodAlarmPending();
 
         expectFailedEventScan(order, eventHandler,
-                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>());
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ));
 
         verifyNoMoreInteractions(eventHandler);
     }
@@ -610,7 +609,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
             }
         }
         expectSuccessfulBackgroundScan(order, eventHandler, period.getScanFreqs(),
-                new HashSet<Integer>(), nativeResults, scanDatas, fullResults, periodId);
+                nativeResults, scanDatas, fullResults, periodId);
     }
 
     /**
@@ -619,11 +618,11 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
      */
     private void expectSuccessfulBackgroundScan(InOrder order,
             WifiNative.ScanEventHandler eventHandler, Set<Integer> scanFreqs,
-            Set<Integer> networkIds, ArrayList<ScanDetail> nativeResults,
+            ArrayList<ScanDetail> nativeResults,
             WifiScanner.ScanData[] expectedScanResults,
             ScanResult[] fullResults, int periodId) {
         // Verify scan started
-        order.verify(mWifiNative).scan(eq(scanFreqs), eq(networkIds));
+        order.verify(mWifiNative).scan(eq(scanFreqs), any(Set.class));
 
         // Setup scan results
         when(mWifiNative.getScanResults()).thenReturn(nativeResults);
@@ -647,17 +646,15 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
     }
 
     private void expectFailedScanStart(InOrder order, WifiNative.ScanEventHandler eventHandler,
-            Set<Integer> scanFreqs, Set<Integer> networkIds) {
+            Set<Integer> scanFreqs) {
         // Verify scan started
-        order.verify(mWifiNative).scan(eq(scanFreqs), eq(networkIds));
-
-        // TODO: verify failure event
+        order.verify(mWifiNative).scan(eq(scanFreqs), any(Set.class));
     }
 
     private void expectFailedEventScan(InOrder order, WifiNative.ScanEventHandler eventHandler,
-            Set<Integer> scanFreqs, Set<Integer> networkIds) {
+            Set<Integer> scanFreqs) {
         // Verify scan started
-        order.verify(mWifiNative).scan(eq(scanFreqs), eq(networkIds));
+        order.verify(mWifiNative).scan(eq(scanFreqs), any(Set.class));
 
         // Notify scan has failed
         mWifiMonitor.sendMessage(mWifiNative.getInterfaceName(), WifiMonitor.SCAN_FAILED_EVENT);
