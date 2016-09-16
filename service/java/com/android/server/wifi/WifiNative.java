@@ -298,31 +298,51 @@ public class WifiNative {
         return doStringCommand("GET_CAPABILITY freq");
     }
 
+
+    /*
+     * Convert string to Hexadecimal before passing to wifi native layer
+     * In native function "doCommand()" have trouble in converting Unicode character string to UTF8
+     * conversion to hex is required because SSIDs can have space characters in them;
+     * and that can confuses the supplicant because it uses space charaters as delimiters
+     */
+    public static String encodeSSID(String ssid) {
+        int length = ssid.length();
+        if ((length > 1) && (ssid.charAt(0) == '"')
+                && (ssid.charAt(length - 1) == '"')) {
+            ssid = ssid.substring(1, length - 1);
+        }
+        return Utils.toHex(ssid.getBytes(StandardCharsets.UTF_8));
+    }
+
     /**
      * Start a scan using wpa_supplicant for the given frequencies.
      * @param freqs list of frequencies to scan for, if null scan all supported channels.
-     * @param hiddenNetworkIds List of hidden networks to be scanned for.
+     * @param hiddenNetworkSSIDs List of hidden networks to be scanned for.
      */
-    public boolean scan(Set<Integer> freqs, Set<Integer> hiddenNetworkIds) {
+    public boolean scan(Set<Integer> freqs, Set<String> hiddenNetworkSSIDs) {
         String freqList = null;
-        String hiddenNetworkIdList = null;
+        String hiddenNetworkSSIDList = null;
         if (freqs != null && freqs.size() != 0) {
             freqList = TextUtils.join(",", freqs);
         }
-        if (hiddenNetworkIds != null && hiddenNetworkIds.size() != 0) {
-            hiddenNetworkIdList = TextUtils.join(",", hiddenNetworkIds);
+        if (hiddenNetworkSSIDs != null && hiddenNetworkSSIDs.size() != 0) {
+            StringBuilder ssidList = new StringBuilder();
+            for (String ssid : hiddenNetworkSSIDs) {
+                ssidList.append(encodeSSID(ssid)).append(" ");
+            }
+            hiddenNetworkSSIDList = ssidList.toString();
         }
-        return scanWithParams(freqList, hiddenNetworkIdList);
+        return scanWithParams(freqList, hiddenNetworkSSIDList);
     }
 
-    private boolean scanWithParams(String freqList, String hiddenNetworkIdList) {
+    private boolean scanWithParams(String freqList, String hiddenNetworkSSIDList) {
         StringBuilder scanCommand = new StringBuilder();
         scanCommand.append("SCAN TYPE=ONLY");
         if (freqList != null) {
             scanCommand.append(" freq=" + freqList);
         }
-        if (hiddenNetworkIdList != null) {
-            scanCommand.append(" scan_id=" + hiddenNetworkIdList);
+        if (hiddenNetworkSSIDList != null) {
+            scanCommand.append(" ssid " + hiddenNetworkSSIDList);
         }
         return doBooleanCommand(scanCommand.toString());
     }
@@ -1647,14 +1667,32 @@ public class WifiNative {
         public ChannelSettings[] channels;
     }
 
+    /**
+     * Network parameters for hidden networks to be scanned for.
+     */
+    public static class HiddenNetwork {
+        public String ssid;
+
+        @Override
+        public boolean equals(Object otherObj) {
+            if (this == otherObj) {
+                return true;
+            } else if (otherObj == null || getClass() != otherObj.getClass()) {
+                return false;
+            }
+            HiddenNetwork other = (HiddenNetwork) otherObj;
+            return Objects.equals(ssid, other.ssid);
+        }
+    }
+
     public static class ScanSettings {
         public int base_period_ms;
         public int max_ap_per_scan;
         public int report_threshold_percent;
         public int report_threshold_num_scans;
         public int num_buckets;
-        /* Not part of gscan HAL API. Used only for wpa_supplicant scanning */
-        public int[] hiddenNetworkIds;
+        /* Not used for bg scans. Only works for single scans. */
+        public HiddenNetwork[] hiddenNetworks;
         public BucketSettings[] buckets;
     }
 
@@ -1663,8 +1701,6 @@ public class WifiNative {
      */
     public static class PnoNetwork {
         public String ssid;
-        public int networkId;
-        public int priority;
         public byte flags;
         public byte auth_bit_field;
 
@@ -1676,8 +1712,7 @@ public class WifiNative {
                 return false;
             }
             PnoNetwork other = (PnoNetwork) otherObj;
-            return ((Objects.equals(ssid, other.ssid)) && (networkId == other.networkId)
-                    && (priority == other.priority) && (flags == other.flags)
+            return ((Objects.equals(ssid, other.ssid)) && (flags == other.flags)
                     && (auth_bit_field == other.auth_bit_field));
         }
     }
