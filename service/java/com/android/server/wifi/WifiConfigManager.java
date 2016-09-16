@@ -66,7 +66,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This class provides the APIs to manage configured Wi-Fi networks.
@@ -535,20 +534,6 @@ public class WifiConfigManager {
     }
 
     /**
-     * Helper method to check if the network is already configured internally or not.
-     */
-    private boolean isNetworkConfiguredInternally(WifiConfiguration config) {
-        return getInternalConfiguredNetwork(config) != null;
-    }
-
-    /**
-     * Helper method to check if the network is already configured internally or not.
-     */
-    private boolean isNetworkConfiguredInternally(int networkId) {
-        return getInternalConfiguredNetwork(networkId) != null;
-    }
-
-    /**
      * Method to send out the configured networks change broadcast when a single network
      * configuration is changed.
      *
@@ -672,11 +657,11 @@ public class WifiConfigManager {
      *             {@link WifiManager#enableNetwork(int, boolean)} or
      *             {@link WifiManager#disableNetwork(int)}.
      *
-     * @param externalConfig WifiConfiguration object provided from the external API.
      * @param internalConfig WifiConfiguration object in our internal map.
+     * @param externalConfig WifiConfiguration object provided from the external API.
      */
     private void mergeWithInternalWifiConfiguration(
-            WifiConfiguration externalConfig, WifiConfiguration internalConfig) {
+            WifiConfiguration internalConfig, WifiConfiguration externalConfig) {
         if (externalConfig.SSID != null) {
             internalConfig.SSID = externalConfig.SSID;
         }
@@ -801,68 +786,68 @@ public class WifiConfigManager {
     }
 
     /**
-     * Create a new WifiConfiguration object by copying over parameters from the provided
+     * Create a new internal WifiConfiguration object by copying over parameters from the provided
      * external configuration and set defaults for the appropriate parameters.
      *
-     * @param config provided external WifiConfiguration object.
+     * @param externalConfig WifiConfiguration object provided from the external API.
      * @return New WifiConfiguration object with parameters merged from the provided external
      * configuration.
      */
     private WifiConfiguration createNewInternalWifiConfigurationFromExternal(
-            WifiConfiguration config, int uid) {
-        WifiConfiguration newConfig = new WifiConfiguration();
+            WifiConfiguration externalConfig, int uid) {
+        WifiConfiguration newInternalConfig = new WifiConfiguration();
 
         // First allocate a new network ID for the configuration.
-        newConfig.networkId = mNextNetworkId++;
+        newInternalConfig.networkId = mNextNetworkId++;
 
         // First set defaults in the new configuration created.
-        setDefaultsInWifiConfiguration(newConfig);
+        setDefaultsInWifiConfiguration(newInternalConfig);
 
         // Copy over all the public elements from the provided configuration.
-        mergeWithInternalWifiConfiguration(config, newConfig);
+        mergeWithInternalWifiConfiguration(newInternalConfig, externalConfig);
 
         // Copy over the hidden configuration parameters. These are the only parameters used by
         // system apps to indicate some property about the network being added.
         // These are only copied over for network additions and ignored for network updates.
-        newConfig.requirePMF = config.requirePMF;
-        newConfig.noInternetAccessExpected = config.noInternetAccessExpected;
-        newConfig.ephemeral = config.ephemeral;
-        newConfig.meteredHint = config.meteredHint;
-        newConfig.useExternalScores = config.useExternalScores;
-        newConfig.shared = config.shared;
+        newInternalConfig.requirePMF = externalConfig.requirePMF;
+        newInternalConfig.noInternetAccessExpected = externalConfig.noInternetAccessExpected;
+        newInternalConfig.ephemeral = externalConfig.ephemeral;
+        newInternalConfig.meteredHint = externalConfig.meteredHint;
+        newInternalConfig.useExternalScores = externalConfig.useExternalScores;
+        newInternalConfig.shared = externalConfig.shared;
 
         // Add debug information for network addition.
-        newConfig.creatorUid = newConfig.lastUpdateUid = uid;
-        newConfig.creatorName = newConfig.lastUpdateName =
+        newInternalConfig.creatorUid = newInternalConfig.lastUpdateUid = uid;
+        newInternalConfig.creatorName = newInternalConfig.lastUpdateName =
                 mContext.getPackageManager().getNameForUid(uid);
-        newConfig.creationTime = newConfig.updateTime =
+        newInternalConfig.creationTime = newInternalConfig.updateTime =
                 createDebugTimeStampString(mClock.getWallClockMillis());
 
-        return newConfig;
+        return newInternalConfig;
     }
 
     /**
-     * Merges the provided external WifiConfiguration object with a copy of the existing internal
-     * WifiConfiguration object.
+     * Create a new internal WifiConfiguration object by copying over parameters from the provided
+     * external configuration to a copy of the existing internal WifiConfiguration object.
      *
-     * @param config provided external WifiConfiguration object.
+     * @param internalConfig WifiConfiguration object in our internal map.
+     * @param externalConfig WifiConfiguration object provided from the external API.
      * @return Copy of existing WifiConfiguration object with parameters merged from the provided
      * configuration.
      */
     private WifiConfiguration updateExistingInternalWifiConfigurationFromExternal(
-            WifiConfiguration config, int uid) {
-        WifiConfiguration existingConfig =
-                new WifiConfiguration(getInternalConfiguredNetwork(config));
+            WifiConfiguration internalConfig, WifiConfiguration externalConfig, int uid) {
+        WifiConfiguration newInternalConfig = new WifiConfiguration(internalConfig);
 
         // Copy over all the public elements from the provided configuration.
-        mergeWithInternalWifiConfiguration(config, existingConfig);
+        mergeWithInternalWifiConfiguration(newInternalConfig, externalConfig);
 
         // Add debug information for network update.
-        existingConfig.lastUpdateUid = uid;
-        existingConfig.lastUpdateName = mContext.getPackageManager().getNameForUid(uid);
-        existingConfig.updateTime = createDebugTimeStampString(mClock.getWallClockMillis());
+        newInternalConfig.lastUpdateUid = uid;
+        newInternalConfig.lastUpdateName = mContext.getPackageManager().getNameForUid(uid);
+        newInternalConfig.updateTime = createDebugTimeStampString(mClock.getWallClockMillis());
 
-        return existingConfig;
+        return newInternalConfig;
     }
 
     /**
@@ -878,25 +863,29 @@ public class WifiConfigManager {
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "Adding/Updating network " + config.getPrintableSsid());
         }
-        boolean newNetwork;
-        WifiConfiguration existingInternalConfig;
-        WifiConfiguration newInternalConfig;
+        WifiConfiguration newInternalConfig = null;
 
-        if (!isNetworkConfiguredInternally(config)) {
-            newNetwork = true;
-            existingInternalConfig = null;
+        // First check if we already have a network with the provided network id or configKey.
+        WifiConfiguration existingInternalConfig = getInternalConfiguredNetwork(config);
+        // No existing network found. So, potentially a network add.
+        if (existingInternalConfig == null) {
             newInternalConfig = createNewInternalWifiConfigurationFromExternal(config, uid);
-        } else {
-            newNetwork = false;
-            existingInternalConfig =
-                    new WifiConfiguration(getInternalConfiguredNetwork(config));
+            // Since the original config provided may have had an empty
+            // {@link WifiConfiguration#allowedKeyMgmt} field, check again if we already have a
+            // network with the the same configkey.
+            existingInternalConfig = getInternalConfiguredNetwork(newInternalConfig.configKey());
+        }
+        // Existing network found. So, a network update.
+        if (existingInternalConfig != null) {
             // Check for the app's permission before we let it update this network.
             if (!canModifyNetwork(existingInternalConfig, uid, DISALLOW_LOCKDOWN_CHECK_BYPASS)) {
                 Log.e(TAG, "UID " + uid + " does not have permission to update configuration "
                         + config.configKey());
                 return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
             }
-            newInternalConfig = updateExistingInternalWifiConfigurationFromExternal(config, uid);
+            newInternalConfig =
+                    updateExistingInternalWifiConfigurationFromExternal(
+                            existingInternalConfig, config, uid);
         }
 
         // Update the keys for enterprise networks.
@@ -907,6 +896,7 @@ public class WifiConfigManager {
             }
         }
 
+        boolean newNetwork = (existingInternalConfig == null);
         // Reset the |hasEverConnected| flag if the credential parameters changed in this update.
         boolean hasCredentialChanged =
                 newNetwork || WifiConfigurationUtil.hasCredentialChanged(
