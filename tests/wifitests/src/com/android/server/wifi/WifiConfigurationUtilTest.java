@@ -195,10 +195,9 @@ public class WifiConfigurationUtilTest {
     @Test
     public void testCreatePnoNetworkWithOpenNetwork() {
         WifiConfiguration network = WifiConfigurationTestUtil.createOpenNetwork();
-        network.networkId = 5;
         WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
                 WifiConfigurationUtil.createPnoNetwork(network, 1);
-        assertEquals(network.networkId, pnoNetwork.networkId);
+        assertEquals(network.SSID, pnoNetwork.ssid);
         assertEquals(
                 WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND
                         | WifiScanner.PnoSettings.PnoNetwork.FLAG_G_BAND, pnoNetwork.flags);
@@ -213,10 +212,9 @@ public class WifiConfigurationUtilTest {
     @Test
     public void testCreatePnoNetworkWithOpenHiddenNetwork() {
         WifiConfiguration network = WifiConfigurationTestUtil.createOpenHiddenNetwork();
-        network.networkId = 5;
         WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
                 WifiConfigurationUtil.createPnoNetwork(network, 1);
-        assertEquals(network.networkId, pnoNetwork.networkId);
+        assertEquals(network.SSID, pnoNetwork.ssid);
         assertEquals(
                 WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND
                         | WifiScanner.PnoSettings.PnoNetwork.FLAG_G_BAND
@@ -232,10 +230,9 @@ public class WifiConfigurationUtilTest {
     @Test
     public void testCreatePnoNetworkWithPskNetwork() {
         WifiConfiguration network = WifiConfigurationTestUtil.createPskNetwork();
-        network.networkId = 5;
         WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
                 WifiConfigurationUtil.createPnoNetwork(network, 1);
-        assertEquals(network.networkId, pnoNetwork.networkId);
+        assertEquals(network.SSID, pnoNetwork.ssid);
         assertEquals(
                 WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND
                         | WifiScanner.PnoSettings.PnoNetwork.FLAG_G_BAND, pnoNetwork.flags);
@@ -250,10 +247,9 @@ public class WifiConfigurationUtilTest {
     @Test
     public void testCreatePnoNetworkWithEapNetwork() {
         WifiConfiguration network = WifiConfigurationTestUtil.createEapNetwork();
-        network.networkId = 5;
         WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
                 WifiConfigurationUtil.createPnoNetwork(network, 1);
-        assertEquals(network.networkId, pnoNetwork.networkId);
+        assertEquals(network.SSID, pnoNetwork.ssid);
         assertEquals(
                 WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND
                         | WifiScanner.PnoSettings.PnoNetwork.FLAG_G_BAND, pnoNetwork.flags);

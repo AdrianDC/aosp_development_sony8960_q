@@ -1479,12 +1479,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
         }
 
-        // Retrieve the list of hidden networkId's to scan for.
-        // TODO(b/29503772)
-        Set<Integer> hiddenNetworkIds = new HashSet<>();
+        // Retrieve the list of hidden network SSIDs to scan for.
+        List<WifiScanner.ScanSettings.HiddenNetwork> hiddenNetworks =
+                mWifiConfigManager.retrieveHiddenNetworkList();
 
         // call wifi native to start the scan
-        if (startScanNative(freqs, hiddenNetworkIds, workSource)) {
+        if (startScanNative(freqs, hiddenNetworks, workSource)) {
             // a full scan covers everything, clearing scan request buffer
             if (freqs == null)
                 mBufferedScanMsg.clear();
@@ -1533,7 +1533,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /**
      * return true iff scan request is accepted
      */
-    private boolean startScanNative(final Set<Integer> freqs, Set<Integer> hiddenNetworkIds,
+    private boolean startScanNative(final Set<Integer> freqs,
+            List<WifiScanner.ScanSettings.HiddenNetwork> hiddenNetworkList,
             WorkSource workSource) {
         WifiScanner.ScanSettings settings = new WifiScanner.ScanSettings();
         if (freqs == null) {
@@ -1548,13 +1549,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
         settings.reportEvents = WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
                 | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT;
-        if (hiddenNetworkIds != null && hiddenNetworkIds.size() > 0) {
-            int i = 0;
-            settings.hiddenNetworkIds = new int[hiddenNetworkIds.size()];
-            for (Integer netId : hiddenNetworkIds) {
-                settings.hiddenNetworkIds[i++] = netId;
-            }
-        }
+
+        settings.hiddenNetworks =
+                hiddenNetworkList.toArray(
+                        new WifiScanner.ScanSettings.HiddenNetwork[hiddenNetworkList.size()]);
+
         WifiScanner.ScanListener nativeScanListener = new WifiScanner.ScanListener() {
                 // ignore all events since WifiStateMachine is registered for the supplicant events
                 @Override
@@ -5590,12 +5589,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             //if (mVerboseLoggingEnabled) {
             logd("starting scan for " + config.configKey() + " with " + freqs);
             //}
-            Set<Integer> hiddenNetworkIds = new HashSet<>();
+            List<WifiScanner.ScanSettings.HiddenNetwork> hiddenNetworks = new ArrayList<>();
             if (config.hiddenSSID) {
-                hiddenNetworkIds.add(config.networkId);
+                hiddenNetworks.add(new WifiScanner.ScanSettings.HiddenNetwork(config.SSID));
             }
             // Call wifi native to start the scan
-            if (startScanNative(freqs, hiddenNetworkIds, WIFI_WORK_SOURCE)) {
+            if (startScanNative(freqs, hiddenNetworks, WIFI_WORK_SOURCE)) {
                 messageHandlingStatus = MESSAGE_HANDLING_STATUS_OK;
             } else {
                 // used for debug only, mark scan as failed
