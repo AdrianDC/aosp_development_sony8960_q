@@ -962,14 +962,6 @@ public class WifiNative {
         return doStringCommandWithoutLogging("SIGNAL_POLL");
     }
 
-    /** Example outout:
-     * TXGOOD=396
-     * TXBAD=1
-     */
-    public String pktcntPoll() {
-        return doStringCommand("PKTCNT_POLL");
-    }
-
     public void bssFlush() {
         doBooleanCommand("BSS_FLUSH 0");
     }
