@@ -14,25 +14,49 @@
  * limitations under the License.
  */
 
-#ifndef WIFI_HAL_LEGACY_FAILURE_REASON_UTIL_H_
-#define WIFI_HAL_LEGACY_FAILURE_REASON_UTIL_H_
+#ifndef WIFI_HAL_LEGACY_WIFI_HAL_STATE_H_
+#define WIFI_HAL_LEGACY_WIFI_HAL_STATE_H_
 
-#include <android/hardware/wifi/1.0/IWifi.h>
+#include <functional>
+
+#include <android-base/macros.h>
 #include <hardware_legacy/wifi_hal.h>
+#include <utils/Looper.h>
 
 namespace android {
 namespace hardware {
 namespace wifi {
 
-std::string LegacyErrorToString(wifi_error error);
+/**
+ * Class that stores common state and functionality shared between HAL services.
+ */
+class WifiHalState {
+ public:
+  WifiHalState(sp<Looper>& looper);
 
-V1_0::FailureReason CreateFailureReason(
-    V1_0::CommandFailureReason reason, const std::string& description);
-V1_0::FailureReason CreateFailureReasonLegacyError(
-    wifi_error error, const std::string& description);
+  /** Post a task to be executed on the main thread */
+  void PostTask(const std::function<void()>& callback);
+
+  wifi_hal_fn func_table_;
+  /** opaque handle from vendor for use while HAL is running */
+  wifi_handle hal_handle_;
+
+  enum class RunState {
+    STOPPED,
+    STARTED,
+    STOPPING
+  };
+
+  RunState run_state_;
+
+ private:
+  sp<Looper> looper_;
+
+  DISALLOW_COPY_AND_ASSIGN(WifiHalState);
+};
 
 }  // namespace wifi
 }  // namespace hardware
 }  // namespace android
 
-#endif  // WIFI_HAL_LEGACY_FAILURE_REASON_UTIL_H_
+#endif  // WIFI_HAL_LEGACY_WIFI_HAL_STATE_H_
