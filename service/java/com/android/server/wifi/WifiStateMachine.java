@@ -1021,6 +1021,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         setLogRecSize(NUM_LOG_RECS_NORMAL);
         setLogOnlyTransitions(false);
 
+        // Clean up existing interfaces in wificond.
+        // This ensures that wificond continue to work if java framework restarts.
+        try {
+            mWificond = mWifiInjector.makeWificond();
+            if (mWificond != null) {
+                mWificond.tearDownInterfaces();
+            }
+        } catch (RemoteException e) {
+            // There is very little we can do here
+            Log.e(TAG, "Failed to tear down interfaces via wificond");
+        }
+
         //start the state machine
         start();
 
