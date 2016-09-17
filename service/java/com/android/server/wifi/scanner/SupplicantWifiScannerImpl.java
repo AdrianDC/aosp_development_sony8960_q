@@ -19,7 +19,6 @@ package com.android.server.wifi.scanner;
 import android.app.AlarmManager;
 import android.content.Context;
 import android.net.wifi.ScanResult;
-import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiScanner;
 import android.os.Handler;
 import android.os.Looper;
@@ -344,7 +343,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
             }
 
             ChannelCollection allFreqs = mChannelHelper.createChannelCollection();
-            Set<Integer> hiddenNetworkIdSet = new HashSet<Integer>();
+            Set<String> hiddenNetworkSSIDSet = new HashSet<>();
             final LastScanSettings newScanSettings =
                     new LastScanSettings(mClock.getElapsedSinceBootMillis());
 
@@ -389,16 +388,6 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                                 mBackgroundScanSettings.report_threshold_num_scans,
                                 mBackgroundScanSettings.report_threshold_percent);
                     }
-
-                    int[] hiddenNetworkIds = mBackgroundScanSettings.hiddenNetworkIds;
-                    if (hiddenNetworkIds != null) {
-                        int numHiddenNetworkIds = Math.min(hiddenNetworkIds.length,
-                                MAX_HIDDEN_NETWORK_IDS_PER_SCAN);
-                        for (int i = 0; i < numHiddenNetworkIds; i++) {
-                            hiddenNetworkIdSet.add(hiddenNetworkIds[i]);
-                        }
-                    }
-
                     mNextBackgroundScanPeriod++;
                     mBackgroundScanPeriodPending = false;
                     mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
@@ -422,14 +411,17 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                 }
                 newScanSettings.setSingleScan(reportFullResults, singleScanFreqs,
                         mPendingSingleScanEventHandler);
-                int[] hiddenNetworkIds = mPendingSingleScanSettings.hiddenNetworkIds;
-                if (hiddenNetworkIds != null) {
-                    int numHiddenNetworkIds = Math.min(hiddenNetworkIds.length,
-                            MAX_HIDDEN_NETWORK_IDS_PER_SCAN);
-                    for (int i = 0; i < numHiddenNetworkIds; i++) {
-                        hiddenNetworkIdSet.add(hiddenNetworkIds[i]);
+
+                WifiNative.HiddenNetwork[] hiddenNetworks =
+                        mPendingSingleScanSettings.hiddenNetworks;
+                if (hiddenNetworks != null) {
+                    int numHiddenNetworks =
+                            Math.min(hiddenNetworks.length, MAX_HIDDEN_NETWORK_IDS_PER_SCAN);
+                    for (int i = 0; i < numHiddenNetworks; i++) {
+                        hiddenNetworkSSIDSet.add(hiddenNetworks[i].ssid);
                     }
                 }
+
                 mPendingSingleScanSettings = null;
                 mPendingSingleScanEventHandler = null;
             }
@@ -438,7 +430,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                     && !allFreqs.isEmpty()) {
                 pauseHwPnoScan();
                 Set<Integer> freqs = allFreqs.getSupplicantScanFreqs();
-                boolean success = mWifiNative.scan(freqs, hiddenNetworkIdSet);
+                boolean success = mWifiNative.scan(freqs, hiddenNetworkSSIDSet);
                 if (success) {
                     // TODO handle scan timeout
                     if (DBG) {
@@ -669,25 +661,6 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
         }
     }
 
-    private boolean setNetworkPriorities(WifiNative.PnoNetwork[] networkList) {
-        if (networkList != null) {
-            if (DBG) Log.i(TAG, "Enable network and Set priorities for PNO.");
-            for (WifiNative.PnoNetwork network : networkList) {
-                if (!mWifiNative.setNetworkVariable(network.networkId,
-                        WifiConfiguration.priorityVarName,
-                        Integer.toString(network.priority))) {
-                    Log.e(TAG, "Set priority failed for: " + network.networkId);
-                    return false;
-                }
-                if (!mWifiNative.enableNetworkWithoutConnect(network.networkId)) {
-                    Log.e(TAG, "Enable network failed for: " + network.networkId);
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
     private boolean startHwPnoScan() {
         return mHwPnoDebouncer.startPnoScan(mHwPnoDebouncerListener);
     }
@@ -729,7 +702,6 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
             }
             mPnoEventHandler = eventHandler;
             mPnoSettings = settings;
-            if (!setNetworkPriorities(settings.networkList)) return false;
             // For supplicant based PNO, we start the scan immediately when we set pno list.
             processPendingScans();
             return true;

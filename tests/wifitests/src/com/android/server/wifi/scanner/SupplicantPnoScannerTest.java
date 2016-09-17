@@ -24,14 +24,12 @@ import static org.mockito.Mockito.*;
 
 import android.app.test.TestAlarmManager;
 import android.content.Context;
-import android.os.test.TestLooper;
-import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiScanner;
 import android.os.SystemClock;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.R;
-
 import com.android.server.wifi.Clock;
 import com.android.server.wifi.MockResources;
 import com.android.server.wifi.MockWifiMonitor;
@@ -47,9 +45,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
-
 
 /**
  * Unit tests for {@link com.android.server.wifi.scanner.SupplicantWifiScannerImpl.setPnoList}.
@@ -122,8 +118,7 @@ public class SupplicantPnoScannerTest {
         assertTrue(mScanner.startSingleScan(settings, eventHandler));
         // Verify that the PNO scan was paused and single scan runs successfully
         expectSuccessfulSingleScanWithHwPnoEnabled(order, eventHandler,
-                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>(),
-                scanResults);
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), scanResults);
         verifyNoMoreInteractions(eventHandler);
 
         order = inOrder(pnoEventHandler, mWifiNative);
@@ -192,8 +187,7 @@ public class SupplicantPnoScannerTest {
         assertTrue(mScanner.startSingleScan(settings, eventHandler));
         // Verify that the PNO scan was paused and single scan runs successfully
         expectSuccessfulSingleScanWithHwPnoEnabled(order, eventHandler,
-                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), new HashSet<Integer>(),
-                scanResults);
+                expectedBandScanFreqs(WifiScanner.WIFI_BAND_24_GHZ), scanResults);
         verifyNoMoreInteractions(eventHandler);
 
         // Fail the PNO resume and check that the OnPnoScanFailed callback is invoked.
@@ -283,7 +277,7 @@ public class SupplicantPnoScannerTest {
         pnoSettings.networkList =
                 Arrays.copyOf(pnoSettings.networkList, pnoSettings.networkList.length + 1);
         pnoSettings.networkList[pnoSettings.networkList.length - 1] =
-                createDummyPnoNetwork("ssid_pno_new", 6, 6);
+                createDummyPnoNetwork("ssid_pno_new");
         startSuccessfulPnoScan(null, pnoSettings, null, pnoEventHandler);
 
         // This should bypass the debounce timer and stop PNO scan immediately and then start
@@ -359,11 +353,9 @@ public class SupplicantPnoScannerTest {
                 new SupplicantWifiScannerImpl(mContext, mWifiNative, mLooper.getLooper(), mClock);
     }
 
-    private WifiNative.PnoNetwork createDummyPnoNetwork(String ssid, int networkId, int priority) {
+    private WifiNative.PnoNetwork createDummyPnoNetwork(String ssid) {
         WifiNative.PnoNetwork pnoNetwork = new WifiNative.PnoNetwork();
         pnoNetwork.ssid = ssid;
-        pnoNetwork.networkId = networkId;
-        pnoNetwork.priority = priority;
         return pnoNetwork;
     }
 
@@ -371,8 +363,8 @@ public class SupplicantPnoScannerTest {
         WifiNative.PnoSettings pnoSettings = new WifiNative.PnoSettings();
         pnoSettings.isConnected = isConnected;
         pnoSettings.networkList = new WifiNative.PnoNetwork[2];
-        pnoSettings.networkList[0] = createDummyPnoNetwork("ssid_pno_1", 1, 1);
-        pnoSettings.networkList[1] = createDummyPnoNetwork("ssid_pno_2", 2, 2);
+        pnoSettings.networkList[0] = createDummyPnoNetwork("ssid_pno_1");
+        pnoSettings.networkList[1] = createDummyPnoNetwork("ssid_pno_2");
         return pnoSettings;
     }
 
@@ -422,12 +414,6 @@ public class SupplicantPnoScannerTest {
      */
     private void expectHwDisconnectedPnoScanStart(InOrder order,
             WifiNative.PnoSettings pnoSettings) {
-        for (int i = 0; i < pnoSettings.networkList.length; i++) {
-            WifiNative.PnoNetwork network = pnoSettings.networkList[i];
-            order.verify(mWifiNative).setNetworkVariable(network.networkId,
-                    WifiConfiguration.priorityVarName, Integer.toString(network.priority));
-            order.verify(mWifiNative).enableNetworkWithoutConnect(network.networkId);
-        }
         // Verify  HW PNO scan started
         order.verify(mWifiNative).setPnoScan(true);
     }
@@ -458,11 +444,11 @@ public class SupplicantPnoScannerTest {
      */
     private void expectSuccessfulSingleScanWithHwPnoEnabled(InOrder order,
             WifiNative.ScanEventHandler eventHandler, Set<Integer> expectedScanFreqs,
-            Set<Integer> expectedHiddenNetIds, ScanResults scanResults) {
+            ScanResults scanResults) {
         // Pause PNO scan first
         order.verify(mWifiNative).setPnoScan(false);
 
-        order.verify(mWifiNative).scan(eq(expectedScanFreqs), eq(expectedHiddenNetIds));
+        order.verify(mWifiNative).scan(eq(expectedScanFreqs), any(Set.class));
 
         when(mWifiNative.getScanResults()).thenReturn(scanResults.getScanDetailArrayList());
 

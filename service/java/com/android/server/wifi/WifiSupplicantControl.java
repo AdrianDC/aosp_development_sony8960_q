@@ -144,16 +144,6 @@ public class WifiSupplicantControl {
         return TextUtils.join(" ", valueSet);
     }
 
-    /*
-     * Convert string to Hexadecimal before passing to wifi native layer
-     * In native function "doCommand()" have trouble in converting Unicode character string to UTF8
-     * conversion to hex is required because SSIDs can have space characters in them;
-     * and that can confuses the supplicant because it uses space charaters as delimiters
-     */
-    private static String encodeSSID(String str) {
-        return Utils.toHex(removeDoubleQuotes(str).getBytes(StandardCharsets.UTF_8));
-    }
-
     private int lookupString(String string, String[] strings) {
         int size = strings.length;
 
@@ -433,7 +423,7 @@ public class WifiSupplicantControl {
         if (config.SSID != null && !mWifiNative.setNetworkVariable(
                 netId,
                 WifiConfiguration.ssidVarName,
-                encodeSSID(config.SSID))) {
+                WifiNative.encodeSSID(config.SSID))) {
             loge("failed to set SSID: " + config.SSID);
             return false;
         }

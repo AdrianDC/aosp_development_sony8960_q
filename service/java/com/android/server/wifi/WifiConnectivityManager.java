@@ -41,7 +41,6 @@ import com.android.server.wifi.util.ScanResultUtil;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -791,7 +790,10 @@ public class WifiConnectivityManager {
                             | WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN;
         settings.numBssidsPerScan = 0;
 
-        //TODO(b/29503772): Retrieve the list of hidden networks to scan for.
+        List<ScanSettings.HiddenNetwork> hiddenNetworkList =
+                mConfigManager.retrieveHiddenNetworkList();
+        settings.hiddenNetworks =
+                hiddenNetworkList.toArray(new ScanSettings.HiddenNetwork[hiddenNetworkList.size()]);
 
         // re-enable this when b/27695292 is fixed
         // mSingleScanListener.clearScanDetails();
@@ -837,7 +839,7 @@ public class WifiConnectivityManager {
 
         // Initialize PNO settings
         PnoSettings pnoSettings = new PnoSettings();
-        ArrayList<PnoSettings.PnoNetwork> pnoNetworkList = mConfigManager.retrievePnoNetworkList();
+        List<PnoSettings.PnoNetwork> pnoNetworkList = mConfigManager.retrievePnoNetworkList();
         int listSize = pnoNetworkList.size();
 
         if (listSize == 0) {
@@ -881,7 +883,7 @@ public class WifiConnectivityManager {
 
         // Initialize PNO settings
         PnoSettings pnoSettings = new PnoSettings();
-        ArrayList<PnoSettings.PnoNetwork> pnoNetworkList = mConfigManager.retrievePnoNetworkList();
+        List<PnoSettings.PnoNetwork> pnoNetworkList = mConfigManager.retrievePnoNetworkList();
         int listSize = pnoNetworkList.size();
 
         if (listSize == 0) {
