@@ -181,12 +181,12 @@ public class WifiConfigManager {
      */
     private static final int SCAN_RESULT_MAXIMUM_AGE_MS = 40000;
     /**
-     * Disconnected/Connected PnoNetwork list sorting algorithm:
+     * General sorting algorithm of all networks for scanning purposes:
      * Place the configurations in descending order of their |numAssociation| values. If networks
      * have the same |numAssociation|, place the configurations with
      * |lastSeenInQualifiedNetworkSelection| set first.
      */
-    private static final WifiConfigurationUtil.WifiConfigurationComparator sPnoListComparator =
+    private static final WifiConfigurationUtil.WifiConfigurationComparator sScanListComparator =
             new WifiConfigurationUtil.WifiConfigurationComparator() {
                 @Override
                 public int compareNetworksWithSameStatus(WifiConfiguration a, WifiConfiguration b) {
@@ -2117,8 +2117,7 @@ public class WifiConfigManager {
     }
 
     /**
-     * Retrieves an updated list of priorities for all the saved networks before
-     * enabling disconnected/connected PNO.
+     * Retrieves a list of all the saved networks before enabling disconnected/connected PNO.
      *
      * PNO network list sent to the firmware has limited size. If there are a lot of saved
      * networks, this list will be truncated and we might end up not sending the networks
@@ -2129,27 +2128,61 @@ public class WifiConfigManager {
      * TODO (b/30399964): Recalculate the list whenever network status changes.
      * @return list of networks with updated priorities.
      */
-    public ArrayList<WifiScanner.PnoSettings.PnoNetwork> retrievePnoNetworkList() {
-        ArrayList<WifiScanner.PnoSettings.PnoNetwork> pnoList = new ArrayList<>();
-        ArrayList<WifiConfiguration> wifiConfigurations =
-                new ArrayList<>(getInternalConfiguredNetworks());
+    public List<WifiScanner.PnoSettings.PnoNetwork> retrievePnoNetworkList() {
+        List<WifiScanner.PnoSettings.PnoNetwork> pnoList = new ArrayList<>();
+        List<WifiConfiguration> networks = new ArrayList<>(getInternalConfiguredNetworks());
         // Remove any permanently disabled networks.
-        Iterator<WifiConfiguration> iter = wifiConfigurations.iterator();
+        Iterator<WifiConfiguration> iter = networks.iterator();
         while (iter.hasNext()) {
             WifiConfiguration config = iter.next();
             if (config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled()) {
                 iter.remove();
             }
         }
-        Collections.sort(wifiConfigurations, sPnoListComparator);
+        Collections.sort(networks, sScanListComparator);
         // Let's use the network list size - 1 as the highest priority and then go down from there.
         // So, the most frequently connected network has the highest priority now.
-        int priority = wifiConfigurations.size() - 1;
-        for (WifiConfiguration config : wifiConfigurations) {
+        int priority = networks.size() - 1;
+        for (WifiConfiguration config : networks) {
             pnoList.add(WifiConfigurationUtil.createPnoNetwork(config, priority));
             priority--;
         }
         return pnoList;
+    }
+
+    /**
+     * Retrieves a list of all the saved hidden networks for scans.
+     *
+     * Hidden network list sent to the firmware has limited size. If there are a lot of saved
+     * networks, this list will be truncated and we might end up not sending the networks
+     * with the highest chance of connecting to the firmware.
+     * So, re-sort the network list based on the frequency of connection to those networks
+     * and whether it was last seen in the scan results.
+     *
+     * @return list of networks with updated priorities.
+     */
+    public List<WifiScanner.ScanSettings.HiddenNetwork> retrieveHiddenNetworkList() {
+        List<WifiScanner.ScanSettings.HiddenNetwork> hiddenList = new ArrayList<>();
+        List<WifiConfiguration> networks = new ArrayList<>(getInternalConfiguredNetworks());
+        // Remove any permanently disabled networks or non hidden networks.
+        Iterator<WifiConfiguration> iter = networks.iterator();
+        while (iter.hasNext()) {
+            WifiConfiguration config = iter.next();
+            if (!config.hiddenSSID ||
+                    config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled()) {
+                iter.remove();
+            }
+        }
+        Collections.sort(networks, sScanListComparator);
+        // Let's use the network list size - 1 as the highest priority and then go down from there.
+        // So, the most frequently connected network has the highest priority now.
+        int priority = networks.size() - 1;
+        for (WifiConfiguration config : networks) {
+            hiddenList.add(
+                    new WifiScanner.ScanSettings.HiddenNetwork(config.SSID, priority));
+            priority--;
+        }
+        return hiddenList;
     }
 
     /**
