@@ -250,7 +250,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (3) disable usage & verify callbacks
         mDut.disableUsage();
@@ -284,7 +284,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         verifyNoMoreInteractions(mMockNative, mockCallback);
     }
@@ -336,7 +336,7 @@ public class WifiNanStateManagerTest {
         short transactionId = transactionIdCapture.getValue();
         mDut.onConfigSuccessResponse(transactionId);
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback1).onConnectSuccess();
+        inOrder.verify(mockCallback1).onConnectSuccess(clientId1);
 
         // (2) finish connection of 2nd client
         inOrder.verify(mMockNative).enableAndConfigure(transactionIdCapture.capture(),
@@ -345,7 +345,7 @@ public class WifiNanStateManagerTest {
         mDut.onConfigSuccessResponse(transactionId);
         mMockLooper.dispatchAll();
 
-        inOrder.verify(mockCallback2).onConnectSuccess();
+        inOrder.verify(mockCallback2).onConnectSuccess(clientId2);
 
         // (3) deliver NAN events - without LOCATIONING permission
         mDut.onClusterChangeNotification(WifiNanClientState.CLUSTER_CHANGE_EVENT_STARTED, someMac);
@@ -420,7 +420,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) publish + timeout
         mDut.publish(clientId, publishConfig, mockSessionCallback);
@@ -478,7 +478,7 @@ public class WifiNanStateManagerTest {
                 eq(configRequest), eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (1) initial publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
@@ -533,7 +533,7 @@ public class WifiNanStateManagerTest {
                 eq(configRequest), eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (1) initial publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
@@ -607,7 +607,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (1) initial publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
@@ -681,7 +681,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (1) initial publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
@@ -740,7 +740,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (1) initial subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
@@ -795,7 +795,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (1) initial subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
@@ -868,7 +868,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (1) initial subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
@@ -942,7 +942,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (1) initial subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
@@ -1016,7 +1016,7 @@ public class WifiNanStateManagerTest {
                 eq(configRequest), eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (1) subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
@@ -1123,7 +1123,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
@@ -1218,7 +1218,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
@@ -1302,7 +1302,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) subscribe & match
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
@@ -1369,7 +1369,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) subscribe & match
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
@@ -1463,7 +1463,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) subscribe & match
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
@@ -1550,7 +1550,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) subscribe & match
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
@@ -1641,7 +1641,7 @@ public class WifiNanStateManagerTest {
                 eq(configRequest), eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (1) subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
@@ -1757,7 +1757,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        verify(mockCallback).onConnectSuccess();
+        verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) subscribe & match
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
@@ -1925,7 +1925,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) subscribe & match
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
@@ -2010,7 +2010,7 @@ public class WifiNanStateManagerTest {
         collector.checkThat("merge: stage 1", crCapture.getValue(), equalTo(configRequest1));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback1).onConnectSuccess();
+        inOrder.verify(mockCallback1).onConnectSuccess(clientId1);
 
         // (2) config2 (incompatible with config1)
         mDut.connect(clientId2, uid, pid, callingPackage, mockCallback2, configRequest2);
@@ -2037,7 +2037,7 @@ public class WifiNanStateManagerTest {
                 crCapture.getValue().mEnableIdentityChangeCallback, equalTo(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback3).onConnectSuccess();
+        inOrder.verify(mockCallback3).onConnectSuccess(clientId3);
 
         // (4) disconnect config3: want a downgrade
         mDut.disconnect(clientId3);
@@ -2103,7 +2103,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) publish (no response yet)
         mDut.publish(clientId, publishConfig, mockSessionCallback);
@@ -2179,7 +2179,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) publish - no response
         mDut.publish(clientId, publishConfig, mockPublishSessionCallback);
@@ -2259,7 +2259,7 @@ public class WifiNanStateManagerTest {
         short transactionIdConfig = transactionId.getValue();
         mDut.onConfigSuccessResponse(transactionIdConfig);
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) use the same transaction ID to send a bunch of other responses
         mDut.onConfigSuccessResponse(transactionIdConfig);
@@ -2315,7 +2315,7 @@ public class WifiNanStateManagerTest {
                 eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
@@ -2371,7 +2371,7 @@ public class WifiNanStateManagerTest {
                 eq(configRequest), eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         // (2) subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
@@ -2425,7 +2425,7 @@ public class WifiNanStateManagerTest {
                 eq(configRequest), eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
 
         int prevId = 0;
         for (int i = 0; i < loopCount; ++i) {

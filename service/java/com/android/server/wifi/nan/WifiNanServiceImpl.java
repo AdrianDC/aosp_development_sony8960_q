@@ -130,7 +130,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
-    public int connect(final IBinder binder, String callingPackage, IWifiNanEventCallback callback,
+    public void connect(final IBinder binder, String callingPackage, IWifiNanEventCallback callback,
             ConfigRequest configRequest) {
         enforceAccessPermission();
         enforceChangePermission();
@@ -187,7 +187,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             } catch (RemoteException e1) {
                 Log.e(TAG, "Error on onConnectFail()");
             }
-            return 0;
+            return;
         }
 
         synchronized (mLock) {
@@ -196,8 +196,6 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         }
 
         mStateManager.connect(clientId, uid, pid, callingPackage, callback, configRequest);
-
-        return clientId;
     }
 
     @Override

@@ -21,7 +21,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,6 +45,7 @@ import android.util.SparseIntArray;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -167,13 +170,11 @@ public class WifiNanServiceImplTest {
         ConfigRequest configRequest = new ConfigRequest.Builder().setMasterPreference(55).build();
         String callingPackage = "com.google.somePackage";
 
-        int returnedClientId = mDut.connect(mBinderMock, callingPackage, mCallbackMock,
+        mDut.connect(mBinderMock, callingPackage, mCallbackMock,
                 configRequest);
 
-        ArgumentCaptor<Integer> clientId = ArgumentCaptor.forClass(Integer.class);
-        verify(mNanStateManagerMock).connect(clientId.capture(), anyInt(), anyInt(),
+        verify(mNanStateManagerMock).connect(anyInt(), anyInt(), anyInt(),
                 eq(callingPackage), eq(mCallbackMock), eq(configRequest));
-        assertEquals(returnedClientId, (int) clientId.getValue());
     }
 
     /**
@@ -272,9 +273,15 @@ public class WifiNanServiceImplTest {
     public void testClientIdIncrementing() {
         int loopCount = 100;
 
+        InOrder inOrder = inOrder(mNanStateManagerMock);
+        ArgumentCaptor<Integer> clientIdCaptor = ArgumentCaptor.forClass(Integer.class);
+
         int prevId = 0;
         for (int i = 0; i < loopCount; ++i) {
-            int id = mDut.connect(mBinderMock, "", mCallbackMock, null);
+            mDut.connect(mBinderMock, "", mCallbackMock, null);
+            inOrder.verify(mNanStateManagerMock).connect(clientIdCaptor.capture(), anyInt(),
+                    anyInt(), anyString(), eq(mCallbackMock), any(ConfigRequest.class));
+            int id = clientIdCaptor.getValue();
             if (i != 0) {
                 assertTrue("Client ID incrementing", id > prevId);
             }
@@ -488,14 +495,13 @@ public class WifiNanServiceImplTest {
     private int doConnect() {
         String callingPackage = "com.google.somePackage";
 
-        int returnedClientId = mDut.connect(mBinderMock, callingPackage, mCallbackMock, null);
+        mDut.connect(mBinderMock, callingPackage, mCallbackMock, null);
 
         ArgumentCaptor<Integer> clientId = ArgumentCaptor.forClass(Integer.class);
         verify(mNanStateManagerMock).connect(clientId.capture(), anyInt(), anyInt(),
                 eq(callingPackage), eq(mCallbackMock), eq(new ConfigRequest.Builder().build()));
-        assertEquals(returnedClientId, (int) clientId.getValue());
 
-        return returnedClientId;
+        return clientId.getValue();
     }
 
     private void installMockNanStateManager()

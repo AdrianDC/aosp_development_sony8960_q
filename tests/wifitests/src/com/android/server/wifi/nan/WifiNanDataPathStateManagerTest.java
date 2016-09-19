@@ -49,6 +49,7 @@ import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.WifiNanEventCallback;
 import android.net.wifi.nan.WifiNanManager;
 import android.net.wifi.nan.WifiNanPublishDiscoverySession;
+import android.net.wifi.nan.WifiNanSession;
 import android.net.wifi.nan.WifiNanSubscribeDiscoverySession;
 import android.os.Handler;
 import android.os.IBinder;
@@ -597,6 +598,8 @@ public class WifiNanDataPathStateManagerTest {
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
         final PublishConfig publishConfig = new PublishConfig.Builder().build();
 
+        ArgumentCaptor<WifiNanSession> sessionCaptor = ArgumentCaptor.forClass(
+                WifiNanSession.class);
         ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
                 .forClass(IWifiNanEventCallback.class);
         ArgumentCaptor<IWifiNanDiscoverySessionCallback> sessionProxyCallback = ArgumentCaptor
@@ -608,15 +611,13 @@ public class WifiNanDataPathStateManagerTest {
         WifiNanDiscoverySessionCallback mockSessionCallback = mock(
                 WifiNanDiscoverySessionCallback.class);
 
-        when(mMockNanService.connect(any(IBinder.class), anyString(),
-                any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
-
         mgr.connect(mMockLooperHandler, configRequest, mockCallback);
         verify(mMockNanService).connect(any(IBinder.class), anyString(),
                 clientProxyCallback.capture(), eq(configRequest));
-        clientProxyCallback.getValue().onConnectSuccess();
+        clientProxyCallback.getValue().onConnectSuccess(clientId);
         mMockLooper.dispatchAll();
-        mgr.publish(publishConfig, mockSessionCallback);
+        verify(mockCallback).onConnectSuccess(sessionCaptor.capture());
+        sessionCaptor.getValue().publish(publishConfig, mockSessionCallback);
         verify(mMockNanService).publish(eq(clientId), eq(publishConfig),
                 sessionProxyCallback.capture());
         sessionProxyCallback.getValue().onSessionStarted(sessionId);
@@ -644,21 +645,21 @@ public class WifiNanDataPathStateManagerTest {
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
         final WifiNanManager mgr = new WifiNanManager(mMockContext, mMockNanService);
 
+        ArgumentCaptor<WifiNanSession> sessionCaptor = ArgumentCaptor.forClass(
+                WifiNanSession.class);
         ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
                 .forClass(IWifiNanEventCallback.class);
 
         WifiNanEventCallback mockCallback = mock(WifiNanEventCallback.class);
 
-        when(mMockNanService.connect(any(IBinder.class), anyString(),
-                any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
-
         mgr.connect(mMockLooperHandler, configRequest, mockCallback);
         verify(mMockNanService).connect(any(IBinder.class), anyString(),
                 clientProxyCallback.capture(), eq(configRequest));
-        clientProxyCallback.getValue().onConnectSuccess();
+        clientProxyCallback.getValue().onConnectSuccess(clientId);
         mMockLooper.dispatchAll();
+        verify(mockCallback).onConnectSuccess(sessionCaptor.capture());
 
-        String ns = mgr.createNetworkSpecifier(role, peer,
+        String ns = sessionCaptor.getValue().createNetworkSpecifier(role, peer,
                 (token == null) ? null : token.getBytes());
         NetworkCapabilities nc = new NetworkCapabilities();
         nc.clearAll();
@@ -720,7 +721,7 @@ public class WifiNanDataPathStateManagerTest {
                 eq(configRequest), eq(true));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockCallback).onConnectSuccess();
+        inOrder.verify(mMockCallback).onConnectSuccess(clientId);
         mDut.publish(clientId, publishConfig, mMockSessionCallback);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
