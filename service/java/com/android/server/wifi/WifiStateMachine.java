@@ -3000,24 +3000,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * Fetch TX packet counters on current connection
      */
     private void fetchPktcntNative(RssiPacketCountInfo info) {
-        String pktcntPoll = mWifiNative.pktcntPoll();
-
-        if (pktcntPoll != null) {
-            String[] lines = pktcntPoll.split("\n");
-            for (String line : lines) {
-                String[] prop = line.split("=");
-                if (prop.length < 2) continue;
-                try {
-                    if (prop[0].equals("TXGOOD")) {
-                        info.txgood = Integer.parseInt(prop[1]);
-                    } else if (prop[0].equals("TXBAD")) {
-                        info.txbad = Integer.parseInt(prop[1]);
-                    }
-                } catch (NumberFormatException e) {
-                    // Ignore
-                }
+        int[] counters = null;
+        try {
+            counters = mClientInterface.getPacketCounters();
+            if (counters == null || counters.length != 2) {
+                return;
             }
-        }
+        } catch (RemoteException e1) {}
+        info.txgood = counters[0];
+        info.txbad = counters[1];
     }
 
     private void updateLinkProperties(LinkProperties newLp) {
