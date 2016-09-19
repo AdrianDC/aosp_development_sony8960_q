@@ -28,7 +28,6 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.os.SystemClock;
 import android.test.suitebuilder.annotation.SmallTest;
-import android.util.Pair;
 
 import com.android.internal.R;
 import com.android.server.wifi.WifiNetworkSelectorTestUtil.ScanDetailsAndWifiConfigs;
@@ -37,7 +36,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -168,10 +166,9 @@ public class SavedNetworkEvaluatorTest {
                     freqs, caps, levels, securities, mWifiConfigManager, mClock);
         List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
         WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
-        List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
 
         WifiConfiguration candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
-                null, null, true, false, connectableNetworks);
+                null, null, true, false, null);
 
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
         WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[1], candidate);
@@ -197,10 +194,9 @@ public class SavedNetworkEvaluatorTest {
                     freqs, caps, levels, securities, mWifiConfigManager, mClock);
         List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
         WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
-        List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
 
         WifiConfiguration candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
-                null, null, true, false, connectableNetworks);
+                null, null, true, false, null);
 
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
         WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[1], candidate);
@@ -225,10 +221,9 @@ public class SavedNetworkEvaluatorTest {
                     freqs, caps, levels, securities, mWifiConfigManager, mClock);
         List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
         WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
-        List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
 
         WifiConfiguration candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
-                null, null, true, false, connectableNetworks);
+                null, null, true, false, null);
 
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
         WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[1], candidate);
@@ -253,10 +248,9 @@ public class SavedNetworkEvaluatorTest {
                     freqs, caps, levels, securities, mWifiConfigManager, mClock);
         List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
         WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
-        List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
 
         WifiConfiguration candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
-                null, null, true, false, connectableNetworks);
+                null, null, true, false, null);
 
         ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
         WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[1], candidate);
@@ -283,11 +277,10 @@ public class SavedNetworkEvaluatorTest {
                     freqs, caps, levels, securities, mWifiConfigManager, mClock);
         List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
         WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
-        List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
 
         // Simuluate we are connected to SSID test1 already.
         WifiConfiguration candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
-                savedConfigs[0], null, true, false, connectableNetworks);
+                savedConfigs[0], null, true, false, null);
 
         // Even though test2 has higher RSSI value, test1 is chosen because of the
         // currently connected network bonus.
@@ -317,11 +310,10 @@ public class SavedNetworkEvaluatorTest {
                     freqs, caps, levels, securities, mWifiConfigManager, mClock);
         List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
         WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
-        List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
 
         // Simuluate we are connected to BSSID "6c:f3:7f:ae:8c:f3" already
         WifiConfiguration candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
-                null, bssids[0], true, false, connectableNetworks);
+                null, bssids[0], true, false, null);
 
         // Even though test2 has higher RSSI value, test1 is chosen because of the
         // currently connected BSSID bonus.

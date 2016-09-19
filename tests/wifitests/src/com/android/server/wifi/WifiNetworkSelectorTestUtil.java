@@ -22,12 +22,18 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
+import android.net.NetworkKey;
+import android.net.RssiCurve;
+import android.net.ScoredNetwork;
+import android.net.WifiKey;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiSsid;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.text.TextUtils;
+
+import com.android.server.wifi.util.ScanResultUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -109,14 +115,14 @@ public class WifiNetworkSelectorTestUtil {
      * @param levels an array of the network's RSSI levels
      * @return the constructed list of ScanDetail
      */
-    private static List<ScanDetail> buildScanDetails(String[] ssids, String[] bssids, int[] freq,
+    public static List<ScanDetail> buildScanDetails(String[] ssids, String[] bssids, int[] freqs,
                                             String[] caps, int[] levels, Clock clock) {
         List<ScanDetail> scanDetailList = new ArrayList<ScanDetail>();
 
         long timeStamp = clock.getElapsedSinceBootMillis();
         for (int index = 0; index < ssids.length; index++) {
             ScanDetail scanDetail = new ScanDetail(WifiSsid.createFromAsciiEncoded(ssids[index]),
-                    bssids[index], caps[index], levels[index], freq[index], timeStamp, 0);
+                    bssids[index], caps[index], levels[index], freqs[index], timeStamp, 0);
             scanDetailList.add(scanDetail);
         }
         return scanDetailList;
@@ -128,10 +134,10 @@ public class WifiNetworkSelectorTestUtil {
      * supplied network SSID and sencurity information.
      *
      * @param ssids an array of SSIDs
-     * @param caps an array of the network's security setting
+     * @param securities an array of the network's security setting
      * @return the constructed array of {@link android.net.wifi.WifiConfiguration}
      */
-    private static WifiConfiguration[] generateWifiConfigurations(String[] ssids,
+    public static WifiConfiguration[] generateWifiConfigurations(String[] ssids,
                 int[] securities) {
         if (ssids == null || securities == null || ssids.length != securities.length
                 || ssids.length == 0) {
@@ -285,5 +291,77 @@ public class WifiNetworkSelectorTestUtil {
                         eq(scanDetails.get(i)))).thenReturn(null);
             }
         }
+    }
+
+
+
+    /**
+     * Configure the score cache for externally scored networks
+     *
+     * @param scoreCache   Wifi network score cache to be configured
+     * @param scanDetails  a list of ScanDetail
+     * @param scores       scores of the networks
+     * @param meteredHints hints of if the networks are metered
+     */
+    public static void configureScoreCache(WifiNetworkScoreCache scoreCache,
+            List<ScanDetail> scanDetails, Integer[] scores, boolean[] meteredHints) {
+        List<ScoredNetwork> networks = new ArrayList<>();
+
+        for (int i = 0; i < scanDetails.size(); i++) {
+            ScanDetail scanDetail = scanDetails.get(i);
+            byte rssiScore;
+            Integer score = scores[i];
+            ScanResult scanResult = scanDetail.getScanResult();
+            WifiKey wifiKey = new WifiKey("\"" + scanResult.SSID + "\"", scanResult.BSSID);
+            NetworkKey ntwkKey = new NetworkKey(wifiKey);
+            if (scores[i] == null) {
+                rssiScore = WifiNetworkScoreCache.INVALID_NETWORK_SCORE;
+            } else {
+                rssiScore = scores[i].byteValue();
+            }
+            RssiCurve rssiCurve = new RssiCurve(-100, 100, new byte[] {rssiScore});
+            ScoredNetwork scoredNetwork = new ScoredNetwork(ntwkKey, rssiCurve, meteredHints[i]);
+
+            networks.add(scoredNetwork);
+        }
+
+        scoreCache.updateScores(networks);
+    }
+
+    /**
+     * Setup WifiConfigManager mock for ephemeral networks.
+     *
+     * @param wifiConfigManager WifiConfigManager mock
+     * @param networkId         ID of the ephemeral network
+     * @param scanResult        scanResult of the ephemeral network
+     * @param meteredHint       flag to indidate if the network has meteredHint
+     */
+    public static WifiConfiguration setupEphemeralNetwork(WifiConfigManager wifiConfigManager,
+            int networkId, ScanResult scanResult, boolean meteredHint) {
+        // Return the correct networkID for ephemeral network addition.
+        when(wifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
+                .thenReturn(new NetworkUpdateResult(networkId));
+        final WifiConfiguration config = ScanResultUtil.createNetworkFromScanResult(scanResult);
+        config.networkId = networkId;
+        config.meteredHint = meteredHint;
+
+        when(wifiConfigManager.getConfiguredNetwork(eq(networkId)))
+                .then(new AnswerWithArguments() {
+                    public WifiConfiguration answer(int netId) {
+                        return new WifiConfiguration(config);
+                    }
+                });
+        when(wifiConfigManager.setNetworkCandidateScanResult(
+                eq(networkId), any(ScanResult.class), anyInt()))
+                .then(new AnswerWithArguments() {
+                    public boolean answer(int netId, ScanResult scanResult, int score) {
+                        config.getNetworkSelectionStatus().setCandidate(scanResult);
+                        config.getNetworkSelectionStatus().setCandidateScore(score);
+                        config.getNetworkSelectionStatus()
+                                .setSeenInLastQualifiedNetworkSelection(true);
+                        return true;
+                    }
+                });
+        return config;
     }
 }
