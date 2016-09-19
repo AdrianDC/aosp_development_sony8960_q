@@ -2988,14 +2988,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiScoreReport.reset();
     }
 
-    public double getTxPacketRate() {
-        return mWifiInfo.txSuccessRate;
-    }
-
-    public double getRxPacketRate() {
-        return mWifiInfo.rxSuccessRate;
-    }
-
     /**
      * Fetch TX packet counters on current connection
      */
