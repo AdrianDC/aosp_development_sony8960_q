@@ -28,6 +28,7 @@ import android.database.ContentObserver;
 import android.net.NetworkInfo;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiScanner;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -94,13 +95,16 @@ final class WifiNotificationController {
     private NetworkInfo.DetailedState mDetailedState;
     private volatile int mWifiState;
     private FrameworkFacade mFrameworkFacade;
+    private WifiInjector mWifiInjector;
+    private WifiScanner mWifiScanner;
 
     WifiNotificationController(Context context, Looper looper, WifiStateMachine wsm,
-            FrameworkFacade framework, Notification.Builder builder) {
+            FrameworkFacade framework, Notification.Builder builder, WifiInjector wifiInjector) {
         mContext = context;
         mWifiStateMachine = wsm;
         mFrameworkFacade = framework;
         mNotificationBuilder = builder;
+        mWifiInjector = wifiInjector;
         mWifiState = WifiManager.WIFI_STATE_UNKNOWN;
         mDetailedState = NetworkInfo.DetailedState.IDLE;
 
@@ -137,8 +141,11 @@ final class WifiNotificationController {
                             }
                         } else if (intent.getAction().equals(
                                 WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)) {
+                            if (mWifiScanner == null) {
+                                mWifiScanner = mWifiInjector.getWifiScanner();
+                            }
                             checkAndSetNotification(mNetworkInfo,
-                                    mWifiStateMachine.syncGetScanResultsList());
+                                    mWifiScanner.getSingleScanResults());
                         }
                     }
                 }, filter);
