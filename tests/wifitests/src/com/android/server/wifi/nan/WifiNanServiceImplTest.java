@@ -30,8 +30,8 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.wifi.RttManager;
 import android.net.wifi.nan.ConfigRequest;
+import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.IWifiNanEventCallback;
-import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
 import android.os.IBinder;
@@ -67,7 +67,7 @@ public class WifiNanServiceImplTest {
     @Mock
     private IWifiNanEventCallback mCallbackMock;
     @Mock
-    private IWifiNanSessionCallback mSessionCallbackMock;
+    private IWifiNanDiscoverySessionCallback mSessionCallbackMock;
 
     /**
      * Using instead of spy to avoid native crash failures - possibly due to
@@ -303,7 +303,8 @@ public class WifiNanServiceImplTest {
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName("something.valid")
                 .build();
         int clientId = doConnect();
-        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
+        IWifiNanDiscoverySessionCallback mockCallback = mock(
+                IWifiNanDiscoverySessionCallback.class);
 
         mDut.publish(clientId, publishConfig, mockCallback);
 
@@ -319,7 +320,8 @@ public class WifiNanServiceImplTest {
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(
                 "Including invalid characters - spaces").build();
         int clientId = doConnect();
-        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
+        IWifiNanDiscoverySessionCallback mockCallback = mock(
+                IWifiNanDiscoverySessionCallback.class);
 
         mDut.publish(clientId, publishConfig, mockCallback);
 
@@ -349,7 +351,8 @@ public class WifiNanServiceImplTest {
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder()
                 .setServiceName("something.valid").build();
         int clientId = doConnect();
-        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
+        IWifiNanDiscoverySessionCallback mockCallback = mock(
+                IWifiNanDiscoverySessionCallback.class);
 
         mDut.subscribe(clientId, subscribeConfig, mockCallback);
 
@@ -365,7 +368,8 @@ public class WifiNanServiceImplTest {
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(
                 "InvalidServiceCharacters__").build();
         int clientId = doConnect();
-        IWifiNanSessionCallback mockCallback = mock(IWifiNanSessionCallback.class);
+        IWifiNanDiscoverySessionCallback mockCallback = mock(
+                IWifiNanDiscoverySessionCallback.class);
 
         mDut.subscribe(clientId, subscribeConfig, mockCallback);
 
