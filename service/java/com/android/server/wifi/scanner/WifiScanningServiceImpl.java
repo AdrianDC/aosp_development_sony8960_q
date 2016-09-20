@@ -182,10 +182,16 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 return;
             }
 
-            // Since this message is sent from WifiScanner using |sendMessageSynchronously| which
-            // doesn't set the correct |msg.replyTo| field.
+            // Since the CMD_GET_SCAN_RESULTS and CMD_GET_SINGLE_SCAN_RESULTS messages are
+            // sent from WifiScanner using |sendMessageSynchronously|, handle separately since
+            // the |msg.replyTo| field does not actually correspond to the Messenger that is
+            // registered for that client.
             if (msg.what == WifiScanner.CMD_GET_SCAN_RESULTS) {
                 mBackgroundScanStateMachine.sendMessage(Message.obtain(msg));
+                return;
+            }
+            if (msg.what == WifiScanner.CMD_GET_SINGLE_SCAN_RESULTS) {
+                mSingleScanStateMachine.sendMessage(Message.obtain(msg));
                 return;
             }
 
@@ -520,6 +526,10 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         return HANDLED;
                     case CMD_FULL_SCAN_RESULTS:
                         if (DBG) localLog("ignored full scan result event");
+                        return HANDLED;
+                    case WifiScanner.CMD_GET_SINGLE_SCAN_RESULTS:
+                        msg.obj = new WifiScanner.ParcelableScanResults(mCachedScanResults);
+                        replySucceeded(msg);
                         return HANDLED;
                     default:
                         return NOT_HANDLED;
@@ -2113,6 +2123,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             Message reply = Message.obtain();
             reply.what = WifiScanner.CMD_OP_SUCCEEDED;
             reply.arg2 = msg.arg2;
+            if (msg.obj != null) {
+                reply.obj = msg.obj;
+            }
             try {
                 msg.replyTo.send(reply);
             } catch (RemoteException e) {
