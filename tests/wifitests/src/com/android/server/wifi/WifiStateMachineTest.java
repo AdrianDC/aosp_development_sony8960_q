@@ -900,4 +900,44 @@ public class WifiStateMachineTest {
         mWsm.enableVerboseLogging(1);
         verify(mPropertyService, never()).set(anyString(), anyString());
     }
+
+    private int testGetSupportedFeaturesCase(int supportedFeatures, boolean rttConfigured) {
+        AsyncChannel channel = mock(AsyncChannel.class);
+        Message reply = Message.obtain();
+        reply.arg1 = supportedFeatures;
+        reset(mPropertyService);  // Ignore calls made in setUp()
+        when(channel.sendMessageSynchronously(WifiStateMachine.CMD_GET_SUPPORTED_FEATURES))
+                .thenReturn(reply);
+        when(mPropertyService.getBoolean("config.disable_rtt", false))
+                .thenReturn(rttConfigured);
+        return mWsm.syncGetSupportedFeatures(channel);
+    }
+
+    /** Verifies that syncGetSupportedFeatures() masks out capabilities based on system flags. */
+    @Test
+    public void syncGetSupportedFeatures() {
+        final int featureNan = WifiManager.WIFI_FEATURE_NAN;
+        final int featureInfra = WifiManager.WIFI_FEATURE_INFRA;
+        final int featureD2dRtt = WifiManager.WIFI_FEATURE_D2D_RTT;
+        final int featureD2apRtt = WifiManager.WIFI_FEATURE_D2AP_RTT;
+
+        assertEquals(0, testGetSupportedFeaturesCase(0, false));
+        assertEquals(0, testGetSupportedFeaturesCase(0, true));
+        assertEquals(featureNan | featureInfra,
+                testGetSupportedFeaturesCase(featureNan | featureInfra, false));
+        assertEquals(featureNan | featureInfra,
+                testGetSupportedFeaturesCase(featureNan | featureInfra, true));
+        assertEquals(featureInfra | featureD2dRtt,
+                testGetSupportedFeaturesCase(featureInfra | featureD2dRtt, false));
+        assertEquals(featureInfra,
+                testGetSupportedFeaturesCase(featureInfra | featureD2dRtt, true));
+        assertEquals(featureInfra | featureD2apRtt,
+                testGetSupportedFeaturesCase(featureInfra | featureD2apRtt, false));
+        assertEquals(featureInfra,
+                testGetSupportedFeaturesCase(featureInfra | featureD2apRtt, true));
+        assertEquals(featureInfra | featureD2dRtt | featureD2apRtt,
+                testGetSupportedFeaturesCase(featureInfra | featureD2dRtt | featureD2apRtt, false));
+        assertEquals(featureInfra,
+                testGetSupportedFeaturesCase(featureInfra | featureD2dRtt | featureD2apRtt, true));
+    }
 }
