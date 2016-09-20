@@ -4442,9 +4442,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mWifiNative.configureNeighborDiscoveryOffload(enabled);
                     break;
                 case CMD_ENABLE_WIFI_CONNECTIVITY_MANAGER:
-                    if (mWifiConnectivityManager != null) {
-                        mWifiConnectivityManager.enable(message.arg1 == 1 ? true : false);
-                    }
+                    mWifiConnectivityManager.enable(message.arg1 == 1 ? true : false);
                     break;
                 case CMD_ENABLE_AUTOJOIN_WHEN_ASSOCIATED:
                     final boolean allowed = (message.arg1 > 0);
@@ -4452,9 +4450,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mEnableAutoJoinWhenAssociated = allowed;
                     if (!old_state && allowed && mScreenOn
                             && getCurrentState() == mConnectedState) {
-                        if (mWifiConnectivityManager != null) {
-                            mWifiConnectivityManager.forceConnectivityScan();
-                        }
+                        mWifiConnectivityManager.forceConnectivityScan();
                     }
                     break;
                 default:
@@ -4868,9 +4864,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         @Override
         public void enter() {
             // Inform WifiConnectivityManager that Wifi is enabled
-            if (mWifiConnectivityManager != null) {
-                mWifiConnectivityManager.setWifiEnabled(true);
-            }
+            mWifiConnectivityManager.setWifiEnabled(true);
             // Inform metrics that Wifi is Enabled (but not yet connected)
             mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_DISCONNECTED);
         }
@@ -4878,9 +4872,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         @Override
         public void exit() {
             // Inform WifiConnectivityManager that Wifi is disabled
-            if (mWifiConnectivityManager != null) {
-                mWifiConnectivityManager.setWifiEnabled(false);
-            }
+            mWifiConnectivityManager.setWifiEnabled(false);
             // Inform metrics that Wifi is being disabled (Toggled, airplane enabled, etc)
             mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_DISABLED);
         }
@@ -4908,10 +4900,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     if (bssid != null) {
                         // If we have a BSSID, tell configStore to black list it
-                        if (mWifiConnectivityManager != null) {
-                            didBlackListBSSID = mWifiConnectivityManager.trackBssid(bssid,
-                                    false);
-                        }
+                        didBlackListBSSID = mWifiConnectivityManager.trackBssid(bssid, false);
                     }
                     mWifiConfigManager.updateNetworkSelectionStatus(mTargetNetworkId,
                             WifiConfiguration.NetworkSelectionStatus
@@ -5143,9 +5132,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     replyToMessage(message, message.what, null);
                     break;
                 case CMD_RECONNECT:
-                    if (mWifiConnectivityManager != null) {
-                        mWifiConnectivityManager.forceConnectivityScan();
-                    }
+                    mWifiConnectivityManager.forceConnectivityScan();
                     break;
                 case CMD_REASSOCIATE:
                     lastConnectAttemptTimestamp = mClock.getWallClockMillis();
@@ -5351,9 +5338,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
                     mWifiInfo.setBSSID(mLastBssid);
                     mWifiInfo.setNetworkId(mLastNetworkId);
-                    if (mWifiConnectivityManager != null) {
-                        mWifiConnectivityManager.trackBssid(mLastBssid, true);
-                    }
+                    mWifiConnectivityManager.trackBssid(mLastBssid, true);
                     sendNetworkStateChangeBroadcast(mLastBssid);
                     transitionTo(mObtainingIpState);
                     break;
@@ -6073,9 +6058,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mLastBssid = (String) message.obj;
                         mWifiInfo.setBSSID(mLastBssid);
                         mWifiInfo.setNetworkId(mLastNetworkId);
-                        if (mWifiConnectivityManager != null) {
-                            mWifiConnectivityManager.trackBssid(mLastBssid, true);
-                        }
+                        mWifiConnectivityManager.trackBssid(mLastBssid, true);
                         sendNetworkStateChangeBroadcast(mLastBssid);
 
                         // Successful framework roam! (probably)
@@ -6160,10 +6143,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                        + " mScreenOn=" + mScreenOn);
             }
 
-            if (mWifiConnectivityManager != null) {
-                mWifiConnectivityManager.handleConnectionStateChanged(
-                        WifiConnectivityManager.WIFI_STATE_CONNECTED);
-            }
+            mWifiConnectivityManager.handleConnectionStateChanged(
+                    WifiConnectivityManager.WIFI_STATE_CONNECTED);
             registerConnected();
             lastConnectAttemptTimestamp = 0;
             targetWificonfiguration = null;
@@ -6377,10 +6358,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         @Override
         public void exit() {
             logd("WifiStateMachine: Leaving Connected state");
-            if (mWifiConnectivityManager != null) {
-                mWifiConnectivityManager.handleConnectionStateChanged(
-                         WifiConnectivityManager.WIFI_STATE_TRANSITIONING);
-            }
+            mWifiConnectivityManager.handleConnectionStateChanged(
+                     WifiConnectivityManager.WIFI_STATE_TRANSITIONING);
 
             mLastDriverRoamAttempt = 0;
             mWifiInjector.getWifiLastResortWatchdog().connectedStateTransition(false);
@@ -6464,10 +6443,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             /** clear the roaming state, if we were roaming, we failed */
             mAutoRoaming = false;
 
-            if (mWifiConnectivityManager != null) {
-                mWifiConnectivityManager.handleConnectionStateChanged(
-                        WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
-            }
+            mWifiConnectivityManager.handleConnectionStateChanged(
+                    WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
 
             /**
              * If we have no networks saved, the supplicant stops doing the periodic scan.
@@ -6588,10 +6565,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         @Override
         public void exit() {
-            if (mWifiConnectivityManager != null) {
-                mWifiConnectivityManager.handleConnectionStateChanged(
-                         WifiConnectivityManager.WIFI_STATE_TRANSITIONING);
-            }
+            mWifiConnectivityManager.handleConnectionStateChanged(
+                     WifiConnectivityManager.WIFI_STATE_TRANSITIONING);
         }
     }
 
