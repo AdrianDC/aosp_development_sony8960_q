@@ -921,9 +921,11 @@ public class WifiMetrics {
     }
 
     public static final String PROTO_DUMP_ARG = "wifiMetricsProto";
+    public static final String CLEAN_DUMP_ARG = "clean";
+
     /**
      * Dump all WifiMetrics. Collects some metrics from ConfigStore, Settings and WifiManager
-     * at this time
+     * at this time.
      *
      * @param fd unused
      * @param pw PrintWriter for writing dump to
@@ -931,9 +933,8 @@ public class WifiMetrics {
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         synchronized (mLock) {
-            pw.println("WifiMetrics:");
             if (args.length > 0 && PROTO_DUMP_ARG.equals(args[0])) {
-                //Dump serialized WifiLog proto
+                // Dump serialized WifiLog proto
                 consolidateProto(true);
                 for (ConnectionEvent event : mConnectionEventList) {
                     if (mCurrentConnectionEvent != event) {
@@ -944,10 +945,18 @@ public class WifiMetrics {
                 }
                 byte[] wifiMetricsProto = WifiMetricsProto.WifiLog.toByteArray(mWifiLogProto);
                 String metricsProtoDump = Base64.encodeToString(wifiMetricsProto, Base64.DEFAULT);
-                pw.println(metricsProtoDump);
-                pw.println("EndWifiMetrics");
+                if (args.length > 1 && CLEAN_DUMP_ARG.equals(args[1])) {
+                    // Output metrics proto bytes (base64) and nothing else
+                    pw.print(metricsProtoDump);
+                } else {
+                    // Tag the start and end of the metrics proto bytes
+                    pw.println("WifiMetrics:");
+                    pw.println(metricsProtoDump);
+                    pw.println("EndWifiMetrics");
+                }
                 clear();
             } else {
+                pw.println("WifiMetrics:");
                 pw.println("mConnectionEvents:");
                 for (ConnectionEvent event : mConnectionEventList) {
                     String eventLine = event.toString();
