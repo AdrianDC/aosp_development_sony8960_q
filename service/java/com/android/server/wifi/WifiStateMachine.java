@@ -1891,6 +1891,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         Message resultMsg = channel.sendMessageSynchronously(CMD_GET_SUPPORTED_FEATURES);
         int supportedFeatureSet = resultMsg.arg1;
         resultMsg.recycle();
+
+        // Mask the feature set against system properties.
+        boolean disableRtt = mPropertyService.getBoolean("config.disable_rtt", false);
+        if (disableRtt) {
+            supportedFeatureSet &=
+                    ~(WifiManager.WIFI_FEATURE_D2D_RTT | WifiManager.WIFI_FEATURE_D2AP_RTT);
+        }
+
         return supportedFeatureSet;
     }
 
