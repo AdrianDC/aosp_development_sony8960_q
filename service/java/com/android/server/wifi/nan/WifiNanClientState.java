@@ -52,7 +52,7 @@ public class WifiNanClientState {
 
     private final Context mContext;
     private final IWifiNanEventCallback mCallback;
-    private final SparseArray<WifiNanSessionState> mSessions = new SparseArray<>();
+    private final SparseArray<WifiNanDiscoverySessionState> mSessions = new SparseArray<>();
 
     private final int mClientId;
     private ConfigRequest mConfigRequest;
@@ -110,9 +110,9 @@ public class WifiNanClientState {
      * @param pubSubId The publish/subscribe match session ID.
      * @return NAN session corresponding to the requested ID.
      */
-    public WifiNanSessionState getNanSessionStateForPubSubId(int pubSubId) {
+    public WifiNanDiscoverySessionState getNanSessionStateForPubSubId(int pubSubId) {
         for (int i = 0; i < mSessions.size(); ++i) {
-            WifiNanSessionState session = mSessions.valueAt(i);
+            WifiNanDiscoverySessionState session = mSessions.valueAt(i);
             if (session.isPubSubIdSession(pubSubId)) {
                 return session;
             }
@@ -126,7 +126,7 @@ public class WifiNanClientState {
      *
      * @param session Session to be added.
      */
-    public void addSession(WifiNanSessionState session) {
+    public void addSession(WifiNanDiscoverySessionState session) {
         int sessionId = session.getSessionId();
         if (mSessions.get(sessionId) != null) {
             Log.w(TAG, "createSession: sessionId already exists (replaced) - " + sessionId);
@@ -158,7 +158,7 @@ public class WifiNanClientState {
      * @param sessionId The session ID of the session to be destroyed.
      */
     public void terminateSession(int sessionId) {
-        WifiNanSessionState session = mSessions.get(sessionId);
+        WifiNanDiscoverySessionState session = mSessions.get(sessionId);
         if (session == null) {
             Log.e(TAG, "terminateSession: sessionId doesn't exist - " + sessionId);
             return;
@@ -175,7 +175,7 @@ public class WifiNanClientState {
      * @return Session or null if there's no session corresponding to the
      *         sessionId.
      */
-    public WifiNanSessionState getSession(int sessionId) {
+    public WifiNanDiscoverySessionState getSession(int sessionId) {
         return mSessions.get(sessionId);
     }
 
