@@ -26,6 +26,9 @@ public class OMAParser extends DefaultHandler {
     }
 
     public MOTree parse(String text, String urn) throws IOException, SAXException {
+        if (text == null) {
+          throw new IOException("Missing text string");
+        }
         try {
             SAXParser parser = SAXParserFactory.newInstance().newSAXParser();
             parser.parse(new InputSource(new StringReader(text)), this);
