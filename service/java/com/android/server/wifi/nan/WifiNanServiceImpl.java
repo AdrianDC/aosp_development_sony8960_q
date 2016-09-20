@@ -20,13 +20,13 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.wifi.RttManager;
 import android.net.wifi.nan.ConfigRequest;
+import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanManager;
-import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanDiscoveryBaseSession;
 import android.net.wifi.nan.WifiNanEventCallback;
-import android.net.wifi.nan.WifiNanSession;
 import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -242,7 +242,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
 
     @Override
     public void publish(int clientId, PublishConfig publishConfig,
-            IWifiNanSessionCallback callback) {
+            IWifiNanDiscoverySessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
 
@@ -286,7 +286,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
 
     @Override
     public void subscribe(int clientId, SubscribeConfig subscribeConfig,
-            IWifiNanSessionCallback callback) {
+            IWifiNanDiscoverySessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
 
@@ -334,9 +334,9 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
-        if (retryCount < 0 || retryCount > WifiNanSession.getMaxSendRetryCount()) {
+        if (retryCount < 0 || retryCount > WifiNanDiscoveryBaseSession.getMaxSendRetryCount()) {
             throw new IllegalArgumentException("Invalid 'retryCount' must be non-negative "
-                    + "and <= WifiNanSession.MAX_SEND_RETRY_COUNT");
+                    + "and <= WifiNanDiscoveryBaseSession.MAX_SEND_RETRY_COUNT");
         }
 
         int uid = getMockableCallingUid();
