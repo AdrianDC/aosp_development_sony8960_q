@@ -611,12 +611,12 @@ public class WifiNanDataPathStateManagerTest {
         WifiNanDiscoverySessionCallback mockSessionCallback = mock(
                 WifiNanDiscoverySessionCallback.class);
 
-        mgr.connect(mMockLooperHandler, configRequest, mockCallback);
+        mgr.attach(mMockLooperHandler, configRequest, mockCallback);
         verify(mMockNanService).connect(any(IBinder.class), anyString(),
                 clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess(clientId);
         mMockLooper.dispatchAll();
-        verify(mockCallback).onConnectSuccess(sessionCaptor.capture());
+        verify(mockCallback).onAttached(sessionCaptor.capture());
         sessionCaptor.getValue().publish(publishConfig, mockSessionCallback);
         verify(mMockNanService).publish(eq(clientId), eq(publishConfig),
                 sessionProxyCallback.capture());
@@ -652,12 +652,12 @@ public class WifiNanDataPathStateManagerTest {
 
         WifiNanEventCallback mockCallback = mock(WifiNanEventCallback.class);
 
-        mgr.connect(mMockLooperHandler, configRequest, mockCallback);
+        mgr.attach(mMockLooperHandler, configRequest, mockCallback);
         verify(mMockNanService).connect(any(IBinder.class), anyString(),
                 clientProxyCallback.capture(), eq(configRequest));
         clientProxyCallback.getValue().onConnectSuccess(clientId);
         mMockLooper.dispatchAll();
-        verify(mockCallback).onConnectSuccess(sessionCaptor.capture());
+        verify(mockCallback).onAttached(sessionCaptor.capture());
 
         String ns = sessionCaptor.getValue().createNetworkSpecifier(role, peer,
                 (token == null) ? null : token.getBytes());
