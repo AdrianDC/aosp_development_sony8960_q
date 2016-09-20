@@ -116,7 +116,7 @@ public class WifiMetricsTest {
         PrintWriter writer = new PrintWriter(stream);
         String[] args = new String[0];
 
-        when(mClock.elapsedRealtime()).thenReturn(TEST_RECORD_DURATION_MILLIS);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(TEST_RECORD_DURATION_MILLIS);
         //Test proto dump, by passing in proto arg option
         args = new String[]{WifiMetrics.PROTO_DUMP_ARG, WifiMetrics.CLEAN_DUMP_ARG};
         mWifiMetrics.dump(null, writer, args);
