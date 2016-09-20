@@ -1127,7 +1127,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         sendMessage(CMD_BOOT_COMPLETED);
                     }
                 },
-                new IntentFilter(Intent.ACTION_BOOT_COMPLETED));
+                new IntentFilter(Intent.ACTION_LOCKED_BOOT_COMPLETED));
 
         PowerManager powerManager = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
         mWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, getName());
