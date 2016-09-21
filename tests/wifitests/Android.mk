@@ -30,7 +30,6 @@ LOCAL_C_INCLUDES += \
 	$(call include-path-for, libhardware)/hardware \
 	$(call include-path-for, libhardware_legacy) \
 	packages/apps/Test/connectivity/sl4n/rapidjson/include \
-	libcore/include
 
 LOCAL_SRC_FILES := \
 	jni/wifi_hal_mock.cpp
