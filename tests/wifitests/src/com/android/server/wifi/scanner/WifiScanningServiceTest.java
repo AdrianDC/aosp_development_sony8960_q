@@ -1896,8 +1896,8 @@ public class WifiScanningServiceTest {
 
         eventHandler1.onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
         mLooper.dispatchAll();
-        verifyScanResultsRecieved(order, handler, requestId, results.getScanData());
-        verifySingleScanCompletedRecieved(order, handler, requestId);
+        verifyScanResultsReceived(order, handler, requestId, results.getScanData());
+        verifySingleScanCompletedReceived(order, handler, requestId);
         verifyNoMoreInteractions(handler);
 
         controlChannel.sendMessage(Message.obtain(null, AsyncChannel.CMD_CHANNEL_DISCONNECTED,
@@ -1912,8 +1912,8 @@ public class WifiScanningServiceTest {
 
         eventHandler2.onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
         mLooper.dispatchAll();
-        verifyScanResultsRecieved(order, handler, requestId, results.getScanData());
-        verifySingleScanCompletedRecieved(order, handler, requestId);
+        verifyScanResultsReceived(order, handler, requestId, results.getScanData());
+        verifySingleScanCompletedReceived(order, handler, requestId);
         verifyNoMoreInteractions(handler);
     }
 }
