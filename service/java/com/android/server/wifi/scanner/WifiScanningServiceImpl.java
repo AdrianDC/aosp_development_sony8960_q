@@ -164,7 +164,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 }
                 case AsyncChannel.CMD_CHANNEL_DISCONNECTED: {
                     ExternalClientInfo client = (ExternalClientInfo) mClients.get(msg.replyTo);
-                    if (client != null) {
+                    if (client != null && msg.arg1 != AsyncChannel.STATUS_SEND_UNSUCCESSFUL
+                            && msg.arg1
+                            != AsyncChannel.STATUS_FULL_CONNECTION_REFUSED_ALREADY_CONNECTED) {
                         localLog("client disconnected: " + client + ", reason: " + msg.arg1);
                         client.cleanup();
                     }
