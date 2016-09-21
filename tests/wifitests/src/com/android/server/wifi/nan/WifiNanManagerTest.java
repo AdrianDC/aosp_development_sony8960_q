@@ -167,7 +167,7 @@ public class WifiNanManagerTest {
 
         // (2) publish - should succeed
         PublishConfig publishConfig = new PublishConfig.Builder().build();
-        session.publish(publishConfig, mockSessionCallback);
+        session.publish(mMockLooperHandler, publishConfig, mockSessionCallback);
         inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
                 any(IWifiNanDiscoverySessionCallback.class));
 
@@ -176,7 +176,8 @@ public class WifiNanManagerTest {
         inOrder.verify(mockNanService).disconnect(eq(clientId), eq(binder.getValue()));
 
         // (4) try publishing again - fails silently
-        session.publish(new PublishConfig.Builder().build(), mockSessionCallback);
+        session.publish(mMockLooperHandler, new PublishConfig.Builder().build(),
+                mockSessionCallback);
 
         // (5) connect
         mDut.attach(mMockLooperHandler, mockCallback);
@@ -219,7 +220,7 @@ public class WifiNanManagerTest {
 
         // (4) subscribe: should succeed
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
-        session.subscribe(subscribeConfig, mockSessionCallback);
+        session.subscribe(mMockLooperHandler, subscribeConfig, mockSessionCallback);
         inOrder.verify(mockNanService).subscribe(eq(clientId), eq(subscribeConfig),
                 any(IWifiNanDiscoverySessionCallback.class));
 
@@ -300,7 +301,7 @@ public class WifiNanManagerTest {
         WifiNanSession session = sessionCaptor.getValue();
 
         // (1) publish
-        session.publish(publishConfig, mockSessionCallback);
+        session.publish(mMockLooperHandler, publishConfig, mockSessionCallback);
         inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
                 sessionProxyCallback.capture());
 
@@ -379,7 +380,7 @@ public class WifiNanManagerTest {
         WifiNanSession session = sessionCaptor.getValue();
 
         // (2) publish: successfully - then terminated
-        session.publish(publishConfig, mockSessionCallback);
+        session.publish(mMockLooperHandler, publishConfig, mockSessionCallback);
         inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
                 sessionProxyCallback.capture());
         sessionProxyCallback.getValue().onSessionStarted(sessionId);
@@ -434,7 +435,7 @@ public class WifiNanManagerTest {
         WifiNanSession session = sessionCaptor.getValue();
 
         // (1) subscribe
-        session.subscribe(subscribeConfig, mockSessionCallback);
+        session.subscribe(mMockLooperHandler, subscribeConfig, mockSessionCallback);
         inOrder.verify(mockNanService).subscribe(eq(clientId), eq(subscribeConfig),
                 sessionProxyCallback.capture());
 
@@ -513,7 +514,7 @@ public class WifiNanManagerTest {
         WifiNanSession session = sessionCaptor.getValue();
 
         // (2) subscribe: successfully - then terminated
-        session.subscribe(subscribeConfig, mockSessionCallback);
+        session.subscribe(mMockLooperHandler, subscribeConfig, mockSessionCallback);
         inOrder.verify(mockNanService).subscribe(eq(clientId), eq(subscribeConfig),
                 sessionProxyCallback.capture());
         sessionProxyCallback.getValue().onSessionStarted(sessionId);
@@ -883,7 +884,7 @@ public class WifiNanManagerTest {
         WifiNanSession session = sessionCaptor.getValue();
 
         // (2) publish successfully
-        session.publish(publishConfig, mockSessionCallback);
+        session.publish(mMockLooperHandler, publishConfig, mockSessionCallback);
         inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
                 sessionProxyCallback.capture());
         sessionProxyCallback.getValue().onSessionStarted(sessionId);
@@ -957,7 +958,7 @@ public class WifiNanManagerTest {
         WifiNanSession session = sessionCaptor.getValue();
 
         // (2) publish successfully
-        session.publish(publishConfig, mockSessionCallback);
+        session.publish(mMockLooperHandler, publishConfig, mockSessionCallback);
         inOrder.verify(mockNanService).publish(eq(clientId), eq(publishConfig),
                 sessionProxyCallback.capture());
         sessionProxyCallback.getValue().onSessionStarted(sessionId);
