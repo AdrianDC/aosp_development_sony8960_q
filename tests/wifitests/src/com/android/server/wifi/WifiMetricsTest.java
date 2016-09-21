@@ -107,6 +107,25 @@ public class WifiMetricsTest {
         mDeserializedWifiMetrics = WifiMetricsProto.WifiLog.parseFrom(protoBytes);
     }
 
+    /**
+     * Gets the 'clean dump' proto bytes from mWifiMetrics & deserializes it into
+     * mDeserializedWifiMetrics
+     */
+    public void cleanDumpProtoAndDeserialize() throws Exception {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(stream);
+        String[] args = new String[0];
+
+        when(mClock.elapsedRealtime()).thenReturn(TEST_RECORD_DURATION_MILLIS);
+        //Test proto dump, by passing in proto arg option
+        args = new String[]{WifiMetrics.PROTO_DUMP_ARG, WifiMetrics.CLEAN_DUMP_ARG};
+        mWifiMetrics.dump(null, writer, args);
+        writer.flush();
+        String protoByteString = stream.toString();
+        byte[] protoBytes = Base64.decode(protoByteString, Base64.DEFAULT);
+        mDeserializedWifiMetrics = WifiMetricsProto.WifiLog.parseFrom(protoBytes);
+    }
+
     /** Verifies that dump() includes the expected header */
     @Test
     public void stateDumpIncludesHeader() throws Exception {
@@ -624,6 +643,20 @@ public class WifiMetricsTest {
         dumpProtoAndDeserialize();
         //Check there are only 2 connection events
         assertEquals(mDeserializedWifiMetrics.connectionEvent.length, 2);
+    }
+
+    /**
+     * Tests that after setting metrics values they can be serialized and deserialized with the
+     *   $ adb shell dumpsys wifi wifiMetricsProto clean
+     */
+    @Test
+    public void testClearMetricsDump() throws Exception {
+        setAndIncrementMetrics();
+        startAndEndConnectionEventSucceeds();
+        cleanDumpProtoAndDeserialize();
+        assertDeserializedMetricsCorrect();
+        assertEquals("mDeserializedWifiMetrics.connectionEvent.length",
+                2, mDeserializedWifiMetrics.connectionEvent.length);
     }
 
     private void assertStringContains(
