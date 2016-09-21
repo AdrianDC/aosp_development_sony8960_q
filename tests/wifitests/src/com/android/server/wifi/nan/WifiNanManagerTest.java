@@ -194,7 +194,7 @@ public class WifiNanManagerTest {
     @Test
     public void testConnectFailure() throws Exception {
         final int clientId = 4565;
-        final int reason = WifiNanAttachCallback.REASON_OTHER;
+        final int reason = WifiNanNative.NAN_STATUS_ERROR;
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService);
         ArgumentCaptor<WifiNanSession> sessionCaptor = ArgumentCaptor.forClass(
@@ -208,7 +208,7 @@ public class WifiNanManagerTest {
                 clientProxyCallback.capture(), (ConfigRequest) isNull(), eq(false));
         clientProxyCallback.getValue().onConnectFail(reason);
         mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onAttachFailed(reason);
+        inOrder.verify(mockCallback).onAttachFailed();
 
         // (2) connect + success
         mDut.attach(mMockLooperHandler, mockCallback);
@@ -279,7 +279,7 @@ public class WifiNanManagerTest {
         final String string1 = "hey from here...";
         final String string2 = "some other arbitrary string...";
         final int messageId = 2123;
-        final int reason = WifiNanDiscoverySessionCallback.REASON_OTHER;
+        final int reason = WifiNanNative.NAN_STATUS_ERROR;
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
                 mockPublishSession);
@@ -324,7 +324,7 @@ public class WifiNanManagerTest {
         inOrder.verify(mockSessionCallback).onServiceDiscovered(eq(peerId), eq(string1.getBytes()),
                 eq(string2.getBytes()));
         inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()));
-        inOrder.verify(mockSessionCallback).onMessageSendFailed(eq(messageId), eq(reason));
+        inOrder.verify(mockSessionCallback).onMessageSendFailed(eq(messageId));
         inOrder.verify(mockSessionCallback).onMessageSent(eq(messageId));
 
         // (4) update publish
@@ -333,7 +333,7 @@ public class WifiNanManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockNanService).updatePublish(eq(clientId), eq(sessionId),
                 eq(publishConfig));
-        inOrder.verify(mockSessionCallback).onSessionConfigFailed(eq(reason));
+        inOrder.verify(mockSessionCallback).onSessionConfigFailed();
 
         // (5) terminate
         publishSession.getValue().destroy();
@@ -413,7 +413,7 @@ public class WifiNanManagerTest {
         final String string1 = "hey from here...";
         final String string2 = "some other arbitrary string...";
         final int messageId = 2123;
-        final int reason = WifiNanDiscoverySessionCallback.REASON_OTHER;
+        final int reason = WifiNanNative.NAN_STATUS_ERROR;
 
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mockNanService,
                 mockSubscribeSession);
@@ -458,7 +458,7 @@ public class WifiNanManagerTest {
         inOrder.verify(mockSessionCallback).onServiceDiscovered(eq(peerId), eq(string1.getBytes()),
                 eq(string2.getBytes()));
         inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()));
-        inOrder.verify(mockSessionCallback).onMessageSendFailed(eq(messageId), eq(reason));
+        inOrder.verify(mockSessionCallback).onMessageSendFailed(eq(messageId));
         inOrder.verify(mockSessionCallback).onMessageSent(eq(messageId));
 
         // (4) update subscribe
@@ -467,7 +467,7 @@ public class WifiNanManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockNanService).updateSubscribe(eq(clientId), eq(sessionId),
                 eq(subscribeConfig));
-        inOrder.verify(mockSessionCallback).onSessionConfigFailed(eq(reason));
+        inOrder.verify(mockSessionCallback).onSessionConfigFailed();
 
         // (5) terminate
         subscribeSession.getValue().destroy();

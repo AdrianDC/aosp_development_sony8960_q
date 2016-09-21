@@ -45,7 +45,6 @@ import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanAttachCallback;
 import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.WifiNanManager;
 import android.os.Message;
@@ -303,7 +302,7 @@ public class WifiNanStateManagerTest {
         final int uid = 1000;
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
-        final int reason = WifiNanAttachCallback.REASON_OTHER;
+        final int reason = WifiNanNative.NAN_STATUS_ERROR;
         final byte[] someMac = HexEncoding.decode("000102030405".toCharArray(), false);
         final byte[] someMac2 = HexEncoding.decode("060708090A0B".toCharArray(), false);
 
@@ -416,8 +415,7 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mMockNative).publish(anyShort(), eq(0), eq(publishConfig));
         assertTrue(mAlarmManager.dispatch(WifiNanStateManager.HAL_COMMAND_TIMEOUT_TAG));
         mMockLooper.dispatchAll();
-        inOrder.verify(mockSessionCallback)
-                .onSessionConfigFail(WifiNanDiscoverySessionCallback.REASON_OTHER);
+        inOrder.verify(mockSessionCallback).onSessionConfigFail(WifiNanNative.NAN_STATUS_ERROR);
         validateInternalNoSessions(clientId);
 
         // (3) publish + success
@@ -441,7 +439,7 @@ public class WifiNanStateManagerTest {
         final int uid = 1000;
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
-        final int reasonFail = WifiNanDiscoverySessionCallback.REASON_NO_RESOURCES;
+        final int reasonFail = WifiNanNative.NAN_STATUS_ERROR;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         PublishConfig publishConfig = new PublishConfig.Builder().build();
@@ -569,7 +567,7 @@ public class WifiNanStateManagerTest {
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
         final int publishId = 15;
-        final int reasonFail = WifiNanDiscoverySessionCallback.REASON_INVALID_ARGS;
+        final int reasonFail = WifiNanNative.NAN_STATUS_ERROR;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         PublishConfig publishConfig = new PublishConfig.Builder().build();
@@ -703,7 +701,7 @@ public class WifiNanStateManagerTest {
         final int uid = 1000;
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
-        final int reasonFail = WifiNanDiscoverySessionCallback.REASON_NO_RESOURCES;
+        final int reasonFail = WifiNanNative.NAN_STATUS_ERROR;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
@@ -830,7 +828,7 @@ public class WifiNanStateManagerTest {
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
         final int subscribeId = 15;
-        final int reasonFail = WifiNanDiscoverySessionCallback.REASON_INVALID_ARGS;
+        final int reasonFail = WifiNanNative.NAN_STATUS_ERROR;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
@@ -967,7 +965,7 @@ public class WifiNanStateManagerTest {
         final String serviceName = "some-service-name";
         final String ssi = "some much longer and more arbitrary data";
         final int subscribeCount = 7;
-        final int reasonFail = WifiNanDiscoverySessionCallback.REASON_TX_FAIL;
+        final int reasonFail = WifiNanNative.NAN_STATUS_ERROR;
         final int subscribeId = 15;
         final int requestorId = 22;
         final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
@@ -1082,7 +1080,7 @@ public class WifiNanStateManagerTest {
         final String msgToPeer2 = "hey there 0506...";
         final int msgToPeerId1 = 546;
         final int msgToPeerId2 = 9654;
-        final int reason = WifiNanDiscoverySessionCallback.REASON_OTHER;
+        final int reason = WifiNanNative.NAN_STATUS_ERROR;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().setClusterLow(clusterLow)
                 .setClusterHigh(clusterHigh).setMasterPreference(masterPref).build();
@@ -1309,7 +1307,7 @@ public class WifiNanStateManagerTest {
                 messageId, 0);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onMessageSendFail(messageId,
-                WifiNanDiscoverySessionCallback.REASON_NO_MATCH_SESSION);
+                WifiNanNative.NAN_STATUS_ERROR);
         validateInternalSendMessageQueuesCleanedUp(messageId);
 
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
@@ -1394,7 +1392,7 @@ public class WifiNanStateManagerTest {
         assertTrue(mAlarmManager.dispatch(WifiNanStateManager.HAL_SEND_MESSAGE_TIMEOUT_TAG));
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onMessageSendFail(messageId,
-                WifiNanDiscoverySessionCallback.REASON_TX_FAIL);
+                WifiNanNative.NAN_STATUS_ERROR);
         validateInternalSendMessageQueuesCleanedUp(messageId);
 
         // (5) firmware response (unlikely - but good to check)
@@ -1477,7 +1475,7 @@ public class WifiNanStateManagerTest {
         // (4) loop and fail until reach retryCount
         for (int i = 0; i < retryCount; ++i) {
             mDut.onMessageSendFailNotification(transactionId.getValue(),
-                    WifiNanDiscoverySessionCallback.REASON_TX_FAIL);
+                    WifiNanNative.NAN_STATUS_TX_FAIL);
             mMockLooper.dispatchAll();
             inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(subscribeId),
                     eq(requestorId), eq(peerMac), eq(ssi.getBytes()), eq(messageId));
@@ -1564,7 +1562,7 @@ public class WifiNanStateManagerTest {
         // (4) loop and fail until reach retryCount+1
         for (int i = 0; i < retryCount + 1; ++i) {
             mDut.onMessageSendFailNotification(transactionId.getValue(),
-                    WifiNanDiscoverySessionCallback.REASON_TX_FAIL);
+                    WifiNanNative.NAN_STATUS_TX_FAIL);
             mMockLooper.dispatchAll();
 
             if (i != retryCount) {
@@ -1576,7 +1574,7 @@ public class WifiNanStateManagerTest {
         }
 
         inOrder.verify(mockSessionCallback).onMessageSendFail(messageId,
-                WifiNanDiscoverySessionCallback.REASON_TX_FAIL);
+                WifiNanNative.NAN_STATUS_TX_FAIL);
         validateInternalSendMessageQueuesCleanedUp(messageId);
 
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
@@ -1718,7 +1716,7 @@ public class WifiNanStateManagerTest {
         final String peerMatchFilter = "filter binary array represented as string";
         final int messageId = 6948;
         final int retryCount = 3;
-        final int reason = WifiNanDiscoverySessionCallback.REASON_OTHER;
+        final int reason = WifiNanNative.NAN_STATUS_ERROR;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
@@ -1834,7 +1832,7 @@ public class WifiNanStateManagerTest {
             if (behavior == OP_QUEUE_FAIL) {
                 ops[OP_QUEUE_FAIL]++;
                 mDut.onMessageSendQueuedFailResponse(transactionId,
-                        WifiNanDiscoverySessionCallback.REASON_OTHER);
+                        WifiNanNative.NAN_STATUS_ERROR);
             } else if (behavior == OP_QUEUE_OK_SEND_OK) {
                 ops[OP_QUEUE_OK_SEND_OK]++;
                 mDut.onMessageSendQueuedSuccessResponse(transactionId);
@@ -1843,7 +1841,7 @@ public class WifiNanStateManagerTest {
                 mDut.onMessageSendQueuedSuccessResponse(transactionId);
                 if (!packetRetx) {
                     mDut.onMessageSendFailNotification(transactionId,
-                            WifiNanDiscoverySessionCallback.REASON_TX_FAIL);
+                            WifiNanNative.NAN_STATUS_TX_FAIL);
                 } else {
                     ops[OP_QUEUE_OK_SEND_RETX_OK]++;
                     mDut.onMessageSendSuccessNotification(transactionId);
@@ -1854,7 +1852,7 @@ public class WifiNanStateManagerTest {
                     ops[OP_QUEUE_OK_SEND_RETX_FAIL]++;
                 }
                 mDut.onMessageSendFailNotification(transactionId,
-                        WifiNanDiscoverySessionCallback.REASON_TX_FAIL);
+                        WifiNanNative.NAN_STATUS_NO_OTA_ACK);
             }
             return true;
         }
@@ -1998,7 +1996,7 @@ public class WifiNanStateManagerTest {
         mDut.connect(clientId2, uid, pid, callingPackage, mockCallback2, configRequest2, false);
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback2)
-                .onConnectFail(WifiNanAttachCallback.REASON_ALREADY_CONNECTED_INCOMPAT_CONFIG);
+                .onConnectFail(WifiNanNative.NAN_STATUS_ERROR);
         validateInternalClientInfoCleanedUp(clientId2);
 
         // (5) disconnect config1: disable
@@ -2281,7 +2279,7 @@ public class WifiNanStateManagerTest {
         mDut.updateSubscribe(clientId, sessionId.getValue(), subscribeConfig);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback)
-                .onSessionConfigFail(WifiNanDiscoverySessionCallback.REASON_OTHER);
+                .onSessionConfigFail(WifiNanNative.NAN_STATUS_ERROR);
 
         verifyNoMoreInteractions(mMockNative, mockCallback, mockSessionCallback);
     }
@@ -2337,7 +2335,7 @@ public class WifiNanStateManagerTest {
         mDut.updatePublish(clientId, sessionId.getValue(), publishConfig);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback)
-                .onSessionConfigFail(WifiNanDiscoverySessionCallback.REASON_OTHER);
+                .onSessionConfigFail(WifiNanNative.NAN_STATUS_ERROR);
 
         verifyNoMoreInteractions(mMockNative, mockCallback, mockSessionCallback);
     }
