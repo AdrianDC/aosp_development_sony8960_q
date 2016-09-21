@@ -1772,7 +1772,7 @@ public class WifiNanStateManager {
         ConfigRequest merged = mergeConfigRequests(configRequest);
         if (mCurrentNanConfiguration != null && mCurrentNanConfiguration.equals(merged)) {
             try {
-                callback.onConnectSuccess();
+                callback.onConnectSuccess(clientId);
             } catch (RemoteException e) {
                 Log.w(TAG, "connectLocal onConnectSuccess(): RemoteException (FYI): " + e);
             }
@@ -2069,7 +2069,7 @@ public class WifiNanStateManager {
                     callingPackage, callback, configRequest);
             mClients.put(clientId, client);
             try {
-                callback.onConnectSuccess();
+                callback.onConnectSuccess(clientId);
             } catch (RemoteException e) {
                 Log.w(TAG,
                         "onConfigCompletedLocal onConnectSuccess(): RemoteException (FYI): " + e);
