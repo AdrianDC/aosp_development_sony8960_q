@@ -41,16 +41,16 @@ import android.net.NetworkMisc;
 import android.net.NetworkRequest;
 import android.net.wifi.RttManager;
 import android.net.wifi.nan.ConfigRequest;
+import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanManager;
-import android.net.wifi.nan.IWifiNanSessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.WifiNanEventCallback;
 import android.net.wifi.nan.WifiNanManager;
-import android.net.wifi.nan.WifiNanPublishSession;
-import android.net.wifi.nan.WifiNanSessionCallback;
-import android.net.wifi.nan.WifiNanSubscribeSession;
+import android.net.wifi.nan.WifiNanPublishDiscoverySession;
+import android.net.wifi.nan.WifiNanSubscribeDiscoverySession;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
@@ -90,14 +90,14 @@ public class WifiNanDataPathStateManagerTest {
     @Mock private WifiNanNative mMockNative;
     @Mock private Context mMockContext;
     @Mock private IWifiNanManager mMockNanService;
-    @Mock private WifiNanPublishSession mMockPublishSession;
-    @Mock private WifiNanSubscribeSession mMockSubscribeSession;
+    @Mock private WifiNanPublishDiscoverySession mMockPublishSession;
+    @Mock private WifiNanSubscribeDiscoverySession mMockSubscribeSession;
     @Mock private RttManager.RttListener mMockRttListener;
     @Mock private ConnectivityManager mMockCm;
     @Mock private INetworkManagementService mMockNwMgt;
     @Mock private WifiNanDataPathStateManager.NetworkInterfaceWrapper mMockNetworkInterface;
     @Mock private IWifiNanEventCallback mMockCallback;
-    @Mock IWifiNanSessionCallback mMockSessionCallback;
+    @Mock IWifiNanDiscoverySessionCallback mMockSessionCallback;
     TestAlarmManager mAlarmManager;
 
     @Rule
@@ -599,13 +599,14 @@ public class WifiNanDataPathStateManagerTest {
 
         ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
                 .forClass(IWifiNanEventCallback.class);
-        ArgumentCaptor<IWifiNanSessionCallback> sessionProxyCallback = ArgumentCaptor
-                .forClass(IWifiNanSessionCallback.class);
-        ArgumentCaptor<WifiNanPublishSession> publishSession = ArgumentCaptor
-                .forClass(WifiNanPublishSession.class);
+        ArgumentCaptor<IWifiNanDiscoverySessionCallback> sessionProxyCallback = ArgumentCaptor
+                .forClass(IWifiNanDiscoverySessionCallback.class);
+        ArgumentCaptor<WifiNanPublishDiscoverySession> publishSession = ArgumentCaptor
+                .forClass(WifiNanPublishDiscoverySession.class);
 
         WifiNanEventCallback mockCallback = mock(WifiNanEventCallback.class);
-        WifiNanSessionCallback mockSessionCallback = mock(WifiNanSessionCallback.class);
+        WifiNanDiscoverySessionCallback mockSessionCallback = mock(
+                WifiNanDiscoverySessionCallback.class);
 
         when(mMockNanService.connect(any(IBinder.class), anyString(),
                 any(IWifiNanEventCallback.class), any(ConfigRequest.class))).thenReturn(clientId);
