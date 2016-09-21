@@ -25,8 +25,8 @@ import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanManager;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanAttachCallback;
 import android.net.wifi.nan.WifiNanDiscoveryBaseSession;
-import android.net.wifi.nan.WifiNanEventCallback;
 import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -131,7 +131,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
 
     @Override
     public void connect(final IBinder binder, String callingPackage, IWifiNanEventCallback callback,
-            ConfigRequest configRequest) {
+            ConfigRequest configRequest, boolean notifyOnIdentityChanged) {
         enforceAccessPermission();
         enforceChangePermission();
         if (callback == null) {
@@ -141,10 +141,12 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             throw new IllegalArgumentException("Binder must not be null");
         }
 
+        if (notifyOnIdentityChanged) {
+            enforceLocationPermission();
+        }
+
         if (configRequest != null) {
-            if (configRequest.isNonDefaultOnTheAir()) {
-                enforceConnectivityInternalPermission();
-            }
+            enforceConnectivityInternalPermission();
         } else {
             configRequest = new ConfigRequest.Builder().build();
         }
@@ -160,7 +162,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
 
         if (VDBG) {
             Log.v(TAG, "connect: uid=" + uid + ", clientId=" + clientId + ", configRequest"
-                    + configRequest);
+                    + configRequest + ", notifyOnIdentityChanged=" + notifyOnIdentityChanged);
         }
 
         IBinder.DeathRecipient dr = new IBinder.DeathRecipient() {
@@ -183,7 +185,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         } catch (RemoteException e) {
             Log.e(TAG, "Error on linkToDeath - " + e);
             try {
-                callback.onConnectFail(WifiNanEventCallback.REASON_OTHER);
+                callback.onConnectFail(WifiNanAttachCallback.REASON_OTHER);
             } catch (RemoteException e1) {
                 Log.e(TAG, "Error on onConnectFail()");
             }
@@ -195,7 +197,8 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             mUidByClientId.put(clientId, uid);
         }
 
-        mStateManager.connect(clientId, uid, pid, callingPackage, callback, configRequest);
+        mStateManager.connect(clientId, uid, pid, callingPackage, callback, configRequest,
+                notifyOnIdentityChanged);
     }
 
     @Override

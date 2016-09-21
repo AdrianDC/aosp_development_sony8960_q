@@ -26,8 +26,8 @@ import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
 import android.net.wifi.nan.TlvBufferUtils;
+import android.net.wifi.nan.WifiNanAttachCallback;
 import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
-import android.net.wifi.nan.WifiNanEventCallback;
 import android.os.Bundle;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -379,7 +379,7 @@ public class WifiNanHalTest {
                 HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onConfigFailedResponse(transactionId,
-                WifiNanEventCallback.REASON_INVALID_ARGS);
+                WifiNanAttachCallback.REASON_INVALID_ARGS);
         verifyNoMoreInteractions(mNanStateManager);
     }
 
@@ -768,7 +768,7 @@ public class WifiNanHalTest {
 
         WifiNanHalMock.callDisabled(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onNanDownNotification(WifiNanEventCallback.REASON_OTHER);
+        verify(mNanStateManager).onNanDownNotification(WifiNanAttachCallback.REASON_OTHER);
         verifyNoMoreInteractions(mNanStateManager);
     }
 
