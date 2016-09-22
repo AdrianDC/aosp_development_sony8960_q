@@ -1163,6 +1163,12 @@ public class WifiScanningServiceTest {
         List<ScanResult> results = Arrays.asList(
                 ((WifiScanner.ParcelableScanResults) response.obj).getResults());
         assertEquals(results.size(), expectedResults.getRawScanResults().length);
+
+        // Make sure that we logged the scan results in the dump method.
+        String serviceDump = dumpService();
+        Pattern logLineRegex = Pattern.compile("Latest scan results:");
+        assertTrue("dump did not contain Latest scan results: " + serviceDump + "\n",
+                logLineRegex.matcher(serviceDump).find());
     }
 
     /**
