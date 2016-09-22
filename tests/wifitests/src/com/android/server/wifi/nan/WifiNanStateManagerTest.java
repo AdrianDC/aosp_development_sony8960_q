@@ -2467,13 +2467,6 @@ public class WifiNanStateManagerTest {
 
         collector.checkThat("intent action", intent.getValue().getAction(),
                 equalTo(WifiNanManager.ACTION_WIFI_NAN_STATE_CHANGED));
-        collector.checkThat("intent contains wifi status key",
-                intent.getValue().getExtras().containsKey(WifiNanManager.EXTRA_WIFI_STATE),
-                equalTo(true));
-        collector.checkThat("intnent wifi status key value",
-                intent.getValue().getExtras().getInt(WifiNanManager.EXTRA_WIFI_STATE),
-                equalTo(expectedEnabled ? WifiNanManager.WIFI_NAN_STATE_ENABLED
-                        : WifiNanManager.WIFI_NAN_STATE_DISABLED));
     }
 
     /*
