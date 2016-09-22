@@ -33,6 +33,7 @@ import android.content.res.Resources;
 import android.net.NetworkInfo;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiScanner;
 import android.os.UserHandle;
 import android.os.test.TestLooper;
 import android.provider.Settings;
@@ -58,6 +59,8 @@ public class WifiNotificationControllerTest {
     @Mock private WifiStateMachine mWifiStateMachine;
     @Mock private FrameworkFacade mFrameworkFacade;
     @Mock private NotificationManager mNotificationManager;
+    @Mock private WifiInjector mWifiInjector;
+    @Mock private WifiScanner mWifiScanner;
     WifiNotificationController mWifiNotificationController;
 
     /**
@@ -80,10 +83,12 @@ public class WifiNotificationControllerTest {
         when(mFrameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON, 1)).thenReturn(1);
 
+        when(mWifiInjector.getWifiScanner()).thenReturn(mWifiScanner);
+
         TestLooper mock_looper = new TestLooper();
         mWifiNotificationController = new WifiNotificationController(
                 mContext, mock_looper.getLooper(), mWifiStateMachine, mFrameworkFacade,
-                mock(Notification.Builder.class));
+                mock(Notification.Builder.class), mWifiInjector);
         ArgumentCaptor<BroadcastReceiver> broadcastReceiverCaptor =
                 ArgumentCaptor.forClass(BroadcastReceiver.class);
 
@@ -97,7 +102,7 @@ public class WifiNotificationControllerTest {
         ScanResult scanResult = new ScanResult();
         scanResult.capabilities = "[ESS]";
         scanResults.add(scanResult);
-        when(mWifiStateMachine.syncGetScanResultsList()).thenReturn(scanResults);
+        when(mWifiScanner.getSingleScanResults()).thenReturn(scanResults);
     }
 
     /** Verifies that a notification is displayed (and retracted) given system events. */
