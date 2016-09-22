@@ -1172,38 +1172,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         String country = mCountryCode.getCountryCode();
         return country;
     }
-    /**
-     * Set the operational frequency band
-     * @param band One of
-     *     {@link WifiManager#WIFI_FREQUENCY_BAND_AUTO},
-     *     {@link WifiManager#WIFI_FREQUENCY_BAND_5GHZ},
-     *     {@link WifiManager#WIFI_FREQUENCY_BAND_2GHZ},
-     * @param persist {@code true} if the setting should be remembered.
-     *
-     */
-    @Override
-    public void setFrequencyBand(int band, boolean persist) {
-        enforceChangePermission();
-        if (!isDualBandSupported()) return;
-        Slog.i(TAG, "WifiService trying to set frequency band to " + band +
-                " with persist set to " + persist);
-        final long token = Binder.clearCallingIdentity();
-        try {
-            mWifiStateMachine.setFrequencyBand(band, persist);
-        } finally {
-            Binder.restoreCallingIdentity(token);
-        }
-    }
-
-
-    /**
-     * Get the operational frequency band
-     */
-    @Override
-    public int getFrequencyBand() {
-        enforceAccessPermission();
-        return mWifiStateMachine.getFrequencyBand();
-    }
 
     @Override
     public boolean isDualBandSupported() {

@@ -436,7 +436,6 @@ public class WifiStateMachineTest {
 
         assertEquals("SupplicantStartingState", getCurrentState().getName());
 
-        when(mWifiNative.setBand(anyInt())).thenReturn(true);
         when(mWifiNative.setDeviceName(anyString())).thenReturn(true);
         when(mWifiNative.setManufacturer(anyString())).thenReturn(true);
         when(mWifiNative.setModelName(anyString())).thenReturn(true);
@@ -549,7 +548,6 @@ public class WifiStateMachineTest {
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
         assertEquals("SupplicantStartingState", getCurrentState().getName());
-        when(mWifiNative.setBand(anyInt())).thenReturn(true);
         when(mWifiNative.setDeviceName(anyString())).thenReturn(true);
         when(mWifiNative.setManufacturer(anyString())).thenReturn(true);
         when(mWifiNative.setModelName(anyString())).thenReturn(true);

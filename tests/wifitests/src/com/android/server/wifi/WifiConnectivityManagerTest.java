@@ -22,8 +22,8 @@ import static com.android.server.wifi.WifiStateMachine.WIFI_WORK_SOURCE;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
-import android.app.test.TestAlarmManager;
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
+import android.app.test.TestAlarmManager;
 import android.content.Context;
 import android.content.res.Resources;
 import android.net.wifi.ScanResult;
@@ -31,7 +31,6 @@ import android.net.wifi.ScanResult.InformationElement;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
-import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiScanner.PnoScanListener;
 import android.net.wifi.WifiScanner.PnoSettings;
@@ -53,7 +52,6 @@ import org.mockito.ArgumentCaptor;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiConnectivityManager}.
@@ -191,7 +189,6 @@ public class WifiConnectivityManagerTest {
     WifiStateMachine mockWifiStateMachine() {
         WifiStateMachine stateMachine = mock(WifiStateMachine.class);
 
-        when(stateMachine.getFrequencyBand()).thenReturn(1);
         when(stateMachine.isLinkDebouncing()).thenReturn(false);
         when(stateMachine.isConnected()).thenReturn(false);
         when(stateMachine.isDisconnected()).thenReturn(true);
@@ -796,15 +793,13 @@ public class WifiConnectivityManagerTest {
 
         when(mWifiStateMachine.getCurrentWifiConfiguration())
                 .thenReturn(new WifiConfiguration());
-        when(mWifiStateMachine.getFrequencyBand())
-                .thenReturn(WifiManager.WIFI_FREQUENCY_BAND_5GHZ);
         when(mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(anyInt(), anyInt()))
                 .thenReturn(channelList);
 
         doAnswer(new AnswerWithArguments() {
             public void answer(ScanSettings settings, ScanListener listener,
                     WorkSource workSource) throws Exception {
-                assertEquals(settings.band, WifiScanner.WIFI_BAND_5_GHZ_WITH_DFS);
+                assertEquals(settings.band, WifiScanner.WIFI_BAND_BOTH_WITH_DFS);
                 assertNull(settings.channels);
             }}).when(mWifiScanner).startScan(anyObject(), anyObject(), anyObject());
 
@@ -876,15 +871,13 @@ public class WifiConnectivityManagerTest {
 
         when(mWifiStateMachine.getCurrentWifiConfiguration())
                 .thenReturn(new WifiConfiguration());
-        when(mWifiStateMachine.getFrequencyBand())
-                .thenReturn(WifiManager.WIFI_FREQUENCY_BAND_5GHZ);
         when(mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(anyInt(), anyInt()))
                 .thenReturn(channelList);
 
         doAnswer(new AnswerWithArguments() {
             public void answer(ScanSettings settings, ScanListener listener,
                     WorkSource workSource) throws Exception {
-                assertEquals(settings.band, WifiScanner.WIFI_BAND_5_GHZ_WITH_DFS);
+                assertEquals(settings.band, WifiScanner.WIFI_BAND_BOTH_WITH_DFS);
                 assertNull(settings.channels);
             }}).when(mWifiScanner).startScan(anyObject(), anyObject(), anyObject());
 
