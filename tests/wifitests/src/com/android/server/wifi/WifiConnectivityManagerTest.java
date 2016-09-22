@@ -33,6 +33,7 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiScanner.PnoScanListener;
 import android.net.wifi.WifiScanner.PnoSettings;
+import android.net.wifi.WifiScanner.ScanData;
 import android.net.wifi.WifiScanner.ScanListener;
 import android.net.wifi.WifiScanner.ScanSettings;
 import android.net.wifi.WifiSsid;
@@ -71,6 +72,7 @@ public class WifiConnectivityManagerTest {
         mWifiStateMachine = mockWifiStateMachine();
         mWifiConfigManager = mockWifiConfigManager();
         mWifiInfo = getWifiInfo();
+        mScanData = mockScanData();
         mWifiScanner = mockWifiScanner();
         mWifiQNS = mockWifiQualifiedNetworkSelector();
         mWifiConnectivityManager = new WifiConnectivityManager(mContext, mWifiStateMachine,
@@ -96,6 +98,7 @@ public class WifiConnectivityManagerTest {
     private WifiQualifiedNetworkSelector mWifiQNS;
     private WifiStateMachine mWifiStateMachine;
     private WifiScanner mWifiScanner;
+    private ScanData mScanData;
     private WifiConfigManager mWifiConfigManager;
     private WifiInfo mWifiInfo;
     private Clock mClock = mock(Clock.class);
@@ -128,6 +131,14 @@ public class WifiConnectivityManagerTest {
         return context;
     }
 
+    ScanData mockScanData() {
+        ScanData scanData = mock(ScanData.class);
+
+        when(scanData.isAllChannelsScanned()).thenReturn(true);
+
+        return scanData;
+    }
+
     WifiScanner mockWifiScanner() {
         WifiScanner scanner = mock(WifiScanner.class);
         ArgumentCaptor<ScanListener> allSingleScanListenerCaptor =
@@ -135,9 +146,8 @@ public class WifiConnectivityManagerTest {
 
         doNothing().when(scanner).registerScanListener(allSingleScanListenerCaptor.capture());
 
-        // dummy scan results. QNS PeriodicScanListener bulids scanDetails from
-        // the fullScanResult and doesn't really use results
-        final WifiScanner.ScanData[] scanDatas = new WifiScanner.ScanData[1];
+        ScanData[] scanDatas = new ScanData[1];
+        scanDatas[0] = mScanData;
 
         // do a synchronous answer for the ScanListener callbacks
         doAnswer(new AnswerWithArguments() {
@@ -756,8 +766,9 @@ public class WifiConnectivityManagerTest {
         currentTimeStamp += 2000;
         when(mClock.elapsedRealtime()).thenReturn(currentTimeStamp);
 
-        // Force a connectivity scan
-        mWifiConnectivityManager.forceConnectivityScan();
+        // Allow untrusted networks so WifiConnectivityManager starts a periodic scan
+        // immediately.
+        mWifiConnectivityManager.setUntrustedConnectionAllowed(true);
 
         // Get the second periodic scan actual time stamp. Note, this scan is not
         // started from the AlarmManager.
@@ -941,6 +952,43 @@ public class WifiConnectivityManagerTest {
 
         // Verify that WCM receives the scan results and initiates a connection
         // to the network.
+        verify(mWifiStateMachine).autoConnectToNetwork(
+                CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
+    }
+
+    /**
+     *  Verify that a forced connectivity scan waits for full band scan
+     *  results.
+     *
+     * Expected behavior: WifiConnectivityManager doesn't invoke
+     * WifiStateMachine.autoConnectToNetwork() when full band scan
+     * results are not available.
+     */
+    @Test
+    public void waitForFullBandScanResults() {
+        // Set WiFi to connected state.
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        // Set up as partial scan results.
+        when(mScanData.isAllChannelsScanned()).thenReturn(false);
+
+        // Force a connectivity scan which enables WifiConnectivityManager
+        // to wait for full band scan results.
+        mWifiConnectivityManager.forceConnectivityScan();
+
+        // No roaming because no full band scan results.
+        verify(mWifiStateMachine, times(0)).autoConnectToNetwork(
+                CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
+
+        // Set up as full band scan results.
+        when(mScanData.isAllChannelsScanned()).thenReturn(true);
+
+        // Force a connectivity scan which enables WifiConnectivityManager
+        // to wait for full band scan results.
+        mWifiConnectivityManager.forceConnectivityScan();
+
+        // Roaming attempt because full band scan results are available.
         verify(mWifiStateMachine).autoConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }

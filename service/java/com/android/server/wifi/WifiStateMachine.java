@@ -5622,8 +5622,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             config, disableOthers, message.sendingUid);
                     if (!ok) {
                         messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
-                    } else if (disableOthers) {
-                        mTargetNetworkId = netId;
+                    } else {
+                        if (disableOthers) {
+                            mTargetNetworkId = netId;
+                        }
+                        mWifiConnectivityManager.forceConnectivityScan();
                     }
 
                     replyToMessage(message, message.what, ok ? SUCCESS : FAILURE);
