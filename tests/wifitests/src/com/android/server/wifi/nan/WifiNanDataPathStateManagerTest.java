@@ -401,7 +401,7 @@ public class WifiNanDataPathStateManagerTest {
             boolean provideToken, boolean getConfirmation) throws Exception {
         final int clientId = 123;
         final int pubSubId = 11234;
-        final int peerId = 1341234;
+        final Object peerHandle = Integer.valueOf(1341234);
         final int ndpId = 2;
         final String token = "some token";
         final String peerToken = "let's go!";
@@ -413,8 +413,8 @@ public class WifiNanDataPathStateManagerTest {
         InOrder inOrder = inOrder(mMockNative, mMockCm, mMockCallback, mMockSessionCallback);
 
         // (0) initialize
-        Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId, peerId,
-                peerDiscoveryMac, inOrder);
+        Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId,
+                (Integer) peerHandle, peerDiscoveryMac, inOrder);
 
         // (1) request network
         NetworkRequest nr;
@@ -422,7 +422,7 @@ public class WifiNanDataPathStateManagerTest {
             nr = getDirectNetworkRequest(clientId, WifiNanManager.WIFI_NAN_DATA_PATH_ROLE_INITIATOR,
                     provideMac ? peerDiscoveryMac : null, provideToken ? token : null);
         } else {
-            nr = getSessionNetworkRequest(clientId, res.first, provideMac ? peerId : 0,
+            nr = getSessionNetworkRequest(clientId, res.first, provideMac ? peerHandle : null,
                     WifiNanManager.WIFI_NAN_DATA_PATH_ROLE_INITIATOR, provideToken ? token : null);
         }
 
@@ -433,8 +433,9 @@ public class WifiNanDataPathStateManagerTest {
         res.second.send(reqNetworkMsg);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).initiateDataPath(transactionId.capture(),
-                eq(useDirect ? 0 : peerId), eq(WifiNanNative.CHANNEL_REQUEST_TYPE_REQUESTED),
-                eq(2437), eq(peerDiscoveryMac), eq("nan0"), eq(token.getBytes()));
+                eq(useDirect ? 0 : (Integer) peerHandle),
+                eq(WifiNanNative.CHANNEL_REQUEST_TYPE_REQUESTED), eq(2437), eq(peerDiscoveryMac),
+                eq("nan0"), eq(token.getBytes()));
         mDut.onInitiateDataPathResponseSuccess(transactionId.getValue(), ndpId);
         mMockLooper.dispatchAll();
 
@@ -480,7 +481,7 @@ public class WifiNanDataPathStateManagerTest {
             boolean provideToken, boolean getConfirmation) throws Exception {
         final int clientId = 123;
         final int pubSubId = 11234;
-        final int peerId = 1341234;
+        final Object peerHandle = Integer.valueOf(1341234);
         final int ndpId = 2;
         final String token = "some token";
         final String peerToken = "let's go!";
@@ -492,8 +493,8 @@ public class WifiNanDataPathStateManagerTest {
         InOrder inOrder = inOrder(mMockNative, mMockCm, mMockCallback, mMockSessionCallback);
 
         // (0) initialize
-        Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId, peerId,
-                peerDiscoveryMac, inOrder);
+        Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId,
+                (Integer) peerHandle, peerDiscoveryMac, inOrder);
 
         // (1) request network
         NetworkRequest nr;
@@ -501,7 +502,7 @@ public class WifiNanDataPathStateManagerTest {
             nr = getDirectNetworkRequest(clientId, WifiNanManager.WIFI_NAN_DATA_PATH_ROLE_RESPONDER,
                     provideMac ? peerDiscoveryMac : null, provideToken ? token : null);
         } else {
-            nr = getSessionNetworkRequest(clientId, res.first, provideMac ? peerId : 0,
+            nr = getSessionNetworkRequest(clientId, res.first, provideMac ? peerHandle : null,
                     WifiNanManager.WIFI_NAN_DATA_PATH_ROLE_RESPONDER, provideToken ? token : null);
         }
 
@@ -592,7 +593,7 @@ public class WifiNanDataPathStateManagerTest {
         field.set(mDataPathMgr, mMockNetworkInterface);
     }
 
-    private NetworkRequest getSessionNetworkRequest(int clientId, int sessionId, int peerId,
+    private NetworkRequest getSessionNetworkRequest(int clientId, int sessionId, Object peerHandle,
             int role, String token) throws Exception {
         final WifiNanManager mgr = new WifiNanManager(mMockContext, mMockNanService);
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -624,7 +625,7 @@ public class WifiNanDataPathStateManagerTest {
         mMockLooper.dispatchAll();
         verify(mockSessionCallback).onPublishStarted(publishSession.capture());
 
-        String ns = publishSession.getValue().createNetworkSpecifier(role, peerId,
+        String ns = publishSession.getValue().createNetworkSpecifier(role, peerHandle,
                 (token == null) ? null : token.getBytes());
 
         NetworkCapabilities nc = new NetworkCapabilities();
