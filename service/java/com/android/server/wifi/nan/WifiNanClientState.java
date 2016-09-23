@@ -59,6 +59,7 @@ public class WifiNanClientState {
     private final int mUid;
     private final int mPid;
     private final String mCallingPackage;
+    private final boolean mNotifyIdentityChange;
 
     private AppOpsManager mAppOps;
 
@@ -66,7 +67,8 @@ public class WifiNanClientState {
     private byte[] mLastDiscoveryInterfaceMac = ALL_ZERO_MAC;
 
     public WifiNanClientState(Context context, int clientId, int uid, int pid,
-            String callingPackage, IWifiNanEventCallback callback, ConfigRequest configRequest) {
+            String callingPackage, IWifiNanEventCallback callback, ConfigRequest configRequest,
+            boolean notifyIdentityChange) {
         mContext = context;
         mClientId = clientId;
         mUid = uid;
@@ -74,6 +76,7 @@ public class WifiNanClientState {
         mCallingPackage = callingPackage;
         mCallback = callback;
         mConfigRequest = configRequest;
+        mNotifyIdentityChange = notifyIdentityChange;
 
         mAppOps = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
     }
@@ -190,15 +193,12 @@ public class WifiNanClientState {
     public void onInterfaceAddressChange(byte[] mac) {
         if (VDBG) {
             Log.v(TAG,
-                    "onInterfaceAddressChange: mClientId=" + mClientId
-                            + ", mEnableIdentityChangeCallback="
-                            + mConfigRequest.mEnableIdentityChangeCallback + ", mac="
-                            + String.valueOf(HexEncoding.encode(mac))
-                            + ", mLastDiscoveryInterfaceMac=" + String.valueOf(
-                            HexEncoding.encode(mLastDiscoveryInterfaceMac)));
+                    "onInterfaceAddressChange: mClientId=" + mClientId + ", mNotifyIdentityChange="
+                            + mNotifyIdentityChange + ", mac=" + String.valueOf(
+                            HexEncoding.encode(mac)) + ", mLastDiscoveryInterfaceMac="
+                            + String.valueOf(HexEncoding.encode(mLastDiscoveryInterfaceMac)));
         }
-        if (mConfigRequest.mEnableIdentityChangeCallback && !Arrays.equals(mac,
-                mLastDiscoveryInterfaceMac)) {
+        if (mNotifyIdentityChange && !Arrays.equals(mac, mLastDiscoveryInterfaceMac)) {
             try {
                 boolean hasPermission = hasLocationingPermission();
                 if (VDBG) Log.v(TAG, "hasPermission=" + hasPermission);
@@ -224,16 +224,15 @@ public class WifiNanClientState {
     public void onClusterChange(int flag, byte[] mac, byte[] currentDiscoveryInterfaceMac) {
         if (VDBG) {
             Log.v(TAG,
-                    "onClusterChange: mClientId=" + mClientId + ", mEnableIdentityChangeCallback="
-                            + mConfigRequest.mEnableIdentityChangeCallback + ", mac="
-                            + String.valueOf(HexEncoding.encode(mac))
-                            + ", currentDiscoveryInterfaceMac=" + String.valueOf(
-                            HexEncoding.encode(currentDiscoveryInterfaceMac))
+                    "onClusterChange: mClientId=" + mClientId + ", mNotifyIdentityChange="
+                            + mNotifyIdentityChange + ", mac=" + String.valueOf(
+                            HexEncoding.encode(mac)) + ", currentDiscoveryInterfaceMac="
+                            + String.valueOf(HexEncoding.encode(currentDiscoveryInterfaceMac))
                             + ", mLastDiscoveryInterfaceMac=" + String.valueOf(
                             HexEncoding.encode(mLastDiscoveryInterfaceMac)));
         }
-        if (mConfigRequest.mEnableIdentityChangeCallback && !Arrays.equals(
-                currentDiscoveryInterfaceMac, mLastDiscoveryInterfaceMac)) {
+        if (mNotifyIdentityChange && !Arrays.equals(currentDiscoveryInterfaceMac,
+                mLastDiscoveryInterfaceMac)) {
             try {
                 boolean hasPermission = hasLocationingPermission();
                 if (VDBG) Log.v(TAG, "hasPermission=" + hasPermission);
