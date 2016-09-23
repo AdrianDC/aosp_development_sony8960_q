@@ -19,8 +19,8 @@ package com.android.server.wifi.nan;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanAttachCallback;
 import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
-import android.net.wifi.nan.WifiNanEventCallback;
 import android.util.Log;
 
 import com.android.server.wifi.WifiNative;
@@ -713,7 +713,7 @@ public class WifiNanNative {
                 /*
                  * TODO: b/27914592 all of these codes will be cleaned-up/reduced.
                  */
-                return WifiNanEventCallback.REASON_OTHER;
+                return WifiNanAttachCallback.REASON_OTHER;
             case NAN_STATUS_INVALID_RSSI_CLOSE_VALUE:
             case NAN_STATUS_INVALID_RSSI_MIDDLE_VALUE:
             case NAN_STATUS_INVALID_HOP_COUNT_LIMIT:
@@ -740,10 +740,10 @@ public class WifiNanNative {
             case NAN_STATUS_INVALID_ONGOING_SCAN_PERIOD:
             case NAN_STATUS_INVALID_DW_INTERVAL_VALUE:
             case NAN_STATUS_INVALID_DB_INTERVAL_VALUE:
-                return WifiNanEventCallback.REASON_INVALID_ARGS;
+                return WifiNanAttachCallback.REASON_INVALID_ARGS;
         }
 
-        return WifiNanEventCallback.REASON_OTHER;
+        return WifiNanAttachCallback.REASON_OTHER;
     }
 
     private static int translateHalStatusToNanSessionCallbackTerminate(int halStatus) {
