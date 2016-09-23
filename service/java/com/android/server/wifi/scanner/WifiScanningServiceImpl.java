@@ -63,6 +63,7 @@ import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -878,6 +879,10 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             // Cache the results here so that apps can retrieve them.
             mCachedScanResults = results.getResults();
             sendScanResultBroadcast(true);
+        }
+
+        List<ScanResult> getCachedScanResultsAsList() {
+            return Arrays.asList(mCachedScanResults);
         }
     }
 
@@ -2661,6 +2666,38 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
         if (mPnoScanStateMachine != null) {
             mPnoScanStateMachine.dump(fd, pw, args);
+        }
+        pw.println();
+
+        if (mSingleScanStateMachine != null) {
+            pw.println("Latest scan results:");
+            List<ScanResult> scanResults = mSingleScanStateMachine.getCachedScanResultsAsList();
+            long nowMs = System.currentTimeMillis();
+            if (scanResults != null && scanResults.size() != 0) {
+                pw.println("    BSSID              Frequency  RSSI  Age(sec)   SSID "
+                        + "                                Flags");
+                for (ScanResult r : scanResults) {
+                    String age;
+                    if (r.seen <= 0) {
+                        age = "___?___";
+                    } else if (nowMs < r.seen) {
+                        age = "  0.000";
+                    } else if (r.seen < nowMs - 1000000) {
+                        age = ">1000.0";
+                    } else {
+                        age = String.format("%3.3f", (nowMs - r.seen) / 1000.0);
+                    }
+                    String ssid = r.SSID == null ? "" : r.SSID;
+                    pw.printf("  %17s  %9d  %5d   %7s    %-32s  %s\n",
+                              r.BSSID,
+                              r.frequency,
+                              r.level,
+                              age,
+                              String.format("%1.32s", ssid),
+                              r.capabilities);
+                }
+            }
+            pw.println();
         }
     }
 

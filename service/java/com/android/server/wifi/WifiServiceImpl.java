@@ -1563,32 +1563,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             mSettingsStore.dump(fd, pw, args);
             mNotificationController.dump(fd, pw, args);
             mTrafficPoller.dump(fd, pw, args);
-
-            pw.println("Latest scan results:");
-            List<ScanResult> scanResults = mWifiStateMachine.syncGetScanResultsList();
-            long nowMs = System.currentTimeMillis();
-            if (scanResults != null && scanResults.size() != 0) {
-                pw.println("    BSSID              Frequency  RSSI    Age      SSID " +
-                        "                                Flags");
-                for (ScanResult r : scanResults) {
-                    long ageSec = 0;
-                    long ageMilli = 0;
-                    if (nowMs > r.seen && r.seen > 0) {
-                        ageSec = (nowMs - r.seen) / 1000;
-                        ageMilli = (nowMs - r.seen) % 1000;
-                    }
-                    String candidate = " ";
-                    if (r.isAutoJoinCandidate > 0) candidate = "+";
-                    pw.printf("  %17s  %9d  %5d  %3d.%03d%s   %-32s  %s\n",
-                                             r.BSSID,
-                                             r.frequency,
-                                             r.level,
-                                             ageSec, ageMilli,
-                                             candidate,
-                                             r.SSID == null ? "" : r.SSID,
-                                             r.capabilities);
-                }
-            }
             pw.println();
             pw.println("Locks held:");
             mWifiLockManager.dump(pw);
