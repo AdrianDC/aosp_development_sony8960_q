@@ -419,9 +419,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private final IpManager mIpManager;
 
-    /* Tracks current frequency mode */
-    private AtomicInteger mFrequencyBand = new AtomicInteger(WifiManager.WIFI_FREQUENCY_BAND_AUTO);
-
     // Channel for sending replies.
     private AsyncChannel mReplyChannel = new AsyncChannel();
 
@@ -544,8 +541,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private int testNetworkDisconnectCounter = 0;
 
-    /* Set the frequency band */
-    static final int CMD_SET_FREQUENCY_BAND                             = BASE + 90;
     /* Enable TDLS on a specific MAC address */
     static final int CMD_ENABLE_TDLS                                    = BASE + 92;
 
@@ -2010,35 +2005,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-
-    /**
-     * Set the operational frequency band
-     *
-     * @param band
-     * @param persist {@code true} if the setting should be remembered.
-     */
-    public void setFrequencyBand(int band, boolean persist) {
-        if (persist) {
-            Settings.Global.putInt(mContext.getContentResolver(),
-                    Settings.Global.WIFI_FREQUENCY_BAND,
-                    band);
-        }
-        sendMessage(CMD_SET_FREQUENCY_BAND, band, 0);
-    }
-
     /**
      * Enable TDLS for a specific MAC address
      */
     public void enableTdls(String remoteMacAddress, boolean enable) {
         int enabler = enable ? 1 : 0;
         sendMessage(CMD_ENABLE_TDLS, enabler, 0, remoteMacAddress);
-    }
-
-    /**
-     * Returns the operational frequency band
-     */
-    public int getFrequencyBand() {
-        return mFrequencyBand.get();
     }
 
     /**
@@ -2758,26 +2730,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private void checkAndSetConnectivityInstance() {
         if (mCm == null) {
             mCm = (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-        }
-    }
-
-
-    /**
-     * Set the frequency band from the system setting value, if any.
-     */
-    private void setFrequencyBand() {
-        int band = WifiManager.WIFI_FREQUENCY_BAND_AUTO;
-
-        if (mWifiNative.setBand(band)) {
-            mFrequencyBand.set(band);
-            if (mWifiConnectivityManager != null) {
-                mWifiConnectivityManager.setUserPreferredBand(band);
-            }
-            if (mVerboseLoggingEnabled) {
-                logd("done set frequency band " + band);
-            }
-        } else {
-            loge("Failed to set frequency band " + band);
         }
     }
 
@@ -3819,7 +3771,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
                 case WifiMonitor.WPS_OVERLAP_EVENT:
                 case CMD_SET_OPERATIONAL_MODE:
-                case CMD_SET_FREQUENCY_BAND:
                 case CMD_RSSI_POLL:
                 case DhcpClient.CMD_PRE_DHCP_ACTION:
                 case DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE:
@@ -4150,8 +4101,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mLastSignalLevel = -1;
 
                     mWifiInfo.setMacAddress(mWifiNative.getMacAddress());
-                    /* set frequency band of operation */
-                    setFrequencyBand();
                     mWifiConfigManager.loadFromStore();
                     initializeWpsDetails();
                     sendSupplicantConnectionChangedBroadcast(true);
@@ -4181,7 +4130,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_START_AP:
                 case CMD_STOP_AP:
                 case CMD_SET_OPERATIONAL_MODE:
-                case CMD_SET_FREQUENCY_BAND:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
                     deferMessage(message);
                     break;
@@ -4354,23 +4302,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     boolean ok = mWifiNative.ping();
                     replyToMessage(message, message.what, ok ? SUCCESS : FAILURE);
                     break;
-                case CMD_SET_FREQUENCY_BAND:
-                    int band =  message.arg1;
-                    if (mVerboseLoggingEnabled) log("set frequency band " + band);
-                    if (mWifiNative.setBand(band)) {
-
-                        if (mVerboseLoggingEnabled)  logd("did set frequency band " + band);
-
-                        mFrequencyBand.set(band);
-                        // Flush old data - like scan results
-                        mWifiNative.bssFlush();
-
-                        if (mVerboseLoggingEnabled)  logd("done set frequency band " + band);
-
-                    } else {
-                        loge("Failed to set frequency band " + band);
-                    }
-                    break;
                 case CMD_GET_CAPABILITY_FREQ:
                     String freqs = mWifiNative.getFreqCapability();
                     replyToMessage(message, message.what, freqs);
@@ -4536,7 +4467,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_START_AP:
                 case CMD_STOP_AP:
                 case CMD_SET_OPERATIONAL_MODE:
-                case CMD_SET_FREQUENCY_BAND:
                     deferMessage(message);
                     break;
                 default:
@@ -4576,7 +4506,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_START_AP:
                 case CMD_STOP_AP:
                 case CMD_SET_OPERATIONAL_MODE:
-                case CMD_SET_FREQUENCY_BAND:
                 case CMD_START_SCAN:
                 case CMD_DISCONNECT:
                 case CMD_REASSOCIATE:

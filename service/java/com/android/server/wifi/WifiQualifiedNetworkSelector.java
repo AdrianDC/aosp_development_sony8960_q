@@ -166,15 +166,6 @@ public class WifiQualifiedNetworkSelector {
         return mFilteredScanDetails;
     }
 
-    /**
-     * Set the user preferred band.
-     *
-     * @param band preferred band user selected
-     */
-    public void setUserPreferredBand(int band) {
-        mUserPreferedBand = band;
-    }
-
     WifiQualifiedNetworkSelector(WifiConfigManager configManager, Context context,
             WifiInfo wifiInfo, Clock clock) {
         mWifiConfigManager = configManager;
