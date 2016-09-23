@@ -965,7 +965,7 @@ public class WifiConnectivityManagerTest {
      *  results.
      *
      * Expected behavior: WifiConnectivityManager doesn't invoke
-     * WifiStateMachine.autoConnectToNetwork() when full band scan
+     * WifiStateMachine.startConnectToNetwork() when full band scan
      * results are not available.
      */
     @Test
@@ -982,7 +982,7 @@ public class WifiConnectivityManagerTest {
         mWifiConnectivityManager.forceConnectivityScan();
 
         // No roaming because no full band scan results.
-        verify(mWifiStateMachine, times(0)).autoConnectToNetwork(
+        verify(mWifiStateMachine, times(0)).startConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
 
         // Set up as full band scan results.
@@ -993,7 +993,7 @@ public class WifiConnectivityManagerTest {
         mWifiConnectivityManager.forceConnectivityScan();
 
         // Roaming attempt because full band scan results are available.
-        verify(mWifiStateMachine).autoConnectToNetwork(
+        verify(mWifiStateMachine).startConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
     }
 }
