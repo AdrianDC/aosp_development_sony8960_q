@@ -154,6 +154,8 @@ public class WifiConnectivityManager {
     private boolean mPeriodicScanTimerSet = false;
     // Device configs
     private boolean mEnableAutoJoinWhenAssociated;
+    private boolean mWaitForFullBandScanResults = false;
+
     // PNO settings
     private int mMin5GHzRssi;
     private int mMin24GHzRssi;
@@ -327,7 +329,19 @@ public class WifiConnectivityManager {
         public void onResults(WifiScanner.ScanData[] results) {
             if (!mWifiEnabled || !mWifiConnectivityManagerEnabled) {
                 clearScanDetails();
+                mWaitForFullBandScanResults = false;
                 return;
+            }
+
+            // Full band scan results only.
+            if (mWaitForFullBandScanResults) {
+                if (!results[0].isAllChannelsScanned()) {
+                    localLog("AllSingleScanListener waiting for full band scan results.");
+                    clearScanDetails();
+                    return;
+                } else {
+                    mWaitForFullBandScanResults = false;
+                }
             }
 
             boolean wasConnectAttempted = handleScanResults(mScanDetails, "AllSingleScanListener");
@@ -1073,7 +1087,8 @@ public class WifiConnectivityManager {
     public void forceConnectivityScan() {
         Log.i(TAG, "forceConnectivityScan");
 
-        startConnectivityScan(SCAN_IMMEDIATELY);
+        mWaitForFullBandScanResults = true;
+        startSingleScan(true);
     }
 
     /**
@@ -1107,6 +1122,7 @@ public class WifiConnectivityManager {
             stopConnectivityScan();
             resetLastPeriodicSingleScanTimeStamp();
             mLastConnectionAttemptBssid = null;
+            mWaitForFullBandScanResults = false;
         } else if (mWifiConnectivityManagerEnabled) {
            startConnectivityScan(SCAN_IMMEDIATELY);
         }
@@ -1124,6 +1140,7 @@ public class WifiConnectivityManager {
             stopConnectivityScan();
             resetLastPeriodicSingleScanTimeStamp();
             mLastConnectionAttemptBssid = null;
+            mWaitForFullBandScanResults = false;
         } else if (mWifiEnabled) {
            startConnectivityScan(SCAN_IMMEDIATELY);
         }
