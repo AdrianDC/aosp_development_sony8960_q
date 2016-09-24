@@ -26,7 +26,6 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiLinkLayerStats;
-import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiWakeReasonAndCounts;
@@ -829,26 +828,6 @@ public class WifiNative {
             && doBooleanCommand("DRIVER RXFILTER-START");
     }
 
-    /**
-     * Set the operational frequency band
-     * @param band One of
-     *     {@link WifiManager#WIFI_FREQUENCY_BAND_AUTO},
-     *     {@link WifiManager#WIFI_FREQUENCY_BAND_5GHZ},
-     *     {@link WifiManager#WIFI_FREQUENCY_BAND_2GHZ},
-     * @return {@code true} if the operation succeeded, {@code false} otherwise
-     */
-    public boolean setBand(int band) {
-        String bandstr;
-
-        if (band == WifiManager.WIFI_FREQUENCY_BAND_5GHZ)
-            bandstr = "5G";
-        else if (band == WifiManager.WIFI_FREQUENCY_BAND_2GHZ)
-            bandstr = "2G";
-        else
-            bandstr = "AUTO";
-        return doBooleanCommand("SET SETBAND " + bandstr);
-    }
-
     public static final int BLUETOOTH_COEXISTENCE_MODE_ENABLED     = 0;
     public static final int BLUETOOTH_COEXISTENCE_MODE_DISABLED    = 1;
     public static final int BLUETOOTH_COEXISTENCE_MODE_SENSE       = 2;
@@ -960,10 +939,6 @@ public class WifiNative {
      */
     public String signalPoll() {
         return doStringCommandWithoutLogging("SIGNAL_POLL");
-    }
-
-    public void bssFlush() {
-        doBooleanCommand("BSS_FLUSH 0");
     }
 
     public boolean startWpsPbc(String bssid) {
