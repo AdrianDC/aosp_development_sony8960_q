@@ -24,8 +24,8 @@ import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanAttachCallback;
 import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
-import android.net.wifi.nan.WifiNanEventCallback;
 import android.net.wifi.nan.WifiNanManager;
 import android.os.Bundle;
 import android.os.Looper;
@@ -169,6 +169,7 @@ public class WifiNanStateManager {
     private static final String MESSAGE_BUNDLE_KEY_CALLING_PACKAGE = "calling_package";
     private static final String MESSAGE_BUNDLE_KEY_SENT_MESSAGE = "send_message";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_ARRIVAL_SEQ = "message_arrival_seq";
+    private static final String MESSAGE_BUNDLE_KEY_NOTIFY_IDENTITY_CHANGE = "notify_identity_chg";
 
     /*
      * Asynchronous access with no lock
@@ -250,7 +251,8 @@ public class WifiNanStateManager {
      * Place a request for a new client connection on the state machine queue.
      */
     public void connect(int clientId, int uid, int pid, String callingPackage,
-            IWifiNanEventCallback callback, ConfigRequest configRequest) {
+            IWifiNanEventCallback callback, ConfigRequest configRequest,
+            boolean notifyOnIdentityChanged) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_CONNECT;
         msg.arg2 = clientId;
@@ -259,6 +261,8 @@ public class WifiNanStateManager {
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_UID, uid);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_PID, pid);
         msg.getData().putString(MESSAGE_BUNDLE_KEY_CALLING_PACKAGE, callingPackage);
+        msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_NOTIFY_IDENTITY_CHANGE,
+                notifyOnIdentityChanged);
         mSm.sendMessage(msg);
     }
 
@@ -1186,9 +1190,11 @@ public class WifiNanStateManager {
                     int pid = msg.getData().getInt(MESSAGE_BUNDLE_KEY_PID);
                     String callingPackage = msg.getData().getString(
                             MESSAGE_BUNDLE_KEY_CALLING_PACKAGE);
+                    boolean notifyIdentityChange = msg.getData().getBoolean(
+                            MESSAGE_BUNDLE_KEY_NOTIFY_IDENTITY_CHANGE);
 
                     waitForResponse = connectLocal(mCurrentTransactionId, clientId, uid, pid,
-                            callingPackage, callback, configRequest);
+                            callingPackage, callback, configRequest, notifyIdentityChange);
                     break;
                 }
                 case COMMAND_TYPE_DISCONNECT: {
@@ -1531,7 +1537,7 @@ public class WifiNanStateManager {
              */
             switch (msg.arg1) {
                 case COMMAND_TYPE_CONNECT: {
-                    onConfigFailedLocal(mCurrentCommand, WifiNanEventCallback.REASON_OTHER);
+                    onConfigFailedLocal(mCurrentCommand, WifiNanAttachCallback.REASON_OTHER);
                     break;
                 }
                 case COMMAND_TYPE_DISCONNECT: {
@@ -1539,7 +1545,7 @@ public class WifiNanStateManager {
                      * Will only get here on DISCONNECT if was downgrading. The
                      * callback will do a NOP - but should still call it.
                      */
-                    onConfigFailedLocal(mCurrentCommand, WifiNanEventCallback.REASON_OTHER);
+                    onConfigFailedLocal(mCurrentCommand, WifiNanAttachCallback.REASON_OTHER);
                     break;
                 }
                 case COMMAND_TYPE_TERMINATE_SESSION: {
@@ -1742,11 +1748,13 @@ public class WifiNanStateManager {
      */
 
     private boolean connectLocal(short transactionId, int clientId, int uid, int pid,
-            String callingPackage, IWifiNanEventCallback callback, ConfigRequest configRequest) {
+            String callingPackage, IWifiNanEventCallback callback, ConfigRequest configRequest,
+            boolean notifyIdentityChange) {
         if (VDBG) {
             Log.v(TAG, "connectLocal(): transactionId=" + transactionId + ", clientId=" + clientId
                     + ", uid=" + uid + ", pid=" + pid + ", callingPackage=" + callingPackage
-                    + ", callback=" + callback + ", configRequest=" + configRequest);
+                    + ", callback=" + callback + ", configRequest=" + configRequest
+                    + ", notifyIdentityChange=" + notifyIdentityChange);
         }
 
         if (!mUsageEnabled) {
@@ -1759,10 +1767,10 @@ public class WifiNanStateManager {
         }
 
         if (mCurrentNanConfiguration != null
-                && !mCurrentNanConfiguration.equalsOnTheAir(configRequest)) {
+                && !mCurrentNanConfiguration.equals(configRequest)) {
             try {
                 callback.onConnectFail(
-                        WifiNanEventCallback.REASON_ALREADY_CONNECTED_INCOMPAT_CONFIG);
+                        WifiNanAttachCallback.REASON_ALREADY_CONNECTED_INCOMPAT_CONFIG);
             } catch (RemoteException e) {
                 Log.w(TAG, "connectLocal onConnectFail(): RemoteException (FYI): " + e);
             }
@@ -1777,7 +1785,7 @@ public class WifiNanStateManager {
                 Log.w(TAG, "connectLocal onConnectSuccess(): RemoteException (FYI): " + e);
             }
             WifiNanClientState client = new WifiNanClientState(mContext, clientId, uid, pid,
-                    callingPackage, callback, configRequest);
+                    callingPackage, callback, configRequest, notifyIdentityChange);
             client.onInterfaceAddressChange(mCurrentDiscoveryInterfaceMac);
             mClients.append(clientId, client);
             return false;
@@ -2063,10 +2071,12 @@ public class WifiNanStateManager {
                     .getParcelable(MESSAGE_BUNDLE_KEY_CONFIG);
             int uid = data.getInt(MESSAGE_BUNDLE_KEY_UID);
             int pid = data.getInt(MESSAGE_BUNDLE_KEY_PID);
+            boolean notifyIdentityChange = data.getBoolean(
+                    MESSAGE_BUNDLE_KEY_NOTIFY_IDENTITY_CHANGE);
             String callingPackage = data.getString(MESSAGE_BUNDLE_KEY_CALLING_PACKAGE);
 
             WifiNanClientState client = new WifiNanClientState(mContext, clientId, uid, pid,
-                    callingPackage, callback, configRequest);
+                    callingPackage, callback, configRequest, notifyIdentityChange);
             mClients.put(clientId, client);
             try {
                 callback.onConnectSuccess(clientId);
@@ -2506,14 +2516,12 @@ public class WifiNanStateManager {
         boolean clusterIdValid = false;
         int clusterLow = 0;
         int clusterHigh = ConfigRequest.CLUSTER_ID_MAX;
-        boolean identityChange = false;
         if (configRequest != null) {
             support5gBand = configRequest.mSupport5gBand;
             masterPreference = configRequest.mMasterPreference;
             clusterIdValid = true;
             clusterLow = configRequest.mClusterLow;
             clusterHigh = configRequest.mClusterHigh;
-            identityChange = configRequest.mEnableIdentityChangeCallback;
         }
         for (int i = 0; i < mClients.size(); ++i) {
             ConfigRequest cr = mClients.valueAt(i).getConfigRequest();
@@ -2534,15 +2542,10 @@ public class WifiNanStateManager {
                 }
                 clusterIdValid = true;
             }
-
-            if (cr.mEnableIdentityChangeCallback) {
-                identityChange = true;
-            }
         }
         return new ConfigRequest.Builder().setSupport5gBand(support5gBand)
                 .setMasterPreference(masterPreference).setClusterLow(clusterLow)
-                .setClusterHigh(clusterHigh).setEnableIdentityChangeCallback(identityChange)
-                .build();
+                .setClusterHigh(clusterHigh).build();
     }
 
     private static String messageToString(Message msg) {
