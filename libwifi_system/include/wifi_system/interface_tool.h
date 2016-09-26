@@ -25,6 +25,10 @@ class InterfaceTool {
   InterfaceTool() = default;
   virtual ~InterfaceTool() = default;
 
+  // Get the interface state of |if_name|.
+  // Returns true iff the interface is up.
+  virtual bool GetUpState(const char* if_name);
+
   // Set the interface named by |if_name| up or down.
   // Returns true on success, false otherwise.
   virtual bool SetUpState(const char* if_name, bool request_up);
