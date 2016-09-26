@@ -21,7 +21,9 @@ LOCAL_CPPFLAGS := -std=c++11 -Wall -Wno-unused-parameter -Werror -Wextra
 LOCAL_SRC_FILES := \
     main.cpp \
     failure_reason_util.cpp \
-    wifi_hal_service.cpp
+    wifi_chip_service.cpp \
+    wifi_hal_service.cpp \
+    wifi_hal_state.cpp
 LOCAL_SHARED_LIBRARIES := \
     android.hardware.wifi@1.0 \
     libbase \
