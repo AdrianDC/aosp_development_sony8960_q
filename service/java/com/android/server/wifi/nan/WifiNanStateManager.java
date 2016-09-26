@@ -24,8 +24,6 @@ import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanAttachCallback;
-import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.WifiNanManager;
 import android.os.Bundle;
 import android.os.Looper;
@@ -1091,8 +1089,8 @@ public class WifiNanStateManager {
 
                         int retryCount = sentMessage.getData()
                                 .getInt(MESSAGE_BUNDLE_KEY_RETRY_COUNT);
-                        if (retryCount > 0
-                                && reason == WifiNanDiscoverySessionCallback.REASON_TX_FAIL) {
+                        if (retryCount > 0 && (reason == WifiNanNative.NAN_STATUS_NO_OTA_ACK
+                                || reason == WifiNanNative.NAN_STATUS_TX_FAIL)) {
                             if (DBG) {
                                 Log.d(TAG,
                                         "NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL: transactionId="
@@ -1537,7 +1535,7 @@ public class WifiNanStateManager {
              */
             switch (msg.arg1) {
                 case COMMAND_TYPE_CONNECT: {
-                    onConfigFailedLocal(mCurrentCommand, WifiNanAttachCallback.REASON_OTHER);
+                    onConfigFailedLocal(mCurrentCommand, WifiNanNative.NAN_STATUS_ERROR);
                     break;
                 }
                 case COMMAND_TYPE_DISCONNECT: {
@@ -1545,7 +1543,7 @@ public class WifiNanStateManager {
                      * Will only get here on DISCONNECT if was downgrading. The
                      * callback will do a NOP - but should still call it.
                      */
-                    onConfigFailedLocal(mCurrentCommand, WifiNanAttachCallback.REASON_OTHER);
+                    onConfigFailedLocal(mCurrentCommand, WifiNanNative.NAN_STATUS_ERROR);
                     break;
                 }
                 case COMMAND_TYPE_TERMINATE_SESSION: {
@@ -1553,23 +1551,21 @@ public class WifiNanStateManager {
                     break;
                 }
                 case COMMAND_TYPE_PUBLISH: {
-                    onSessionConfigFailLocal(mCurrentCommand, true,
-                            WifiNanDiscoverySessionCallback.REASON_OTHER);
+                    onSessionConfigFailLocal(mCurrentCommand, true, WifiNanNative.NAN_STATUS_ERROR);
                     break;
                 }
                 case COMMAND_TYPE_UPDATE_PUBLISH: {
-                    onSessionConfigFailLocal(mCurrentCommand, true,
-                            WifiNanDiscoverySessionCallback.REASON_OTHER);
+                    onSessionConfigFailLocal(mCurrentCommand, true, WifiNanNative.NAN_STATUS_ERROR);
                     break;
                 }
                 case COMMAND_TYPE_SUBSCRIBE: {
                     onSessionConfigFailLocal(mCurrentCommand, false,
-                            WifiNanDiscoverySessionCallback.REASON_OTHER);
+                            WifiNanNative.NAN_STATUS_ERROR);
                     break;
                 }
                 case COMMAND_TYPE_UPDATE_SUBSCRIBE: {
                     onSessionConfigFailLocal(mCurrentCommand, false,
-                            WifiNanDiscoverySessionCallback.REASON_OTHER);
+                            WifiNanNative.NAN_STATUS_ERROR);
                     break;
                 }
                 case COMMAND_TYPE_ENQUEUE_SEND_MESSAGE: {
@@ -1579,8 +1575,7 @@ public class WifiNanStateManager {
                 case COMMAND_TYPE_TRANSMIT_NEXT_MESSAGE: {
                     Message sentMessage = mCurrentCommand.getData().getParcelable(
                             MESSAGE_BUNDLE_KEY_SENT_MESSAGE);
-                    onMessageSendFailLocal(sentMessage,
-                            WifiNanDiscoverySessionCallback.REASON_TX_FAIL);
+                    onMessageSendFailLocal(sentMessage, WifiNanNative.NAN_STATUS_ERROR);
                     mSendQueueBlocked = false;
                     transmitNextMessage();
                     break;
@@ -1689,7 +1684,7 @@ public class WifiNanStateManager {
                                 + ", due to messageEnqueueTime=" + messageEnqueueTime
                                 + ", currentTime=" + currentTime);
                     }
-                    onMessageSendFailLocal(message, WifiNanDiscoverySessionCallback.REASON_TX_FAIL);
+                    onMessageSendFailLocal(message, WifiNanNative.NAN_STATUS_ERROR);
                     it.remove();
                     first = false;
                 } else {
@@ -1769,8 +1764,7 @@ public class WifiNanStateManager {
         if (mCurrentNanConfiguration != null
                 && !mCurrentNanConfiguration.equals(configRequest)) {
             try {
-                callback.onConnectFail(
-                        WifiNanAttachCallback.REASON_ALREADY_CONNECTED_INCOMPAT_CONFIG);
+                callback.onConnectFail(WifiNanNative.NAN_STATUS_ERROR);
             } catch (RemoteException e) {
                 Log.w(TAG, "connectLocal onConnectFail(): RemoteException (FYI): " + e);
             }

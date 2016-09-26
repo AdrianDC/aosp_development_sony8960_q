@@ -25,7 +25,6 @@ import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanManager;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanAttachCallback;
 import android.net.wifi.nan.WifiNanDiscoveryBaseSession;
 import android.os.Binder;
 import android.os.HandlerThread;
@@ -185,7 +184,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         } catch (RemoteException e) {
             Log.e(TAG, "Error on linkToDeath - " + e);
             try {
-                callback.onConnectFail(WifiNanAttachCallback.REASON_OTHER);
+                callback.onConnectFail(WifiNanNative.NAN_STATUS_ERROR);
             } catch (RemoteException e1) {
                 Log.e(TAG, "Error on onConnectFail()");
             }
