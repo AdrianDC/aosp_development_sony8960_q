@@ -22,6 +22,32 @@ namespace android {
 namespace hardware {
 namespace wifi {
 
+std::string LegacyErrorToString(wifi_error error) {
+  switch(error) {
+    case WIFI_SUCCESS:
+      return "SUCCESS";
+    case WIFI_ERROR_UNINITIALIZED:
+      return "UNINITIALIZED";
+    case WIFI_ERROR_NOT_AVAILABLE:
+      return "NOT_AVAILABLE";
+    case WIFI_ERROR_NOT_SUPPORTED:
+      return "NOT_SUPPORTED";
+    case WIFI_ERROR_INVALID_ARGS:
+      return "INVALID_ARGS";
+    case WIFI_ERROR_INVALID_REQUEST_ID:
+      return "INVALID_REQUEST_ID";
+    case WIFI_ERROR_TIMED_OUT:
+      return "TIMED_OUT";
+    case WIFI_ERROR_TOO_MANY_REQUESTS:
+      return "TOO_MANY_REQUESTS";
+    case WIFI_ERROR_OUT_OF_MEMORY:
+      return "OUT_OF_MEMORY";
+    case WIFI_ERROR_UNKNOWN:
+    default:
+      return "UNKNOWN";
+  }
+}
+
 V1_0::FailureReason CreateFailureReason(
     CommandFailureReason reason, const std::string& description) {
   V1_0::FailureReason result;
