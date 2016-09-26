@@ -617,7 +617,7 @@ public class WifiNanDataPathStateManagerTest {
         clientProxyCallback.getValue().onConnectSuccess(clientId);
         mMockLooper.dispatchAll();
         verify(mockCallback).onAttached(sessionCaptor.capture());
-        sessionCaptor.getValue().publish(publishConfig, mockSessionCallback);
+        sessionCaptor.getValue().publish(mMockLooperHandler, publishConfig, mockSessionCallback);
         verify(mMockNanService).publish(eq(clientId), eq(publishConfig),
                 sessionProxyCallback.capture());
         sessionProxyCallback.getValue().onSessionStarted(sessionId);
