@@ -311,7 +311,7 @@ public class WifiNanManagerTest {
         inOrder.verify(mockSessionCallback).onPublishStarted(publishSession.capture());
 
         // (3) ...
-        publishSession.getValue().sendMessage(peerId, string1.getBytes(), messageId);
+        publishSession.getValue().sendMessage(peerId, messageId, string1.getBytes());
         sessionProxyCallback.getValue().onMatch(peerId, string1.getBytes(), string2.getBytes());
         sessionProxyCallback.getValue().onMessageReceived(peerId, string1.getBytes());
         sessionProxyCallback.getValue().onMessageSendFail(messageId, reason);
@@ -445,7 +445,7 @@ public class WifiNanManagerTest {
         inOrder.verify(mockSessionCallback).onSubscribeStarted(subscribeSession.capture());
 
         // (3) ...
-        subscribeSession.getValue().sendMessage(peerId, string1.getBytes(), messageId);
+        subscribeSession.getValue().sendMessage(peerId, messageId, string1.getBytes());
         sessionProxyCallback.getValue().onMatch(peerId, string1.getBytes(), string2.getBytes());
         sessionProxyCallback.getValue().onMessageReceived(peerId, string1.getBytes());
         sessionProxyCallback.getValue().onMessageSendFail(messageId, reason);
