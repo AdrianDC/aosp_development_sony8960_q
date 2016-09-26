@@ -26,6 +26,7 @@ class MockInterfaceTool : public InterfaceTool {
  public:
   ~MockInterfaceTool() override = default;
 
+  MOCK_METHOD1(GetUpState, bool(const char* if_name));
   MOCK_METHOD2(SetUpState, bool(const char* if_name, bool request_up));
   MOCK_METHOD1(SetWifiUpState, bool(bool request_up));
 
