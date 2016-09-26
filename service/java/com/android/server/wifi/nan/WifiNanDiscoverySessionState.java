@@ -19,7 +19,6 @@ package com.android.server.wifi.nan;
 import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.SparseArray;
@@ -36,7 +35,7 @@ import java.io.PrintWriter;
  * publish/subscribe ID, and MAC address caching (hiding) from clients.
  */
 public class WifiNanDiscoverySessionState {
-    private static final String TAG = "WifiNanDiscoverySessionState";
+    private static final String TAG = "WifiNanDiscSessionState";
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
 
@@ -116,7 +115,7 @@ public class WifiNanDiscoverySessionState {
         if (!mIsPublishSession) {
             Log.e(TAG, "A SUBSCRIBE session is being used to publish");
             try {
-                mCallback.onSessionConfigFail(WifiNanDiscoverySessionCallback.REASON_OTHER);
+                mCallback.onSessionConfigFail(WifiNanNative.NAN_STATUS_ERROR);
             } catch (RemoteException e) {
                 Log.e(TAG, "updatePublish: RemoteException=" + e);
             }
@@ -137,7 +136,7 @@ public class WifiNanDiscoverySessionState {
         if (mIsPublishSession) {
             Log.e(TAG, "A PUBLISH session is being used to subscribe");
             try {
-                mCallback.onSessionConfigFail(WifiNanDiscoverySessionCallback.REASON_OTHER);
+                mCallback.onSessionConfigFail(WifiNanNative.NAN_STATUS_ERROR);
             } catch (RemoteException e) {
                 Log.e(TAG, "updateSubscribe: RemoteException=" + e);
             }
@@ -164,8 +163,7 @@ public class WifiNanDiscoverySessionState {
             Log.e(TAG, "sendMessage: attempting to send a message to an address which didn't "
                     + "match/contact us");
             try {
-                mCallback.onMessageSendFail(messageId,
-                        WifiNanDiscoverySessionCallback.REASON_NO_MATCH_SESSION);
+                mCallback.onMessageSendFail(messageId, WifiNanNative.NAN_STATUS_ERROR);
             } catch (RemoteException e) {
                 Log.e(TAG, "sendMessage: RemoteException=" + e);
             }

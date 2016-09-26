@@ -26,7 +26,6 @@ import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
 import android.net.wifi.nan.TlvBufferUtils;
-import android.net.wifi.nan.WifiNanAttachCallback;
 import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
 import android.os.Bundle;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -379,7 +378,7 @@ public class WifiNanHalTest {
                 HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onConfigFailedResponse(transactionId,
-                WifiNanAttachCallback.REASON_INVALID_ARGS);
+                WifiNanNative.NAN_STATUS_INVALID_BAND_CONFIG_FLAGS);
         verifyNoMoreInteractions(mNanStateManager);
     }
 
@@ -416,7 +415,7 @@ public class WifiNanHalTest {
                 HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onSessionConfigFailResponse(transactionId, true,
-                WifiNanDiscoverySessionCallback.REASON_NO_RESOURCES);
+                WifiNanNative.NAN_STATUS_NO_SPACE_AVAILABLE);
         verifyNoMoreInteractions(mNanStateManager);
     }
 
@@ -468,7 +467,7 @@ public class WifiNanHalTest {
                 HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onSessionConfigFailResponse(transactionId, false,
-                WifiNanDiscoverySessionCallback.REASON_OTHER);
+                WifiNanNative.NAN_STATUS_DE_FAILURE);
         verifyNoMoreInteractions(mNanStateManager);
     }
 
@@ -516,7 +515,7 @@ public class WifiNanHalTest {
                 HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onMessageSendQueuedFailResponse(transactionId,
-                WifiNanDiscoverySessionCallback.REASON_OTHER);
+                WifiNanNative.NAN_STATUS_TIMEOUT);
         verifyNoMoreInteractions(mNanStateManager);
     }
 
@@ -768,7 +767,7 @@ public class WifiNanHalTest {
 
         WifiNanHalMock.callDisabled(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onNanDownNotification(WifiNanAttachCallback.REASON_OTHER);
+        verify(mNanStateManager).onNanDownNotification(WifiNanNative.NAN_STATUS_DE_FAILURE);
         verifyNoMoreInteractions(mNanStateManager);
     }
 
@@ -797,7 +796,7 @@ public class WifiNanHalTest {
         WifiNanHalMock.callTransmitFollowup(HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mNanStateManager).onMessageSendFailNotification(transactionId,
-                WifiNanDiscoverySessionCallback.REASON_TX_FAIL);
+                WifiNanNative.NAN_STATUS_TX_FAIL);
         verifyNoMoreInteractions(mNanStateManager);
     }
 
