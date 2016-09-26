@@ -19,7 +19,6 @@ package com.android.server.wifi.nan;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanAttachCallback;
 import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
 import android.util.Log;
 
@@ -617,6 +616,9 @@ public class WifiNanNative {
     public static final int NAN_RESPONSE_DP_RESPONDER_RESPONSE = 16;
     public static final int NAN_RESPONSE_DP_END = 17;
 
+    // TODO: place-holder until resolve error codes/feedback to user b/29443148
+    public static final int NAN_STATUS_ERROR = -1;
+
     // direct copy from wifi_nan.h: need to keep in sync
     /* NAN Protocol Response Codes */
     public static final int NAN_STATUS_SUCCESS = 0;
@@ -707,45 +709,6 @@ public class WifiNanNative {
     /* 9500 onwards vendor specific error codes */
     public static final int NAN_STATUS_NDP_VENDOR_SPECIFIC_ERROR = 9500;
 
-    private static int translateHalStatusToNanEventCallbackReason(int halStatus) {
-        switch (halStatus) {
-            case NAN_STATUS_SUCCESS:
-                /*
-                 * TODO: b/27914592 all of these codes will be cleaned-up/reduced.
-                 */
-                return WifiNanAttachCallback.REASON_OTHER;
-            case NAN_STATUS_INVALID_RSSI_CLOSE_VALUE:
-            case NAN_STATUS_INVALID_RSSI_MIDDLE_VALUE:
-            case NAN_STATUS_INVALID_HOP_COUNT_LIMIT:
-            case NAN_STATUS_INVALID_MASTER_PREFERENCE_VALUE:
-            case NAN_STATUS_INVALID_LOW_CLUSTER_ID_VALUE:
-            case NAN_STATUS_INVALID_HIGH_CLUSTER_ID_VALUE:
-            case NAN_STATUS_INVALID_BACKGROUND_SCAN_PERIOD:
-            case NAN_STATUS_INVALID_RSSI_PROXIMITY_VALUE:
-            case NAN_STATUS_INVALID_SCAN_CHANNEL:
-            case NAN_STATUS_INVALID_POST_NAN_CONNECTIVITY_CAPABILITIES_BITMAP:
-            case NAN_STATUS_INVALID_FA_MAP_NUMCHAN_VALUE:
-            case NAN_STATUS_INVALID_FA_MAP_DURATION_VALUE:
-            case NAN_STATUS_INVALID_FA_MAP_CLASS_VALUE:
-            case NAN_STATUS_INVALID_FA_MAP_CHANNEL_VALUE:
-            case NAN_STATUS_INVALID_FA_MAP_AVAILABILITY_INTERVAL_BITMAP_VALUE:
-            case NAN_STATUS_INVALID_FA_MAP_MAP_ID:
-            case NAN_STATUS_INVALID_POST_NAN_DISCOVERY_CONN_TYPE_VALUE:
-            case NAN_STATUS_INVALID_POST_NAN_DISCOVERY_DEVICE_ROLE_VALUE:
-            case NAN_STATUS_INVALID_POST_NAN_DISCOVERY_DURATION_VALUE:
-            case NAN_STATUS_INVALID_POST_NAN_DISCOVERY_BITMAP_VALUE:
-            case NAN_STATUS_MISSING_FUTHER_AVAILABILITY_MAP:
-            case NAN_STATUS_INVALID_BAND_CONFIG_FLAGS:
-            case NAN_STATUS_INVALID_RANDOM_FACTOR_UPDATE_TIME_VALUE:
-            case NAN_STATUS_INVALID_ONGOING_SCAN_PERIOD:
-            case NAN_STATUS_INVALID_DW_INTERVAL_VALUE:
-            case NAN_STATUS_INVALID_DB_INTERVAL_VALUE:
-                return WifiNanAttachCallback.REASON_INVALID_ARGS;
-        }
-
-        return WifiNanAttachCallback.REASON_OTHER;
-    }
-
     private static int translateHalStatusToNanSessionCallbackTerminate(int halStatus) {
         switch (halStatus) {
             case NAN_TERMINATED_REASON_TIMEOUT:
@@ -766,42 +729,6 @@ public class WifiNanNative {
         return WifiNanDiscoverySessionCallback.TERMINATE_REASON_FAIL;
     }
 
-    private static int translateHalStatusToNanSessionCallbackReason(int halStatus) {
-        switch (halStatus) {
-            case NAN_STATUS_TIMEOUT:
-            case NAN_STATUS_DE_FAILURE:
-            case NAN_STATUS_INVALID_MSG_VERSION:
-            case NAN_STATUS_INVALID_MSG_LEN:
-            case NAN_STATUS_INVALID_MSG_ID:
-            case NAN_STATUS_INVALID_HANDLE:
-                return WifiNanDiscoverySessionCallback.REASON_OTHER;
-            case NAN_STATUS_NO_SPACE_AVAILABLE:
-                return WifiNanDiscoverySessionCallback.REASON_NO_RESOURCES;
-            case NAN_STATUS_INVALID_PUBLISH_TYPE:
-            case NAN_STATUS_INVALID_TX_TYPE:
-            case NAN_STATUS_INVALID_MATCH_ALGORITHM:
-                return WifiNanDiscoverySessionCallback.REASON_INVALID_ARGS;
-            case NAN_STATUS_DISABLE_IN_PROGRESS:
-            case NAN_STATUS_INVALID_TLV_LEN:
-            case NAN_STATUS_INVALID_TLV_TYPE:
-            case NAN_STATUS_MISSING_TLV_TYPE:
-            case NAN_STATUS_INVALID_TOTAL_TLVS_LEN:
-            case NAN_STATUS_INVALID_MATCH_HANDLE:
-            case NAN_STATUS_INVALID_TLV_VALUE:
-            case NAN_STATUS_INVALID_TX_PRIORITY:
-            case NAN_STATUS_INVALID_CONNECTION_MAP:
-            case NAN_STATUS_INVALID_TCA_ID:
-            case NAN_STATUS_INVALID_STATS_ID:
-            case NAN_STATUS_NAN_NOT_ALLOWED:
-                return WifiNanDiscoverySessionCallback.REASON_OTHER;
-            case NAN_STATUS_NO_OTA_ACK:
-            case NAN_STATUS_TX_FAIL:
-                return WifiNanDiscoverySessionCallback.REASON_TX_FAIL;
-        }
-
-        return WifiNanDiscoverySessionCallback.REASON_OTHER;
-    }
-
     // callback from native
     private static void onNanNotifyResponse(short transactionId, int responseType, int status,
             int value) {
@@ -819,8 +746,7 @@ public class WifiNanNative {
                 if (status == NAN_STATUS_SUCCESS) {
                     stateMgr.onConfigSuccessResponse(transactionId);
                 } else {
-                    stateMgr.onConfigFailedResponse(transactionId,
-                            translateHalStatusToNanEventCallbackReason(status));
+                    stateMgr.onConfigFailedResponse(transactionId, status);
                 }
                 break;
             case NAN_RESPONSE_PUBLISH_CANCEL:
@@ -833,8 +759,7 @@ public class WifiNanNative {
                 if (status == NAN_STATUS_SUCCESS) {
                     stateMgr.onMessageSendQueuedSuccessResponse(transactionId);
                 } else {
-                    stateMgr.onMessageSendQueuedFailResponse(transactionId,
-                            translateHalStatusToNanSessionCallbackReason(status));
+                    stateMgr.onMessageSendQueuedFailResponse(transactionId, status);
                 }
                 break;
             case NAN_RESPONSE_SUBSCRIBE_CANCEL:
@@ -900,7 +825,7 @@ public class WifiNanNative {
                             true, pubSubId);
                 } else {
                     WifiNanStateManager.getInstance().onSessionConfigFailResponse(transactionId,
-                            true, translateHalStatusToNanSessionCallbackReason(status));
+                            true, status);
                 }
                 break;
             case NAN_RESPONSE_SUBSCRIBE:
@@ -909,7 +834,7 @@ public class WifiNanNative {
                             false, pubSubId);
                 } else {
                     WifiNanStateManager.getInstance().onSessionConfigFailResponse(transactionId,
-                            false, translateHalStatusToNanSessionCallbackReason(status));
+                            false, status);
                 }
                 break;
             default:
@@ -1022,8 +947,7 @@ public class WifiNanNative {
     private static void onDisabledEvent(int status) {
         if (VDBG) Log.v(TAG, "onDisabledEvent: status=" + status);
 
-        WifiNanStateManager.getInstance()
-                .onNanDownNotification(translateHalStatusToNanEventCallbackReason(status));
+        WifiNanStateManager.getInstance().onNanDownNotification(status);
     }
 
     // callback from native
@@ -1036,8 +960,7 @@ public class WifiNanNative {
         if (reason == NAN_STATUS_SUCCESS) {
             WifiNanStateManager.getInstance().onMessageSendSuccessNotification(transactionId);
         } else {
-            WifiNanStateManager.getInstance().onMessageSendFailNotification(transactionId,
-                    translateHalStatusToNanSessionCallbackReason(reason));
+            WifiNanStateManager.getInstance().onMessageSendFailNotification(transactionId, reason);
         }
     }
 
