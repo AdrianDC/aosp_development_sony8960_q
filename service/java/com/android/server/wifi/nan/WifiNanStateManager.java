@@ -1729,12 +1729,6 @@ public class WifiNanStateManager {
         }
         final Intent intent = new Intent(WifiNanManager.ACTION_WIFI_NAN_STATE_CHANGED);
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY);
-        if (enabled) {
-            intent.putExtra(WifiNanManager.EXTRA_WIFI_STATE, WifiNanManager.WIFI_NAN_STATE_ENABLED);
-        } else {
-            intent.putExtra(WifiNanManager.EXTRA_WIFI_STATE,
-                    WifiNanManager.WIFI_NAN_STATE_DISABLED);
-        }
         mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
     }
 
