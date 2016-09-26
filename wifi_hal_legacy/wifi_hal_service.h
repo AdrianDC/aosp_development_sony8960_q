@@ -22,12 +22,17 @@
 #include <thread>
 
 #include <android/hardware/wifi/1.0/IWifi.h>
+#include <android-base/macros.h>
 #include <hardware_legacy/wifi_hal.h>
 #include <utils/Looper.h>
+
+#include "wifi_hal_state.h"
 
 namespace android {
 namespace hardware {
 namespace wifi {
+
+class WifiChipService;
 
 class WifiHalService : public V1_0::IWifi {
  public:
@@ -43,6 +48,10 @@ class WifiHalService : public V1_0::IWifi {
   Return<void> getChip(getChip_cb cb) override;
 
  private:
+  const wifi_interface_handle kInterfaceNotFoundHandle = nullptr;
+  /** Get a HAL interface handle by name */
+  wifi_interface_handle FindInterfaceHandle(const std::string& ifname);
+
   /**
    * Called to indicate that the HAL implementation cleanup may be complete and
    * the rest of HAL cleanup should be performed.
@@ -54,35 +63,17 @@ class WifiHalService : public V1_0::IWifi {
    */
   void DoHalEventLoop();
 
-  /** Post a task to be executed on the main thread */
-  void PostTask(const std::function<void()>& callback);
-
-  sp<Looper> looper_;
   std::set<sp<V1_0::IWifiEventCallback>> callbacks_;
+  sp<WifiChipService> chip_;
 
-  enum class State {
-    STOPPED,
-    STARTED,
-    STOPPING
-  };
-
-  State state_;
-  wifi_hal_fn hal_func_table_;
-  /** opaque handle from vendor for use while HAL is running */
-  wifi_handle hal_handle_;
-  /**
-   * This thread is created when the HAL is started and runs the HAL event loop
-   * (implemented in the vendor implementation). It's use is vendor specific,
-   * but it can be used to dispatch async callbacks back to the HAL user. In
-   * order to provide a simple threading model these calls will generally be
-   * proxied back to the main thread, where the actual handling will occur. The
-   * thread terminates when the HAL is cleaned up.
-   */
+  WifiHalState state_;
   std::thread event_loop_thread_;
 
   // Variables to hold state while stopping the HAL
   bool awaiting_hal_cleanup_command_;
   bool awaiting_hal_event_loop_termination_;
+
+  DISALLOW_COPY_AND_ASSIGN(WifiHalService);
 };
 
 }  // namespace wifi
