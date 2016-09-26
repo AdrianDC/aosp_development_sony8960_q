@@ -31,7 +31,40 @@ namespace {
 
 const char kWlan0InterfaceName[] = "wlan0";
 
+bool GetIfState(const char* if_name, int sock, struct ifreq* ifr) {
+  memset(ifr, 0, sizeof(*ifr));
+  if (strlcpy(ifr->ifr_name, if_name, sizeof(ifr->ifr_name)) >=
+      sizeof(ifr->ifr_name)) {
+    LOG(ERROR) << "Interface name is too long: " << if_name;
+    return false;
+  }
+
+  if (TEMP_FAILURE_RETRY(ioctl(sock, SIOCGIFFLAGS, ifr)) != 0) {
+    LOG(ERROR) << "Could not read interface state for " << if_name
+               << " (" << strerror(errno) << ")";
+    return false;
+  }
+
+  return true;
+}
+
 }  // namespace
+
+bool InterfaceTool::GetUpState(const char* if_name) {
+  base::unique_fd sock(socket(PF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0));
+  if (sock.get() < 0) {
+    LOG(ERROR) << "Failed to open socket to set up/down state ("
+               << strerror(errno) << ")";
+    return false;
+  }
+
+  struct ifreq ifr;
+  if (!GetIfState(if_name, sock.get(), &ifr)) {
+    return false;  // logging done internally
+  }
+
+  return ifr.ifr_flags & IFF_UP;
+}
 
 bool InterfaceTool::SetUpState(const char* if_name, bool request_up) {
   base::unique_fd sock(socket(PF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0));
@@ -42,17 +75,8 @@ bool InterfaceTool::SetUpState(const char* if_name, bool request_up) {
   }
 
   struct ifreq ifr;
-  memset(&ifr, 0, sizeof(ifr));
-  if (strlcpy(ifr.ifr_name, if_name, sizeof(ifr.ifr_name)) >=
-      sizeof(ifr.ifr_name)) {
-    LOG(ERROR) << "Interface name is too long: " << if_name;
-    return false;
-  }
-
-  if (TEMP_FAILURE_RETRY(ioctl(sock.get(), SIOCGIFFLAGS, &ifr)) != 0) {
-    LOG(ERROR) << "Could not read interface state for " << if_name
-               << " (" << strerror(errno) << ")";
-    return false;
+  if (!GetIfState(if_name, sock.get(), &ifr)) {
+    return false;  // logging done internally
   }
 
   const bool currently_up = ifr.ifr_flags & IFF_UP;
