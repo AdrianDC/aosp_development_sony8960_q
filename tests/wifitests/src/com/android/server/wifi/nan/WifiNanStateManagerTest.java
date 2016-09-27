@@ -977,7 +977,7 @@ public class WifiNanStateManagerTest {
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(ssi)
+                .setServiceSpecificInfo(ssi.getBytes())
                 .setSubscribeType(SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE)
                 .setSubscribeCount(subscribeCount).build();
 
@@ -1602,7 +1602,7 @@ public class WifiNanStateManagerTest {
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(ssi)
+                .setServiceSpecificInfo(ssi.getBytes())
                 .setSubscribeType(SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE)
                 .setSubscribeCount(subscribeCount).build();
 
@@ -2029,9 +2029,9 @@ public class WifiNanStateManagerTest {
         ConfigRequest configRequest = new ConfigRequest.Builder().setClusterLow(clusterLow)
                 .setClusterHigh(clusterHigh).setMasterPreference(masterPref).build();
 
-        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(ssi).setPublishType(PublishConfig.PUBLISH_TYPE_UNSOLICITED)
-                .setPublishCount(publishCount).build();
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(
+                serviceName).setServiceSpecificInfo(ssi.getBytes()).setPublishType(
+                PublishConfig.PUBLISH_TYPE_UNSOLICITED).setPublishCount(publishCount).build();
 
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);
@@ -2105,9 +2105,9 @@ public class WifiNanStateManagerTest {
         ConfigRequest configRequest = new ConfigRequest.Builder().setClusterLow(clusterLow)
                 .setClusterHigh(clusterHigh).setMasterPreference(masterPref).build();
 
-        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(ssi).setPublishType(PublishConfig.PUBLISH_TYPE_UNSOLICITED)
-                .setPublishCount(publishCount).build();
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(
+                serviceName).setServiceSpecificInfo(ssi.getBytes()).setPublishType(
+                PublishConfig.PUBLISH_TYPE_UNSOLICITED).setPublishCount(publishCount).build();
 
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         IWifiNanEventCallback mockCallback = mock(IWifiNanEventCallback.class);

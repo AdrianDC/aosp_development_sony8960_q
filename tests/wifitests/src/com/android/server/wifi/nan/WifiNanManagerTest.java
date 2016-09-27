@@ -684,7 +684,7 @@ public class WifiNanManagerTest {
         final boolean enableTerminateNotification = false;
 
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setMatchFilter(matchFilter)
+                .setServiceSpecificInfo(serviceSpecificInfo.getBytes()).setMatchFilter(matchFilter)
                 .setSubscribeType(subscribeType)
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
                 .setTerminateNotificationEnabled(enableTerminateNotification).build();
@@ -717,7 +717,7 @@ public class WifiNanManagerTest {
         final boolean enableTerminateNotification = true;
 
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setMatchFilter(matchFilter)
+                .setServiceSpecificInfo(serviceSpecificInfo.getBytes()).setMatchFilter(matchFilter)
                 .setSubscribeType(subscribeType)
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
                 .setTerminateNotificationEnabled(enableTerminateNotification).build();
@@ -787,7 +787,7 @@ public class WifiNanManagerTest {
         final boolean enableTerminateNotification = false;
 
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setMatchFilter(matchFilter)
+                .setServiceSpecificInfo(serviceSpecificInfo.getBytes()).setMatchFilter(matchFilter)
                 .setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
                 .setTerminateNotificationEnabled(enableTerminateNotification).build();
@@ -816,7 +816,7 @@ public class WifiNanManagerTest {
         final boolean enableTerminateNotification = false;
 
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(serviceSpecificInfo).setMatchFilter(matchFilter)
+                .setServiceSpecificInfo(serviceSpecificInfo.getBytes()).setMatchFilter(matchFilter)
                 .setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
                 .setTerminateNotificationEnabled(enableTerminateNotification).build();
