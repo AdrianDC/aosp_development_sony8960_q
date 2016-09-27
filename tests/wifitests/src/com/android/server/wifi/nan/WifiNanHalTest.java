@@ -1082,7 +1082,7 @@ public class WifiNanHalTest {
                 .setServiceSpecificInfo(ssi).setMatchFilter(tlvMatch.getArray())
                 .setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
-                .setEnableTerminateNotification(enableTerminateNotification).build();
+                .setTerminateNotificationEnabled(enableTerminateNotification).build();
 
         mDut.publish(transactionId, publishId, publishConfig);
 
@@ -1129,7 +1129,7 @@ public class WifiNanHalTest {
                 .setServiceName(serviceName).setServiceSpecificInfo(ssi)
                 .setMatchFilter(tlvMatch.getArray()).setSubscribeType(subscribeType)
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
-                .setEnableTerminateNotification(enableTerminateNotification).build();
+                .setTerminateNotificationEnabled(enableTerminateNotification).build();
 
         mDut.subscribe(transactionId, subscribeId, subscribeConfig);
 
