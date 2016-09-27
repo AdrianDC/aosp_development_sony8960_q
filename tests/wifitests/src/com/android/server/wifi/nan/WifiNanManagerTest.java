@@ -275,7 +275,7 @@ public class WifiNanManagerTest {
         final int sessionId = 123;
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
         final PublishConfig publishConfig = new PublishConfig.Builder().build();
-        final int peerId = 873;
+        final WifiNanManager.OpaquePeerHandle peerHandle = new WifiNanManager.OpaquePeerHandle(873);
         final String string1 = "hey from here...";
         final String string2 = "some other arbitrary string...";
         final int messageId = 2123;
@@ -291,6 +291,7 @@ public class WifiNanManagerTest {
                 .forClass(IWifiNanDiscoverySessionCallback.class);
         ArgumentCaptor<WifiNanPublishDiscoverySession> publishSession = ArgumentCaptor
                 .forClass(WifiNanPublishDiscoverySession.class);
+        ArgumentCaptor<Object> peerIdCaptor = ArgumentCaptor.forClass(Object.class);
 
         // (0) connect + success
         mDut.attach(mMockLooperHandler, configRequest, mockCallback, null);
@@ -312,18 +313,24 @@ public class WifiNanManagerTest {
         inOrder.verify(mockSessionCallback).onPublishStarted(publishSession.capture());
 
         // (3) ...
-        publishSession.getValue().sendMessage(peerId, messageId, string1.getBytes());
-        sessionProxyCallback.getValue().onMatch(peerId, string1.getBytes(), string2.getBytes());
-        sessionProxyCallback.getValue().onMessageReceived(peerId, string1.getBytes());
+        publishSession.getValue().sendMessage(peerHandle, messageId, string1.getBytes());
+        sessionProxyCallback.getValue().onMatch(peerHandle.peerId, string1.getBytes(),
+                string2.getBytes());
+        sessionProxyCallback.getValue().onMessageReceived(peerHandle.peerId, string1.getBytes());
         sessionProxyCallback.getValue().onMessageSendFail(messageId, reason);
         sessionProxyCallback.getValue().onMessageSendSuccess(messageId);
         mMockLooper.dispatchAll();
 
-        inOrder.verify(mockNanService).sendMessage(eq(clientId), eq(sessionId), eq(peerId),
-                eq(string1.getBytes()), eq(messageId), eq(0));
-        inOrder.verify(mockSessionCallback).onServiceDiscovered(eq(peerId), eq(string1.getBytes()),
-                eq(string2.getBytes()));
-        inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()));
+        inOrder.verify(mockNanService).sendMessage(eq(clientId), eq(sessionId),
+                eq(peerHandle.peerId), eq(string1.getBytes()), eq(messageId), eq(0));
+        inOrder.verify(mockSessionCallback).onServiceDiscovered(peerIdCaptor.capture(),
+                eq(string1.getBytes()), eq(string2.getBytes()));
+        assertEquals(((WifiNanManager.OpaquePeerHandle) peerIdCaptor.getValue()).peerId,
+                peerHandle.peerId);
+        inOrder.verify(mockSessionCallback).onMessageReceived(peerIdCaptor.capture(),
+                eq(string1.getBytes()));
+        assertEquals(((WifiNanManager.OpaquePeerHandle) peerIdCaptor.getValue()).peerId,
+                peerHandle.peerId);
         inOrder.verify(mockSessionCallback).onMessageSendFailed(eq(messageId));
         inOrder.verify(mockSessionCallback).onMessageSent(eq(messageId));
 
@@ -409,7 +416,7 @@ public class WifiNanManagerTest {
         final int sessionId = 123;
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
         final SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
-        final int peerId = 873;
+        final WifiNanManager.OpaquePeerHandle peerHandle = new WifiNanManager.OpaquePeerHandle(873);
         final String string1 = "hey from here...";
         final String string2 = "some other arbitrary string...";
         final int messageId = 2123;
@@ -425,6 +432,7 @@ public class WifiNanManagerTest {
                 .forClass(IWifiNanDiscoverySessionCallback.class);
         ArgumentCaptor<WifiNanSubscribeDiscoverySession> subscribeSession = ArgumentCaptor
                 .forClass(WifiNanSubscribeDiscoverySession.class);
+        ArgumentCaptor<Object> peerIdCaptor = ArgumentCaptor.forClass(Object.class);
 
         // (0) connect + success
         mDut.attach(mMockLooperHandler, configRequest, mockCallback, null);
@@ -446,18 +454,24 @@ public class WifiNanManagerTest {
         inOrder.verify(mockSessionCallback).onSubscribeStarted(subscribeSession.capture());
 
         // (3) ...
-        subscribeSession.getValue().sendMessage(peerId, messageId, string1.getBytes());
-        sessionProxyCallback.getValue().onMatch(peerId, string1.getBytes(), string2.getBytes());
-        sessionProxyCallback.getValue().onMessageReceived(peerId, string1.getBytes());
+        subscribeSession.getValue().sendMessage(peerHandle, messageId, string1.getBytes());
+        sessionProxyCallback.getValue().onMatch(peerHandle.peerId, string1.getBytes(),
+                string2.getBytes());
+        sessionProxyCallback.getValue().onMessageReceived(peerHandle.peerId, string1.getBytes());
         sessionProxyCallback.getValue().onMessageSendFail(messageId, reason);
         sessionProxyCallback.getValue().onMessageSendSuccess(messageId);
         mMockLooper.dispatchAll();
 
-        inOrder.verify(mockNanService).sendMessage(eq(clientId), eq(sessionId), eq(peerId),
-                eq(string1.getBytes()), eq(messageId), eq(0));
-        inOrder.verify(mockSessionCallback).onServiceDiscovered(eq(peerId), eq(string1.getBytes()),
-                eq(string2.getBytes()));
-        inOrder.verify(mockSessionCallback).onMessageReceived(eq(peerId), eq(string1.getBytes()));
+        inOrder.verify(mockNanService).sendMessage(eq(clientId), eq(sessionId),
+                eq(peerHandle.peerId), eq(string1.getBytes()), eq(messageId), eq(0));
+        inOrder.verify(mockSessionCallback).onServiceDiscovered(peerIdCaptor.capture(),
+                eq(string1.getBytes()), eq(string2.getBytes()));
+        assertEquals(((WifiNanManager.OpaquePeerHandle) peerIdCaptor.getValue()).peerId,
+                peerHandle.peerId);
+        inOrder.verify(mockSessionCallback).onMessageReceived(peerIdCaptor.capture(),
+                eq(string1.getBytes()));
+        assertEquals(((WifiNanManager.OpaquePeerHandle) peerIdCaptor.getValue()).peerId,
+                peerHandle.peerId);
         inOrder.verify(mockSessionCallback).onMessageSendFailed(eq(messageId));
         inOrder.verify(mockSessionCallback).onMessageSent(eq(messageId));
 
@@ -929,7 +943,8 @@ public class WifiNanManagerTest {
     public void testNetworkSpecifierWithClient() throws Exception {
         final int clientId = 4565;
         final int sessionId = 123;
-        final int peerId = 123412;
+        final WifiNanManager.OpaquePeerHandle peerHandle = new WifiNanManager.OpaquePeerHandle(
+                123412);
         final int role = WifiNanManager.WIFI_NAN_DATA_PATH_ROLE_INITIATOR;
         final String token = "Some arbitrary token string - can really be anything";
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -967,7 +982,7 @@ public class WifiNanManagerTest {
         inOrder.verify(mockSessionCallback).onPublishStarted(publishSession.capture());
 
         // (3) request a network specifier from the session
-        String networkSpecifier = publishSession.getValue().createNetworkSpecifier(role, peerId,
+        String networkSpecifier = publishSession.getValue().createNetworkSpecifier(role, peerHandle,
                 token.getBytes());
 
         // validate format
@@ -978,7 +993,7 @@ public class WifiNanManagerTest {
                 equalTo(jsonObject.getInt(WifiNanManager.NETWORK_SPECIFIER_KEY_CLIENT_ID)));
         collector.checkThat("session_id", sessionId,
                 equalTo(jsonObject.getInt(WifiNanManager.NETWORK_SPECIFIER_KEY_SESSION_ID)));
-        collector.checkThat("peer_id", peerId,
+        collector.checkThat("peer_id", peerHandle.peerId,
                 equalTo(jsonObject.getInt(WifiNanManager.NETWORK_SPECIFIER_KEY_PEER_ID)));
         collector.checkThat("token", tokenB64,
                 equalTo(jsonObject.getString(WifiNanManager.NETWORK_SPECIFIER_KEY_TOKEN)));
