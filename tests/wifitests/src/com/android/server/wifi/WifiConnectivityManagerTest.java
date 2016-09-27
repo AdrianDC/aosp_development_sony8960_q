@@ -74,7 +74,7 @@ public class WifiConnectivityManagerTest {
         mWifiInfo = getWifiInfo();
         mScanData = mockScanData();
         mWifiScanner = mockWifiScanner();
-        mWifiQNS = mockWifiQualifiedNetworkSelector();
+        mWifiNS = mockWifiNetworkSelector();
         mWifiConnectivityManager = createConnectivityManager();
         mWifiConnectivityManager.setWifiEnabled(true);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
@@ -93,7 +93,7 @@ public class WifiConnectivityManagerTest {
     private TestAlarmManager mAlarmManager;
     private TestLooper mLooper = new TestLooper();
     private WifiConnectivityManager mWifiConnectivityManager;
-    private WifiQualifiedNetworkSelector mWifiQNS;
+    private WifiNetworkSelector mWifiNS;
     private WifiStateMachine mWifiStateMachine;
     private WifiScanner mWifiScanner;
     private ScanData mScanData;
@@ -120,10 +120,10 @@ public class WifiConnectivityManagerTest {
                 R.bool.config_wifi_framework_enable_associated_network_selection)).thenReturn(true);
         when(resource.getInteger(
                 R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_24GHz))
-                .thenReturn(WifiQualifiedNetworkSelector.RSSI_SATURATION_2G_BAND);
+                .thenReturn(-60);
         when(resource.getInteger(
                 R.integer.config_wifi_framework_current_network_boost))
-                .thenReturn(WifiQualifiedNetworkSelector.SAME_NETWORK_AWARD);
+                .thenReturn(16);
         return resource;
     }
 
@@ -207,8 +207,8 @@ public class WifiConnectivityManagerTest {
         return stateMachine;
     }
 
-    WifiQualifiedNetworkSelector mockWifiQualifiedNetworkSelector() {
-        WifiQualifiedNetworkSelector qns = mock(WifiQualifiedNetworkSelector.class);
+    WifiNetworkSelector mockWifiNetworkSelector() {
+        WifiNetworkSelector ns = mock(WifiNetworkSelector.class);
 
         WifiConfiguration candidate = generateWifiConfig(
                 0, CANDIDATE_NETWORK_ID, CANDIDATE_SSID, false, true, null, null);
@@ -218,9 +218,9 @@ public class WifiConnectivityManagerTest {
         candidateScanResult.BSSID = CANDIDATE_BSSID;
         candidate.getNetworkSelectionStatus().setCandidate(candidateScanResult);
 
-        when(qns.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyBoolean(),
-              anyBoolean(), anyBoolean(), anyBoolean(), anyObject())).thenReturn(candidate);
-        return qns;
+        when(ns.selectNetwork(anyObject(), anyBoolean(), anyBoolean(),
+              anyBoolean())).thenReturn(candidate);
+        return ns;
     }
 
     WifiInfo getWifiInfo() {
@@ -260,7 +260,7 @@ public class WifiConnectivityManagerTest {
 
     WifiConnectivityManager createConnectivityManager() {
         return new WifiConnectivityManager(mContext, mWifiStateMachine, mWifiScanner,
-                mWifiConfigManager, mWifiInfo, mWifiQNS, mWifiInjector, mLooper.getLooper(), true);
+                mWifiConfigManager, mWifiInfo, mWifiNS, mWifiInjector, mLooper.getLooper(), true);
     }
 
     /**
@@ -500,9 +500,9 @@ public class WifiConnectivityManagerTest {
      * because of their low RSSI values.
      */
     @Test
-    public void PnoRetryForLowRssiNetwork() {
-        when(mWifiQNS.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyBoolean(),
-              anyBoolean(), anyBoolean(), anyBoolean(), anyObject())).thenReturn(null);
+    public void pnoRetryForLowRssiNetwork() {
+        when(mWifiNS.selectNetwork(anyObject(), anyBoolean(), anyBoolean(),
+              anyBoolean())).thenReturn(null);
 
         // Set screen to off
         mWifiConnectivityManager.handleScreenStateChanged(false);
@@ -521,7 +521,7 @@ public class WifiConnectivityManagerTest {
                 .getLowRssiNetworkRetryDelay();
 
         assertEquals(lowRssiNetworkRetryDelayStartValue * 2,
-            lowRssiNetworkRetryDelayAfterPnoValue);
+                lowRssiNetworkRetryDelayAfterPnoValue);
     }
 
     /**
@@ -556,8 +556,8 @@ public class WifiConnectivityManagerTest {
     @Test
     public void watchdogBitePnoGoodIncrementsMetrics() {
         // Qns returns no candidate after watchdog single scan.
-        when(mWifiQNS.selectQualifiedNetwork(anyBoolean(), anyBoolean(), anyBoolean(),
-                anyBoolean(), anyBoolean(), anyBoolean(), anyObject())).thenReturn(null);
+        when(mWifiNS.selectNetwork(anyObject(), anyBoolean(), anyBoolean(),
+              anyBoolean())).thenReturn(null);
 
         // Set screen to off
         mWifiConnectivityManager.handleScreenStateChanged(false);
