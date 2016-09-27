@@ -673,7 +673,7 @@ public class WifiNanManagerTest {
                 .setServiceSpecificInfo(serviceSpecificInfo).setMatchFilter(matchFilter)
                 .setSubscribeType(subscribeType)
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
-                .setEnableTerminateNotification(enableTerminateNotification).build();
+                .setTerminateNotificationEnabled(enableTerminateNotification).build();
 
         collector.checkThat("mServiceName", serviceName.getBytes(),
                 equalTo(subscribeConfig.mServiceName));
@@ -706,7 +706,7 @@ public class WifiNanManagerTest {
                 .setServiceSpecificInfo(serviceSpecificInfo).setMatchFilter(matchFilter)
                 .setSubscribeType(subscribeType)
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
-                .setEnableTerminateNotification(enableTerminateNotification).build();
+                .setTerminateNotificationEnabled(enableTerminateNotification).build();
 
         Parcel parcelW = Parcel.obtain();
         subscribeConfig.writeToParcel(parcelW, 0);
@@ -776,7 +776,7 @@ public class WifiNanManagerTest {
                 .setServiceSpecificInfo(serviceSpecificInfo).setMatchFilter(matchFilter)
                 .setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
-                .setEnableTerminateNotification(enableTerminateNotification).build();
+                .setTerminateNotificationEnabled(enableTerminateNotification).build();
 
         collector.checkThat("mServiceName", serviceName.getBytes(),
                 equalTo(publishConfig.mServiceName));
@@ -805,7 +805,7 @@ public class WifiNanManagerTest {
                 .setServiceSpecificInfo(serviceSpecificInfo).setMatchFilter(matchFilter)
                 .setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
-                .setEnableTerminateNotification(enableTerminateNotification).build();
+                .setTerminateNotificationEnabled(enableTerminateNotification).build();
 
         Parcel parcelW = Parcel.obtain();
         publishConfig.writeToParcel(parcelW, 0);
