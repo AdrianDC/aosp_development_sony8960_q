@@ -43,6 +43,7 @@ LOCAL_MODULE := libwifi-hal-mock
 
 LOCAL_SHARED_LIBRARIES += \
 	libnativehelper \
+	liblog \
 	libcutils \
 	libutils \
 	libhardware \
