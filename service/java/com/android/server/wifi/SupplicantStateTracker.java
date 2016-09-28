@@ -99,8 +99,8 @@ public class SupplicantStateTracker extends StateMachine {
             addState(mUninitializedState, mDefaultState);
             addState(mInactiveState, mDefaultState);
             addState(mDisconnectState, mDefaultState);
-            addState(mScanState, mDefaultState);
             addState(mConnectionActiveState, mDefaultState);
+                addState(mScanState, mConnectionActiveState);
                 addState(mHandshakeState, mConnectionActiveState);
                 addState(mCompletedState, mConnectionActiveState);
                 addState(mDormantState, mConnectionActiveState);
