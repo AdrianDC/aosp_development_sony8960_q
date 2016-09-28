@@ -1079,7 +1079,7 @@ public class WifiNanHalTest {
             int publishCount, int publishTtl, boolean enableTerminateNotification)
             throws JSONException {
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(ssi).setMatchFilter(tlvMatch.getArray())
+                .setServiceSpecificInfo(ssi.getBytes()).setMatchFilter(tlvMatch.getArray())
                 .setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
                 .setTerminateNotificationEnabled(enableTerminateNotification).build();
@@ -1126,7 +1126,7 @@ public class WifiNanHalTest {
             int subscribeCount, int subscribeTtl, int matchStyle,
             boolean enableTerminateNotification) throws JSONException {
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder()
-                .setServiceName(serviceName).setServiceSpecificInfo(ssi)
+                .setServiceName(serviceName).setServiceSpecificInfo(ssi.getBytes())
                 .setMatchFilter(tlvMatch.getArray()).setSubscribeType(subscribeType)
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
                 .setTerminateNotificationEnabled(enableTerminateNotification).build();
