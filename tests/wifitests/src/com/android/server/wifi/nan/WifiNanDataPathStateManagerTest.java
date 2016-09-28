@@ -401,7 +401,8 @@ public class WifiNanDataPathStateManagerTest {
             boolean provideToken, boolean getConfirmation) throws Exception {
         final int clientId = 123;
         final int pubSubId = 11234;
-        final Object peerHandle = Integer.valueOf(1341234);
+        final WifiNanManager.OpaquePeerHandle peerHandle = new WifiNanManager.OpaquePeerHandle(
+                1341234);
         final int ndpId = 2;
         final String token = "some token";
         final String peerToken = "let's go!";
@@ -413,8 +414,8 @@ public class WifiNanDataPathStateManagerTest {
         InOrder inOrder = inOrder(mMockNative, mMockCm, mMockCallback, mMockSessionCallback);
 
         // (0) initialize
-        Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId,
-                (Integer) peerHandle, peerDiscoveryMac, inOrder);
+        Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId, peerHandle,
+                peerDiscoveryMac, inOrder);
 
         // (1) request network
         NetworkRequest nr;
@@ -433,7 +434,7 @@ public class WifiNanDataPathStateManagerTest {
         res.second.send(reqNetworkMsg);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).initiateDataPath(transactionId.capture(),
-                eq(useDirect ? 0 : (Integer) peerHandle),
+                eq(useDirect ? 0 : peerHandle.peerId),
                 eq(WifiNanNative.CHANNEL_REQUEST_TYPE_REQUESTED), eq(2437), eq(peerDiscoveryMac),
                 eq("nan0"), eq(token.getBytes()));
         mDut.onInitiateDataPathResponseSuccess(transactionId.getValue(), ndpId);
@@ -481,7 +482,8 @@ public class WifiNanDataPathStateManagerTest {
             boolean provideToken, boolean getConfirmation) throws Exception {
         final int clientId = 123;
         final int pubSubId = 11234;
-        final Object peerHandle = Integer.valueOf(1341234);
+        final WifiNanManager.OpaquePeerHandle peerHandle = new WifiNanManager.OpaquePeerHandle(
+                1341234);
         final int ndpId = 2;
         final String token = "some token";
         final String peerToken = "let's go!";
@@ -493,8 +495,8 @@ public class WifiNanDataPathStateManagerTest {
         InOrder inOrder = inOrder(mMockNative, mMockCm, mMockCallback, mMockSessionCallback);
 
         // (0) initialize
-        Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId,
-                (Integer) peerHandle, peerDiscoveryMac, inOrder);
+        Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId, peerHandle,
+                peerDiscoveryMac, inOrder);
 
         // (1) request network
         NetworkRequest nr;
@@ -675,8 +677,9 @@ public class WifiNanDataPathStateManagerTest {
         return new NetworkRequest(nc, 0, 0, NetworkRequest.Type.REQUEST);
     }
 
-    private Pair<Integer, Messenger> initDataPathEndPoint(int clientId, int pubSubId, int peerId,
-            byte[] peerDiscoveryMac, InOrder inOrder) throws Exception {
+    private Pair<Integer, Messenger> initDataPathEndPoint(int clientId, int pubSubId,
+            WifiNanManager.OpaquePeerHandle peerHandle, byte[] peerDiscoveryMac, InOrder inOrder)
+            throws Exception {
         final int uid = 1000;
         final int pid = 2000;
         final String callingPackage = "com.android.somePackage";
@@ -729,9 +732,11 @@ public class WifiNanDataPathStateManagerTest {
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, pubSubId);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockSessionCallback).onSessionStarted(sessionId.capture());
-        mDut.onMessageReceivedNotification(pubSubId, peerId, peerDiscoveryMac, someMsg.getBytes());
+        mDut.onMessageReceivedNotification(pubSubId, peerHandle.peerId, peerDiscoveryMac,
+                someMsg.getBytes());
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockSessionCallback).onMessageReceived(peerId, someMsg.getBytes());
+        inOrder.verify(mMockSessionCallback).onMessageReceived(peerHandle.peerId,
+                someMsg.getBytes());
 
         return new Pair<>(sessionId.getValue(), messengerCaptor.getValue());
     }
