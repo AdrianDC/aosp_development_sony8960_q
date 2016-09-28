@@ -71,6 +71,7 @@ public class SupplicantStateTracker extends StateMachine {
     private final State mInactiveState = new InactiveState();
     private final State mDisconnectState = new DisconnectedState();
     private final State mScanState = new ScanState();
+    private final State mConnectionActiveState = new ConnectionActiveState();
     private final State mHandshakeState = new HandshakeState();
     private final State mCompletedState = new CompletedState();
     private final State mDormantState = new DormantState();
@@ -93,14 +94,17 @@ public class SupplicantStateTracker extends StateMachine {
         mContext = c;
         mWifiConfigManager = wcs;
         mBatteryStats = (IBatteryStats)ServiceManager.getService(BatteryStats.SERVICE_NAME);
+        // CHECKSTYLE:OFF IndentationCheck
         addState(mDefaultState);
             addState(mUninitializedState, mDefaultState);
             addState(mInactiveState, mDefaultState);
             addState(mDisconnectState, mDefaultState);
             addState(mScanState, mDefaultState);
-            addState(mHandshakeState, mDefaultState);
-            addState(mCompletedState, mDefaultState);
-            addState(mDormantState, mDefaultState);
+            addState(mConnectionActiveState, mDefaultState);
+                addState(mHandshakeState, mConnectionActiveState);
+                addState(mCompletedState, mConnectionActiveState);
+                addState(mDormantState, mConnectionActiveState);
+        // CHECKSTYLE:ON IndentationCheck
 
         setInitialState(mUninitializedState);
         setLogRecSize(50);
@@ -278,6 +282,19 @@ public class SupplicantStateTracker extends StateMachine {
          }
     }
 
+    /* Meta-state that processes supplicant disconnections and broadcasts this event. */
+    class ConnectionActiveState extends State {
+        @Override
+        public boolean processMessage(Message message) {
+            if (message.what == WifiStateMachine.CMD_RESET_SUPPLICANT_STATE) {
+                sendSupplicantStateChangedBroadcast(SupplicantState.DISCONNECTED, false);
+            }
+
+            /* Let parent states handle the state possible transition. */
+            return NOT_HANDLED;
+        }
+    }
+
     class HandshakeState extends State {
         /**
          * The max number of the WPA supplicant loop iterations before we
@@ -351,10 +368,6 @@ public class SupplicantStateTracker extends StateMachine {
                         break;
                     }
                     transitionOnSupplicantStateChange(stateChangeResult);
-                    break;
-                case WifiStateMachine.CMD_RESET_SUPPLICANT_STATE:
-                    sendSupplicantStateChangedBroadcast(SupplicantState.DISCONNECTED, false);
-                    transitionTo(mUninitializedState);
                     break;
                 default:
                     return NOT_HANDLED;
