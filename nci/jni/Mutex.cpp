@@ -21,9 +21,10 @@
 #include "Mutex.h"
 #include "NfcJniUtil.h"
 
-#include <cutils/log.h>
 #include <errno.h>
 #include <string.h>
+
+#include <android/log.h>
 
 /*******************************************************************************
 **
