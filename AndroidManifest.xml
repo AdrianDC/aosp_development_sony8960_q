@@ -106,6 +106,7 @@
             android:excludeFromRecents="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:noHistory="true"
+            android:configChanges="orientation|keyboardHidden|screenSize"
         />
 
         <activity android:name=".BeamShareActivity"

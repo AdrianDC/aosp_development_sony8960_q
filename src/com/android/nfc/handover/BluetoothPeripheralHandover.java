@@ -56,6 +56,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
 
     static final String ACTION_ALLOW_CONNECT = "com.android.nfc.handover.action.ALLOW_CONNECT";
     static final String ACTION_DENY_CONNECT = "com.android.nfc.handover.action.DENY_CONNECT";
+    static final String ACTION_TIMEOUT_CONNECT = "com.android.nfc.handover.action.TIMEOUT_CONNECT";
 
     static final int TIMEOUT_MS = 20000;
 
@@ -513,6 +514,7 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                 case MSG_TIMEOUT:
                     if (mState == STATE_COMPLETE) return;
                     Log.i(TAG, "Timeout completing BT handover");
+                    mContext.sendBroadcast(new Intent(ACTION_TIMEOUT_CONNECT));
                     complete(false);
                     break;
                 case MSG_NEXT_STEP:
