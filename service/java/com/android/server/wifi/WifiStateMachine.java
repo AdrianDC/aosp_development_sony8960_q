@@ -5078,17 +5078,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     netId = message.arg1;
                     bssid = (String) message.obj;
                     config = mWifiConfigManager.getConfiguredNetworkWithPassword(netId);
-                    logd("CMD_START_CONNECT sup state "
-                            + mSupplicantStateTracker.getSupplicantStateName()
-                            + " my state " + getCurrentState().getName()
-                            + " nid=" + Integer.toString(netId)
-                            + " roam=" + Boolean.toString(mAutoRoaming));
                     if (config == null) {
                         loge("CMD_START_CONNECT and no config, bail out...");
                         break;
                     }
                     mTargetNetworkId = netId;
                     setTargetBssid(config, bssid);
+                    logd("CMD_START_CONNECT sup state "
+                            + mSupplicantStateTracker.getSupplicantStateName()
+                            + " my state " + getCurrentState().getName()
+                            + " nid=" + Integer.toString(netId)
+                            + " config " + config.configKey()
+                            + " targetRoamBSSID " + mTargetRoamBSSID);
 
                     mWifiMetrics.startConnectionEvent(config, mTargetRoamBSSID,
                             WifiMetricsProto.ConnectionEvent.ROAM_UNRELATED);
@@ -6223,16 +6224,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         loge("CMD_START_ROAM and no config, bail out...");
                         break;
                     }
+                    mTargetNetworkId = netId;
+                    setTargetBssid(config, bssid);
+
                     logd("CMD_START_ROAM sup state "
                             + mSupplicantStateTracker.getSupplicantStateName()
                             + " my state " + getCurrentState().getName()
                             + " nid=" + Integer.toString(netId)
                             + " config " + config.configKey()
-                            + " roam=" + Integer.toString(message.arg2)
-                            + " to " + bssid
                             + " targetRoamBSSID " + mTargetRoamBSSID);
-                    mTargetNetworkId = netId;
-                    setTargetBssid(config, bssid);
 
                     mWifiMetrics.startConnectionEvent(config, mTargetRoamBSSID,
                             WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
