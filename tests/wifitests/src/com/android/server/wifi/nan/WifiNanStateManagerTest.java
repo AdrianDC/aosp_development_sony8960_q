@@ -26,6 +26,7 @@ import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyShort;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -1581,10 +1582,10 @@ public class WifiNanStateManagerTest {
     }
 
     /**
-     * Validate that can send a NULL message successfully.
+     * Validate that can send empty message successfully: null, byte[0], ""
      */
     @Test
-    public void testSendMessageNull() throws Exception {
+    public void testSendEmptyMessages() throws Exception {
         final int clientId = 1005;
         final int uid = 1000;
         final int pid = 2000;
@@ -1597,7 +1598,6 @@ public class WifiNanStateManagerTest {
         final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
         final String peerSsi = "some peer ssi data";
         final String peerMatchFilter = "filter binary array represented as string";
-        final byte[] msg = null;
         final int messageId = 6948;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -1611,6 +1611,7 @@ public class WifiNanStateManagerTest {
                 IWifiNanDiscoverySessionCallback.class);
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
+        ArgumentCaptor<byte[]> byteArrayCaptor = ArgumentCaptor.forClass(byte[].class);
         InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
 
         mDut.enableUsage();
@@ -1644,17 +1645,49 @@ public class WifiNanStateManagerTest {
         inOrder.verify(mockSessionCallback).onMatch(requestorId, peerSsi.getBytes(),
                 peerMatchFilter.getBytes());
 
-        // (3) message Tx successful queuing
-        mDut.sendMessage(clientId, sessionId.getValue(), requestorId, msg, messageId, 0);
+        // (3) message null Tx successful queuing
+        mDut.sendMessage(clientId, sessionId.getValue(), requestorId, null, messageId, 0);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(subscribeId),
-                eq(requestorId), eq(peerMac), eq(msg), eq(messageId));
-        short tid1 = transactionId.getValue();
-        mDut.onMessageSendQueuedSuccessResponse(tid1);
+                eq(requestorId), eq(peerMac), isNull(byte[].class), eq(messageId));
+        short tid = transactionId.getValue();
+        mDut.onMessageSendQueuedSuccessResponse(tid);
         mMockLooper.dispatchAll();
 
         // (4) final Tx results (on-air results)
-        mDut.onMessageSendSuccessNotification(tid1);
+        mDut.onMessageSendSuccessNotification(tid);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onMessageSendSuccess(messageId);
+        validateInternalSendMessageQueuesCleanedUp(messageId);
+
+        // (5) message byte[0] Tx successful queuing
+        mDut.sendMessage(clientId, sessionId.getValue(), requestorId, new byte[0], messageId, 0);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(subscribeId),
+                eq(requestorId), eq(peerMac), eq(new byte[0]), eq(messageId));
+        tid = transactionId.getValue();
+        mDut.onMessageSendQueuedSuccessResponse(tid);
+        mMockLooper.dispatchAll();
+
+        // (6) final Tx results (on-air results)
+        mDut.onMessageSendSuccessNotification(tid);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onMessageSendSuccess(messageId);
+        validateInternalSendMessageQueuesCleanedUp(messageId);
+
+        // (7) message "" Tx successful queuing
+        mDut.sendMessage(clientId, sessionId.getValue(), requestorId, "".getBytes(), messageId, 0);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(subscribeId),
+                eq(requestorId), eq(peerMac), byteArrayCaptor.capture(), eq(messageId));
+        collector.checkThat("Empty message contents", "",
+                equalTo(new String(byteArrayCaptor.getValue())));
+        tid = transactionId.getValue();
+        mDut.onMessageSendQueuedSuccessResponse(tid);
+        mMockLooper.dispatchAll();
+
+        // (8) final Tx results (on-air results)
+        mDut.onMessageSendSuccessNotification(tid);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onMessageSendSuccess(messageId);
         validateInternalSendMessageQueuesCleanedUp(messageId);
