@@ -1752,7 +1752,6 @@ public class WifiConfigManager {
             scanResult.blackListTimestamp = result.blackListTimestamp;
             scanResult.numIpConfigFailures = result.numIpConfigFailures;
             scanResult.numConnection = result.numConnection;
-            scanResult.isAutoJoinCandidate = result.isAutoJoinCandidate;
         }
         if (config.ephemeral) {
             // For an ephemeral Wi-Fi config, the ScanResult should be considered
