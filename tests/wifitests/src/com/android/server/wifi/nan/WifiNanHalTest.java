@@ -245,6 +245,37 @@ public class WifiNanHalTest {
                 equalTo(msg.getBytes()));
     }
 
+    /**
+     * Validate zero length message ("") is sent correctly through the HAL.
+     */
+    @Test
+    public void testSendMessageZeroLength() throws JSONException {
+        final short transactionId = 45;
+        final int pubSubId = 22;
+        final int reqInstanceId = 11;
+        final byte[] peer = HexEncoding.decode("000102030405".toCharArray(), false);
+        final String msg = "";
+        final int messageId = 10; /* garbage - not used by HAL */
+
+        mDut.sendMessage(transactionId, pubSubId, reqInstanceId, peer, msg.getBytes(), messageId);
+
+        verify(mNanHalMock).transmitFollowupHalMockNative(eq(transactionId), mArgs.capture());
+
+        Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
+
+        collector.checkThat("publish_subscribe_id", argsData.getInt("publish_subscribe_id"),
+                equalTo(pubSubId));
+        collector.checkThat("requestor_instance_id", argsData.getInt("requestor_instance_id"),
+                equalTo(reqInstanceId));
+        collector.checkThat("addr", argsData.getByteArray("addr"), equalTo(peer));
+        collector.checkThat("priority", argsData.getInt("priority"), equalTo(0));
+        collector.checkThat("dw_or_faw", argsData.getInt("dw_or_faw"), equalTo(0));
+        collector.checkThat("service_specific_info_len",
+                argsData.getInt("service_specific_info_len"), equalTo(0));
+        collector.checkThat("service_specific_info", argsData.getByteArray("service_specific_info"),
+                equalTo(new byte[0]));
+    }
+
 
     @Test
     public void testSendMessageNull() throws JSONException {
