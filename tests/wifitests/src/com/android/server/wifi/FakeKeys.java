@@ -1,4 +1,4 @@
-package android.net.wifi;
+package com.android.server.wifi;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
