@@ -491,8 +491,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     static final int CMD_SAVE_CONFIG                                    = BASE + 58;
     /* Get configured networks */
     static final int CMD_GET_CONFIGURED_NETWORKS                        = BASE + 59;
-    /* Get available frequencies */
-    static final int CMD_GET_CAPABILITY_FREQ                            = BASE + 60;
     /* Get adaptors */
     static final int CMD_GET_SUPPORTED_FEATURES                         = BASE + 61;
     /* Get configured networks with real preSharedKey */
@@ -3705,9 +3703,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_SAVE_CONFIG:
                     replyToMessage(message, message.what, FAILURE);
                     break;
-                case CMD_GET_CAPABILITY_FREQ:
-                    replyToMessage(message, message.what, null);
-                    break;
                 case CMD_GET_CONFIGURED_NETWORKS:
                     replyToMessage(message, message.what, (List<WifiConfiguration>) null);
                     break;
@@ -4287,10 +4282,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_PING_SUPPLICANT:
                     boolean ok = mWifiNative.ping();
                     replyToMessage(message, message.what, ok ? SUCCESS : FAILURE);
-                    break;
-                case CMD_GET_CAPABILITY_FREQ:
-                    String freqs = mWifiNative.getFreqCapability();
-                    replyToMessage(message, message.what, freqs);
                     break;
                 case CMD_START_AP:
                     /* Cannot start soft AP while in client mode */
