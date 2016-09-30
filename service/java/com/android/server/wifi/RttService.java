@@ -6,7 +6,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.net.wifi.IApInterface;
+import android.net.wifi.IClientInterface;
+import android.net.wifi.IInterfaceEventCallback;
 import android.net.wifi.IRttManager;
+import android.net.wifi.IWificond;
 import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
 import android.net.wifi.WifiManager;
@@ -14,6 +18,7 @@ import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
@@ -35,12 +40,14 @@ import java.io.PrintWriter;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 
 public final class RttService extends SystemService {
 
     public static final boolean DBG = true;
+    private static final String WIFICOND_SERVICE_NAME = "wificond";
 
     static class RttServiceImpl extends IRttManager.Stub {
 
@@ -136,17 +143,18 @@ public final class RttService extends SystemService {
         private final Looper mLooper;
         private RttStateMachine mStateMachine;
         private ClientHandler mClientHandler;
+        private WifiInjector mWifiInjector;
 
-        RttServiceImpl(Context context, Looper looper) {
+        RttServiceImpl(Context context, Looper looper, WifiInjector wifiInjector) {
             mContext = context;
             mWifiNative = WifiNative.getWlanNativeInterface();
             mLooper = looper;
+            mWifiInjector = wifiInjector;
         }
 
         public void startService() {
             mClientHandler = new ClientHandler(mLooper);
             mStateMachine = new RttStateMachine(mLooper);
-
             mContext.registerReceiver(
                     new BroadcastReceiver() {
                         @Override
@@ -285,11 +293,36 @@ public final class RttService extends SystemService {
         private static final int CMD_DRIVER_UNLOADED                     = BASE + 1;
         private static final int CMD_ISSUE_NEXT_REQUEST                  = BASE + 2;
         private static final int CMD_RTT_RESPONSE                        = BASE + 3;
+        private static final int CMD_CLIENT_INTERFACE_READY              = BASE + 4;
+        private static final int CMD_CLIENT_INTERFACE_DOWN               = BASE + 5;
 
         // Maximum duration for responder role.
         private static final int MAX_RESPONDER_DURATION_SECONDS = 60 * 10;
 
+        private static class InterfaceEventHandler extends IInterfaceEventCallback.Stub {
+            InterfaceEventHandler(RttStateMachine rttStateMachine) {
+                mRttStateMachine = rttStateMachine;
+            }
+            @Override
+            public void OnClientTorndownEvent(IClientInterface networkInterface) {
+                mRttStateMachine.sendMessage(CMD_CLIENT_INTERFACE_DOWN, networkInterface);
+            }
+            @Override
+            public void OnClientInterfaceReady(IClientInterface networkInterface) {
+                mRttStateMachine.sendMessage(CMD_CLIENT_INTERFACE_READY, networkInterface);
+            }
+            @Override
+            public void OnApTorndownEvent(IApInterface networkInterface) { }
+            @Override
+            public void OnApInterfaceReady(IApInterface networkInterface) { }
+
+            private RttStateMachine mRttStateMachine;
+        }
+
         class RttStateMachine extends StateMachine {
+            private IWificond mWificond;
+            private InterfaceEventHandler mInterfaceEventHandler;
+            private IClientInterface mClientInterface;
 
             DefaultState mDefaultState = new DefaultState();
             EnabledState mEnabledState = new EnabledState();
@@ -351,6 +384,42 @@ public final class RttService extends SystemService {
 
             class EnabledState extends State {
                 @Override
+                public void enter() {
+                    // This allows us to tolerate wificond restarts.
+                    // When wificond restarts WifiStateMachine is supposed to go
+                    // back to initial state and restart.
+                    // 1) RttService watches for WIFI_STATE_ENABLED broadcasts
+                    // 2) WifiStateMachine sends these broadcasts in the SupplicantStarted state
+                    // 3) Since WSM will only be in SupplicantStarted for as long as wificond is
+                    // alive, we refresh our wificond handler here and we don't subscribe to
+                    // wificond's death explicitly.
+                    mWificond = mWifiInjector.makeWificond();
+                    if (mWificond == null) {
+                        Log.w(TAG, "Failed to get wificond binder handler");
+                        transitionTo(mDefaultState);
+                    }
+                    mInterfaceEventHandler = new InterfaceEventHandler(mStateMachine);
+                    try {
+                        mWificond.RegisterCallback(mInterfaceEventHandler);
+                        // Get the current client interface, assuming there is at most
+                        // one client interface for now.
+                        List<IBinder> interfaces = mWificond.GetClientInterfaces();
+                        if (interfaces.size() > 0) {
+                            mStateMachine.sendMessage(
+                                    CMD_CLIENT_INTERFACE_READY,
+                                    IClientInterface.Stub.asInterface(interfaces.get(0)));
+                        }
+                    } catch (RemoteException e1) { }
+
+                }
+                @Override
+                public void exit() {
+                    try {
+                        mWificond.UnregisterCallback(mInterfaceEventHandler);
+                    } catch (RemoteException e1) { }
+                    mInterfaceEventHandler = null;
+                }
+                @Override
                 public boolean processMessage(Message msg) {
                     if (DBG) Log.d(TAG, "EnabledState got" + msg);
                     ClientInfo ci;
@@ -411,6 +480,14 @@ public final class RttService extends SystemService {
                             }
                             break;
                         case RttManager.CMD_OP_DISABLE_RESPONDER:
+                            break;
+                        case CMD_CLIENT_INTERFACE_DOWN:
+                            if (mClientInterface == (IClientInterface) msg.obj) {
+                                mClientInterface = null;
+                            }
+                            break;
+                        case CMD_CLIENT_INTERFACE_READY:
+                            mClientInterface = (IClientInterface) msg.obj;
                             break;
                         default:
                             return NOT_HANDLED;
@@ -659,7 +736,8 @@ public final class RttService extends SystemService {
 
     @Override
     public void onStart() {
-        mImpl = new RttServiceImpl(getContext(), mHandlerThread.getLooper());
+        mImpl = new RttServiceImpl(getContext(),
+                mHandlerThread.getLooper(), WifiInjector.getInstance());
 
         Log.i(TAG, "Starting " + Context.WIFI_RTT_SERVICE);
         publishBinderService(Context.WIFI_RTT_SERVICE, mImpl);
@@ -670,7 +748,8 @@ public final class RttService extends SystemService {
         if (phase == SystemService.PHASE_SYSTEM_SERVICES_READY) {
             Log.i(TAG, "Registering " + Context.WIFI_RTT_SERVICE);
             if (mImpl == null) {
-                mImpl = new RttServiceImpl(getContext(), mHandlerThread.getLooper());
+                mImpl = new RttServiceImpl(getContext(),
+                        mHandlerThread.getLooper(),  WifiInjector.getInstance());
             }
             mImpl.startService();
         }
