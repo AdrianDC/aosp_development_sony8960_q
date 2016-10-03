@@ -293,11 +293,6 @@ public class WifiNative {
         doStringCommand("LOG_LEVEL " + level);
     }
 
-    public String getFreqCapability() {
-        return doStringCommand("GET_CAPABILITY freq");
-    }
-
-
     /*
      * Convert string to Hexadecimal before passing to wifi native layer
      * In native function "doCommand()" have trouble in converting Unicode character string to UTF8
