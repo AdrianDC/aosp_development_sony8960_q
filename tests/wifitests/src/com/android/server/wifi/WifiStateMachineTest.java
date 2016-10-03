@@ -340,6 +340,7 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiConfigManager()).thenReturn(mWifiConfigManager);
         when(mWifiInjector.getWifiSupplicantControl()).thenReturn(mWifiSupplicantControl);
         when(mWifiInjector.getWifiScanner()).thenReturn(mWifiScanner);
+        when(mWifiInjector.getWifiNetworkSelector()).thenReturn(mock(WifiNetworkSelector.class));
 
         when(mWifiNative.getInterfaceName()).thenReturn("mockWlan");
         when(mWifiSupplicantControl.getFrameworkNetworkId(anyInt())).thenReturn(0);
