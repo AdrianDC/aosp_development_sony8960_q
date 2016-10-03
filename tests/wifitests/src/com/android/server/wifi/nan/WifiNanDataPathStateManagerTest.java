@@ -168,7 +168,7 @@ public class WifiNanDataPathStateManagerTest {
         InOrder inOrder = inOrder(mMockNative);
 
         // (1) get capabilities
-        mDut.getCapabilities();
+        mDut.queryCapabilities();
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), capabilities);
@@ -701,7 +701,7 @@ public class WifiNanDataPathStateManagerTest {
         collector.checkThat("factory name", "WIFI_NAN_FACTORY", equalTo(strCaptor.getValue()));
 
         // (1) get capabilities
-        mDut.getCapabilities();
+        mDut.queryCapabilities();
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), capabilities);
