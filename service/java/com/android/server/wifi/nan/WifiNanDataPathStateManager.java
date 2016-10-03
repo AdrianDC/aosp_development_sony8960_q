@@ -150,12 +150,12 @@ public class WifiNanDataPathStateManager {
     public void createAllInterfaces() {
         if (VDBG) Log.v(TAG, "createAllInterfaces");
 
-        if (mMgr.mCapabilities == null) {
+        if (mMgr.getCapabilities() == null) {
             Log.e(TAG, "createAllInterfaces: capabilities aren't initialized yet!");
             return;
         }
 
-        for (int i = 0; i < mMgr.mCapabilities.maxNdiInterfaces; ++i) {
+        for (int i = 0; i < mMgr.getCapabilities().maxNdiInterfaces; ++i) {
             String name = NAN_INTERFACE_PREFIX + i;
             if (mInterfaces.contains(name)) {
                 Log.e(TAG, "createAllInterfaces(): interface already up, " + name
