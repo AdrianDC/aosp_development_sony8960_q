@@ -229,7 +229,7 @@ public class WifiConnectivityManager {
         localLog(listenerName + " onResults: start network selection");
 
         WifiConfiguration candidate =
-                mNetworkSelector.selectNetwork(scanDetails,
+                mNetworkSelector.selectNetwork(scanDetails, mWifiInfo,
                 mStateMachine.isConnected(), mStateMachine.isDisconnected(),
                 mUntrustedConnectionAllowed);
         mWifiLastResortWatchdog.updateAvailableNetworks(
