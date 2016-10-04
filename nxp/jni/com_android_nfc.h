@@ -20,26 +20,28 @@
 #undef LOG_TAG
 #define LOG_TAG "NFCJNI"
 
+#include <pthread.h>
+#include <semaphore.h>
+#include <sys/queue.h>
+
+#include <android/log.h>
+#include <cutils/properties.h> // for property_get
+
 #include <JNIHelp.h>
 #include <jni.h>
 #include <ScopedLocalRef.h>
 
-#include <pthread.h>
-#include <sys/queue.h>
-
 extern "C" {
+
 #include <phNfcStatus.h>
 #include <phNfcTypes.h>
 #include <phNfcIoctlCode.h>
 #include <phLibNfc.h>
 #include <phDal4Nfc_messageQueueLib.h>
 #include <phFriNfc_NdefMap.h>
-#include <cutils/log.h>
 #include <com_android_nfc_list.h>
-#include <semaphore.h>
 
 }
-#include <cutils/properties.h> // for property_get
 
 
 /* Discovery modes -- keep in sync with NFCManager.DISCOVERY_MODE_* */
