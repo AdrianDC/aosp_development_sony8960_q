@@ -17,7 +17,7 @@
 #if !defined (NXPLOG__H_INCLUDED)
 #define NXPLOG__H_INCLUDED
 
-#include <cutils/log.h>
+#include <android/log.h>
 
 typedef struct nci_log_level
 {
