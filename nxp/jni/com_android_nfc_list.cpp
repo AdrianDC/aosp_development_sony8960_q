@@ -15,14 +15,16 @@
  */
 
 #include <com_android_nfc_list.h>
-#include <com_android_nfc.h>
-#include <errno.h>
-#include <malloc.h>
-#include <pthread.h>
-#include <cutils/log.h>
+#include <com_android_nfc.h> // overrides LOG_TAG to "NFCJNI"
 
 #undef LOG_TAG
 #define LOG_TAG "NFC_LIST"
+
+#include <errno.h>
+#include <malloc.h>
+#include <pthread.h>
+
+#include <android/log.h>
 
 bool listInit(listHead* pList)
 {
