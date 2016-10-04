@@ -22,6 +22,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
 import android.app.ActivityManager;
+import android.content.ContentProvider;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -41,6 +42,7 @@ import android.net.wifi.WifiSsid;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -56,6 +58,8 @@ import android.os.UserManager;
 import android.provider.Settings;
 import android.security.KeyStore;
 import android.telephony.TelephonyManager;
+import android.test.mock.MockContentProvider;
+import android.test.mock.MockContentResolver;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Base64;
 import android.util.Log;
@@ -218,13 +222,19 @@ public class WifiStateMachineTest {
 
         Context context = mock(Context.class);
         when(context.getPackageManager()).thenReturn(pkgMgr);
-        when(context.getContentResolver()).thenReturn(mock(ContentResolver.class));
 
         MockResources resources = new com.android.server.wifi.MockResources();
         when(context.getResources()).thenReturn(resources);
 
-        ContentResolver cr = mock(ContentResolver.class);
-        when(context.getContentResolver()).thenReturn(cr);
+        MockContentResolver mockContentResolver = new MockContentResolver();
+        mockContentResolver.addProvider(Settings.AUTHORITY,
+                new MockContentProvider(context) {
+                    @Override
+                    public Bundle call(String method, String arg, Bundle extras) {
+                        return new Bundle();
+                    }
+                });
+        when(context.getContentResolver()).thenReturn(mockContentResolver);
 
         when(context.getSystemService(Context.POWER_SERVICE)).thenReturn(
                 new PowerManager(context, mock(IPowerManager.class), new Handler()));
