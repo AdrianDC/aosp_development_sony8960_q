@@ -19,7 +19,9 @@ package com.android.server.wifi.nan;
 import android.net.wifi.nan.ConfigRequest;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanCharacteristics;
 import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
+import android.os.Bundle;
 import android.util.Log;
 
 import com.android.server.wifi.WifiNative;
@@ -88,6 +90,19 @@ public class WifiNanNative {
         public int maxNdpSessions;
         public int maxAppInfoLen;
         public int maxQueuedTransmitMessages;
+
+        /**
+         * Converts the internal capabilities to a parcelable & potentially app-facing
+         * characteristics bundle. Only some of the information is exposed.
+         */
+        public WifiNanCharacteristics toPublicCharacteristics() {
+            Bundle bundle = new Bundle();
+            bundle.putInt(WifiNanCharacteristics.KEY_MAX_SERVICE_NAME_LENGTH, maxServiceNameLen);
+            bundle.putInt(WifiNanCharacteristics.KEY_MAX_SERVICE_SPECIFIC_INFO_LENGTH,
+                    maxServiceSpecificInfoLen);
+            bundle.putInt(WifiNanCharacteristics.KEY_MAX_MATCH_FILTER_LENGTH, maxMatchFilterLen);
+            return new WifiNanCharacteristics(bundle);
+        }
 
         @Override
         public String toString() {

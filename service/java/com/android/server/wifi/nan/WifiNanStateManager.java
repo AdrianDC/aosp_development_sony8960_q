@@ -24,6 +24,7 @@ import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanCharacteristics;
 import android.net.wifi.nan.WifiNanManager;
 import android.os.Bundle;
 import android.os.Looper;
@@ -179,7 +180,8 @@ public class WifiNanStateManager {
      * handler thread: no need to use a lock.
      */
     private Context mContext;
-    /* package */ WifiNanNative.Capabilities mCapabilities;
+    private volatile WifiNanNative.Capabilities mCapabilities;
+    private volatile WifiNanCharacteristics mCharacteristics = null;
     private WifiNanStateMachine mSm;
     private WifiNanRttStateManager mRtt;
     private WifiNanDataPathStateManager mDataPathMgr;
@@ -239,6 +241,24 @@ public class WifiNanStateManager {
      */
     /* package */ WifiNanClientState getClient(int clientId) {
         return mClients.get(clientId);
+    }
+
+    /**
+     * Get the capabilities.
+     */
+    public WifiNanNative.Capabilities getCapabilities() {
+        return mCapabilities;
+    }
+
+    /**
+     * Get the public characteristics derived from the capabilities. Use lazy initialization.
+     */
+    public WifiNanCharacteristics getCharacteristics() {
+        if (mCharacteristics == null && mCapabilities != null) {
+            mCharacteristics = mCapabilities.toPublicCharacteristics();
+        }
+
+        return mCharacteristics;
     }
 
     /*
@@ -404,7 +424,7 @@ public class WifiNanStateManager {
     /**
      * Get the capabilities of the current NAN firmware.
      */
-    public void getCapabilities() {
+    public void queryCapabilities() {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_GET_CAPABILITIES;
         mSm.sendMessage(msg);
@@ -1941,7 +1961,7 @@ public class WifiNanStateManager {
         WifiNanNative.getInstance().deInitNan(); // force a re-init of NAN HAL
 
         mUsageEnabled = true;
-        getCapabilities();
+        queryCapabilities();
         createAllDataPathInterfaces();
         sendNanStateChangedBroadcast(true);
     }
@@ -2282,6 +2302,7 @@ public class WifiNanStateManager {
         }
 
         mCapabilities = capabilities;
+        mCharacteristics = null;
     }
 
     private void onCreateDataPathInterfaceResponseLocal(Message command, boolean success,

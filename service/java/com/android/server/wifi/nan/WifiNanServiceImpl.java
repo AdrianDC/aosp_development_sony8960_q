@@ -252,7 +252,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         if (publishConfig == null) {
             throw new IllegalArgumentException("PublishConfig must not be null");
         }
-        publishConfig.validate();
+        publishConfig.assertValid(mStateManager.getCharacteristics());
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
@@ -272,7 +272,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         if (publishConfig == null) {
             throw new IllegalArgumentException("PublishConfig must not be null");
         }
-        publishConfig.validate();
+        publishConfig.assertValid(mStateManager.getCharacteristics());
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
@@ -296,7 +296,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         if (subscribeConfig == null) {
             throw new IllegalArgumentException("SubscribeConfig must not be null");
         }
-        subscribeConfig.validate();
+        subscribeConfig.assertValid(mStateManager.getCharacteristics());
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
@@ -316,7 +316,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         if (subscribeConfig == null) {
             throw new IllegalArgumentException("SubscribeConfig must not be null");
         }
-        subscribeConfig.validate();
+        subscribeConfig.assertValid(mStateManager.getCharacteristics());
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
@@ -334,6 +334,11 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
+        if (message != null
+                && message.length > mStateManager.getCharacteristics().getMaxServiceNameLength()) {
+            throw new IllegalArgumentException(
+                    "Message length longer than supported by device characteristics");
+        }
         if (retryCount < 0 || retryCount > WifiNanDiscoveryBaseSession.getMaxSendRetryCount()) {
             throw new IllegalArgumentException("Invalid 'retryCount' must be non-negative "
                     + "and <= WifiNanDiscoveryBaseSession.MAX_SEND_RETRY_COUNT");
