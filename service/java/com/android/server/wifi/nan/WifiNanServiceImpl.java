@@ -254,6 +254,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             IWifiNanDiscoverySessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
+        enforceLocationPermission();
 
         if (callback == null) {
             throw new IllegalArgumentException("Callback must not be null");
@@ -298,6 +299,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             IWifiNanDiscoverySessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
+        enforceLocationPermission();
 
         if (callback == null) {
             throw new IllegalArgumentException("Callback must not be null");
