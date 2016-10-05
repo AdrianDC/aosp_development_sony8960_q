@@ -89,7 +89,7 @@ space:= $(empty) $(empty)
 # These patterns will match all classes in this module and their inner classes.
 jacoco_exclude := $(subst $(space),$(comma),$(patsubst %,%*,$(local_classes)))
 
-jacoco_include := com.android.server.wifi.*,android.net.wifi.*
+jacoco_include := com.android.server.wifi.*
 
 LOCAL_JACK_COVERAGE_INCLUDE_FILTER := $(jacoco_include)
 LOCAL_JACK_COVERAGE_EXCLUDE_FILTER := $(jacoco_exclude)
