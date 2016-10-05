@@ -56,10 +56,7 @@ public class WifiNetworkSelector {
     public static final int BSSID_BLACKLIST_EXPIRE_TIME_MS = 5 * 60 * 1000;
 
     private WifiConfigManager mWifiConfigManager;
-    private WifiInfo mWifiInfo;
     private Clock mClock;
-    private WifiConfiguration mCurrentNetwork = null;
-    private String mCurrentBssid = null;
     private static class BssidBlacklistStatus {
         // Number of times this BSSID has been rejected for association.
         public int counter;
@@ -152,7 +149,10 @@ public class WifiNetworkSelector {
         mLocalLog.log(log);
     }
 
-    private boolean isCurrentNetworkSufficient(WifiConfiguration network) {
+    private boolean isCurrentNetworkSufficient(WifiInfo wifiInfo) {
+        WifiConfiguration network =
+                            mWifiConfigManager.getConfiguredNetwork(wifiInfo.getNetworkId());
+
         // Currently connected?
         if (network == null) {
             localLog("No current connected network.");
@@ -175,16 +175,16 @@ public class WifiNetworkSelector {
         }
 
         // 2.4GHz networks is not qualified.
-        if (mWifiInfo.is24GHz()) {
+        if (wifiInfo.is24GHz()) {
             localLog("Current network is 2.4GHz.");
             return false;
         }
 
         // Is the current network's singnal strength qualified? It can only
         // be a 5GHz network if we reach here.
-        int currentRssi = mWifiInfo.getRssi();
-        if (mWifiInfo.is5GHz() && currentRssi < mThresholdQualifiedRssi5) {
-            localLog("Current network band=" + (mWifiInfo.is5GHz() ? "5GHz" : "2.4GHz")
+        int currentRssi = wifiInfo.getRssi();
+        if (wifiInfo.is5GHz() && currentRssi < mThresholdQualifiedRssi5) {
+            localLog("Current network band=" + (wifiInfo.is5GHz() ? "5GHz" : "2.4GHz")
                     + ", RSSI[" + currentRssi + "]-acceptable but not qualified.");
             return false;
         }
@@ -192,7 +192,7 @@ public class WifiNetworkSelector {
         return true;
     }
 
-    private boolean isNetworkSelectionNeeded(List<ScanDetail> scanDetails,
+    private boolean isNetworkSelectionNeeded(List<ScanDetail> scanDetails, WifiInfo wifiInfo,
                         boolean connected, boolean disconnected) {
         if (scanDetails.size() == 0) {
             localLog("Empty connectivity scan results. Skip network selection.");
@@ -218,15 +218,15 @@ public class WifiNetworkSelector {
                 }
             }
 
-            if (isCurrentNetworkSufficient(mCurrentNetwork)) {
+            if (isCurrentNetworkSufficient(wifiInfo)) {
                 localLog("Current connected network already sufficient. Skip network selection.");
                 return false;
             } else {
                 localLog("Current connected network is not sufficient.");
+                return true;
             }
         } else if (disconnected) {
-            mCurrentNetwork = null;
-            mCurrentBssid = null;
+            return true;
         } else {
             // No network selection if WifiStateMachine is in a state other than
             // CONNECTED or DISCONNECTED.
@@ -234,8 +234,6 @@ public class WifiNetworkSelector {
                     + " Skip network selection.");
             return false;
         }
-
-        return true;
     }
 
     /**
@@ -446,7 +444,7 @@ public class WifiNetworkSelector {
      *
      */
     @Nullable
-    public WifiConfiguration selectNetwork(List<ScanDetail> scanDetails,
+    public WifiConfiguration selectNetwork(List<ScanDetail> scanDetails, WifiInfo wifiInfo,
             boolean connected, boolean disconnected, boolean untrustedNetworkAllowed) {
         mConnectableNetworks.clear();
         if (scanDetails.size() == 0) {
@@ -454,17 +452,15 @@ public class WifiNetworkSelector {
             return null;
         }
 
-        if (mCurrentNetwork == null) {
-            mCurrentNetwork =
-                mWifiConfigManager.getConfiguredNetwork(mWifiInfo.getNetworkId());
-        }
+        WifiConfiguration currentNetwork =
+                mWifiConfigManager.getConfiguredNetwork(wifiInfo.getNetworkId());
 
         // Always get the current BSSID from WifiInfo in case that firmware initiated
         // roaming happened.
-        mCurrentBssid = mWifiInfo.getBSSID();
+        String currentBssid = wifiInfo.getBSSID();
 
         // Shall we start network selection at all?
-        if (!isNetworkSelectionNeeded(scanDetails, connected, disconnected)) {
+        if (!isNetworkSelectionNeeded(scanDetails, wifiInfo, connected, disconnected)) {
             return null;
         }
 
@@ -490,7 +486,7 @@ public class WifiNetworkSelector {
         for (NetworkEvaluator registeredEvaluator : mEvaluators) {
             if (registeredEvaluator != null) {
                 selectedNetwork = registeredEvaluator.evaluateNetworks(scanDetails,
-                            mCurrentNetwork, mCurrentBssid, connected,
+                            currentNetwork, currentBssid, connected,
                             untrustedNetworkAllowed, mConnectableNetworks);
                 if (selectedNetwork != null) {
                     break;
@@ -499,8 +495,6 @@ public class WifiNetworkSelector {
         }
 
         if (selectedNetwork != null) {
-            mCurrentNetwork = selectedNetwork;
-            mCurrentBssid = selectedNetwork.getNetworkSelectionStatus().getCandidate().BSSID;
             mLastNetworkSelectionTimeStamp = mClock.getElapsedSinceBootMillis();
         }
 
@@ -552,10 +546,8 @@ public class WifiNetworkSelector {
         return false;
     }
 
-    WifiNetworkSelector(Context context, WifiConfigManager configManager,
-            WifiInfo wifiInfo, Clock clock) {
+    WifiNetworkSelector(Context context, WifiConfigManager configManager, Clock clock) {
         mWifiConfigManager = configManager;
-        mWifiInfo = wifiInfo;
         mClock = clock;
 
         mThresholdQualifiedRssi24 = context.getResources().getInteger(
