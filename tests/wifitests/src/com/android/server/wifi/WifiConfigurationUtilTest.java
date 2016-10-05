@@ -19,7 +19,6 @@ package com.android.server.wifi;
 import static org.junit.Assert.*;
 
 import android.content.pm.UserInfo;
-import android.net.wifi.FakeKeys;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiScanner;
