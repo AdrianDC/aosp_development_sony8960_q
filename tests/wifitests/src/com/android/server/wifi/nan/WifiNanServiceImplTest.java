@@ -36,6 +36,7 @@ import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
 import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanCharacteristics;
 import android.os.IBinder;
 import android.os.Looper;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -56,6 +57,8 @@ import java.lang.reflect.Field;
  */
 @SmallTest
 public class WifiNanServiceImplTest {
+    private static final int MAX_LENGTH = 255;
+
     private WifiNanServiceImplSpy mDut;
     private int mDefaultUid = 1500;
 
@@ -104,6 +107,7 @@ public class WifiNanServiceImplTest {
         when(mContextMock.getPackageManager()).thenReturn(mPackageManagerMock);
         when(mPackageManagerMock.hasSystemFeature(PackageManager.FEATURE_WIFI_NAN))
                 .thenReturn(true);
+        when(mNanStateManagerMock.getCharacteristics()).thenReturn(getCharacteristics());
 
         installMockNanStateManager();
 
@@ -323,16 +327,38 @@ public class WifiNanServiceImplTest {
      * name.
      */
     @Test(expected = IllegalArgumentException.class)
-    public void testPublishBadServiceName() {
-        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(
-                "Including invalid characters - spaces").build();
-        int clientId = doConnect();
-        IWifiNanDiscoverySessionCallback mockCallback = mock(
-                IWifiNanDiscoverySessionCallback.class);
+    public void testPublishInvalidServiceName() {
+        doBadPublishConfiguration("Including invalid characters - spaces", null, null);
+    }
 
-        mDut.publish(clientId, publishConfig, mockCallback);
+    /**
+     * Validate that publish() verifies the input PublishConfig and fails on a "very long"
+     * service name.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testPublishServiceNameTooLong() {
+        byte[] byteArray = new byte[MAX_LENGTH + 1];
+        for (int i = 0; i < MAX_LENGTH + 1; ++i) {
+            byteArray[i] = 'a';
+        }
+        doBadPublishConfiguration(new String(byteArray), null, null);
+    }
 
-        verify(mNanStateManagerMock).publish(clientId, publishConfig, mockCallback);
+    /**
+     * Validate that publish() verifies the input PublishConfig and fails on a "very long" ssi.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testPublishSsiTooLong() {
+        doBadPublishConfiguration("correctservicename", new byte[MAX_LENGTH + 1], null);
+    }
+
+    /**
+     * Validate that publish() verifies the input PublishConfig and fails on a "very long" match
+     * filter.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testPublishMatchFilterTooLong() {
+        doBadPublishConfiguration("correctservicename", null, new byte[MAX_LENGTH + 1]);
     }
 
     /**
@@ -343,6 +369,21 @@ public class WifiNanServiceImplTest {
         int sessionId = 1232;
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName("something.valid")
                 .build();
+        int clientId = doConnect();
+
+        mDut.updatePublish(clientId, sessionId, publishConfig);
+
+        verify(mNanStateManagerMock).updatePublish(clientId, sessionId, publishConfig);
+    }
+
+    /**
+     * Validate updatePublish() error checking.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testUpdatePublishInvalid() {
+        int sessionId = 1232;
+        PublishConfig publishConfig = new PublishConfig.Builder()
+                .setServiceName("something with spaces").build();
         int clientId = doConnect();
 
         mDut.updatePublish(clientId, sessionId, publishConfig);
@@ -371,20 +412,58 @@ public class WifiNanServiceImplTest {
      * name.
      */
     @Test(expected = IllegalArgumentException.class)
-    public void testSubscribeBadServiceName() {
-        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(
-                "InvalidServiceCharacters__").build();
-        int clientId = doConnect();
-        IWifiNanDiscoverySessionCallback mockCallback = mock(
-                IWifiNanDiscoverySessionCallback.class);
-
-        mDut.subscribe(clientId, subscribeConfig, mockCallback);
-
-        verify(mNanStateManagerMock).subscribe(clientId, subscribeConfig, mockCallback);
+    public void testSubscribeInvalidServiceName() {
+        doBadSubscribeConfiguration("Including invalid characters - spaces", null, null);
     }
 
     /**
-     * Validate updateSubscribe() - correct pass-through args.
+     * Validate that subscribe() verifies the input SubscribeConfig and fails on a "very long"
+     * service name.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testSubscribeServiceNameTooLong() {
+        byte[] byteArray = new byte[MAX_LENGTH + 1];
+        for (int i = 0; i < MAX_LENGTH + 1; ++i) {
+            byteArray[i] = 'a';
+        }
+        doBadSubscribeConfiguration(new String(byteArray), null, null);
+    }
+
+    /**
+     * Validate that subscribe() verifies the input SubscribeConfig and fails on a "very long" ssi.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testSubscribeSsiTooLong() {
+        doBadSubscribeConfiguration("correctservicename", new byte[MAX_LENGTH + 1], null);
+    }
+
+    /**
+     * Validate that subscribe() verifies the input SubscribeConfig and fails on a "very long" match
+     * filter.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testSubscribeMatchFilterTooLong() {
+        doBadSubscribeConfiguration("correctservicename", null, new byte[MAX_LENGTH + 1]);
+    }
+
+    /**
+     * Validate updateSubscribe() error checking.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testUpdateSubscribeInvalid() {
+        int sessionId = 1232;
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder()
+                .setServiceName("something.valid")
+                .setServiceSpecificInfo(new byte[MAX_LENGTH + 1]).build();
+        int clientId = doConnect();
+
+        mDut.updateSubscribe(clientId, sessionId, subscribeConfig);
+
+        verify(mNanStateManagerMock).updateSubscribe(clientId, sessionId, subscribeConfig);
+    }
+
+    /**
+     * Validate updateSubscribe() validates configuration.
      */
     @Test
     public void testUpdateSubscribe() {
@@ -405,7 +484,24 @@ public class WifiNanServiceImplTest {
     public void testSendMessage() {
         int sessionId = 2394;
         int peerId = 2032;
-        byte[] message = new byte[23];
+        byte[] message = new byte[MAX_LENGTH];
+        int messageId = 2043;
+        int clientId = doConnect();
+
+        mDut.sendMessage(clientId, sessionId, peerId, message, messageId, 0);
+
+        verify(mNanStateManagerMock).sendMessage(clientId, sessionId, peerId, message, messageId,
+                0);
+    }
+
+    /**
+     * Validate sendMessage() validates that message length is correct.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testSendMessageTooLong() {
+        int sessionId = 2394;
+        int peerId = 2032;
+        byte[] message = new byte[MAX_LENGTH + 1];
         int messageId = 2043;
         int clientId = doConnect();
 
@@ -492,6 +588,32 @@ public class WifiNanServiceImplTest {
      * Utilities
      */
 
+    private void doBadPublishConfiguration(String serviceName, byte[] ssi, byte[] matchFilter)
+            throws IllegalArgumentException {
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
+                .setServiceSpecificInfo(ssi).setMatchFilter(matchFilter).build();
+        int clientId = doConnect();
+        IWifiNanDiscoverySessionCallback mockCallback = mock(
+                IWifiNanDiscoverySessionCallback.class);
+
+        mDut.publish(clientId, publishConfig, mockCallback);
+
+        verify(mNanStateManagerMock).publish(clientId, publishConfig, mockCallback);
+    }
+
+    private void doBadSubscribeConfiguration(String serviceName, byte[] ssi, byte[] matchFilter)
+            throws IllegalArgumentException {
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
+                .setServiceSpecificInfo(ssi).setMatchFilter(matchFilter).build();
+        int clientId = doConnect();
+        IWifiNanDiscoverySessionCallback mockCallback = mock(
+                IWifiNanDiscoverySessionCallback.class);
+
+        mDut.subscribe(clientId, subscribeConfig, mockCallback);
+
+        verify(mNanStateManagerMock).subscribe(clientId, subscribeConfig, mockCallback);
+    }
+
     private int doConnect() {
         String callingPackage = "com.google.somePackage";
 
@@ -510,6 +632,24 @@ public class WifiNanServiceImplTest {
         Field field = WifiNanStateManager.class.getDeclaredField("sNanStateManagerSingleton");
         field.setAccessible(true);
         field.set(null, mNanStateManagerMock);
+    }
+
+    private static WifiNanCharacteristics getCharacteristics() {
+        WifiNanNative.Capabilities cap = new WifiNanNative.Capabilities();
+        cap.maxConcurrentNanClusters = 1;
+        cap.maxPublishes = 2;
+        cap.maxSubscribes = 2;
+        cap.maxServiceNameLen = MAX_LENGTH;
+        cap.maxMatchFilterLen = MAX_LENGTH;
+        cap.maxTotalMatchFilterLen = 255;
+        cap.maxServiceSpecificInfoLen = MAX_LENGTH;
+        cap.maxVsaDataLen = 255;
+        cap.maxMeshDataLen = 255;
+        cap.maxNdiInterfaces = 1;
+        cap.maxNdpSessions = 1;
+        cap.maxAppInfoLen = 255;
+        cap.maxQueuedTransmitMessages = 6;
+        return cap.toPublicCharacteristics();
     }
 
     private int getInternalStateUid(int clientId) throws Exception {
