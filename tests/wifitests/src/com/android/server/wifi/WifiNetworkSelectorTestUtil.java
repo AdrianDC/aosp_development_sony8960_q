@@ -294,7 +294,6 @@ public class WifiNetworkSelectorTestUtil {
     }
 
 
-
     /**
      * Configure the score cache for externally scored networks
      *
