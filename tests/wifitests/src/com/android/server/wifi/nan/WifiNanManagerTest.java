@@ -137,6 +137,16 @@ public class WifiNanManagerTest {
         verify(mockNanService).isUsageEnabled();
     }
 
+    /**
+     * Validate pass-through of getCharacteristics() API.
+     */
+    @Test
+    public void testGetCharacteristics() throws Exception {
+        mDut.getCharacteristics();
+
+        verify(mockNanService).getCharacteristics();
+    }
+
     /*
      * WifiNanEventCallbackProxy Tests
      */
