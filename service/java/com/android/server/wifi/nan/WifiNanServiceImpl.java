@@ -25,6 +25,7 @@ import android.net.wifi.nan.IWifiNanEventCallback;
 import android.net.wifi.nan.IWifiNanManager;
 import android.net.wifi.nan.PublishConfig;
 import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.nan.WifiNanCharacteristics;
 import android.net.wifi.nan.WifiNanDiscoveryBaseSession;
 import android.os.Binder;
 import android.os.HandlerThread;
@@ -126,6 +127,14 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         enforceAccessPermission();
 
         return mStateManager.isUsageEnabled();
+    }
+
+    @Override
+    public WifiNanCharacteristics getCharacteristics() {
+        enforceAccessPermission();
+
+        return mStateManager.getCapabilities() == null ? null
+                : mStateManager.getCapabilities().toPublicCharacteristics();
     }
 
     @Override
