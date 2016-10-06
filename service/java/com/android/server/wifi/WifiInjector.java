@@ -83,6 +83,7 @@ public class WifiInjector {
     private final IpConfigStore mIpConfigStore;
     private final WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     private final WifiConfigManager mWifiConfigManager;
+    private final WifiNetworkSelector mWifiNetworkSelector;
     private WifiScanner mWifiScanner;
 
     private final boolean mUseRealLogger;
@@ -139,6 +140,7 @@ public class WifiInjector {
         mWifiConfigManager = new WifiConfigManager(mContext, mFrameworkFacade, mClock,
                 UserManager.get(mContext), TelephonyManager.from(mContext),
                 mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy);
+        mWifiNetworkSelector = new WifiNetworkSelector(mContext, mWifiConfigManager, mClock);
 
         mWifiStateMachine = new WifiStateMachine(mContext, mFrameworkFacade,
                 mWifiStateMachineHandlerThread.getLooper(), UserManager.get(mContext),
@@ -321,5 +323,12 @@ public class WifiInjector {
                     mWifiStateMachineHandlerThread.getLooper());
         }
         return mWifiScanner;
+    }
+
+    /**
+     * Obtain an instance of WifiNetworkSelector.
+     */
+    public WifiNetworkSelector getWifiNetworkSelector() {
+        return mWifiNetworkSelector;
     }
 }

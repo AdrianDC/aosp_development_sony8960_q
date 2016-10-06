@@ -55,8 +55,7 @@ public class WifiNetworkSelectorTest {
         mWifiConfigManager = getWifiConfigManager();
         mWifiInfo = getWifiInfo();
 
-        mWifiNetworkSelector = new WifiNetworkSelector(mContext, mWifiConfigManager,
-                mWifiInfo, mClock);
+        mWifiNetworkSelector = new WifiNetworkSelector(mContext, mWifiConfigManager, mClock);
         mWifiNetworkSelector.registerNetworkEvaluator(mDummyEvaluator, 1);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
 
@@ -199,7 +198,7 @@ public class WifiNetworkSelectorTest {
                     freqs, caps, levels, securities, mWifiConfigManager, mClock);
         List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
-                false, true, false);
+                mWifiInfo, false, true, false);
         assertEquals("Expect null configuration", null, candidate);
     }
 
@@ -227,7 +226,7 @@ public class WifiNetworkSelectorTest {
                     freqs, caps, levels, securities, mWifiConfigManager, mClock);
         List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
-                false, true, false);
+                mWifiInfo, false, true, false);
         assertEquals("Expect null configuration", null, candidate);
     }
 
@@ -256,14 +255,14 @@ public class WifiNetworkSelectorTest {
                     freqs, caps, levels, securities, mWifiConfigManager, mClock);
         List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
-                false, true, false);
+                mWifiInfo, false, true, false);
 
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime()
                 + WifiNetworkSelector.MINIMUM_NETWORK_SELECTION_INTERVAL_MS - 2000);
 
         // Do another network selection with WSM in CONNECTED state.
         candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
-                true, false, false);
+                mWifiInfo, true, false, false);
 
         assertEquals("Expect null configuration", null, candidate);
     }
@@ -294,14 +293,14 @@ public class WifiNetworkSelectorTest {
         List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
         WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
-                false, true, false);
+                mWifiInfo, false, true, false);
 
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime()
                 + WifiNetworkSelector.MINIMUM_NETWORK_SELECTION_INTERVAL_MS - 2000);
 
         // Do another network selection with WSM in DISCONNECTED state.
         candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
-                false, true, false);
+                mWifiInfo, false, true, false);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
         WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[0], candidate);
@@ -333,7 +332,7 @@ public class WifiNetworkSelectorTest {
         List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
 
         // connect to test1
-        mWifiNetworkSelector.selectNetwork(scanDetails, false, true, false);
+        mWifiNetworkSelector.selectNetwork(scanDetails, mWifiInfo, false, true, false);
         when(mWifiInfo.getNetworkId()).thenReturn(0);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
@@ -348,7 +347,7 @@ public class WifiNetworkSelectorTest {
         scanDetails = scanDetailsAndConfigs.getScanDetails();
 
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
-                true, false, false);
+                mWifiInfo, true, false, false);
         assertEquals("Expect null configuration", null, candidate);
     }
 
@@ -379,7 +378,7 @@ public class WifiNetworkSelectorTest {
         WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
 
         // connect to test1
-        mWifiNetworkSelector.selectNetwork(scanDetails, false, true, false);
+        mWifiNetworkSelector.selectNetwork(scanDetails, mWifiInfo, false, true, false);
         when(mWifiInfo.getNetworkId()).thenReturn(0);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
         when(mWifiInfo.is24GHz()).thenReturn(true);
@@ -389,7 +388,7 @@ public class WifiNetworkSelectorTest {
 
         // Do another network selection.
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
-                true, false, false);
+                mWifiInfo, true, false, false);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
         WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[0], candidate);
@@ -424,7 +423,7 @@ public class WifiNetworkSelectorTest {
         WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
 
         // connect to test1
-        mWifiNetworkSelector.selectNetwork(scanDetails, false, true, false);
+        mWifiNetworkSelector.selectNetwork(scanDetails, mWifiInfo, false, true, false);
         when(mWifiInfo.getNetworkId()).thenReturn(0);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
@@ -435,7 +434,7 @@ public class WifiNetworkSelectorTest {
 
         // Do another network selection.
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
-                true, false, false);
+                mWifiInfo, true, false, false);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
         WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[0], candidate);
@@ -469,7 +468,7 @@ public class WifiNetworkSelectorTest {
         WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
 
         // connect to test1
-        mWifiNetworkSelector.selectNetwork(scanDetails, false, true, false);
+        mWifiNetworkSelector.selectNetwork(scanDetails, mWifiInfo, false, true, false);
         when(mWifiInfo.getNetworkId()).thenReturn(0);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
@@ -481,7 +480,7 @@ public class WifiNetworkSelectorTest {
 
         // Do another network selection.
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
-                true, false, false);
+                mWifiInfo, true, false, false);
 
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
         WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[0], candidate);
