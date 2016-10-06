@@ -193,7 +193,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private WifiConfigManager mWifiConfigManager;
     private WifiSupplicantControl mWifiSupplicantControl;
     private WifiConnectivityManager mWifiConnectivityManager;
-    private WifiQualifiedNetworkSelector mWifiQualifiedNetworkSelector;
+    private WifiNetworkSelector mWifiNetworkSelector;
     private INetworkManagementService mNwService;
     private IWificond mWificond;
     private IClientInterface mClientInterface;
@@ -877,8 +877,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiDiagnostics = mWifiInjector.makeWifiDiagnostics(mWifiNative);
 
         mWifiInfo = new WifiInfo();
-        mWifiQualifiedNetworkSelector = new WifiQualifiedNetworkSelector(mWifiConfigManager,
-                mContext, mWifiInfo, mWifiInjector.getClock());
+        mWifiNetworkSelector = new WifiNetworkSelector(mContext, mWifiConfigManager,
+                mWifiInfo, mWifiInjector.getClock());
         mSupplicantStateTracker =
                 mFacade.makeSupplicantStateTracker(context, mWifiConfigManager, getHandler());
 
@@ -1176,10 +1176,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiNative.enableVerboseLogging(verbose);
         mWifiConfigManager.enableVerboseLogging(verbose);
         mSupplicantStateTracker.enableVerboseLogging(verbose);
-        mWifiQualifiedNetworkSelector.enableVerboseLogging(verbose);
-        if (mWifiConnectivityManager != null) {
-            mWifiConnectivityManager.enableVerboseLogging(verbose);
-        }
     }
 
     private static final String SYSTEM_PROPERTY_LOG_CONTROL_WIFIHAL = "log.tag.WifiHAL";
@@ -2142,11 +2138,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         pw.println();
         mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_USER_ACTION);
         mWifiDiagnostics.dump(fd, pw, args);
-        mWifiQualifiedNetworkSelector.dump(fd, pw, args);
         dumpIpManager(fd, pw, args);
-        if (mWifiConnectivityManager != null) {
-            mWifiConnectivityManager.dump(fd, pw, args);
-        }
+        mWifiNetworkSelector.dump(fd, pw, args);
     }
 
     public void handleUserSwitch(int userId) {
@@ -4171,7 +4164,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 synchronized (mWifiReqCountLock) {
                     mWifiConnectivityManager = new WifiConnectivityManager(mContext,
                         WifiStateMachine.this, mWifiScanner, mWifiConfigManager, mWifiInfo,
-                        mWifiQualifiedNetworkSelector, mWifiInjector,
+                        mWifiNetworkSelector, mWifiInjector,
                         getHandler().getLooper(), hasConnectionRequests());
                     mWifiConnectivityManager.setUntrustedConnectionAllowed(mUntrustedReqCount > 0);
                     mWifiConnectivityManager.handleScreenStateChanged(mScreenOn);
@@ -6174,7 +6167,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                 || (lastRoam > 0 && lastRoam < 2000) /* unless driver is roaming */)
                             && ((ScanResult.is24GHz(mWifiInfo.getFrequency())
                                     && mWifiInfo.getRssi() >
-                                    WifiQualifiedNetworkSelector.QUALIFIED_RSSI_24G_BAND)
+                                     mThresholdQualifiedRssi5)
                                     || (ScanResult.is5GHz(mWifiInfo.getFrequency())
                                     && mWifiInfo.getRssi() >
                                     mThresholdQualifiedRssi5))) {
