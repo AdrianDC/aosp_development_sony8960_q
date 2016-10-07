@@ -1,4 +1,0 @@
-service wifi_hal_legacy /system/bin/hw/wifi_hal_legacy
-    class main
-    user wifi
-    group wifi
