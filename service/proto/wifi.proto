@@ -194,9 +194,6 @@ message WifiLog {
   // without new networks becoming available.
   optional int32 num_last_resort_watchdog_successes = 36;
 
-  // Counts the occurrences of each alert reason.
-  repeated AlertReasonCount alert_reason_count = 47;
-
   // Total number of saved hidden networks
   optional int32 num_hidden_networks = 37;
 
@@ -227,8 +224,20 @@ message WifiLog {
   // Total number of scans handled by framework (oneshot or otherwise)
   optional int32 num_scans = 46;
 
-  // Counts the occurrences of each Wifi score
+  // Counts the occurrences of each alert reason.
+  repeated AlertReasonCount alert_reason_count = 47;
+
+  // Counts the occurences of each Wifi score
   repeated WifiScoreCount wifi_score_count = 48;
+
+  // Histogram of Soft AP Durations
+  repeated SoftApDurationBucket soft_ap_duration = 49;
+
+  // Histogram of Soft AP ReturnCode
+  repeated SoftApReturnCodeCount soft_ap_return_code = 50;
+
+  // Histogram of the delta between scan result RSSI and RSSI polls
+  repeated RssiPollCount rssi_poll_delta_count = 51;
 }
 
 // Information that gets logged for every WiFi connection.
@@ -408,5 +417,27 @@ message WifiScoreCount {
   optional int32 score = 1;
 
   // Number of Wifi score reports with this score
+  optional int32 count = 2;
+}
+
+// Number of occurrences of Soft AP session durations
+message SoftApDurationBucket {
+  // Bucket covers duration : [duration_sec, duration_sec + bucket_size_sec)
+  // The (inclusive) lower bound of Soft AP session duration represented by this bucket
+  optional int32 duration_sec = 1;
+
+  // The size of this bucket
+  optional int32 bucket_size_sec = 2;
+
+  // Number of soft AP session durations that fit into this bucket
+  optional int32 count = 3;
+}
+
+// Number of occurrences of a soft AP session return code
+message SoftApReturnCodeCount {
+  // Return code of the soft AP session
+  optional int32 return_code = 1;
+
+  // Occurences of this soft AP return code
   optional int32 count = 2;
 }
