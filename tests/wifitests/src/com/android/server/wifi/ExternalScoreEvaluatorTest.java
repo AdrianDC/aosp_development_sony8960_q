@@ -416,4 +416,75 @@ public class ExternalScoreEvaluatorTest {
 
         assertEquals("Expect null configuration", null, candidate);
     }
+
+    /**
+     * Between two ephemeral networks with the same RSSI, choose
+     * the currently connected one.
+     */
+    @Test
+    public void chooseActiveEphemeralNetwork() {
+        String[] ssids = {"\"test1\"", "\"test2\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] freqs = {2470, 2437};
+        String[] caps = {"[ESS]", "[ESS]"};
+        int[] levels = {mThresholdQualifiedRssi2G + 28, mThresholdQualifiedRssi2G + 28};
+        boolean[] meteredHints = {true, true};
+        ScanResult[] scanResults = new ScanResult[2];
+        WifiConfiguration[] ephemeralNetworkConfigs = new WifiConfiguration[2];
+
+        List<ScanDetail> scanDetails = WifiNetworkSelectorTestUtil.buildScanDetails(
+                    ssids, bssids, freqs, caps, levels, mClock);
+        WifiNetworkSelectorTestUtil.configureScoreCache(mScoreCache,
+                    scanDetails, null, meteredHints);
+
+        // No saved networks.
+        when(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(any(ScanDetail.class)))
+                .thenReturn(null);
+
+        for (int i = 0; i < 2; i++) {
+            scanResults[i] = scanDetails.get(i).getScanResult();
+            ephemeralNetworkConfigs[i] = WifiNetworkSelectorTestUtil
+                .setupEphemeralNetwork(mWifiConfigManager, i, scanResults[i], meteredHints[i]);
+        }
+
+        WifiConfiguration candidate = mExternalScoreEvaluator.evaluateNetworks(scanDetails,
+                null, bssids[1], true, true, null);
+
+        WifiConfigurationTestUtil.assertConfigurationEqual(ephemeralNetworkConfigs[1], candidate);
+        WifiNetworkSelectorTestUtil.verifySelectedScanResult(mWifiConfigManager,
+                scanResults[1], candidate);
+        assertEquals(meteredHints[1], candidate.meteredHint);
+    }
+
+    /**
+     *  Between two externally scored saved networks with the same RSSI, choose
+     *  the currently connected one.
+     */
+    @Test
+    public void chooseActiveSavedNetwork() {
+        String[] ssids = {"\"test1\"", "\"test2\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] freqs = {2470, 2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
+        int[] securities = {SECURITY_PSK, SECURITY_PSK};
+        int[] levels = {mThresholdQualifiedRssi2G + 28, mThresholdQualifiedRssi2G + 28};
+        boolean[] meteredHints = {false, false};
+
+        ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
+                WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
+                    freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
+        WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
+        savedConfigs[0].useExternalScores = savedConfigs[1].useExternalScores = true;
+
+        WifiNetworkSelectorTestUtil.configureScoreCache(mScoreCache,
+                    scanDetails, null, meteredHints);
+
+        WifiConfiguration candidate = mExternalScoreEvaluator.evaluateNetworks(scanDetails,
+                savedConfigs[1], bssids[1], true, true, null);
+
+        WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[1], candidate);
+        WifiNetworkSelectorTestUtil.verifySelectedScanResult(mWifiConfigManager,
+                scanDetails.get(1).getScanResult(), candidate);
+    }
 }
