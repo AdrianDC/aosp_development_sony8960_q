@@ -309,17 +309,24 @@ public class WifiNetworkSelectorTestUtil {
 
         for (int i = 0; i < scanDetails.size(); i++) {
             ScanDetail scanDetail = scanDetails.get(i);
-            byte rssiScore;
-            Integer score = scores[i];
             ScanResult scanResult = scanDetail.getScanResult();
             WifiKey wifiKey = new WifiKey("\"" + scanResult.SSID + "\"", scanResult.BSSID);
             NetworkKey ntwkKey = new NetworkKey(wifiKey);
-            if (scores[i] == null) {
-                rssiScore = WifiNetworkScoreCache.INVALID_NETWORK_SCORE;
+            RssiCurve rssiCurve;
+
+            if (scores != null) { // fixed score
+                byte rssiScore;
+                Integer score = scores[i];
+
+                if (scores[i] == null) {
+                    rssiScore = WifiNetworkScoreCache.INVALID_NETWORK_SCORE;
+                } else {
+                    rssiScore = scores[i].byteValue();
+                }
+                rssiCurve = new RssiCurve(-100, 100, new byte[] {rssiScore});
             } else {
-                rssiScore = scores[i].byteValue();
+                rssiCurve = new RssiCurve(-80, 20, new byte[] {-10, 0, 10, 20, 30, 40});
             }
-            RssiCurve rssiCurve = new RssiCurve(-100, 100, new byte[] {rssiScore});
             ScoredNetwork scoredNetwork = new ScoredNetwork(ntwkKey, rssiCurve, meteredHints[i]);
 
             networks.add(scoredNetwork);

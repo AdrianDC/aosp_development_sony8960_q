@@ -24,6 +24,7 @@ import android.net.WifiKey;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.os.Process;
+import android.text.TextUtils;
 import android.util.LocalLog;
 import android.util.Log;
 import android.util.Pair;
@@ -140,13 +141,17 @@ public class ExternalScoreEvaluator implements WifiNetworkSelector.NetworkEvalua
      * Returns the available external network score or null if no score is available.
      *
      * @param scanResult The scan result of the network to score.
+     * @param scoreCache Wifi network score cache.
+     * @param active Flag which indicates whether this is the currently connected network.
      * @return A valid external score if one is available or NULL.
      */
     @Nullable
-    Integer getNetworkScore(ScanResult scanResult, WifiNetworkScoreCache scoreCache) {
+    Integer getNetworkScore(ScanResult scanResult, WifiNetworkScoreCache scoreCache,
+                boolean active) {
         if (scoreCache != null && scoreCache.isScoredNetwork(scanResult)) {
-            int score = scoreCache.getNetworkScore(scanResult, false);
-            localLog(WifiNetworkSelector.toScanId(scanResult) + " has score: " + score);
+            int score = scoreCache.getNetworkScore(scanResult, active);
+            localLog(WifiNetworkSelector.toScanId(scanResult) + " has score: " + score
+                    + " active network: " + active);
             return score;
         }
         return null;
@@ -247,7 +252,11 @@ public class ExternalScoreEvaluator implements WifiNetworkSelector.NetworkEvalua
             if (isPotentialEphemeralNetwork(associatedConfigs)) {
                 if (untrustedNetworkAllowed) {
                     if (!mWifiConfigManager.wasEphemeralNetworkDeleted(scanResult.SSID)) {
-                        Integer score = getNetworkScore(scanResult, mScoreCache);
+                        // Ephemeral network has either one WifiConfiguration or none yet.
+                        // Checking BSSID is sufficient to determine whether this is the
+                        // currently connected network.
+                        boolean active = TextUtils.equals(currentBssid, scanResult.BSSID);
+                        Integer score = getNetworkScore(scanResult, mScoreCache, active);
                         externalScoreTracker.trackUntrustedCandidate(score, scanResult);
                         if (connectableNetworks != null) {
                             connectableNetworks.add(Pair.create(scanDetail,
@@ -278,7 +287,9 @@ public class ExternalScoreEvaluator implements WifiNetworkSelector.NetworkEvalua
                 if (network.useExternalScores) {
                     localLog("Network " + WifiNetworkSelector.toNetworkString(network)
                             + " uses external score");
-                    Integer score = getNetworkScore(scanResult, mScoreCache);
+                    boolean active = currentNetwork != null && currentNetwork == network
+                                && TextUtils.equals(currentBssid, scanResult.BSSID);
+                    Integer score = getNetworkScore(scanResult, mScoreCache, active);
                     externalScoreTracker.trackSavedCandidate(score, network, scanResult);
                     if (connectableNetworks != null) {
                         connectableNetworks.add(Pair.create(scanDetail, network));
