@@ -2457,20 +2457,8 @@ public class WifiConfigManager {
     }
 
     private Map<HomeSP, PasspointMatch> matchPasspointNetworks(ScanDetail scanDetail) {
+        // Nothing to do if no Hotspot 2.0 provider is configured.
         if (!mMOManager.isConfigured()) {
-            if (mEnableOsuQueries) {
-                NetworkDetail networkDetail = scanDetail.getNetworkDetail();
-                List<Constants.ANQPElementType> querySet =
-                        ANQPFactory.buildQueryList(networkDetail, false, true);
-
-                if (networkDetail.queriable(querySet)) {
-                    querySet = mAnqpCache.initiate(networkDetail, querySet);
-                    if (querySet != null) {
-                        mSupplicantBridge.startANQP(scanDetail, querySet);
-                    }
-                    updateAnqpCache(scanDetail, networkDetail.getANQPElements());
-                }
-            }
             return null;
         }
         NetworkDetail networkDetail = scanDetail.getNetworkDetail();
