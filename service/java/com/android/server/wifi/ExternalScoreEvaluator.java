@@ -251,7 +251,8 @@ public class ExternalScoreEvaluator implements WifiNetworkSelector.NetworkEvalua
 
             if (isPotentialEphemeralNetwork(associatedConfigs)) {
                 if (untrustedNetworkAllowed) {
-                    if (!mWifiConfigManager.wasEphemeralNetworkDeleted(scanResult.SSID)) {
+                    if (!mWifiConfigManager.wasEphemeralNetworkDeleted(
+                                ScanResultUtil.createQuotedSSID(scanResult.SSID))) {
                         // Ephemeral network has either one WifiConfiguration or none yet.
                         // Checking BSSID is sufficient to determine whether this is the
                         // currently connected network.
