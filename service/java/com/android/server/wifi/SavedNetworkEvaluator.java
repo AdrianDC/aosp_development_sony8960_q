@@ -159,9 +159,8 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
 
         // Last user selection award.
         int lastUserSelectedNetworkId = mWifiConfigManager.getLastSelectedNetwork();
-        WifiConfiguration lastUserSelectedNetwork =
-                mWifiConfigManager.getConfiguredNetwork(lastUserSelectedNetworkId);
-        if (lastUserSelectedNetwork != null && lastUserSelectedNetworkId == network.networkId) {
+        if (lastUserSelectedNetworkId != WifiConfiguration.INVALID_NETWORK_ID
+                && lastUserSelectedNetworkId == network.networkId) {
             long timeDifference = mClock.getElapsedSinceBootMillis()
                     - mWifiConfigManager.getLastSelectedTimeStamp();
             if (timeDifference > 0) {
