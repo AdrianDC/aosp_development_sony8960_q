@@ -513,6 +513,10 @@ public class WifiConfigManager {
      * provided network ID in our database.
      */
     private WifiConfiguration getInternalConfiguredNetwork(int networkId) {
+        if (networkId == WifiConfiguration.INVALID_NETWORK_ID) {
+            Log.e(TAG, "Looking up network with invalid networkId -1");
+            return null;
+        }
         WifiConfiguration internalConfig = mConfiguredNetworks.getForCurrentUser(networkId);
         if (internalConfig == null) {
             Log.e(TAG, "Cannot find network with networkId " + networkId);
@@ -1682,6 +1686,9 @@ public class WifiConfigManager {
      * @return network Id corresponding to the last selected network.
      */
     public String getLastSelectedNetworkConfigKey() {
+        if (mLastSelectedNetworkId == WifiConfiguration.INVALID_NETWORK_ID) {
+            return "";
+        }
         WifiConfiguration config = getInternalConfiguredNetwork(mLastSelectedNetworkId);
         if (config == null) {
             return "";
@@ -1782,8 +1789,10 @@ public class WifiConfigManager {
         }
         for (WifiConfiguration config : getInternalConfiguredNetworks()) {
             if (ScanResultUtil.doesScanResultMatchWithNetwork(scanResult, config)) {
-                localLog("getSavedNetworkFromScanDetail: Found " + config.configKey()
-                        + " for " + scanResult.SSID + "[" + scanResult.capabilities + "]");
+                if (mVerboseLoggingEnabled) {
+                    Log.v(TAG, "getSavedNetworkFromScanDetail Found " + config.configKey()
+                            + " for " + scanResult.SSID + "[" + scanResult.capabilities + "]");
+                }
                 return config;
             }
         }
