@@ -3977,12 +3977,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
 
                     try {
-                        // A runtime crash can leave the interface up and
+                        // A runtime crash or shutting down AP mode can leave
                         // IP addresses configured, and this affects
                         // connectivity when supplicant starts up.
-                        // Ensure interface is down and we have no IP
-                        // addresses before a supplicant start.
-                        mNwService.setInterfaceDown(mInterfaceName);
+                        // Ensure we have no IP addresses before a supplicant start.
                         mNwService.clearInterfaceAddresses(mInterfaceName);
 
                         // Set privacy extensions
