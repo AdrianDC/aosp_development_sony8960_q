@@ -1782,8 +1782,10 @@ public class WifiConfigManager {
         }
         for (WifiConfiguration config : getInternalConfiguredNetworks()) {
             if (ScanResultUtil.doesScanResultMatchWithNetwork(scanResult, config)) {
-                localLog("getSavedNetworkFromScanDetail: Found " + config.configKey()
-                        + " for " + scanResult.SSID + "[" + scanResult.capabilities + "]");
+                if (mVerboseLoggingEnabled) {
+                    Log.v(TAG, "getSavedNetworkFromScanDetail Found " + config.configKey()
+                            + " for " + scanResult.SSID + "[" + scanResult.capabilities + "]");
+                }
                 return config;
             }
         }
