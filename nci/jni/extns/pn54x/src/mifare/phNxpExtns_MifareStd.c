@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#define LOG_TAG "phNxpExtns_MifareStd"
 
 #include <nfc_api.h>
 #include <rw_api.h>
