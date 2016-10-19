@@ -13,7 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#define LOG_TAG "phNxpLog"
 
+#include <stdio.h>
 #include <string.h>
 #if !defined (NXPLOG__H_INCLUDED)
 #    include "phNxpLog.h"
