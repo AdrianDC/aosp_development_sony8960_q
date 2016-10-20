@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#define LOG_TAG "phNxpLog"
+#define LOG_TAG "pn54x"
 
 #include <stdio.h>
 #include <string.h>

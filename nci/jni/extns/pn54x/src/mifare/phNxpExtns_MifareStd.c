@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#define LOG_TAG "phNxpExtns_MifareStd"
+#define LOG_TAG "pn54x"
 
 #include <nfc_api.h>
 #include <rw_api.h>
@@ -577,7 +577,7 @@ STATIC void Mfc_SetRdOnly_Completion_Routine(void *NdefCtxt, NFCSTATUS status)
 {
     (void)NdefCtxt;
     tNFA_CONN_EVT_DATA conn_evt_data;
-    ALOGE("Mfc_SetRdOnly_Completion_Routine status = 0x%x", status);
+    ALOGE("%s status = 0x%x", __FUNCTION__, status);
     conn_evt_data.status = status;
     (*gphNxpExtns_Context.p_conn_cback) (NFA_SET_TAG_RO_EVT, &conn_evt_data);
 
@@ -1419,7 +1419,7 @@ NFCSTATUS Mfc_RecvPacket(uint8_t *buff, uint8_t buffSz)
     status = phNciNfc_RecvMfResp(&RspBuff, status);
     if (TRUE == gAuthCmdBuf.auth_sent)
     {
-        ALOGD("%s Mfc Check Presnece in progress", __FUNCTION__);
+        ALOGD("%s Mfc Check Presence in progress", __FUNCTION__);
         gAuthCmdBuf.auth_sent = FALSE;
         return status;
     }
