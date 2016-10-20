@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#define LOG_TAG "phNXpExtns"
+#define LOG_TAG "pn54x"
 
 #ifdef ESE_NFC_SYNCHRONIZATION
 #include <linux/ese-nfc-sync.h>
@@ -228,7 +228,7 @@ NFCSTATUS EXTNS_MfcPresenceCheck (void)
     gAuthCmdBuf.status = NFCSTATUS_FAILED;
     if (sem_init (&gAuthCmdBuf.semPresenceCheck, 0, 0) == -1)
     {
-        ALOGE ("%s: semaphore creation failed (errno=0x%08x)", __FUNCTION__, errno);
+        ALOGE ("%s: semaphore creation failed (errno=%d)", __FUNCTION__, errno);
         return NFCSTATUS_FAILED;
     }
 
@@ -627,14 +627,14 @@ NFCSTATUS EXTNS_GetPresenceCheckStatus (void)
 
     if (sem_timedwait (&gAuthCmdBuf.semPresenceCheck, &ts))
     {
-        ALOGE ("%s: failed to wait (errno=0x%08x)", __FUNCTION__, errno);
+        ALOGE ("%s: failed to wait (errno=%d)", __FUNCTION__, errno);
         sem_destroy (&gAuthCmdBuf.semPresenceCheck);
         gAuthCmdBuf.auth_sent = FALSE;
         return NFCSTATUS_FAILED;
     }
     if (sem_destroy (&gAuthCmdBuf.semPresenceCheck))
     {
-        ALOGE ("Failed to destroy check Presence semaphore (errno=0x%08x)", errno);
+        ALOGE ("%s: Failed to destroy check Presence semaphore (errno=%d)", __FUNCTION__, errno);
     }
     return gAuthCmdBuf.status;
 }
