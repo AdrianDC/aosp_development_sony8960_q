@@ -29,6 +29,7 @@ import static com.android.server.wifi.WifiController.CMD_USER_PRESENT;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
 
 import android.Manifest;
+import android.app.ActivityManager;
 import android.app.AppOpsManager;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
@@ -37,11 +38,13 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.UserInfo;
 import android.database.ContentObserver;
 import android.net.ConnectivityManager;
 import android.net.DhcpInfo;
 import android.net.DhcpResults;
 import android.net.Network;
+import android.net.NetworkScorerAppManager;
 import android.net.NetworkUtils;
 import android.net.Uri;
 import android.net.ip.IpManager;
@@ -86,7 +89,6 @@ import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
 import com.android.server.wifi.configparse.ConfigBuilder;
-import com.android.server.wifi.util.WifiPermissionsUtil;
 
 import org.xml.sax.SAXException;
 
@@ -156,8 +158,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private AsyncChannel mWifiStateMachineChannel;
 
     private final boolean mPermissionReviewRequired;
-
-    private WifiPermissionsUtil mWifiPermissionsUtil;
 
     /**
      * Handles client connections
@@ -335,10 +335,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 new WifiStateMachineHandler(wifiServiceHandlerThread.getLooper());
         mWifiController = mWifiInjector.getWifiController();
         mWifiBackupRestore = mWifiInjector.getWifiBackupRestore();
-        mWifiPermissionsUtil = mWifiInjector.getWifiPermissionsUtil();
+
         mPermissionReviewRequired = Build.PERMISSIONS_REVIEW_REQUIRED
                 || context.getResources().getBoolean(
                 com.android.internal.R.bool.config_permissionReviewRequired);
+
         enableVerboseLoggingInternal(getVerboseLoggingLevel());
     }
 
@@ -1023,11 +1024,27 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public List<ScanResult> getScanResults(String callingPackage) {
         enforceAccessPermission();
+        int userId = UserHandle.getCallingUserId();
         int uid = Binder.getCallingUid();
+        boolean canReadPeerMacAddresses = checkPeersMacAddress();
+        boolean isActiveNetworkScorer =
+                NetworkScorerAppManager.isCallerActiveScorer(mContext, uid);
+        boolean hasInteractUsersFull = checkInteractAcrossUsersFull();
         long ident = Binder.clearCallingIdentity();
         try {
-            if (!mWifiPermissionsUtil.canAccessScanResults(callingPackage,
-                      uid, Build.VERSION_CODES.M)) {
+            if (!canReadPeerMacAddresses && !isActiveNetworkScorer
+                    && !isLocationEnabled(callingPackage)) {
+                return new ArrayList<ScanResult>();
+            }
+            if (!canReadPeerMacAddresses && !isActiveNetworkScorer
+                    && !checkCallerCanAccessScanResults(callingPackage, uid)) {
+                return new ArrayList<ScanResult>();
+            }
+            if (mAppOps.noteOp(AppOpsManager.OP_WIFI_SCAN, uid, callingPackage)
+                    != AppOpsManager.MODE_ALLOWED) {
+                return new ArrayList<ScanResult>();
+            }
+            if (!isCurrentProfile(userId) && !hasInteractUsersFull) {
                 return new ArrayList<ScanResult>();
             }
             if (mWifiScanner == null) {
@@ -1088,6 +1105,49 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void deauthenticateNetwork(long holdoff, boolean ess) {
         mWifiStateMachine.deauthenticateNetwork(mWifiStateMachineChannel, holdoff, ess);
+    }
+
+    private boolean isLocationEnabled(String callingPackage) {
+        boolean legacyForegroundApp = !isMApp(mContext, callingPackage)
+                && isForegroundApp(callingPackage);
+        return legacyForegroundApp || Settings.Secure.getInt(mContext.getContentResolver(),
+                Settings.Secure.LOCATION_MODE, Settings.Secure.LOCATION_MODE_OFF)
+                != Settings.Secure.LOCATION_MODE_OFF;
+    }
+
+    /**
+     * Returns true if the caller holds INTERACT_ACROSS_USERS_FULL.
+     */
+    private boolean checkInteractAcrossUsersFull() {
+        return mContext.checkCallingOrSelfPermission(
+                android.Manifest.permission.INTERACT_ACROSS_USERS_FULL)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
+     * Returns true if the caller holds PEERS_MAC_ADDRESS.
+     */
+    private boolean checkPeersMacAddress() {
+        return mContext.checkCallingOrSelfPermission(
+                android.Manifest.permission.PEERS_MAC_ADDRESS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
+     * Returns true if the calling user is the current one or a profile of the
+     * current user..
+     */
+    private boolean isCurrentProfile(int userId) {
+        int currentUser = ActivityManager.getCurrentUser();
+        if (userId == currentUser) {
+            return true;
+        }
+        List<UserInfo> profiles = mUserManager.getProfiles(currentUser);
+        for (UserInfo user : profiles) {
+            if (userId == user.id) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1714,12 +1774,63 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         return sb.toString();
     }
 
+    /**
+     * Checks that calling process has android.Manifest.permission.ACCESS_COARSE_LOCATION or
+     * android.Manifest.permission.ACCESS_FINE_LOCATION and a corresponding app op is allowed
+     */
+    private boolean checkCallerCanAccessScanResults(String callingPackage, int uid) {
+        if (ActivityManager.checkUidPermission(Manifest.permission.ACCESS_FINE_LOCATION, uid)
+                == PackageManager.PERMISSION_GRANTED
+                && checkAppOppAllowed(AppOpsManager.OP_FINE_LOCATION, callingPackage, uid)) {
+            return true;
+        }
+
+        if (ActivityManager.checkUidPermission(Manifest.permission.ACCESS_COARSE_LOCATION, uid)
+                == PackageManager.PERMISSION_GRANTED
+                && checkAppOppAllowed(AppOpsManager.OP_COARSE_LOCATION, callingPackage, uid)) {
+            return true;
+        }
+        boolean apiLevel23App = isMApp(mContext, callingPackage);
+        // Pre-M apps running in the foreground should continue getting scan results
+        if (!apiLevel23App && isForegroundApp(callingPackage)) {
+            return true;
+        }
+        Log.e(TAG, "Permission denial: Need ACCESS_COARSE_LOCATION or ACCESS_FINE_LOCATION "
+                + "permission to get scan results");
+        return false;
+    }
+
+    private boolean checkAppOppAllowed(int op, String callingPackage, int uid) {
+        return mAppOps.noteOp(op, uid, callingPackage) == AppOpsManager.MODE_ALLOWED;
+    }
+
+    private static boolean isMApp(Context context, String pkgName) {
+        try {
+            return context.getPackageManager().getApplicationInfo(pkgName, 0)
+                    .targetSdkVersion >= Build.VERSION_CODES.M;
+        } catch (PackageManager.NameNotFoundException e) {
+            // In case of exception, assume M app (more strict checking)
+        }
+        return true;
+    }
+
     public void hideCertFromUnaffiliatedUsers(String alias) {
         mCertManager.hideCertFromUnaffiliatedUsers(alias);
     }
 
     public String[] listClientCertsForCurrentUser() {
         return mCertManager.listClientCertsForCurrentUser();
+    }
+
+    /**
+     * Return true if the specified package name is a foreground app.
+     *
+     * @param pkgName application package name.
+     */
+    private boolean isForegroundApp(String pkgName) {
+        ActivityManager am = (ActivityManager)mContext.getSystemService(Context.ACTIVITY_SERVICE);
+        List<ActivityManager.RunningTaskInfo> tasks = am.getRunningTasks(1);
+        return !tasks.isEmpty() && pkgName.equals(tasks.get(0).topActivity.getPackageName());
     }
 
     /**
