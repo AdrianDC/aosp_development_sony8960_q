@@ -17,7 +17,6 @@
 package com.android.server.wifi;
 
 import android.content.Context;
-import android.net.ConnectivityManager;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IWifiScanner;
 import android.net.wifi.IWificond;
@@ -40,8 +39,6 @@ import com.android.server.net.IpConfigStore;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
-import java.util.ArrayList;
-
 /**
  *  WiFi dependency injector. To be used for accessing various WiFi class instances and as a
  *  handle for mock injection.
@@ -63,6 +60,7 @@ public class WifiInjector {
     private final WifiTrafficPoller mTrafficPoller;
     private final WifiCountryCode mCountryCode;
     private final BackupManagerProxy mBackupManagerProxy = new BackupManagerProxy();
+    private final WifiApConfigStore mWifiApConfigStore;
     private final WifiNative mWifiNative;
     private final WifiStateMachine mWifiStateMachine;
     private final WifiSettingsStore mSettingsStore;
@@ -123,6 +121,7 @@ public class WifiInjector {
                 mFrameworkFacade.getStringSetting(mContext, Settings.Global.WIFI_COUNTRY_CODE),
                 mContext.getResources()
                         .getBoolean(R.bool.config_wifi_revert_country_code_on_cellular_loss));
+        mWifiApConfigStore = new WifiApConfigStore(mContext, mBackupManagerProxy);
         mWifiNative = WifiNative.getWlanNativeInterface();
 
         // WifiConfigManager/Store objects and their dependencies.
@@ -207,6 +206,10 @@ public class WifiInjector {
         return mCountryCode;
     }
 
+    public WifiApConfigStore getWifiApConfigStore() {
+        return mWifiApConfigStore;
+    }
+
     public WifiStateMachine getWifiStateMachine() {
         return mWifiStateMachine;
     }
@@ -280,25 +283,19 @@ public class WifiInjector {
 
     /**
      * Create a SoftApManager.
-     * @param wifiNative reference to WifiNative
-     * @param nmService reference to NetworkManagementService
-     * @param cm reference to ConnectivityManager
-     * @param countryCode Country code
-     * @param allowed2GChannels list of allowed 2G channels
+     * @param nmService NetworkManagementService allowing SoftApManager to listen for interface
+     * changes
      * @param listener listener for SoftApManager
      * @param apInterface network interface to start hostapd against
      * @return an instance of SoftApManager
      */
-    public SoftApManager makeSoftApManager(
-            WifiNative wifiNative,
-            INetworkManagementService nmService, ConnectivityManager cm,
-            String countryCode, ArrayList<Integer> allowed2GChannels,
-            SoftApManager.Listener listener, IApInterface apInterface) {
-        return new SoftApManager(
-                mWifiServiceHandlerThread.getLooper(),
-                wifiNative, countryCode,
-                allowed2GChannels, listener, apInterface,
-                nmService);
+    public SoftApManager makeSoftApManager(INetworkManagementService nmService,
+                                           SoftApManager.Listener listener,
+                                           IApInterface apInterface) {
+        return new SoftApManager(mWifiServiceHandlerThread.getLooper(),
+                                 mWifiNative, mCountryCode.getCountryCode(),
+                                 mWifiApConfigStore.getAllowed2GChannel(),
+                                 listener, apInterface, nmService);
     }
 
     /**
