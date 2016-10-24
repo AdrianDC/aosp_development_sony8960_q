@@ -44,6 +44,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Locale;
@@ -54,6 +55,7 @@ public class SoftApManagerTest {
 
     private static final String TAG = "SoftApManagerTest";
 
+    private static final String DEFAULT_SSID = "DefaultTestSSID";
     private static final String TEST_SSID = "TestSSID";
     private static final String TEST_COUNTRY_CODE = "TestCountry";
     private static final Integer[] ALLOWED_2G_CHANNELS = {1, 2, 3, 4};
@@ -62,6 +64,8 @@ public class SoftApManagerTest {
     private final ArrayList<Integer> mAllowed2GChannels =
             new ArrayList<>(Arrays.asList(ALLOWED_2G_CHANNELS));
 
+    private final WifiConfiguration mDefaultApConfig = createDefaultApConfig();
+
     TestLooper mLooper;
     @Mock WifiNative mWifiNative;
     @Mock SoftApManager.Listener mListener;
@@ -69,6 +73,7 @@ public class SoftApManagerTest {
     @Mock IBinder mApInterfaceBinder;
     @Mock IApInterface mApInterface;
     @Mock INetworkManagementService mNmService;
+    @Mock WifiApConfigStore mWifiApConfigStore;
     final ArgumentCaptor<DeathRecipient> mDeathListenerCaptor =
             ArgumentCaptor.forClass(DeathRecipient.class);
     final ArgumentCaptor<BaseNetworkObserver> mNetworkObserverCaptor =
@@ -88,34 +93,64 @@ public class SoftApManagerTest {
         when(mApInterface.writeHostapdConfig(
                 any(), anyBoolean(), anyInt(), anyInt(), any())).thenReturn(true);
         when(mApInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-
-        mSoftApManager = new SoftApManager(mLooper.getLooper(),
-                                           mWifiNative,
-                                           TEST_COUNTRY_CODE,
-                                           mAllowed2GChannels,
-                                           mListener,
-                                           mApInterface,
-                                           mNmService);
-
-        mLooper.dispatchAll();
     }
 
-    /** Verifies startSoftAp will fail if AP configuration is not provided. */
+    private WifiConfiguration createDefaultApConfig() {
+        WifiConfiguration defaultConfig = new WifiConfiguration();
+        defaultConfig.SSID = DEFAULT_SSID;
+        return defaultConfig;
+    }
+
+    private SoftApManager createSoftApManager(WifiConfiguration config) throws Exception {
+        when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
+        when(mApInterface.startHostapd()).thenReturn(true);
+        when(mApInterface.stopHostapd()).thenReturn(true);
+        SoftApManager newSoftApManager = new SoftApManager(mLooper.getLooper(),
+                                                           mWifiNative,
+                                                           TEST_COUNTRY_CODE,
+                                                           mListener,
+                                                           mApInterface,
+                                                           mNmService,
+                                                           mWifiApConfigStore,
+                                                           config);
+        mLooper.dispatchAll();
+        if (config != null) {
+            verify(mWifiApConfigStore).setApConfiguration(config);
+        }
+        return newSoftApManager;
+    }
+
+    /** Verifies startSoftAp will use default config if AP configuration is not provided. */
     @Test
     public void startSoftApWithoutConfig() throws Exception {
+        startSoftApAndVerifyEnabled(null);
+    }
+
+    /** Verifies startSoftAp will use provided config and start AP. */
+    @Test
+    public void startSoftApWithConfig() throws Exception {
+        WifiConfiguration config = new WifiConfiguration();
+        config.apBand = WifiConfiguration.AP_BAND_2GHZ;
+        config.SSID = TEST_SSID;
+        startSoftApAndVerifyEnabled(config);
+    }
+
+    /** Tests softap startup if default config fails to load. **/
+    @Test
+    public void startSoftApDefaultConfigFailedToLoad() throws Exception {
         InOrder order = inOrder(mListener);
-
-        mSoftApManager.start(null);
+        mSoftApManager = createSoftApManager(null);
+        when(mWifiApConfigStore.getApConfiguration()).thenReturn(null);
+        mSoftApManager.start();
         mLooper.dispatchAll();
-
-        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLING, 0);
-        order.verify(mListener).onStateChanged(
-                WifiManager.WIFI_AP_STATE_FAILED, WifiManager.SAP_START_FAILURE_GENERAL);
+        verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+                WifiManager.SAP_START_FAILURE_GENERAL);
     }
 
     /** Tests the handling of stop command when soft AP is not started. */
     @Test
     public void stopWhenNotStarted() throws Exception {
+        mSoftApManager = createSoftApManager(null);
         mSoftApManager.stop();
         mLooper.dispatchAll();
         /* Verify no state changes. */
@@ -125,7 +160,7 @@ public class SoftApManagerTest {
     /** Tests the handling of stop command when soft AP is started. */
     @Test
     public void stopWhenStarted() throws Exception {
-        startSoftApAndVerifyEnabled();
+        startSoftApAndVerifyEnabled(null);
 
         InOrder order = inOrder(mListener);
 
@@ -139,7 +174,7 @@ public class SoftApManagerTest {
 
     @Test
     public void handlesWificondInterfaceDeath() throws Exception {
-        startSoftApAndVerifyEnabled();
+        startSoftApAndVerifyEnabled(null);
 
         mDeathListenerCaptor.getValue().binderDied();
         mLooper.dispatchAll();
@@ -150,26 +185,30 @@ public class SoftApManagerTest {
     }
 
     /** Starts soft AP and verifies that it is enabled successfully. */
-    protected void startSoftApAndVerifyEnabled() throws Exception {
+    protected void startSoftApAndVerifyEnabled(WifiConfiguration config) throws Exception {
+        String expectedSSID;
         InOrder order = inOrder(mListener, mApInterfaceBinder, mApInterface, mNmService);
 
-        /**
-         *  Only test the default configuration. Testing for different configurations
-         *  are taken care of by ApConfigUtilTest.
-         */
-        WifiConfiguration config = new WifiConfiguration();
-        config.apBand = WifiConfiguration.AP_BAND_2GHZ;
-        config.SSID = TEST_SSID;
         when(mWifiNative.isHalStarted()).thenReturn(false);
         when(mWifiNative.setCountryCodeHal(TEST_COUNTRY_CODE.toUpperCase(Locale.ROOT)))
                 .thenReturn(true);
-        mSoftApManager.start(config);
+
+        mSoftApManager = createSoftApManager(config);
+        if (config == null) {
+            when(mWifiApConfigStore.getApConfiguration()).thenReturn(mDefaultApConfig);
+            expectedSSID = mDefaultApConfig.SSID;
+        } else {
+            when(mWifiApConfigStore.getApConfiguration()).thenReturn(config);
+            expectedSSID = config.SSID;
+        }
+        mSoftApManager.start();
         mLooper.dispatchAll();
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLING, 0);
         order.verify(mApInterfaceBinder).linkToDeath(mDeathListenerCaptor.capture(), eq(0));
         order.verify(mNmService).registerObserver(mNetworkObserverCaptor.capture());
         order.verify(mApInterface).writeHostapdConfig(
-                any(), anyBoolean(), anyInt(), anyInt(), any());
+                eq(expectedSSID.getBytes(StandardCharsets.UTF_8)), anyBoolean(),
+                anyInt(), anyInt(), any());
         order.verify(mApInterface).startHostapd();
         mNetworkObserverCaptor.getValue().interfaceLinkStateChanged(TEST_INTERFACE_NAME, true);
         mLooper.dispatchAll();
