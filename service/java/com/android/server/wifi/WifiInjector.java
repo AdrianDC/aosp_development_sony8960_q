@@ -20,6 +20,7 @@ import android.content.Context;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IWifiScanner;
 import android.net.wifi.IWificond;
+import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiScanner;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -287,15 +288,17 @@ public class WifiInjector {
      * changes
      * @param listener listener for SoftApManager
      * @param apInterface network interface to start hostapd against
+     * @param config softAp WifiConfiguration
      * @return an instance of SoftApManager
      */
     public SoftApManager makeSoftApManager(INetworkManagementService nmService,
                                            SoftApManager.Listener listener,
-                                           IApInterface apInterface) {
+                                           IApInterface apInterface,
+                                           WifiConfiguration config) {
         return new SoftApManager(mWifiServiceHandlerThread.getLooper(),
                                  mWifiNative, mCountryCode.getCountryCode(),
-                                 mWifiApConfigStore.getAllowed2GChannel(),
-                                 listener, apInterface, nmService);
+                                 listener, apInterface, nmService,
+                                 mWifiApConfigStore, config);
     }
 
     /**
