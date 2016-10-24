@@ -43,7 +43,7 @@ import java.util.Locale;
  * Manage WiFi in AP mode.
  * The internal state machine runs under "WifiStateMachine" thread context.
  */
-public class SoftApManager {
+public class SoftApManager implements ActiveModeManager {
     private static final String TAG = "SoftApManager";
 
     private final WifiNative mWifiNative;
