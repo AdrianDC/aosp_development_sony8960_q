@@ -55,8 +55,7 @@ LOCAL_AIDL_INCLUDES := $(LOCAL_PATH)/java $(wificond_aidl_path)
 LOCAL_SRC_FILES := $(call all-java-files-under, java) \
 	$(call all-Iaidl-files-under, java) \
 	$(call all-Iaidl-files-under, $(wificond_aidl_rel_path)) \
-	$(call all-logtags-files-under, java) \
-	$(call all-proto-files-under, proto)
+	$(call all-logtags-files-under, java)
 
 LOCAL_JAVA_LIBRARIES := bouncycastle conscrypt jsr305 services
 LOCAL_STATIC_JAVA_LIBRARIES := \
@@ -67,7 +66,6 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
 LOCAL_REQUIRED_MODULES := services
 LOCAL_MODULE_TAGS :=
 LOCAL_MODULE := wifi-service
-LOCAL_PROTOC_OPTIMIZE_TYPE := nano
 
 ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
 LOCAL_INIT_RC := wifi-events.rc
