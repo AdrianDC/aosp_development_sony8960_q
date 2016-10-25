@@ -56,6 +56,7 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
+import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.os.AsyncTask;
 import android.os.BatteryStats;
 import android.os.Binder;
@@ -1009,6 +1010,41 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         } finally {
             Binder.restoreCallingIdentity(ident);
         }
+    }
+
+    /**
+     * Add a Passpoint configuration.
+     *
+     * @param config The Passpoint configuration to be added
+     * @return true on success or false on failure
+     */
+    @Override
+    public boolean addPasspointConfiguration(PasspointConfiguration config) {
+        // TO BE IMPLEMENTED.
+        return true;
+    }
+
+    /**
+     * Remove the Passpoint configuration identified by its FQDN (Fully Qualified Domain Name).
+     *
+     * @param fqdn The FQDN of the Passpoint configuration to be removed
+     * @return true on success or false on failure
+     */
+    @Override
+    public boolean removePasspointConfiguration(String fqdn) {
+        // TO BE IMPLEMENTED.
+        return true;
+    }
+
+    /**
+     * Return the list of the installed Passpoint configurations.
+     *
+     * @return A list of {@link PasspointConfiguration} or null
+     */
+    @Override
+    public List<PasspointConfiguration> getPasspointConfigurations() {
+        // TO BE IMPLEMENTED.
+        return null;
     }
 
     /**
