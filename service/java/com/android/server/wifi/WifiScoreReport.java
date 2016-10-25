@@ -30,7 +30,7 @@ import com.android.internal.R;
  * TODO: Add unit tests for this class.
 */
 public class WifiScoreReport {
-    // TODO: switch to WifiScoreReport if it doesn't break any tools
+    // TODO: switch to WifiScoreReport if it doesn't break any tools b/32380868
     private static final String TAG = "WifiStateMachine";
 
     // TODO: This score was hardcorded to 56.  Need to understand why after finishing code refactor
@@ -56,18 +56,18 @@ public class WifiScoreReport {
     private static final int BAD_LINKSPEED_PENALTY = 4;
     private static final int GOOD_LINKSPEED_BONUS = 4;
 
-    // Device configs.
-    private final int mThresholdMinimumRssi5;
-    private final int mThresholdQualifiedRssi5;
-    private final int mThresholdSaturatedRssi5;
-    private final int mThresholdMinimumRssi24;
-    private final int mThresholdQualifiedRssi24;
-    private final int mThresholdSaturatedRssi24;
-    private final int mBadLinkSpeed24;
-    private final int mBadLinkSpeed5;
-    private final int mGoodLinkSpeed24;
-    private final int mGoodLinkSpeed5;
-    private final boolean mEnableWifiCellularHandoverUserTriggeredAdjustment;
+    // Device configs. The values are examples.
+    private final int mThresholdMinimumRssi5;      // -82
+    private final int mThresholdQualifiedRssi5;    // -70
+    private final int mThresholdSaturatedRssi5;    // -57
+    private final int mThresholdMinimumRssi24;     // -85
+    private final int mThresholdQualifiedRssi24;   // -73
+    private final int mThresholdSaturatedRssi24;   // -60
+    private final int mBadLinkSpeed24;             //  6 Mbps
+    private final int mBadLinkSpeed5;              // 12 Mbps
+    private final int mGoodLinkSpeed24;            // 24 Mbps
+    private final int mGoodLinkSpeed5;             // 36 Mbps
+    private final boolean mEnableWifiCellularHandoverUserTriggeredAdjustment; // true
 
     private final WifiConfigManager mWifiConfigManager;
     private boolean mVerboseLoggingEnabled = false;
@@ -150,13 +150,17 @@ public class WifiScoreReport {
     }
 
     /**
-     * Calculate wifi network score based on updated link layer stats and send the score to provided
-     * network agent.
+     * Calculate wifi network score based on updated link layer stats and send the score to
+     * the provided network agent.
      *
      * If the score has changed from the previous value, update the WifiNetworkAgent.
+     *
+     * Called periodically (POLL_RSSI_INTERVAL_MSECS) about every 3 seconds.
+     *
      * @param wifiInfo WifiInfo instance pointing to the currently connected network.
      * @param networkAgent NetworkAgent to be notified of new score.
      * @param aggressiveHandover int current aggressiveHandover setting.
+     * @param wifiMetrics for reporting our scores.
      */
     public void calculateAndReportScore(
             WifiInfo wifiInfo, NetworkAgent networkAgent, int aggressiveHandover,
@@ -197,7 +201,7 @@ public class WifiScoreReport {
         ScanDetailCache scanDetailCache =
                 mWifiConfigManager.getScanDetailCacheForNetwork(wifiInfo.getNetworkId());
         /**
-         * We want to make sure that we use the 24GHz RSSI thresholds if
+         * We want to make sure that we use the 2.4GHz RSSI thresholds if
          * there are 2.4GHz scan results otherwise we end up lowering the score based on 5GHz values
          * which may cause a switch to LTE before roaming has a chance to try 2.4GHz
          * We also might unblacklist the configuation based on 2.4GHz
@@ -338,7 +342,7 @@ public class WifiScoreReport {
             if (isBadLinkspeed) rssiStatus += " lowSpeed ";
             Log.d(TAG, "calculateWifiScore freq=" + Integer.toString(wifiInfo.getFrequency())
                     + " speed=" + Integer.toString(wifiInfo.getLinkSpeed())
-                    + " score=" + Integer.toString(wifiInfo.score)
+                    + " score=" + Integer.toString(wifiInfo.score) // Previous score
                     + rssiStatus
                     + " -> txbadrate=" + String.format("%.2f", wifiInfo.txBadRate)
                     + " txgoodrate=" + String.format("%.2f", wifiInfo.txSuccessRate)
@@ -432,6 +436,7 @@ public class WifiScoreReport {
         //report score
         if (score != wifiInfo.score) {
             if (mVerboseLoggingEnabled) {
+                // TODO: switch to the new method name if it doesn't break any tools b/32380868
                 Log.d(TAG, "calculateWifiScore() report new score " + Integer.toString(score));
             }
             wifiInfo.score = score;
