@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.nan;
+package com.android.server.wifi.aware;
 
 import android.content.Context;
 import android.util.Log;
@@ -22,22 +22,22 @@ import android.util.Log;
 import com.android.server.SystemService;
 
 /**
- * Service implementing Wi-Fi NAN functionality. Delegates actual interface
- * implementation to WifiNanServiceImpl.
+ * Service implementing Wi-Fi Aware functionality. Delegates actual interface
+ * implementation to WifiAwareServiceImpl.
  */
-public final class WifiNanService extends SystemService {
-    private static final String TAG = "WifiNanService";
-    final WifiNanServiceImpl mImpl;
+public final class WifiAwareService extends SystemService {
+    private static final String TAG = "WifiAwareService";
+    final WifiAwareServiceImpl mImpl;
 
-    public WifiNanService(Context context) {
+    public WifiAwareService(Context context) {
         super(context);
-        mImpl = new WifiNanServiceImpl(context);
+        mImpl = new WifiAwareServiceImpl(context);
     }
 
     @Override
     public void onStart() {
-        Log.i(TAG, "Registering " + Context.WIFI_NAN_SERVICE);
-        publishBinderService(Context.WIFI_NAN_SERVICE, mImpl);
+        Log.i(TAG, "Registering " + Context.WIFI_AWARE_SERVICE);
+        publishBinderService(Context.WIFI_AWARE_SERVICE, mImpl);
     }
 
     @Override

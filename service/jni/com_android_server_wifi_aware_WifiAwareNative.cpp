@@ -34,7 +34,7 @@
 
 namespace android {
 
-static jclass mCls;                             /* saved WifiNanNative object */
+static jclass mCls;                             /* saved WifiAwareNative object */
 static JavaVM *mVM = NULL;                      /* saved JVM pointer */
 
 wifi_handle getWifiHandle(JNIHelper &helper, jclass cls);
@@ -52,28 +52,28 @@ static void OnNanNotifyResponse(transaction_id id, NanResponseMsg* msg) {
   JNIHelper helper(mVM);
   switch (msg->response_type) {
     case NAN_RESPONSE_PUBLISH:
-      helper.reportEvent(mCls, "onNanNotifyResponsePublishSubscribe",
+      helper.reportEvent(mCls, "onAwareNotifyResponsePublishSubscribe",
                          "(SIIII)V", (short) id, (int) msg->response_type,
                          (int) msg->status, (int) msg->value,
                          msg->body.publish_response.publish_id);
       break;
     case NAN_RESPONSE_SUBSCRIBE:
-      helper.reportEvent(mCls, "onNanNotifyResponsePublishSubscribe",
+      helper.reportEvent(mCls, "onAwareNotifyResponsePublishSubscribe",
                          "(SIIII)V", (short) id, (int) msg->response_type,
                          (int) msg->status, (int) msg->value,
                          msg->body.subscribe_response.subscribe_id);
       break;
     case NAN_GET_CAPABILITIES: {
       JNIObject<jobject> data = helper.createObject(
-          "com/android/server/wifi/nan/WifiNanNative$Capabilities");
+          "com/android/server/wifi/aware/WifiAwareNative$Capabilities");
       if (data == NULL) {
         ALOGE(
-            "Error in allocating WifiNanNative.Capabilities OnNanNotifyResponse");
+            "Error in allocating WifiAwareNative.Capabilities OnNanNotifyResponse");
         return;
       }
 
       helper.setIntField(
-          data, "maxConcurrentNanClusters",
+          data, "maxConcurrentAwareClusters",
           (int) msg->body.nan_capabilities.max_concurrent_nan_clusters);
       helper.setIntField(data, "maxPublishes",
                          (int) msg->body.nan_capabilities.max_publishes);
@@ -103,18 +103,18 @@ static void OnNanNotifyResponse(transaction_id id, NanResponseMsg* msg) {
                          (int) msg->body.nan_capabilities.max_queued_transmit_followup_msgs);
 
       helper.reportEvent(
-          mCls, "onNanNotifyResponseCapabilities",
-          "(SIILcom/android/server/wifi/nan/WifiNanNative$Capabilities;)V",
+          mCls, "onAwareNotifyResponseCapabilities",
+          "(SIILcom/android/server/wifi/aware/WifiAwareNative$Capabilities;)V",
           (short) id, (int) msg->status, (int) msg->value, data.get());
       break;
     }
     case NAN_DP_INITIATOR_RESPONSE:
-      helper.reportEvent(mCls, "onNanNotifyResponseDataPathInitiate", "(SIII)V", (short) id,
+      helper.reportEvent(mCls, "onAwareNotifyResponseDataPathInitiate", "(SIII)V", (short) id,
                          (int) msg->status, (int) msg->value,
                          msg->body.data_request_response.ndp_instance_id);
       break;
     default:
-      helper.reportEvent(mCls, "onNanNotifyResponse", "(SIII)V", (short) id,
+      helper.reportEvent(mCls, "onAwareNotifyResponse", "(SIII)V", (short) id,
                          (int) msg->response_type, (int) msg->status,
                          (int) msg->value);
       break;
@@ -748,18 +748,18 @@ static jint android_net_wifi_nan_end_nan_data_path(JNIEnv *env, jclass cls,
 
 static JNINativeMethod gWifiNanMethods[] = {
     /* name, signature, funcPtr */
-    {"initNanHandlersNative", "(Ljava/lang/Class;I)I", (void*)android_net_wifi_nan_register_handler },
+    {"initAwareHandlersNative", "(Ljava/lang/Class;I)I", (void*)android_net_wifi_nan_register_handler },
     {"getCapabilitiesNative", "(SLjava/lang/Class;I)I", (void*)android_net_wifi_nan_get_capabilities },
-    {"enableAndConfigureNative", "(SLjava/lang/Class;ILandroid/net/wifi/nan/ConfigRequest;)I", (void*)android_net_wifi_nan_enable_request },
-    {"updateConfigurationNative", "(SLjava/lang/Class;ILandroid/net/wifi/nan/ConfigRequest;)I", (void*)android_net_wifi_nan_config_request },
+    {"enableAndConfigureNative", "(SLjava/lang/Class;ILandroid/net/wifi/aware/ConfigRequest;)I", (void*)android_net_wifi_nan_enable_request },
+    {"updateConfigurationNative", "(SLjava/lang/Class;ILandroid/net/wifi/aware/ConfigRequest;)I", (void*)android_net_wifi_nan_config_request },
     {"disableNative", "(SLjava/lang/Class;I)I", (void*)android_net_wifi_nan_disable_request },
-    {"publishNative", "(SILjava/lang/Class;ILandroid/net/wifi/nan/PublishConfig;)I", (void*)android_net_wifi_nan_publish },
-    {"subscribeNative", "(SILjava/lang/Class;ILandroid/net/wifi/nan/SubscribeConfig;)I", (void*)android_net_wifi_nan_subscribe },
+    {"publishNative", "(SILjava/lang/Class;ILandroid/net/wifi/aware/PublishConfig;)I", (void*)android_net_wifi_nan_publish },
+    {"subscribeNative", "(SILjava/lang/Class;ILandroid/net/wifi/aware/SubscribeConfig;)I", (void*)android_net_wifi_nan_subscribe },
     {"sendMessageNative", "(SLjava/lang/Class;III[B[B)I", (void*)android_net_wifi_nan_send_message },
     {"stopPublishNative", "(SLjava/lang/Class;II)I", (void*)android_net_wifi_nan_stop_publish },
     {"stopSubscribeNative", "(SLjava/lang/Class;II)I", (void*)android_net_wifi_nan_stop_subscribe },
-    {"createNanNetworkInterfaceNative", "(SLjava/lang/Class;ILjava/lang/String;)I", (void*)android_net_wifi_nan_create_nan_network_interface },
-    {"deleteNanNetworkInterfaceNative", "(SLjava/lang/Class;ILjava/lang/String;)I", (void*)android_net_wifi_nan_delete_nan_network_interface },
+    {"createAwareNetworkInterfaceNative", "(SLjava/lang/Class;ILjava/lang/String;)I", (void*)android_net_wifi_nan_create_nan_network_interface },
+    {"deleteAwareNetworkInterfaceNative", "(SLjava/lang/Class;ILjava/lang/String;)I", (void*)android_net_wifi_nan_delete_nan_network_interface },
     {"initiateDataPathNative", "(SLjava/lang/Class;IIII[BLjava/lang/String;[B)I", (void*)android_net_wifi_nan_initiate_nan_data_path },
     {"respondToDataPathRequestNative", "(SLjava/lang/Class;IZILjava/lang/String;[B)I", (void*)android_net_wifi_nan_respond_nan_data_path_request },
     {"endDataPathNative", "(SLjava/lang/Class;II)I", (void*)android_net_wifi_nan_end_nan_data_path },
@@ -767,9 +767,9 @@ static JNINativeMethod gWifiNanMethods[] = {
 
 /* User to register native functions */
 extern "C"
-jint Java_com_android_server_wifi_nan_WifiNanNative_registerNanNatives(JNIEnv* env, jclass clazz) {
+jint Java_com_android_server_wifi_aware_WifiAwareNative_registerAwareNatives(JNIEnv* env, jclass clazz) {
     return jniRegisterNativeMethods(env,
-            "com/android/server/wifi/nan/WifiNanNative", gWifiNanMethods, NELEM(gWifiNanMethods));
+            "com/android/server/wifi/aware/WifiAwareNative", gWifiNanMethods, NELEM(gWifiNanMethods));
 }
 
 }; // namespace android

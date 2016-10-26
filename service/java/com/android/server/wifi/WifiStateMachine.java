@@ -76,7 +76,7 @@ import android.net.wifi.WifiSsid;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.WpsResult;
 import android.net.wifi.WpsResult.Status;
-import android.net.wifi.nan.WifiNanManager;
+import android.net.wifi.aware.WifiAwareManager;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
 import android.os.Binder;
@@ -208,7 +208,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private WifiApConfigStore mWifiApConfigStore;
     private final boolean mP2pSupported;
     private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
-    private final boolean mNanSupported;
+    private final boolean mAwareSupported;
     private boolean mTemporarilyDisconnectWifi = false;
     private final String mPrimaryDeviceType;
     private final Clock mClock;
@@ -431,7 +431,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private AsyncChannel mReplyChannel = new AsyncChannel();
 
     private WifiP2pServiceImpl mWifiP2pServiceImpl;
-    private WifiNanManager mWifiNanManager;
+    private WifiAwareManager mWifiAwareManager;
 
     // Used to initiate a connection with WifiP2pService
     private AsyncChannel mWifiP2pChannel;
@@ -875,8 +875,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         mP2pSupported = mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_WIFI_DIRECT);
-        mNanSupported = mContext.getPackageManager()
-                .hasSystemFeature(PackageManager.FEATURE_WIFI_NAN);
+        mAwareSupported = mContext.getPackageManager()
+                .hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE);
 
         mWifiConfigManager = mWifiInjector.getWifiConfigManager();
         mWifiSupplicantControl = mWifiInjector.getWifiSupplicantControl();
@@ -896,8 +896,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         IBinder s1 = mFacade.getService(Context.WIFI_P2P_SERVICE);
         mWifiP2pServiceImpl = (WifiP2pServiceImpl) IWifiP2pManager.Stub.asInterface(s1);
 
-        if (mNanSupported) {
-            mWifiNanManager = mContext.getSystemService(WifiNanManager.class);
+        if (mAwareSupported) {
+            mWifiAwareManager = mContext.getSystemService(WifiAwareManager.class);
         }
 
         mNetworkInfo.setIsAvailable(false);
@@ -4239,12 +4239,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 }
             }
 
-            if (mNanSupported && mWifiNanManager != null) {
+            if (mAwareSupported && mWifiAwareManager != null) {
                 if (mOperationalMode == CONNECT_MODE) {
-                    mWifiNanManager.enableUsage();
+                    mWifiAwareManager.enableUsage();
                 } else {
                     /*
-                     * NAN state machine starts in disabled state. Nothing
+                     * Aware state machine starts in disabled state. Nothing
                      * needed to keep it disabled.
                      */
                 }
@@ -4414,8 +4414,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
             mBufferedScanMsg.clear();
 
-            if (mNanSupported && mWifiNanManager != null) {
-                mWifiNanManager.disableUsage();
+            if (mAwareSupported && mWifiAwareManager != null) {
+                mWifiAwareManager.disableUsage();
             }
 
             mNetworkInfo.setIsAvailable(false);
