@@ -123,6 +123,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private static final boolean DBG = true;
     private static final boolean VDBG = false;
 
+    // Dumpsys argument to enable/disable disconnect on IP reachability failures.
+    private static final String DUMP_ARG_SET_IPREACH_DISCONNECT = "set-ipreach-disconnect";
+    private static final String DUMP_ARG_SET_IPREACH_DISCONNECT_ENABLED = "enabled";
+    private static final String DUMP_ARG_SET_IPREACH_DISCONNECT_DISABLED = "disabled";
+
     final WifiStateMachine mWifiStateMachine;
 
     private final Context mContext;
@@ -1520,6 +1525,17 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             String[] ipManagerArgs = new String[args.length - 1];
             System.arraycopy(args, 1, ipManagerArgs, 0, ipManagerArgs.length);
             mWifiStateMachine.dumpIpManager(fd, pw, ipManagerArgs);
+        } else if (args.length > 0 && DUMP_ARG_SET_IPREACH_DISCONNECT.equals(args[0])) {
+            if (args.length > 1) {
+                if (DUMP_ARG_SET_IPREACH_DISCONNECT_ENABLED.equals(args[1])) {
+                    mWifiStateMachine.setIpReachabilityDisconnectEnabled(true);
+                } else if (DUMP_ARG_SET_IPREACH_DISCONNECT_DISABLED.equals(args[1])) {
+                    mWifiStateMachine.setIpReachabilityDisconnectEnabled(false);
+                }
+            }
+            pw.println("IPREACH_DISCONNECT state is "
+                    + mWifiStateMachine.getIpReachabilityDisconnectEnabled());
+            return;
         } else {
             pw.println("Wi-Fi is " + mWifiStateMachine.syncGetWifiStateByName());
             pw.println("Stay-awake conditions: " +
