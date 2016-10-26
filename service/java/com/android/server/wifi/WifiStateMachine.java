@@ -231,6 +231,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private boolean mIsLinkDebouncing = false;
     private final StateMachineDeathRecipient mDeathRecipient =
             new StateMachineDeathRecipient(this, CMD_CLIENT_INTERFACE_BINDER_DEATH);
+    private boolean mIpReachabilityDisconnectEnabled = true;
 
     @Override
     public void onRssiThresholdBreached(byte curRssi) {
@@ -5611,8 +5612,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_IP_REACHABILITY_LOST:
                     if (mVerboseLoggingEnabled && message.obj != null) log((String) message.obj);
-                    handleIpReachabilityLost();
-                    transitionTo(mDisconnectingState);
+                    if (mIpReachabilityDisconnectEnabled) {
+                        handleIpReachabilityLost();
+                        transitionTo(mDisconnectingState);
+                    } else {
+                        logd("CMD_IP_REACHABILITY_LOST but disconnect disabled -- ignore");
+                    }
                     break;
                 case CMD_DISCONNECT:
                     mWifiNative.disconnect();
@@ -6918,5 +6923,19 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     private boolean hasConnectionRequests() {
         return mConnectionReqCount > 0 || mUntrustedReqCount > 0;
+    }
+
+    /**
+     * Returns whether CMD_IP_REACHABILITY_LOST events should trigger disconnects.
+     */
+    public boolean getIpReachabilityDisconnectEnabled() {
+        return mIpReachabilityDisconnectEnabled;
+    }
+
+    /**
+     * Sets whether CMD_IP_REACHABILITY_LOST events should trigger disconnects.
+     */
+    public void setIpReachabilityDisconnectEnabled(boolean enabled) {
+        mIpReachabilityDisconnectEnabled = enabled;
     }
 }
