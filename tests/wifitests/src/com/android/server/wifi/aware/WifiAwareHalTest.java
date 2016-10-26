@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.nan;
+package com.android.server.wifi.aware;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.eq;
@@ -22,11 +22,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import android.net.wifi.nan.ConfigRequest;
-import android.net.wifi.nan.PublishConfig;
-import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.TlvBufferUtils;
-import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
+import android.net.wifi.aware.ConfigRequest;
+import android.net.wifi.aware.PublishConfig;
+import android.net.wifi.aware.SubscribeConfig;
+import android.net.wifi.aware.TlvBufferUtils;
+import android.net.wifi.aware.WifiAwareDiscoverySessionCallback;
 import android.os.Bundle;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -47,16 +47,16 @@ import org.mockito.MockitoAnnotations;
 import java.lang.reflect.Field;
 
 /**
- * Unit test harness for WifiNanNative + JNI code interfacing to the HAL.
+ * Unit test harness for WifiAwareNative + JNI code interfacing to the HAL.
  */
 @SmallTest
-public class WifiNanHalTest {
-    private WifiNanNative mDut = WifiNanNative.getInstance();
+public class WifiAwareHalTest {
+    private WifiAwareNative mDut = WifiAwareNative.getInstance();
     private ArgumentCaptor<String> mArgs = ArgumentCaptor.forClass(String.class);
 
     @Mock
-    private WifiNanHalMock mNanHalMock;
-    @Mock private WifiNanStateManager mNanStateManager;
+    private WifiAwareHalMock mAwareHalMock;
+    @Mock private WifiAwareStateManager mAwareStateManager;
 
     @Rule
     public ErrorCollector collector = new ErrorCollector();
@@ -65,13 +65,13 @@ public class WifiNanHalTest {
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        resetWifiNanNative();
+        resetWifiAwareNative();
 
         HalMockUtils.initHalMockLibrary();
-        WifiNanHalMock.initNanHalMockLibrary(mDut);
-        WifiNanNative.initNanHandlersNative(WifiNative.class, WifiNative.sWlan0Index);
-        HalMockUtils.setHalMockObject(mNanHalMock);
-        installMockNanStateManager(mNanStateManager);
+        WifiAwareHalMock.initAwareHalMockLibrary(mDut);
+        WifiAwareNative.initAwareHandlersNative(WifiNative.class, WifiNative.sWlan0Index);
+        HalMockUtils.setHalMockObject(mAwareHalMock);
+        installMockAwareStateManager(mAwareStateManager);
     }
 
     @Test
@@ -110,7 +110,7 @@ public class WifiNanHalTest {
 
         mDut.disable(transactionId);
 
-        verify(mNanHalMock).disableHalMockNative(transactionId);
+        verify(mAwareHalMock).disableHalMockNative(transactionId);
     }
 
     @Test
@@ -156,7 +156,7 @@ public class WifiNanHalTest {
 
         mDut.stopPublish(transactionId, publishId);
 
-        verify(mNanHalMock).publishCancelHalMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).publishCancelHalMockNative(eq(transactionId), mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -210,7 +210,7 @@ public class WifiNanHalTest {
 
         mDut.stopSubscribe(transactionId, subscribeId);
 
-        verify(mNanHalMock).subscribeCancelHalMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).subscribeCancelHalMockNative(eq(transactionId), mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -228,7 +228,7 @@ public class WifiNanHalTest {
 
         mDut.sendMessage(transactionId, pubSubId, reqInstanceId, peer, msg.getBytes(), messageId);
 
-        verify(mNanHalMock).transmitFollowupHalMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).transmitFollowupHalMockNative(eq(transactionId), mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -256,7 +256,7 @@ public class WifiNanHalTest {
 
         mDut.sendMessage(transactionId, pubSubId, reqInstanceId, peer, msg.getBytes(), messageId);
 
-        verify(mNanHalMock).transmitFollowupHalMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).transmitFollowupHalMockNative(eq(transactionId), mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -285,7 +285,7 @@ public class WifiNanHalTest {
 
         mDut.sendMessage(transactionId, pubSubId, reqInstanceId, peer, msg, messageId);
 
-        verify(mNanHalMock).transmitFollowupHalMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).transmitFollowupHalMockNative(eq(transactionId), mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -305,7 +305,7 @@ public class WifiNanHalTest {
     @Test
     public void testRespondWithCapabilities() throws JSONException {
         final short transactionId = 23;
-        final int max_concurrent_nan_clusters = 1;
+        final int max_concurrent_aware_clusters = 1;
         final int max_publishes = 2;
         final int max_subscribes = 3;
         final int max_service_name_len = 4;
@@ -319,39 +319,40 @@ public class WifiNanHalTest {
         final int max_app_info_len = 12;
         final int max_queued_transmit_followup_msgs = 7;
 
-        ArgumentCaptor<WifiNanNative.Capabilities> capabilitiesCapture = ArgumentCaptor
-                .forClass(WifiNanNative.Capabilities.class);
+        ArgumentCaptor<WifiAwareNative.Capabilities> capabilitiesCapture = ArgumentCaptor
+                .forClass(WifiAwareNative.Capabilities.class);
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_SUCCESS);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_GET_CAPABILITIES);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_GET_CAPABILITIES);
 
-        args.putInt("body.nan_capabilities.max_concurrent_nan_clusters",
-                max_concurrent_nan_clusters);
-        args.putInt("body.nan_capabilities.max_publishes", max_publishes);
-        args.putInt("body.nan_capabilities.max_subscribes", max_subscribes);
-        args.putInt("body.nan_capabilities.max_service_name_len", max_service_name_len);
-        args.putInt("body.nan_capabilities.max_match_filter_len", max_match_filter_len);
-        args.putInt("body.nan_capabilities.max_total_match_filter_len", max_total_match_filter_len);
-        args.putInt("body.nan_capabilities.max_service_specific_info_len",
+        args.putInt("body.aware_capabilities.max_concurrent_aware_clusters",
+                max_concurrent_aware_clusters);
+        args.putInt("body.aware_capabilities.max_publishes", max_publishes);
+        args.putInt("body.aware_capabilities.max_subscribes", max_subscribes);
+        args.putInt("body.aware_capabilities.max_service_name_len", max_service_name_len);
+        args.putInt("body.aware_capabilities.max_match_filter_len", max_match_filter_len);
+        args.putInt("body.aware_capabilities.max_total_match_filter_len",
+                max_total_match_filter_len);
+        args.putInt("body.aware_capabilities.max_service_specific_info_len",
                 max_service_specific_info_len);
-        args.putInt("body.nan_capabilities.max_vsa_data_len", max_vsa_data_len);
-        args.putInt("body.nan_capabilities.max_mesh_data_len", max_mesh_data_len);
-        args.putInt("body.nan_capabilities.max_ndi_interfaces", max_ndi_interfaces);
-        args.putInt("body.nan_capabilities.max_ndp_sessions", max_ndp_sessions);
-        args.putInt("body.nan_capabilities.max_app_info_len", max_app_info_len);
-        args.putInt("body.nan_capabilities.max_queued_transmit_followup_msgs",
+        args.putInt("body.aware_capabilities.max_vsa_data_len", max_vsa_data_len);
+        args.putInt("body.aware_capabilities.max_mesh_data_len", max_mesh_data_len);
+        args.putInt("body.aware_capabilities.max_ndi_interfaces", max_ndi_interfaces);
+        args.putInt("body.aware_capabilities.max_ndp_sessions", max_ndp_sessions);
+        args.putInt("body.aware_capabilities.max_app_info_len", max_app_info_len);
+        args.putInt("body.aware_capabilities.max_queued_transmit_followup_msgs",
                 max_queued_transmit_followup_msgs);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onCapabilitiesUpdateResponse(eq(transactionId),
+        verify(mAwareStateManager).onCapabilitiesUpdateResponse(eq(transactionId),
                 capabilitiesCapture.capture());
-        WifiNanNative.Capabilities capabilities = capabilitiesCapture.getValue();
-        collector.checkThat("max_concurrent_nan_clusters", capabilities.maxConcurrentNanClusters,
-                equalTo(max_concurrent_nan_clusters));
+        WifiAwareNative.Capabilities capabilities = capabilitiesCapture.getValue();
+        collector.checkThat("max_concurrent_aware_clusters",
+                capabilities.maxConcurrentAwareClusters, equalTo(max_concurrent_aware_clusters));
         collector.checkThat("max_publishes", capabilities.maxPublishes, equalTo(max_publishes));
         collector.checkThat("max_subscribes", capabilities.maxSubscribes, equalTo(max_subscribes));
         collector.checkThat("max_service_name_len", capabilities.maxServiceNameLen,
@@ -374,7 +375,7 @@ public class WifiNanHalTest {
                 equalTo(max_app_info_len));
         collector.checkThat("max_queued_transmit_followup_msgs",
                 capabilities.maxQueuedTransmitMessages, equalTo(max_queued_transmit_followup_msgs));
-        verifyNoMoreInteractions(mNanStateManager);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -382,15 +383,15 @@ public class WifiNanHalTest {
         final short transactionId = 23;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_SUCCESS);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_ENABLED);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_ENABLED);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onConfigSuccessResponse(transactionId);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onConfigSuccessResponse(transactionId);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -398,16 +399,16 @@ public class WifiNanHalTest {
         final short transactionId = 23;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_INVALID_BAND_CONFIG_FLAGS);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_INVALID_BAND_CONFIG_FLAGS);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_ENABLED);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_ENABLED);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onConfigFailedResponse(transactionId,
-                WifiNanNative.NAN_STATUS_INVALID_BAND_CONFIG_FLAGS);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onConfigFailedResponse(transactionId,
+                WifiAwareNative.AWARE_STATUS_INVALID_BAND_CONFIG_FLAGS);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -416,16 +417,16 @@ public class WifiNanHalTest {
         final int publishId = 127;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_SUCCESS);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_PUBLISH);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_PUBLISH);
         args.putInt("body.publish_response.publish_id", publishId);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onSessionConfigSuccessResponse(transactionId, true, publishId);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onSessionConfigSuccessResponse(transactionId, true, publishId);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -434,17 +435,17 @@ public class WifiNanHalTest {
         final int publishId = 127;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_NO_SPACE_AVAILABLE);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_NO_SPACE_AVAILABLE);
         args.putInt("value", 57);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_PUBLISH);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_PUBLISH);
         args.putInt("body.publish_response.publish_id", publishId);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onSessionConfigFailResponse(transactionId, true,
-                WifiNanNative.NAN_STATUS_NO_SPACE_AVAILABLE);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onSessionConfigFailResponse(transactionId, true,
+                WifiAwareNative.AWARE_STATUS_NO_SPACE_AVAILABLE);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -452,14 +453,14 @@ public class WifiNanHalTest {
         final short transactionId = 23;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_SUCCESS);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_PUBLISH_CANCEL);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_PUBLISH_CANCEL);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verifyNoMoreInteractions(mNanStateManager);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -468,16 +469,17 @@ public class WifiNanHalTest {
         final int subscribeId = 198;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_SUCCESS);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_SUBSCRIBE);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_SUBSCRIBE);
         args.putInt("body.subscribe_response.subscribe_id", subscribeId);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onSessionConfigSuccessResponse(transactionId, false, subscribeId);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onSessionConfigSuccessResponse(transactionId, false,
+                subscribeId);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -486,17 +488,17 @@ public class WifiNanHalTest {
         final int subscribeId = 198;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_DE_FAILURE);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_DE_FAILURE);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_SUBSCRIBE);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_SUBSCRIBE);
         args.putInt("body.subscribe_response.subscribe_id", subscribeId);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onSessionConfigFailResponse(transactionId, false,
-                WifiNanNative.NAN_STATUS_DE_FAILURE);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onSessionConfigFailResponse(transactionId, false,
+                WifiAwareNative.AWARE_STATUS_DE_FAILURE);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -504,14 +506,14 @@ public class WifiNanHalTest {
         final short transactionId = 23;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_DE_FAILURE);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_DE_FAILURE);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_SUBSCRIBE_CANCEL);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_SUBSCRIBE_CANCEL);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verifyNoMoreInteractions(mNanStateManager);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -519,15 +521,15 @@ public class WifiNanHalTest {
         final short transactionId = 23;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_SUCCESS);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_TRANSMIT_FOLLOWUP);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_TRANSMIT_FOLLOWUP);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onMessageSendQueuedSuccessResponse(transactionId);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onMessageSendQueuedSuccessResponse(transactionId);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -535,50 +537,50 @@ public class WifiNanHalTest {
         final short transactionId = 45;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_TIMEOUT);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_TIMEOUT);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_TRANSMIT_FOLLOWUP);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_TRANSMIT_FOLLOWUP);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onMessageSendQueuedFailResponse(transactionId,
-                WifiNanNative.NAN_STATUS_TIMEOUT);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onMessageSendQueuedFailResponse(transactionId,
+                WifiAwareNative.AWARE_STATUS_TIMEOUT);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
     public void testNotifyResponseCreateDataPath() throws JSONException {
         final short transactionId = 48;
-        final int reason  = WifiNanNative.NAN_STATUS_TIMEOUT;
+        final int reason  = WifiAwareNative.AWARE_STATUS_TIMEOUT;
 
         Bundle args = new Bundle();
         args.putInt("status", reason);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_DP_INTERFACE_CREATE);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_DP_INTERFACE_CREATE);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onCreateDataPathInterfaceResponse(transactionId, false, reason);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onCreateDataPathInterfaceResponse(transactionId, false, reason);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
     public void testNotifyResponseDeleteDataPath() throws JSONException {
         final short transactionId = 49;
-        final int reason  = WifiNanNative.NAN_STATUS_DE_FAILURE;
+        final int reason  = WifiAwareNative.AWARE_STATUS_DE_FAILURE;
 
         Bundle args = new Bundle();
         args.putInt("status", reason);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_DP_INTERFACE_DELETE);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_DP_INTERFACE_DELETE);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onDeleteDataPathInterfaceResponse(transactionId, false, reason);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onDeleteDataPathInterfaceResponse(transactionId, false, reason);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -587,69 +589,69 @@ public class WifiNanHalTest {
         final int ndpId = 1234;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_SUCCESS);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_DP_INITIATOR_RESPONSE);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_DP_INITIATOR_RESPONSE);
         args.putInt("body.data_request_response.ndp_instance_id", ndpId);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onInitiateDataPathResponseSuccess(transactionId, ndpId);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onInitiateDataPathResponseSuccess(transactionId, ndpId);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
     public void testNotifyResponseInitiateDataPathFail() throws JSONException {
         final short transactionId = 49;
-        final int reason  = WifiNanNative.NAN_STATUS_NDP_DATA_INITIATOR_REQUEST_FAILED;
+        final int reason  = WifiAwareNative.AWARE_STATUS_NDP_DATA_INITIATOR_REQUEST_FAILED;
 
         Bundle args = new Bundle();
         args.putInt("status", reason);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_DP_INITIATOR_RESPONSE);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_DP_INITIATOR_RESPONSE);
         args.putInt("body.data_request_response.ndp_instance_id", 5555); // NOP
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onInitiateDataPathResponseFail(transactionId, reason);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onInitiateDataPathResponseFail(transactionId, reason);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
     public void testNotifyResponseRespondToDataPathSetupRequest() throws JSONException {
         final short transactionId = 50;
-        final int reason  = WifiNanNative.NAN_STATUS_DISABLE_IN_PROGRESS;
+        final int reason  = WifiAwareNative.AWARE_STATUS_DISABLE_IN_PROGRESS;
 
         Bundle args = new Bundle();
         args.putInt("status", reason);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_DP_RESPONDER_RESPONSE);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_DP_RESPONDER_RESPONSE);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onRespondToDataPathSetupRequestResponse(transactionId, false,
+        verify(mAwareStateManager).onRespondToDataPathSetupRequestResponse(transactionId, false,
                 reason);
-        verifyNoMoreInteractions(mNanStateManager);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
     public void testNotifyResponseEndDataPath() throws JSONException {
         final short transactionId = 50;
-        final int reason  = WifiNanNative.NAN_STATUS_NDP_END_FAILED;
+        final int reason  = WifiAwareNative.AWARE_STATUS_NDP_END_FAILED;
 
         Bundle args = new Bundle();
         args.putInt("status", reason);
         args.putInt("value", 0);
-        args.putInt("response_type", WifiNanNative.NAN_RESPONSE_DP_END);
+        args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_DP_END);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onEndDataPathResponse(transactionId, false, reason);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onEndDataPathResponse(transactionId, false, reason);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -658,14 +660,14 @@ public class WifiNanHalTest {
         final short transactionId = 46;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiNanNative.NAN_STATUS_SUCCESS);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
         args.putInt("value", 0);
         args.putInt("response_type", invalidTransactionId);
 
-        WifiNanHalMock.callNotifyResponse(transactionId,
+        WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
-        verifyNoMoreInteractions(mNanStateManager);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -674,13 +676,13 @@ public class WifiNanHalTest {
 
         Bundle args = new Bundle();
         args.putInt("publish_id", publishId);
-        args.putInt("reason", WifiNanNative.NAN_TERMINATED_REASON_COUNT_REACHED);
+        args.putInt("reason", WifiAwareNative.AWARE_TERMINATED_REASON_COUNT_REACHED);
 
-        WifiNanHalMock.callPublishTerminated(HalMockUtils.convertBundleToJson(args).toString());
+        WifiAwareHalMock.callPublishTerminated(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onSessionTerminatedNotification(publishId,
-                WifiNanDiscoverySessionCallback.TERMINATE_REASON_DONE, true);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onSessionTerminatedNotification(publishId,
+                WifiAwareDiscoverySessionCallback.TERMINATE_REASON_DONE, true);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -689,13 +691,13 @@ public class WifiNanHalTest {
 
         Bundle args = new Bundle();
         args.putInt("subscribe_id", subscribeId);
-        args.putInt("reason", WifiNanNative.NAN_TERMINATED_REASON_FAILURE);
+        args.putInt("reason", WifiAwareNative.AWARE_TERMINATED_REASON_FAILURE);
 
-        WifiNanHalMock.callSubscribeTerminated(HalMockUtils.convertBundleToJson(args).toString());
+        WifiAwareHalMock.callSubscribeTerminated(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onSessionTerminatedNotification(subscribeId,
-                WifiNanDiscoverySessionCallback.TERMINATE_REASON_FAIL, false);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onSessionTerminatedNotification(subscribeId,
+                WifiAwareDiscoverySessionCallback.TERMINATE_REASON_FAIL, false);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -713,11 +715,11 @@ public class WifiNanHalTest {
         args.putInt("service_specific_info_len", message.length());
         args.putByteArray("service_specific_info", message.getBytes());
 
-        WifiNanHalMock.callFollowup(HalMockUtils.convertBundleToJson(args).toString());
+        WifiAwareHalMock.callFollowup(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onMessageReceivedNotification(pubSubId, reqInstanceId, peer,
+        verify(mAwareStateManager).onMessageReceivedNotification(pubSubId, reqInstanceId, peer,
                 message.getBytes());
-        verifyNoMoreInteractions(mNanStateManager);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -737,11 +739,11 @@ public class WifiNanHalTest {
         args.putInt("sdf_match_filter_len", filter.length());
         args.putByteArray("sdf_match_filter", filter.getBytes());
 
-        WifiNanHalMock.callMatch(HalMockUtils.convertBundleToJson(args).toString());
+        WifiAwareHalMock.callMatch(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onMatchNotification(pubSubId, reqInstanceId, peer, ssi.getBytes(),
-                filter.getBytes());
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onMatchNotification(pubSubId, reqInstanceId, peer,
+                ssi.getBytes(), filter.getBytes());
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -749,13 +751,13 @@ public class WifiNanHalTest {
         final byte[] mac = HexEncoding.decode("060504030201".toCharArray(), false);
 
         Bundle args = new Bundle();
-        args.putInt("event_type", WifiNanNative.NAN_EVENT_ID_DISC_MAC_ADDR);
+        args.putInt("event_type", WifiAwareNative.AWARE_EVENT_ID_DISC_MAC_ADDR);
         args.putByteArray("data", mac);
 
-        WifiNanHalMock.callDiscEngEvent(HalMockUtils.convertBundleToJson(args).toString());
+        WifiAwareHalMock.callDiscEngEvent(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onInterfaceAddressChangeNotification(mac);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onInterfaceAddressChangeNotification(mac);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -763,14 +765,14 @@ public class WifiNanHalTest {
         final byte[] mac = HexEncoding.decode("060504030201".toCharArray(), false);
 
         Bundle args = new Bundle();
-        args.putInt("event_type", WifiNanNative.NAN_EVENT_ID_JOINED_CLUSTER);
+        args.putInt("event_type", WifiAwareNative.AWARE_EVENT_ID_JOINED_CLUSTER);
         args.putByteArray("data", mac);
 
-        WifiNanHalMock.callDiscEngEvent(HalMockUtils.convertBundleToJson(args).toString());
+        WifiAwareHalMock.callDiscEngEvent(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager)
-                .onClusterChangeNotification(WifiNanClientState.CLUSTER_CHANGE_EVENT_JOINED, mac);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager)
+                .onClusterChangeNotification(WifiAwareClientState.CLUSTER_CHANGE_EVENT_JOINED, mac);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -778,25 +780,25 @@ public class WifiNanHalTest {
         final byte[] mac = HexEncoding.decode("0A0B0C0B0A00".toCharArray(), false);
 
         Bundle args = new Bundle();
-        args.putInt("event_type", WifiNanNative.NAN_EVENT_ID_STARTED_CLUSTER);
+        args.putInt("event_type", WifiAwareNative.AWARE_EVENT_ID_STARTED_CLUSTER);
         args.putByteArray("data", mac);
 
-        WifiNanHalMock.callDiscEngEvent(HalMockUtils.convertBundleToJson(args).toString());
+        WifiAwareHalMock.callDiscEngEvent(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager)
-                .onClusterChangeNotification(WifiNanClientState.CLUSTER_CHANGE_EVENT_STARTED, mac);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onClusterChangeNotification(
+                WifiAwareClientState.CLUSTER_CHANGE_EVENT_STARTED, mac);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
     public void testDisabled() throws JSONException {
         Bundle args = new Bundle();
-        args.putInt("reason", WifiNanNative.NAN_STATUS_DE_FAILURE);
+        args.putInt("reason", WifiAwareNative.AWARE_STATUS_DE_FAILURE);
 
-        WifiNanHalMock.callDisabled(HalMockUtils.convertBundleToJson(args).toString());
+        WifiAwareHalMock.callDisabled(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onNanDownNotification(WifiNanNative.NAN_STATUS_DE_FAILURE);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onAwareDownNotification(WifiAwareNative.AWARE_STATUS_DE_FAILURE);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -805,12 +807,12 @@ public class WifiNanHalTest {
 
         Bundle args = new Bundle();
         args.putInt("id", transactionId);
-        args.putInt("reason", WifiNanNative.NAN_STATUS_SUCCESS);
+        args.putInt("reason", WifiAwareNative.AWARE_STATUS_SUCCESS);
 
-        WifiNanHalMock.callTransmitFollowup(HalMockUtils.convertBundleToJson(args).toString());
+        WifiAwareHalMock.callTransmitFollowup(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onMessageSendSuccessNotification(transactionId);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onMessageSendSuccessNotification(transactionId);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -819,23 +821,24 @@ public class WifiNanHalTest {
 
         Bundle args = new Bundle();
         args.putInt("id", transactionId);
-        args.putInt("reason", WifiNanNative.NAN_STATUS_TX_FAIL);
+        args.putInt("reason", WifiAwareNative.AWARE_STATUS_TX_FAIL);
 
-        WifiNanHalMock.callTransmitFollowup(HalMockUtils.convertBundleToJson(args).toString());
+        WifiAwareHalMock.callTransmitFollowup(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onMessageSendFailNotification(transactionId,
-                WifiNanNative.NAN_STATUS_TX_FAIL);
-        verifyNoMoreInteractions(mNanStateManager);
+        verify(mAwareStateManager).onMessageSendFailNotification(transactionId,
+                WifiAwareNative.AWARE_STATUS_TX_FAIL);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
-    public void testCreateNanNetworkInterface() throws JSONException {
+    public void testCreateAwareNetworkInterface() throws JSONException {
         final short transactionId = 10;
-        final String interfaceName = "nan0";
+        final String interfaceName = "aware0";
 
-        mDut.createNanNetworkInterface(transactionId, interfaceName);
+        mDut.createAwareNetworkInterface(transactionId, interfaceName);
 
-        verify(mNanHalMock).createNanNetworkInterfaceMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).createAwareNetworkInterfaceMockNative(eq(transactionId),
+                mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -844,13 +847,14 @@ public class WifiNanHalTest {
     }
 
     @Test
-    public void testDeleteNanNetworkInterface() throws JSONException {
+    public void testDeleteAwareNetworkInterface() throws JSONException {
         final short transactionId = 10;
-        final String interfaceName = "nan0";
+        final String interfaceName = "aware0";
 
-        mDut.deleteNanNetworkInterface(transactionId, interfaceName);
+        mDut.deleteAwareNetworkInterface(transactionId, interfaceName);
 
-        verify(mNanHalMock).deleteNanNetworkInterfaceMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).deleteAwareNetworkInterfaceMockNative(eq(transactionId),
+                mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -865,13 +869,13 @@ public class WifiNanHalTest {
         final int channelRequestType = 0;
         final int channel = 2437;
         final byte[] peer = HexEncoding.decode("0A0B0C0D0E0F".toCharArray(), false);
-        final String interfaceName = "nan1";
+        final String interfaceName = "aware1";
         final String msg = "let me talk!";
 
         mDut.initiateDataPath(transactionId, pubSubId, channelRequestType, channel, peer,
                 interfaceName, msg.getBytes());
 
-        verify(mNanHalMock).initiateDataPathMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).initiateDataPathMockNative(eq(transactionId), mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -898,13 +902,14 @@ public class WifiNanHalTest {
         final short transactionId = 123;
         final boolean accept = true;
         final int ndpId = 523;
-        final String interfaceName = "nan1";
+        final String interfaceName = "aware1";
         final String msg = "fine - you can talk ...";
 
         mDut.respondToDataPathRequest(transactionId, accept, ndpId, interfaceName, msg
                 .getBytes());
 
-        verify(mNanHalMock).respondToDataPathRequestMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).respondToDataPathRequestMockNative(eq(transactionId),
+                mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -928,7 +933,7 @@ public class WifiNanHalTest {
 
         mDut.endDataPath(transactionId, ndpId);
 
-        verify(mNanHalMock).endDataPathMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).endDataPathMockNative(eq(transactionId), mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -952,11 +957,11 @@ public class WifiNanHalTest {
         args.putInt("app_info.ndp_app_info_len", msg.length());
         args.putByteArray("app_info.ndp_app_info", msg.getBytes());
 
-        WifiNanHalMock.callDataPathRequest(HalMockUtils.convertBundleToJson(args).toString());
+        WifiAwareHalMock.callDataPathRequest(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onDataPathRequestNotification(pubSubId, peer, ndpId,
+        verify(mAwareStateManager).onDataPathRequestNotification(pubSubId, peer, ndpId,
                 msg.getBytes());
-        verifyNoMoreInteractions(mNanStateManager);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -975,11 +980,11 @@ public class WifiNanHalTest {
         args.putInt("rsp_code", accept ? 0 : 1);
         args.putInt("reason_code", reason);
 
-        WifiNanHalMock.callDataPathConfirm(HalMockUtils.convertBundleToJson(args).toString());
+        WifiAwareHalMock.callDataPathConfirm(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager).onDataPathConfirmNotification(ndpId, peer, accept, reason,
+        verify(mAwareStateManager).onDataPathConfirmNotification(ndpId, peer, accept, reason,
                 msg.getBytes());
-        verifyNoMoreInteractions(mNanStateManager);
+        verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
@@ -1009,7 +1014,7 @@ public class WifiNanHalTest {
 
         mDut.enableAndConfigure(transactionId, configRequest, true);
 
-        verify(mNanHalMock).enableHalMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).enableHalMockNative(eq(transactionId), mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -1062,7 +1067,7 @@ public class WifiNanHalTest {
 
         mDut.enableAndConfigure(transactionId, configRequest, false);
 
-        verify(mNanHalMock).configHalMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).configHalMockNative(eq(transactionId), mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -1114,7 +1119,7 @@ public class WifiNanHalTest {
 
         mDut.publish(transactionId, publishId, publishConfig);
 
-        verify(mNanHalMock).publishHalMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).publishHalMockNative(eq(transactionId), mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -1161,7 +1166,7 @@ public class WifiNanHalTest {
 
         mDut.subscribe(transactionId, subscribeId, subscribeConfig);
 
-        verify(mNanHalMock).subscribeHalMockNative(eq(transactionId), mArgs.capture());
+        verify(mAwareHalMock).subscribeHalMockNative(eq(transactionId), mArgs.capture());
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
@@ -1213,11 +1218,11 @@ public class WifiNanHalTest {
         args.putInt("num_ndp_instances", numInstances);
         args.putInt("ndp_instance_id", ndpIdBase);
 
-        WifiNanHalMock.callDataPathEnd(HalMockUtils.convertBundleToJson(args).toString());
+        WifiAwareHalMock.callDataPathEnd(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mNanStateManager, times(numInstances)).onDataPathEndNotification(
+        verify(mAwareStateManager, times(numInstances)).onDataPathEndNotification(
                 ndpIdsCaptor.capture());
-        verifyNoMoreInteractions(mNanStateManager);
+        verifyNoMoreInteractions(mAwareStateManager);
 
         for (int i = 0; i < numInstances; ++i) {
             collector.checkThat("ndp id #" + i, ndpIdsCaptor.getAllValues().get(i),
@@ -1225,15 +1230,15 @@ public class WifiNanHalTest {
         }
     }
 
-    private static void installMockNanStateManager(WifiNanStateManager nanStateManager)
+    private static void installMockAwareStateManager(WifiAwareStateManager awareStateManager)
             throws Exception {
-        Field field = WifiNanStateManager.class.getDeclaredField("sNanStateManagerSingleton");
+        Field field = WifiAwareStateManager.class.getDeclaredField("sAwareStateManagerSingleton");
         field.setAccessible(true);
-        field.set(null, nanStateManager);
+        field.set(null, awareStateManager);
     }
 
-    private static void resetWifiNanNative() throws Exception {
-        Field field = WifiNanNative.class.getDeclaredField("sWifiNanNativeSingleton");
+    private static void resetWifiAwareNative() throws Exception {
+        Field field = WifiAwareNative.class.getDeclaredField("sWifiAwareNativeSingleton");
         field.setAccessible(true);
         field.set(null, null);
     }

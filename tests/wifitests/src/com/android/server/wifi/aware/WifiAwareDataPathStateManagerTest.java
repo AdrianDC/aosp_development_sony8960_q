@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.nan;
+package com.android.server.wifi.aware;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertTrue;
@@ -39,18 +39,18 @@ import android.net.NetworkInfo;
 import android.net.NetworkMisc;
 import android.net.NetworkRequest;
 import android.net.wifi.RttManager;
-import android.net.wifi.nan.ConfigRequest;
-import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
-import android.net.wifi.nan.IWifiNanEventCallback;
-import android.net.wifi.nan.IWifiNanManager;
-import android.net.wifi.nan.PublishConfig;
-import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanAttachCallback;
-import android.net.wifi.nan.WifiNanDiscoverySessionCallback;
-import android.net.wifi.nan.WifiNanManager;
-import android.net.wifi.nan.WifiNanPublishDiscoverySession;
-import android.net.wifi.nan.WifiNanSession;
-import android.net.wifi.nan.WifiNanSubscribeDiscoverySession;
+import android.net.wifi.aware.ConfigRequest;
+import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
+import android.net.wifi.aware.IWifiAwareEventCallback;
+import android.net.wifi.aware.IWifiAwareManager;
+import android.net.wifi.aware.PublishConfig;
+import android.net.wifi.aware.SubscribeConfig;
+import android.net.wifi.aware.WifiAwareAttachCallback;
+import android.net.wifi.aware.WifiAwareDiscoverySessionCallback;
+import android.net.wifi.aware.WifiAwareManager;
+import android.net.wifi.aware.WifiAwarePublishDiscoverySession;
+import android.net.wifi.aware.WifiAwareSession;
+import android.net.wifi.aware.WifiAwareSubscribeDiscoverySession;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
@@ -79,26 +79,26 @@ import java.lang.reflect.Field;
 import java.util.Arrays;
 
 /**
- * Unit test harness for WifiNanDataPathStateManager class.
+ * Unit test harness for WifiAwareDataPathStateManager class.
  */
 @SmallTest
-public class WifiNanDataPathStateManagerTest {
-    private static final String sNanInterfacePrefix = "nan";
+public class WifiAwareDataPathStateManagerTest {
+    private static final String sAwareInterfacePrefix = "aware";
 
     private MockLooper mMockLooper;
     private Handler mMockLooperHandler;
-    private WifiNanStateManager mDut;
-    @Mock private WifiNanNative mMockNative;
+    private WifiAwareStateManager mDut;
+    @Mock private WifiAwareNative mMockNative;
     @Mock private Context mMockContext;
-    @Mock private IWifiNanManager mMockNanService;
-    @Mock private WifiNanPublishDiscoverySession mMockPublishSession;
-    @Mock private WifiNanSubscribeDiscoverySession mMockSubscribeSession;
+    @Mock private IWifiAwareManager mMockAwareService;
+    @Mock private WifiAwarePublishDiscoverySession mMockPublishSession;
+    @Mock private WifiAwareSubscribeDiscoverySession mMockSubscribeSession;
     @Mock private RttManager.RttListener mMockRttListener;
     @Mock private ConnectivityManager mMockCm;
     @Mock private INetworkManagementService mMockNwMgt;
-    @Mock private WifiNanDataPathStateManager.NetworkInterfaceWrapper mMockNetworkInterface;
-    @Mock private IWifiNanEventCallback mMockCallback;
-    @Mock IWifiNanDiscoverySessionCallback mMockSessionCallback;
+    @Mock private WifiAwareDataPathStateManager.NetworkInterfaceWrapper mMockNetworkInterface;
+    @Mock private IWifiAwareEventCallback mMockCallback;
+    @Mock IWifiAwareDiscoverySessionCallback mMockSessionCallback;
     private MockAlarmManager mAlarmManager;
 
     @Rule
@@ -120,7 +120,7 @@ public class WifiNanDataPathStateManagerTest {
         mMockLooper = new MockLooper();
         mMockLooperHandler = new Handler(mMockLooper.getLooper());
 
-        mDut = installNewNanStateManager();
+        mDut = installNewAwareStateManager();
         mDut.start(mMockContext, mMockLooper.getLooper());
         mDut.startLate();
 
@@ -135,8 +135,8 @@ public class WifiNanDataPathStateManagerTest {
                 any(byte[].class), anyInt())).thenReturn(true);
         when(mMockNative.stopPublish(anyShort(), anyInt())).thenReturn(true);
         when(mMockNative.stopSubscribe(anyShort(), anyInt())).thenReturn(true);
-        when(mMockNative.createNanNetworkInterface(anyShort(), anyString())).thenReturn(true);
-        when(mMockNative.deleteNanNetworkInterface(anyShort(), anyString())).thenReturn(true);
+        when(mMockNative.createAwareNetworkInterface(anyShort(), anyString())).thenReturn(true);
+        when(mMockNative.deleteAwareNetworkInterface(anyShort(), anyString())).thenReturn(true);
         when(mMockNative.initiateDataPath(anyShort(), anyInt(), anyInt(), anyInt(),
                 any(byte[].class), anyString(), any(byte[].class))).thenReturn(true);
         when(mMockNative.respondToDataPathRequest(anyShort(), anyBoolean(), anyInt(), anyString(),
@@ -144,11 +144,11 @@ public class WifiNanDataPathStateManagerTest {
         when(mMockNative.endDataPath(anyShort(), anyInt())).thenReturn(true);
 
         when(mMockNetworkInterface.configureAgentProperties(
-                any(WifiNanDataPathStateManager.NanNetworkRequestInformation.class), anyString(),
-                anyInt(), any(NetworkInfo.class), any(NetworkCapabilities.class),
+                any(WifiAwareDataPathStateManager.AwareNetworkRequestInformation.class),
+                anyString(), anyInt(), any(NetworkInfo.class), any(NetworkCapabilities.class),
                 any(LinkProperties.class))).thenReturn(true);
 
-        installMockWifiNanNative(mMockNative);
+        installMockWifiAwareNative(mMockNative);
         installDataPathStateManagerMocks();
     }
 
@@ -160,7 +160,7 @@ public class WifiNanDataPathStateManagerTest {
         final int numNdis = 3;
         final int failCreateInterfaceIndex = 1;
 
-        WifiNanNative.Capabilities capabilities = new WifiNanNative.Capabilities();
+        WifiAwareNative.Capabilities capabilities = new WifiAwareNative.Capabilities();
         capabilities.maxNdiInterfaces = numNdis;
 
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
@@ -178,9 +178,9 @@ public class WifiNanDataPathStateManagerTest {
         mDut.createAllDataPathInterfaces();
         mMockLooper.dispatchAll();
         for (int i = 0; i < numNdis; ++i) {
-            inOrder.verify(mMockNative).createNanNetworkInterface(transactionId.capture(),
+            inOrder.verify(mMockNative).createAwareNetworkInterface(transactionId.capture(),
                     interfaceName.capture());
-            collector.checkThat("interface created -- " + i, sNanInterfacePrefix + i,
+            collector.checkThat("interface created -- " + i, sAwareInterfacePrefix + i,
                     equalTo(interfaceName.getValue()));
             mDut.onCreateDataPathInterfaceResponse(transactionId.getValue(), true, 0);
             mMockLooper.dispatchAll();
@@ -193,10 +193,10 @@ public class WifiNanDataPathStateManagerTest {
         mDut.deleteAllDataPathInterfaces();
         mMockLooper.dispatchAll();
         for (int i = 0; i < numNdis; ++i) {
-            inOrder.verify(mMockNative).deleteNanNetworkInterface(transactionId.capture(),
+            inOrder.verify(mMockNative).deleteAwareNetworkInterface(transactionId.capture(),
                     interfaceName.capture());
             int interfaceIndex = Integer.valueOf(
-                    interfaceName.getValue().substring(sNanInterfacePrefix.length()));
+                    interfaceName.getValue().substring(sAwareInterfacePrefix.length()));
             done[interfaceIndex] = true;
             if (interfaceIndex == failCreateInterfaceIndex) {
                 mDut.onDeleteDataPathInterfaceResponse(transactionId.getValue(), false, 0);
@@ -214,16 +214,16 @@ public class WifiNanDataPathStateManagerTest {
         mMockLooper.dispatchAll();
         for (int i = 0; i < numNdis; ++i) {
             if (i == failCreateInterfaceIndex) {
-                inOrder.verify(mMockNative).deleteNanNetworkInterface(transactionId.capture(),
+                inOrder.verify(mMockNative).deleteAwareNetworkInterface(transactionId.capture(),
                         interfaceName.capture());
-                collector.checkThat("interface delete pre-create -- " + i, sNanInterfacePrefix + i,
-                        equalTo(interfaceName.getValue()));
+                collector.checkThat("interface delete pre-create -- " + i,
+                        sAwareInterfacePrefix + i, equalTo(interfaceName.getValue()));
                 mDut.onDeleteDataPathInterfaceResponse(transactionId.getValue(), true, 0);
                 mMockLooper.dispatchAll();
             }
-            inOrder.verify(mMockNative).createNanNetworkInterface(transactionId.capture(),
+            inOrder.verify(mMockNative).createAwareNetworkInterface(transactionId.capture(),
                     interfaceName.capture());
-            collector.checkThat("interface created -- " + i, sNanInterfacePrefix + i,
+            collector.checkThat("interface created -- " + i, sAwareInterfacePrefix + i,
                     equalTo(interfaceName.getValue()));
             mDut.onCreateDataPathInterfaceResponse(transactionId.getValue(), true, 0);
             mMockLooper.dispatchAll();
@@ -401,7 +401,7 @@ public class WifiNanDataPathStateManagerTest {
             boolean provideToken, boolean getConfirmation) throws Exception {
         final int clientId = 123;
         final int pubSubId = 11234;
-        final WifiNanManager.OpaquePeerHandle peerHandle = new WifiNanManager.OpaquePeerHandle(
+        final WifiAwareManager.OpaquePeerHandle peerHandle = new WifiAwareManager.OpaquePeerHandle(
                 1341234);
         final int ndpId = 2;
         final String token = "some token";
@@ -420,11 +420,13 @@ public class WifiNanDataPathStateManagerTest {
         // (1) request network
         NetworkRequest nr;
         if (useDirect) {
-            nr = getDirectNetworkRequest(clientId, WifiNanManager.WIFI_NAN_DATA_PATH_ROLE_INITIATOR,
+            nr = getDirectNetworkRequest(clientId,
+                    WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR,
                     provideMac ? peerDiscoveryMac : null, provideToken ? token : null);
         } else {
             nr = getSessionNetworkRequest(clientId, res.first, provideMac ? peerHandle : null,
-                    WifiNanManager.WIFI_NAN_DATA_PATH_ROLE_INITIATOR, provideToken ? token : null);
+                    WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR,
+                    provideToken ? token : null);
         }
 
         Message reqNetworkMsg = Message.obtain();
@@ -435,8 +437,8 @@ public class WifiNanDataPathStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).initiateDataPath(transactionId.capture(),
                 eq(useDirect ? 0 : peerHandle.peerId),
-                eq(WifiNanNative.CHANNEL_REQUEST_TYPE_REQUESTED), eq(2437), eq(peerDiscoveryMac),
-                eq("nan0"), eq(token.getBytes()));
+                eq(WifiAwareNative.CHANNEL_REQUEST_TYPE_REQUESTED), eq(2437), eq(peerDiscoveryMac),
+                eq("aware0"), eq(token.getBytes()));
         mDut.onInitiateDataPathResponseSuccess(transactionId.getValue(), ndpId);
         mMockLooper.dispatchAll();
 
@@ -450,8 +452,8 @@ public class WifiNanDataPathStateManagerTest {
                     any(NetworkCapabilities.class),
                     anyInt(), any(NetworkMisc.class));
         } else {
-            assertTrue(
-                    mAlarmManager.dispatch(WifiNanStateManager.HAL_DATA_PATH_CONFIRM_TIMEOUT_TAG));
+            assertTrue(mAlarmManager.dispatch(
+                    WifiAwareStateManager.HAL_DATA_PATH_CONFIRM_TIMEOUT_TAG));
             mMockLooper.dispatchAll();
             inOrder.verify(mMockNative).endDataPath(transactionId.capture(), eq(ndpId));
             mDut.onEndDataPathResponse(transactionId.getValue(), true, 0);
@@ -482,7 +484,7 @@ public class WifiNanDataPathStateManagerTest {
             boolean provideToken, boolean getConfirmation) throws Exception {
         final int clientId = 123;
         final int pubSubId = 11234;
-        final WifiNanManager.OpaquePeerHandle peerHandle = new WifiNanManager.OpaquePeerHandle(
+        final WifiAwareManager.OpaquePeerHandle peerHandle = new WifiAwareManager.OpaquePeerHandle(
                 1341234);
         final int ndpId = 2;
         final String token = "some token";
@@ -501,11 +503,13 @@ public class WifiNanDataPathStateManagerTest {
         // (1) request network
         NetworkRequest nr;
         if (useDirect) {
-            nr = getDirectNetworkRequest(clientId, WifiNanManager.WIFI_NAN_DATA_PATH_ROLE_RESPONDER,
+            nr = getDirectNetworkRequest(clientId,
+                    WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_RESPONDER,
                     provideMac ? peerDiscoveryMac : null, provideToken ? token : null);
         } else {
             nr = getSessionNetworkRequest(clientId, res.first, provideMac ? peerHandle : null,
-                    WifiNanManager.WIFI_NAN_DATA_PATH_ROLE_RESPONDER, provideToken ? token : null);
+                    WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_RESPONDER,
+                    provideToken ? token : null);
         }
 
         Message reqNetworkMsg = Message.obtain();
@@ -519,7 +523,7 @@ public class WifiNanDataPathStateManagerTest {
         mDut.onDataPathRequestNotification(pubSubId, peerDiscoveryMac, ndpId, token.getBytes());
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).respondToDataPathRequest(transactionId.capture(), eq(true),
-                eq(ndpId), eq("nan0"), eq(new byte[0]));
+                eq(ndpId), eq("aware0"), eq(new byte[0]));
         mDut.onRespondToDataPathSetupRequestResponse(transactionId.getValue(), true, 0);
         mMockLooper.dispatchAll();
 
@@ -533,8 +537,8 @@ public class WifiNanDataPathStateManagerTest {
                     any(NetworkCapabilities.class),
                     anyInt(), any(NetworkMisc.class));
         } else {
-            assertTrue(
-                    mAlarmManager.dispatch(WifiNanStateManager.HAL_DATA_PATH_CONFIRM_TIMEOUT_TAG));
+            assertTrue(mAlarmManager.dispatch(
+                    WifiAwareStateManager.HAL_DATA_PATH_CONFIRM_TIMEOUT_TAG));
             mMockLooper.dispatchAll();
             inOrder.verify(mMockNative).endDataPath(transactionId.capture(), eq(ndpId));
             mDut.onEndDataPathResponse(transactionId.getValue(), true, 0);
@@ -562,66 +566,67 @@ public class WifiNanDataPathStateManagerTest {
     }
 
 
-    private static WifiNanStateManager installNewNanStateManager()
+    private static WifiAwareStateManager installNewAwareStateManager()
             throws Exception {
-        Constructor<WifiNanStateManager> ctr = WifiNanStateManager.class.getDeclaredConstructor();
+        Constructor<WifiAwareStateManager> ctr =
+                WifiAwareStateManager.class.getDeclaredConstructor();
         ctr.setAccessible(true);
-        WifiNanStateManager nanStateManager = ctr.newInstance();
+        WifiAwareStateManager awareStateManager = ctr.newInstance();
 
-        Field field = WifiNanStateManager.class.getDeclaredField("sNanStateManagerSingleton");
+        Field field = WifiAwareStateManager.class.getDeclaredField("sAwareStateManagerSingleton");
         field.setAccessible(true);
-        field.set(null, nanStateManager);
+        field.set(null, awareStateManager);
 
-        return WifiNanStateManager.getInstance();
+        return WifiAwareStateManager.getInstance();
     }
 
-    private static void installMockWifiNanNative(WifiNanNative obj) throws Exception {
-        Field field = WifiNanNative.class.getDeclaredField("sWifiNanNativeSingleton");
+    private static void installMockWifiAwareNative(WifiAwareNative obj) throws Exception {
+        Field field = WifiAwareNative.class.getDeclaredField("sWifiAwareNativeSingleton");
         field.setAccessible(true);
         field.set(null, obj);
     }
 
     private void installDataPathStateManagerMocks() throws Exception {
-        Field field = WifiNanStateManager.class.getDeclaredField("mDataPathMgr");
+        Field field = WifiAwareStateManager.class.getDeclaredField("mDataPathMgr");
         field.setAccessible(true);
         Object mDataPathMgr = field.get(mDut);
 
-        field = WifiNanDataPathStateManager.class.getDeclaredField("mNwService");
+        field = WifiAwareDataPathStateManager.class.getDeclaredField("mNwService");
         field.setAccessible(true);
         field.set(mDataPathMgr, mMockNwMgt);
 
-        field = WifiNanDataPathStateManager.class.getDeclaredField("mNiWrapper");
+        field = WifiAwareDataPathStateManager.class.getDeclaredField("mNiWrapper");
         field.setAccessible(true);
         field.set(mDataPathMgr, mMockNetworkInterface);
     }
 
     private NetworkRequest getSessionNetworkRequest(int clientId, int sessionId, Object peerHandle,
             int role, String token) throws Exception {
-        final WifiNanManager mgr = new WifiNanManager(mMockContext, mMockNanService);
+        final WifiAwareManager mgr = new WifiAwareManager(mMockContext, mMockAwareService);
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
         final PublishConfig publishConfig = new PublishConfig.Builder().build();
 
-        ArgumentCaptor<WifiNanSession> sessionCaptor = ArgumentCaptor.forClass(
-                WifiNanSession.class);
-        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
-                .forClass(IWifiNanEventCallback.class);
-        ArgumentCaptor<IWifiNanDiscoverySessionCallback> sessionProxyCallback = ArgumentCaptor
-                .forClass(IWifiNanDiscoverySessionCallback.class);
-        ArgumentCaptor<WifiNanPublishDiscoverySession> publishSession = ArgumentCaptor
-                .forClass(WifiNanPublishDiscoverySession.class);
+        ArgumentCaptor<WifiAwareSession> sessionCaptor = ArgumentCaptor.forClass(
+                WifiAwareSession.class);
+        ArgumentCaptor<IWifiAwareEventCallback> clientProxyCallback = ArgumentCaptor
+                .forClass(IWifiAwareEventCallback.class);
+        ArgumentCaptor<IWifiAwareDiscoverySessionCallback> sessionProxyCallback = ArgumentCaptor
+                .forClass(IWifiAwareDiscoverySessionCallback.class);
+        ArgumentCaptor<WifiAwarePublishDiscoverySession> publishSession = ArgumentCaptor
+                .forClass(WifiAwarePublishDiscoverySession.class);
 
-        WifiNanAttachCallback mockCallback = mock(WifiNanAttachCallback.class);
-        WifiNanDiscoverySessionCallback mockSessionCallback = mock(
-                WifiNanDiscoverySessionCallback.class);
+        WifiAwareAttachCallback mockCallback = mock(WifiAwareAttachCallback.class);
+        WifiAwareDiscoverySessionCallback mockSessionCallback = mock(
+                WifiAwareDiscoverySessionCallback.class);
 
         mgr.attach(mMockLooperHandler, configRequest, mockCallback, null);
-        verify(mMockNanService).connect(any(IBinder.class), anyString(),
+        verify(mMockAwareService).connect(any(IBinder.class), anyString(),
                 clientProxyCallback.capture(), eq(configRequest), eq(false));
         clientProxyCallback.getValue().onConnectSuccess(clientId);
         mMockLooper.dispatchAll();
         verify(mockCallback).onAttached(sessionCaptor.capture());
         sessionCaptor.getValue().publish(mMockLooperHandler, publishConfig, mockSessionCallback);
-        verify(mMockNanService).publish(eq(clientId), eq(publishConfig),
+        verify(mMockAwareService).publish(eq(clientId), eq(publishConfig),
                 sessionProxyCallback.capture());
         sessionProxyCallback.getValue().onSessionStarted(sessionId);
         mMockLooper.dispatchAll();
@@ -632,7 +637,7 @@ public class WifiNanDataPathStateManagerTest {
 
         NetworkCapabilities nc = new NetworkCapabilities();
         nc.clearAll();
-        nc.addTransportType(NetworkCapabilities.TRANSPORT_WIFI_NAN);
+        nc.addTransportType(NetworkCapabilities.TRANSPORT_WIFI_AWARE);
         nc.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN).addCapability(
                 NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
         nc.setNetworkSpecifier(ns);
@@ -646,17 +651,17 @@ public class WifiNanDataPathStateManagerTest {
     private NetworkRequest getDirectNetworkRequest(int clientId, int role, byte[] peer,
             String token) throws Exception {
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
-        final WifiNanManager mgr = new WifiNanManager(mMockContext, mMockNanService);
+        final WifiAwareManager mgr = new WifiAwareManager(mMockContext, mMockAwareService);
 
-        ArgumentCaptor<WifiNanSession> sessionCaptor = ArgumentCaptor.forClass(
-                WifiNanSession.class);
-        ArgumentCaptor<IWifiNanEventCallback> clientProxyCallback = ArgumentCaptor
-                .forClass(IWifiNanEventCallback.class);
+        ArgumentCaptor<WifiAwareSession> sessionCaptor = ArgumentCaptor.forClass(
+                WifiAwareSession.class);
+        ArgumentCaptor<IWifiAwareEventCallback> clientProxyCallback = ArgumentCaptor
+                .forClass(IWifiAwareEventCallback.class);
 
-        WifiNanAttachCallback mockCallback = mock(WifiNanAttachCallback.class);
+        WifiAwareAttachCallback mockCallback = mock(WifiAwareAttachCallback.class);
 
         mgr.attach(mMockLooperHandler, configRequest, mockCallback, null);
-        verify(mMockNanService).connect(any(IBinder.class), anyString(),
+        verify(mMockAwareService).connect(any(IBinder.class), anyString(),
                 clientProxyCallback.capture(), eq(configRequest), eq(false));
         clientProxyCallback.getValue().onConnectSuccess(clientId);
         mMockLooper.dispatchAll();
@@ -666,7 +671,7 @@ public class WifiNanDataPathStateManagerTest {
                 (token == null) ? null : token.getBytes());
         NetworkCapabilities nc = new NetworkCapabilities();
         nc.clearAll();
-        nc.addTransportType(NetworkCapabilities.TRANSPORT_WIFI_NAN);
+        nc.addTransportType(NetworkCapabilities.TRANSPORT_WIFI_AWARE);
         nc.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN).addCapability(
                 NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
         nc.setNetworkSpecifier(ns);
@@ -678,7 +683,7 @@ public class WifiNanDataPathStateManagerTest {
     }
 
     private Pair<Integer, Messenger> initDataPathEndPoint(int clientId, int pubSubId,
-            WifiNanManager.OpaquePeerHandle peerHandle, byte[] peerDiscoveryMac, InOrder inOrder)
+            WifiAwareManager.OpaquePeerHandle peerHandle, byte[] peerDiscoveryMac, InOrder inOrder)
             throws Exception {
         final int uid = 1000;
         final int pid = 2000;
@@ -687,7 +692,7 @@ public class WifiNanDataPathStateManagerTest {
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
         final PublishConfig publishConfig = new PublishConfig.Builder().build();
 
-        WifiNanNative.Capabilities capabilities = new WifiNanNative.Capabilities();
+        WifiAwareNative.Capabilities capabilities = new WifiAwareNative.Capabilities();
         capabilities.maxNdiInterfaces = 1;
 
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
@@ -698,7 +703,7 @@ public class WifiNanDataPathStateManagerTest {
         // (0) start/registrations
         inOrder.verify(mMockCm).registerNetworkFactory(messengerCaptor.capture(),
                 strCaptor.capture());
-        collector.checkThat("factory name", "WIFI_NAN_FACTORY", equalTo(strCaptor.getValue()));
+        collector.checkThat("factory name", "WIFI_AWARE_FACTORY", equalTo(strCaptor.getValue()));
 
         // (1) get capabilities
         mDut.queryCapabilities();
@@ -710,10 +715,10 @@ public class WifiNanDataPathStateManagerTest {
         // (2) enable usage (creates interfaces)
         mDut.enableUsage();
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).deInitNan();
-        inOrder.verify(mMockNative).createNanNetworkInterface(transactionId.capture(),
+        inOrder.verify(mMockNative).deInitAware();
+        inOrder.verify(mMockNative).createAwareNetworkInterface(transactionId.capture(),
                 strCaptor.capture());
-        collector.checkThat("interface created -- 0", sNanInterfacePrefix + 0,
+        collector.checkThat("interface created -- 0", sAwareInterfacePrefix + 0,
                 equalTo(strCaptor.getValue()));
         mDut.onCreateDataPathInterfaceResponse(transactionId.getValue(), true, 0);
         mMockLooper.dispatchAll();

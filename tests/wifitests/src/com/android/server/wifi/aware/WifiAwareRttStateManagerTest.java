@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.nan;
+package com.android.server.wifi.aware;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsNull.nullValue;
@@ -44,11 +44,11 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 /**
- * Unit test harness for WifiNanManager class.
+ * Unit test harness for WifiAwareManager class.
  */
 @SmallTest
-public class WifiNanRttStateManagerTest {
-    private WifiNanRttStateManager mDut;
+public class WifiAwareRttStateManagerTest {
+    private WifiAwareRttStateManager mDut;
     private MockLooper mMockLooper;
 
     @Mock
@@ -70,7 +70,7 @@ public class WifiNanRttStateManagerTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        mDut = new WifiNanRttStateManager();
+        mDut = new WifiAwareRttStateManager();
         mMockLooper = new MockLooper();
         BidirectionalAsyncChannelServer server = new BidirectionalAsyncChannelServer(
                 mMockContext, mMockLooper.getLooper(), mMockHandler);
@@ -87,7 +87,7 @@ public class WifiNanRttStateManagerTest {
     @Test
     public void testStartRanging() throws Exception {
         final int rangingId = 1234;
-        WifiNanClientState mockClient = mock(WifiNanClientState.class);
+        WifiAwareClientState mockClient = mock(WifiAwareClientState.class);
         RttManager.RttParams[] params = new RttManager.RttParams[1];
         params[0] = new RttManager.RttParams();
         RttManager.ParcelableRttResults results =

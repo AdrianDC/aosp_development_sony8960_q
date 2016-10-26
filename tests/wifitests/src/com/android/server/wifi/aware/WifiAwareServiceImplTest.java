@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.nan;
+package com.android.server.wifi.aware;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -31,12 +31,12 @@ import static org.mockito.Mockito.when;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.wifi.RttManager;
-import android.net.wifi.nan.ConfigRequest;
-import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
-import android.net.wifi.nan.IWifiNanEventCallback;
-import android.net.wifi.nan.PublishConfig;
-import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanCharacteristics;
+import android.net.wifi.aware.ConfigRequest;
+import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
+import android.net.wifi.aware.IWifiAwareEventCallback;
+import android.net.wifi.aware.PublishConfig;
+import android.net.wifi.aware.SubscribeConfig;
+import android.net.wifi.aware.WifiAwareCharacteristics;
 import android.os.IBinder;
 import android.os.Looper;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -53,13 +53,13 @@ import org.mockito.MockitoAnnotations;
 import java.lang.reflect.Field;
 
 /**
- * Unit test harness for WifiNanStateManager.
+ * Unit test harness for WifiAwareStateManager.
  */
 @SmallTest
-public class WifiNanServiceImplTest {
+public class WifiAwareServiceImplTest {
     private static final int MAX_LENGTH = 255;
 
-    private WifiNanServiceImplSpy mDut;
+    private WifiAwareServiceImplSpy mDut;
     private int mDefaultUid = 1500;
 
     @Mock
@@ -67,22 +67,22 @@ public class WifiNanServiceImplTest {
     @Mock
     private PackageManager mPackageManagerMock;
     @Mock
-    private WifiNanStateManager mNanStateManagerMock;
+    private WifiAwareStateManager mAwareStateManagerMock;
     @Mock
     private IBinder mBinderMock;
     @Mock
-    private IWifiNanEventCallback mCallbackMock;
+    private IWifiAwareEventCallback mCallbackMock;
     @Mock
-    private IWifiNanDiscoverySessionCallback mSessionCallbackMock;
+    private IWifiAwareDiscoverySessionCallback mSessionCallbackMock;
 
     /**
      * Using instead of spy to avoid native crash failures - possibly due to
      * spy's copying of state.
      */
-    private class WifiNanServiceImplSpy extends WifiNanServiceImpl {
+    private class WifiAwareServiceImplSpy extends WifiAwareServiceImpl {
         public int fakeUid;
 
-        WifiNanServiceImplSpy(Context context) {
+        WifiAwareServiceImplSpy(Context context) {
             super(context);
         }
 
@@ -105,13 +105,13 @@ public class WifiNanServiceImplTest {
 
         when(mContextMock.getApplicationContext()).thenReturn(mContextMock);
         when(mContextMock.getPackageManager()).thenReturn(mPackageManagerMock);
-        when(mPackageManagerMock.hasSystemFeature(PackageManager.FEATURE_WIFI_NAN))
+        when(mPackageManagerMock.hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE))
                 .thenReturn(true);
-        when(mNanStateManagerMock.getCharacteristics()).thenReturn(getCharacteristics());
+        when(mAwareStateManagerMock.getCharacteristics()).thenReturn(getCharacteristics());
 
-        installMockNanStateManager();
+        installMockAwareStateManager();
 
-        mDut = new WifiNanServiceImplSpy(mContextMock);
+        mDut = new WifiAwareServiceImplSpy(mContextMock);
         mDut.fakeUid = mDefaultUid;
     }
 
@@ -122,7 +122,7 @@ public class WifiNanServiceImplTest {
     public void testStart() {
         mDut.start();
 
-        verify(mNanStateManagerMock).start(eq(mContextMock), any(Looper.class));
+        verify(mAwareStateManagerMock).start(eq(mContextMock), any(Looper.class));
     }
 
     /**
@@ -132,7 +132,7 @@ public class WifiNanServiceImplTest {
     public void testEnableUsage() {
         mDut.enableUsage();
 
-        verify(mNanStateManagerMock).enableUsage();
+        verify(mAwareStateManagerMock).enableUsage();
     }
 
     /**
@@ -144,7 +144,7 @@ public class WifiNanServiceImplTest {
         doConnect();
         mDut.disableUsage();
 
-        verify(mNanStateManagerMock).disableUsage();
+        verify(mAwareStateManagerMock).disableUsage();
     }
 
     /**
@@ -154,7 +154,7 @@ public class WifiNanServiceImplTest {
     public void testIsUsageEnabled() {
         mDut.isUsageEnabled();
 
-        verify(mNanStateManagerMock).isUsageEnabled();
+        verify(mAwareStateManagerMock).isUsageEnabled();
     }
 
 
@@ -177,7 +177,7 @@ public class WifiNanServiceImplTest {
         mDut.connect(mBinderMock, callingPackage, mCallbackMock,
                 configRequest, false);
 
-        verify(mNanStateManagerMock).connect(anyInt(), anyInt(), anyInt(),
+        verify(mAwareStateManagerMock).connect(anyInt(), anyInt(), anyInt(),
                 eq(callingPackage), eq(mCallbackMock), eq(configRequest), eq(false));
     }
 
@@ -192,7 +192,7 @@ public class WifiNanServiceImplTest {
 
         mDut.disconnect(clientId, mBinderMock);
 
-        verify(mNanStateManagerMock).disconnect(clientId);
+        verify(mAwareStateManagerMock).disconnect(clientId);
         validateInternalStateCleanedUp(clientId);
     }
 
@@ -215,7 +215,7 @@ public class WifiNanServiceImplTest {
 
         mDut.disconnect(clientId, mBinderMock);
 
-        verify(mNanStateManagerMock).disconnect(clientId);
+        verify(mAwareStateManagerMock).disconnect(clientId);
         validateInternalStateCleanedUp(clientId);
 
         mDut.disconnect(clientId, mBinderMock);
@@ -250,7 +250,7 @@ public class WifiNanServiceImplTest {
                 .build();
         mDut.publish(clientId, publishConfig, mSessionCallbackMock);
 
-        verify(mNanStateManagerMock).publish(clientId, publishConfig, mSessionCallbackMock);
+        verify(mAwareStateManagerMock).publish(clientId, publishConfig, mSessionCallbackMock);
         assertTrue("SecurityException for invalid access from wrong UID thrown", failsAsExpected);
     }
 
@@ -266,7 +266,7 @@ public class WifiNanServiceImplTest {
 
         verify(mBinderMock).linkToDeath(deathRecipient.capture(), eq(0));
         deathRecipient.getValue().binderDied();
-        verify(mNanStateManagerMock).disconnect(clientId);
+        verify(mAwareStateManagerMock).disconnect(clientId);
         validateInternalStateCleanedUp(clientId);
     }
 
@@ -277,13 +277,13 @@ public class WifiNanServiceImplTest {
     public void testClientIdIncrementing() {
         int loopCount = 100;
 
-        InOrder inOrder = inOrder(mNanStateManagerMock);
+        InOrder inOrder = inOrder(mAwareStateManagerMock);
         ArgumentCaptor<Integer> clientIdCaptor = ArgumentCaptor.forClass(Integer.class);
 
         int prevId = 0;
         for (int i = 0; i < loopCount; ++i) {
             mDut.connect(mBinderMock, "", mCallbackMock, null, false);
-            inOrder.verify(mNanStateManagerMock).connect(clientIdCaptor.capture(), anyInt(),
+            inOrder.verify(mAwareStateManagerMock).connect(clientIdCaptor.capture(), anyInt(),
                     anyInt(), anyString(), eq(mCallbackMock), any(ConfigRequest.class), eq(false));
             int id = clientIdCaptor.getValue();
             if (i != 0) {
@@ -303,7 +303,7 @@ public class WifiNanServiceImplTest {
 
         mDut.terminateSession(clientId, sessionId);
 
-        verify(mNanStateManagerMock).terminateSession(clientId, sessionId);
+        verify(mAwareStateManagerMock).terminateSession(clientId, sessionId);
     }
 
     /**
@@ -314,12 +314,12 @@ public class WifiNanServiceImplTest {
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName("something.valid")
                 .build();
         int clientId = doConnect();
-        IWifiNanDiscoverySessionCallback mockCallback = mock(
-                IWifiNanDiscoverySessionCallback.class);
+        IWifiAwareDiscoverySessionCallback mockCallback = mock(
+                IWifiAwareDiscoverySessionCallback.class);
 
         mDut.publish(clientId, publishConfig, mockCallback);
 
-        verify(mNanStateManagerMock).publish(clientId, publishConfig, mockCallback);
+        verify(mAwareStateManagerMock).publish(clientId, publishConfig, mockCallback);
     }
 
     /**
@@ -373,7 +373,7 @@ public class WifiNanServiceImplTest {
 
         mDut.updatePublish(clientId, sessionId, publishConfig);
 
-        verify(mNanStateManagerMock).updatePublish(clientId, sessionId, publishConfig);
+        verify(mAwareStateManagerMock).updatePublish(clientId, sessionId, publishConfig);
     }
 
     /**
@@ -388,7 +388,7 @@ public class WifiNanServiceImplTest {
 
         mDut.updatePublish(clientId, sessionId, publishConfig);
 
-        verify(mNanStateManagerMock).updatePublish(clientId, sessionId, publishConfig);
+        verify(mAwareStateManagerMock).updatePublish(clientId, sessionId, publishConfig);
     }
 
     /**
@@ -399,12 +399,12 @@ public class WifiNanServiceImplTest {
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder()
                 .setServiceName("something.valid").build();
         int clientId = doConnect();
-        IWifiNanDiscoverySessionCallback mockCallback = mock(
-                IWifiNanDiscoverySessionCallback.class);
+        IWifiAwareDiscoverySessionCallback mockCallback = mock(
+                IWifiAwareDiscoverySessionCallback.class);
 
         mDut.subscribe(clientId, subscribeConfig, mockCallback);
 
-        verify(mNanStateManagerMock).subscribe(clientId, subscribeConfig, mockCallback);
+        verify(mAwareStateManagerMock).subscribe(clientId, subscribeConfig, mockCallback);
     }
 
     /**
@@ -459,7 +459,7 @@ public class WifiNanServiceImplTest {
 
         mDut.updateSubscribe(clientId, sessionId, subscribeConfig);
 
-        verify(mNanStateManagerMock).updateSubscribe(clientId, sessionId, subscribeConfig);
+        verify(mAwareStateManagerMock).updateSubscribe(clientId, sessionId, subscribeConfig);
     }
 
     /**
@@ -474,7 +474,7 @@ public class WifiNanServiceImplTest {
 
         mDut.updateSubscribe(clientId, sessionId, subscribeConfig);
 
-        verify(mNanStateManagerMock).updateSubscribe(clientId, sessionId, subscribeConfig);
+        verify(mAwareStateManagerMock).updateSubscribe(clientId, sessionId, subscribeConfig);
     }
 
     /**
@@ -490,7 +490,7 @@ public class WifiNanServiceImplTest {
 
         mDut.sendMessage(clientId, sessionId, peerId, message, messageId, 0);
 
-        verify(mNanStateManagerMock).sendMessage(clientId, sessionId, peerId, message, messageId,
+        verify(mAwareStateManagerMock).sendMessage(clientId, sessionId, peerId, message, messageId,
                 0);
     }
 
@@ -507,7 +507,7 @@ public class WifiNanServiceImplTest {
 
         mDut.sendMessage(clientId, sessionId, peerId, message, messageId, 0);
 
-        verify(mNanStateManagerMock).sendMessage(clientId, sessionId, peerId, message, messageId,
+        verify(mAwareStateManagerMock).sendMessage(clientId, sessionId, peerId, message, messageId,
                 0);
     }
 
@@ -526,7 +526,7 @@ public class WifiNanServiceImplTest {
 
         int rangingId = mDut.startRanging(clientId, sessionId, params);
 
-        verify(mNanStateManagerMock).startRanging(eq(clientId), eq(sessionId),
+        verify(mAwareStateManagerMock).startRanging(eq(clientId), eq(sessionId),
                 paramsCaptor.capture(), eq(rangingId));
 
         assertArrayEquals(paramsCaptor.getValue(), params.mParams);
@@ -570,7 +570,7 @@ public class WifiNanServiceImplTest {
     }
 
     /*
-     * Tests of internal state of WifiNanServiceImpl: very limited (not usually
+     * Tests of internal state of WifiAwareServiceImpl: very limited (not usually
      * a good idea). However, these test that the internal state is cleaned-up
      * appropriately. Alternatively would cause issues with memory leaks or
      * information leak between sessions.
@@ -593,12 +593,12 @@ public class WifiNanServiceImplTest {
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(ssi).setMatchFilter(matchFilter).build();
         int clientId = doConnect();
-        IWifiNanDiscoverySessionCallback mockCallback = mock(
-                IWifiNanDiscoverySessionCallback.class);
+        IWifiAwareDiscoverySessionCallback mockCallback = mock(
+                IWifiAwareDiscoverySessionCallback.class);
 
         mDut.publish(clientId, publishConfig, mockCallback);
 
-        verify(mNanStateManagerMock).publish(clientId, publishConfig, mockCallback);
+        verify(mAwareStateManagerMock).publish(clientId, publishConfig, mockCallback);
     }
 
     private void doBadSubscribeConfiguration(String serviceName, byte[] ssi, byte[] matchFilter)
@@ -606,12 +606,12 @@ public class WifiNanServiceImplTest {
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(ssi).setMatchFilter(matchFilter).build();
         int clientId = doConnect();
-        IWifiNanDiscoverySessionCallback mockCallback = mock(
-                IWifiNanDiscoverySessionCallback.class);
+        IWifiAwareDiscoverySessionCallback mockCallback = mock(
+                IWifiAwareDiscoverySessionCallback.class);
 
         mDut.subscribe(clientId, subscribeConfig, mockCallback);
 
-        verify(mNanStateManagerMock).subscribe(clientId, subscribeConfig, mockCallback);
+        verify(mAwareStateManagerMock).subscribe(clientId, subscribeConfig, mockCallback);
     }
 
     private int doConnect() {
@@ -620,23 +620,23 @@ public class WifiNanServiceImplTest {
         mDut.connect(mBinderMock, callingPackage, mCallbackMock, null, false);
 
         ArgumentCaptor<Integer> clientId = ArgumentCaptor.forClass(Integer.class);
-        verify(mNanStateManagerMock).connect(clientId.capture(), anyInt(), anyInt(),
+        verify(mAwareStateManagerMock).connect(clientId.capture(), anyInt(), anyInt(),
                 eq(callingPackage), eq(mCallbackMock), eq(new ConfigRequest.Builder().build()),
                 eq(false));
 
         return clientId.getValue();
     }
 
-    private void installMockNanStateManager()
+    private void installMockAwareStateManager()
             throws Exception {
-        Field field = WifiNanStateManager.class.getDeclaredField("sNanStateManagerSingleton");
+        Field field = WifiAwareStateManager.class.getDeclaredField("sAwareStateManagerSingleton");
         field.setAccessible(true);
-        field.set(null, mNanStateManagerMock);
+        field.set(null, mAwareStateManagerMock);
     }
 
-    private static WifiNanCharacteristics getCharacteristics() {
-        WifiNanNative.Capabilities cap = new WifiNanNative.Capabilities();
-        cap.maxConcurrentNanClusters = 1;
+    private static WifiAwareCharacteristics getCharacteristics() {
+        WifiAwareNative.Capabilities cap = new WifiAwareNative.Capabilities();
+        cap.maxConcurrentAwareClusters = 1;
         cap.maxPublishes = 2;
         cap.maxSubscribes = 2;
         cap.maxServiceNameLen = MAX_LENGTH;
@@ -653,7 +653,7 @@ public class WifiNanServiceImplTest {
     }
 
     private int getInternalStateUid(int clientId) throws Exception {
-        Field field = WifiNanServiceImpl.class.getDeclaredField("mUidByClientId");
+        Field field = WifiAwareServiceImpl.class.getDeclaredField("mUidByClientId");
         field.setAccessible(true);
         @SuppressWarnings("unchecked")
         SparseIntArray uidByClientId = (SparseIntArray) field.get(mDut);
@@ -662,7 +662,7 @@ public class WifiNanServiceImplTest {
     }
 
     private IBinder.DeathRecipient getInternalStateDeathRecipient(int clientId) throws Exception {
-        Field field = WifiNanServiceImpl.class.getDeclaredField("mDeathRecipientsByClientId");
+        Field field = WifiAwareServiceImpl.class.getDeclaredField("mDeathRecipientsByClientId");
         field.setAccessible(true);
         @SuppressWarnings("unchecked")
         SparseArray<IBinder.DeathRecipient> deathRecipientsByClientId =

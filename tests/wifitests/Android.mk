@@ -34,9 +34,9 @@ LOCAL_C_INCLUDES += \
 LOCAL_SRC_FILES := \
 	jni/wifi_hal_mock.cpp
 
-ifdef INCLUDE_NAN_FEATURE
+ifdef INCLUDE_AWARE_FEATURE
 LOCAL_SRC_FILES += \
-	jni/wifi_nan_hal_mock.cpp
+	jni/wifi_aware_hal_mock.cpp
 endif
 
 LOCAL_MODULE := libwifi-hal-mock
@@ -65,9 +65,9 @@ RESOURCE_FILES := $(call all-named-files-under, R.java, $(intermediates.COMMON))
 LOCAL_SRC_FILES := $(call all-subdir-java-files) \
 	$RESOURCE_FILES
 
-ifndef INCLUDE_NAN_FEATURE
+ifndef INCLUDE_AWARE_FEATURE
 LOCAL_SRC_FILES := $(filter-out $(call all-java-files-under, \
-          src/com/android/server/wifi/nan),$(LOCAL_SRC_FILES))
+          src/com/android/server/wifi/aware),$(LOCAL_SRC_FILES))
 endif
 
 LOCAL_STATIC_JAVA_LIBRARIES := \

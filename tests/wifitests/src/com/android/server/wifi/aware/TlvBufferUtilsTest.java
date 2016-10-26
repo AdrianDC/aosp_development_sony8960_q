@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.nan;
+package com.android.server.wifi.aware;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 
-import android.net.wifi.nan.LvBufferUtils;
-import android.net.wifi.nan.TlvBufferUtils;
+import android.net.wifi.aware.LvBufferUtils;
+import android.net.wifi.aware.TlvBufferUtils;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import org.junit.Rule;
@@ -27,7 +27,7 @@ import org.junit.Test;
 import org.junit.rules.ErrorCollector;
 
 /**
- * Unit test harness for WifiNanManager class.
+ * Unit test harness for TlvBufferUtils class.
  */
 @SmallTest
 public class TlvBufferUtilsTest {
