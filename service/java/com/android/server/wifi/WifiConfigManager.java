@@ -3240,7 +3240,8 @@ public class WifiConfigManager {
 
     /**
      * Check if the provided ephemeral network was deleted by the user or not.
-     * @param ssid ssid of the network
+     * @param ssid caller must ensure that the SSID passed thru this API match
+     *        the WifiConfiguration.SSID rules, and thus be surrounded by quotes.
      * @return true if network was deleted, false otherwise.
      */
     public boolean wasEphemeralNetworkDeleted(String ssid) {

@@ -37,4 +37,12 @@ public class ScanDetailUtil {
                 scanResult.informationElements, scanResult.anqpLines, scanResult.frequency);
         return new ScanDetail(scanResult, networkDetail, null);
     }
+
+    /**
+     * Helper method to quote the SSID in Scan result to use for comparing/filling SSID stored in
+     * WifiConfiguration object.
+     */
+    public static String createQuotedSSID(String ssid) {
+        return "\"" + ssid + "\"";
+    }
 }

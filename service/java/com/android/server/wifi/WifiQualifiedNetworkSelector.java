@@ -32,6 +32,7 @@ import android.util.Pair;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.wifi.util.ScanDetailUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -728,7 +729,8 @@ public class WifiQualifiedNetworkSelector {
                 if (isUntrustedConnectionsAllowed) {
                     Integer netScore = getNetworkScore(scanResult, false);
                     if (netScore != null
-                        && !mWifiConfigManager.wasEphemeralNetworkDeleted(scanResult.SSID)) {
+                        && !mWifiConfigManager.wasEphemeralNetworkDeleted(
+                                ScanDetailUtil.createQuotedSSID(scanResult.SSID))) {
                         externalScoreEvaluator.evalUntrustedCandidate(netScore, scanResult);
                         // scanDetail is for available ephemeral network
                         filteredScanDetails.add(Pair.create(scanDetail,
