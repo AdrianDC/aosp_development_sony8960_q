@@ -137,6 +137,17 @@ final class WifiNotificationController {
                                     case CAPTIVE_PORTAL_CHECK:
                                         resetNotification();
                                         break;
+
+                                    case IDLE:
+                                    case SCANNING:
+                                    case CONNECTING:
+                                    case AUTHENTICATING:
+                                    case OBTAINING_IPADDR:
+                                    case SUSPENDED:
+                                    case FAILED:
+                                    case BLOCKED:
+                                    case VERIFYING_POOR_LINK:
+                                        break;
                                 }
                             }
                         } else if (intent.getAction().equals(
