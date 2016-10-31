@@ -18,6 +18,7 @@ package com.android.server.wifi.util;
 import static com.android.server.wifi.anqp.Constants.getInteger;
 
 import android.net.wifi.ScanResult.InformationElement;
+import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.server.wifi.anqp.Constants;
@@ -321,6 +322,22 @@ public class InformationElementUtil {
         private static final int WPA2_AKM_EAP_SHA256 = 0x05ac0f00;
         private static final int WPA2_AKM_PSK_SHA256 = 0x06ac0f00;
 
+        private static final int WPA_CIPHER_NONE = 0x00f25000;
+        private static final int WPA_CIPHER_TKIP = 0x02f25000;
+        private static final int WPA_CIPHER_CCMP = 0x04f25000;
+
+        private static final int RSN_CIPHER_NONE = 0x00ac0f00;
+        private static final int RSN_CIPHER_TKIP = 0x02ac0f00;
+        private static final int RSN_CIPHER_CCMP = 0x04ac0f00;
+        private static final int RSN_CIPHER_NO_GROUP_ADDRESSED = 0x07ac0f00;
+
+        public String protocol;
+        public ArrayList<String> keyManagement;
+        public ArrayList<String> pairwiseCipher;
+        public String groupCipher;
+        public boolean isESS;
+        public boolean isPrivacy;
+
         public Capabilities() {
         }
 
@@ -337,80 +354,93 @@ public class InformationElementUtil {
         //
         // Note: InformationElement.bytes has 'Element ID' and 'Length'
         //       stripped off already
-        private static String parseRsnElement(InformationElement ie) {
+        private void parseRsnElement(InformationElement ie) {
             ByteBuffer buf = ByteBuffer.wrap(ie.bytes).order(ByteOrder.LITTLE_ENDIAN);
 
             try {
                 // version
                 if (buf.getShort() != RSNE_VERSION) {
                     // incorrect version
-                    return null;
+                    return;
                 }
 
-                // group data cipher suite
-                // here we simply advance the buffer position
-                buf.getInt();
-
                 // found the RSNE IE, hence start building the capability string
-                String security = "[WPA2";
+                protocol = "WPA2";
+
+                // group data cipher suite
+                groupCipher = rsnCipherToString(buf.getInt());
 
                 // pairwise cipher suite count
                 short cipherCount = buf.getShort();
-
                 // pairwise cipher suite list
                 for (int i = 0; i < cipherCount; i++) {
-                    // here we simply advance the buffer position
-                    buf.getInt();
+                    pairwiseCipher.add(rsnCipherToString(buf.getInt()));
                 }
 
                 // AKM
                 // AKM suite count
                 short akmCount = buf.getShort();
 
-                // parse AKM suite list
-                if (akmCount == 0) {
-                    security += "-EAP"; //default AKM
-                }
-                boolean found = false;
                 for (int i = 0; i < akmCount; i++) {
                     int akm = buf.getInt();
                     switch (akm) {
                         case WPA2_AKM_EAP:
-                            security += (found ? "+" : "-") + "EAP";
-                            found = true;
+                            keyManagement.add("EAP");
                             break;
                         case WPA2_AKM_PSK:
-                            security += (found ? "+" : "-") + "PSK";
-                            found = true;
+                            keyManagement.add("PSK");
                             break;
                         case WPA2_AKM_FT_EAP:
-                            security += (found ? "+" : "-") + "FT/EAP";
-                            found = true;
+                            keyManagement.add("FT/EAP");
                             break;
                         case WPA2_AKM_FT_PSK:
-                            security += (found ? "+" : "-") + "FT/PSK";
-                            found = true;
+                            keyManagement.add("FT/PSK");
                             break;
                         case WPA2_AKM_EAP_SHA256:
-                            security += (found ? "+" : "-") + "EAP-SHA256";
-                            found = true;
+                            keyManagement.add("EAP-SHA256");
                             break;
                         case WPA2_AKM_PSK_SHA256:
-                            security += (found ? "+" : "-") + "PSK-SHA256";
-                            found = true;
+                            keyManagement.add("PSK-SHA256");
                             break;
                         default:
                             // do nothing
                             break;
                     }
                 }
-
-                // we parsed what we want at this point
-                security += "]";
-                return security;
+                // Default AKM
+                if (keyManagement.isEmpty()) {
+                    keyManagement.add("EAP");
+                }
             } catch (BufferUnderflowException e) {
                 Log.e("IE_Capabilities", "Couldn't parse RSNE, buffer underflow");
-                return null;
+            }
+        }
+
+        private static String wpaCipherToString(int cipher) {
+            switch (cipher) {
+                case WPA_CIPHER_NONE:
+                    return "NONE";
+                case WPA_CIPHER_TKIP:
+                    return "TKIP";
+                case WPA_CIPHER_CCMP:
+                    return "CCMP";
+                default:
+                    return "?";
+            }
+        }
+
+        private static String rsnCipherToString(int cipher) {
+            switch (cipher) {
+                case RSN_CIPHER_NONE:
+                    return "NONE";
+                case RSN_CIPHER_TKIP:
+                    return "TKIP";
+                case RSN_CIPHER_CCMP:
+                    return "CCMP";
+                case RSN_CIPHER_NO_GROUP_ADDRESSED:
+                    return "GTK_NOT_USED";
+                default:
+                    return "?";
             }
         }
 
@@ -430,6 +460,8 @@ public class InformationElementUtil {
         //
         // | Element ID | Length | OUI | Type | Version |
         //      1           1       3     1        2
+        // | Group Data Cipher Suite |
+        //             4
         // | Pairwise Cipher Suite Count | Pairwise Cipher Suite List |
         //              2                            4 * m
         // | AKM Suite Count | AKM Suite List |
@@ -438,7 +470,7 @@ public class InformationElementUtil {
         // Note: InformationElement.bytes has 'Element ID' and 'Length'
         //       stripped off already
         //
-        private static String parseWpaOneElement(InformationElement ie) {
+        private void parseWpaOneElement(InformationElement ie) {
             ByteBuffer buf = ByteBuffer.wrap(ie.bytes).order(ByteOrder.LITTLE_ENDIAN);
 
             try {
@@ -446,26 +478,23 @@ public class InformationElementUtil {
                 // been called for verification before we reach here.
                 buf.getInt();
 
-                // start building the string
-                String security = "[WPA";
-
                 // version
                 if (buf.getShort() != WPA_VENDOR_OUI_VERSION)  {
                     // incorrect version
-                    return null;
+                    return;
                 }
 
+                // start building the string
+                protocol = "WPA";
+
                 // group data cipher suite
-                // here we simply advance buffer position
-                buf.getInt();
+                groupCipher = wpaCipherToString(buf.getInt());
 
                 // pairwise cipher suite count
                 short cipherCount = buf.getShort();
-
                 // pairwise chipher suite list
                 for (int i = 0; i < cipherCount; i++) {
-                    // here we simply advance buffer position
-                    buf.getInt();
+                    pairwiseCipher.add(wpaCipherToString(buf.getInt()));
                 }
 
                 // AKM
@@ -473,79 +502,87 @@ public class InformationElementUtil {
                 short akmCount = buf.getShort();
 
                 // AKM suite list
-                if (akmCount == 0) {
-                    security += "-EAP"; //default AKM
-                }
-                boolean found = false;
                 for (int i = 0; i < akmCount; i++) {
                     int akm = buf.getInt();
                     switch (akm) {
                         case WPA_AKM_EAP:
-                            security += (found ? "+" : "-") + "EAP";
-                            found = true;
+                            keyManagement.add("EAP");
                             break;
                         case WPA_AKM_PSK:
-                            security += (found ? "+" : "-") + "PSK";
-                            found = true;
+                            keyManagement.add("PSK");
                             break;
                         default:
                             // do nothing
                             break;
                     }
                 }
-
-                // we parsed what we want at this point
-                security += "]";
-                return security;
+                // Default AKM
+                if (keyManagement.isEmpty()) {
+                    keyManagement.add("EAP");
+                }
             } catch (BufferUnderflowException e) {
                 Log.e("IE_Capabilities", "Couldn't parse type 1 WPA, buffer underflow");
-                return null;
             }
         }
 
         /**
          * Parse the Information Element and the 16-bit Capability Information field
-         * to build the ScanResult.capabilities String.
+         * to build the InformationElemmentUtil.capabilities object.
          *
          * @param ies -- Information Element array
          * @param beaconCap -- 16-bit Beacon Capability Information field
-         * @return security string that mirrors what wpa_supplicant generates
          */
-        public static String buildCapabilities(InformationElement[] ies, BitSet beaconCap) {
-            String capabilities = "";
+
+        public void from(InformationElement[] ies, BitSet beaconCap) {
+            keyManagement = new ArrayList<String>();
+            pairwiseCipher = new ArrayList<String>();
             boolean rsneFound = false;
             boolean wpaFound = false;
 
             if (ies == null || beaconCap == null) {
-                return capabilities;
+                return;
             }
-
-            boolean ess = beaconCap.get(CAP_ESS_BIT_OFFSET);
-            boolean privacy = beaconCap.get(CAP_PRIVACY_BIT_OFFSET);
-
+            isESS = beaconCap.get(CAP_ESS_BIT_OFFSET);
+            isPrivacy = beaconCap.get(CAP_PRIVACY_BIT_OFFSET);
             for (InformationElement ie : ies) {
                 if (ie.id == InformationElement.EID_RSN) {
                     rsneFound = true;
-                    capabilities += parseRsnElement(ie);
+                    parseRsnElement(ie);
                 }
 
                 if (ie.id == InformationElement.EID_VSA) {
                     if (isWpaOneElement(ie)) {
                         wpaFound = true;
-                        capabilities += parseWpaOneElement(ie);
+                        parseWpaOneElement(ie);
                     }
                 }
             }
-
-            if (!rsneFound && !wpaFound && privacy) {
+            if (!rsneFound && !wpaFound && isPrivacy) {
                 //private Beacon without an RSNE or WPA IE, hence WEP0
-                capabilities += "[WEP]";
+                protocol = "WEP";
             }
+        }
 
-            if (ess) {
+        /**
+         * Build the ScanResult.capabilities String.
+         *
+         * @return security string that mirrors what wpa_supplicant generates
+         */
+        public String generateCapabilitiesString() {
+            String capabilities = "";
+            if (!TextUtils.isEmpty(protocol)) {
+                capabilities += "[" + protocol;
+                for (int i = 0; i < keyManagement.size(); i++) {
+                    capabilities += ((i == 0) ? "-" : "+") + keyManagement.get(i);
+                }
+                for (int i = 0; i < pairwiseCipher.size(); i++) {
+                    capabilities += ((i == 0) ? "-" : "+") + pairwiseCipher.get(i);
+                }
+                capabilities += "]";
+            }
+            if (isESS) {
                 capabilities += "[ESS]";
             }
-
             return capabilities;
         }
     }
