@@ -10,7 +10,7 @@
     <string name="beam_complete" msgid="477026736424637435">"ಬೀಮ್ ಪೂರ್ಣಗೊಂಡಿದೆ"</string>
     <string name="beam_failed" msgid="5116241718189888630">"ಬೀಮ್ ಪೂರ್ಣಗೊಂಡಿಲ್ಲ"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"ಬೀಮ್ ರದ್ದುಗೊಂಡಿದೆ"</string>
-    <string name="cancel" msgid="61873902552555096">"ರದ್ದುಮಾಡು"</string>
+    <string name="cancel" msgid="61873902552555096">"ರದ್ದುಮಾಡಿ"</string>
     <string name="beam_tap_to_view" msgid="7430394753262448349">"ವೀಕ್ಷಿಸಲು ಟ್ಯಾಪ್ ಮಾಡಿ"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"ಸ್ವೀಕರಿಸುವವರ ಸಾಧನವು ಬೀಮ್ ಮೂಲಕ ಮಾಡಲಾಗುವ ವರ್ಗಾವಣೆಯನ್ನು ಬೆಂಬಲಿಸುವುದಿಲ್ಲ."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"ಸಾಧನಗಳನ್ನು ಮತ್ತೆ ಒಟ್ಟಿಗೆ ತನ್ನಿ"</string>
