@@ -239,7 +239,7 @@ public class InformationElementUtilTest {
     }
 
     /**
-     * Test Capabilities.buildCapabilities() with a RSN IE.
+     * Test Capabilities.generateCapabilitiesString() with a RSN IE.
      * Expect the function to return a string with the proper security information.
      */
     @Test
@@ -258,13 +258,16 @@ public class InformationElementUtilTest {
         BitSet beaconCap = new BitSet(16);
         beaconCap.set(4);
 
-        String result = InformationElementUtil.Capabilities.buildCapabilities(ies, beaconCap);
+        InformationElementUtil.Capabilities capabilities =
+                new InformationElementUtil.Capabilities();
+        capabilities.from(ies, beaconCap);
+        String result = capabilities.generateCapabilitiesString();
 
-        assertEquals("[WPA2-PSK]", result);
+        assertEquals("[WPA2-PSK-CCMP+TKIP]", result);
     }
 
     /**
-     * Test Capabilities.buildCapabilities() with a WPA type 1 IE.
+     * Test Capabilities.generateCapabilitiesString() with a WPA type 1 IE.
      * Expect the function to return a string with the proper security information.
      */
     @Test
@@ -283,14 +286,16 @@ public class InformationElementUtilTest {
 
         BitSet beaconCap = new BitSet(16);
         beaconCap.set(4);
+        InformationElementUtil.Capabilities capabilities =
+                new InformationElementUtil.Capabilities();
+        capabilities.from(ies, beaconCap);
+        String result = capabilities.generateCapabilitiesString();
 
-        String result = InformationElementUtil.Capabilities.buildCapabilities(ies, beaconCap);
-
-        assertEquals("[WPA-PSK]", result);
+        assertEquals("[WPA-PSK-CCMP+TKIP]", result);
     }
 
     /**
-     * Test Capabilities.buildCapabilities() with a vendor specific element which
+     * Test Capabilities.generateCapabilitiesString() with a vendor specific element which
      * is not WPA type 1. Beacon Capability Information field has the Privacy
      * bit set.
      *
@@ -309,13 +314,17 @@ public class InformationElementUtilTest {
         BitSet beaconCap = new BitSet(16);
         beaconCap.set(4);
 
-        String result = InformationElementUtil.Capabilities.buildCapabilities(ies, beaconCap);
+        InformationElementUtil.Capabilities capabilities =
+                new InformationElementUtil.Capabilities();
+        capabilities.from(ies, beaconCap);
+        String result = capabilities.generateCapabilitiesString();
+
 
         assertEquals("[WEP]", result);
     }
 
     /**
-     * Test Capabilities.buildCapabilities() with a vendor specific element which
+     * Test Capabilities.generateCapabilitiesString() with a vendor specific element which
      * is not WPA type 1. Beacon Capability Information field doesn't have the
      * Privacy bit set.
      *
@@ -334,13 +343,17 @@ public class InformationElementUtilTest {
         BitSet beaconCap = new BitSet(16);
         beaconCap.clear(4);
 
-        String result = InformationElementUtil.Capabilities.buildCapabilities(ies, beaconCap);
+        InformationElementUtil.Capabilities capabilities =
+                new InformationElementUtil.Capabilities();
+        capabilities.from(ies, beaconCap);
+        String result = capabilities.generateCapabilitiesString();
+
 
         assertEquals("", result);
     }
 
     /**
-     * Test Capabilities.buildCapabilities() with a vendor specific element which
+     * Test Capabilities.generateCapabilitiesString() with a vendor specific element which
      * is not WPA type 1. Beacon Capability Information field has the ESS bit set.
      *
      * Expect the function to return a string with [ESS] there.
@@ -358,13 +371,17 @@ public class InformationElementUtilTest {
         BitSet beaconCap = new BitSet(16);
         beaconCap.set(0);
 
-        String result = InformationElementUtil.Capabilities.buildCapabilities(ies, beaconCap);
+        InformationElementUtil.Capabilities capabilities =
+                new InformationElementUtil.Capabilities();
+        capabilities.from(ies, beaconCap);
+        String result = capabilities.generateCapabilitiesString();
+
 
         assertEquals("[ESS]", result);
     }
 
     /**
-     * Test Capabilities.buildCapabilities() with a vendor specific element which
+     * Test Capabilities.generateCapabilitiesString() with a vendor specific element which
      * is not WPA type 1. Beacon Capability Information field doesn't have the
      * ESS bit set.
      *
@@ -383,7 +400,11 @@ public class InformationElementUtilTest {
         BitSet beaconCap = new BitSet(16);
         beaconCap.clear(0);
 
-        String result = InformationElementUtil.Capabilities.buildCapabilities(ies, beaconCap);
+        InformationElementUtil.Capabilities capabilities =
+                new InformationElementUtil.Capabilities();
+        capabilities.from(ies, beaconCap);
+        String result = capabilities.generateCapabilitiesString();
+
 
         assertEquals("", result);
     }
