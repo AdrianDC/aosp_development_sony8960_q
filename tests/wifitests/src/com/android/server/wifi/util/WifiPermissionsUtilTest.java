@@ -112,7 +112,6 @@ public class WifiPermissionsUtilTest {
      *                    Caller can read peers mac address
      *                    This App has permission to request WIFI_SCAN
      *                    User is current
-     *                    User has full permission to interact
      * Validate result is true
      * - User has all the permissions
      */
@@ -124,7 +123,6 @@ public class WifiPermissionsUtilTest {
         mPermissionsList.put(mMacAddressPermission, mUid);
         mWifiScanAllowApps = AppOpsManager.MODE_ALLOWED;
         mCurrentUser = UserHandle.USER_CURRENT_OR_SELF;
-        mPermissionsList.put(mInteractAcrossUsersFullPermission, mUid);
         setupTestCase();
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
                 mMockContext, mMockWifiSettingsStore, mMockUserManager);
@@ -141,7 +139,6 @@ public class WifiPermissionsUtilTest {
      *                    Caller can read peers mac address
      *                    This App has permission to request WIFI_SCAN
      *                    User profile is current
-     *                    User has full permission to interact
      * Validate result is true
      * - User has all the permissions
      */
@@ -153,7 +150,6 @@ public class WifiPermissionsUtilTest {
         mPermissionsList.put(mMacAddressPermission, mUid);
         mWifiScanAllowApps = AppOpsManager.MODE_ALLOWED;
         mMockUserInfo.id = mCallingUser;
-        mPermissionsList.put(mInteractAcrossUsersFullPermission, mUid);
         setupTestCase();
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
                 mMockContext, mMockWifiSettingsStore, mMockUserManager);
@@ -191,11 +187,40 @@ public class WifiPermissionsUtilTest {
      * Test case setting: Package is valid
      *                    Caller can read peers mac address
      *                    This App has permission to request WIFI_SCAN
-     * Validate result is false
-     * - User or profile is not current
+     *                    User or profile is not current but the uid has
+     *                    permission to INTERACT_ACROSS_USERS_FULL
+     * Validate result is true
+     * - User has all the permissions
      */
     @Test
-    public void testCannotAccessScanResults_UserOrProfileNotCurrent() throws Exception {
+    public void testCanAccessScanResults_UserOrProfileNotCurrent() throws Exception {
+        boolean output = false;
+        mThrowSecurityException = false;
+        mUid = MANAGED_PROFILE_UID;
+        mPermissionsList.put(mMacAddressPermission, mUid);
+        mWifiScanAllowApps = AppOpsManager.MODE_ALLOWED;
+        mPermissionsList.put(mInteractAcrossUsersFullPermission, mUid);
+        setupTestCase();
+        WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
+                mMockContext, mMockWifiSettingsStore, mMockUserManager);
+        try {
+            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid, mTargetVersion);
+        } catch (SecurityException e) {
+            throw e;
+        }
+        assertEquals(output, true);
+    }
+
+    /**
+     * Test case setting: Package is valid
+     *                    Caller can read peers mac address
+     *                    This App has permission to request WIFI_SCAN
+     *                    User or profile is not Current
+     * Validate result is false
+     * - Calling uid doesn't have INTERACT_ACROSS_USERS_FULL permission
+     */
+    @Test
+    public void testCannotAccessScanResults_NoInteractAcrossUsersFullPermission() throws Exception {
         boolean output = true;
         mThrowSecurityException = false;
         mUid = MANAGED_PROFILE_UID;
@@ -217,16 +242,14 @@ public class WifiPermissionsUtilTest {
      *                    Caller is active network scorer
      *                    This App has permission to request WIFI_SCAN
      *                    User is current
-     * Validate result is false
-     * - User doesn't have Interact Across Users Full Permission
+     * Validate result is true
      */
     @Test
-    public void testCannotAccessScanResults_NoInteractAcrossUsersFullPermission() throws Exception {
-        boolean output = true;
+    public void testCanAccessScanResults_CallerIsActiveNwScorer() throws Exception {
+        boolean output = false;
         mThrowSecurityException = false;
         mActiveNwScorer = true;
         mWifiScanAllowApps = AppOpsManager.MODE_ALLOWED;
-        mUid = MANAGED_PROFILE_UID;
         mCurrentUser = UserHandle.USER_CURRENT_OR_SELF;
         setupTestCase();
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
@@ -236,7 +259,7 @@ public class WifiPermissionsUtilTest {
         } catch (SecurityException e) {
             throw e;
         }
-        assertEquals(output, false);
+        assertEquals(output, true);
     }
 
     /**
@@ -245,7 +268,6 @@ public class WifiPermissionsUtilTest {
      *                    Foreground
      *                    This App has permission to request WIFI_SCAN
      *                    User is current
-     *                    User has full permission to interact
      *  Validate result is true - has all permissions
      */
     @Test
@@ -257,7 +279,6 @@ public class WifiPermissionsUtilTest {
         mWifiScanAllowApps = AppOpsManager.MODE_ALLOWED;
         mUid = MANAGED_PROFILE_UID;
         mCurrentUser = UserHandle.USER_CURRENT_OR_SELF;
-        mPermissionsList.put(mInteractAcrossUsersFullPermission, mUid);
         setupTestCase();
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
                 mMockContext, mMockWifiSettingsStore, mMockUserManager);
@@ -276,7 +297,6 @@ public class WifiPermissionsUtilTest {
      *                    Coarse Location Access
      *                    This App has permission to request WIFI_SCAN
      *                    User profile is current
-     *                    User has full permission to interact
      *  Validate result is true - has all permissions
      */
     @Test
@@ -290,7 +310,6 @@ public class WifiPermissionsUtilTest {
         mWifiScanAllowApps = AppOpsManager.MODE_ALLOWED;
         mUid = MANAGED_PROFILE_UID;
         mMockUserInfo.id = mCallingUser;
-        mPermissionsList.put(mInteractAcrossUsersFullPermission, mUid);
         setupTestCase();
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
                 mMockContext, mMockWifiSettingsStore, mMockUserManager);
