@@ -2225,7 +2225,7 @@ static jint com_android_nfc_NfcManager_doGetLastError(JNIEnv*, jobject)
    }
 }
 
-static void com_android_nfc_NfcManager_doAbort(JNIEnv*, jobject)
+static void com_android_nfc_NfcManager_doAbort(JNIEnv*, jobject, jstring)
 {
     emergency_recovery(NULL);
 }
@@ -2413,7 +2413,7 @@ static JNINativeMethod gMethods[] =
    {"doResetTimeouts", "()V",
       (void *)com_android_nfc_NfcManager_doResetTimeouts},
 
-   {"doAbort", "()V",
+   {"doAbort", "(Ljava/lang/String;)V",
       (void *)com_android_nfc_NfcManager_doAbort},
 
    {"doSetP2pInitiatorModes","(I)V",

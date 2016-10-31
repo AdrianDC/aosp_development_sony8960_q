@@ -1524,10 +1524,11 @@ static jboolean nfcManager_doActivateLlcp(JNIEnv*, jobject)
 ** Returns:         None
 **
 *******************************************************************************/
-static void nfcManager_doAbort(JNIEnv*, jobject)
+static void nfcManager_doAbort(JNIEnv* e, jobject, jstring msg)
 {
-    ALOGE("%s: abort()", __FUNCTION__);
-    abort();
+    ScopedUtfChars message = {e, msg};
+    e->FatalError(message.c_str());
+    abort(); // <-- Unreachable
 }
 
 
@@ -1772,7 +1773,7 @@ static JNINativeMethod gMethods[] =
     {"doResetTimeouts", "()V",
             (void *)nfcManager_doResetTimeouts},
 
-    {"doAbort", "()V",
+    {"doAbort", "(Ljava/lang/String;)V",
             (void *)nfcManager_doAbort},
 
     {"doSetP2pInitiatorModes", "(I)V",

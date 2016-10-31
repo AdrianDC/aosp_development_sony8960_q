@@ -1423,7 +1423,7 @@ public class NfcService implements DeviceHostListener {
                 interrupt();
             }
             Log.e(TAG, "Watchdog triggered, aborting.");
-            mDeviceHost.doAbort();
+            mDeviceHost.doAbort(getName());
         }
 
         public synchronized void cancel() {
