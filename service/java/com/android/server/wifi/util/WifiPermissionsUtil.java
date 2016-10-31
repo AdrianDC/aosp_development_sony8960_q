@@ -30,7 +30,7 @@ import java.util.List;
 
 /**
  * A wifi permissions utility assessing permissions
- * for getting scan results by a package
+ * for getting scan results by a package.
  */
 public class WifiPermissionsUtil {
     private static final String TAG = "WifiPermissionsUtil";
@@ -60,29 +60,36 @@ public class WifiPermissionsUtil {
     public boolean canAccessScanResults(String pkgName, int uid,
                 int minVersion) throws SecurityException {
         mAppOps.checkPackage(uid, pkgName);
-        // Location Permission is granted if Location Mode is enabled or if the
-        // caller has Location Permissions
-        boolean mLocationPermission = isLocationModeEnabled(pkgName, minVersion)
-                && checkCallersLocationPermission(pkgName, uid, minVersion);
-        if (!checkCallerHasPeersMacAddressPermission(uid)
-                && !isCallerActiveNwScorer(uid)
-                && !mLocationPermission) {
+        // Check if the calling Uid has CAN_READ_PEER_MAC_ADDRESS
+        // permission or is an Active Nw scorer.
+        boolean canCallingUidAccessLocation = checkCallerHasPeersMacAddressPermission(uid)
+                || isCallerActiveNwScorer(uid);
+        // LocationAccess by App: For AppVersion older than minVersion,
+        // it is sufficient to check if the App is foreground.
+        // Otherwise, Location Mode must be enabled and caller must have
+        // Coarse Location permission to have access to location information.
+        boolean canAppPackageUseLocation = isLegacyForeground(pkgName, minVersion)
+                || (isLocationModeEnabled(pkgName)
+                        && checkCallersLocationPermission(pkgName, uid));
+        // If neither caller or app has location access, there is no need to check
+        // any other permissions. Deny access to scan results.
+        if (!canCallingUidAccessLocation && !canAppPackageUseLocation) {
             return false;
         }
+        // Check if Wifi Scan request is an operation allowed for this App.
         if (!isScanAllowedbyApps(pkgName, uid)) {
             return false;
         }
-        if (!isCurrentProfile(uid)) {
-            return false;
-        }
-        if (!checkInteractAcrossUsersFull(uid)) {
+        // If the User or profile is current, permission is granted
+        // Otherwise, uid must have INTERACT_ACROSS_USERS_FULL permission.
+        if (!isCurrentProfile(uid) && !checkInteractAcrossUsersFull(uid)) {
             return false;
         }
         return true;
     }
 
     /**
-     * Returns true if the caller holds PEERS_MAC_ADDRESS permission
+     * Returns true if the caller holds PEERS_MAC_ADDRESS permission.
      */
     private boolean checkCallerHasPeersMacAddressPermission(int uid) {
         return mWifiPermissionsWrapper.getUidPermission(
@@ -91,14 +98,15 @@ public class WifiPermissionsUtil {
     }
 
     /**
-     * Returns true if the caller is an Active Network Scorer
+     * Returns true if the caller is an Active Network Scorer.
      */
     private boolean isCallerActiveNwScorer(int uid) {
         return mWifiPermissionsWrapper.isCallerActiveNwScorer(uid);
     }
 
     /**
-     * Returns true if Wifi scan is allowed in App
+     * Returns true if Wifi scan operation is allowed for this caller
+     * and package.
      */
     private boolean isScanAllowedbyApps(String pkgName, int uid) {
         return checkAppOpAllowed(AppOpsManager.OP_WIFI_SCAN, pkgName, uid);
@@ -133,6 +141,9 @@ public class WifiPermissionsUtil {
         return false;
     }
 
+    /**
+     * Returns true if the App version is older than minVersion.
+     */
     private boolean isLegacyVersion(String pkgName, int minVersion) {
         try {
             if (mContext.getPackageManager().getApplicationInfo(pkgName, 0)
@@ -141,6 +152,8 @@ public class WifiPermissionsUtil {
             }
         } catch (PackageManager.NameNotFoundException e) {
             // In case of exception, assume known app (more strict checking)
+            // Note: This case will never happen since checkPackage is
+            // called to verify valididity before checking App's version.
         }
         return false;
     }
@@ -159,9 +172,9 @@ public class WifiPermissionsUtil {
 
     /**
      * Checks that calling process has android.Manifest.permission.ACCESS_COARSE_LOCATION
-     * and a corresponding app op is allowed for this package and uid
+     * and a corresponding app op is allowed for this package and uid.
      */
-    private boolean checkCallersLocationPermission(String pkgName, int uid, int version) {
+    private boolean checkCallersLocationPermission(String pkgName, int uid) {
         // Coarse Permission implies Fine permission
         if ((mWifiPermissionsWrapper.getUidPermission(
                 Manifest.permission.ACCESS_COARSE_LOCATION, uid)
@@ -169,17 +182,11 @@ public class WifiPermissionsUtil {
                 && checkAppOpAllowed(AppOpsManager.OP_COARSE_LOCATION, pkgName, uid)) {
             return true;
         }
-        // Location permission is granted for apps older than version if foreground
-        if (isLegacyForeground(pkgName, version)) {
-            return true;
-        }
         return false;
     }
-    private boolean isLocationModeEnabled(String pkgName, int version) {
-        // Location mode check on applications that are later than version, for older
-        // versions, foreground apps can skip this check and always return true
-        return isLegacyForeground(pkgName, version)
-                 || (mSettingsStore.getLocationModeSetting(mContext)
+    private boolean isLocationModeEnabled(String pkgName) {
+        // Location mode check on applications that are later than version.
+        return (mSettingsStore.getLocationModeSetting(mContext)
                  != Settings.Secure.LOCATION_MODE_OFF);
     }
 }
