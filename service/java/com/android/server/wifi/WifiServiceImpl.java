@@ -46,7 +46,6 @@ import android.net.NetworkUtils;
 import android.net.Uri;
 import android.net.ip.IpManager;
 import android.net.wifi.IWifiManager;
-import android.net.wifi.PasspointManagementObjectDefinition;
 import android.net.wifi.ScanResult;
 import android.net.wifi.ScanSettings;
 import android.net.wifi.WifiActivityEnergyInfo;
@@ -1078,27 +1077,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public List<PasspointConfiguration> getPasspointConfigurations() {
         // TO BE IMPLEMENTED.
         return null;
-    }
-
-    /**
-     * Add a Hotspot 2.0 release 2 Management Object
-     * @param mo The MO in XML form
-     * @return -1 for failure
-     */
-    @Override
-    public int addPasspointManagementObject(String mo) {
-        return mWifiStateMachine.syncAddPasspointManagementObject(mWifiStateMachineChannel, mo);
-    }
-
-    /**
-     * Modify a Hotspot 2.0 release 2 Management Object
-     * @param fqdn The FQDN of the service provider
-     * @param mos A List of MO definitions to be updated
-     * @return the number of nodes updated, or -1 for failure
-     */
-    @Override
-    public int modifyPasspointManagementObject(String fqdn, List<PasspointManagementObjectDefinition> mos) {
-        return mWifiStateMachine.syncModifyPasspointManagementObject(mWifiStateMachineChannel, fqdn, mos);
     }
 
     /**

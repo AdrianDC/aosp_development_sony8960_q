@@ -59,7 +59,6 @@ import android.net.ip.IpManager;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
 import android.net.wifi.IWificond;
-import android.net.wifi.PasspointManagementObjectDefinition;
 import android.net.wifi.RssiPacketCountInfo;
 import android.net.wifi.ScanResult;
 import android.net.wifi.ScanSettings;
@@ -581,8 +580,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     static final int CMD_RESET_SIM_NETWORKS                             = BASE + 101;
 
     /* OSU APIs */
-    static final int CMD_ADD_PASSPOINT_MO                               = BASE + 102;
-    static final int CMD_MODIFY_PASSPOINT_MO                            = BASE + 103;
     static final int CMD_QUERY_OSU_ICON                                 = BASE + 104;
 
     /* try to match a provider with current network */
@@ -1747,26 +1744,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
             return scanList;
         }
-    }
-
-    public int syncAddPasspointManagementObject(AsyncChannel channel, String managementObject) {
-        Message resultMsg =
-                channel.sendMessageSynchronously(CMD_ADD_PASSPOINT_MO, managementObject);
-        int result = resultMsg.arg1;
-        resultMsg.recycle();
-        return result;
-    }
-
-    public int syncModifyPasspointManagementObject(AsyncChannel channel, String fqdn,
-                                                   List<PasspointManagementObjectDefinition>
-                                                           managementObjectDefinitions) {
-        Bundle bundle = new Bundle();
-        bundle.putString("FQDN", fqdn);
-        bundle.putParcelableList("MOS", managementObjectDefinitions);
-        Message resultMsg = channel.sendMessageSynchronously(CMD_MODIFY_PASSPOINT_MO, bundle);
-        int result = resultMsg.arg1;
-        resultMsg.recycle();
-        return result;
     }
 
     public boolean syncQueryPasspointIcon(AsyncChannel channel, long bssid, String fileName) {
@@ -3890,8 +3867,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_USER_STOP:
                     mWifiConfigManager.handleUserStop(message.arg1);
                     break;
-                case CMD_ADD_PASSPOINT_MO:
-                case CMD_MODIFY_PASSPOINT_MO:
                 case CMD_QUERY_OSU_ICON:
                 case CMD_MATCH_PROVIDER_NETWORK:
                     /* reply with arg1 = 0 - it returns API failure to the calling app
@@ -5279,14 +5254,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (mVerboseLoggingEnabled) log("ConnectModeState: Network connection lost ");
                     handleNetworkDisconnect();
                     transitionTo(mDisconnectedState);
-                    break;
-                case CMD_ADD_PASSPOINT_MO:
-                    // TODO(b/31065385): Passpoint config management.
-                    replyToMessage(message, message.what, 0);
-                    break;
-                case CMD_MODIFY_PASSPOINT_MO:
-                    // TODO(b/31065385): Passpoint config management.
-                    replyToMessage(message, message.what, 0);
                     break;
                 case CMD_QUERY_OSU_ICON:
                     mPasspointManager.queryPasspointIcon(
