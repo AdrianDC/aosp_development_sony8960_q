@@ -37,6 +37,8 @@ import com.android.internal.R;
 import com.android.server.am.BatteryStatsService;
 import com.android.server.net.DelayedDiskWrite;
 import com.android.server.net.IpConfigStore;
+import com.android.server.wifi.hotspot2.PasspointEventHandler;
+import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
@@ -88,6 +90,7 @@ public class WifiInjector {
     private WifiScanner mWifiScanner;
     private final WifiPermissionsWrapper mWifiPermissionsWrapper;
     private final WifiPermissionsUtil mWifiPermissionsUtil;
+    private final PasspointManager mPasspointManager;
 
     private final boolean mUseRealLogger;
 
@@ -163,6 +166,7 @@ public class WifiInjector {
         mWifiPermissionsWrapper = new WifiPermissionsWrapper(mContext);
         mWifiPermissionsUtil = new WifiPermissionsUtil(mWifiPermissionsWrapper, mContext,
                 mSettingsStore, UserManager.get(mContext));
+        mPasspointManager = new PasspointManager(mContext, this);
     }
 
     /**
@@ -271,6 +275,10 @@ public class WifiInjector {
         return mWifiConfigManager;
     }
 
+    public PasspointManager getPasspointManager() {
+        return mPasspointManager;
+    }
+
     public TelephonyManager makeTelephonyManager() {
         // may not be available when WiFi starts
         return (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
@@ -316,6 +324,14 @@ public class WifiInjector {
         } else {
             return new BaseWifiDiagnostics();
         }
+    }
+
+    /**
+     * Create a PasspointEventHandler instance with the given callbacks.
+     */
+    public PasspointEventHandler makePasspointEventHandler(
+            PasspointEventHandler.Callbacks callbacks) {
+        return new PasspointEventHandler(mWifiNative, callbacks);
     }
 
     /**
