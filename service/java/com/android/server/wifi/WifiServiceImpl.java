@@ -85,6 +85,7 @@ import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
+import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
 import java.io.BufferedReader;
@@ -158,6 +159,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private AsyncChannel mWifiStateMachineChannel;
 
     private final boolean mPermissionReviewRequired;
+    private final PasspointManager mPasspointManager;
 
     private WifiPermissionsUtil mWifiPermissionsUtil;
 
@@ -341,6 +343,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 || context.getResources().getBoolean(
                 com.android.internal.R.bool.config_permissionReviewRequired);
         mWifiPermissionsUtil = mWifiInjector.getWifiPermissionsUtil();
+        mPasspointManager = mWifiInjector.getPasspointManager();
+
         enableVerboseLoggingInternal(getVerboseLoggingLevel());
     }
 
@@ -1029,8 +1033,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public boolean addPasspointConfiguration(PasspointConfiguration config) {
-        // TO BE IMPLEMENTED.
-        return true;
+        enforceChangePermission();
+        return mPasspointManager.addProvider(config);
     }
 
     /**
@@ -1041,8 +1045,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public boolean removePasspointConfiguration(String fqdn) {
-        // TO BE IMPLEMENTED.
-        return true;
+        enforceChangePermission();
+        return mPasspointManager.removeProvider(fqdn);
     }
 
     /**
@@ -1052,8 +1056,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public List<PasspointConfiguration> getPasspointConfigurations() {
-        // TO BE IMPLEMENTED.
-        return null;
+        enforceAccessPermission();
+        return mPasspointManager.getProviderConfigs();
     }
 
     /**
