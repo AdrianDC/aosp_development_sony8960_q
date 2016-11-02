@@ -26,7 +26,6 @@ import android.net.wifi.WifiConfiguration;
 import android.os.Process;
 import android.text.TextUtils;
 import android.util.LocalLog;
-import android.util.Log;
 import android.util.Pair;
 
 import com.android.server.wifi.util.ScanResultUtil;
@@ -41,7 +40,6 @@ import java.util.List;
  */
 public class ExternalScoreEvaluator implements WifiNetworkSelector.NetworkEvaluator {
     private static final String NAME = "WifiExternalScoreEvaluator";
-    private static final String TAG = NAME;
     private final WifiConfigManager mWifiConfigManager;
     private final Clock mClock;
     private final LocalLog mLocalLog;
@@ -59,7 +57,7 @@ public class ExternalScoreEvaluator implements WifiNetworkSelector.NetworkEvalua
             mScoreCache = new WifiNetworkScoreCache(context);
             mScoreManager.registerNetworkScoreCache(NetworkKey.TYPE_WIFI, mScoreCache);
         } else {
-            Log.e(TAG, "Couldn't get NETWORK_SCORE_SERVICE.");
+            localLog("Couldn't get NETWORK_SCORE_SERVICE.");
             mScoreCache = null;
         }
     }
@@ -92,7 +90,7 @@ public class ExternalScoreEvaluator implements WifiNetworkSelector.NetworkEvalua
                     NetworkKey ntwkKey = new NetworkKey(wifiKey);
                     unscoredNetworks.add(ntwkKey);
                 } catch (IllegalArgumentException e) {
-                    Log.w(TAG, "Invalid SSID=" + scanResult.SSID + " BSSID=" + scanResult.BSSID
+                    localLog("Invalid SSID=" + scanResult.SSID + " BSSID=" + scanResult.BSSID
                             + " for network score. Skip.");
                 }
             }
@@ -181,7 +179,7 @@ public class ExternalScoreEvaluator implements WifiNetworkSelector.NetworkEvalua
                         mWifiConfigManager.addOrUpdateNetwork(unTrustedNetworkCandidate,
                                 Process.WIFI_UID);
                 if (!result.isSuccess()) {
-                    Log.e(TAG, "Failed to add ephemeral network");
+                    localLog("Failed to add ephemeral network");
                     break;
                 }
                 candidateNetworkId = result.getNetworkId();
