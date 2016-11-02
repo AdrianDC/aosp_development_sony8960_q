@@ -91,6 +91,7 @@ public class WifiInjector {
     private final WifiPermissionsWrapper mWifiPermissionsWrapper;
     private final WifiPermissionsUtil mWifiPermissionsUtil;
     private final PasspointManager mPasspointManager;
+    private final SIMAccessor mSimAccessor;
 
     private final boolean mUseRealLogger;
 
@@ -166,7 +167,8 @@ public class WifiInjector {
         mWifiPermissionsWrapper = new WifiPermissionsWrapper(mContext);
         mWifiPermissionsUtil = new WifiPermissionsUtil(mWifiPermissionsWrapper, mContext,
                 mSettingsStore, UserManager.get(mContext));
-        mPasspointManager = new PasspointManager(mContext, this);
+        mSimAccessor = new SIMAccessor(mContext);
+        mPasspointManager = new PasspointManager(mContext, this, mSimAccessor);
     }
 
     /**
