@@ -25,7 +25,6 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.text.TextUtils;
 import android.util.LocalLog;
-import android.util.Log;
 import android.util.Pair;
 
 import com.android.internal.R;
@@ -44,7 +43,6 @@ import java.util.Map;
  * selects a network for the phone to connect or roam to.
  */
 public class WifiNetworkSelector {
-    private static final String TAG = "WifiNetworkSelector";
     private static final long INVALID_TIME_STAMP = Long.MIN_VALUE;
     // Minimum time gap between last successful network selection and a new selection
     // attempt.
@@ -512,12 +510,12 @@ public class WifiNetworkSelector {
      */
     public boolean registerNetworkEvaluator(NetworkEvaluator evaluator, int priority) {
         if (priority < 0 || priority >= EVALUATOR_MIN_PRIORITY) {
-            Log.e(TAG, "Invalid network evaluator priority: " + priority);
+            localLog("Invalid network evaluator priority: " + priority);
             return false;
         }
 
         if (mEvaluators[priority] != null) {
-            Log.e(TAG, "Priority " + priority + " is already registered by "
+            localLog("Priority " + priority + " is already registered by "
                     + mEvaluators[priority].getName());
             return false;
         }
@@ -537,12 +535,12 @@ public class WifiNetworkSelector {
     public boolean unregisterNetworkEvaluator(NetworkEvaluator evaluator) {
         for (NetworkEvaluator registeredEvaluator : mEvaluators) {
             if (registeredEvaluator == evaluator) {
-                Log.d(TAG, "Unregistered network evaluator: " + evaluator.getName());
+                localLog("Unregistered network evaluator: " + evaluator.getName());
                 return true;
             }
         }
 
-        Log.e(TAG, "Couldn't unregister network evaluator: " + evaluator.getName());
+        localLog("Couldn't unregister network evaluator: " + evaluator.getName());
         return false;
     }
 
