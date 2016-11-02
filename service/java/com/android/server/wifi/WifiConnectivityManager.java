@@ -30,7 +30,6 @@ import android.net.wifi.WifiScanner.ScanSettings;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.LocalLog;
-import android.util.Log;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
@@ -60,7 +59,6 @@ public class WifiConnectivityManager {
     public static final String RESTART_CONNECTIVITY_SCAN_TIMER_TAG =
             "WifiConnectivityManager Restart Scan";
 
-    private static final String TAG = "WifiConnectivityManager";
     private static final long RESET_TIME_STAMP = Long.MIN_VALUE;
     // Constants to indicate whether a scan should start immediately or
     // it should comply to the minimum scan interval rule.
@@ -263,9 +261,8 @@ public class WifiConnectivityManager {
 
         @Override
         public void onFailure(int reason, String description) {
-            Log.e(TAG, "registerScanListener onFailure:"
-                          + " reason: " + reason
-                          + " description: " + description);
+            localLog("registerScanListener onFailure:"
+                      + " reason: " + reason + " description: " + description);
         }
 
         @Override
@@ -346,16 +343,15 @@ public class WifiConnectivityManager {
 
         @Override
         public void onFailure(int reason, String description) {
-            Log.e(TAG, "SingleScanListener onFailure:"
-                          + " reason: " + reason
-                          + " description: " + description);
+            localLog("SingleScanListener onFailure:"
+                      + " reason: " + reason + " description: " + description);
 
             // reschedule the scan
             if (mSingleScanRestartCount++ < MAX_SCAN_RESTART_ALLOWED) {
                 scheduleDelayedSingleScan(mIsFullBandScan);
             } else {
                 mSingleScanRestartCount = 0;
-                Log.e(TAG, "Failed to successfully start single scan for "
+                localLog("Failed to successfully start single scan for "
                           + MAX_SCAN_RESTART_ALLOWED + " times");
             }
         }
@@ -404,16 +400,15 @@ public class WifiConnectivityManager {
 
         @Override
         public void onFailure(int reason, String description) {
-            Log.e(TAG, "PnoScanListener onFailure:"
-                          + " reason: " + reason
-                          + " description: " + description);
+            localLog("PnoScanListener onFailure:"
+                      + " reason: " + reason + " description: " + description);
 
             // reschedule the scan
             if (mScanRestartCount++ < MAX_SCAN_RESTART_ALLOWED) {
                 scheduleDelayedConnectivityScan(RESTART_SCAN_DELAY_MS);
             } else {
                 mScanRestartCount = 0;
-                Log.e(TAG, "Failed to successfully start PNO scan for "
+                localLog("Failed to successfully start PNO scan for "
                           + MAX_SCAN_RESTART_ALLOWED + " times");
             }
         }
@@ -508,7 +503,7 @@ public class WifiConnectivityManager {
                 * context.getResources().getInteger(
                         R.integer.config_wifi_framework_RSSI_SCORE_SLOPE);
 
-        Log.i(TAG, "PNO settings:" + " min5GHzRssi " + mMin5GHzRssi
+        localLog("PNO settings:" + " min5GHzRssi " + mMin5GHzRssi
                     + " min24GHzRssi " + mMin24GHzRssi
                     + " currentConnectionBonus " + mCurrentConnectionBonus
                     + " sameNetworkBonus " + mSameNetworkBonus
@@ -531,7 +526,7 @@ public class WifiConnectivityManager {
 
         mWifiConnectivityManagerEnabled = enable;
 
-        Log.i(TAG, "ConnectivityScanManager initialized and "
+        localLog("ConnectivityScanManager initialized and "
                 + (enable ? "enabled" : "disabled"));
     }
 
@@ -581,7 +576,7 @@ public class WifiConnectivityManager {
     private void connectToNetwork(WifiConfiguration candidate) {
         ScanResult scanResultCandidate = candidate.getNetworkSelectionStatus().getCandidate();
         if (scanResultCandidate == null) {
-            Log.e(TAG, "connectToNetwork: bad candidate - "  + candidate
+            localLog("connectToNetwork: bad candidate - "  + candidate
                     + " scanResult: " + scanResultCandidate);
             return;
         }
