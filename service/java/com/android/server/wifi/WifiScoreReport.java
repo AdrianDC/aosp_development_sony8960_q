@@ -30,8 +30,7 @@ import com.android.internal.R;
  * TODO: Add unit tests for this class.
 */
 public class WifiScoreReport {
-    // TODO: switch to WifiScoreReport if it doesn't break any tools b/32380868
-    private static final String TAG = "WifiStateMachine";
+    private static final String TAG = "WifiScoreReport";
 
     // TODO: This score was hardcorded to 56.  Need to understand why after finishing code refactor
     private static final int STARTING_SCORE = 56;
@@ -340,7 +339,7 @@ public class WifiScoreReport {
                 rssiStatus += " lowRSSI ";
             }
             if (isBadLinkspeed) rssiStatus += " lowSpeed ";
-            Log.d(TAG, "calculateWifiScore freq=" + Integer.toString(wifiInfo.getFrequency())
+            Log.d(TAG, " wifi scoring details freq=" + Integer.toString(wifiInfo.getFrequency())
                     + " speed=" + Integer.toString(wifiInfo.getLinkSpeed())
                     + " score=" + Integer.toString(wifiInfo.score) // Previous score
                     + rssiStatus
@@ -436,8 +435,7 @@ public class WifiScoreReport {
         //report score
         if (score != wifiInfo.score) {
             if (mVerboseLoggingEnabled) {
-                // TODO: switch to the new method name if it doesn't break any tools b/32380868
-                Log.d(TAG, "calculateWifiScore() report new score " + Integer.toString(score));
+                Log.d(TAG, " report new wifi score " + Integer.toString(score));
             }
             wifiInfo.score = score;
             if (networkAgent != null) {
