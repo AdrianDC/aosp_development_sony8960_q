@@ -51,11 +51,11 @@ public class WifiScoreReportTest {
     WifiConfiguration mWifiConfiguration;
     WifiScoreReport mWifiScoreReport;
     ScanDetailCache mScanDetailCache;
+    WifiInfo mWifiInfo;
     @Mock Context mContext;
     @Mock NetworkAgent mNetworkAgent;
     @Mock Resources mResources;
     @Mock WifiConfigManager mWifiConfigManager;
-    @Mock WifiInfo mWifiInfo;
     @Mock WifiMetrics mWifiMetrics;
 
     /**
@@ -132,6 +132,8 @@ public class WifiScoreReportTest {
         config.SSID = "nooooooooooo";
         config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
         config.hiddenSSID = false;
+        mWifiInfo = new WifiInfo();
+        mWifiInfo.setFrequency(2410);
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(Arrays.asList(config));
         when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
         mWifiConfiguration = config;
@@ -164,8 +166,8 @@ public class WifiScoreReportTest {
      */
     @Test
     public void calculateAndReportScoreSucceeds() throws Exception {
-        when(mWifiInfo.getRssi()).thenReturn(-77);
         int aggressiveHandover = 0;
+        mWifiInfo.setRssi(-77);
         mWifiScoreReport.calculateAndReportScore(mWifiInfo,
                 mNetworkAgent, aggressiveHandover, mWifiMetrics);
         verify(mNetworkAgent).sendNetworkScore(anyInt());
@@ -179,7 +181,7 @@ public class WifiScoreReportTest {
      */
     @Test
     public void networkAgentMayBeNull() throws Exception {
-        when(mWifiInfo.getRssi()).thenReturn(-33);
+        mWifiInfo.setRssi(-33);
         mWifiScoreReport.enableVerboseLogging(true);
         mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, 0, mWifiMetrics);
         verify(mWifiMetrics).incrementWifiScoreCount(anyInt());
@@ -196,7 +198,7 @@ public class WifiScoreReportTest {
      */
     @Test
     public void makeSureLastReportWorks() throws Exception {
-        when(mWifiInfo.getRssi()).thenReturn(-33);
+        mWifiInfo.setRssi(-33);
         assertFalse(mWifiScoreReport.isLastReportValid());
         mWifiScoreReport.enableVerboseLogging(true);
         mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, 0, mWifiMetrics);
@@ -219,9 +221,9 @@ public class WifiScoreReportTest {
      */
     @Test
     public void badLinkspeedCounter() throws Exception {
-        when(mWifiInfo.getRssi()).thenReturn(-123);
-        when(mWifiInfo.getLinkSpeed()).thenReturn(1);
-        when(mWifiInfo.is24GHz()).thenReturn(true);
+        mWifiInfo.setRssi(-123);
+        mWifiInfo.setLinkSpeed(1);
+        mWifiInfo.setFrequency(2410);
         assertFalse(mWifiScoreReport.isLastReportValid());
         mWifiScoreReport.enableVerboseLogging(true);
         assertEquals(0, mWifiScoreReport.getLastBadLinkspeedcount());
@@ -239,7 +241,6 @@ public class WifiScoreReportTest {
         mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, 0, mWifiMetrics);
         assertEquals(6, mWifiScoreReport.getLastBadLinkspeedcount()); // pinned at limit
         verify(mWifiMetrics, times(9)).incrementWifiScoreCount(anyInt());
-        verify(mWifiInfo, atLeast(9)).is24GHz();
         assertTrue(mWifiScoreReport.isLastReportValid());
         mWifiScoreReport.reset();
         assertEquals(0, mWifiScoreReport.getLastBadLinkspeedcount());
@@ -255,9 +256,8 @@ public class WifiScoreReportTest {
      */
     @Test
     public void allowLowRssiIfDataIsMoving() throws Exception {
-        when(mWifiInfo.getRssi()).thenReturn(-80);
-        when(mWifiInfo.getLinkSpeed()).thenReturn(6); // Mbps
-        when(mWifiInfo.is24GHz()).thenReturn(true);
+        mWifiInfo.setRssi(-80);
+        mWifiInfo.setLinkSpeed(6); // Mbps
         mWifiInfo.txSuccessRate = 5.1; // proportional to pps
         mWifiInfo.rxSuccessRate = 5.1;
         for (int i = 0; i < 10; i++) {
@@ -278,9 +278,9 @@ public class WifiScoreReportTest {
      */
     @Test
     public void giveUpOnBadRssiWhenDataIsNotMoving() throws Exception {
-        when(mWifiInfo.getRssi()).thenReturn(-100);
-        when(mWifiInfo.getLinkSpeed()).thenReturn(6); // Mbps
-        when(mWifiInfo.is24GHz()).thenReturn(true);
+        mWifiInfo.setRssi(-100);
+        mWifiInfo.setLinkSpeed(6); // Mbps
+        mWifiInfo.setFrequency(5010);
         mWifiScoreReport.enableVerboseLogging(true);
         mWifiInfo.txSuccessRate = 0.1;
         mWifiInfo.rxSuccessRate = 0.1;
