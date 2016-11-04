@@ -652,6 +652,7 @@ public class WifiQualifiedNetworkSelector {
         StringBuffer noValidSsid = new StringBuffer();
         StringBuffer scoreHistory =  new StringBuffer();
         ArrayList<NetworkKey> unscoredNetworks = new ArrayList<NetworkKey>();
+        boolean scanResultsHaveCurrentBssid = false;
 
         //iterate all scan results and find the best candidate with the highest score
         for (ScanDetail scanDetail : mScanDetails) {
@@ -663,6 +664,12 @@ public class WifiQualifiedNetworkSelector {
                     noValidSsid.append(scanResult.BSSID + " / ");
                 }
                 continue;
+            }
+
+            //check if the scan results contain the current connected
+            //BSSID.
+            if (scanResult.BSSID.equals(mCurrentBssid)) {
+                scanResultsHaveCurrentBssid = true;
             }
 
             final String scanId = toScanId(scanResult);
@@ -817,6 +824,16 @@ public class WifiQualifiedNetworkSelector {
             localLog(notSavedScan + " skipped due to not saved\n ");
             localLog(noValidSsid + " skipped due to not valid SSID\n");
             localLog(scoreHistory.toString());
+        }
+
+        //QNS listens to all single scan results. Some scan requests may not include
+        //the channel of the currently connected network, so the currently connected network
+        //won't show up in the scan results. We don't act on these scan results to avoid
+        //aggressive network switching which might trigger disconnection.
+        if (isConnected && !scanResultsHaveCurrentBssid) {
+            localLog("Current connected BSSID " + mCurrentBssid + " is not in the scan results."
+                    + " Skip network selection.");
+            return null;
         }
 
         //we need traverse the whole user preference to choose the one user like most now

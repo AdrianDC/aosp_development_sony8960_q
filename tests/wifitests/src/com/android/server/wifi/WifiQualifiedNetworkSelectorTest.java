@@ -46,6 +46,7 @@ import android.util.LocalLog;
 
 import com.android.internal.R;
 import com.android.server.wifi.MockAnswerUtil.AnswerWithArguments;
+import com.android.server.wifi.util.ScanDetailUtil;
 
 import org.junit.After;
 import org.junit.Before;
@@ -1070,6 +1071,10 @@ public class WifiQualifiedNetworkSelectorTest {
         //first QNS
         mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
                 false, true, false);
+        when(mWifiInfo.getNetworkId()).thenReturn(1);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[1]);
+        when(mWifiInfo.is24GHz()).thenReturn(false);
+        when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
         //immediately second QNS
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(true,
                 false, scanDetails, false, true, false, false);
@@ -1879,10 +1884,12 @@ public class WifiQualifiedNetworkSelectorTest {
 
         // The second scan result is for an ephemeral network which was previously deleted
         when(mWifiConfigManager
-                .wasEphemeralNetworkDeleted(scanDetails.get(0).getScanResult().SSID))
+                .wasEphemeralNetworkDeleted(ScanDetailUtil.createQuotedSSID(
+                        scanDetails.get(0).getScanResult().SSID)))
                 .thenReturn(false);
         when(mWifiConfigManager
-                .wasEphemeralNetworkDeleted(scanDetails.get(1).getScanResult().SSID))
+                .wasEphemeralNetworkDeleted(ScanDetailUtil.createQuotedSSID(
+                        scanDetails.get(1).getScanResult().SSID)))
                 .thenReturn(true);
 
         WifiConfiguration.NetworkSelectionStatus selectionStatus =
@@ -2324,5 +2331,61 @@ public class WifiQualifiedNetworkSelectorTest {
         candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(true,
                 false, scanDetails, false, true, false, false);
         verifySelectedResult(chosenScanResult, candidate);
+    }
+
+    /**
+     * Case #48    no new QNS if current network doesn't show up in the
+     *             scan results.
+     *
+     * In this test. we simulate following scenario:
+     * WifiStateMachine is under connected state and 2.4GHz test1 is connected.
+     * The second scan results contains test2 which is 5GHz but no test1. Skip
+     * QNS to avoid aggressive network switching.
+     *
+     * expected return null
+     */
+    @Test
+    public void noNewQNSCurrentNetworkNotInScanResults() {
+        //Prepare saved network configurations.
+        String[] ssidsConfig = DEFAULT_SSIDS;
+        int[] security = {SECURITY_PSK, SECURITY_PSK};
+        WifiConfiguration[] savedConfigs = generateWifiConfigurations(ssidsConfig, security);
+        prepareConfigStore(savedConfigs);
+        final List<WifiConfiguration> savedNetwork = Arrays.asList(savedConfigs);
+        when(mWifiConfigManager.getSavedNetworks()).thenReturn(savedNetwork);
+
+        //Prepare the first scan results.
+        String[] ssids = {DEFAULT_SSIDS[0]};
+        String[] bssids = {DEFAULT_BSSIDS[0]};
+        int[] frequencies = {2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]"};
+        int[] levels = {-78};
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        //Connect to test1.
+        mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false, false, scanDetails, false,
+                false, true, false);
+
+        when(mWifiInfo.getNetworkId()).thenReturn(1);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
+        when(mWifiInfo.is24GHz()).thenReturn(true);
+        when(mWifiConfigManager.getEnableAutoJoinWhenAssociated()).thenReturn(true);
+        when(mClock.elapsedRealtime()).thenReturn(SystemClock.elapsedRealtime() + 11 * 1000);
+
+        //Prepare the second scan results which doesn't contain test1.
+        ssids[0] = DEFAULT_SSIDS[1];
+        bssids[0] = DEFAULT_BSSIDS[1];
+        frequencies[0] = 5180;
+        caps[0] = "[WPA2-EAP-CCMP][ESS]";
+        levels[0] = WifiQualifiedNetworkSelector.QUALIFIED_RSSI_5G_BAND;
+        scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        scanResultLinkConfiguration(savedConfigs, scanDetails);
+
+        //Skip the second network selection since current connected network is
+        //missing from the scan results.
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, true, false, false);
+        assertEquals("Expect no network selection", null, candidate);
     }
 }
