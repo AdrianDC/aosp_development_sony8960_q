@@ -3342,6 +3342,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             msg.arg2 = DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE;
             msg.obj = WifiStateMachine.this;
             mWifiP2pChannel.sendMessage(msg);
+        } else {
+            // If the p2p service is not running, we can proceed directly.
+            sendMessage(DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE);
         }
     }
 
