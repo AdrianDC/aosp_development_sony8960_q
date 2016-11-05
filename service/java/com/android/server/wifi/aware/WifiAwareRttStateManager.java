@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.nan;
+package com.android.server.wifi.aware;
 
 import android.content.Context;
 import android.net.wifi.IRttManager;
@@ -39,16 +39,16 @@ import java.util.Arrays;
 
 
 /**
- * Manages interactions between the NAN and the RTT service. Duplicates some of the functionality
+ * Manages interactions between the Aware and the RTT service. Duplicates some of the functionality
  * of the RttManager.
  */
-public class WifiNanRttStateManager {
-    private static final String TAG = "WifiNanRttStateManager";
+public class WifiAwareRttStateManager {
+    private static final String TAG = "WifiAwareRttStateMgr";
 
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
 
-    private final SparseArray<WifiNanClientState> mPendingOperations = new SparseArray<>();
+    private final SparseArray<WifiAwareClientState> mPendingOperations = new SparseArray<>();
     private AsyncChannel mAsyncChannel;
 
     /**
@@ -81,11 +81,11 @@ public class WifiNanRttStateManager {
         }
 
         mAsyncChannel = new AsyncChannel();
-        mAsyncChannel.connect(context, new NanRttHandler(looper), messenger);
+        mAsyncChannel.connect(context, new AwareRttHandler(looper), messenger);
     }
 
-    private WifiNanClientState getAndRemovePendingOperationClient(int rangingId) {
-        WifiNanClientState client = mPendingOperations.get(rangingId);
+    private WifiAwareClientState getAndRemovePendingOperationClient(int rangingId) {
+        WifiAwareClientState client = mPendingOperations.get(rangingId);
         mPendingOperations.delete(rangingId);
         return client;
     }
@@ -93,7 +93,7 @@ public class WifiNanRttStateManager {
     /**
      * Start a ranging operation for the client + peer MAC.
      */
-    public void startRanging(int rangingId, WifiNanClientState client,
+    public void startRanging(int rangingId, WifiAwareClientState client,
                              RttManager.RttParams[] params) {
         if (VDBG) {
             Log.v(TAG, "startRanging: rangingId=" + rangingId + ", parms="
@@ -103,7 +103,7 @@ public class WifiNanRttStateManager {
         if (mAsyncChannel == null) {
             Log.d(TAG, "startRanging(): AsyncChannel to RTT service not configured - failing");
             client.onRangingFailure(rangingId, RttManager.REASON_NOT_AVAILABLE,
-                    "NAN service not able to configure connection to RTT service");
+                    "Aware service not able to configure connection to RTT service");
             return;
         }
 
@@ -112,8 +112,8 @@ public class WifiNanRttStateManager {
         mAsyncChannel.sendMessage(RttManager.CMD_OP_START_RANGING, 0, rangingId, pparams);
     }
 
-    private class NanRttHandler extends Handler {
-        NanRttHandler(Looper looper) {
+    private class AwareRttHandler extends Handler {
+        AwareRttHandler(Looper looper) {
             super(looper);
         }
 
@@ -141,7 +141,7 @@ public class WifiNanRttStateManager {
             }
 
             // RTT-specific messages
-            WifiNanClientState client = getAndRemovePendingOperationClient(msg.arg2);
+            WifiAwareClientState client = getAndRemovePendingOperationClient(msg.arg2);
             if (client == null) {
                 Log.e(TAG, "handleMessage(): RTT message (" + msg.what
                         + ") -- cannot find registered pending operation client for ID "
@@ -197,7 +197,7 @@ public class WifiNanRttStateManager {
      * Dump the internal state of the class.
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("WifiNanRttStateManager:");
+        pw.println("WifiAwareRttStateManager:");
         pw.println("  mPendingOperations: [" + mPendingOperations + "]");
     }
 }

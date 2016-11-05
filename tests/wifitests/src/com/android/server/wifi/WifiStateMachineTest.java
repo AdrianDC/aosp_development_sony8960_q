@@ -923,17 +923,17 @@ public class WifiStateMachineTest {
     /** Verifies that syncGetSupportedFeatures() masks out capabilities based on system flags. */
     @Test
     public void syncGetSupportedFeatures() {
-        final int featureNan = WifiManager.WIFI_FEATURE_NAN;
+        final int featureAware = WifiManager.WIFI_FEATURE_AWARE;
         final int featureInfra = WifiManager.WIFI_FEATURE_INFRA;
         final int featureD2dRtt = WifiManager.WIFI_FEATURE_D2D_RTT;
         final int featureD2apRtt = WifiManager.WIFI_FEATURE_D2AP_RTT;
 
         assertEquals(0, testGetSupportedFeaturesCase(0, false));
         assertEquals(0, testGetSupportedFeaturesCase(0, true));
-        assertEquals(featureNan | featureInfra,
-                testGetSupportedFeaturesCase(featureNan | featureInfra, false));
-        assertEquals(featureNan | featureInfra,
-                testGetSupportedFeaturesCase(featureNan | featureInfra, true));
+        assertEquals(featureAware | featureInfra,
+                testGetSupportedFeaturesCase(featureAware | featureInfra, false));
+        assertEquals(featureAware | featureInfra,
+                testGetSupportedFeaturesCase(featureAware | featureInfra, true));
         assertEquals(featureInfra | featureD2dRtt,
                 testGetSupportedFeaturesCase(featureInfra | featureD2dRtt, false));
         assertEquals(featureInfra,
