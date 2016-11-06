@@ -54,7 +54,7 @@ using android::wifi_system::InterfaceTool;
 namespace android {
 
 extern "C"
-jint Java_com_android_server_wifi_WifiNative_registerNanNatives(JNIEnv* env, jclass clazz);
+jint Java_com_android_server_wifi_WifiNative_registerAwareNatives(JNIEnv* env, jclass clazz);
 
 static jint DBG = false;
 

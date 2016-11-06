@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.nan;
+package com.android.server.wifi.aware;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.wifi.RttManager;
-import android.net.wifi.nan.ConfigRequest;
-import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
-import android.net.wifi.nan.IWifiNanEventCallback;
-import android.net.wifi.nan.IWifiNanManager;
-import android.net.wifi.nan.PublishConfig;
-import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanCharacteristics;
-import android.net.wifi.nan.WifiNanDiscoveryBaseSession;
+import android.net.wifi.aware.ConfigRequest;
+import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
+import android.net.wifi.aware.IWifiAwareEventCallback;
+import android.net.wifi.aware.IWifiAwareManager;
+import android.net.wifi.aware.PublishConfig;
+import android.net.wifi.aware.SubscribeConfig;
+import android.net.wifi.aware.WifiAwareCharacteristics;
+import android.net.wifi.aware.WifiAwareDiscoveryBaseSession;
 import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -40,18 +40,18 @@ import java.io.PrintWriter;
 import java.util.Arrays;
 
 /**
- * Implementation of the IWifiNanManager AIDL interface. Performs validity
+ * Implementation of the IWifiAwareManager AIDL interface. Performs validity
  * (permission and clientID-UID mapping) checks and delegates execution to the
- * WifiNanStateManager singleton handler. Limited state to feedback which has to
+ * WifiAwareStateManager singleton handler. Limited state to feedback which has to
  * be provided instantly: client and session IDs.
  */
-public class WifiNanServiceImpl extends IWifiNanManager.Stub {
-    private static final String TAG = "WifiNanService";
+public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
+    private static final String TAG = "WifiAwareService";
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
 
     private Context mContext;
-    private WifiNanStateManager mStateManager;
+    private WifiAwareStateManager mStateManager;
 
     private final Object mLock = new Object();
     private final SparseArray<IBinder.DeathRecipient> mDeathRecipientsByClientId =
@@ -60,9 +60,9 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     private int mNextRangingId = 1;
     private final SparseIntArray mUidByClientId = new SparseIntArray();
 
-    public WifiNanServiceImpl(Context context) {
+    public WifiAwareServiceImpl(Context context) {
         mContext = context.getApplicationContext();
-        mStateManager = WifiNanStateManager.getInstance();
+        mStateManager = WifiAwareStateManager.getInstance();
     }
 
     /**
@@ -78,20 +78,20 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
      * the components of the service.
      */
     public void start() {
-        Log.i(TAG, "Starting Wi-Fi NAN service");
+        Log.i(TAG, "Starting Wi-Fi Aware service");
 
         // TODO: share worker thread with other Wi-Fi handlers (b/27924886)
-        HandlerThread wifiNanThread = new HandlerThread("wifiNanService");
-        wifiNanThread.start();
+        HandlerThread wifiAwareThread = new HandlerThread("wifiAwareService");
+        wifiAwareThread.start();
 
-        mStateManager.start(mContext, wifiNanThread.getLooper());
+        mStateManager.start(mContext, wifiAwareThread.getLooper());
     }
 
     /**
      * Start/initialize portions of the service which require the boot stage to be complete.
      */
     public void startLate() {
-        Log.i(TAG, "Late initialization of Wi-Fi NAN service");
+        Log.i(TAG, "Late initialization of Wi-Fi Aware service");
 
         mStateManager.startLate();
     }
@@ -130,7 +130,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
-    public WifiNanCharacteristics getCharacteristics() {
+    public WifiAwareCharacteristics getCharacteristics() {
         enforceAccessPermission();
 
         return mStateManager.getCapabilities() == null ? null
@@ -138,8 +138,9 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     }
 
     @Override
-    public void connect(final IBinder binder, String callingPackage, IWifiNanEventCallback callback,
-            ConfigRequest configRequest, boolean notifyOnIdentityChanged) {
+    public void connect(final IBinder binder, String callingPackage,
+            IWifiAwareEventCallback callback, ConfigRequest configRequest,
+            boolean notifyOnIdentityChanged) {
         enforceAccessPermission();
         enforceChangePermission();
         if (callback == null) {
@@ -193,7 +194,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
         } catch (RemoteException e) {
             Log.e(TAG, "Error on linkToDeath - " + e);
             try {
-                callback.onConnectFail(WifiNanNative.NAN_STATUS_ERROR);
+                callback.onConnectFail(WifiAwareNative.AWARE_STATUS_ERROR);
             } catch (RemoteException e1) {
                 Log.e(TAG, "Error on onConnectFail()");
             }
@@ -251,7 +252,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
 
     @Override
     public void publish(int clientId, PublishConfig publishConfig,
-            IWifiNanDiscoverySessionCallback callback) {
+            IWifiAwareDiscoverySessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
         enforceLocationPermission();
@@ -296,7 +297,7 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
 
     @Override
     public void subscribe(int clientId, SubscribeConfig subscribeConfig,
-            IWifiNanDiscoverySessionCallback callback) {
+            IWifiAwareDiscoverySessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
         enforceLocationPermission();
@@ -350,9 +351,9 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
             throw new IllegalArgumentException(
                     "Message length longer than supported by device characteristics");
         }
-        if (retryCount < 0 || retryCount > WifiNanDiscoveryBaseSession.getMaxSendRetryCount()) {
+        if (retryCount < 0 || retryCount > WifiAwareDiscoveryBaseSession.getMaxSendRetryCount()) {
             throw new IllegalArgumentException("Invalid 'retryCount' must be non-negative "
-                    + "and <= WifiNanDiscoveryBaseSession.MAX_SEND_RETRY_COUNT");
+                    + "and <= WifiAwareDiscoveryBaseSession.MAX_SEND_RETRY_COUNT");
         }
 
         int uid = getMockableCallingUid();
@@ -395,11 +396,11 @@ public class WifiNanServiceImpl extends IWifiNanManager.Stub {
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         if (mContext.checkCallingOrSelfPermission(
                 android.Manifest.permission.DUMP) != PackageManager.PERMISSION_GRANTED) {
-            pw.println("Permission Denial: can't dump WifiNanService from pid="
+            pw.println("Permission Denial: can't dump WifiAwareService from pid="
                     + Binder.getCallingPid() + ", uid=" + Binder.getCallingUid());
             return;
         }
-        pw.println("Wi-Fi NAN Service");
+        pw.println("Wi-Fi Aware Service");
         synchronized (mLock) {
             pw.println("  mNextClientId: " + mNextClientId);
             pw.println("  mDeathRecipientsByClientId: " + mDeathRecipientsByClientId);

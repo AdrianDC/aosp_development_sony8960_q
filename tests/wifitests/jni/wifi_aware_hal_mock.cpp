@@ -36,14 +36,14 @@
 
 namespace android {
 
-extern jobject mock_mObj; /* saved NanHalMock object */
+extern jobject mock_mObj; /* saved AwareHalMock object */
 extern JavaVM* mock_mVM; /* saved JVM pointer */
 
 /* Variable and function declared and defined in:
- *  com_android_servier_wifi_nan_WifiNanNative.cpp
+ *  com_android_server_wifi_aware_WifiAwareNative.cpp
  */
 extern wifi_hal_fn hal_fn;
-extern "C" jint Java_com_android_server_wifi_nan_WifiNanNative_registerNanNatives(
+extern "C" jint Java_com_android_server_wifi_aware_WifiAwareNative_registerAwareNatives(
     JNIEnv* env, jclass clazz);
 
 static NanCallbackHandler mCallbackHandlers;
@@ -374,7 +374,7 @@ wifi_error wifi_nan_data_interface_create_mock(transaction_id id,
 
   JNIObject<jstring> json_write_string = helper.newStringUTF(str.c_str());
 
-  helper.callMethod(mock_mObj, "createNanNetworkInterfaceMockNative",
+  helper.callMethod(mock_mObj, "createAwareNetworkInterfaceMockNative",
                     "(SLjava/lang/String;)V", (short)id,
                     json_write_string.get());
 
@@ -393,7 +393,7 @@ wifi_error wifi_nan_data_interface_delete_mock(transaction_id id,
 
   JNIObject<jstring> json_write_string = helper.newStringUTF(str.c_str());
 
-  helper.callMethod(mock_mObj, "deleteNanNetworkInterfaceMockNative",
+  helper.callMethod(mock_mObj, "deleteAwareNetworkInterfaceMockNative",
                     "(SLjava/lang/String;)V", (short)id,
                     json_write_string.get());
 
@@ -477,14 +477,14 @@ wifi_error wifi_nan_data_end_mock(transaction_id id,
 
 // Callbacks
 
-extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callNotifyResponse(
+extern "C" void Java_com_android_server_wifi_aware_WifiAwareHalMock_callNotifyResponse(
     JNIEnv* env, jclass clazz, jshort transaction_id,
     jstring json_args_jstring) {
   ScopedUtfChars chars(env, json_args_jstring);
   HalMockJsonReader jsonR(chars.c_str());
   bool error = false;
 
-  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callNotifyResponse: '%s'",
+  ALOGD("Java_com_android_server_wifi_aware_WifiAwareHalMock_callNotifyResponse: '%s'",
         chars.c_str());
 
   NanResponseMsg msg;
@@ -499,38 +499,38 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callNotifyRespon
         "body.subscribe_response.subscribe_id", &error);
   } else if (msg.response_type == NAN_GET_CAPABILITIES) {
     msg.body.nan_capabilities.max_concurrent_nan_clusters = jsonR.get_int(
-        "body.nan_capabilities.max_concurrent_nan_clusters", &error);
+        "body.aware_capabilities.max_concurrent_aware_clusters", &error);
     msg.body.nan_capabilities.max_publishes = jsonR.get_int(
-        "body.nan_capabilities.max_publishes", &error);
+        "body.aware_capabilities.max_publishes", &error);
     msg.body.nan_capabilities.max_subscribes = jsonR.get_int(
-        "body.nan_capabilities.max_subscribes", &error);
+        "body.aware_capabilities.max_subscribes", &error);
     msg.body.nan_capabilities.max_service_name_len = jsonR.get_int(
-        "body.nan_capabilities.max_service_name_len", &error);
+        "body.aware_capabilities.max_service_name_len", &error);
     msg.body.nan_capabilities.max_match_filter_len = jsonR.get_int(
-        "body.nan_capabilities.max_match_filter_len", &error);
+        "body.aware_capabilities.max_match_filter_len", &error);
     msg.body.nan_capabilities.max_total_match_filter_len = jsonR.get_int(
-        "body.nan_capabilities.max_total_match_filter_len", &error);
+        "body.aware_capabilities.max_total_match_filter_len", &error);
     msg.body.nan_capabilities.max_service_specific_info_len = jsonR.get_int(
-        "body.nan_capabilities.max_service_specific_info_len", &error);
+        "body.aware_capabilities.max_service_specific_info_len", &error);
     msg.body.nan_capabilities.max_vsa_data_len = jsonR.get_int(
-        "body.nan_capabilities.max_vsa_data_len", &error);
+        "body.aware_capabilities.max_vsa_data_len", &error);
     msg.body.nan_capabilities.max_mesh_data_len = jsonR.get_int(
-        "body.nan_capabilities.max_mesh_data_len", &error);
+        "body.aware_capabilities.max_mesh_data_len", &error);
     msg.body.nan_capabilities.max_ndi_interfaces = jsonR.get_int(
-        "body.nan_capabilities.max_ndi_interfaces", &error);
+        "body.aware_capabilities.max_ndi_interfaces", &error);
     msg.body.nan_capabilities.max_ndp_sessions = jsonR.get_int(
-        "body.nan_capabilities.max_ndp_sessions", &error);
+        "body.aware_capabilities.max_ndp_sessions", &error);
     msg.body.nan_capabilities.max_app_info_len = jsonR.get_int(
-        "body.nan_capabilities.max_app_info_len", &error);
+        "body.aware_capabilities.max_app_info_len", &error);
     msg.body.nan_capabilities.max_queued_transmit_followup_msgs = jsonR.get_int(
-        "body.nan_capabilities.max_queued_transmit_followup_msgs", &error);
+        "body.aware_capabilities.max_queued_transmit_followup_msgs", &error);
   } else if (msg.response_type == NAN_DP_INITIATOR_RESPONSE) {
       msg.body.data_request_response.ndp_instance_id = jsonR.get_int(
           "body.data_request_response.ndp_instance_id", &error);
   }
 
   if (error) {
-    ALOGE("Java_com_android_server_wifi_nan_WifiNanHalMock_callNotifyResponse: "
+    ALOGE("Java_com_android_server_wifi_aware_WifiAwareHalMock_callNotifyResponse: "
           "error parsing args");
     return;
   }
@@ -538,14 +538,14 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callNotifyRespon
   mCallbackHandlers.NotifyResponse(transaction_id, &msg);
 }
 
-extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callPublishTerminated(
+extern "C" void Java_com_android_server_wifi_aware_WifiAwareHalMock_callPublishTerminated(
     JNIEnv* env, jclass clazz, jstring json_args_jstring) {
   ScopedUtfChars chars(env, json_args_jstring);
   HalMockJsonReader jsonR(chars.c_str());
   bool error = false;
 
   ALOGD(
-      "Java_com_android_server_wifi_nan_WifiNanHalMock_callPublishTerminated: '%s'",
+      "Java_com_android_server_wifi_aware_WifiAwareHalMock_callPublishTerminated: '%s'",
       chars.c_str());
 
   NanPublishTerminatedInd msg;
@@ -553,7 +553,7 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callPublishTermi
   msg.reason = (NanStatusType) jsonR.get_int("reason", &error);
 
   if (error) {
-    ALOGE("Java_com_android_server_wifi_nan_WifiNanHalMock_callPublishTerminated: "
+    ALOGE("Java_com_android_server_wifi_aware_WifiAwareHalMock_callPublishTerminated: "
           "error parsing args");
     return;
   }
@@ -561,14 +561,14 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callPublishTermi
   mCallbackHandlers.EventPublishTerminated(&msg);
 }
 
-extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callSubscribeTerminated(
+extern "C" void Java_com_android_server_wifi_aware_WifiAwareHalMock_callSubscribeTerminated(
     JNIEnv* env, jclass clazz, jstring json_args_jstring) {
   ScopedUtfChars chars(env, json_args_jstring);
   HalMockJsonReader jsonR(chars.c_str());
   bool error = false;
 
   ALOGD(
-      "Java_com_android_server_wifi_nan_WifiNanHalMock_callSubscribeTerminated: '%s'",
+      "Java_com_android_server_wifi_aware_WifiAwareHalMock_callSubscribeTerminated: '%s'",
       chars.c_str());
 
   NanSubscribeTerminatedInd msg;
@@ -576,7 +576,7 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callSubscribeTer
   msg.reason = (NanStatusType) jsonR.get_int("reason", &error);
 
   if (error) {
-    ALOGE("Java_com_android_server_wifi_nan_WifiNanHalMock_callSubscribeTerminated:"
+    ALOGE("Java_com_android_server_wifi_aware_WifiAwareHalMock_callSubscribeTerminated:"
           " error parsing args");
     return;
   }
@@ -584,13 +584,13 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callSubscribeTer
   mCallbackHandlers.EventSubscribeTerminated(&msg);
 }
 
-extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callFollowup(
+extern "C" void Java_com_android_server_wifi_aware_WifiAwareHalMock_callFollowup(
     JNIEnv* env, jclass clazz, jstring json_args_jstring) {
   ScopedUtfChars chars(env, json_args_jstring);
   HalMockJsonReader jsonR(chars.c_str());
   bool error = false;
 
-  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callFollowup: '%s'",
+  ALOGD("Java_com_android_server_wifi_aware_WifiAwareHalMock_callFollowup: '%s'",
         chars.c_str());
 
   NanFollowupInd msg;
@@ -605,7 +605,7 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callFollowup(
                        NAN_MAX_SERVICE_SPECIFIC_INFO_LEN);
 
   if (error) {
-    ALOGE("Java_com_android_server_wifi_nan_WifiNanHalMock_callFollowup: "
+    ALOGE("Java_com_android_server_wifi_aware_WifiAwareHalMock_callFollowup: "
           "error parsing args");
     return;
   }
@@ -613,13 +613,13 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callFollowup(
   mCallbackHandlers.EventFollowup(&msg);
 }
 
-extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callMatch(
+extern "C" void Java_com_android_server_wifi_aware_WifiAwareHalMock_callMatch(
     JNIEnv* env, jclass clazz, jstring json_args_jstring) {
   ScopedUtfChars chars(env, json_args_jstring);
   HalMockJsonReader jsonR(chars.c_str());
   bool error = false;
 
-  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callMatch: '%s'",
+  ALOGD("Java_com_android_server_wifi_aware_WifiAwareHalMock_callMatch: '%s'",
         chars.c_str());
 
   NanMatchInd msg;
@@ -637,7 +637,7 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callMatch(
   /* a few more fields here - but not used (yet/never?) */
 
   if (error) {
-    ALOGE("Java_com_android_server_wifi_nan_WifiNanHalMock_callMatch: "
+    ALOGE("Java_com_android_server_wifi_aware_WifiAwareHalMock_callMatch: "
           "error parsing args");
     return;
   }
@@ -645,13 +645,13 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callMatch(
   mCallbackHandlers.EventMatch(&msg);
 }
 
-extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDiscEngEvent(
+extern "C" void Java_com_android_server_wifi_aware_WifiAwareHalMock_callDiscEngEvent(
     JNIEnv* env, jclass clazz, jstring json_args_jstring) {
   ScopedUtfChars chars(env, json_args_jstring);
   HalMockJsonReader jsonR(chars.c_str());
   bool error = false;
 
-  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callDiscEngEvent: '%s'",
+  ALOGD("Java_com_android_server_wifi_aware_WifiAwareHalMock_callDiscEngEvent: '%s'",
         chars.c_str());
 
   NanDiscEngEventInd msg;
@@ -665,7 +665,7 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDiscEngEvent
   }
 
   if (error) {
-    ALOGE("Java_com_android_server_wifi_nan_WifiNanHalMock_callDiscEngEvent: "
+    ALOGE("Java_com_android_server_wifi_aware_WifiAwareHalMock_callDiscEngEvent: "
           "error parsing args");
     return;
   }
@@ -673,20 +673,20 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDiscEngEvent
   mCallbackHandlers.EventDiscEngEvent(&msg);
 }
 
-extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDisabled(
+extern "C" void Java_com_android_server_wifi_aware_WifiAwareHalMock_callDisabled(
     JNIEnv* env, jclass clazz, jstring json_args_jstring) {
   ScopedUtfChars chars(env, json_args_jstring);
   HalMockJsonReader jsonR(chars.c_str());
   bool error = false;
 
-  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callDisabled: '%s'",
+  ALOGD("Java_com_android_server_wifi_aware_WifiAwareHalMock_callDisabled: '%s'",
         chars.c_str());
 
   NanDisabledInd msg;
   msg.reason = (NanStatusType) jsonR.get_int("reason", &error);
 
   if (error) {
-    ALOGE("Java_com_android_server_wifi_nan_WifiNanHalMock_callDisabled: "
+    ALOGE("Java_com_android_server_wifi_aware_WifiAwareHalMock_callDisabled: "
           "error parsing args");
     return;
   }
@@ -694,13 +694,13 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDisabled(
   mCallbackHandlers.EventDisabled(&msg);
 }
 
-extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callTransmitFollowup(
+extern "C" void Java_com_android_server_wifi_aware_WifiAwareHalMock_callTransmitFollowup(
     JNIEnv* env, jclass clazz, jstring json_args_jstring) {
   ScopedUtfChars chars(env, json_args_jstring);
   HalMockJsonReader jsonR(chars.c_str());
   bool error = false;
 
-  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callTransmitFollowup: '%s'",
+  ALOGD("Java_com_android_server_wifi_aware_WifiAwareHalMock_callTransmitFollowup: '%s'",
         chars.c_str());
 
   NanTransmitFollowupInd msg;
@@ -708,7 +708,7 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callTransmitFoll
   msg.reason = (NanStatusType) jsonR.get_int("reason", &error);
 
   if (error) {
-    ALOGE("Java_com_android_server_wifi_nan_WifiNanHalMock_callTransmitFollowup: "
+    ALOGE("Java_com_android_server_wifi_aware_WifiAwareHalMock_callTransmitFollowup: "
           "error parsing args");
     return;
   }
@@ -716,13 +716,13 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callTransmitFoll
   mCallbackHandlers.EventTransmitFollowup(&msg);
 }
 
-extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathRequest(
+extern "C" void Java_com_android_server_wifi_aware_WifiAwareHalMock_callDataPathRequest(
     JNIEnv* env, jclass clazz, jstring json_args_jstring) {
   ScopedUtfChars chars(env, json_args_jstring);
   HalMockJsonReader jsonR(chars.c_str());
   bool error = false;
 
-  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathRequest: '%s'",
+  ALOGD("Java_com_android_server_wifi_aware_WifiAwareHalMock_callDataPathRequest: '%s'",
         chars.c_str());
 
   NanDataPathRequestInd msg;
@@ -741,7 +741,7 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathRequ
 
   if (error) {
     ALOGE(
-        "Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathRequest: "
+        "Java_com_android_server_wifi_aware_WifiAwareHalMock_callDataPathRequest: "
         "error parsing args");
     return;
   }
@@ -749,13 +749,13 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathRequ
   mCallbackHandlers.EventDataRequest(&msg);
 }
 
-extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathConfirm(
+extern "C" void Java_com_android_server_wifi_aware_WifiAwareHalMock_callDataPathConfirm(
     JNIEnv* env, jclass clazz, jstring json_args_jstring) {
   ScopedUtfChars chars(env, json_args_jstring);
   HalMockJsonReader jsonR(chars.c_str());
   bool error = false;
 
-  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathConfirm: '%s'",
+  ALOGD("Java_com_android_server_wifi_aware_WifiAwareHalMock_callDataPathConfirm: '%s'",
         chars.c_str());
 
   NanDataPathConfirmInd msg;
@@ -771,7 +771,7 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathConf
 
   if (error) {
     ALOGE(
-        "Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathConfirm: "
+        "Java_com_android_server_wifi_aware_WifiAwareHalMock_callDataPathConfirm: "
         "error parsing args");
     return;
   }
@@ -779,13 +779,13 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathConf
   mCallbackHandlers.EventDataConfirm(&msg);
 }
 
-extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathEnd(
+extern "C" void Java_com_android_server_wifi_aware_WifiAwareHalMock_callDataPathEnd(
     JNIEnv* env, jclass clazz, jstring json_args_jstring) {
   ScopedUtfChars chars(env, json_args_jstring);
   HalMockJsonReader jsonR(chars.c_str());
   bool error = false;
 
-  ALOGD("Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathEnd: '%s'",
+  ALOGD("Java_com_android_server_wifi_aware_WifiAwareHalMock_callDataPathEnd: '%s'",
         chars.c_str());
 
   int num_ndp_instances = jsonR.get_int("num_ndp_instances", &error);
@@ -799,7 +799,7 @@ extern "C" void Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathEnd(
 
   if (error) {
     ALOGE(
-        "Java_com_android_server_wifi_nan_WifiNanHalMock_callDataPathEnd: "
+        "Java_com_android_server_wifi_aware_WifiAwareHalMock_callDataPathEnd: "
         "error parsing args");
     return;
   }
@@ -846,9 +846,9 @@ int init_wifi_nan_hal_func_table_mock(wifi_hal_fn *fn) {
   return 0;
 }
 
-extern "C" jint Java_com_android_server_wifi_nan_WifiNanHalMock_initNanHalMock(
+extern "C" jint Java_com_android_server_wifi_aware_WifiAwareHalMock_initAwareHalMock(
     JNIEnv* env, jclass clazz) {
-  Java_com_android_server_wifi_nan_WifiNanNative_registerNanNatives(env, clazz);
+  Java_com_android_server_wifi_aware_WifiAwareNative_registerAwareNatives(env, clazz);
   return init_wifi_nan_hal_func_table_mock(&hal_fn);
 }
 
