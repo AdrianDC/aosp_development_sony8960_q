@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.nan;
+package com.android.server.wifi.aware;
 
-import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
-import android.net.wifi.nan.PublishConfig;
-import android.net.wifi.nan.SubscribeConfig;
+import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
+import android.net.wifi.aware.PublishConfig;
+import android.net.wifi.aware.SubscribeConfig;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.SparseArray;
@@ -29,25 +29,25 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 
 /**
- * Manages the state of a single NAN discovery session (publish or subscribe).
+ * Manages the state of a single Aware discovery session (publish or subscribe).
  * Primary state consists of a callback through which session callbacks are
  * executed as well as state related to currently active discovery sessions:
  * publish/subscribe ID, and MAC address caching (hiding) from clients.
  */
-public class WifiNanDiscoverySessionState {
-    private static final String TAG = "WifiNanDiscSessionState";
+public class WifiAwareDiscoverySessionState {
+    private static final String TAG = "WifiAwareDiscSessState";
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
 
     private int mSessionId;
     private int mPubSubId;
-    private IWifiNanDiscoverySessionCallback mCallback;
+    private IWifiAwareDiscoverySessionCallback mCallback;
     private boolean mIsPublishSession;
 
     private final SparseArray<String> mMacByRequestorInstanceId = new SparseArray<>();
 
-    public WifiNanDiscoverySessionState(int sessionId, int pubSubId,
-            IWifiNanDiscoverySessionCallback callback, boolean isPublishSession) {
+    public WifiAwareDiscoverySessionState(int sessionId, int pubSubId,
+            IWifiAwareDiscoverySessionCallback callback, boolean isPublishSession) {
         mSessionId = sessionId;
         mPubSubId = pubSubId;
         mCallback = callback;
@@ -62,7 +62,7 @@ public class WifiNanDiscoverySessionState {
         return mPubSubId;
     }
 
-    public IWifiNanDiscoverySessionCallback getCallback() {
+    public IWifiAwareDiscoverySessionCallback getCallback() {
         return mCallback;
     }
 
@@ -87,9 +87,9 @@ public class WifiNanDiscoverySessionState {
         mCallback = null;
 
         if (mIsPublishSession) {
-            WifiNanNative.getInstance().stopPublish((short) 0, mPubSubId);
+            WifiAwareNative.getInstance().stopPublish((short) 0, mPubSubId);
         } else {
-            WifiNanNative.getInstance().stopSubscribe((short) 0, mPubSubId);
+            WifiAwareNative.getInstance().stopSubscribe((short) 0, mPubSubId);
         }
     }
 
@@ -115,14 +115,14 @@ public class WifiNanDiscoverySessionState {
         if (!mIsPublishSession) {
             Log.e(TAG, "A SUBSCRIBE session is being used to publish");
             try {
-                mCallback.onSessionConfigFail(WifiNanNative.NAN_STATUS_ERROR);
+                mCallback.onSessionConfigFail(WifiAwareNative.AWARE_STATUS_ERROR);
             } catch (RemoteException e) {
                 Log.e(TAG, "updatePublish: RemoteException=" + e);
             }
             return false;
         }
 
-        return WifiNanNative.getInstance().publish(transactionId, mPubSubId, config);
+        return WifiAwareNative.getInstance().publish(transactionId, mPubSubId, config);
     }
 
     /**
@@ -136,14 +136,14 @@ public class WifiNanDiscoverySessionState {
         if (mIsPublishSession) {
             Log.e(TAG, "A PUBLISH session is being used to subscribe");
             try {
-                mCallback.onSessionConfigFail(WifiNanNative.NAN_STATUS_ERROR);
+                mCallback.onSessionConfigFail(WifiAwareNative.AWARE_STATUS_ERROR);
             } catch (RemoteException e) {
                 Log.e(TAG, "updateSubscribe: RemoteException=" + e);
             }
             return false;
         }
 
-        return WifiNanNative.getInstance().subscribe(transactionId, mPubSubId, config);
+        return WifiAwareNative.getInstance().subscribe(transactionId, mPubSubId, config);
     }
 
     /**
@@ -163,7 +163,7 @@ public class WifiNanDiscoverySessionState {
             Log.e(TAG, "sendMessage: attempting to send a message to an address which didn't "
                     + "match/contact us");
             try {
-                mCallback.onMessageSendFail(messageId, WifiNanNative.NAN_STATUS_ERROR);
+                mCallback.onMessageSendFail(messageId, WifiAwareNative.AWARE_STATUS_ERROR);
             } catch (RemoteException e) {
                 Log.e(TAG, "sendMessage: RemoteException=" + e);
             }
@@ -171,7 +171,7 @@ public class WifiNanDiscoverySessionState {
         }
         byte[] peerMac = HexEncoding.decode(peerMacStr.toCharArray(), false);
 
-        return WifiNanNative.getInstance().sendMessage(transactionId, mPubSubId, peerId, peerMac,
+        return WifiAwareNative.getInstance().sendMessage(transactionId, mPubSubId, peerId, peerMac,
                 message, messageId);
     }
 
@@ -232,7 +232,7 @@ public class WifiNanDiscoverySessionState {
      * Dump the internal state of the class.
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("NanSessionState:");
+        pw.println("AwareSessionState:");
         pw.println("  mSessionId: " + mSessionId);
         pw.println("  mIsPublishSession: " + mIsPublishSession);
         pw.println("  mPubSubId: " + mPubSubId);

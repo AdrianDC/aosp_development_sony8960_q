@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.nan;
+package com.android.server.wifi.aware;
 
 import android.Manifest;
 import android.app.AppOpsManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.wifi.RttManager;
-import android.net.wifi.nan.ConfigRequest;
-import android.net.wifi.nan.IWifiNanEventCallback;
+import android.net.wifi.aware.ConfigRequest;
+import android.net.wifi.aware.IWifiAwareEventCallback;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.SparseArray;
@@ -34,16 +34,16 @@ import java.io.PrintWriter;
 import java.util.Arrays;
 
 /**
- * Manages the service-side NAN state of an individual "client". A client
- * corresponds to a single instantiation of the WifiNanManager - there could be
+ * Manages the service-side Aware state of an individual "client". A client
+ * corresponds to a single instantiation of the WifiAwareManager - there could be
  * multiple ones per UID/process (each of which is a separate client with its
  * own session namespace). The client state is primarily: (1) callback (a
- * singleton per client) through which NAN-wide events are called, and (2) a set
+ * singleton per client) through which Aware-wide events are called, and (2) a set
  * of discovery sessions (publish and/or subscribe) which are created through
  * this client and whose lifetime is tied to the lifetime of the client.
  */
-public class WifiNanClientState {
-    private static final String TAG = "WifiNanClientState";
+public class WifiAwareClientState {
+    private static final String TAG = "WifiAwareClientState";
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
 
@@ -51,8 +51,8 @@ public class WifiNanClientState {
     /* package */ static final int CLUSTER_CHANGE_EVENT_JOINED = 1;
 
     private final Context mContext;
-    private final IWifiNanEventCallback mCallback;
-    private final SparseArray<WifiNanDiscoverySessionState> mSessions = new SparseArray<>();
+    private final IWifiAwareEventCallback mCallback;
+    private final SparseArray<WifiAwareDiscoverySessionState> mSessions = new SparseArray<>();
 
     private final int mClientId;
     private ConfigRequest mConfigRequest;
@@ -66,8 +66,8 @@ public class WifiNanClientState {
     private static final byte[] ALL_ZERO_MAC = new byte[] {0, 0, 0, 0, 0, 0};
     private byte[] mLastDiscoveryInterfaceMac = ALL_ZERO_MAC;
 
-    public WifiNanClientState(Context context, int clientId, int uid, int pid,
-            String callingPackage, IWifiNanEventCallback callback, ConfigRequest configRequest,
+    public WifiAwareClientState(Context context, int clientId, int uid, int pid,
+            String callingPackage, IWifiAwareEventCallback callback, ConfigRequest configRequest,
             boolean notifyIdentityChange) {
         mContext = context;
         mClientId = clientId;
@@ -111,11 +111,11 @@ public class WifiNanClientState {
      * map callbacks to the correct discovery session.
      *
      * @param pubSubId The publish/subscribe match session ID.
-     * @return NAN session corresponding to the requested ID.
+     * @return Aware session corresponding to the requested ID.
      */
-    public WifiNanDiscoverySessionState getNanSessionStateForPubSubId(int pubSubId) {
+    public WifiAwareDiscoverySessionState getAwareSessionStateForPubSubId(int pubSubId) {
         for (int i = 0; i < mSessions.size(); ++i) {
-            WifiNanDiscoverySessionState session = mSessions.valueAt(i);
+            WifiAwareDiscoverySessionState session = mSessions.valueAt(i);
             if (session.isPubSubIdSession(pubSubId)) {
                 return session;
             }
@@ -129,7 +129,7 @@ public class WifiNanClientState {
      *
      * @param session Session to be added.
      */
-    public void addSession(WifiNanDiscoverySessionState session) {
+    public void addSession(WifiAwareDiscoverySessionState session) {
         int sessionId = session.getSessionId();
         if (mSessions.get(sessionId) != null) {
             Log.w(TAG, "createSession: sessionId already exists (replaced) - " + sessionId);
@@ -161,7 +161,7 @@ public class WifiNanClientState {
      * @param sessionId The session ID of the session to be destroyed.
      */
     public void terminateSession(int sessionId) {
-        WifiNanDiscoverySessionState session = mSessions.get(sessionId);
+        WifiAwareDiscoverySessionState session = mSessions.get(sessionId);
         if (session == null) {
             Log.e(TAG, "terminateSession: sessionId doesn't exist - " + sessionId);
             return;
@@ -178,12 +178,12 @@ public class WifiNanClientState {
      * @return Session or null if there's no session corresponding to the
      *         sessionId.
      */
-    public WifiNanDiscoverySessionState getSession(int sessionId) {
+    public WifiAwareDiscoverySessionState getSession(int sessionId) {
         return mSessions.get(sessionId);
     }
 
     /**
-     * Called to dispatch the NAN interface address change to the client - as an
+     * Called to dispatch the Aware interface address change to the client - as an
      * identity change (interface address information not propagated to client -
      * privacy concerns).
      *
@@ -212,7 +212,7 @@ public class WifiNanClientState {
     }
 
     /**
-     * Called to dispatch the NAN cluster change (due to joining of a new
+     * Called to dispatch the Aware cluster change (due to joining of a new
      * cluster or starting a cluster) to the client - as an identity change
      * (interface address information not propagated to client - privacy
      * concerns). Dispatched if the client registered for the identity changed
@@ -298,7 +298,7 @@ public class WifiNanClientState {
      * Dump the internal state of the class.
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("NanClientState:");
+        pw.println("AwareClientState:");
         pw.println("  mClientId: " + mClientId);
         pw.println("  mConfigRequest: " + mConfigRequest);
         pw.println("  mCallback: " + mCallback);

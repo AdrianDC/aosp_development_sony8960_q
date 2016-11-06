@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.nan;
+package com.android.server.wifi.aware;
 
 import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.RttManager;
-import android.net.wifi.nan.ConfigRequest;
-import android.net.wifi.nan.IWifiNanDiscoverySessionCallback;
-import android.net.wifi.nan.IWifiNanEventCallback;
-import android.net.wifi.nan.PublishConfig;
-import android.net.wifi.nan.SubscribeConfig;
-import android.net.wifi.nan.WifiNanCharacteristics;
-import android.net.wifi.nan.WifiNanManager;
+import android.net.wifi.aware.ConfigRequest;
+import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
+import android.net.wifi.aware.IWifiAwareEventCallback;
+import android.net.wifi.aware.PublishConfig;
+import android.net.wifi.aware.SubscribeConfig;
+import android.net.wifi.aware.WifiAwareCharacteristics;
+import android.net.wifi.aware.WifiAwareManager;
 import android.os.Bundle;
 import android.os.Looper;
 import android.os.Message;
@@ -53,10 +53,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Manages the state of the Wi-Fi NAN system service.
+ * Manages the state of the Wi-Fi Aware system service.
  */
-public class WifiNanStateManager {
-    private static final String TAG = "WifiNanStateManager";
+public class WifiAwareStateManager {
+    private static final String TAG = "WifiAwareStateManager";
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
 
@@ -70,7 +70,7 @@ public class WifiNanStateManager {
     public static final String HAL_DATA_PATH_CONFIRM_TIMEOUT_TAG =
             TAG + " HAL Data Path Confirm Timeout";
 
-    private static WifiNanStateManager sNanStateManagerSingleton;
+    private static WifiAwareStateManager sAwareStateManagerSingleton;
 
     /*
      * State machine message types. There are sub-types for the messages (except for TIMEOUTs).
@@ -128,7 +128,7 @@ public class WifiNanStateManager {
     private static final int NOTIFICATION_TYPE_MATCH = 303;
     private static final int NOTIFICATION_TYPE_SESSION_TERMINATED = 304;
     private static final int NOTIFICATION_TYPE_MESSAGE_RECEIVED = 305;
-    private static final int NOTIFICATION_TYPE_NAN_DOWN = 306;
+    private static final int NOTIFICATION_TYPE_AWARE_DOWN = 306;
     private static final int NOTIFICATION_TYPE_ON_MESSAGE_SEND_SUCCESS = 307;
     private static final int NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL = 308;
     private static final int NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST = 309;
@@ -136,7 +136,7 @@ public class WifiNanStateManager {
     private static final int NOTIFICATION_TYPE_ON_DATA_PATH_END = 311;
 
     private static final SparseArray<String> sSmToString = MessageUtils.findMessageNames(
-            new Class[]{WifiNanStateManager.class},
+            new Class[]{WifiAwareStateManager.class},
             new String[]{"MESSAGE_TYPE", "COMMAND_TYPE", "RESPONSE_TYPE", "NOTIFICATION_TYPE"});
 
     /*
@@ -180,34 +180,34 @@ public class WifiNanStateManager {
      * handler thread: no need to use a lock.
      */
     private Context mContext;
-    private volatile WifiNanNative.Capabilities mCapabilities;
-    private volatile WifiNanCharacteristics mCharacteristics = null;
-    private WifiNanStateMachine mSm;
-    private WifiNanRttStateManager mRtt;
-    private WifiNanDataPathStateManager mDataPathMgr;
+    private volatile WifiAwareNative.Capabilities mCapabilities;
+    private volatile WifiAwareCharacteristics mCharacteristics = null;
+    private WifiAwareStateMachine mSm;
+    private WifiAwareRttStateManager mRtt;
+    private WifiAwareDataPathStateManager mDataPathMgr;
 
-    private final SparseArray<WifiNanClientState> mClients = new SparseArray<>();
-    private ConfigRequest mCurrentNanConfiguration = null;
+    private final SparseArray<WifiAwareClientState> mClients = new SparseArray<>();
+    private ConfigRequest mCurrentAwareConfiguration = null;
 
     private static final byte[] ALL_ZERO_MAC = new byte[] {0, 0, 0, 0, 0, 0};
     private byte[] mCurrentDiscoveryInterfaceMac = ALL_ZERO_MAC;
 
-    private WifiNanStateManager() {
+    private WifiAwareStateManager() {
         // EMPTY: singleton pattern
     }
 
     /**
-     * Access the singleton NAN state manager. Use a singleton since need to be
+     * Access the singleton Aware state manager. Use a singleton since need to be
      * accessed (for now) from several other child classes.
      *
      * @return The state manager singleton.
      */
-    public static WifiNanStateManager getInstance() {
-        if (sNanStateManagerSingleton == null) {
-            sNanStateManagerSingleton = new WifiNanStateManager();
+    public static WifiAwareStateManager getInstance() {
+        if (sAwareStateManagerSingleton == null) {
+            sAwareStateManagerSingleton = new WifiAwareStateManager();
         }
 
-        return sNanStateManagerSingleton;
+        return sAwareStateManagerSingleton;
     }
 
     /**
@@ -220,12 +220,12 @@ public class WifiNanStateManager {
         Log.i(TAG, "start()");
 
         mContext = context;
-        mSm = new WifiNanStateMachine(TAG, looper);
+        mSm = new WifiAwareStateMachine(TAG, looper);
         mSm.setDbg(DBG);
         mSm.start();
 
-        mRtt = new WifiNanRttStateManager();
-        mDataPathMgr = new WifiNanDataPathStateManager(this);
+        mRtt = new WifiAwareRttStateManager();
+        mDataPathMgr = new WifiAwareDataPathStateManager(this);
         mDataPathMgr.start(mContext, mSm.getHandler().getLooper());
     }
 
@@ -239,21 +239,21 @@ public class WifiNanStateManager {
     /**
      * Get the client state for the specified ID (or null if none exists).
      */
-    /* package */ WifiNanClientState getClient(int clientId) {
+    /* package */ WifiAwareClientState getClient(int clientId) {
         return mClients.get(clientId);
     }
 
     /**
      * Get the capabilities.
      */
-    public WifiNanNative.Capabilities getCapabilities() {
+    public WifiAwareNative.Capabilities getCapabilities() {
         return mCapabilities;
     }
 
     /**
      * Get the public characteristics derived from the capabilities. Use lazy initialization.
      */
-    public WifiNanCharacteristics getCharacteristics() {
+    public WifiAwareCharacteristics getCharacteristics() {
         if (mCharacteristics == null && mCapabilities != null) {
             mCharacteristics = mCapabilities.toPublicCharacteristics();
         }
@@ -269,7 +269,7 @@ public class WifiNanStateManager {
      * Place a request for a new client connection on the state machine queue.
      */
     public void connect(int clientId, int uid, int pid, String callingPackage,
-            IWifiNanEventCallback callback, ConfigRequest configRequest,
+            IWifiAwareEventCallback callback, ConfigRequest configRequest,
             boolean notifyOnIdentityChanged) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_CONNECT;
@@ -311,7 +311,7 @@ public class WifiNanStateManager {
      * machine queue.
      */
     public void publish(int clientId, PublishConfig publishConfig,
-            IWifiNanDiscoverySessionCallback callback) {
+            IWifiAwareDiscoverySessionCallback callback) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_PUBLISH;
         msg.arg2 = clientId;
@@ -338,7 +338,7 @@ public class WifiNanStateManager {
      * machine queue.
      */
     public void subscribe(int clientId, SubscribeConfig subscribeConfig,
-            IWifiNanDiscoverySessionCallback callback) {
+            IWifiAwareDiscoverySessionCallback callback) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_SUBSCRIBE;
         msg.arg2 = clientId;
@@ -392,7 +392,7 @@ public class WifiNanStateManager {
     }
 
     /**
-     * Enable usage of NAN. Doesn't actually turn on NAN (form clusters) - that
+     * Enable usage of Aware. Doesn't actually turn on Aware (form clusters) - that
      * only happens when a connection is created.
      */
     public void enableUsage() {
@@ -402,7 +402,7 @@ public class WifiNanStateManager {
     }
 
     /**
-     * Disable usage of NAN. Terminates all existing clients with onNanDown().
+     * Disable usage of Aware. Terminates all existing clients with onAwareDown().
      */
     public void disableUsage() {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
@@ -411,10 +411,10 @@ public class WifiNanStateManager {
     }
 
     /**
-     * Checks whether NAN usage is enabled (not necessarily that NAN is up right
+     * Checks whether Aware usage is enabled (not necessarily that Aware is up right
      * now) or disabled.
      *
-     * @return A boolean indicating whether NAN usage is enabled (true) or
+     * @return A boolean indicating whether Aware usage is enabled (true) or
      *         disabled (false).
      */
     public boolean isUsageEnabled() {
@@ -422,7 +422,7 @@ public class WifiNanStateManager {
     }
 
     /**
-     * Get the capabilities of the current NAN firmware.
+     * Get the capabilities of the current Aware firmware.
      */
     public void queryCapabilities() {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
@@ -431,7 +431,7 @@ public class WifiNanStateManager {
     }
 
     /**
-     * Create all NAN data path interfaces which are supported by the firmware capabilities.
+     * Create all Aware data path interfaces which are supported by the firmware capabilities.
      */
     public void createAllDataPathInterfaces() {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
@@ -440,7 +440,7 @@ public class WifiNanStateManager {
     }
 
     /**
-     * delete all NAN data path interfaces.
+     * delete all Aware data path interfaces.
      */
     public void deleteAllDataPathInterfaces() {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
@@ -510,7 +510,7 @@ public class WifiNanStateManager {
     }
 
     /**
-     * NAN follow-on messages (L2 messages) are queued by the firmware for transmission
+     * Aware follow-on messages (L2 messages) are queued by the firmware for transmission
      * on-the-air. The firmware has limited queue depth. The host queues all messages and doles
      * them out to the firmware when possible. This command removes the next messages for
      * transmission from the host queue and attempts to send it through the firmware. The queues
@@ -600,10 +600,10 @@ public class WifiNanStateManager {
 
     /**
      * Place a callback request on the state machine queue: update vendor
-     * capabilities of the NAN stack.
+     * capabilities of the Aware stack.
      */
     public void onCapabilitiesUpdateResponse(short transactionId,
-            WifiNanNative.Capabilities capabilities) {
+            WifiAwareNative.Capabilities capabilities) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
         msg.arg1 = RESPONSE_TYPE_ON_CAPABILITIES_UPDATED;
         msg.arg2 = transactionId;
@@ -763,11 +763,11 @@ public class WifiNanStateManager {
     }
 
     /**
-     * Place a callback request on the state machine queue: NAN is going down.
+     * Place a callback request on the state machine queue: Aware is going down.
      */
-    public void onNanDownNotification(int reason) {
+    public void onAwareDownNotification(int reason) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
-        msg.arg1 = NOTIFICATION_TYPE_NAN_DOWN;
+        msg.arg1 = NOTIFICATION_TYPE_AWARE_DOWN;
         msg.arg2 = reason;
         mSm.sendMessage(msg);
     }
@@ -838,7 +838,7 @@ public class WifiNanStateManager {
      * State machine.
      */
     @VisibleForTesting
-    class WifiNanStateMachine extends StateMachine {
+    class WifiAwareStateMachine extends StateMachine {
         private static final int TRANSACTION_ID_IGNORE = 0;
 
         private DefaultState mDefaultState = new DefaultState();
@@ -851,7 +851,7 @@ public class WifiNanStateManager {
         private Message mCurrentCommand;
         private short mCurrentTransactionId = TRANSACTION_ID_IGNORE;
 
-        private static final long NAN_SEND_MESSAGE_TIMEOUT = 10_000;
+        private static final long AWARE_SEND_MESSAGE_TIMEOUT = 10_000;
         private int mSendArrivalSequenceCounter = 0;
         private boolean mSendQueueBlocked = false;
         private final SparseArray<Message> mHostQueuedSendMessages = new SparseArray<>();
@@ -859,10 +859,10 @@ public class WifiNanStateManager {
         private WakeupMessage mSendMessageTimeoutMessage = new WakeupMessage(mContext, getHandler(),
                 HAL_SEND_MESSAGE_TIMEOUT_TAG, MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT);
 
-        private static final long NAN_WAIT_FOR_DP_CONFIRM_TIMEOUT = 5_000;
+        private static final long AWARE_WAIT_FOR_DP_CONFIRM_TIMEOUT = 5_000;
         private final Map<String, WakeupMessage> mDataPathConfirmTimeoutMessages = new ArrayMap<>();
 
-        WifiNanStateMachine(String name, Looper looper) {
+        WifiAwareStateMachine(String name, Looper looper) {
             super(name, looper);
 
             addState(mDefaultState);
@@ -872,7 +872,7 @@ public class WifiNanStateManager {
             setInitialState(mWaitState);
         }
 
-        public void onNanDownCleanupSendQueueState() {
+        public void onAwareDownCleanupSendQueueState() {
             mSendQueueBlocked = false;
             mHostQueuedSendMessages.clear();
             mFwQueuedSendMessages.clear();
@@ -946,14 +946,14 @@ public class WifiNanStateManager {
         }
 
         private class WaitForResponseState extends State {
-            private static final long NAN_COMMAND_TIMEOUT = 5_000;
+            private static final long AWARE_COMMAND_TIMEOUT = 5_000;
             private WakeupMessage mTimeoutMessage;
 
             @Override
             public void enter() {
                 mTimeoutMessage = new WakeupMessage(mContext, getHandler(), HAL_COMMAND_TIMEOUT_TAG,
                         MESSAGE_TYPE_RESPONSE_TIMEOUT, mCurrentCommand.arg1, mCurrentTransactionId);
-                mTimeoutMessage.schedule(SystemClock.elapsedRealtime() + NAN_COMMAND_TIMEOUT);
+                mTimeoutMessage.schedule(SystemClock.elapsedRealtime() + AWARE_COMMAND_TIMEOUT);
             }
 
             @Override
@@ -1055,16 +1055,16 @@ public class WifiNanStateManager {
                     onMessageReceivedLocal(pubSubId, requestorInstanceId, peerMac, message);
                     break;
                 }
-                case NOTIFICATION_TYPE_NAN_DOWN: {
+                case NOTIFICATION_TYPE_AWARE_DOWN: {
                     int reason = msg.arg2;
 
                     /*
                      * TODO: b/28615938. Use reason code to determine whether or not need clean-up
-                     * local state (only needed if NAN_DOWN is due to internal firmware reason, e.g.
-                     * concurrency, rather than due to a requested shutdown).
+                     * local state (only needed if AWARE_DOWN is due to internal firmware reason,
+                     * e.g. concurrency, rather than due to a requested shutdown).
                      */
 
-                    onNanDownLocal();
+                    onAwareDownLocal();
 
                     break;
                 }
@@ -1109,8 +1109,8 @@ public class WifiNanStateManager {
 
                         int retryCount = sentMessage.getData()
                                 .getInt(MESSAGE_BUNDLE_KEY_RETRY_COUNT);
-                        if (retryCount > 0 && (reason == WifiNanNative.NAN_STATUS_NO_OTA_ACK
-                                || reason == WifiNanNative.NAN_STATUS_TX_FAIL)) {
+                        if (retryCount > 0 && (reason == WifiAwareNative.AWARE_STATUS_NO_OTA_ACK
+                                || reason == WifiAwareNative.AWARE_STATUS_TX_FAIL)) {
                             if (DBG) {
                                 Log.d(TAG,
                                         "NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL: transactionId="
@@ -1143,7 +1143,7 @@ public class WifiNanStateManager {
                                 0, 0, networkSpecifier);
                         mDataPathConfirmTimeoutMessages.put(networkSpecifier, timeout);
                         timeout.schedule(
-                                SystemClock.elapsedRealtime() + NAN_WAIT_FOR_DP_CONFIRM_TIMEOUT);
+                                SystemClock.elapsedRealtime() + AWARE_WAIT_FOR_DP_CONFIRM_TIMEOUT);
                     }
 
                     break;
@@ -1201,7 +1201,7 @@ public class WifiNanStateManager {
             switch (msg.arg1) {
                 case COMMAND_TYPE_CONNECT: {
                     int clientId = msg.arg2;
-                    IWifiNanEventCallback callback = (IWifiNanEventCallback) msg.obj;
+                    IWifiAwareEventCallback callback = (IWifiAwareEventCallback) msg.obj;
                     ConfigRequest configRequest = (ConfigRequest) msg.getData()
                             .getParcelable(MESSAGE_BUNDLE_KEY_CONFIG);
                     int uid = msg.getData().getInt(MESSAGE_BUNDLE_KEY_UID);
@@ -1231,8 +1231,8 @@ public class WifiNanStateManager {
                 }
                 case COMMAND_TYPE_PUBLISH: {
                     int clientId = msg.arg2;
-                    IWifiNanDiscoverySessionCallback callback =
-                            (IWifiNanDiscoverySessionCallback) msg.obj;
+                    IWifiAwareDiscoverySessionCallback callback =
+                            (IWifiAwareDiscoverySessionCallback) msg.obj;
                     PublishConfig publishConfig = (PublishConfig) msg.getData()
                             .getParcelable(MESSAGE_BUNDLE_KEY_CONFIG);
 
@@ -1251,8 +1251,8 @@ public class WifiNanStateManager {
                 }
                 case COMMAND_TYPE_SUBSCRIBE: {
                     int clientId = msg.arg2;
-                    IWifiNanDiscoverySessionCallback callback =
-                            (IWifiNanDiscoverySessionCallback) msg.obj;
+                    IWifiAwareDiscoverySessionCallback callback =
+                            (IWifiAwareDiscoverySessionCallback) msg.obj;
                     SubscribeConfig subscribeConfig = (SubscribeConfig) msg.getData()
                             .getParcelable(MESSAGE_BUNDLE_KEY_CONFIG);
 
@@ -1341,7 +1341,7 @@ public class WifiNanStateManager {
                 }
                 case COMMAND_TYPE_GET_CAPABILITIES:
                     if (mCapabilities == null) {
-                        waitForResponse = WifiNanNative.getInstance().getCapabilities(
+                        waitForResponse = WifiAwareNative.getInstance().getCapabilities(
                                 mCurrentTransactionId);
                     } else {
                         if (VDBG) {
@@ -1360,11 +1360,11 @@ public class WifiNanStateManager {
                     waitForResponse = false;
                     break;
                 case COMMAND_TYPE_CREATE_DATA_PATH_INTERFACE:
-                    waitForResponse = WifiNanNative.getInstance().createNanNetworkInterface(
+                    waitForResponse = WifiAwareNative.getInstance().createAwareNetworkInterface(
                             mCurrentTransactionId, (String) msg.obj);
                     break;
                 case COMMAND_TYPE_DELETE_DATA_PATH_INTERFACE:
-                    waitForResponse = WifiNanNative.getInstance().deleteNanNetworkInterface(
+                    waitForResponse = WifiAwareNative.getInstance().deleteAwareNetworkInterface(
                             mCurrentTransactionId, (String) msg.obj);
                     break;
                 case COMMAND_TYPE_INITIATE_DATA_PATH_SETUP: {
@@ -1388,7 +1388,7 @@ public class WifiNanStateManager {
                                 0, 0, networkSpecifier);
                         mDataPathConfirmTimeoutMessages.put(networkSpecifier, timeout);
                         timeout.schedule(
-                                SystemClock.elapsedRealtime() + NAN_WAIT_FOR_DP_CONFIRM_TIMEOUT);
+                                SystemClock.elapsedRealtime() + AWARE_WAIT_FOR_DP_CONFIRM_TIMEOUT);
                     }
                     break;
                 }
@@ -1499,7 +1499,7 @@ public class WifiNanStateManager {
                     break;
                 }
                 case RESPONSE_TYPE_ON_CAPABILITIES_UPDATED: {
-                    onCapabilitiesUpdatedResponseLocal((WifiNanNative.Capabilities) msg.obj);
+                    onCapabilitiesUpdatedResponseLocal((WifiAwareNative.Capabilities) msg.obj);
                     break;
                 }
                 case RESPONSE_TYPE_ON_CREATE_INTERFACE:
@@ -1555,7 +1555,7 @@ public class WifiNanStateManager {
              */
             switch (msg.arg1) {
                 case COMMAND_TYPE_CONNECT: {
-                    onConfigFailedLocal(mCurrentCommand, WifiNanNative.NAN_STATUS_ERROR);
+                    onConfigFailedLocal(mCurrentCommand, WifiAwareNative.AWARE_STATUS_ERROR);
                     break;
                 }
                 case COMMAND_TYPE_DISCONNECT: {
@@ -1563,7 +1563,7 @@ public class WifiNanStateManager {
                      * Will only get here on DISCONNECT if was downgrading. The
                      * callback will do a NOP - but should still call it.
                      */
-                    onConfigFailedLocal(mCurrentCommand, WifiNanNative.NAN_STATUS_ERROR);
+                    onConfigFailedLocal(mCurrentCommand, WifiAwareNative.AWARE_STATUS_ERROR);
                     break;
                 }
                 case COMMAND_TYPE_TERMINATE_SESSION: {
@@ -1571,21 +1571,23 @@ public class WifiNanStateManager {
                     break;
                 }
                 case COMMAND_TYPE_PUBLISH: {
-                    onSessionConfigFailLocal(mCurrentCommand, true, WifiNanNative.NAN_STATUS_ERROR);
+                    onSessionConfigFailLocal(mCurrentCommand, true,
+                            WifiAwareNative.AWARE_STATUS_ERROR);
                     break;
                 }
                 case COMMAND_TYPE_UPDATE_PUBLISH: {
-                    onSessionConfigFailLocal(mCurrentCommand, true, WifiNanNative.NAN_STATUS_ERROR);
+                    onSessionConfigFailLocal(mCurrentCommand, true,
+                            WifiAwareNative.AWARE_STATUS_ERROR);
                     break;
                 }
                 case COMMAND_TYPE_SUBSCRIBE: {
                     onSessionConfigFailLocal(mCurrentCommand, false,
-                            WifiNanNative.NAN_STATUS_ERROR);
+                            WifiAwareNative.AWARE_STATUS_ERROR);
                     break;
                 }
                 case COMMAND_TYPE_UPDATE_SUBSCRIBE: {
                     onSessionConfigFailLocal(mCurrentCommand, false,
-                            WifiNanNative.NAN_STATUS_ERROR);
+                            WifiAwareNative.AWARE_STATUS_ERROR);
                     break;
                 }
                 case COMMAND_TYPE_ENQUEUE_SEND_MESSAGE: {
@@ -1595,7 +1597,7 @@ public class WifiNanStateManager {
                 case COMMAND_TYPE_TRANSMIT_NEXT_MESSAGE: {
                     Message sentMessage = mCurrentCommand.getData().getParcelable(
                             MESSAGE_BUNDLE_KEY_SENT_MESSAGE);
-                    onMessageSendFailLocal(sentMessage, WifiNanNative.NAN_STATUS_ERROR);
+                    onMessageSendFailLocal(sentMessage, WifiAwareNative.AWARE_STATUS_ERROR);
                     mSendQueueBlocked = false;
                     transmitNextMessage();
                     break;
@@ -1669,7 +1671,7 @@ public class WifiNanStateManager {
                 Message msg = it.next();
                 mSendMessageTimeoutMessage.schedule(
                         msg.getData().getLong(MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME)
-                        + NAN_SEND_MESSAGE_TIMEOUT);
+                        + AWARE_SEND_MESSAGE_TIMEOUT);
             } else {
                 mSendMessageTimeoutMessage.cancel();
             }
@@ -1697,14 +1699,14 @@ public class WifiNanStateManager {
                 Message message = entry.getValue();
                 long messageEnqueueTime = message.getData().getLong(
                         MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME);
-                if (first || messageEnqueueTime + NAN_SEND_MESSAGE_TIMEOUT <= currentTime) {
+                if (first || messageEnqueueTime + AWARE_SEND_MESSAGE_TIMEOUT <= currentTime) {
                     if (VDBG) {
                         Log.v(TAG, "processSendMessageTimeout: expiring - transactionId="
                                 + transactionId + ", message=" + message
                                 + ", due to messageEnqueueTime=" + messageEnqueueTime
                                 + ", currentTime=" + currentTime);
                     }
-                    onMessageSendFailLocal(message, WifiNanNative.NAN_STATUS_ERROR);
+                    onMessageSendFailLocal(message, WifiAwareNative.AWARE_STATUS_ERROR);
                     it.remove();
                     first = false;
                 } else {
@@ -1718,7 +1720,7 @@ public class WifiNanStateManager {
 
         @Override
         protected String getLogRecString(Message msg) {
-            StringBuilder sb = new StringBuilder(WifiNanStateManager.messageToString(msg));
+            StringBuilder sb = new StringBuilder(WifiAwareStateManager.messageToString(msg));
 
             if (msg.what == MESSAGE_TYPE_COMMAND
                     && mCurrentTransactionId != TRANSACTION_ID_IGNORE) {
@@ -1730,7 +1732,7 @@ public class WifiNanStateManager {
 
         @Override
         public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-            pw.println("WifiNanStateMachine:");
+            pw.println("WifiAwareStateMachine:");
             pw.println("  mNextTransactionId: " + mNextTransactionId);
             pw.println("  mNextSessionId: " + mNextSessionId);
             pw.println("  mCurrentCommand: " + mCurrentCommand);
@@ -1743,11 +1745,11 @@ public class WifiNanStateManager {
         }
     }
 
-    private void sendNanStateChangedBroadcast(boolean enabled) {
+    private void sendAwareStateChangedBroadcast(boolean enabled) {
         if (VDBG) {
-            Log.v(TAG, "sendNanStateChangedBroadcast: enabled=" + enabled);
+            Log.v(TAG, "sendAwareStateChangedBroadcast: enabled=" + enabled);
         }
-        final Intent intent = new Intent(WifiNanManager.ACTION_WIFI_NAN_STATE_CHANGED);
+        final Intent intent = new Intent(WifiAwareManager.ACTION_WIFI_AWARE_STATE_CHANGED);
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY);
         mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
     }
@@ -1757,7 +1759,7 @@ public class WifiNanStateManager {
      */
 
     private boolean connectLocal(short transactionId, int clientId, int uid, int pid,
-            String callingPackage, IWifiNanEventCallback callback, ConfigRequest configRequest,
+            String callingPackage, IWifiAwareEventCallback callback, ConfigRequest configRequest,
             boolean notifyIdentityChange) {
         if (VDBG) {
             Log.v(TAG, "connectLocal(): transactionId=" + transactionId + ", clientId=" + clientId
@@ -1775,10 +1777,10 @@ public class WifiNanStateManager {
             Log.e(TAG, "connectLocal: entry already exists for clientId=" + clientId);
         }
 
-        if (mCurrentNanConfiguration != null
-                && !mCurrentNanConfiguration.equals(configRequest)) {
+        if (mCurrentAwareConfiguration != null
+                && !mCurrentAwareConfiguration.equals(configRequest)) {
             try {
-                callback.onConnectFail(WifiNanNative.NAN_STATUS_ERROR);
+                callback.onConnectFail(WifiAwareNative.AWARE_STATUS_ERROR);
             } catch (RemoteException e) {
                 Log.w(TAG, "connectLocal onConnectFail(): RemoteException (FYI): " + e);
             }
@@ -1786,21 +1788,21 @@ public class WifiNanStateManager {
         }
 
         ConfigRequest merged = mergeConfigRequests(configRequest);
-        if (mCurrentNanConfiguration != null && mCurrentNanConfiguration.equals(merged)) {
+        if (mCurrentAwareConfiguration != null && mCurrentAwareConfiguration.equals(merged)) {
             try {
                 callback.onConnectSuccess(clientId);
             } catch (RemoteException e) {
                 Log.w(TAG, "connectLocal onConnectSuccess(): RemoteException (FYI): " + e);
             }
-            WifiNanClientState client = new WifiNanClientState(mContext, clientId, uid, pid,
+            WifiAwareClientState client = new WifiAwareClientState(mContext, clientId, uid, pid,
                     callingPackage, callback, configRequest, notifyIdentityChange);
             client.onInterfaceAddressChange(mCurrentDiscoveryInterfaceMac);
             mClients.append(clientId, client);
             return false;
         }
 
-        return WifiNanNative.getInstance().enableAndConfigure(transactionId, merged,
-                mCurrentNanConfiguration == null);
+        return WifiAwareNative.getInstance().enableAndConfigure(transactionId, merged,
+                mCurrentAwareConfiguration == null);
     }
 
     private boolean disconnectLocal(short transactionId, int clientId) {
@@ -1809,7 +1811,7 @@ public class WifiNanStateManager {
                     "disconnectLocal(): transactionId=" + transactionId + ", clientId=" + clientId);
         }
 
-        WifiNanClientState client = mClients.get(clientId);
+        WifiAwareClientState client = mClients.get(clientId);
         if (client == null) {
             Log.e(TAG, "disconnectLocal: no entry for clientId=" + clientId);
             return false;
@@ -1818,17 +1820,17 @@ public class WifiNanStateManager {
         client.destroy();
 
         if (mClients.size() == 0) {
-            mCurrentNanConfiguration = null;
-            WifiNanNative.getInstance().disable((short) 0);
+            mCurrentAwareConfiguration = null;
+            WifiAwareNative.getInstance().disable((short) 0);
             return false;
         }
 
         ConfigRequest merged = mergeConfigRequests(null);
-        if (merged.equals(mCurrentNanConfiguration)) {
+        if (merged.equals(mCurrentAwareConfiguration)) {
             return false;
         }
 
-        return WifiNanNative.getInstance().enableAndConfigure(transactionId, merged, false);
+        return WifiAwareNative.getInstance().enableAndConfigure(transactionId, merged, false);
     }
 
     private void terminateSessionLocal(int clientId, int sessionId) {
@@ -1837,7 +1839,7 @@ public class WifiNanStateManager {
                     "terminateSessionLocal(): clientId=" + clientId + ", sessionId=" + sessionId);
         }
 
-        WifiNanClientState client = mClients.get(clientId);
+        WifiAwareClientState client = mClients.get(clientId);
         if (client == null) {
             Log.e(TAG, "terminateSession: no client exists for clientId=" + clientId);
             return;
@@ -1847,19 +1849,19 @@ public class WifiNanStateManager {
     }
 
     private boolean publishLocal(short transactionId, int clientId, PublishConfig publishConfig,
-            IWifiNanDiscoverySessionCallback callback) {
+            IWifiAwareDiscoverySessionCallback callback) {
         if (VDBG) {
             Log.v(TAG, "publishLocal(): transactionId=" + transactionId + ", clientId=" + clientId
                     + ", publishConfig=" + publishConfig + ", callback=" + callback);
         }
 
-        WifiNanClientState client = mClients.get(clientId);
+        WifiAwareClientState client = mClients.get(clientId);
         if (client == null) {
             Log.e(TAG, "publishLocal: no client exists for clientId=" + clientId);
             return false;
         }
 
-        return WifiNanNative.getInstance().publish(transactionId, 0, publishConfig);
+        return WifiAwareNative.getInstance().publish(transactionId, 0, publishConfig);
     }
 
     private boolean updatePublishLocal(short transactionId, int clientId, int sessionId,
@@ -1869,13 +1871,13 @@ public class WifiNanStateManager {
                     + clientId + ", sessionId=" + sessionId + ", publishConfig=" + publishConfig);
         }
 
-        WifiNanClientState client = mClients.get(clientId);
+        WifiAwareClientState client = mClients.get(clientId);
         if (client == null) {
             Log.e(TAG, "updatePublishLocal: no client exists for clientId=" + clientId);
             return false;
         }
 
-        WifiNanDiscoverySessionState session = client.getSession(sessionId);
+        WifiAwareDiscoverySessionState session = client.getSession(sessionId);
         if (session == null) {
             Log.e(TAG, "updatePublishLocal: no session exists for clientId=" + clientId
                     + ", sessionId=" + sessionId);
@@ -1886,19 +1888,19 @@ public class WifiNanStateManager {
     }
 
     private boolean subscribeLocal(short transactionId, int clientId,
-            SubscribeConfig subscribeConfig, IWifiNanDiscoverySessionCallback callback) {
+            SubscribeConfig subscribeConfig, IWifiAwareDiscoverySessionCallback callback) {
         if (VDBG) {
             Log.v(TAG, "subscribeLocal(): transactionId=" + transactionId + ", clientId=" + clientId
                     + ", subscribeConfig=" + subscribeConfig + ", callback=" + callback);
         }
 
-        WifiNanClientState client = mClients.get(clientId);
+        WifiAwareClientState client = mClients.get(clientId);
         if (client == null) {
             Log.e(TAG, "subscribeLocal: no client exists for clientId=" + clientId);
             return false;
         }
 
-        return WifiNanNative.getInstance().subscribe(transactionId, 0, subscribeConfig);
+        return WifiAwareNative.getInstance().subscribe(transactionId, 0, subscribeConfig);
     }
 
     private boolean updateSubscribeLocal(short transactionId, int clientId, int sessionId,
@@ -1910,13 +1912,13 @@ public class WifiNanStateManager {
                             + subscribeConfig);
         }
 
-        WifiNanClientState client = mClients.get(clientId);
+        WifiAwareClientState client = mClients.get(clientId);
         if (client == null) {
             Log.e(TAG, "updateSubscribeLocal: no client exists for clientId=" + clientId);
             return false;
         }
 
-        WifiNanDiscoverySessionState session = client.getSession(sessionId);
+        WifiAwareDiscoverySessionState session = client.getSession(sessionId);
         if (session == null) {
             Log.e(TAG, "updateSubscribeLocal: no session exists for clientId=" + clientId
                     + ", sessionId=" + sessionId);
@@ -1935,13 +1937,13 @@ public class WifiNanStateManager {
                             + ", messageId=" + messageId);
         }
 
-        WifiNanClientState client = mClients.get(clientId);
+        WifiAwareClientState client = mClients.get(clientId);
         if (client == null) {
             Log.e(TAG, "sendFollowonMessageLocal: no client exists for clientId=" + clientId);
             return false;
         }
 
-        WifiNanDiscoverySessionState session = client.getSession(sessionId);
+        WifiAwareDiscoverySessionState session = client.getSession(sessionId);
         if (session == null) {
             Log.e(TAG, "sendFollowonMessageLocal: no session exists for clientId=" + clientId
                     + ", sessionId=" + sessionId);
@@ -1958,12 +1960,12 @@ public class WifiNanStateManager {
             return;
         }
 
-        WifiNanNative.getInstance().deInitNan(); // force a re-init of NAN HAL
+        WifiAwareNative.getInstance().deInitAware(); // force a re-init of Aware HAL
 
         mUsageEnabled = true;
         queryCapabilities();
         createAllDataPathInterfaces();
-        sendNanStateChangedBroadcast(true);
+        sendAwareStateChangedBroadcast(true);
     }
 
     private void disableUsageLocal() {
@@ -1973,14 +1975,14 @@ public class WifiNanStateManager {
             return;
         }
 
-        onNanDownLocal();
+        onAwareDownLocal();
         deleteAllDataPathInterfaces();
 
         mUsageEnabled = false;
-        WifiNanNative.getInstance().disable((short) 0);
-        WifiNanNative.getInstance().deInitNan();
+        WifiAwareNative.getInstance().disable((short) 0);
+        WifiAwareNative.getInstance().deInitAware();
 
-        sendNanStateChangedBroadcast(false);
+        sendAwareStateChangedBroadcast(false);
     }
 
     private void startRangingLocal(int clientId, int sessionId, RttManager.RttParams[] params,
@@ -1990,13 +1992,13 @@ public class WifiNanStateManager {
                     + ", parms=" + Arrays.toString(params) + ", rangingId=" + rangingId);
         }
 
-        WifiNanClientState client = mClients.get(clientId);
+        WifiAwareClientState client = mClients.get(clientId);
         if (client == null) {
             Log.e(TAG, "startRangingLocal: no client exists for clientId=" + clientId);
             return;
         }
 
-        WifiNanDiscoverySessionState session = client.getSession(sessionId);
+        WifiAwareDiscoverySessionState session = client.getSession(sessionId);
         if (session == null) {
             Log.e(TAG, "startRangingLocal: no session exists for clientId=" + clientId
                     + ", sessionId=" + sessionId);
@@ -2033,7 +2035,7 @@ public class WifiNanStateManager {
                             + ", interfaceName=" + interfaceName + ", token=" + token);
         }
 
-        return WifiNanNative.getInstance().initiateDataPath(transactionId, peerId,
+        return WifiAwareNative.getInstance().initiateDataPath(transactionId, peerId,
                 channelRequestType, channel, peer, interfaceName, token);
     }
 
@@ -2048,7 +2050,7 @@ public class WifiNanStateManager {
 
         byte[] tokenBytes = token.getBytes();
 
-        return WifiNanNative.getInstance().respondToDataPathRequest(transactionId, accept, ndpId,
+        return WifiAwareNative.getInstance().respondToDataPathRequest(transactionId, accept, ndpId,
                 interfaceName, tokenBytes);
     }
 
@@ -2058,7 +2060,7 @@ public class WifiNanStateManager {
                     "endDataPathLocal: transactionId=" + transactionId + ", ndpId=" + ndpId);
         }
 
-        return WifiNanNative.getInstance().endDataPath(transactionId, ndpId);
+        return WifiAwareNative.getInstance().endDataPath(transactionId, ndpId);
     }
 
     /*
@@ -2074,7 +2076,7 @@ public class WifiNanStateManager {
             Bundle data = completedCommand.getData();
 
             int clientId = completedCommand.arg2;
-            IWifiNanEventCallback callback = (IWifiNanEventCallback) completedCommand.obj;
+            IWifiAwareEventCallback callback = (IWifiAwareEventCallback) completedCommand.obj;
             ConfigRequest configRequest = (ConfigRequest) data
                     .getParcelable(MESSAGE_BUNDLE_KEY_CONFIG);
             int uid = data.getInt(MESSAGE_BUNDLE_KEY_UID);
@@ -2083,7 +2085,7 @@ public class WifiNanStateManager {
                     MESSAGE_BUNDLE_KEY_NOTIFY_IDENTITY_CHANGE);
             String callingPackage = data.getString(MESSAGE_BUNDLE_KEY_CALLING_PACKAGE);
 
-            WifiNanClientState client = new WifiNanClientState(mContext, clientId, uid, pid,
+            WifiAwareClientState client = new WifiAwareClientState(mContext, clientId, uid, pid,
                     callingPackage, callback, configRequest, notifyIdentityChange);
             mClients.put(clientId, client);
             try {
@@ -2102,7 +2104,7 @@ public class WifiNanStateManager {
             return;
         }
 
-        mCurrentNanConfiguration = mergeConfigRequests(null);
+        mCurrentAwareConfiguration = mergeConfigRequests(null);
     }
 
     private void onConfigFailedLocal(Message failedCommand, int reason) {
@@ -2112,7 +2114,7 @@ public class WifiNanStateManager {
         }
 
         if (failedCommand.arg1 == COMMAND_TYPE_CONNECT) {
-            IWifiNanEventCallback callback = (IWifiNanEventCallback) failedCommand.obj;
+            IWifiAwareEventCallback callback = (IWifiAwareEventCallback) failedCommand.obj;
 
             try {
                 callback.onConnectFail(reason);
@@ -2142,10 +2144,10 @@ public class WifiNanStateManager {
         if (completedCommand.arg1 == COMMAND_TYPE_PUBLISH
                 || completedCommand.arg1 == COMMAND_TYPE_SUBSCRIBE) {
             int clientId = completedCommand.arg2;
-            IWifiNanDiscoverySessionCallback callback =
-                    (IWifiNanDiscoverySessionCallback) completedCommand.obj;
+            IWifiAwareDiscoverySessionCallback callback =
+                    (IWifiAwareDiscoverySessionCallback) completedCommand.obj;
 
-            WifiNanClientState client = mClients.get(clientId);
+            WifiAwareClientState client = mClients.get(clientId);
             if (client == null) {
                 Log.e(TAG,
                         "onSessionConfigSuccessLocal: no client exists for clientId=" + clientId);
@@ -2160,7 +2162,7 @@ public class WifiNanStateManager {
                 return;
             }
 
-            WifiNanDiscoverySessionState session = new WifiNanDiscoverySessionState(sessionId,
+            WifiAwareDiscoverySessionState session = new WifiAwareDiscoverySessionState(sessionId,
                     pubSubId, callback, isPublish);
             client.addSession(session);
         } else if (completedCommand.arg1 == COMMAND_TYPE_UPDATE_PUBLISH
@@ -2168,14 +2170,14 @@ public class WifiNanStateManager {
             int clientId = completedCommand.arg2;
             int sessionId = completedCommand.getData().getInt(MESSAGE_BUNDLE_KEY_SESSION_ID);
 
-            WifiNanClientState client = mClients.get(clientId);
+            WifiAwareClientState client = mClients.get(clientId);
             if (client == null) {
                 Log.e(TAG,
                         "onSessionConfigSuccessLocal: no client exists for clientId=" + clientId);
                 return;
             }
 
-            WifiNanDiscoverySessionState session = client.getSession(sessionId);
+            WifiAwareDiscoverySessionState session = client.getSession(sessionId);
             if (session == null) {
                 Log.e(TAG, "onSessionConfigSuccessLocal: no session exists for clientId=" + clientId
                         + ", sessionId=" + sessionId);
@@ -2202,8 +2204,8 @@ public class WifiNanStateManager {
 
         if (failedCommand.arg1 == COMMAND_TYPE_PUBLISH
                 || failedCommand.arg1 == COMMAND_TYPE_SUBSCRIBE) {
-            IWifiNanDiscoverySessionCallback callback =
-                    (IWifiNanDiscoverySessionCallback) failedCommand.obj;
+            IWifiAwareDiscoverySessionCallback callback =
+                    (IWifiAwareDiscoverySessionCallback) failedCommand.obj;
             try {
                 callback.onSessionConfigFail(reason);
             } catch (RemoteException e) {
@@ -2215,13 +2217,13 @@ public class WifiNanStateManager {
             int clientId = failedCommand.arg2;
             int sessionId = failedCommand.getData().getInt(MESSAGE_BUNDLE_KEY_SESSION_ID);
 
-            WifiNanClientState client = mClients.get(clientId);
+            WifiAwareClientState client = mClients.get(clientId);
             if (client == null) {
                 Log.e(TAG, "onSessionConfigFailLocal: no client exists for clientId=" + clientId);
                 return;
             }
 
-            WifiNanDiscoverySessionState session = client.getSession(sessionId);
+            WifiAwareDiscoverySessionState session = client.getSession(sessionId);
             if (session == null) {
                 Log.e(TAG, "onSessionConfigFailLocal: no session exists for clientId=" + clientId
                         + ", sessionId=" + sessionId);
@@ -2247,13 +2249,13 @@ public class WifiNanStateManager {
         int sessionId = completedCommand.getData().getInt(MESSAGE_BUNDLE_KEY_SESSION_ID);
         int messageId = completedCommand.getData().getInt(MESSAGE_BUNDLE_KEY_MESSAGE_ID);
 
-        WifiNanClientState client = mClients.get(clientId);
+        WifiAwareClientState client = mClients.get(clientId);
         if (client == null) {
             Log.e(TAG, "onMessageSendSuccessLocal: no client exists for clientId=" + clientId);
             return;
         }
 
-        WifiNanDiscoverySessionState session = client.getSession(sessionId);
+        WifiAwareDiscoverySessionState session = client.getSession(sessionId);
         if (session == null) {
             Log.e(TAG, "onMessageSendSuccessLocal: no session exists for clientId=" + clientId
                     + ", sessionId=" + sessionId);
@@ -2276,13 +2278,13 @@ public class WifiNanStateManager {
         int sessionId = failedCommand.getData().getInt(MESSAGE_BUNDLE_KEY_SESSION_ID);
         int messageId = failedCommand.getData().getInt(MESSAGE_BUNDLE_KEY_MESSAGE_ID);
 
-        WifiNanClientState client = mClients.get(clientId);
+        WifiAwareClientState client = mClients.get(clientId);
         if (client == null) {
             Log.e(TAG, "onMessageSendFailLocal: no client exists for clientId=" + clientId);
             return;
         }
 
-        WifiNanDiscoverySessionState session = client.getSession(sessionId);
+        WifiAwareDiscoverySessionState session = client.getSession(sessionId);
         if (session == null) {
             Log.e(TAG, "onMessageSendFailLocal: no session exists for clientId=" + clientId
                     + ", sessionId=" + sessionId);
@@ -2296,7 +2298,7 @@ public class WifiNanStateManager {
         }
     }
 
-    private void onCapabilitiesUpdatedResponseLocal(WifiNanNative.Capabilities capabilities) {
+    private void onCapabilitiesUpdatedResponseLocal(WifiAwareNative.Capabilities capabilities) {
         if (VDBG) {
             Log.v(TAG, "onCapabilitiesUpdatedResponseLocal: capabilites=" + capabilities);
         }
@@ -2396,7 +2398,7 @@ public class WifiNanStateManager {
         mCurrentDiscoveryInterfaceMac = mac;
 
         for (int i = 0; i < mClients.size(); ++i) {
-            WifiNanClientState client = mClients.valueAt(i);
+            WifiAwareClientState client = mClients.valueAt(i);
             client.onInterfaceAddressChange(mac);
         }
     }
@@ -2408,7 +2410,7 @@ public class WifiNanStateManager {
         }
 
         for (int i = 0; i < mClients.size(); ++i) {
-            WifiNanClientState client = mClients.valueAt(i);
+            WifiAwareClientState client = mClients.valueAt(i);
             client.onClusterChange(flag, clusterId, mCurrentDiscoveryInterfaceMac);
         }
     }
@@ -2423,8 +2425,8 @@ public class WifiNanStateManager {
                             + ", matchFilter=" + Arrays.toString(matchFilter));
         }
 
-        Pair<WifiNanClientState, WifiNanDiscoverySessionState> data = getClientSessionForPubSubId(
-                pubSubId);
+        Pair<WifiAwareClientState, WifiAwareDiscoverySessionState> data =
+                getClientSessionForPubSubId(pubSubId);
         if (data == null) {
             Log.e(TAG, "onMatch: no session found for pubSubId=" + pubSubId);
             return;
@@ -2439,8 +2441,8 @@ public class WifiNanStateManager {
                     + ", reason=" + reason);
         }
 
-        Pair<WifiNanClientState, WifiNanDiscoverySessionState> data = getClientSessionForPubSubId(
-                pubSubId);
+        Pair<WifiAwareClientState, WifiAwareDiscoverySessionState> data =
+                getClientSessionForPubSubId(pubSubId);
         if (data == null) {
             Log.e(TAG, "onSessionTerminatedLocal: no session found for pubSubId=" + pubSubId);
             return;
@@ -2464,8 +2466,8 @@ public class WifiNanStateManager {
                             + String.valueOf(HexEncoding.encode(peerMac)));
         }
 
-        Pair<WifiNanClientState, WifiNanDiscoverySessionState> data = getClientSessionForPubSubId(
-                pubSubId);
+        Pair<WifiAwareClientState, WifiAwareDiscoverySessionState> data =
+                getClientSessionForPubSubId(pubSubId);
         if (data == null) {
             Log.e(TAG, "onMessageReceivedLocal: no session found for pubSubId=" + pubSubId);
             return;
@@ -2474,15 +2476,15 @@ public class WifiNanStateManager {
         data.second.onMessageReceived(requestorInstanceId, peerMac, message);
     }
 
-    private void onNanDownLocal() {
+    private void onAwareDownLocal() {
         if (VDBG) {
-            Log.v(TAG, "onNanDown");
+            Log.v(TAG, "onAwareDown");
         }
 
         mClients.clear();
-        mCurrentNanConfiguration = null;
-        mSm.onNanDownCleanupSendQueueState();
-        mDataPathMgr.onNanDownCleanupDataPaths();
+        mCurrentAwareConfiguration = null;
+        mSm.onAwareDownCleanupSendQueueState();
+        mDataPathMgr.onAwareDownCleanupDataPaths();
         mCurrentDiscoveryInterfaceMac = ALL_ZERO_MAC;
     }
 
@@ -2490,11 +2492,12 @@ public class WifiNanStateManager {
      * Utilities
      */
 
-    private Pair<WifiNanClientState, WifiNanDiscoverySessionState> getClientSessionForPubSubId(
+    private Pair<WifiAwareClientState, WifiAwareDiscoverySessionState> getClientSessionForPubSubId(
             int pubSubId) {
         for (int i = 0; i < mClients.size(); ++i) {
-            WifiNanClientState client = mClients.valueAt(i);
-            WifiNanDiscoverySessionState session = client.getNanSessionStateForPubSubId(pubSubId);
+            WifiAwareClientState client = mClients.valueAt(i);
+            WifiAwareDiscoverySessionState session = client.getAwareSessionStateForPubSubId(
+                    pubSubId);
             if (session != null) {
                 return new Pair<>(client, session);
             }
@@ -2586,11 +2589,11 @@ public class WifiNanStateManager {
      * Dump the internal state of the class.
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("NanStateManager:");
+        pw.println("AwareStateManager:");
         pw.println("  mClients: [" + mClients + "]");
         pw.println("  mUsageEnabled: " + mUsageEnabled);
         pw.println("  mCapabilities: [" + mCapabilities + "]");
-        pw.println("  mCurrentNanConfiguration: " + mCurrentNanConfiguration);
+        pw.println("  mCurrentAwareConfiguration: " + mCurrentAwareConfiguration);
         for (int i = 0; i < mClients.size(); ++i) {
             mClients.valueAt(i).dump(fd, pw, args);
         }
