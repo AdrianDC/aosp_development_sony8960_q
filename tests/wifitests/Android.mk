@@ -34,9 +34,9 @@ LOCAL_C_INCLUDES += \
 LOCAL_SRC_FILES := \
 	jni/wifi_hal_mock.cpp
 
-ifeq ($(BOARD_HAS_NAN), true)
+ifeq ($(BOARD_HAS_AWARE), true)
 LOCAL_SRC_FILES += \
-	jni/wifi_nan_hal_mock.cpp
+	jni/wifi_aware_hal_mock.cpp
 endif
 
 LOCAL_MODULE := libwifi-hal-mock
@@ -62,9 +62,9 @@ LOCAL_MODULE_TAGS := tests
 
 LOCAL_SRC_FILES := $(call all-subdir-java-files)
 
-ifneq ($(BOARD_HAS_NAN), true)
+ifneq ($(BOARD_HAS_AWARE), true)
 LOCAL_SRC_FILES := $(filter-out $(call all-java-files-under, \
-          src/com/android/server/wifi/nan),$(LOCAL_SRC_FILES))
+          src/com/android/server/wifi/aware),$(LOCAL_SRC_FILES))
 endif
 
 # Provide jack a list of classes to exclude form code coverage
