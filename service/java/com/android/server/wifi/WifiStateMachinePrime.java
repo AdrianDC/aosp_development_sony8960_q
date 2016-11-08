@@ -41,12 +41,14 @@ public class WifiStateMachinePrime {
         public static final int CMD_START_CLIENT_MODE    = 0;
         public static final int CMD_START_SCAN_ONLY_MODE = 1;
         public static final int CMD_START_SOFT_AP_MODE   = 2;
+        public static final int CMD_DISABLE_WIFI         = 3;
 
 
         // Create the base modes for WSM.
         private final State mClientModeState = new ClientModeState();
         private final State mScanOnlyModeState = new ScanOnlyModeState();
         private final State mSoftAPModeState = new SoftAPModeState();
+        private final State mWifiDisabledState = new WifiDisabledState();
 
         // Create the active versions of the modes for WSM.
         private final State mClientModeActiveState = new ClientModeActiveState();
@@ -63,6 +65,7 @@ public class WifiStateMachinePrime {
               addState(mScanOnlyModeActiveState, mScanOnlyModeState);
             addState(mSoftAPModeState);
               addState(mSoftAPModeActiveState, mSoftAPModeState);
+            addState(mWifiDisabledState);
             // CHECKSTYLE:ON IndentationCheck
         }
 
@@ -113,6 +116,19 @@ public class WifiStateMachinePrime {
             @Override
             public void exit() {
             }
+        }
+
+        class WifiDisabledState extends State {
+            @Override
+            public void enter() {
+                // make sure everything is torn down
+            }
+
+            @Override
+            public boolean processMessage(Message message) {
+                return NOT_HANDLED;
+            }
+
         }
 
         class ModeActiveState extends State {
