@@ -55,9 +55,9 @@ import com.android.internal.util.StateMachine;
 import com.android.server.wifi.Clock;
 import com.android.server.wifi.WifiInjector;
 import com.android.server.wifi.WifiMetrics;
-import com.android.server.wifi.WifiMetricsProto;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.WifiStateMachine;
+import com.android.server.wifi.nano.WifiMetricsProto;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
 
 import java.io.FileDescriptor;
