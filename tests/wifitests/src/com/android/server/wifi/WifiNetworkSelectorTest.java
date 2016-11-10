@@ -487,4 +487,37 @@ public class WifiNetworkSelectorTest {
         WifiNetworkSelectorTestUtil.verifySelectedScanResult(mWifiConfigManager,
                 chosenScanResult, candidate);
     }
+
+    /**
+     * No network selection if the currently connected on is already sufficient.
+     *
+     * WifiStateMachine is disconnected.
+     * scanDetails contains a network which is blacklisted.
+     *
+     * Expected behavior: no network recommended by Network Selector
+     */
+    @Test
+    public void filterOutBlacklistedBssid() {
+        String[] ssids = {"\"test1\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3"};
+        int[] freqs = {5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]"};
+        int[] levels = {mThresholdQualifiedRssi5G + 8};
+        int[] securities = {SECURITY_PSK};
+
+        ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
+                WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
+                    freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
+
+        // Disable this network for BSSID_BLACKLIST_THRESHOLD times so it gets
+        // blacklisted by WNS.
+        for (int i = 0; i < WifiNetworkSelector.BSSID_BLACKLIST_THRESHOLD; i++) {
+            mWifiNetworkSelector.enableBssidForNetworkSelection(bssids[0], false);
+        }
+
+        WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
+                mWifiInfo, false, true, false);
+        assertEquals("Expect null configuration", null, candidate);
+    }
 }
