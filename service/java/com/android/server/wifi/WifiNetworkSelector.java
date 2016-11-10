@@ -253,12 +253,14 @@ public class WifiNetworkSelector {
         return (network.SSID + ":" + network.networkId);
     }
 
-    private List<ScanDetail> filterScanResults(List<ScanDetail> scanDetails) {
+    private List<ScanDetail> filterScanResults(List<ScanDetail> scanDetails, boolean isConnected,
+                    String currentBssid) {
         ArrayList<NetworkKey> unscoredNetworks = new ArrayList<NetworkKey>();
         List<ScanDetail> validScanDetails = new ArrayList<ScanDetail>();
         StringBuffer noValidSsid = new StringBuffer();
         StringBuffer blacklistedBssid = new StringBuffer();
         StringBuffer lowRssi = new StringBuffer();
+        boolean scanResultsHaveCurrentBssid = false;
 
         for (ScanDetail scanDetail : scanDetails) {
             ScanResult scanResult = scanDetail.getScanResult();
@@ -266,6 +268,11 @@ public class WifiNetworkSelector {
             if (TextUtils.isEmpty(scanResult.SSID)) {
                 noValidSsid.append(scanResult.BSSID).append(" / ");
                 continue;
+            }
+
+            // Check if the scan results contain the currently connected BSSID
+            if (scanResult.BSSID.equals(currentBssid)) {
+                scanResultsHaveCurrentBssid = true;
             }
 
             final String scanId = toScanId(scanResult);
@@ -287,6 +294,17 @@ public class WifiNetworkSelector {
             }
 
             validScanDetails.add(scanDetail);
+        }
+
+        // WNS listens to all single scan results. Some scan requests may not include
+        // the channel of the currently connected network, so the currently connected
+        // network won't show up in the scan results. We don't act on these scan results
+        // to avoid aggressive network switching which might trigger disconnection.
+        if (isConnected && !scanResultsHaveCurrentBssid) {
+            localLog("Current connected BSSID " + currentBssid + " is not in the scan results."
+                    + " Skip network selection.");
+            validScanDetails.clear();
+            return validScanDetails;
         }
 
         if (noValidSsid.length() != 0) {
@@ -473,7 +491,8 @@ public class WifiNetworkSelector {
         updateBssidBlacklist();
 
         // Filter out unwanted networks.
-        List<ScanDetail> filteredScanDetails = filterScanResults(scanDetails);
+        List<ScanDetail> filteredScanDetails = filterScanResults(scanDetails, connected,
+                currentBssid);
         if (filteredScanDetails.size() == 0) {
             return null;
         }
