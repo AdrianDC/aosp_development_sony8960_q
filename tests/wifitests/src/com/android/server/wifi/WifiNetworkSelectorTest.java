@@ -489,7 +489,7 @@ public class WifiNetworkSelectorTest {
     }
 
     /**
-     * No network selection if the currently connected on is already sufficient.
+     * Blacklisted BSSID is filtered out for network selection.
      *
      * WifiStateMachine is disconnected.
      * scanDetails contains a network which is blacklisted.
@@ -518,6 +518,56 @@ public class WifiNetworkSelectorTest {
 
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
                 mWifiInfo, false, true, false);
+        assertEquals("Expect null configuration", null, candidate);
+    }
+
+    /**
+     * Wifi network selector doesn't recommend any network if the currently connected one
+     * doesn't show up in the scan results.
+     *
+     * WifiStateMachine is under connected state and 2.4GHz test1 is connected.
+     * The second scan results contains only test2 which now has a stronger RSSI than test1.
+     * Test1 is not in the second scan results.
+     *
+     * Expected behavior: no network recommended by Network Selector
+     */
+    @Test
+    public void noSelectionWhenCurrentNetworkNotInScanResults() {
+        String[] ssids = {"\"test1\"", "\"test2\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] freqs = {2437, 2457};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
+        int[] levels = {mThresholdMinimumRssi2G + 20, mThresholdMinimumRssi2G + 1};
+        int[] securities = {SECURITY_PSK, SECURITY_PSK};
+
+        // Make a network selection to connect to test1.
+        ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
+                WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
+                    freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
+        WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
+                mWifiInfo, false, true, false);
+
+        when(mWifiInfo.getNetworkId()).thenReturn(0);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
+        when(mWifiInfo.is24GHz()).thenReturn(true);
+        when(mWifiInfo.is5GHz()).thenReturn(false);
+        when(mWifiInfo.getRssi()).thenReturn(levels[0]);
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime()
+                + WifiNetworkSelector.MINIMUM_NETWORK_SELECTION_INTERVAL_MS + 2000);
+
+        // Prepare the second scan results which have no test1.
+        String[] ssidsNew = {"\"test2\""};
+        String[] bssidsNew = {"6c:f3:7f:ae:8c:f4"};
+        int[] freqsNew = {2457};
+        String[] capsNew = {"[WPA2-EAP-CCMP][ESS]"};
+        int[] levelsNew = {mThresholdMinimumRssi2G + 40};
+        scanDetails = WifiNetworkSelectorTestUtil.buildScanDetails(ssidsNew, bssidsNew,
+                freqsNew, capsNew, levelsNew, mClock);
+        candidate = mWifiNetworkSelector.selectNetwork(scanDetails, mWifiInfo, true, false, false);
+
+        // The second network selection is skipped since current connected network is
+        // missing from the scan results.
         assertEquals("Expect null configuration", null, candidate);
     }
 }
