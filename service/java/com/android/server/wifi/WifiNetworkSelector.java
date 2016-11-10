@@ -483,7 +483,7 @@ public class WifiNetworkSelector {
         WifiConfiguration selectedNetwork = null;
         for (NetworkEvaluator registeredEvaluator : mEvaluators) {
             if (registeredEvaluator != null) {
-                selectedNetwork = registeredEvaluator.evaluateNetworks(scanDetails,
+                selectedNetwork = registeredEvaluator.evaluateNetworks(filteredScanDetails,
                             currentNetwork, currentBssid, connected,
                             untrustedNetworkAllowed, mConnectableNetworks);
                 if (selectedNetwork != null) {
