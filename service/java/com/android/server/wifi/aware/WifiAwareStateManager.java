@@ -1109,8 +1109,7 @@ public class WifiAwareStateManager {
 
                         int retryCount = sentMessage.getData()
                                 .getInt(MESSAGE_BUNDLE_KEY_RETRY_COUNT);
-                        if (retryCount > 0 && (reason == WifiAwareNative.AWARE_STATUS_NO_OTA_ACK
-                                || reason == WifiAwareNative.AWARE_STATUS_TX_FAIL)) {
+                        if (retryCount > 0 && reason == WifiAwareNative.AWARE_STATUS_NO_OTA_ACK) {
                             if (DBG) {
                                 Log.d(TAG,
                                         "NOTIFICATION_TYPE_ON_MESSAGE_SEND_FAIL: transactionId="

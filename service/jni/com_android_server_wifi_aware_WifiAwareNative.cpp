@@ -46,21 +46,22 @@ extern wifi_hal_fn hal_fn;
 
 static void OnNanNotifyResponse(transaction_id id, NanResponseMsg* msg) {
   ALOGD(
-      "OnNanNotifyResponse: transaction_id=%d, status=%d, value=%d, response_type=%d",
-      id, msg->status, msg->value, msg->response_type);
+      "OnNanNotifyResponse: transaction_id=%d, status=%d, nan_error=%s, response_type=%d",
+      id, msg->status, msg->nan_error, msg->response_type);
 
   JNIHelper helper(mVM);
+  JNIObject<jstring> nan_error = helper.newStringUTF(msg->nan_error);
   switch (msg->response_type) {
     case NAN_RESPONSE_PUBLISH:
       helper.reportEvent(mCls, "onAwareNotifyResponsePublishSubscribe",
-                         "(SIIII)V", (short) id, (int) msg->response_type,
-                         (int) msg->status, (int) msg->value,
+                         "(SIILjava/lang/String;I)V", (short) id, (int) msg->response_type,
+                         (int) msg->status, nan_error.get(),
                          msg->body.publish_response.publish_id);
       break;
     case NAN_RESPONSE_SUBSCRIBE:
       helper.reportEvent(mCls, "onAwareNotifyResponsePublishSubscribe",
-                         "(SIIII)V", (short) id, (int) msg->response_type,
-                         (int) msg->status, (int) msg->value,
+                         "(SIILjava/lang/String;I)V", (short) id, (int) msg->response_type,
+                         (int) msg->status, nan_error.get(),
                          msg->body.subscribe_response.subscribe_id);
       break;
     case NAN_GET_CAPABILITIES: {
@@ -104,19 +105,19 @@ static void OnNanNotifyResponse(transaction_id id, NanResponseMsg* msg) {
 
       helper.reportEvent(
           mCls, "onAwareNotifyResponseCapabilities",
-          "(SIILcom/android/server/wifi/aware/WifiAwareNative$Capabilities;)V",
-          (short) id, (int) msg->status, (int) msg->value, data.get());
+          "(SILjava/lang/String;Lcom/android/server/wifi/aware/WifiAwareNative$Capabilities;)V",
+          (short) id, (int) msg->status, nan_error.get(), data.get());
       break;
     }
     case NAN_DP_INITIATOR_RESPONSE:
-      helper.reportEvent(mCls, "onAwareNotifyResponseDataPathInitiate", "(SIII)V", (short) id,
-                         (int) msg->status, (int) msg->value,
+      helper.reportEvent(mCls, "onAwareNotifyResponseDataPathInitiate", "(SILjava/lang/String;I)V",
+                         (short) id, (int) msg->status, nan_error.get(),
                          msg->body.data_request_response.ndp_instance_id);
       break;
     default:
-      helper.reportEvent(mCls, "onAwareNotifyResponse", "(SIII)V", (short) id,
+      helper.reportEvent(mCls, "onAwareNotifyResponse", "(SIILjava/lang/String;)V", (short) id,
                          (int) msg->response_type, (int) msg->status,
-                         (int) msg->value);
+                         nan_error.get());
       break;
   }
 }
