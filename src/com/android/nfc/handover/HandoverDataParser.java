@@ -423,6 +423,15 @@ public class HandoverDataParser {
                 int type = payload.get();
                 switch (type) {
                     case BT_HANDOVER_TYPE_MAC: // mac address
+
+                        int startpos = payload.position();
+                        byte[] bdaddr = new byte[7]; // 6 bytes for mac, 1 for addres type
+                        payload.get(bdaddr);
+                        if (result.oobData == null)
+                            result.oobData = new OobData();
+                        result.oobData.setLeBluetoothDeviceAddress(bdaddr);
+                        payload.position(startpos);
+
                         byte[] address = parseMacFromBluetoothRecord(payload);
                         payload.position(payload.position() + 1); // advance over random byte
                         result.device = mBluetoothAdapter.getRemoteDevice(address);
