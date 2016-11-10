@@ -24,6 +24,8 @@ import android.content.pm.UserInfo;
 import android.os.UserManager;
 import android.provider.Settings;
 
+import com.android.server.wifi.WifiInjector;
+import com.android.server.wifi.WifiLog;
 import com.android.server.wifi.WifiSettingsStore;
 
 import java.util.List;
@@ -39,6 +41,7 @@ public class WifiPermissionsUtil {
     private final AppOpsManager mAppOps;
     private final UserManager mUserManager;
     private final WifiSettingsStore mSettingsStore;
+    private WifiLog mLog;
 
     public WifiPermissionsUtil(WifiPermissionsWrapper wifiPermissionsWrapper,
               Context context, WifiSettingsStore settingsStore, UserManager userManager) {
@@ -47,6 +50,7 @@ public class WifiPermissionsUtil {
         mUserManager = userManager;
         mAppOps = (AppOpsManager) mContext.getSystemService(Context.APP_OPS_SERVICE);
         mSettingsStore = settingsStore;
+        mLog = WifiInjector.getInstance().makeLog(TAG);
     }
 
     /**
@@ -74,15 +78,18 @@ public class WifiPermissionsUtil {
         // If neither caller or app has location access, there is no need to check
         // any other permissions. Deny access to scan results.
         if (!canCallingUidAccessLocation && !canAppPackageUseLocation) {
+            mLog.tC("Denied: no location permission");
             return false;
         }
         // Check if Wifi Scan request is an operation allowed for this App.
         if (!isScanAllowedbyApps(pkgName, uid)) {
+            mLog.tC("Denied: app wifi scan not allowed");
             return false;
         }
         // If the User or profile is current, permission is granted
         // Otherwise, uid must have INTERACT_ACROSS_USERS_FULL permission.
         if (!isCurrentProfile(uid) && !checkInteractAcrossUsersFull(uid)) {
+            mLog.tC("Denied: Profile not permitted");
             return false;
         }
         return true;
