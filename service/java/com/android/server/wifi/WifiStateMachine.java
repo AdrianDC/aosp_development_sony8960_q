@@ -1430,7 +1430,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             long mRxPkts = mFacade.getRxPackets(mInterfaceName);
             mWifiInfo.updatePacketRates(mTxPkts, mRxPkts);
         } else {
-            mWifiInfo.updatePacketRates(stats);
+            mWifiInfo.updatePacketRates(stats, lastLinkLayerStatsUpdate);
         }
         return stats;
     }
