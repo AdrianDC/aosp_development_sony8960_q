@@ -650,7 +650,7 @@ public class WifiConnectivityManager {
 
         Set<Integer> freqs =
                 mConfigManager.fetchChannelSetForNetworkForPartialScan(
-                        config.networkId, CHANNEL_LIST_AGE_MS);
+                        config.networkId, CHANNEL_LIST_AGE_MS, mWifiInfo.getFrequency());
 
         if (freqs != null && freqs.size() != 0) {
             int index = 0;
