@@ -253,6 +253,12 @@ public class WifiConfigManager {
      */
     private int mCurrentUserId = UserHandle.USER_SYSTEM;
     /**
+     * Flag to indicate that the new user's store has not yet been read since user switch.
+     * Initialize this flag to |true| to trigger a read on the first user unlock after
+     * bootup.
+     */
+    private boolean mPendingUnlockStoreRead = true;
+    /**
      * This is keeping track of the next network ID to be assigned. Any new networks will be
      * assigned |mNextNetworkId| as network ID.
      */
@@ -2282,10 +2288,14 @@ public class WifiConfigManager {
      * @param userId The identifier of the new foreground user, after the switch.
      */
     private void loadFromStoreAndMigrateAfterUserSwitch(int userId) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Loading from store after user switch/unlock for " + userId);
+        }
         // Switch out the user store file.
         mWifiConfigStore.switchUserStore(mWifiConfigStore.createUserFile(userId));
         if (loadFromStore()) {
             saveToStore(true);
+            mPendingUnlockStoreRead = false;
         }
     }
 
@@ -2302,6 +2312,9 @@ public class WifiConfigManager {
      * @param userId The identifier of the new foreground user, after the switch.
      */
     public void handleUserSwitch(int userId) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Handling user switch for " + userId);
+        }
         if (userId == mCurrentUserId) {
             Log.w(TAG, "User already in foreground " + userId);
             return;
@@ -2318,6 +2331,7 @@ public class WifiConfigManager {
         } else {
             // Since the new user is not logged-in yet, we cannot read data from the store files
             // yet.
+            mPendingUnlockStoreRead = true;
             Log.i(TAG, "Waiting for user unlock to load from store");
         }
     }
@@ -2331,7 +2345,10 @@ public class WifiConfigManager {
      * @param userId The identifier of the user that unlocked.
      */
     public void handleUserUnlock(int userId) {
-        if (userId == mCurrentUserId) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Handling user unlock for " + userId);
+        }
+        if (userId == mCurrentUserId && mPendingUnlockStoreRead) {
             loadFromStoreAndMigrateAfterUserSwitch(mCurrentUserId);
         }
     }
