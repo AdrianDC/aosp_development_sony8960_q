@@ -929,16 +929,6 @@ public class WifiNative {
         }
     }
 
-    /** Example output:
-     * RSSI=-65
-     * LINKSPEED=48
-     * NOISE=9999
-     * FREQUENCY=0
-     */
-    public String signalPoll() {
-        return doStringCommandWithoutLogging("SIGNAL_POLL");
-    }
-
     public boolean startWpsPbc(String bssid) {
         if (TextUtils.isEmpty(bssid)) {
             return doBooleanCommand("WPS_PBC");
