@@ -1764,6 +1764,50 @@ public class WifiConfigManagerTest {
     }
 
     /**
+     * Verifies the foreground user unlock via {@link WifiConfigManager#handleUserUnlock(int)}
+     * results in a store read after bootup.
+     */
+    @Test
+    public void testHandleUserUnlockAfterBootup() throws Exception {
+        int user1 = TEST_DEFAULT_USER;
+
+        when(mWifiConfigStore.read()).thenReturn(
+                new WifiConfigStoreData(
+                        new ArrayList<WifiConfiguration>(), new ArrayList<WifiConfiguration>(),
+                        new HashSet<String>()));
+
+        // Unlock the user1 (default user) for the first time and ensure that we read the data.
+        mWifiConfigManager.handleUserUnlock(user1);
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore).read();
+    }
+
+    /**
+     * Verifies the foreground user unlock via {@link WifiConfigManager#handleUserUnlock(int)} does
+     * not always result in a store read unless the user had switched or just booted up.
+     */
+    @Test
+    public void testHandleUserUnlockWithoutSwitchOrBootup() throws Exception {
+        int user1 = TEST_DEFAULT_USER;
+        int user2 = TEST_DEFAULT_USER + 1;
+        setupUserProfiles(user2);
+
+        when(mWifiConfigStore.read()).thenReturn(
+                new WifiConfigStoreData(
+                        new ArrayList<WifiConfiguration>(), new ArrayList<WifiConfiguration>(),
+                        new HashSet<String>()));
+
+        // user2 is unlocked and switched to foreground.
+        when(mUserManager.isUserUnlockingOrUnlocked(user2)).thenReturn(true);
+        mWifiConfigManager.handleUserSwitch(user2);
+        // Ensure that the read was invoked.
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore).read();
+
+        // Unlock the user2 again and ensure that we don't read the data now.
+        mWifiConfigManager.handleUserUnlock(user2);
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never()).read();
+    }
+
+    /**
      * Verifies the private network addition using
      * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)}
      * by a non foreground user is rejected.
