@@ -240,8 +240,13 @@ public class WifiConfigStore {
      */
     private void writeBufferedData() throws IOException {
         stopBufferedWriteAlarm();
+
+        long writeStartTime = mClock.getElapsedSinceBootMillis();
         mSharedStore.writeBufferedRawData();
         mUserStore.writeBufferedRawData();
+        long writeTime = mClock.getElapsedSinceBootMillis() - writeStartTime;
+
+        Log.d(TAG, "Writing to stores completed in " + writeTime + " ms.");
     }
 
     /**
@@ -252,8 +257,12 @@ public class WifiConfigStore {
      * @return storeData The entire data retrieved across all the config store files.
      */
     public WifiConfigStoreData read() throws XmlPullParserException, IOException {
+        long readStartTime = mClock.getElapsedSinceBootMillis();
         byte[] sharedDataBytes = mSharedStore.readRawData();
         byte[] userDataBytes = mUserStore.readRawData();
+        long readTime = mClock.getElapsedSinceBootMillis() - readStartTime;
+
+        Log.d(TAG, "Reading from stores completed in " + readTime + " ms.");
 
         return WifiConfigStoreData.parseRawData(sharedDataBytes, userDataBytes);
     }
