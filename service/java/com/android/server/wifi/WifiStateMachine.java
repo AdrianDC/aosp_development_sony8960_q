@@ -2881,33 +2881,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         int[] poll_result = null;
         try {
             poll_result = mClientInterface.signalPoll();
-            if (poll_result == null || poll_result.length != 2) {
+            if (poll_result == null || poll_result.length != 3) {
                 return;
             }
         } catch (RemoteException e1) { }
 
         newRssi = poll_result[0];
         newLinkSpeed = poll_result[1];
-
-        // Ideally we shoudn't rely on signal polls to update frequency: b/31595463.
-        // TODO(nywang): When wificond finally takes over the scanning
-        // function, we should cache the frequency of asscociated ap from scan results.
-        String signalPoll = mWifiNative.signalPoll();
-
-        if (signalPoll != null) {
-            String[] lines = signalPoll.split("\n");
-            for (String line : lines) {
-                String[] prop = line.split("=");
-                if (prop.length < 2) continue;
-                try {
-                    if (prop[0].equals("FREQUENCY")) {
-                        newFrequency = Integer.parseInt(prop[1]);
-                    }
-                } catch (NumberFormatException e) {
-                    //Ignore, defaults on rssi and linkspeed are assigned
-                }
-            }
-        }
+        newFrequency = poll_result[2];
 
         if (mVerboseLoggingEnabled) {
             logd("fetchRssiLinkSpeedAndFrequencyNative rssi=" + newRssi +
