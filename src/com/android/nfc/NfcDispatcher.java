@@ -26,7 +26,6 @@ import com.android.nfc.handover.PeripheralHandoverService;
 
 import android.app.Activity;
 import android.app.ActivityManager;
-import android.app.ActivityManagerNative;
 import android.app.IActivityManager;
 import android.app.PendingIntent;
 import android.app.PendingIntent.CanceledException;
@@ -89,7 +88,7 @@ class NfcDispatcher {
                   HandoverDataParser handoverDataParser,
                   boolean provisionOnly) {
         mContext = context;
-        mIActivityManager = ActivityManagerNative.getDefault();
+        mIActivityManager = ActivityManager.getService();
         mTechListFilters = new RegisteredComponentCache(mContext,
                 NfcAdapter.ACTION_TECH_DISCOVERED, NfcAdapter.ACTION_TECH_DISCOVERED);
         mContentResolver = context.getContentResolver();
