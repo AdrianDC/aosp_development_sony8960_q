@@ -976,8 +976,10 @@ public class WifiConfigManager {
                 result.isNewNetwork()
                         ? WifiManager.CHANGE_REASON_ADDED
                         : WifiManager.CHANGE_REASON_CONFIG_CHANGE);
-        // External modification, persist it immediately.
-        saveToStore(true);
+        // Unless the added network is ephemeral, persist the network update/addition.
+        if (!config.ephemeral) {
+            saveToStore(true);
+        }
         return result;
     }
 
@@ -1038,8 +1040,10 @@ public class WifiConfigManager {
             clearLastSelectedNetwork();
         }
         sendConfiguredNetworkChangedBroadcast(config, WifiManager.CHANGE_REASON_REMOVED);
-        // External modification, persist it immediately.
-        saveToStore(true);
+        // Unless the removed network is ephemeral, persist the network removal.
+        if (!config.ephemeral) {
+            saveToStore(true);
+        }
         return true;
     }
 
@@ -2415,8 +2419,7 @@ public class WifiConfigManager {
             if (!saveToStore(true)) {
                 return false;
             }
-            // TODO: Remove the legacy store files
-            // mWifiConfigStoreLegacy.removeStores();
+            mWifiConfigStoreLegacy.removeStores();
             Log.d(TAG, "Migration from legacy store completed");
         }
         return true;
