@@ -1911,6 +1911,7 @@ public class WifiConfigManagerTest {
 
         verify(mWifiConfigStore, never()).read();
         verify(mWifiConfigStoreLegacy).read();
+        verify(mWifiConfigStoreLegacy).removeStores();
 
         List<WifiConfiguration> retrievedNetworks =
                 mWifiConfigManager.getConfiguredNetworksWithPasswords();

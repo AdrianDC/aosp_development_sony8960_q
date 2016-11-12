@@ -2419,8 +2419,7 @@ public class WifiConfigManager {
             if (!saveToStore(true)) {
                 return false;
             }
-            // TODO: Remove the legacy store files
-            // mWifiConfigStoreLegacy.removeStores();
+            mWifiConfigStoreLegacy.removeStores();
             Log.d(TAG, "Migration from legacy store completed");
         }
         return true;
