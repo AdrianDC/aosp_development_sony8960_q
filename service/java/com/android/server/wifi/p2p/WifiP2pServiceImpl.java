@@ -84,6 +84,7 @@ import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.WifiStateMachine;
 import com.android.server.wifi.util.WifiAsyncChannel;
 import com.android.server.wifi.util.WifiPermissionsUtil;
+import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -117,6 +118,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
     private P2pStateMachine mP2pStateMachine;
     private AsyncChannel mReplyChannel = new WifiAsyncChannel(TAG);
     private AsyncChannel mWifiChannel;
+    private WifiInjector mWifiInjector;
 
     private static final Boolean JOIN_GROUP = true;
     private static final Boolean FORM_GROUP = false;
@@ -496,7 +498,26 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
     @Override
     public void setMiracastMode(int mode) {
         enforceConnectivityInternalPermission();
+        checkConfigureWifiDisplayPermission();
         mP2pStateMachine.sendMessage(SET_MIRACAST_MODE, mode);
+    }
+
+    @Override
+    public void checkConfigureWifiDisplayPermission() {
+        if (!getWfdPermission(Binder.getCallingUid())) {
+            throw new SecurityException("Wifi Display Permission denied for uid = "
+                    + Binder.getCallingUid());
+        }
+    }
+
+    private boolean getWfdPermission(int uid) {
+        if (mWifiInjector == null) {
+            mWifiInjector = WifiInjector.getInstance();
+        }
+        WifiPermissionsWrapper wifiPermissionsWrapper = mWifiInjector.getWifiPermissionsWrapper();
+        return wifiPermissionsWrapper.getUidPermission(
+                android.Manifest.permission.CONFIGURE_WIFI_DISPLAY, uid)
+                != PackageManager.PERMISSION_DENIED;
     }
 
     @Override
@@ -780,8 +801,13 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             WifiP2pManager.BUSY);
                     break;
                 case WifiP2pManager.SET_WFD_INFO:
-                    replyToMessage(message, WifiP2pManager.SET_WFD_INFO_FAILED,
-                            WifiP2pManager.BUSY);
+                    if (!getWfdPermission(message.sendingUid)) {
+                        replyToMessage(message, WifiP2pManager.SET_WFD_INFO_FAILED,
+                                WifiP2pManager.ERROR);
+                    } else {
+                        replyToMessage(message, WifiP2pManager.SET_WFD_INFO_FAILED,
+                                WifiP2pManager.BUSY);
+                    }
                     break;
                 case WifiP2pManager.REQUEST_PEERS:
                     replyToMessage(message, WifiP2pManager.RESPONSE_PEERS,
@@ -940,8 +966,13 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             WifiP2pManager.P2P_UNSUPPORTED);
                     break;
                 case WifiP2pManager.SET_WFD_INFO:
-                    replyToMessage(message, WifiP2pManager.SET_WFD_INFO_FAILED,
-                            WifiP2pManager.P2P_UNSUPPORTED);
+                    if (!getWfdPermission(message.sendingUid)) {
+                        replyToMessage(message, WifiP2pManager.SET_WFD_INFO_FAILED,
+                                WifiP2pManager.ERROR);
+                    } else {
+                        replyToMessage(message, WifiP2pManager.SET_WFD_INFO_FAILED,
+                                WifiP2pManager.P2P_UNSUPPORTED);
+                    }
                     break;
                 case WifiP2pManager.START_WPS:
                     replyToMessage(message, WifiP2pManager.START_WPS_FAILED,
@@ -1103,7 +1134,10 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                 case WifiP2pManager.SET_WFD_INFO:
                 {
                     WifiP2pWfdInfo d = (WifiP2pWfdInfo) message.obj;
-                    if (d != null && setWfdInfo(d)) {
+                    if (!getWfdPermission(message.sendingUid)) {
+                        replyToMessage(message, WifiP2pManager.SET_WFD_INFO_FAILED,
+                                WifiP2pManager.ERROR);
+                    } else if (d != null && setWfdInfo(d)) {
                         replyToMessage(message, WifiP2pManager.SET_WFD_INFO_SUCCEEDED);
                     } else {
                         replyToMessage(message, WifiP2pManager.SET_WFD_INFO_FAILED,
