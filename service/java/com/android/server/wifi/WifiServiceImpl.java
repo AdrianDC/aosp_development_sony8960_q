@@ -165,6 +165,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     private WifiPermissionsUtil mWifiPermissionsUtil;
 
+    private final boolean mPermissionReviewRequired;
+
     /**
      * Handles client connections
      */
@@ -345,6 +347,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 || context.getResources().getBoolean(
                 com.android.internal.R.bool.config_permissionReviewRequired);
         mWifiPermissionsUtil = mWifiInjector.getWifiPermissionsUtil();
+
+        mPermissionReviewRequired = Build.PERMISSIONS_REVIEW_REQUIRED
+                || context.getResources().getBoolean(
+                com.android.internal.R.bool.config_permissionReviewRequired);
+
         enableVerboseLoggingInternal(getVerboseLoggingLevel());
     }
 
