@@ -489,7 +489,6 @@ extern "C" void Java_com_android_server_wifi_aware_WifiAwareHalMock_callNotifyRe
 
   NanResponseMsg msg;
   msg.status = (NanStatusType) jsonR.get_int("status", &error);
-  msg.value = jsonR.get_int("value", &error);
   msg.response_type = (NanResponseType) jsonR.get_int("response_type", &error);
   if (msg.response_type == NAN_RESPONSE_PUBLISH) {
     msg.body.publish_response.publish_id = jsonR.get_int(
