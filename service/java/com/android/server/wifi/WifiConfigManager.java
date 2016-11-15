@@ -2066,10 +2066,12 @@ public class WifiConfigManager {
      *
      * @param networkId   network ID corresponding to the network.
      * @param ageInMillis only consider scan details whose timestamps are earlier than this value.
+     * @param homeChannelFreq frequency of the currently connected network.
      * @return Set containing the frequencies on which this network was found, null if the network
      * was not found or there are no associated scan details in the cache.
      */
-    public Set<Integer> fetchChannelSetForNetworkForPartialScan(int networkId, long ageInMillis) {
+    public Set<Integer> fetchChannelSetForNetworkForPartialScan(int networkId, long ageInMillis,
+                int homeChannelFreq) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
             return null;
@@ -2096,16 +2098,25 @@ public class WifiConfigManager {
             Log.v(TAG, dbg.toString());
         }
         Set<Integer> channelSet = new HashSet<>();
+
+        // First add the currently connected network channel.
+        if (homeChannelFreq > 0) {
+            channelSet.add(homeChannelFreq);
+            if (channelSet.size() >= mMaxNumActiveChannelsForPartialScans) {
+                return channelSet;
+            }
+        }
+
         long nowInMillis = mClock.getWallClockMillis();
 
-        // First get channels for the network.
+        // Then get channels for the network.
         if (!addToChannelSetForNetworkFromScanDetailCache(
                 channelSet, scanDetailCache, nowInMillis, ageInMillis,
                 mMaxNumActiveChannelsForPartialScans)) {
             return channelSet;
         }
 
-        // Now get channels for linked networks.
+        // Lastly get channels for linked networks.
         if (config.linkedConfigurations != null) {
             for (String configKey : config.linkedConfigurations.keySet()) {
                 WifiConfiguration linkedConfig = getInternalConfiguredNetwork(configKey);
