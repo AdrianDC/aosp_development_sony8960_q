@@ -5492,7 +5492,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
         Set<Integer> freqs =
                 mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(
-                        config.networkId, ONE_HOUR_MILLI);
+                        config.networkId, ONE_HOUR_MILLI, mWifiInfo.getFrequency());
         if (freqs != null && freqs.size() != 0) {
             //if (mVerboseLoggingEnabled) {
             logd("starting scan for " + config.configKey() + " with " + freqs);
