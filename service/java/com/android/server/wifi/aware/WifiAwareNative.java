@@ -635,122 +635,29 @@ public class WifiAwareNative {
     public static final int AWARE_STATUS_ERROR = -1;
 
     // direct copy from wifi_nan.h: need to keep in sync
-    /* Aware Protocol Response Codes */
+    /* Aware HAL Status Codes */
     public static final int AWARE_STATUS_SUCCESS = 0;
-    public static final int AWARE_STATUS_TIMEOUT = 1;
-    public static final int AWARE_STATUS_DE_FAILURE = 2;
-    public static final int AWARE_STATUS_INVALID_MSG_VERSION = 3;
-    public static final int AWARE_STATUS_INVALID_MSG_LEN = 4;
-    public static final int AWARE_STATUS_INVALID_MSG_ID = 5;
-    public static final int AWARE_STATUS_INVALID_HANDLE = 6;
-    public static final int AWARE_STATUS_NO_SPACE_AVAILABLE = 7;
-    public static final int AWARE_STATUS_INVALID_PUBLISH_TYPE = 8;
-    public static final int AWARE_STATUS_INVALID_TX_TYPE = 9;
-    public static final int AWARE_STATUS_INVALID_MATCH_ALGORITHM = 10;
-    public static final int AWARE_STATUS_DISABLE_IN_PROGRESS = 11;
-    public static final int AWARE_STATUS_INVALID_TLV_LEN = 12;
-    public static final int AWARE_STATUS_INVALID_TLV_TYPE = 13;
-    public static final int AWARE_STATUS_MISSING_TLV_TYPE = 14;
-    public static final int AWARE_STATUS_INVALID_TOTAL_TLVS_LEN = 15;
-    public static final int AWARE_STATUS_INVALID_MATCH_HANDLE = 16;
-    public static final int AWARE_STATUS_INVALID_TLV_VALUE = 17;
-    public static final int AWARE_STATUS_INVALID_TX_PRIORITY = 18;
-    public static final int AWARE_STATUS_INVALID_CONNECTION_MAP = 19;
-    public static final int AWARE_STATUS_INVALID_TCA_ID = 20;
-    public static final int AWARE_STATUS_INVALID_STATS_ID = 21;
-    public static final int AWARE_STATUS_AWARE_NOT_ALLOWED = 22;
-    public static final int AWARE_STATUS_NO_OTA_ACK = 23;
-    public static final int AWARE_STATUS_TX_FAIL = 24;
-    public static final int AWARE_STATUS_ALREADY_ENABLED = 25;
-
-    /* Aware Configuration Response codes */
-    public static final int AWARE_STATUS_INVALID_RSSI_CLOSE_VALUE = 4096;
-    public static final int AWARE_STATUS_INVALID_RSSI_MIDDLE_VALUE = 4097;
-    public static final int AWARE_STATUS_INVALID_HOP_COUNT_LIMIT = 4098;
-    public static final int AWARE_STATUS_INVALID_MASTER_PREFERENCE_VALUE = 4099;
-    public static final int AWARE_STATUS_INVALID_LOW_CLUSTER_ID_VALUE = 4100;
-    public static final int AWARE_STATUS_INVALID_HIGH_CLUSTER_ID_VALUE = 4101;
-    public static final int AWARE_STATUS_INVALID_BACKGROUND_SCAN_PERIOD = 4102;
-    public static final int AWARE_STATUS_INVALID_RSSI_PROXIMITY_VALUE = 4103;
-    public static final int AWARE_STATUS_INVALID_SCAN_CHANNEL = 4104;
-    public static final int AWARE_STATUS_INVALID_POST_AWARE_CONNECTIVITY_CAPABILITIES_BITMAP = 4105;
-    public static final int AWARE_STATUS_INVALID_FA_MAP_NUMCHAN_VALUE = 4106;
-    public static final int AWARE_STATUS_INVALID_FA_MAP_DURATION_VALUE = 4107;
-    public static final int AWARE_STATUS_INVALID_FA_MAP_CLASS_VALUE = 4108;
-    public static final int AWARE_STATUS_INVALID_FA_MAP_CHANNEL_VALUE = 4109;
-    public static final int AWARE_STATUS_INVALID_FA_MAP_AVAILABILITY_INTERVAL_BITMAP_VALUE = 4110;
-    public static final int AWARE_STATUS_INVALID_FA_MAP_MAP_ID = 4111;
-    public static final int AWARE_STATUS_INVALID_POST_AWARE_DISCOVERY_CONN_TYPE_VALUE = 4112;
-    public static final int AWARE_STATUS_INVALID_POST_AWARE_DISCOVERY_DEVICE_ROLE_VALUE = 4113;
-    public static final int AWARE_STATUS_INVALID_POST_AWARE_DISCOVERY_DURATION_VALUE = 4114;
-    public static final int AWARE_STATUS_INVALID_POST_AWARE_DISCOVERY_BITMAP_VALUE = 4115;
-    public static final int AWARE_STATUS_MISSING_FUTHER_AVAILABILITY_MAP = 4116;
-    public static final int AWARE_STATUS_INVALID_BAND_CONFIG_FLAGS = 4117;
-    public static final int AWARE_STATUS_INVALID_RANDOM_FACTOR_UPDATE_TIME_VALUE = 4118;
-    public static final int AWARE_STATUS_INVALID_ONGOING_SCAN_PERIOD = 4119;
-    public static final int AWARE_STATUS_INVALID_DW_INTERVAL_VALUE = 4120;
-    public static final int AWARE_STATUS_INVALID_DB_INTERVAL_VALUE = 4121;
-
-    /* publish/subscribe termination reasons */
-    public static final int AWARE_TERMINATED_REASON_INVALID = 8192;
-    public static final int AWARE_TERMINATED_REASON_TIMEOUT = 8193;
-    public static final int AWARE_TERMINATED_REASON_USER_REQUEST = 8194;
-    public static final int AWARE_TERMINATED_REASON_FAILURE = 8195;
-    public static final int AWARE_TERMINATED_REASON_COUNT_REACHED = 8196;
-    public static final int AWARE_TERMINATED_REASON_DE_SHUTDOWN = 8197;
-    public static final int AWARE_TERMINATED_REASON_DISABLE_IN_PROGRESS = 8198;
-    public static final int AWARE_TERMINATED_REASON_POST_DISC_ATTR_EXPIRED = 8199;
-    public static final int AWARE_TERMINATED_REASON_POST_DISC_LEN_EXCEEDED = 8200;
-    public static final int AWARE_TERMINATED_REASON_FURTHER_AVAIL_MAP_EMPTY = 8201;
-
-    /* 9000-9500 NDP Status type */
-    public static final int AWARE_STATUS_NDP_UNSUPPORTED_CONCURRENCY = 9000;
-    public static final int AWARE_STATUS_NDP_AWARE_DATA_IFACE_CREATE_FAILED = 9001;
-    public static final int AWARE_STATUS_NDP_AWARE_DATA_IFACE_DELETE_FAILED = 9002;
-    public static final int AWARE_STATUS_NDP_DATA_INITIATOR_REQUEST_FAILED = 9003;
-    public static final int AWARE_STATUS_NDP_DATA_RESPONDER_REQUEST_FAILED = 9004;
-    public static final int AWARE_STATUS_NDP_INVALID_SERVICE_INSTANCE_ID = 9005;
-    public static final int AWARE_STATUS_NDP_INVALID_NDP_INSTANCE_ID = 9006;
-    public static final int AWARE_STATUS_NDP_INVALID_RESPONSE_CODE = 9007;
-    public static final int AWARE_STATUS_NDP_INVALID_APP_INFO_LEN = 9008;
-
-    /* OTA failures and timeouts during negotiation */
-    public static final int AWARE_STATUS_NDP_MGMT_FRAME_REQUEST_FAILED = 9009;
-    public static final int AWARE_STATUS_NDP_MGMT_FRAME_RESPONSE_FAILED = 9010;
-    public static final int AWARE_STATUS_NDP_MGMT_FRAME_CONFIRM_FAILED = 9011;
-    public static final int AWARE_STATUS_NDP_END_FAILED = 9012;
-    public static final int AWARE_STATUS_NDP_MGMT_FRAME_END_REQUEST_FAILED = 9013;
-
-    /* 9500 onwards vendor specific error codes */
-    public static final int AWARE_STATUS_NDP_VENDOR_SPECIFIC_ERROR = 9500;
-
-    private static int translateHalStatusToAwareSessionCallbackTerminate(int halStatus) {
-        switch (halStatus) {
-            case AWARE_TERMINATED_REASON_TIMEOUT:
-            case AWARE_TERMINATED_REASON_USER_REQUEST:
-            case AWARE_TERMINATED_REASON_COUNT_REACHED:
-                return WifiAwareDiscoverySessionCallback.TERMINATE_REASON_DONE;
-
-            case AWARE_TERMINATED_REASON_INVALID:
-            case AWARE_TERMINATED_REASON_FAILURE:
-            case AWARE_TERMINATED_REASON_DE_SHUTDOWN:
-            case AWARE_TERMINATED_REASON_DISABLE_IN_PROGRESS:
-            case AWARE_TERMINATED_REASON_POST_DISC_ATTR_EXPIRED:
-            case AWARE_TERMINATED_REASON_POST_DISC_LEN_EXCEEDED:
-            case AWARE_TERMINATED_REASON_FURTHER_AVAIL_MAP_EMPTY:
-                return WifiAwareDiscoverySessionCallback.TERMINATE_REASON_FAIL;
-        }
-
-        return WifiAwareDiscoverySessionCallback.TERMINATE_REASON_FAIL;
-    }
+    public static final int AWARE_STATUS_INTERNAL_FAILURE = 1;
+    public static final int AWARE_STATUS_PROTOCOL_FAILURE = 2;
+    public static final int AWARE_STATUS_INVALID_PUBLISH_SUBSCRIBE_ID = 3;
+    public static final int AWARE_STATUS_NO_RESOURCE_AVAILABLE = 4;
+    public static final int AWARE_STATUS_INVALID_PARAM = 5;
+    public static final int AWARE_STATUS_INVALID_REQUESTOR_INSTANCE_ID = 6;
+    public static final int AWARE_STATUS_INVALID_SERVICE_INSTANCE_ID = 7;
+    public static final int AWARE_STATUS_INVALID_NDP_ID = 8;
+    public static final int AWARE_STATUS_NAN_NOT_ALLOWED = 9;
+    public static final int AWARE_STATUS_NO_OTA_ACK = 10;
+    public static final int AWARE_STATUS_ALREADY_ENABLED = 11;
+    public static final int AWARE_STATUS_FOLLOWUP_QUEUE_FULL = 12;
+    public static final int AWARE_STATUS_UNSUPPORTED_CONCURRENCY_NAN_DISABLED = 13;
 
     // callback from native
     private static void onAwareNotifyResponse(short transactionId, int responseType, int status,
-            int value) {
+            String nanError) {
         if (VDBG) {
             Log.v(TAG,
                     "onAwareNotifyResponse: transactionId=" + transactionId + ", responseType="
-                    + responseType + ", status=" + status + ", value=" + value);
+                    + responseType + ", status=" + status + ", nanError=" + nanError);
         }
         WifiAwareStateManager stateMgr = WifiAwareStateManager.getInstance();
 
@@ -768,7 +675,7 @@ public class WifiAwareNative {
                 if (status != AWARE_STATUS_SUCCESS) {
                     Log.e(TAG,
                             "onAwareNotifyResponse: AWARE_RESPONSE_PUBLISH_CANCEL error - status="
-                                    + status + ", value=" + value);
+                                    + status + ", nanError=" + nanError);
                 }
                 break;
             case AWARE_RESPONSE_TRANSMIT_FOLLOWUP:
@@ -782,7 +689,7 @@ public class WifiAwareNative {
                 if (status != AWARE_STATUS_SUCCESS) {
                     Log.e(TAG,
                             "onAwareNotifyResponse: AWARE_RESPONSE_PUBLISH_CANCEL error - status="
-                                    + status + ", value=" + value);
+                                    + status + ", nanError=" + nanError);
                 }
                 break;
             case AWARE_RESPONSE_DP_INTERFACE_CREATE:
@@ -790,7 +697,7 @@ public class WifiAwareNative {
                     Log.e(TAG,
                             "onAwareNotifyResponse: AWARE_RESPONSE_DP_INTERFACE_CREATE error - "
                                     + "status="
-                                    + status + ", value=" + value);
+                                    + status + ", nanError=" + nanError);
                 }
                 stateMgr.onCreateDataPathInterfaceResponse(transactionId,
                         status == AWARE_STATUS_SUCCESS, status);
@@ -800,7 +707,7 @@ public class WifiAwareNative {
                     Log.e(TAG,
                             "onAwareNotifyResponse: AWARE_RESPONSE_DP_INTERFACE_DELETE error - "
                                     + "status="
-                                    + status + ", value=" + value);
+                                    + status + ", nanError=" + nanError);
                 }
                 stateMgr.onDeleteDataPathInterfaceResponse(transactionId,
                         status == AWARE_STATUS_SUCCESS, status);
@@ -809,7 +716,7 @@ public class WifiAwareNative {
                 if (status != AWARE_STATUS_SUCCESS) {
                     Log.e(TAG,
                             "onAwareNotifyResponse: AWARE_RESPONSE_DP_RESPONDER_RESPONSE error - "
-                                    + "status=" + status + ", value=" + value);
+                                    + "status=" + status + ", nanError=" + nanError);
                 }
                 stateMgr.onRespondToDataPathSetupRequestResponse(transactionId,
                         status == AWARE_STATUS_SUCCESS, status);
@@ -817,7 +724,7 @@ public class WifiAwareNative {
             case AWARE_RESPONSE_DP_END:
                 if (status != AWARE_STATUS_SUCCESS) {
                     Log.e(TAG, "onAwareNotifyResponse: AWARE_RESPONSE_DP_END error - status="
-                            + status + ", value=" + value);
+                            + status + ", nanError=" + nanError);
                 }
                 stateMgr.onEndDataPathResponse(transactionId, status == AWARE_STATUS_SUCCESS,
                         status);
@@ -829,12 +736,12 @@ public class WifiAwareNative {
     }
 
     private static void onAwareNotifyResponsePublishSubscribe(short transactionId, int responseType,
-            int status, int value, int pubSubId) {
+            int status, String nanError, int pubSubId) {
         if (VDBG) {
             Log.v(TAG,
                     "onAwareNotifyResponsePublishSubscribe: transactionId=" + transactionId
-                            + ", responseType=" + responseType + ", status=" + status + ", value="
-                            + value + ", pubSubId=" + pubSubId);
+                            + ", responseType=" + responseType + ", status=" + status
+                            + ", nanError=" + nanError + ", pubSubId=" + pubSubId);
         }
 
         switch (responseType) {
@@ -864,10 +771,11 @@ public class WifiAwareNative {
     }
 
     private static void onAwareNotifyResponseCapabilities(short transactionId, int status,
-            int value, Capabilities capabilities) {
+            String nanError, Capabilities capabilities) {
         if (VDBG) {
             Log.v(TAG, "onAwareNotifyResponseCapabilities: transactionId=" + transactionId
-                    + ", status=" + status + ", value=" + value + ", capabilities=" + capabilities);
+                    + ", status=" + status + ", nanError=" + nanError + ", capabilities="
+                    + capabilities);
         }
 
         if (status == AWARE_STATUS_SUCCESS) {
@@ -875,16 +783,16 @@ public class WifiAwareNative {
                     capabilities);
         } else {
             Log.e(TAG, "onAwareNotifyResponseCapabilities: error status=" + status
-                    + ", value=" + value);
+                    + ", nanError=" + nanError);
         }
     }
 
     private static void onAwareNotifyResponseDataPathInitiate(short transactionId, int status,
-            int value, int ndpId) {
+            String nanError, int ndpId) {
         if (VDBG) {
             Log.v(TAG,
                     "onAwareNotifyResponseDataPathInitiate: transactionId=" + transactionId
-                            + ", status=" + status + ", value=" + value + ", ndpId=" + ndpId);
+                            + ", status=" + status + ", nanError=" + nanError + ", ndpId=" + ndpId);
         }
         if (status == AWARE_STATUS_SUCCESS) {
             WifiAwareStateManager.getInstance().onInitiateDataPathResponseSuccess(transactionId,
@@ -938,7 +846,9 @@ public class WifiAwareNative {
         if (VDBG) Log.v(TAG, "onPublishTerminated: publishId=" + publishId + ", status=" + status);
 
         WifiAwareStateManager.getInstance().onSessionTerminatedNotification(publishId,
-                translateHalStatusToAwareSessionCallbackTerminate(status), true);
+                status == AWARE_STATUS_SUCCESS
+                        ? WifiAwareDiscoverySessionCallback.TERMINATE_REASON_DONE
+                        : WifiAwareDiscoverySessionCallback.TERMINATE_REASON_FAIL, true);
     }
 
     // callback from native
@@ -948,7 +858,9 @@ public class WifiAwareNative {
         }
 
         WifiAwareStateManager.getInstance().onSessionTerminatedNotification(subscribeId,
-                translateHalStatusToAwareSessionCallbackTerminate(status), false);
+                status == AWARE_STATUS_SUCCESS
+                        ? WifiAwareDiscoverySessionCallback.TERMINATE_REASON_DONE
+                        : WifiAwareDiscoverySessionCallback.TERMINATE_REASON_FAIL, false);
     }
 
     // callback from native

@@ -327,7 +327,6 @@ public class WifiAwareHalTest {
 
         Bundle args = new Bundle();
         args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
-        args.putInt("value", 0);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_GET_CAPABILITIES);
 
         args.putInt("body.aware_capabilities.max_concurrent_aware_clusters",
@@ -387,7 +386,6 @@ public class WifiAwareHalTest {
 
         Bundle args = new Bundle();
         args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
-        args.putInt("value", 0);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_ENABLED);
 
         WifiAwareHalMock.callNotifyResponse(transactionId,
@@ -402,15 +400,14 @@ public class WifiAwareHalTest {
         final short transactionId = 23;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiAwareNative.AWARE_STATUS_INVALID_BAND_CONFIG_FLAGS);
-        args.putInt("value", 0);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_INVALID_PARAM);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_ENABLED);
 
         WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mAwareStateManager).onConfigFailedResponse(transactionId,
-                WifiAwareNative.AWARE_STATUS_INVALID_BAND_CONFIG_FLAGS);
+                WifiAwareNative.AWARE_STATUS_INVALID_PARAM);
         verifyNoMoreInteractions(mAwareStateManager);
     }
 
@@ -421,7 +418,6 @@ public class WifiAwareHalTest {
 
         Bundle args = new Bundle();
         args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
-        args.putInt("value", 0);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_PUBLISH);
         args.putInt("body.publish_response.publish_id", publishId);
 
@@ -438,8 +434,7 @@ public class WifiAwareHalTest {
         final int publishId = 127;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiAwareNative.AWARE_STATUS_NO_SPACE_AVAILABLE);
-        args.putInt("value", 57);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_NO_RESOURCE_AVAILABLE);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_PUBLISH);
         args.putInt("body.publish_response.publish_id", publishId);
 
@@ -447,7 +442,7 @@ public class WifiAwareHalTest {
                 HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mAwareStateManager).onSessionConfigFailResponse(transactionId, true,
-                WifiAwareNative.AWARE_STATUS_NO_SPACE_AVAILABLE);
+                WifiAwareNative.AWARE_STATUS_NO_RESOURCE_AVAILABLE);
         verifyNoMoreInteractions(mAwareStateManager);
     }
 
@@ -457,7 +452,6 @@ public class WifiAwareHalTest {
 
         Bundle args = new Bundle();
         args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
-        args.putInt("value", 0);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_PUBLISH_CANCEL);
 
         WifiAwareHalMock.callNotifyResponse(transactionId,
@@ -473,7 +467,6 @@ public class WifiAwareHalTest {
 
         Bundle args = new Bundle();
         args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
-        args.putInt("value", 0);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_SUBSCRIBE);
         args.putInt("body.subscribe_response.subscribe_id", subscribeId);
 
@@ -491,8 +484,7 @@ public class WifiAwareHalTest {
         final int subscribeId = 198;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiAwareNative.AWARE_STATUS_DE_FAILURE);
-        args.putInt("value", 0);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_INTERNAL_FAILURE);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_SUBSCRIBE);
         args.putInt("body.subscribe_response.subscribe_id", subscribeId);
 
@@ -500,7 +492,7 @@ public class WifiAwareHalTest {
                 HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mAwareStateManager).onSessionConfigFailResponse(transactionId, false,
-                WifiAwareNative.AWARE_STATUS_DE_FAILURE);
+                WifiAwareNative.AWARE_STATUS_INTERNAL_FAILURE);
         verifyNoMoreInteractions(mAwareStateManager);
     }
 
@@ -509,8 +501,7 @@ public class WifiAwareHalTest {
         final short transactionId = 23;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiAwareNative.AWARE_STATUS_DE_FAILURE);
-        args.putInt("value", 0);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_INTERNAL_FAILURE);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_SUBSCRIBE_CANCEL);
 
         WifiAwareHalMock.callNotifyResponse(transactionId,
@@ -525,7 +516,6 @@ public class WifiAwareHalTest {
 
         Bundle args = new Bundle();
         args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
-        args.putInt("value", 0);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_TRANSMIT_FOLLOWUP);
 
         WifiAwareHalMock.callNotifyResponse(transactionId,
@@ -540,26 +530,24 @@ public class WifiAwareHalTest {
         final short transactionId = 45;
 
         Bundle args = new Bundle();
-        args.putInt("status", WifiAwareNative.AWARE_STATUS_TIMEOUT);
-        args.putInt("value", 0);
+        args.putInt("status", WifiAwareNative.AWARE_STATUS_INTERNAL_FAILURE);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_TRANSMIT_FOLLOWUP);
 
         WifiAwareHalMock.callNotifyResponse(transactionId,
                 HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mAwareStateManager).onMessageSendQueuedFailResponse(transactionId,
-                WifiAwareNative.AWARE_STATUS_TIMEOUT);
+                WifiAwareNative.AWARE_STATUS_INTERNAL_FAILURE);
         verifyNoMoreInteractions(mAwareStateManager);
     }
 
     @Test
     public void testNotifyResponseCreateDataPath() throws JSONException {
         final short transactionId = 48;
-        final int reason  = WifiAwareNative.AWARE_STATUS_TIMEOUT;
+        final int reason  = WifiAwareNative.AWARE_STATUS_INTERNAL_FAILURE;
 
         Bundle args = new Bundle();
         args.putInt("status", reason);
-        args.putInt("value", 0);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_DP_INTERFACE_CREATE);
 
         WifiAwareHalMock.callNotifyResponse(transactionId,
@@ -572,11 +560,10 @@ public class WifiAwareHalTest {
     @Test
     public void testNotifyResponseDeleteDataPath() throws JSONException {
         final short transactionId = 49;
-        final int reason  = WifiAwareNative.AWARE_STATUS_DE_FAILURE;
+        final int reason  = WifiAwareNative.AWARE_STATUS_INTERNAL_FAILURE;
 
         Bundle args = new Bundle();
         args.putInt("status", reason);
-        args.putInt("value", 0);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_DP_INTERFACE_DELETE);
 
         WifiAwareHalMock.callNotifyResponse(transactionId,
@@ -593,7 +580,6 @@ public class WifiAwareHalTest {
 
         Bundle args = new Bundle();
         args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
-        args.putInt("value", 0);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_DP_INITIATOR_RESPONSE);
         args.putInt("body.data_request_response.ndp_instance_id", ndpId);
 
@@ -607,11 +593,10 @@ public class WifiAwareHalTest {
     @Test
     public void testNotifyResponseInitiateDataPathFail() throws JSONException {
         final short transactionId = 49;
-        final int reason  = WifiAwareNative.AWARE_STATUS_NDP_DATA_INITIATOR_REQUEST_FAILED;
+        final int reason  = WifiAwareNative.AWARE_STATUS_INVALID_PARAM;
 
         Bundle args = new Bundle();
         args.putInt("status", reason);
-        args.putInt("value", 0);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_DP_INITIATOR_RESPONSE);
         args.putInt("body.data_request_response.ndp_instance_id", 5555); // NOP
 
@@ -625,11 +610,10 @@ public class WifiAwareHalTest {
     @Test
     public void testNotifyResponseRespondToDataPathSetupRequest() throws JSONException {
         final short transactionId = 50;
-        final int reason  = WifiAwareNative.AWARE_STATUS_DISABLE_IN_PROGRESS;
+        final int reason  = WifiAwareNative.AWARE_STATUS_NAN_NOT_ALLOWED;
 
         Bundle args = new Bundle();
         args.putInt("status", reason);
-        args.putInt("value", 0);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_DP_RESPONDER_RESPONSE);
 
         WifiAwareHalMock.callNotifyResponse(transactionId,
@@ -643,11 +627,10 @@ public class WifiAwareHalTest {
     @Test
     public void testNotifyResponseEndDataPath() throws JSONException {
         final short transactionId = 50;
-        final int reason  = WifiAwareNative.AWARE_STATUS_NDP_END_FAILED;
+        final int reason  = WifiAwareNative.AWARE_STATUS_INVALID_NDP_ID;
 
         Bundle args = new Bundle();
         args.putInt("status", reason);
-        args.putInt("value", 0);
         args.putInt("response_type", WifiAwareNative.AWARE_RESPONSE_DP_END);
 
         WifiAwareHalMock.callNotifyResponse(transactionId,
@@ -664,7 +647,6 @@ public class WifiAwareHalTest {
 
         Bundle args = new Bundle();
         args.putInt("status", WifiAwareNative.AWARE_STATUS_SUCCESS);
-        args.putInt("value", 0);
         args.putInt("response_type", invalidTransactionId);
 
         WifiAwareHalMock.callNotifyResponse(transactionId,
@@ -679,7 +661,7 @@ public class WifiAwareHalTest {
 
         Bundle args = new Bundle();
         args.putInt("publish_id", publishId);
-        args.putInt("reason", WifiAwareNative.AWARE_TERMINATED_REASON_COUNT_REACHED);
+        args.putInt("reason", WifiAwareNative.AWARE_STATUS_SUCCESS);
 
         WifiAwareHalMock.callPublishTerminated(HalMockUtils.convertBundleToJson(args).toString());
 
@@ -694,7 +676,7 @@ public class WifiAwareHalTest {
 
         Bundle args = new Bundle();
         args.putInt("subscribe_id", subscribeId);
-        args.putInt("reason", WifiAwareNative.AWARE_TERMINATED_REASON_FAILURE);
+        args.putInt("reason", WifiAwareNative.AWARE_STATUS_INTERNAL_FAILURE);
 
         WifiAwareHalMock.callSubscribeTerminated(HalMockUtils.convertBundleToJson(args).toString());
 
@@ -796,11 +778,12 @@ public class WifiAwareHalTest {
     @Test
     public void testDisabled() throws JSONException {
         Bundle args = new Bundle();
-        args.putInt("reason", WifiAwareNative.AWARE_STATUS_DE_FAILURE);
+        args.putInt("reason", WifiAwareNative.AWARE_STATUS_INTERNAL_FAILURE);
 
         WifiAwareHalMock.callDisabled(HalMockUtils.convertBundleToJson(args).toString());
 
-        verify(mAwareStateManager).onAwareDownNotification(WifiAwareNative.AWARE_STATUS_DE_FAILURE);
+        verify(mAwareStateManager).onAwareDownNotification(
+                WifiAwareNative.AWARE_STATUS_INTERNAL_FAILURE);
         verifyNoMoreInteractions(mAwareStateManager);
     }
 
@@ -824,12 +807,12 @@ public class WifiAwareHalTest {
 
         Bundle args = new Bundle();
         args.putInt("id", transactionId);
-        args.putInt("reason", WifiAwareNative.AWARE_STATUS_TX_FAIL);
+        args.putInt("reason", WifiAwareNative.AWARE_STATUS_NO_OTA_ACK);
 
         WifiAwareHalMock.callTransmitFollowup(HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mAwareStateManager).onMessageSendFailNotification(transactionId,
-                WifiAwareNative.AWARE_STATUS_TX_FAIL);
+                WifiAwareNative.AWARE_STATUS_NO_OTA_ACK);
         verifyNoMoreInteractions(mAwareStateManager);
     }
 

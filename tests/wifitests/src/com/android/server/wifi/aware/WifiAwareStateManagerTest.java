@@ -1475,7 +1475,7 @@ public class WifiAwareStateManagerTest {
         // (4) loop and fail until reach retryCount
         for (int i = 0; i < retryCount; ++i) {
             mDut.onMessageSendFailNotification(transactionId.getValue(),
-                    WifiAwareNative.AWARE_STATUS_TX_FAIL);
+                    WifiAwareNative.AWARE_STATUS_NO_OTA_ACK);
             mMockLooper.dispatchAll();
             inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(subscribeId),
                     eq(requestorId), eq(peerMac), eq(ssi.getBytes()), eq(messageId));
@@ -1562,7 +1562,7 @@ public class WifiAwareStateManagerTest {
         // (4) loop and fail until reach retryCount+1
         for (int i = 0; i < retryCount + 1; ++i) {
             mDut.onMessageSendFailNotification(transactionId.getValue(),
-                    WifiAwareNative.AWARE_STATUS_TX_FAIL);
+                    WifiAwareNative.AWARE_STATUS_NO_OTA_ACK);
             mMockLooper.dispatchAll();
 
             if (i != retryCount) {
@@ -1574,7 +1574,7 @@ public class WifiAwareStateManagerTest {
         }
 
         inOrder.verify(mockSessionCallback).onMessageSendFail(messageId,
-                WifiAwareNative.AWARE_STATUS_TX_FAIL);
+                WifiAwareNative.AWARE_STATUS_NO_OTA_ACK);
         validateInternalSendMessageQueuesCleanedUp(messageId);
 
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
@@ -1873,7 +1873,7 @@ public class WifiAwareStateManagerTest {
                 mDut.onMessageSendQueuedSuccessResponse(transactionId);
                 if (!packetRetx) {
                     mDut.onMessageSendFailNotification(transactionId,
-                            WifiAwareNative.AWARE_STATUS_TX_FAIL);
+                            WifiAwareNative.AWARE_STATUS_NO_OTA_ACK);
                 } else {
                     ops[OP_QUEUE_OK_SEND_RETX_OK]++;
                     mDut.onMessageSendSuccessNotification(transactionId);
