@@ -29,10 +29,10 @@ import android.net.wifi.IRttManager;
 import android.net.wifi.RttManager;
 import android.os.Handler;
 import android.os.Message;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.util.test.BidirectionalAsyncChannelServer;
-import android.os.test.TestLooper;
 
 import org.junit.Before;
 import org.junit.Rule;
