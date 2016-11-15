@@ -193,6 +193,21 @@ public class PasspointManagementObjectManagerTest {
         assertEquals("testIdentity1", homeSP.getCredential().getUserName());
     }
 
+    /** Verify IOException is thrown when trying to add a SP from a null XML string. */
+    @Test(expected = IOException.class)
+    public void addSPFromNullXmlString() throws Exception {
+        File file = tempFolder.newFile("PerProviderSubscription.conf");
+        PasspointManagementObjectManager moMgr = new PasspointManagementObjectManager(file, true);
+        String xml = null;  // Needed to avoid ambiguity on function call.
+        moMgr.addSP(xml);
+    }
+
+    /** Verify IOException is thrown when trying to build a SP from a null XML string. */
+    @Test(expected = IOException.class)
+    public void buildSPFromNullXmlString() throws Exception {
+        PasspointManagementObjectManager.buildSP(null);
+    }
+
     /** verify that xml serialization/deserialization works */
     public void checkXml() throws Exception {
         InputStream in = getClass().getClassLoader().getResourceAsStream(R2_TTLS_XML_FILE);
@@ -266,6 +281,27 @@ public class PasspointManagementObjectManagerTest {
         assertEquals("Wi-Fi Alliance", homeSP.getFriendlyName());
         assertEquals("sta015", homeSP.getCredential().getUserName());
         assertEquals(9, homeSP.getUpdateIdentifier());
+    }
+
+    /** Verify IOException is thrown when trying to modify a SP using a null XML string. */
+    @Test(expected = IOException.class)
+    public void modifySPFromNullXmlString() throws Exception {
+        File file = createFileFromResource(R2_CONFIG_FILE);
+        PasspointManagementObjectManager moMgr = new PasspointManagementObjectManager(file, true);
+        List<HomeSP> homeSPs = moMgr.loadAllSPs();
+        assertEquals(2, homeSPs.size());
+
+        /* PasspointManagementObjectDefinition with null xmlTree. */
+        String urn = "wfa:mo:hotspot2dot0-perprovidersubscription:1.0";
+        String baseUri = "./Wi-Fi/wi-fi.org/PerProviderSubscription/UpdateIdentifier";
+        String xmlTree = null;
+
+        PasspointManagementObjectDefinition moDef =
+                new PasspointManagementObjectDefinition(baseUri, urn, xmlTree);
+        List<PasspointManagementObjectDefinition> moDefs =
+                new ArrayList<PasspointManagementObjectDefinition>();
+        moDefs.add(moDef);
+        moMgr.modifySP("wi-fi.org", moDefs);
     }
 
     /** verify removing an existing service provider works */
