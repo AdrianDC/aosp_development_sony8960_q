@@ -5234,12 +5234,23 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (mVerboseLoggingEnabled) log("Network connection established");
                     mLastNetworkId = lookupFrameworkNetworkId(message.arg1);
                     mLastBssid = (String) message.obj;
-
-                    mWifiInfo.setBSSID(mLastBssid);
-                    mWifiInfo.setNetworkId(mLastNetworkId);
-                    mWifiConnectivityManager.trackBssid(mLastBssid, true);
-                    sendNetworkStateChangeBroadcast(mLastBssid);
-                    transitionTo(mObtainingIpState);
+                    // TODO: This check should not be needed after WifiStateMachinePrime refactor.
+                    // Currently, the last connected network configuration is left in
+                    // wpa_supplicant, this may result in wpa_supplicant initiating connection
+                    // to it after a config store reload. Hence the old network Id lookups may not
+                    // work, so disconnect the network and let network selector reselect a new
+                    // network.
+                    if (getCurrentWifiConfiguration() != null) {
+                        mWifiInfo.setBSSID(mLastBssid);
+                        mWifiInfo.setNetworkId(mLastNetworkId);
+                        mWifiConnectivityManager.trackBssid(mLastBssid, true);
+                        sendNetworkStateChangeBroadcast(mLastBssid);
+                        transitionTo(mObtainingIpState);
+                    } else {
+                        logw("Connected to unknown networkId " + mLastNetworkId
+                                + ", disconnecting...");
+                        sendMessage(CMD_DISCONNECT);
+                    }
                     break;
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
                     // Calling handleNetworkDisconnect here is redundant because we might already
