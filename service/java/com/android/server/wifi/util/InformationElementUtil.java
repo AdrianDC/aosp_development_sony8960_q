@@ -17,8 +17,8 @@ package com.android.server.wifi.util;
 
 import static com.android.server.wifi.anqp.Constants.getInteger;
 
+import android.net.wifi.ScanResult;
 import android.net.wifi.ScanResult.InformationElement;
-import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.server.wifi.anqp.Constants;
@@ -331,10 +331,10 @@ public class InformationElementUtil {
         private static final int RSN_CIPHER_CCMP = 0x04ac0f00;
         private static final int RSN_CIPHER_NO_GROUP_ADDRESSED = 0x07ac0f00;
 
-        public String protocol;
-        public ArrayList<String> keyManagement;
-        public ArrayList<String> pairwiseCipher;
-        public String groupCipher;
+        public int protocol;
+        public ArrayList<Integer> keyManagement;
+        public ArrayList<Integer> pairwiseCipher;
+        public int groupCipher;
         public boolean isESS;
         public boolean isPrivacy;
 
@@ -365,16 +365,16 @@ public class InformationElementUtil {
                 }
 
                 // found the RSNE IE, hence start building the capability string
-                protocol = "WPA2";
+                protocol = ScanResult.PROTOCOL_WPA2;
 
                 // group data cipher suite
-                groupCipher = rsnCipherToString(buf.getInt());
+                groupCipher = parseRsnCipher(buf.getInt());
 
                 // pairwise cipher suite count
                 short cipherCount = buf.getShort();
                 // pairwise cipher suite list
                 for (int i = 0; i < cipherCount; i++) {
-                    pairwiseCipher.add(rsnCipherToString(buf.getInt()));
+                    pairwiseCipher.add(parseRsnCipher(buf.getInt()));
                 }
 
                 // AKM
@@ -385,22 +385,22 @@ public class InformationElementUtil {
                     int akm = buf.getInt();
                     switch (akm) {
                         case WPA2_AKM_EAP:
-                            keyManagement.add("EAP");
+                            keyManagement.add(ScanResult.KEY_MGMT_EAP);
                             break;
                         case WPA2_AKM_PSK:
-                            keyManagement.add("PSK");
+                            keyManagement.add(ScanResult.KEY_MGMT_PSK);
                             break;
                         case WPA2_AKM_FT_EAP:
-                            keyManagement.add("FT/EAP");
+                            keyManagement.add(ScanResult.KEY_MGMT_FT_EAP);
                             break;
                         case WPA2_AKM_FT_PSK:
-                            keyManagement.add("FT/PSK");
+                            keyManagement.add(ScanResult.KEY_MGMT_FT_PSK);
                             break;
                         case WPA2_AKM_EAP_SHA256:
-                            keyManagement.add("EAP-SHA256");
+                            keyManagement.add(ScanResult.KEY_MGMT_EAP_SHA256);
                             break;
                         case WPA2_AKM_PSK_SHA256:
-                            keyManagement.add("PSK-SHA256");
+                            keyManagement.add(ScanResult.KEY_MGMT_PSK_SHA256);
                             break;
                         default:
                             // do nothing
@@ -409,38 +409,42 @@ public class InformationElementUtil {
                 }
                 // Default AKM
                 if (keyManagement.isEmpty()) {
-                    keyManagement.add("EAP");
+                    keyManagement.add(ScanResult.KEY_MGMT_EAP);
                 }
             } catch (BufferUnderflowException e) {
                 Log.e("IE_Capabilities", "Couldn't parse RSNE, buffer underflow");
             }
         }
 
-        private static String wpaCipherToString(int cipher) {
+        private static int parseWpaCipher(int cipher) {
             switch (cipher) {
                 case WPA_CIPHER_NONE:
-                    return "NONE";
+                    return ScanResult.CIPHER_NONE;
                 case WPA_CIPHER_TKIP:
-                    return "TKIP";
+                    return ScanResult.CIPHER_TKIP;
                 case WPA_CIPHER_CCMP:
-                    return "CCMP";
+                    return ScanResult.CIPHER_CCMP;
                 default:
-                    return "?";
+                    Log.w("IE_Capabilities", "Unknown WPA cipher suite: "
+                            + Integer.toHexString(cipher));
+                    return ScanResult.CIPHER_NONE;
             }
         }
 
-        private static String rsnCipherToString(int cipher) {
+        private static int parseRsnCipher(int cipher) {
             switch (cipher) {
                 case RSN_CIPHER_NONE:
-                    return "NONE";
+                    return ScanResult.CIPHER_NONE;
                 case RSN_CIPHER_TKIP:
-                    return "TKIP";
+                    return ScanResult.CIPHER_TKIP;
                 case RSN_CIPHER_CCMP:
-                    return "CCMP";
+                    return ScanResult.CIPHER_CCMP;
                 case RSN_CIPHER_NO_GROUP_ADDRESSED:
-                    return "GTK_NOT_USED";
+                    return ScanResult.CIPHER_NO_GROUP_ADDRESSED;
                 default:
-                    return "?";
+                    Log.w("IE_Capabilities", "Unknown RSN cipher suite: "
+                            + Integer.toHexString(cipher));
+                    return ScanResult.CIPHER_NONE;
             }
         }
 
@@ -485,16 +489,16 @@ public class InformationElementUtil {
                 }
 
                 // start building the string
-                protocol = "WPA";
+                protocol = ScanResult.PROTOCOL_WPA;
 
                 // group data cipher suite
-                groupCipher = wpaCipherToString(buf.getInt());
+                groupCipher = parseWpaCipher(buf.getInt());
 
                 // pairwise cipher suite count
                 short cipherCount = buf.getShort();
                 // pairwise chipher suite list
                 for (int i = 0; i < cipherCount; i++) {
-                    pairwiseCipher.add(wpaCipherToString(buf.getInt()));
+                    pairwiseCipher.add(parseWpaCipher(buf.getInt()));
                 }
 
                 // AKM
@@ -506,10 +510,10 @@ public class InformationElementUtil {
                     int akm = buf.getInt();
                     switch (akm) {
                         case WPA_AKM_EAP:
-                            keyManagement.add("EAP");
+                            keyManagement.add(ScanResult.KEY_MGMT_EAP);
                             break;
                         case WPA_AKM_PSK:
-                            keyManagement.add("PSK");
+                            keyManagement.add(ScanResult.KEY_MGMT_PSK);
                             break;
                         default:
                             // do nothing
@@ -518,7 +522,7 @@ public class InformationElementUtil {
                 }
                 // Default AKM
                 if (keyManagement.isEmpty()) {
-                    keyManagement.add("EAP");
+                    keyManagement.add(ScanResult.KEY_MGMT_EAP);
                 }
             } catch (BufferUnderflowException e) {
                 Log.e("IE_Capabilities", "Couldn't parse type 1 WPA, buffer underflow");
@@ -534,8 +538,10 @@ public class InformationElementUtil {
          */
 
         public void from(InformationElement[] ies, BitSet beaconCap) {
-            keyManagement = new ArrayList<String>();
-            pairwiseCipher = new ArrayList<String>();
+            protocol = ScanResult.PROTOCOL_NONE;
+            keyManagement = new ArrayList<Integer>();
+            groupCipher = ScanResult.CIPHER_NONE;
+            pairwiseCipher = new ArrayList<Integer>();
             boolean rsneFound = false;
             boolean wpaFound = false;
 
@@ -557,9 +563,52 @@ public class InformationElementUtil {
                     }
                 }
             }
-            if (!rsneFound && !wpaFound && isPrivacy) {
-                //private Beacon without an RSNE or WPA IE, hence WEP0
-                protocol = "WEP";
+        }
+
+        private String protocolToString(int protocol) {
+            switch (protocol) {
+                case ScanResult.PROTOCOL_NONE:
+                    return "None";
+                case ScanResult.PROTOCOL_WPA:
+                    return "WPA";
+                case ScanResult.PROTOCOL_WPA2:
+                    return "WPA2";
+                default:
+                    return "?";
+            }
+        }
+
+        private String keyManagementToString(int akm) {
+            switch (akm) {
+                case ScanResult.KEY_MGMT_NONE:
+                    return "None";
+                case ScanResult.KEY_MGMT_PSK:
+                    return "PSK";
+                case ScanResult.KEY_MGMT_EAP:
+                    return "EAP";
+                case ScanResult.KEY_MGMT_FT_EAP:
+                    return "FT/EAP";
+                case ScanResult.KEY_MGMT_FT_PSK:
+                    return "FT/PSK";
+                case ScanResult.KEY_MGMT_EAP_SHA256:
+                    return "EAP-SHA256";
+                case ScanResult.KEY_MGMT_PSK_SHA256:
+                    return "PSK-SHA256";
+                default:
+                    return "?";
+            }
+        }
+
+        private String cipherToString(int cipher) {
+            switch (cipher) {
+                case ScanResult.CIPHER_NONE:
+                    return "None";
+                case ScanResult.CIPHER_CCMP:
+                    return "CCMP";
+                case ScanResult.CIPHER_TKIP:
+                    return "TKIP";
+                default:
+                    return "?";
             }
         }
 
@@ -570,13 +619,17 @@ public class InformationElementUtil {
          */
         public String generateCapabilitiesString() {
             String capabilities = "";
-            if (!TextUtils.isEmpty(protocol)) {
-                capabilities += "[" + protocol;
+            // private Beacon without an RSNE or WPA IE, hence WEP0
+            boolean isWEP = (protocol == ScanResult.PROTOCOL_NONE) && isPrivacy;
+
+            if (protocol != ScanResult.PROTOCOL_NONE || isWEP) {
+                capabilities += "[" + (isWEP ? "WEP" : protocolToString(protocol));
                 for (int i = 0; i < keyManagement.size(); i++) {
-                    capabilities += ((i == 0) ? "-" : "+") + keyManagement.get(i);
+                    capabilities += ((i == 0) ? "-" : "+")
+                        + keyManagementToString(keyManagement.get(i));
                 }
                 for (int i = 0; i < pairwiseCipher.size(); i++) {
-                    capabilities += ((i == 0) ? "-" : "+") + pairwiseCipher.get(i);
+                    capabilities += ((i == 0) ? "-" : "+") + cipherToString(pairwiseCipher.get(i));
                 }
                 capabilities += "]";
             }
