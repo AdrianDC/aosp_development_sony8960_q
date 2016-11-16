@@ -85,10 +85,7 @@ import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
-import com.android.server.wifi.configparse.ConfigBuilder;
 import com.android.server.wifi.util.WifiPermissionsUtil;
-
-import org.xml.sax.SAXException;
 
 import java.io.BufferedReader;
 import java.io.FileDescriptor;
@@ -673,26 +670,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public WifiConfiguration getWifiApConfiguration() {
         enforceAccessPermission();
         return mWifiStateMachine.syncGetWifiApConfiguration();
-    }
-
-    /**
-     * see {@link WifiManager#buildWifiConfig()}
-     * @return a WifiConfiguration.
-     */
-    @Override
-    public WifiConfiguration buildWifiConfig(String uriString, String mimeType, byte[] data) {
-        if (mimeType.equals(ConfigBuilder.WifiConfigType)) {
-            try {
-                return ConfigBuilder.buildConfig(uriString, data, mContext);
-            }
-            catch (IOException | GeneralSecurityException | SAXException e) {
-                Log.e(TAG, "Failed to parse wi-fi configuration: " + e);
-            }
-        }
-        else {
-            Log.i(TAG, "Unknown wi-fi config type: " + mimeType);
-        }
-        return null;
     }
 
     /**
