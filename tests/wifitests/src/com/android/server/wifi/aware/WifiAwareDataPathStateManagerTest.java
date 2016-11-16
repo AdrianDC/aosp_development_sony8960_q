@@ -401,8 +401,7 @@ public class WifiAwareDataPathStateManagerTest {
             boolean provideToken, boolean getConfirmation) throws Exception {
         final int clientId = 123;
         final int pubSubId = 11234;
-        final WifiAwareManager.OpaquePeerHandle peerHandle = new WifiAwareManager.OpaquePeerHandle(
-                1341234);
+        final WifiAwareManager.PeerHandle peerHandle = new WifiAwareManager.PeerHandle(1341234);
         final int ndpId = 2;
         final String token = "some token";
         final String peerToken = "let's go!";
@@ -484,8 +483,7 @@ public class WifiAwareDataPathStateManagerTest {
             boolean provideToken, boolean getConfirmation) throws Exception {
         final int clientId = 123;
         final int pubSubId = 11234;
-        final WifiAwareManager.OpaquePeerHandle peerHandle = new WifiAwareManager.OpaquePeerHandle(
-                1341234);
+        final WifiAwareManager.PeerHandle peerHandle = new WifiAwareManager.PeerHandle(1341234);
         final int ndpId = 2;
         final String token = "some token";
         final String peerToken = "let's go!";
@@ -600,8 +598,8 @@ public class WifiAwareDataPathStateManagerTest {
         field.set(mDataPathMgr, mMockNetworkInterface);
     }
 
-    private NetworkRequest getSessionNetworkRequest(int clientId, int sessionId, Object peerHandle,
-            int role, String token) throws Exception {
+    private NetworkRequest getSessionNetworkRequest(int clientId, int sessionId,
+            WifiAwareManager.PeerHandle peerHandle, int role, String token) throws Exception {
         final WifiAwareManager mgr = new WifiAwareManager(mMockContext, mMockAwareService);
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
         final PublishConfig publishConfig = new PublishConfig.Builder().build();
@@ -625,7 +623,7 @@ public class WifiAwareDataPathStateManagerTest {
         clientProxyCallback.getValue().onConnectSuccess(clientId);
         mMockLooper.dispatchAll();
         verify(mockCallback).onAttached(sessionCaptor.capture());
-        sessionCaptor.getValue().publish(mMockLooperHandler, publishConfig, mockSessionCallback);
+        sessionCaptor.getValue().publish(publishConfig, mockSessionCallback, mMockLooperHandler);
         verify(mMockAwareService).publish(eq(clientId), eq(publishConfig),
                 sessionProxyCallback.capture());
         sessionProxyCallback.getValue().onSessionStarted(sessionId);
@@ -683,7 +681,7 @@ public class WifiAwareDataPathStateManagerTest {
     }
 
     private Pair<Integer, Messenger> initDataPathEndPoint(int clientId, int pubSubId,
-            WifiAwareManager.OpaquePeerHandle peerHandle, byte[] peerDiscoveryMac, InOrder inOrder)
+            WifiAwareManager.PeerHandle peerHandle, byte[] peerDiscoveryMac, InOrder inOrder)
             throws Exception {
         final int uid = 1000;
         final int pid = 2000;
