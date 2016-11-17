@@ -2,23 +2,23 @@ package com.android.server.wifi.hotspot2;
 
 import com.android.server.wifi.ScanDetail;
 import com.android.server.wifi.anqp.ANQPElement;
+import com.android.server.wifi.anqp.Constants.ANQPElementType;
 import com.android.server.wifi.anqp.HSConnectionCapabilityElement;
 import com.android.server.wifi.anqp.HSWanMetricsElement;
 import com.android.server.wifi.anqp.IPAddressTypeAvailabilityElement;
-import com.android.server.wifi.hotspot2.pps.HomeSP;
+import com.android.server.wifi.anqp.IPAddressTypeAvailabilityElement.IPv4Availability;
+import com.android.server.wifi.anqp.IPAddressTypeAvailabilityElement.IPv6Availability;
 
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.android.server.wifi.anqp.Constants.ANQPElementType;
-import static com.android.server.wifi.anqp.IPAddressTypeAvailabilityElement.IPv4Availability;
-import static com.android.server.wifi.anqp.IPAddressTypeAvailabilityElement.IPv6Availability;
-
+/**
+ * TODO(b/32714185): update using the new HomeSP object.
+ */
 public class PasspointMatchInfo implements Comparable<PasspointMatchInfo> {
     private final PasspointMatch mPasspointMatch;
     private final ScanDetail mScanDetail;
-    private final HomeSP mHomeSP;
     private final int mScore;
 
     private static final Map<IPv4Availability, Integer> sIP4Scores =
@@ -87,10 +87,9 @@ public class PasspointMatchInfo implements Comparable<PasspointMatchInfo> {
 
 
     public PasspointMatchInfo(PasspointMatch passpointMatch,
-                              ScanDetail scanDetail, HomeSP homeSP) {
+                              ScanDetail scanDetail) {
         mPasspointMatch = passpointMatch;
         mScanDetail = scanDetail;
-        mHomeSP = homeSP;
 
         int score;
         if (passpointMatch == PasspointMatch.HomeProvider) {
@@ -165,16 +164,11 @@ public class PasspointMatchInfo implements Comparable<PasspointMatchInfo> {
     }
 
     public ScanDetail getScanDetail() {
-        return mScanDetail; 
+        return mScanDetail;
     }
 
     public NetworkDetail getNetworkDetail() {
-        return mScanDetail.getNetworkDetail(); 
-    }
-
-
-    public HomeSP getHomeSP() {
-        return mHomeSP;
+        return mScanDetail.getNetworkDetail();
     }
 
     public int getScore() {
@@ -223,7 +217,6 @@ public class PasspointMatchInfo implements Comparable<PasspointMatchInfo> {
         PasspointMatchInfo that = (PasspointMatchInfo)thatObject;
 
         return getNetworkDetail().equals(that.getNetworkDetail()) &&
-                getHomeSP().equals(that.getHomeSP()) &&
                 getPasspointMatch().equals(that.getPasspointMatch());
     }
 
@@ -231,7 +224,6 @@ public class PasspointMatchInfo implements Comparable<PasspointMatchInfo> {
     public int hashCode() {
         int result = mPasspointMatch != null ? mPasspointMatch.hashCode() : 0;
         result = 31 * result + getNetworkDetail().hashCode();
-        result = 31 * result + (mHomeSP != null ? mHomeSP.hashCode() : 0);
         return result;
     }
 
@@ -240,7 +232,6 @@ public class PasspointMatchInfo implements Comparable<PasspointMatchInfo> {
         return "PasspointMatchInfo{" +
                 ", mPasspointMatch=" + mPasspointMatch +
                 ", mNetworkInfo=" + getNetworkDetail().getSSID() +
-                ", mHomeSP=" + mHomeSP.getFQDN() +
                 '}';
     }
 }
