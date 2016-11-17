@@ -138,6 +138,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     /* Tracks the open wi-fi network notification */
     private WifiNotificationController mNotificationController;
+    private WifiWakeupController mWifiWakeupController;
     /* Polls traffic stats and notifies clients */
     private WifiTrafficPoller mTrafficPoller;
     /* Tracks the persisted states for wi-fi & airplane mode */
@@ -330,6 +331,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mCertManager = mWifiInjector.getWifiCertManager();
 
         mNotificationController = mWifiInjector.getWifiNotificationController();
+        mWifiWakeupController = mWifiInjector.getWifiWakeupController();
 
         mWifiLockManager = mWifiInjector.getWifiLockManager();
         mWifiMulticastLockManager = mWifiInjector.getWifiMulticastLockManager();
@@ -1481,6 +1483,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             mWifiController.dump(fd, pw, args);
             mSettingsStore.dump(fd, pw, args);
             mNotificationController.dump(fd, pw, args);
+            mWifiWakeupController.dump(fd, pw, args);
             mTrafficPoller.dump(fd, pw, args);
             pw.println();
             pw.println("Locks held:");
