@@ -2,9 +2,8 @@ package com.android.server.wifi.anqp;
 
 import com.android.server.wifi.anqp.eap.EAPMethod;
 import com.android.server.wifi.hotspot2.AuthMatch;
+import com.android.server.wifi.hotspot2.DomainMatcher;
 import com.android.server.wifi.hotspot2.Utils;
-import com.android.server.wifi.hotspot2.pps.Credential;
-import com.android.server.wifi.hotspot2.pps.DomainMatcher;
 
 import java.net.ProtocolException;
 import java.nio.ByteBuffer;
@@ -58,7 +57,9 @@ public class NAIRealmData {
         return Collections.unmodifiableList(mEAPMethods);
     }
 
-    public int match(List<String> credLabels, Credential credential) {
+    // TODO(b/32714185): revisit this when integrating the new Passpoint implementation and add
+    // unit tests for this.
+    public int match(List<String> credLabels, EAPMethod credMethod) {
         int realmMatch = AuthMatch.None;
         if (!mRealms.isEmpty()) {
             for (String realm : mRealms) {
@@ -79,7 +80,7 @@ public class NAIRealmData {
 
         int best = AuthMatch.None;
         for (EAPMethod eapMethod : mEAPMethods) {
-            int match = eapMethod.match(credential) | realmMatch;
+            int match = eapMethod.match(credMethod) | realmMatch;
             if (match > best) {
                 best = match;
                 if (best == AuthMatch.Exact) {

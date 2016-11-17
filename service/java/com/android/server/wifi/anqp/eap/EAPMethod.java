@@ -110,9 +110,9 @@ public class EAPMethod {
         return mEAPMethodID;
     }
 
-    public int match(com.android.server.wifi.hotspot2.pps.Credential credential) {
-
-        EAPMethod credMethod = credential.getEAPMethod();
+    // TODO(b/32714185): revisit this when integrating the new Passpoint implementation and add
+    // unit tests for this.
+    public int match(EAPMethod credMethod) {
         if (mEAPMethodID != credMethod.getEAPMethodID()) {
             return AuthMatch.None;
         }
