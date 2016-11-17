@@ -1,6 +1,4 @@
-package com.android.server.wifi.hotspot2.pps;
-
-import android.util.Log;
+package com.android.server.wifi.hotspot2;
 
 import com.android.server.wifi.hotspot2.Utils;
 
@@ -9,7 +7,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 
 public class DomainMatcher {
