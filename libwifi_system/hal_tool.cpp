@@ -296,12 +296,6 @@ wifi_error wifi_get_tdls_capabilities_stub(
   return WIFI_ERROR_NOT_SUPPORTED;
 }
 
-wifi_error wifi_set_bssid_blacklist_stub(wifi_request_id id,
-                                         wifi_interface_handle iface,
-                                         wifi_bssid_params params) {
-  return WIFI_ERROR_NOT_SUPPORTED;
-}
-
 wifi_error wifi_start_sending_offloaded_packet_stub(
     wifi_request_id id, wifi_interface_handle iface, u8* ip_packet,
     u16 ip_packet_len, u8* src_mac_addr, u8* dst_mac_addr, u32 period_msec) {
@@ -517,7 +511,6 @@ bool init_wifi_stub_hal_func_table(wifi_hal_fn* hal_fn) {
       wifi_get_logger_supported_feature_set_stub;
   hal_fn->wifi_get_ring_data = wifi_get_ring_data_stub;
   hal_fn->wifi_get_driver_version = wifi_get_driver_version_stub;
-  hal_fn->wifi_set_bssid_blacklist = wifi_set_bssid_blacklist_stub;
   hal_fn->wifi_start_sending_offloaded_packet =
       wifi_start_sending_offloaded_packet_stub;
   hal_fn->wifi_stop_sending_offloaded_packet =
