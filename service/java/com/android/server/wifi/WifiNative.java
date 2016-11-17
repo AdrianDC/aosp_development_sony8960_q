@@ -2920,26 +2920,6 @@ public class WifiNative {
         }
     }
 
-    private native static boolean setBssidBlacklistNative(int iface, int id,
-                                              String list[]);
-
-    public boolean setBssidBlacklist(String list[]) {
-        int size = 0;
-        if (list != null) {
-            size = list.length;
-        }
-        Log.e(TAG, "setBssidBlacklist cmd " + sPnoCmdId + " size " + size);
-
-        synchronized (sLock) {
-            if (isHalStarted()) {
-                sPnoCmdId = getNewCmdIdLocked();
-                return setBssidBlacklistNative(sWlan0Index, sPnoCmdId, list);
-            } else {
-                return false;
-            }
-        }
-    }
-
     private native static int startSendingOffloadedPacketNative(int iface, int idx,
                                     byte[] srcMac, byte[] dstMac, byte[] pktData, int period);
 
