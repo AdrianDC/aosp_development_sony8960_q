@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.anqp;
+package com.android.server.wifi.hotspot2.anqp;
 
-import static com.android.server.wifi.anqp.Constants.BYTE_MASK;
+import static com.android.server.wifi.hotspot2.anqp.Constants.BYTE_MASK;
 
 import com.android.internal.annotations.VisibleForTesting;
 

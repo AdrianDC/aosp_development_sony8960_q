@@ -19,10 +19,10 @@ package com.android.server.wifi.hotspot2;
 import android.util.Base64;
 import android.util.Log;
 
+import com.android.server.wifi.hotspot2.anqp.ANQPElement;
+import com.android.server.wifi.hotspot2.anqp.ANQPFactory;
+import com.android.server.wifi.hotspot2.anqp.Constants;
 import com.android.server.wifi.WifiNative;
-import com.android.server.wifi.anqp.ANQPElement;
-import com.android.server.wifi.anqp.ANQPFactory;
-import com.android.server.wifi.anqp.Constants;
 
 import java.io.BufferedReader;
 import java.io.IOException;

@@ -1,4 +1,4 @@
-package com.android.server.wifi.anqp;
+package com.android.server.wifi.hotspot2.anqp;
 
 import java.net.ProtocolException;
 import java.nio.ByteBuffer;
@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static com.android.server.wifi.anqp.Constants.BYTE_MASK;
+import static com.android.server.wifi.hotspot2.anqp.Constants.BYTE_MASK;
 
 
 /**

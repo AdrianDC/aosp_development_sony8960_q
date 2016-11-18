@@ -1,13 +1,13 @@
 package com.android.server.wifi.hotspot2;
 
 import com.android.server.wifi.ScanDetail;
-import com.android.server.wifi.anqp.ANQPElement;
-import com.android.server.wifi.anqp.Constants.ANQPElementType;
-import com.android.server.wifi.anqp.HSConnectionCapabilityElement;
-import com.android.server.wifi.anqp.HSWanMetricsElement;
-import com.android.server.wifi.anqp.IPAddressTypeAvailabilityElement;
-import com.android.server.wifi.anqp.IPAddressTypeAvailabilityElement.IPv4Availability;
-import com.android.server.wifi.anqp.IPAddressTypeAvailabilityElement.IPv6Availability;
+import com.android.server.wifi.hotspot2.anqp.ANQPElement;
+import com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType;
+import com.android.server.wifi.hotspot2.anqp.HSConnectionCapabilityElement;
+import com.android.server.wifi.hotspot2.anqp.HSWanMetricsElement;
+import com.android.server.wifi.hotspot2.anqp.IPAddressTypeAvailabilityElement;
+import com.android.server.wifi.hotspot2.anqp.IPAddressTypeAvailabilityElement.IPv4Availability;
+import com.android.server.wifi.hotspot2.anqp.IPAddressTypeAvailabilityElement.IPv6Availability;
 
 import java.util.EnumMap;
 import java.util.HashMap;

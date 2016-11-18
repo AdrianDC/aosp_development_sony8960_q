@@ -1,9 +1,9 @@
-package com.android.server.wifi.anqp.eap;
+package com.android.server.wifi.hotspot2.anqp.eap;
 
 import java.net.ProtocolException;
 import java.nio.ByteBuffer;
 
-import static com.android.server.wifi.anqp.Constants.BYTE_MASK;
+import static com.android.server.wifi.hotspot2.anqp.Constants.BYTE_MASK;
 
 /**
  * An EAP authentication parameter, IEEE802.11-2012, table 8-188

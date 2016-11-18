@@ -1,6 +1,6 @@
-package com.android.server.wifi.anqp;
+package com.android.server.wifi.hotspot2.anqp;
 
-import com.android.server.wifi.anqp.eap.EAPMethod;
+import com.android.server.wifi.hotspot2.anqp.eap.EAPMethod;
 import com.android.server.wifi.hotspot2.AuthMatch;
 import com.android.server.wifi.hotspot2.DomainMatcher;
 import com.android.server.wifi.hotspot2.Utils;
