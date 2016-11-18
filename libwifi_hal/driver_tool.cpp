@@ -56,6 +56,10 @@ bool DriverTool::IsDriverLoaded() {
   return ::wifi_unload_driver() != 0;
 }
 
+bool DriverTool::IsFirmwareModeChangeNeeded(int mode) {
+  return (wifi_get_fw_path(mode) != nullptr);
+}
+
 bool DriverTool::ChangeFirmwareMode(int mode) {
   const char* fwpath = wifi_get_fw_path(mode);
   if (!fwpath) {
