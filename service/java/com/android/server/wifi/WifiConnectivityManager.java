@@ -900,12 +900,10 @@ public class WifiConnectivityManager {
             return;
         }
 
-        if (mScreenOn) {
+        // TODO(b/32977707): Start PNO scans when screen is off once wificond's interface
+        // is hooked on to WifiScanningService.
+        if (mScreenOn || (mWifiState == WIFI_STATE_DISCONNECTED)) {
             startPeriodicScan(scanImmediately);
-        } else { // screenOff
-            if (mWifiState == WIFI_STATE_DISCONNECTED) {
-                startDisconnectedPnoScan();
-            }
         }
     }
 
