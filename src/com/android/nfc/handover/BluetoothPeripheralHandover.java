@@ -18,10 +18,12 @@ package com.android.nfc.handover;
 
 import android.bluetooth.BluetoothA2dp;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothClass;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothHeadset;
 import android.bluetooth.BluetoothInputDevice;
 import android.bluetooth.BluetoothProfile;
+import android.bluetooth.BluetoothUuid;
 import android.bluetooth.OobData;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
@@ -96,6 +98,8 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
     int mA2dpResult; // used only in STATE_CONNECTING and STATE_DISCONNETING
     int mHidResult;
     OobData mOobData;
+    boolean mIsHeadsetAvailable;
+    boolean mIsA2dpAvailable;
 
     // protected by mLock
     BluetoothA2dp mA2dp;
@@ -107,7 +111,8 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
     }
 
     public BluetoothPeripheralHandover(Context context, BluetoothDevice device, String name,
-                                       int transport, OobData oobData, Callback callback) {
+            int transport, OobData oobData, ParcelUuid[] uuids, BluetoothClass btClass,
+            Callback callback) {
         checkMainThread();  // mHandler must get get constructed on Main Thread for toasts to work
         mContext = context;
         mDevice = device;
@@ -120,6 +125,16 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
         ContentResolver contentResolver = mContext.getContentResolver();
         mProvisioning = Settings.Secure.getInt(contentResolver,
                 Settings.Global.DEVICE_PROVISIONED, 0) == 0;
+
+        mIsHeadsetAvailable = hasHeadsetCapability(uuids, btClass);
+        mIsA2dpAvailable = hasA2dpCapability(uuids, btClass);
+
+        // Capability information is from NDEF optional field, then it might be empty.
+        // If all capabilities indicate false, try to connect Headset and A2dp just in case.
+        if (!mIsHeadsetAvailable && !mIsA2dpAvailable) {
+            mIsHeadsetAvailable = true;
+            mIsA2dpAvailable = true;
+        }
 
         mState = STATE_INIT;
     }
@@ -205,6 +220,18 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                             Log.i(TAG, "ACTION_DISCONNECT addr=" + mDevice + " name=" + mName);
                             mAction = ACTION_DISCONNECT;
                         } else {
+                            // Check if each profile of the device is disabled or not
+                            if (mHeadset.getPriority(mDevice) == BluetoothProfile.PRIORITY_OFF) {
+                                mIsHeadsetAvailable = false;
+                            }
+                            if (mA2dp.getPriority(mDevice) == BluetoothProfile.PRIORITY_OFF) {
+                                mIsA2dpAvailable = false;
+                            }
+                            if (!mIsHeadsetAvailable && !mIsA2dpAvailable) {
+                                Log.i(TAG, "Both Headset and A2DP profiles are unavailable");
+                                complete(false);
+                                break;
+                            }
                             Log.i(TAG, "ACTION_CONNECT addr=" + mDevice + " name=" + mName);
                             mAction = ACTION_CONNECT;
                         }
@@ -329,14 +356,22 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
                     if (mTransport != BluetoothDevice.TRANSPORT_LE) {
                         if (mHeadset.getConnectionState(mDevice) !=
                                 BluetoothProfile.STATE_CONNECTED) {
-                            mHfpResult = RESULT_PENDING;
-                            mHeadset.connect(mDevice);
+                            if (mIsHeadsetAvailable) {
+                                mHfpResult = RESULT_PENDING;
+                                mHeadset.connect(mDevice);
+                            } else {
+                                mHfpResult = RESULT_DISCONNECTED;
+                            }
                         } else {
                             mHfpResult = RESULT_CONNECTED;
                         }
                         if (mA2dp.getConnectionState(mDevice) != BluetoothProfile.STATE_CONNECTED) {
-                            mA2dpResult = RESULT_PENDING;
-                            mA2dp.connect(mDevice);
+                            if (mIsA2dpAvailable) {
+                                mA2dpResult = RESULT_PENDING;
+                                mA2dp.connect(mDevice);
+                            } else {
+                                mA2dpResult = RESULT_DISCONNECTED;
+                            }
                         } else {
                             mA2dpResult = RESULT_CONNECTED;
                         }
@@ -483,6 +518,34 @@ public class BluetoothPeripheralHandover implements BluetoothProfile.ServiceList
         dialogIntent.putExtra(BluetoothDevice.EXTRA_DEVICE, mDevice);
 
         mContext.startActivity(dialogIntent);
+    }
+
+    boolean hasA2dpCapability(ParcelUuid[] uuids, BluetoothClass btClass) {
+        if (uuids != null) {
+            for (ParcelUuid uuid : uuids) {
+                if (BluetoothUuid.isAudioSink(uuid) || BluetoothUuid.isAdvAudioDist(uuid)) {
+                    return true;
+                }
+            }
+        }
+        if (btClass != null && btClass.doesClassMatch(BluetoothClass.PROFILE_A2DP)) {
+            return true;
+        }
+        return false;
+    }
+
+    boolean hasHeadsetCapability(ParcelUuid[] uuids, BluetoothClass btClass) {
+        if (uuids != null) {
+            for (ParcelUuid uuid : uuids) {
+                if (BluetoothUuid.isHandsfree(uuid) || BluetoothUuid.isHeadset(uuid)) {
+                    return true;
+                }
+            }
+        }
+        if (btClass != null && btClass.doesClassMatch(BluetoothClass.PROFILE_HEADSET)) {
+            return true;
+        }
+        return false;
     }
 
     final Handler mHandler = new Handler() {
