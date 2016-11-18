@@ -40,6 +40,12 @@ class DriverTool {
   virtual bool UnloadDriver();
   virtual bool IsDriverLoaded();
 
+  // Check if we need to invoke |ChangeFirmwareMode| to configure
+  // the firmware for the provided mode.
+  // |mode| is one of the kFirmwareMode* constants defined above.
+  // Returns true if needed, and false otherwise.
+  virtual bool IsFirmwareModeChangeNeeded(int mode);
+
   // Change the firmware mode.
   // |mode| is one of the kFirmwareMode* constants defined above.
   // Returns true on success, and false otherwise.
