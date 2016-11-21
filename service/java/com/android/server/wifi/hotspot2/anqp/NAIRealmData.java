@@ -59,12 +59,11 @@ public class NAIRealmData {
 
     // TODO(b/32714185): revisit this when integrating the new Passpoint implementation and add
     // unit tests for this.
-    public int match(List<String> credLabels, EAPMethod credMethod) {
+    public int match(String realmToMatch, EAPMethod credMethod) {
         int realmMatch = AuthMatch.None;
         if (!mRealms.isEmpty()) {
             for (String realm : mRealms) {
-                List<String> labels = Utils.splitDomain(realm);
-                if (DomainMatcher.arg2SubdomainOfArg1(credLabels, labels)) {
+                if (DomainMatcher.arg2SubdomainOfArg1(realmToMatch, realm)) {
                     realmMatch = AuthMatch.Realm;
                     break;
                 }
