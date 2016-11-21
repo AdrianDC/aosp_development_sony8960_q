@@ -246,37 +246,26 @@ public class WifiScoreReportTest {
     }
 
     /**
-     * Exercise the rates
-     *
-     * If the rate of successful transmissions stays large enough for long enough,
-     * the user-disconnect penalty should fade.
+     * Exercise the rates with low RSSI
      *
      * The setup has a low (not bad) RSSI, and data movement (txSuccessRate) above
-     * the threshold. A large initial value of numTicksAtLowRSSI avoids having
-     * to run the test for a lot of cycles.
+     * the threshold.
      *
      * Expect a score above threshold.
-     * Expect numTicksAtLowRSSI to be reset sometime during the test.
-     * Expect numUserTriggeredWifiDisableLowRSSI to decrease.
      */
     @Test
     public void allowLowRssiIfDataIsMoving() throws Exception {
         when(mWifiInfo.getRssi()).thenReturn(-80);
         when(mWifiInfo.getLinkSpeed()).thenReturn(6); // Mbps
         when(mWifiInfo.is24GHz()).thenReturn(true);
-        mWifiInfo.txSuccessRate = 5.1; // Mbps
+        mWifiInfo.txSuccessRate = 5.1; // proportional to pps
         mWifiInfo.rxSuccessRate = 5.1;
-        mWifiConfiguration.numUserTriggeredWifiDisableLowRSSI = 1;
-        int minNumTicksAtState = 1000; // MIN_NUM_TICKS_AT_STATE
-        mWifiConfiguration.numTicksAtLowRSSI = minNumTicksAtState - 3;
         for (int i = 0; i < 10; i++) {
             mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, 0, mWifiMetrics);
         }
         assertTrue(mWifiScoreReport.isLastReportValid());
         int score = fishScoreFromReportString(mWifiScoreReport.getLastReport());
         assertTrue(score > CELLULAR_THRESHOLD_SCORE);
-        assertTrue(mWifiConfiguration.numTicksAtLowRSSI < 10);
-        assertEquals(0, mWifiConfiguration.numUserTriggeredWifiDisableLowRSSI);
     }
 
     /**
