@@ -26,10 +26,12 @@ public class PasspointProvider {
     private final PasspointConfiguration mConfig;
 
     public PasspointProvider(PasspointConfiguration config) {
-        mConfig = config;
+        // Maintain a copy of the configuration to avoid it being updated by others.
+        mConfig = new PasspointConfiguration(config);
     }
 
     public PasspointConfiguration getConfig() {
-        return mConfig;
+        // Return a copy of the configuration to avoid it being updated by others.
+        return new PasspointConfiguration(mConfig);
     }
 }
