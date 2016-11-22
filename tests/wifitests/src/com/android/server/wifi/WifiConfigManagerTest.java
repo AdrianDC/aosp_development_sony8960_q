@@ -1060,9 +1060,12 @@ public class WifiConfigManagerTest {
                 config.priority = rand.nextInt(10000);
                 config.getNetworkSelectionStatus().setNetworkSelectionStatus(
                         networkSelectionStatusValues.pop());
-                networkSelectionStatusToNetworkIdMap.put(
-                        config.getNetworkSelectionStatus().getNetworkSelectionStatus(),
-                        config.networkId);
+                // Permanently disabled networks should not be present in PNO scan request.
+                if (!config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled()) {
+                    networkSelectionStatusToNetworkIdMap.put(
+                            config.getNetworkSelectionStatus().getNetworkSelectionStatus(),
+                            config.networkId);
+                }
                 Log.i(TAG, "networkID: " + config.networkId + ", NetworkSelectionStatus: "
                         + config.getNetworkSelectionStatus().getNetworkSelectionStatus());
             }
@@ -1150,9 +1153,12 @@ public class WifiConfigManagerTest {
                 config.priority = rand.nextInt(10000);
                 config.getNetworkSelectionStatus().setNetworkSelectionStatus(
                         networkSelectionStatusValues.pop());
-                networkSelectionStatusToNetworkIdMap.put(
-                        config.getNetworkSelectionStatus().getNetworkSelectionStatus(),
-                        config.networkId);
+                // Permanently disabled networks should not be present in PNO scan request.
+                if (!config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled()) {
+                    networkSelectionStatusToNetworkIdMap.put(
+                            config.getNetworkSelectionStatus().getNetworkSelectionStatus(),
+                            config.networkId);
+                }
                 Log.i(TAG, "networkID: " + config.networkId + ", NetworkSelectionStatus: "
                         + config.getNetworkSelectionStatus().getNetworkSelectionStatus());
             }
