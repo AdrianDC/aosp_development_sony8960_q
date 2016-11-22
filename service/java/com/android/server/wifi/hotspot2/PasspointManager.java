@@ -156,8 +156,6 @@ public class PasspointManager {
             mProviders.remove(existingProvider.getConfig().homeSp.fqdn);
         }
 
-        // TODO(b/32714562): create/use a copy of configuration to avoid others from modifying it,
-        // since others might still have reference to it?
         mProviders.put(config.homeSp.fqdn, new PasspointProvider(config));
 
         // TODO(b/31065385): Persist updated providers configuration to the persistent storage.
@@ -195,8 +193,6 @@ public class PasspointManager {
 
         List<PasspointConfiguration> configs = new ArrayList<>();
         for (Map.Entry<String, PasspointProvider> entry : mProviders.entrySet()) {
-            // TODO(zqiu): return a copy of the configuration instead, to prevent others from
-            // modifying it?
             configs.add(entry.getValue().getConfig());
         }
         return configs;
