@@ -38,6 +38,7 @@ import android.net.wifi.IWificond;
 import android.net.wifi.ScanResult;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
@@ -310,6 +311,7 @@ public class WifiStateMachineTest {
     @Mock IBinder mClientInterfaceBinder;
     @Mock WifiConfigManager mWifiConfigManager;
     @Mock WifiSupplicantControl mWifiSupplicantControl;
+    @Mock WifiConnectivityManager mWifiConnectivityManager;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -341,6 +343,8 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiSupplicantControl()).thenReturn(mWifiSupplicantControl);
         when(mWifiInjector.getWifiScanner()).thenReturn(mWifiScanner);
         when(mWifiInjector.getWifiNetworkSelector()).thenReturn(mock(WifiNetworkSelector.class));
+        when(mWifiInjector.makeWifiConnectivityManager(any(WifiInfo.class), anyBoolean()))
+                .thenReturn(mWifiConnectivityManager);
 
         when(mWifiNative.getInterfaceName()).thenReturn("mockWlan");
         when(mWifiSupplicantControl.getFrameworkNetworkId(anyInt())).thenReturn(0);

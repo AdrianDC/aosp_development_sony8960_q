@@ -4137,10 +4137,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 mWifiScanner = mWifiInjector.getWifiScanner();
 
                 synchronized (mWifiReqCountLock) {
-                    mWifiConnectivityManager = new WifiConnectivityManager(mContext,
-                        WifiStateMachine.this, mWifiScanner, mWifiConfigManager, mWifiInfo,
-                        mWifiNetworkSelector, mWifiInjector,
-                        getHandler().getLooper(), hasConnectionRequests());
+                    mWifiConnectivityManager =
+                            mWifiInjector.makeWifiConnectivityManager(mWifiInfo,
+                                                                      hasConnectionRequests());
                     mWifiConnectivityManager.setUntrustedConnectionAllowed(mUntrustedReqCount > 0);
                     mWifiConnectivityManager.handleScreenStateChanged(mScreenOn);
                 }

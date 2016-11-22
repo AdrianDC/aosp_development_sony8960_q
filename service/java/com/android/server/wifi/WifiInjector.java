@@ -21,6 +21,7 @@ import android.net.wifi.IApInterface;
 import android.net.wifi.IWifiScanner;
 import android.net.wifi.IWificond;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiScanner;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -356,6 +357,23 @@ public class WifiInjector {
      */
     public WifiNetworkSelector getWifiNetworkSelector() {
         return mWifiNetworkSelector;
+    }
+
+    /**
+     * Obtain a new instance of WifiConnectivityManager.
+     *
+     * Create and return a new WifiConnectivityManager.
+     * @param wifiInfo WifiInfo object for updating wifi state.
+     * @param hasConnectionRequests boolean indicating if WifiConnectivityManager to start
+     * immediately based on connection requests.
+     */
+    public WifiConnectivityManager makeWifiConnectivityManager(WifiInfo wifiInfo,
+                                                               boolean hasConnectionRequests) {
+        return new WifiConnectivityManager(mContext, mWifiStateMachine, getWifiScanner(),
+                                           mWifiConfigManager, wifiInfo, mWifiNetworkSelector,
+                                           mWifiLastResortWatchdog, mWifiMetrics,
+                                           mWifiStateMachineHandlerThread.getLooper(), mClock,
+                                           hasConnectionRequests);
     }
 
     public WifiPermissionsUtil getWifiPermissionsUtil() {
