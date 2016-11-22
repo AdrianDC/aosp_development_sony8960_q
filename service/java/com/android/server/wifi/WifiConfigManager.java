@@ -94,6 +94,7 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1123,6 +1124,14 @@ public class WifiConfigManager {
         ArrayList<WifiScanner.PnoSettings.PnoNetwork> pnoList = new ArrayList<>();
         ArrayList<WifiConfiguration> wifiConfigurations =
                 new ArrayList<>(mConfiguredNetworks.valuesForCurrentUser());
+        // Remove any permanently disabled networks.
+        Iterator<WifiConfiguration> iter = wifiConfigurations.iterator();
+        while (iter.hasNext()) {
+            WifiConfiguration config = iter.next();
+            if (config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled()) {
+                iter.remove();
+            }
+        }
         Collections.sort(wifiConfigurations, pnoListComparator);
         // Let's use the network list size as the highest priority and then go down from there.
         // So, the most frequently connected network has the highest priority now.
