@@ -339,10 +339,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 new WifiStateMachineHandler(wifiServiceHandlerThread.getLooper());
         mWifiController = mWifiInjector.getWifiController();
         mWifiBackupRestore = mWifiInjector.getWifiBackupRestore();
-        mWifiPermissionsUtil = mWifiInjector.getWifiPermissionsUtil();
         mPermissionReviewRequired = Build.PERMISSIONS_REVIEW_REQUIRED
                 || context.getResources().getBoolean(
                 com.android.internal.R.bool.config_permissionReviewRequired);
+        mWifiPermissionsUtil = mWifiInjector.getWifiPermissionsUtil();
         mPasspointManager = mWifiInjector.getPasspointManager();
 
         enableVerboseLoggingInternal(getVerboseLoggingLevel());
