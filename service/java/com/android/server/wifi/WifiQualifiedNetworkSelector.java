@@ -17,7 +17,10 @@
 package com.android.server.wifi;
 
 import android.annotation.Nullable;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.NetworkKey;
 import android.net.NetworkScoreManager;
 import android.net.WifiKey;
@@ -25,7 +28,10 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.PersistableBundle;
+import android.telephony.CarrierConfigManager;
 import android.text.TextUtils;
+import android.util.Base64;
 import android.util.LocalLog;
 import android.util.Log;
 import android.util.Pair;
@@ -38,6 +44,8 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.nio.charset.StandardCharsets;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -109,6 +117,8 @@ public class WifiQualifiedNetworkSelector {
     private int mUserPreferedBand = WifiManager.WIFI_FREQUENCY_BAND_AUTO;
     private Map<String, BssidBlacklistStatus> mBssidBlacklist =
             new HashMap<String, BssidBlacklistStatus>();
+    private List<WifiConfiguration> mCarrierConfiguredNetworks = new ArrayList<WifiConfiguration>();
+    private CarrierConfigManager mCarrierConfigManager;
 
     /**
      * class save the blacklist status of a given BSSID
@@ -192,6 +202,50 @@ public class WifiQualifiedNetworkSelector {
         mNoIntnetPenalty = (mWifiConfigManager.mThresholdSaturatedRssi24.get() + mRssiScoreOffset)
                 * mRssiScoreSlope + mWifiConfigManager.mBandAward5Ghz.get()
                 + mWifiConfigManager.mCurrentNetworkBoost.get() + mSameBssidAward + mSecurityAward;
+        mCarrierConfigManager = (CarrierConfigManager)
+                context.getSystemService(Context.CARRIER_CONFIG_SERVICE);
+
+        final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                localLog("mBroadcastReceiver: onReceive " + intent.getAction());
+                PersistableBundle b = mCarrierConfigManager.getConfig();
+                String[] mWifiArray =
+                        b.getStringArray(CarrierConfigManager.KEY_CARRIER_WIFI_STRING_ARRAY);
+                WifiConfiguration wifiConfig;
+                if (mWifiArray == null) {
+                    return;
+                }
+
+                for (String config : mWifiArray) {
+                    String[] wc = config.split("\\|");
+                    wifiConfig = new WifiConfiguration();
+                    try {
+                        byte[] decodedBytes = Base64.decode(wc[0], Base64.DEFAULT);
+                        String ssid = new String(decodedBytes);
+                        wifiConfig.SSID = "\"" + ssid  + "\"";
+                    } catch (IllegalArgumentException ex) {
+                        localLog("mBroadcaseReceiver: Could not decode base64 string");
+                        continue;
+                    }
+                    try {
+                        int s = Integer.parseInt(wc[1]);
+                        wifiConfig.allowedKeyManagement.set(s);
+                    } catch (NumberFormatException e) {
+                        localLog("mBroadcastReceiver: not an integer" + wc[1]);
+                    }
+                    mCarrierConfiguredNetworks.add(wifiConfig);
+                    localLog("mBroadcastReceiver: onReceive networks:" + wifiConfig.SSID);
+                }
+            }
+        };
+        context.registerReceiver(mBroadcastReceiver, new IntentFilter(
+                CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED));
+    }
+
+    @VisibleForTesting
+    public void setCarrierConfiguredNetworks(List<WifiConfiguration> carrierConfiguredNetworks) {
+        mCarrierConfiguredNetworks = carrierConfiguredNetworks;
     }
 
     void enableVerboseLogging(int verbose) {
@@ -239,7 +293,7 @@ public class WifiQualifiedNetworkSelector {
 
         // Current network band must match with user preference selection
         if (mWifiInfo.is24GHz() && (mUserPreferedBand != WifiManager.WIFI_FREQUENCY_BAND_2GHZ)) {
-            localLog("Current band dose not match user preference. Start Qualified Network"
+            localLog("Current band does not match user preference. Start Qualified Network"
                     + " Selection Current band = " + (mWifiInfo.is24GHz() ? "2.4GHz band"
                     : "5GHz band") + "UserPreference band = " + mUserPreferedBand);
             return false;
@@ -583,6 +637,16 @@ public class WifiQualifiedNetworkSelector {
         return status == null ? false : status.mIsBlacklisted;
     }
 
+    private boolean isCarrierNetwork(ScanResult scanResult) {
+        String ssid = "\"" + scanResult.SSID + "\"";
+        for (WifiConfiguration config : mCarrierConfiguredNetworks) {
+            if (config.SSID.equals(ssid)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * ToDo: This should be called in Connectivity Manager when it gets new scan result
      * check whether a network slection is needed. If need, check all the new scan results and
@@ -606,7 +670,7 @@ public class WifiQualifiedNetworkSelector {
      *                              false -- supplicant is not in a transient state
      * @return the qualified network candidate found. If no available candidate, return null
      */
-    public WifiConfiguration selectQualifiedNetwork(boolean forceSelectNetwork ,
+    public WifiConfiguration selectQualifiedNetwork(boolean forceSelectNetwork,
             boolean isUntrustedConnectionsAllowed, List<ScanDetail>  scanDetails,
             boolean isLinkDebouncing, boolean isConnected, boolean isDisconnected,
             boolean isSupplicantTransient) {
@@ -633,8 +697,11 @@ public class WifiQualifiedNetworkSelector {
         int currentHighestScore = Integer.MIN_VALUE;
         ScanResult scanResultCandidate = null;
         WifiConfiguration networkCandidate = null;
+        WifiConfiguration carrierCandidate = null;
         final ExternalScoreEvaluator externalScoreEvaluator =
                 new ExternalScoreEvaluator(mLocalLog, mDbg);
+        final CarrierScoreEvaluator carrierScoreEvaluator =
+                new CarrierScoreEvaluator(mLocalLog, mDbg);
         String lastUserSelectedNetWorkKey = mWifiConfigManager.getLastSelectedConfiguration();
         WifiConfiguration lastUserSelectedNetwork =
                 mWifiConfigManager.getWifiConfiguration(lastUserSelectedNetWorkKey);
@@ -733,10 +800,21 @@ public class WifiQualifiedNetworkSelector {
             // Evaluate the potentially ephemeral network as a possible candidate if untrusted
             // connections are allowed and we have an external score for the scan result.
             if (potentiallyEphemeral) {
+                localLog("Network is a ephemeral network...");
                 if (isUntrustedConnectionsAllowed) {
                     Integer netScore = getNetworkScore(scanResult, false);
-                    if (netScore != null
-                        && !mWifiConfigManager.wasEphemeralNetworkDeleted(
+                    if (netScore == null) {
+                        localLog("Checking the carrierScoreEvaluator for candidates...");
+                        // Evaluate the carrier network as a possible candidate.
+                        if (!mCarrierConfiguredNetworks.isEmpty() && isCarrierNetwork(scanResult)) {
+                            carrierScoreEvaluator.evalCarrierCandidate(scanResult,
+                                    getCarrierScore(scanResult, mCurrentConnectedNetwork,
+                                            (mCurrentBssid == null ? false :
+                                                    mCurrentBssid.equals(scanResult.BSSID))));
+                        }
+
+                    }
+                    else if (!mWifiConfigManager.wasEphemeralNetworkDeleted(
                                 ScanDetailUtil.createQuotedSSID(scanResult.SSID))) {
                         externalScoreEvaluator.evalUntrustedCandidate(netScore, scanResult);
                         // scanDetail is for available ephemeral network
@@ -872,6 +950,14 @@ public class WifiQualifiedNetworkSelector {
         }
 
         if (scanResultCandidate == null) {
+            networkCandidate = getCarrierScoreCandidate(carrierScoreEvaluator);
+            localLog("Carrier candidate::" + networkCandidate);
+            if (networkCandidate != null) {
+                scanResultCandidate = networkCandidate.getNetworkSelectionStatus().getCandidate();
+            }
+        }
+
+        if (scanResultCandidate == null) {
             localLog("Can not find any suitable candidates");
             return null;
         }
@@ -956,6 +1042,32 @@ public class WifiQualifiedNetworkSelector {
     }
 
     /**
+     * Returns the best candidate network according to the given CarrierScoreEvaluator.
+     */
+    @Nullable
+    WifiConfiguration getCarrierScoreCandidate(CarrierScoreEvaluator scoreEvaluator) {
+        WifiConfiguration networkCandidate = null;
+
+        ScanResult untrustedScanResultCandidate = scoreEvaluator.getScanResultCandidate();
+        if (untrustedScanResultCandidate == null) {
+            return null;
+        }
+        WifiConfiguration unTrustedNetworkCandidate =
+                mWifiConfigManager.wifiConfigurationFromScanResult(
+                                untrustedScanResultCandidate);
+        // Mark this config as ephemeral so it isn't persisted.
+        unTrustedNetworkCandidate.ephemeral = true;
+        mWifiConfigManager.saveNetwork(unTrustedNetworkCandidate, WifiConfiguration.UNKNOWN_UID);
+        localLog(String.format("new carrier candidate %s network ID:%d, ",
+                toScanId(untrustedScanResultCandidate), unTrustedNetworkCandidate.networkId));
+
+        unTrustedNetworkCandidate.getNetworkSelectionStatus()
+                .setCandidate(untrustedScanResultCandidate);
+        networkCandidate = unTrustedNetworkCandidate;
+        return networkCandidate;
+    }
+
+    /**
      * Returns the available external network score or NULL if no score is available.
      *
      * @param scanResult The scan result of the network to score.
@@ -970,6 +1082,43 @@ public class WifiQualifiedNetworkSelector {
             return networkScore;
         }
         return null;
+    }
+
+    /**
+     * Returns the available external network score or NULL if no score is available.
+     *
+     * @param scanResult The scan result of the network to score.
+     * @return A valid external score if one is available or NULL.
+     */
+    int getCarrierScore(ScanResult scanResult, WifiConfiguration currentNetwork,
+                        boolean sameBssid) {
+        localLog("Calc Carrier score: w/" + sameBssid);
+        if (currentNetwork != null) {
+            localLog("scoring: compare::" + scanResult.SSID + ", with:" + currentNetwork.SSID);
+        }
+        int score = 0;
+        // Calculate the RSSI score.
+        int rssi = scanResult.level <= mWifiConfigManager.mThresholdSaturatedRssi24.get()
+                ? scanResult.level : mWifiConfigManager.mThresholdSaturatedRssi24.get();
+        score += (rssi + mRssiScoreOffset) * mRssiScoreSlope;
+
+        // 5GHz band bonus.
+        if (scanResult.is5GHz()) {
+            score += BAND_AWARD_5GHz;
+        }
+
+        //same network award
+        if ((currentNetwork != null) && currentNetwork.SSID.equals(scanResult.SSID)) {
+            score += mWifiConfigManager.mCurrentNetworkBoost.get();
+        }
+
+        //same BSSID award
+        if (sameBssid) {
+            score += mSameBssidAward;
+        }
+
+        localLog("Calc Carrier score:" + score);
+        return score;
     }
 
     /**
@@ -1041,6 +1190,51 @@ public class WifiQualifiedNetworkSelector {
 
         int getBestCandidateType() {
             return mBestCandidateType;
+        }
+
+        int getHighScore() {
+            return mHighScore;
+        }
+
+        public ScanResult getScanResultCandidate() {
+            return mScanResultCandidate;
+        }
+
+        WifiConfiguration getSavedConfig() {
+            return mSavedConfig;
+        }
+
+        private void localLog(String log) {
+            if (mDbg) {
+                mLocalLog.log(log);
+            }
+        }
+    }
+
+    /**
+     * Used to track and evaluate networks that are assigned by the Carriers.
+     */
+    static class CarrierScoreEvaluator {
+        // Always set to the best known candidate
+        private int mHighScore = WifiNetworkScoreCache.INVALID_NETWORK_SCORE;
+        private WifiConfiguration mSavedConfig;
+        private ScanResult mScanResultCandidate;
+        private final LocalLog mLocalLog;
+        private final boolean mDbg;
+
+        CarrierScoreEvaluator(LocalLog localLog, boolean dbg) {
+            mLocalLog = localLog;
+            mDbg = dbg;
+        }
+
+        // Determines whether or not the given scan result is the best one its seen so far.
+        void evalCarrierCandidate(ScanResult scanResult, int score) {
+            if (score > mHighScore) {
+                mHighScore = score;
+                mScanResultCandidate = scanResult;
+                localLog(toScanId(scanResult) +
+                        " become the new untrusted carrier network candidate");
+            }
         }
 
         int getHighScore() {
