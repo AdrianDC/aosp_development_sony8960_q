@@ -2313,31 +2313,33 @@ public class WifiConfigManager {
      * Need to be called when {@link com.android.server.SystemService#onSwitchUser(int)} is invoked.
      *
      * @param userId The identifier of the new foreground user, after the switch.
+     * @return List of network ID's of all the private networks of the old user which will be
+     * removed from memory.
      */
-    public void handleUserSwitch(int userId) {
+    public Set<Integer> handleUserSwitch(int userId) {
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "Handling user switch for " + userId);
         }
         if (userId == mCurrentUserId) {
             Log.w(TAG, "User already in foreground " + userId);
-            return;
+            return new HashSet<>();
         }
         if (mUserManager.isUserUnlockingOrUnlocked(mCurrentUserId)) {
             saveToStore(true);
         }
         // Remove any private networks of the old user before switching the userId.
-        clearInternalUserData(mCurrentUserId);
+        Set<Integer> removedNetworkIds = clearInternalUserData(mCurrentUserId);
         mConfiguredNetworks.setNewUser(userId);
         mCurrentUserId = userId;
 
         if (mUserManager.isUserUnlockingOrUnlocked(mCurrentUserId)) {
             handleUserUnlockOrSwitch(mCurrentUserId);
         } else {
-            // Since the new user is not logged-in yet, we cannot read data from the store files
-            // yet.
+            // Cannot read data from new user's CE store file before they log-in.
             mPendingUnlockStoreRead = true;
             Log.i(TAG, "Waiting for user unlock to load from store");
         }
+        return removedNetworkIds;
     }
 
     /**
@@ -2395,18 +2397,23 @@ public class WifiConfigManager {
      *  - List of deleted ephemeral networks.
      *
      * @param userId The identifier of the current foreground user, before the switch.
+     * @return List of network ID's of all the private networks of the old user which will be
+     * removed from memory.
      */
-    private void clearInternalUserData(int userId) {
+    private Set<Integer> clearInternalUserData(int userId) {
+        Set<Integer> removedNetworkIds = new HashSet<>();
         // Remove any private networks of the old user before switching the userId.
         for (WifiConfiguration config : getInternalConfiguredNetworks()) {
             if (!config.shared && WifiConfigurationUtil.doesUidBelongToAnyProfile(
                     config.creatorUid, mUserManager.getProfiles(userId))) {
+                removedNetworkIds.add(config.networkId);
                 mConfiguredNetworks.remove(config.networkId);
             }
         }
         mDeletedEphemeralSSIDs.clear();
         mScanDetailCaches.clear();
         clearLastSelectedNetwork();
+        return removedNetworkIds;
     }
 
     /**
