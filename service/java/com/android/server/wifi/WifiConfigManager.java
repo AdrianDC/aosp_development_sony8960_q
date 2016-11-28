@@ -2064,14 +2064,14 @@ public class WifiConfigManager {
      * internal ScanResult's cache {@link #mScanDetailCaches}. This is used for initiating partial
      * scans for the currently connected network.
      *
-     * @param networkId   network ID corresponding to the network.
-     * @param ageInMillis only consider scan details whose timestamps are earlier than this value.
+     * @param networkId       network ID corresponding to the network.
+     * @param ageInMillis     only consider scan details whose timestamps are earlier than this value.
      * @param homeChannelFreq frequency of the currently connected network.
      * @return Set containing the frequencies on which this network was found, null if the network
      * was not found or there are no associated scan details in the cache.
      */
     public Set<Integer> fetchChannelSetForNetworkForPartialScan(int networkId, long ageInMillis,
-                int homeChannelFreq) {
+                                                                int homeChannelFreq) {
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
             return null;
@@ -2281,34 +2281,22 @@ public class WifiConfigManager {
     }
 
     /**
-     * Helper method to clear internal databases.
-     * This method clears the:
-     *  - List of configured networks.
-     *  - Map of scan detail caches.
-     *  - List of deleted ephemeral networks.
-     */
-    private void clearInternalData() {
-        mConfiguredNetworks.clear();
-        mDeletedEphemeralSSIDs.clear();
-        mScanDetailCaches.clear();
-        clearLastSelectedNetwork();
-    }
-
-    /**
-     * Helper method to perform the following operations during user switch:
-     * - Load from the new store files.
+     * Helper method to perform the following operations during user switch/unlock:
+     * - Remove private networks of the old user.
+     * - Load from the new user store file.
      * - Save the store files again to migrate any user specific networks from the shared store
      *   to user store.
+     * This method assumes the user store is visible (i.e CE storage is unlocked). So, the caller
+     * should ensure that the stores are accessible before invocation.
      *
-     * @param userId The identifier of the new foreground user, after the switch.
+     * @param userId The identifier of the new foreground user, after the unlock or switch.
      */
-    private void loadFromStoreAndMigrateAfterUserSwitch(int userId) {
+    private void handleUserUnlockOrSwitch(int userId) {
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "Loading from store after user switch/unlock for " + userId);
         }
         // Switch out the user store file.
-        mWifiConfigStore.switchUserStore(mWifiConfigStore.createUserFile(userId));
-        if (loadFromStore()) {
+        if (loadFromUserStoreAfterUnlockOrSwitch(userId)) {
             saveToStore(true);
             mPendingUnlockStoreRead = false;
         }
@@ -2337,12 +2325,13 @@ public class WifiConfigManager {
         if (mUserManager.isUserUnlockingOrUnlocked(mCurrentUserId)) {
             saveToStore(true);
         }
-        mCurrentUserId = userId;
+        // Remove any private networks of the old user before switching the userId.
+        clearInternalUserData(mCurrentUserId);
         mConfiguredNetworks.setNewUser(userId);
-        clearInternalData();
+        mCurrentUserId = userId;
 
         if (mUserManager.isUserUnlockingOrUnlocked(mCurrentUserId)) {
-            loadFromStoreAndMigrateAfterUserSwitch(mCurrentUserId);
+            handleUserUnlockOrSwitch(mCurrentUserId);
         } else {
             // Since the new user is not logged-in yet, we cannot read data from the store files
             // yet.
@@ -2364,7 +2353,7 @@ public class WifiConfigManager {
             Log.v(TAG, "Handling user unlock for " + userId);
         }
         if (userId == mCurrentUserId && mPendingUnlockStoreRead) {
-            loadFromStoreAndMigrateAfterUserSwitch(mCurrentUserId);
+            handleUserUnlockOrSwitch(mCurrentUserId);
         }
     }
 
@@ -2385,28 +2374,100 @@ public class WifiConfigManager {
     }
 
     /**
-     * Helper function to populate the internal (in-memory) data from the retrieved store (file)
-     * data. It also sends out the networks changed broadcast after loading all the data.
+     * Helper method to clear internal databases.
+     * This method clears the:
+     *  - List of configured networks.
+     *  - Map of scan detail caches.
+     *  - List of deleted ephemeral networks.
+     */
+    private void clearInternalData() {
+        mConfiguredNetworks.clear();
+        mDeletedEphemeralSSIDs.clear();
+        mScanDetailCaches.clear();
+        clearLastSelectedNetwork();
+    }
+
+    /**
+     * Helper method to clear internal databases of the specified user.
+     * This method clears the:
+     *  - Private configured configured networks of the specified user.
+     *  - Map of scan detail caches.
+     *  - List of deleted ephemeral networks.
+     *
+     * @param userId The identifier of the current foreground user, before the switch.
+     */
+    private void clearInternalUserData(int userId) {
+        // Remove any private networks of the old user before switching the userId.
+        for (WifiConfiguration config : getInternalConfiguredNetworks()) {
+            if (!config.shared && WifiConfigurationUtil.doesUidBelongToAnyProfile(
+                    config.creatorUid, mUserManager.getProfiles(userId))) {
+                mConfiguredNetworks.remove(config.networkId);
+            }
+        }
+        mDeletedEphemeralSSIDs.clear();
+        mScanDetailCaches.clear();
+        clearLastSelectedNetwork();
+    }
+
+    /**
+     * Helper function to populate the internal (in-memory) data from the retrieved shared store
+     * (file) data.
+     *
+     * @param configurations list of configurations retrieved from store.
+     */
+    private void loadInternalDataFromSharedStore(
+            List<WifiConfiguration> configurations) {
+        for (WifiConfiguration configuration : configurations) {
+            configuration.networkId = mNextNetworkId++;
+            if (mVerboseLoggingEnabled) {
+                Log.v(TAG, "Adding network from shared store " + configuration.configKey());
+            }
+            mConfiguredNetworks.put(configuration);
+        }
+    }
+
+    /**
+     * Helper function to populate the internal (in-memory) data from the retrieved user store
+     * (file) data.
      *
      * @param configurations        list of configurations retrieved from store.
      * @param deletedEphemeralSSIDs list of ssid's representing the ephemeral networks deleted by
      *                              the user.
      */
-    private void loadInternalData(
+    private void loadInternalDataFromUserStore(
             List<WifiConfiguration> configurations, Set<String> deletedEphemeralSSIDs) {
-        // Clear out all the existing in-memory lists and load the lists from what was retrieved
-        // from the config store.
-        clearInternalData();
         for (WifiConfiguration configuration : configurations) {
             configuration.networkId = mNextNetworkId++;
             if (mVerboseLoggingEnabled) {
-                Log.v(TAG, "Adding network from store " + configuration.configKey());
+                Log.v(TAG, "Adding network from user store " + configuration.configKey());
             }
             mConfiguredNetworks.put(configuration);
         }
         for (String ssid : deletedEphemeralSSIDs) {
             mDeletedEphemeralSSIDs.add(ssid);
         }
+    }
+
+    /**
+     * Helper function to populate the internal (in-memory) data from the retrieved stores (file)
+     * data.
+     * This method:
+     * 1. Clears all existing internal data.
+     * 2. Sends out the networks changed broadcast after loading all the data.
+     *
+     * @param sharedConfigurations  list of  network configurations retrieved from shared store.
+     * @param userConfigurations    list of  network configurations retrieved from user store.
+     * @param deletedEphemeralSSIDs list of ssid's representing the ephemeral networks deleted by
+     *                              the user.
+     */
+    private void loadInternalData(
+            List<WifiConfiguration> sharedConfigurations,
+            List<WifiConfiguration> userConfigurations, Set<String> deletedEphemeralSSIDs) {
+        // Clear out all the existing in-memory lists and load the lists from what was retrieved
+        // from the config store.
+        clearInternalData();
+        loadInternalDataFromSharedStore(sharedConfigurations);
+        loadInternalDataFromUserStore(userConfigurations, deletedEphemeralSSIDs);
         if (mConfiguredNetworks.sizeForAllUsers() == 0) {
             Log.w(TAG, "No stored networks found.");
         }
@@ -2426,7 +2487,8 @@ public class WifiConfigManager {
         if (mWifiConfigStoreLegacy.areStoresPresent()) {
             WifiConfigStoreDataLegacy storeData = mWifiConfigStoreLegacy.read();
             Log.d(TAG, "Reading from legacy store completed");
-            loadInternalData(storeData.getConfigurations(), storeData.getDeletedEphemeralSSIDs());
+            loadInternalData(storeData.getConfigurations(), new ArrayList<WifiConfiguration>(),
+                    storeData.getDeletedEphemeralSSIDs());
             if (!saveToStore(true)) {
                 return false;
             }
@@ -2444,7 +2506,6 @@ public class WifiConfigManager {
      * This reads all the network configurations from:
      * 1. Shared WifiConfigStore.xml
      * 2. User WifiConfigStore.xml
-     * 3. PerProviderSubscription.conf
      *
      * @return true on success, false otherwise.
      */
@@ -2452,7 +2513,6 @@ public class WifiConfigManager {
         if (!mWifiConfigStore.areStoresPresent()) {
             return migrateFromLegacyStore();
         }
-
         WifiConfigStoreData storeData;
         try {
             storeData = mWifiConfigStore.read();
@@ -2463,7 +2523,38 @@ public class WifiConfigManager {
             Log.wtf(TAG, "XML deserialization of store failed. All saved networks are lost!", e);
             return false;
         }
-        loadInternalData(storeData.getConfigurations(), storeData.getDeletedEphemeralSSIDs());
+        loadInternalData(storeData.getSharedConfigurations(), storeData.getUserConfigurations(),
+                storeData.getDeletedEphemeralSSIDs());
+        return true;
+    }
+
+    /**
+     * Read the user config store and load the in-memory lists from the store data retrieved and
+     * sends out the networks changed broadcast.
+     * This should be used for all user switches/unlocks to only load networks from the user
+     * specific store and avoid reloading the shared networks.
+     *
+     * This reads all the network configurations from:
+     * 1. User WifiConfigStore.xml
+     *
+     * @param userId The identifier of the foreground user.
+     * @return true on success, false otherwise.
+     */
+    public boolean loadFromUserStoreAfterUnlockOrSwitch(int userId) {
+        WifiConfigStoreData storeData;
+        try {
+            storeData = mWifiConfigStore.switchUserStoreAndRead(
+                    mWifiConfigStore.createUserFile(userId));
+        } catch (IOException e) {
+            Log.wtf(TAG, "Reading from new store failed. All saved private networks are lost!", e);
+            return false;
+        } catch (XmlPullParserException e) {
+            Log.wtf(TAG, "XML deserialization of store failed. All saved private networks are" +
+                    "lost!", e);
+            return false;
+        }
+        loadInternalDataFromUserStore(storeData.getUserConfigurations(),
+                storeData.getDeletedEphemeralSSIDs());
         return true;
     }
 
@@ -2528,7 +2619,7 @@ public class WifiConfigManager {
         mLocalLog.dump(fd, pw, args);
         pw.println("WifiConfigManager - Log End ----");
         pw.println("WifiConfigManager - Configured networks Begin ----");
-        for (WifiConfiguration network: getInternalConfiguredNetworks()) {
+        for (WifiConfiguration network : getInternalConfiguredNetworks()) {
             pw.println(network);
         }
         pw.println("WifiConfigManager - Configured networks End ----");
