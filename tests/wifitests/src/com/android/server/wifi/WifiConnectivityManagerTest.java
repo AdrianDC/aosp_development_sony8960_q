@@ -50,6 +50,8 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -66,7 +68,7 @@ public class WifiConnectivityManagerTest {
      */
     @Before
     public void setUp() throws Exception {
-        mWifiInjector = mockWifiInjector();
+        MockitoAnnotations.initMocks(this);
         mResource = mockResource();
         mAlarmManager = new TestAlarmManager();
         mContext = mockContext();
@@ -100,10 +102,9 @@ public class WifiConnectivityManagerTest {
     private ScanData mScanData;
     private WifiConfigManager mWifiConfigManager;
     private WifiInfo mWifiInfo;
-    private Clock mClock = mock(Clock.class);
-    private WifiLastResortWatchdog mWifiLastResortWatchdog;
-    private WifiMetrics mWifiMetrics;
-    private WifiInjector mWifiInjector;
+    @Mock private Clock mClock;
+    @Mock private WifiLastResortWatchdog mWifiLastResortWatchdog;
+    @Mock private WifiMetrics mWifiMetrics;
     private MockResources mResources;
 
     private static final int CANDIDATE_NETWORK_ID = 0;
@@ -249,19 +250,10 @@ public class WifiConnectivityManagerTest {
         return wifiConfigManager;
     }
 
-    WifiInjector mockWifiInjector() {
-        WifiInjector wifiInjector = mock(WifiInjector.class);
-        mWifiLastResortWatchdog = mock(WifiLastResortWatchdog.class);
-        mWifiMetrics = mock(WifiMetrics.class);
-        when(wifiInjector.getWifiLastResortWatchdog()).thenReturn(mWifiLastResortWatchdog);
-        when(wifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
-        when(wifiInjector.getClock()).thenReturn(mClock);
-        return wifiInjector;
-    }
-
     WifiConnectivityManager createConnectivityManager() {
         return new WifiConnectivityManager(mContext, mWifiStateMachine, mWifiScanner,
-                mWifiConfigManager, mWifiInfo, mWifiNS, mWifiInjector, mLooper.getLooper(), true);
+                mWifiConfigManager, mWifiInfo, mWifiNS, mWifiLastResortWatchdog,
+                mWifiMetrics, mLooper.getLooper(), mClock, true);
     }
 
     /**

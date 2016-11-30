@@ -465,19 +465,19 @@ public class WifiConnectivityManager {
      */
     WifiConnectivityManager(Context context, WifiStateMachine stateMachine,
                 WifiScanner scanner, WifiConfigManager configManager, WifiInfo wifiInfo,
-                WifiNetworkSelector networkSelector, WifiInjector wifiInjector, Looper looper,
-                boolean enable) {
+                WifiNetworkSelector networkSelector, WifiLastResortWatchdog wifiLastResortWatchdog,
+                WifiMetrics wifiMetrics, Looper looper, Clock clock, boolean enable) {
         mStateMachine = stateMachine;
         mScanner = scanner;
         mConfigManager = configManager;
         mWifiInfo = wifiInfo;
         mNetworkSelector = networkSelector;
         mLocalLog = networkSelector.getLocalLog();
-        mWifiLastResortWatchdog = wifiInjector.getWifiLastResortWatchdog();
-        mWifiMetrics = wifiInjector.getWifiMetrics();
+        mWifiLastResortWatchdog = wifiLastResortWatchdog;
+        mWifiMetrics = wifiMetrics;
         mAlarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         mEventHandler = new Handler(looper);
-        mClock = wifiInjector.getClock();
+        mClock = clock;
         mConnectionAttemptTimeStamps = new LinkedList<>();
 
         mMin5GHzRssi = context.getResources().getInteger(
