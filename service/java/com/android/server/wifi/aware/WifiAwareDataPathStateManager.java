@@ -867,36 +867,51 @@ public class WifiAwareDataPathStateManager {
             }
             uid = client.getUid();
 
+            // validate the role (if session ID provided: i.e. session 1xx)
             if (type == WifiAwareManager.NETWORK_SPECIFIER_TYPE_1A
-                    || type == WifiAwareManager.NETWORK_SPECIFIER_TYPE_1B) {
+                    || type == WifiAwareManager.NETWORK_SPECIFIER_TYPE_1B
+                    || type == WifiAwareManager.NETWORK_SPECIFIER_TYPE_1C
+                    || type == WifiAwareManager.NETWORK_SPECIFIER_TYPE_1D) {
                 WifiAwareDiscoverySessionState session = client.getSession(sessionId);
                 if (session == null) {
                     Log.e(TAG,
                             "parseNetworkSpecifier: networkSpecifier=" + networkSpecifier
-                                    + " -- not session with this id -- sessionId=" + sessionId);
+                                    + " -- no session with this id -- sessionId=" + sessionId);
                     return null;
                 }
-                pubSubId = session.getPubSubId();
-                String peerMacStr = session.getMac(peerId, null);
-                if (peerMacStr == null) {
-                    Log.e(TAG,
-                            "parseNetworkSpecifier: networkSpecifier=" + networkSpecifier
-                                    + " -- no MAC address associated with this peer id -- peerId="
-                                    + peerId);
+
+                if ((session.isPublishSession()
+                        && role != WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_RESPONDER) || (
+                        !session.isPublishSession()
+                                && role != WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR)) {
+                    Log.e(TAG, "parseNetworkSpecifier: networkSpecifier=" + networkSpecifier
+                            + " -- invalid role for session type");
                     return null;
                 }
-                try {
-                    peerMac = HexEncoding.decode(peerMacStr.toCharArray(), false);
-                    if (peerMac == null || peerMac.length != 6) {
-                        Log.e(TAG, "parseNetworkSpecifier: networkSpecifier="
-                                + networkSpecifier + " -- invalid peer MAC address");
+
+                if (type == WifiAwareManager.NETWORK_SPECIFIER_TYPE_1A
+                        || type == WifiAwareManager.NETWORK_SPECIFIER_TYPE_1B) {
+                    pubSubId = session.getPubSubId();
+                    String peerMacStr = session.getMac(peerId, null);
+                    if (peerMacStr == null) {
+                        Log.e(TAG, "parseNetworkSpecifier: networkSpecifier=" + networkSpecifier
+                                + " -- no MAC address associated with this peer id -- peerId="
+                                + peerId);
                         return null;
                     }
-                } catch (IllegalArgumentException e) {
-                    Log.e(TAG,
-                            "parseNetworkSpecifier: networkSpecifier=" + networkSpecifier
-                                    + " -- invalid peer MAC address -- e=" + e);
-                    return null;
+                    try {
+                        peerMac = HexEncoding.decode(peerMacStr.toCharArray(), false);
+                        if (peerMac == null || peerMac.length != 6) {
+                            Log.e(TAG, "parseNetworkSpecifier: networkSpecifier="
+                                    + networkSpecifier + " -- invalid peer MAC address");
+                            return null;
+                        }
+                    } catch (IllegalArgumentException e) {
+                        Log.e(TAG,
+                                "parseNetworkSpecifier: networkSpecifier=" + networkSpecifier
+                                        + " -- invalid peer MAC address -- e=" + e);
+                        return null;
+                    }
                 }
             }
 

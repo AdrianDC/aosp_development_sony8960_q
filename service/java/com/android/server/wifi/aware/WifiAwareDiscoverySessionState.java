@@ -62,6 +62,10 @@ public class WifiAwareDiscoverySessionState {
         return mPubSubId;
     }
 
+    public boolean isPublishSession() {
+        return mIsPublishSession;
+    }
+
     public IWifiAwareDiscoverySessionCallback getCallback() {
         return mCallback;
     }
