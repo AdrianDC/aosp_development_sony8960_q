@@ -21,12 +21,15 @@ import android.security.Credentials;
 import android.util.Log;
 
 import com.android.server.wifi.WifiKeyStore;
+import com.android.server.wifi.hotspot2.anqp.ANQPElement;
+import com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * Abstraction for Passpoint service provider.  This class contains the both static
@@ -153,6 +156,16 @@ public class PasspointProvider {
             }
             mClientCertificateAlias = null;
         }
+    }
+
+    /**
+     * Return the matching status with the given AP, based on the ANQP elements from the AP.
+     * @param anqpElements ANQP elements from the AP
+     * @return {@link com.android.server.wifi.hotspot2.PasspointMatch}
+     */
+    public PasspointMatch match(Map<ANQPElementType, ANQPElement> anqpElements) {
+        // TODO(b/33246489): To be implemented.
+        return PasspointMatch.None;
     }
 
     /**
