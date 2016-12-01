@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import android.content.Context;
+import android.net.NetworkScorerAppManager;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IWifiScanner;
 import android.net.wifi.IWificond;
@@ -167,7 +168,7 @@ public class WifiInjector {
                 BatteryStatsService.getService());
         mWifiPermissionsWrapper = new WifiPermissionsWrapper(mContext);
         mWifiPermissionsUtil = new WifiPermissionsUtil(mWifiPermissionsWrapper, mContext,
-                mSettingsStore, UserManager.get(mContext));
+                mSettingsStore, UserManager.get(mContext), new NetworkScorerAppManager(mContext));
         mSimAccessor = new SIMAccessor(mContext);
         mPasspointManager = new PasspointManager(mContext, this, mSimAccessor);
     }

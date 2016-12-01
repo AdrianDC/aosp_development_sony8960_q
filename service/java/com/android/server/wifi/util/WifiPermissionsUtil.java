@@ -21,6 +21,7 @@ import android.app.AppOpsManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
+import android.net.NetworkScorerAppManager;
 import android.os.UserManager;
 import android.provider.Settings;
 
@@ -41,16 +42,19 @@ public class WifiPermissionsUtil {
     private final AppOpsManager mAppOps;
     private final UserManager mUserManager;
     private final WifiSettingsStore mSettingsStore;
+    private final NetworkScorerAppManager mNetworkScorerAppManager;
     private WifiLog mLog;
 
     public WifiPermissionsUtil(WifiPermissionsWrapper wifiPermissionsWrapper,
-              Context context, WifiSettingsStore settingsStore, UserManager userManager) {
+            Context context, WifiSettingsStore settingsStore, UserManager userManager,
+            NetworkScorerAppManager networkScorerAppManager) {
         mWifiPermissionsWrapper = wifiPermissionsWrapper;
         mContext = context;
         mUserManager = userManager;
         mAppOps = (AppOpsManager) mContext.getSystemService(Context.APP_OPS_SERVICE);
         mSettingsStore = settingsStore;
         mLog = WifiInjector.getInstance().makeLog(TAG);
+        mNetworkScorerAppManager = networkScorerAppManager;
     }
 
     /**
@@ -108,7 +112,7 @@ public class WifiPermissionsUtil {
      * Returns true if the caller is an Active Network Scorer.
      */
     private boolean isCallerActiveNwScorer(int uid) {
-        return mWifiPermissionsWrapper.isCallerActiveNwScorer(uid);
+        return mNetworkScorerAppManager.isCallerActiveScorer(uid);
     }
 
     /**
