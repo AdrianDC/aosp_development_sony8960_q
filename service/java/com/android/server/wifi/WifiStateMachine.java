@@ -3863,7 +3863,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
                 case CMD_USER_SWITCH:
-                    mWifiConfigManager.handleUserSwitch(message.arg1);
+                    Set<Integer> removedNetworkIds =
+                            mWifiConfigManager.handleUserSwitch(message.arg1);
+                    if (removedNetworkIds.contains(mTargetNetworkId) ||
+                            removedNetworkIds.contains(mLastNetworkId)) {
+                        // Disconnect and let autojoin reselect a new network
+                        sendMessage(CMD_DISCONNECT);
+                    }
                     break;
                 case CMD_USER_UNLOCK:
                     mWifiConfigManager.handleUserUnlock(message.arg1);
