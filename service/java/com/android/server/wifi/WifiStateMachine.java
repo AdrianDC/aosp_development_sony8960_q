@@ -7270,6 +7270,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         break;
                     } else {
                         config = mWifiConfigManager.getWifiConfiguration(netId);
+                        if (config == null) {
+                          loge("AUTO_ROAM and invalid netowrk ID, bail out...");
+                          break;
+                        }
                     }
 
                     setTargetBssid(config, bssid);
