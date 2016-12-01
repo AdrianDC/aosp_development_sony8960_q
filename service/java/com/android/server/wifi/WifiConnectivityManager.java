@@ -35,6 +35,8 @@ import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.util.ScanResultUtil;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -1040,5 +1042,15 @@ public class WifiConnectivityManager {
     @VisibleForTesting
     long getLastPeriodicSingleScanTimeStamp() {
         return mLastPeriodicSingleScanTimeStamp;
+    }
+
+    /**
+     * Dump the local logs.
+     *
+     * Note: this call temporarily calls in to NetworkSelector to dump the LocalLog.  This should be
+     * refactored to dump from WifiConnectivityManager instead.
+     */
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        mNetworkSelector.dump(fd, pw, args);
     }
 }
