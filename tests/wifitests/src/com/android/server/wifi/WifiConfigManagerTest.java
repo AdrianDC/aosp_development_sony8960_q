@@ -1817,6 +1817,16 @@ public class WifiConfigManagerTest {
         when(mWifiConfigStore.read()).thenReturn(loadStoreData);
         assertTrue(mWifiConfigManager.loadFromStore());
 
+        // Fetch the network ID assigned to the user 1 network initially.
+        int user1NetworkId = WifiConfiguration.INVALID_NETWORK_ID;
+        List<WifiConfiguration> retrievedNetworks =
+                mWifiConfigManager.getConfiguredNetworksWithPasswords();
+        for (WifiConfiguration network : retrievedNetworks) {
+            if (network.configKey().equals(user1Network.configKey())) {
+                user1NetworkId = network.networkId;
+            }
+        }
+
         // Set up the user 2 store data that is loaded at user switch.
         List<WifiConfiguration> user2Networks = new ArrayList<WifiConfiguration>() {
             {
@@ -1830,7 +1840,8 @@ public class WifiConfigManagerTest {
                 .thenReturn(newUserStoreData);
         // Now switch the user to user 2 and ensure that user 1's private network has been removed.
         when(mUserManager.isUserUnlockingOrUnlocked(user2)).thenReturn(true);
-        mWifiConfigManager.handleUserSwitch(user2);
+        Set<Integer> removedNetworks = mWifiConfigManager.handleUserSwitch(user2);
+        assertTrue((removedNetworks.size() == 1) && (removedNetworks.contains(user1NetworkId)));
 
         // Set the expected networks to be |sharedNetwork| and |user2Network|.
         List<WifiConfiguration> expectedNetworks = new ArrayList<WifiConfiguration>() {
@@ -1841,12 +1852,68 @@ public class WifiConfigManagerTest {
         };
         WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
                 expectedNetworks, mWifiConfigManager.getConfiguredNetworksWithPasswords());
+
+        // Send another user switch  indication with the same user 2. This should be ignored and
+        // hence should not remove any new networks.
+        when(mUserManager.isUserUnlockingOrUnlocked(user2)).thenReturn(true);
+        removedNetworks = mWifiConfigManager.handleUserSwitch(user2);
+        assertTrue(removedNetworks.isEmpty());
+    }
+
+    /**
+     * Verifies the foreground user switch using {@link WifiConfigManager#handleUserSwitch(int)}
+     * and ensures that user switch from a user with no private networks is handled.
+     * Test scenario:
+     * 1. Load the shared networks from shared store and emptu user 1 store.
+     * 2. Switch to user 2 and ensure that no private networks were removed.
+     */
+    @Test
+    public void testHandleUserSwitchWithNoOldUserPrivateNetworks() throws Exception {
+        int user1 = TEST_DEFAULT_USER;
+        int user2 = TEST_DEFAULT_USER + 1;
+        setupUserProfiles(user2);
+
+        int appId = 674;
+
+        // Create 2 networks. 1 for user2 and 1 shared.
+        final WifiConfiguration user2Network = WifiConfigurationTestUtil.createPskNetwork();
+        user2Network.shared = false;
+        user2Network.creatorUid = UserHandle.getUid(user2, appId);
+        final WifiConfiguration sharedNetwork = WifiConfigurationTestUtil.createPskNetwork();
+
+        // Set up the store data that is loaded initially.
+        List<WifiConfiguration> sharedNetworks = new ArrayList<WifiConfiguration>() {
+            {
+                add(sharedNetwork);
+            }
+        };
+        WifiConfigStoreData loadStoreData =
+                new WifiConfigStoreData(sharedNetworks, new ArrayList<WifiConfiguration>(),
+                        new HashSet<String>());
+        when(mWifiConfigStore.read()).thenReturn(loadStoreData);
+        assertTrue(mWifiConfigManager.loadFromStore());
+
+        // Set up the user 2 store data that is loaded at user switch.
+        List<WifiConfiguration> user2Networks = new ArrayList<WifiConfiguration>() {
+            {
+                add(user2Network);
+            }
+        };
+        WifiConfigStoreData newUserStoreData =
+                new WifiConfigStoreData(new ArrayList<WifiConfiguration>(), user2Networks,
+                        new HashSet<String>());
+        when(mWifiConfigStore.switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class)))
+                .thenReturn(newUserStoreData);
+        // Now switch the user to user 2 and ensure that no private network has been removed.
+        when(mUserManager.isUserUnlockingOrUnlocked(user2)).thenReturn(true);
+        Set<Integer> removedNetworks = mWifiConfigManager.handleUserSwitch(user2);
+        assertTrue(removedNetworks.isEmpty());
     }
 
     /**
      * Verifies the foreground user switch using {@link WifiConfigManager#handleUserSwitch(int)}
      * and ensures that any non current user private networks are moved to shared store file.
-     * This test simultates the following test case:
+     * This test simulates the following test case:
      * 1. Loads the shared networks from shared store at bootup.
      * 2. Load the private networks from user store on user 1 unlock.
      * 3. Switch to user 2 and ensure that the user 2's private network has been moved to user 2's
