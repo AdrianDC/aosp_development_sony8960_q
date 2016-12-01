@@ -362,6 +362,16 @@ public class WifiAwareServiceImplTest {
     }
 
     /**
+     * Validate that publish() verifies the input PublishConfig and fails on a bad match filter -
+     * invalid LV.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testPublishMatchFilterBadLv() {
+        byte[] badLv = { 0, 1, 127, 2, 126, 125, 3 };
+        doBadPublishConfiguration("correctservicename", null, badLv);
+    }
+
+    /**
      * Validate updatePublish() - correct pass-through args.
      */
     @Test
@@ -444,6 +454,16 @@ public class WifiAwareServiceImplTest {
     @Test(expected = IllegalArgumentException.class)
     public void testSubscribeMatchFilterTooLong() {
         doBadSubscribeConfiguration("correctservicename", null, new byte[MAX_LENGTH + 1]);
+    }
+
+    /**
+     * Validate that subscribe() verifies the input SubscribeConfig and fails on a bad match filter
+     * - invalid LV.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testSubscribeMatchFilterBadLv() {
+        byte[] badLv = { 0, 1, 127, 2, 126, 125, 3 };
+        doBadSubscribeConfiguration("correctservicename", null, badLv);
     }
 
     /**
@@ -590,8 +610,11 @@ public class WifiAwareServiceImplTest {
 
     private void doBadPublishConfiguration(String serviceName, byte[] ssi, byte[] matchFilter)
             throws IllegalArgumentException {
-        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(ssi).setMatchFilter(matchFilter).build();
+        // using the hidden constructor since may be passing invalid parameters which would be
+        // caught by the Builder. Want to test whether service side will catch invalidly
+        // constructed configs.
+        PublishConfig publishConfig = new PublishConfig(serviceName.getBytes(), ssi, matchFilter,
+                PublishConfig.PUBLISH_TYPE_UNSOLICITED, 0, 0, true);
         int clientId = doConnect();
         IWifiAwareDiscoverySessionCallback mockCallback = mock(
                 IWifiAwareDiscoverySessionCallback.class);
@@ -603,8 +626,12 @@ public class WifiAwareServiceImplTest {
 
     private void doBadSubscribeConfiguration(String serviceName, byte[] ssi, byte[] matchFilter)
             throws IllegalArgumentException {
-        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(ssi).setMatchFilter(matchFilter).build();
+        // using the hidden constructor since may be passing invalid parameters which would be
+        // caught by the Builder. Want to test whether service side will catch invalidly
+        // constructed configs.
+        SubscribeConfig subscribeConfig = new SubscribeConfig(serviceName.getBytes(), ssi,
+                matchFilter, SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE, 0, 0,
+                SubscribeConfig.MATCH_STYLE_ALL, true);
         int clientId = doConnect();
         IWifiAwareDiscoverySessionCallback mockCallback = mock(
                 IWifiAwareDiscoverySessionCallback.class);
