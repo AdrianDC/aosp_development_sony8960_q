@@ -51,6 +51,7 @@ import android.os.UserManager;
 import android.provider.Settings;
 import android.security.KeyStore;
 import android.text.TextUtils;
+import android.util.ArraySet;
 import android.util.LocalLog;
 import android.util.Log;
 import android.util.SparseArray;
@@ -1231,52 +1232,56 @@ public class WifiConfigManager {
     /*
      * Remove all networks associated with an application
      *
-     * @param packageName name of the package of networks to remove
-     * @return {@code true} if all networks removed successfully, {@code false} otherwise
+     * @param app Application info of the package of networks to remove.
+     * @return the {@link Set} of networks that were removed by this call. Networks which matched
+     *         but failed to remove are omitted from this set.
      */
-    boolean removeNetworksForApp(ApplicationInfo app) {
+    public Set<Integer> removeNetworksForApp(ApplicationInfo app) {
         if (app == null || app.packageName == null) {
-            return false;
+            return Collections.<Integer>emptySet();
         }
 
-        boolean success = true;
-
-        WifiConfiguration [] copiedConfigs =
-                mConfiguredNetworks.valuesForCurrentUser().toArray(new WifiConfiguration[0]);
+        Log.d(TAG, "Remove all networks for app " + app);
+        Set<Integer> removedNetworks = new ArraySet<>();
+        WifiConfiguration[] copiedConfigs =
+                mConfiguredNetworks.valuesForAllUsers().toArray(new WifiConfiguration[0]);
         for (WifiConfiguration config : copiedConfigs) {
             if (app.uid != config.creatorUid || !app.packageName.equals(config.creatorName)) {
                 continue;
             }
-            if (mShowNetworks) {
-                localLog("Removing network " + config.SSID
-                         + ", application \"" + app.packageName + "\" uninstalled"
-                         + " from user " + UserHandle.getUserId(app.uid));
+            localLog("Removing network " + config.SSID
+                    + ", application \"" + app.packageName + "\" uninstalled"
+                    + " from user " + UserHandle.getUserId(app.uid));
+            if (removeNetwork(config.networkId)) {
+                removedNetworks.add(config.networkId);
             }
-            success &= removeNetwork(config.networkId);
         }
-
         saveConfig();
-
-        return success;
+        return removedNetworks;
     }
 
-    boolean removeNetworksForUser(int userId) {
-        boolean success = true;
-
+    /**
+     * Remove all networks associated with a user.
+     *
+     * @param userId The identifier of the user which is being removed.
+     * @return the {@link Set} of networks that were removed by this call. Networks which matched
+     *         but failed to remove are omitted from this set.
+     */
+    Set<Integer> removeNetworksForUser(int userId) {
+        Log.d(TAG, "Remove all networks for user " + userId);
+        Set<Integer> removedNetworks = new ArraySet<>();
         WifiConfiguration[] copiedConfigs =
                 mConfiguredNetworks.valuesForAllUsers().toArray(new WifiConfiguration[0]);
         for (WifiConfiguration config : copiedConfigs) {
             if (userId != UserHandle.getUserId(config.creatorUid)) {
                 continue;
             }
-            success &= removeNetwork(config.networkId);
-            if (mShowNetworks) {
-                localLog("Removing network " + config.SSID
-                        + ", user " + userId + " removed");
+            localLog("Removing network " + config.SSID + ", user " + userId + " removed");
+            if (removeNetwork(config.networkId)) {
+                removedNetworks.add(config.networkId);
             }
         }
-
-        return success;
+        return removedNetworks;
     }
 
     /**
