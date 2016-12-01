@@ -18,7 +18,6 @@ package com.android.server.wifi.util;
 
 import android.app.ActivityManager;
 import android.content.Context;
-import android.net.NetworkScorerAppManager;
 import android.os.UserHandle;
 
 import java.util.List;
@@ -33,18 +32,6 @@ public class WifiPermissionsWrapper {
 
     public WifiPermissionsWrapper(Context context) {
         mContext = context;
-    }
-
-    /**
-     * Invokes the static API from NetworkScorer App
-     * Manager to determine if the caller is an active
-     * network scorer
-     * @param uid of the caller
-     * @return boolean indicating if the caller is an
-     *                 active network scorer
-     */
-    public boolean isCallerActiveNwScorer(int uid) {
-        return NetworkScorerAppManager.isCallerActiveScorer(mContext, uid);
     }
 
     public int getCurrentUser() {
