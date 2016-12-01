@@ -1098,7 +1098,8 @@ public class WifiAwareHalTest {
             int publishCount, int publishTtl, boolean enableTerminateNotification)
             throws JSONException {
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(serviceName)
-                .setServiceSpecificInfo(ssi.getBytes()).setMatchFilter(tlvMatch.getArray())
+                .setServiceSpecificInfo(ssi.getBytes()).setMatchFilter(
+                        new TlvBufferUtils.TlvIterable(0, 1, tlvMatch.getArray()).toList())
                 .setPublishType(publishType)
                 .setPublishCount(publishCount).setTtlSec(publishTtl)
                 .setTerminateNotificationEnabled(enableTerminateNotification).build();
@@ -1146,7 +1147,9 @@ public class WifiAwareHalTest {
             boolean enableTerminateNotification) throws JSONException {
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder()
                 .setServiceName(serviceName).setServiceSpecificInfo(ssi.getBytes())
-                .setMatchFilter(tlvMatch.getArray()).setSubscribeType(subscribeType)
+                .setMatchFilter(
+                        new TlvBufferUtils.TlvIterable(0, 1, tlvMatch.getArray()).toList())
+                .setSubscribeType(subscribeType)
                 .setSubscribeCount(subscribeCount).setTtlSec(subscribeTtl).setMatchStyle(matchStyle)
                 .setTerminateNotificationEnabled(enableTerminateNotification).build();
 
