@@ -261,22 +261,31 @@ public class WifiConfigStore {
         byte[] sharedDataBytes = mSharedStore.readRawData();
         byte[] userDataBytes = mUserStore.readRawData();
         long readTime = mClock.getElapsedSinceBootMillis() - readStartTime;
-
         Log.d(TAG, "Reading from stores completed in " + readTime + " ms.");
 
         return WifiConfigStoreData.parseRawData(sharedDataBytes, userDataBytes);
     }
 
     /**
-     * Handle a user switch. This changes the user specific store.
+     * Handles a user switch. This method changes the user specific store file and reads from the
+     * new user's store file.
      *
      * @param userStore StoreFile instance pointing to the user specific store file. This should
      *                  be retrieved using {@link #createUserFile(int)} method.
      */
-    public void switchUserStore(StoreFile userStore) {
+    public WifiConfigStoreData switchUserStoreAndRead(StoreFile userStore)
+            throws XmlPullParserException, IOException {
         // Stop any pending buffered writes, if any.
         stopBufferedWriteAlarm();
         mUserStore = userStore;
+
+        // Now read from the user store file.
+        long readStartTime = mClock.getElapsedSinceBootMillis();
+        byte[] userDataBytes = mUserStore.readRawData();
+        long readTime = mClock.getElapsedSinceBootMillis() - readStartTime;
+        Log.d(TAG, "Reading from user store completed in " + readTime + " ms.");
+
+        return WifiConfigStoreData.parseRawData(null, userDataBytes);
     }
 
     /**
