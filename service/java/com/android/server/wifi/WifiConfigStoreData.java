@@ -119,6 +119,7 @@ public class WifiConfigStoreData {
      *
      * @return List of WifiConfiguration objects corresponding to the networks.
      */
+    @VisibleForTesting
     public List<WifiConfiguration> getConfigurations() {
         List<WifiConfiguration> configurations = new ArrayList<>();
         configurations.addAll(mSharedConfigurations);
@@ -131,7 +132,6 @@ public class WifiConfigStoreData {
      *
      * @return List of WifiConfiguration objects corresponding to the networks.
      */
-    @VisibleForTesting
     public List<WifiConfiguration> getSharedConfigurations() {
         return mSharedConfigurations;
     }
@@ -141,7 +141,6 @@ public class WifiConfigStoreData {
      *
      * @return List of WifiConfiguration objects corresponding to the networks.
      */
-    @VisibleForTesting
     public List<WifiConfiguration> getUserConfigurations() {
         return mUserConfigurations;
     }
