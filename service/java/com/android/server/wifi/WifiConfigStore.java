@@ -601,14 +601,27 @@ public class WifiConfigStore {
         return true;
     }
 
+    private BitSet addFastTransitionFlags(BitSet keyManagementFlags) {
+        BitSet modifiedFlags = keyManagementFlags;
+        if (keyManagementFlags.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
+            modifiedFlags.set(WifiConfiguration.KeyMgmt.FT_PSK);
+        }
+        if (keyManagementFlags.get(WifiConfiguration.KeyMgmt.WPA_EAP)) {
+            modifiedFlags.set(WifiConfiguration.KeyMgmt.FT_EAP);
+        }
+        return modifiedFlags;
+    }
+
     /**
      * Save an entire network configuration to wpa_supplicant.
      *
      * @param config Config corresponding to the network.
-     * @param netId  Net Id of the network.
+     * @param netId Net Id of the network.
+     * @param addFastTransitionFlags Add the BSS fast transition(80211r) flags to the network.
      * @return true if successful, false otherwise.
      */
-    private boolean saveNetwork(WifiConfiguration config, int netId) {
+    private boolean saveNetwork(WifiConfiguration config, int netId,
+            boolean addFastTransitionFlags) {
         if (config == null) {
             return false;
         }
@@ -630,6 +643,10 @@ public class WifiConfigStore {
                 loge("failed to set BSSID: " + bssid);
                 return false;
             }
+        }
+        BitSet allowedKeyManagement = config.allowedKeyManagement;
+        if (addFastTransitionFlags) {
+            allowedKeyManagement = addFastTransitionFlags(config.allowedKeyManagement);
         }
         String allowedKeyManagementString =
                 makeString(config.allowedKeyManagement, WifiConfiguration.KeyMgmt.strings);
@@ -788,11 +805,13 @@ public class WifiConfigStore {
     /**
      * Add or update a network configuration to wpa_supplicant.
      *
-     * @param config         Config corresponding to the network.
+     * @param config Config corresponding to the network.
      * @param existingConfig Existing config corresponding to the network saved in our database.
+     * @param addFastTransitionFlags Add the BSS fast transition(80211r) flags to the network.
      * @return true if successful, false otherwise.
      */
-    public boolean addOrUpdateNetwork(WifiConfiguration config, WifiConfiguration existingConfig) {
+    public boolean addOrUpdateNetwork(WifiConfiguration config, WifiConfiguration existingConfig,
+            boolean addFastTransitionFlags) {
         if (config == null) {
             return false;
         }
@@ -816,7 +835,7 @@ public class WifiConfigStore {
             // Save the new network ID to the config
             config.networkId = netId;
         }
-        if (!saveNetwork(config, netId)) {
+        if (!saveNetwork(config, netId, addFastTransitionFlags)) {
             if (newNetwork) {
                 mWifiNative.removeNetwork(netId);
                 loge("Failed to set a network variable, removed network: " + netId);

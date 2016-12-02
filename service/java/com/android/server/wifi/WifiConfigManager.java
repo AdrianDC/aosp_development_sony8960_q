@@ -243,6 +243,9 @@ public class WifiConfigManager {
     public AtomicInteger mCurrentNetworkBoost = new AtomicInteger();
     public AtomicInteger mBandAward5Ghz = new AtomicInteger();
 
+    // Indicates whether the system is capable of 802.11r fast BSS transition.
+    private boolean mSystemSupportsFastBssTransition = false;
+
     /**
      * Framework keeps a list of ephemeral SSIDs that where deleted by user,
      * so as, framework knows not to autojoin again those SSIDs based on scorer input.
@@ -378,6 +381,8 @@ public class WifiConfigManager {
                 R.integer.config_wifi_framework_current_network_boost));
         mNetworkSwitchingBlackListPeriodMs = mContext.getResources().getInteger(
                 R.integer.config_wifi_network_switching_blacklist_time);
+        mSystemSupportsFastBssTransition = mContext.getResources().getBoolean(
+                R.bool.config_wifi_fast_bss_transition_enabled);
 
         boolean hs2on = mContext.getResources().getBoolean(R.bool.config_wifi_hotspot2_enabled);
         Log.d(Utils.hs2LogTag(getClass()), "Passpoint is " + (hs2on ? "enabled" : "disabled"));
@@ -1960,7 +1965,8 @@ public class WifiConfigManager {
         // HasEverConnected to be set to false.
         WifiConfiguration originalConfig = new WifiConfiguration(currentConfig);
 
-        if (!mWifiConfigStore.addOrUpdateNetwork(config, currentConfig)) {
+        if (!mWifiConfigStore.addOrUpdateNetwork(config, currentConfig,
+                    mSystemSupportsFastBssTransition)) {
             return new NetworkUpdateResult(INVALID_NETWORK_ID);
         }
         int netId = config.networkId;
