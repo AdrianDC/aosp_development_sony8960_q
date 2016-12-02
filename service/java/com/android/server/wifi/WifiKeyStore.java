@@ -158,7 +158,14 @@ public class WifiKeyStore {
         return ret;
     }
 
-    private boolean putCertInKeyStore(String name, Certificate cert) {
+    /**
+     * Install a certificate into the keystore.
+     *
+     * @param name The alias name of the certificate to be installed
+     * @param cert The certificate to be installed
+     * @return true on success
+     */
+    public boolean putCertInKeyStore(String name, Certificate cert) {
         try {
             byte[] certData = Credentials.convertToPem(cert);
             if (mVerboseLoggingEnabled) Log.d(TAG, "putting certificate " + name + " in keystore");
@@ -168,6 +175,28 @@ public class WifiKeyStore {
         } catch (CertificateException e2) {
             return false;
         }
+    }
+
+    /**
+     * Install a key into the keystore.
+     *
+     * @param name The alias name of the key to be installed
+     * @param key The key to be installed
+     * @return true on success
+     */
+    public boolean putKeyInKeyStore(String name, Key key) {
+        byte[] privKeyData = key.getEncoded();
+        return mKeyStore.importKey(name, privKeyData, Process.WIFI_UID, KeyStore.FLAG_NONE);
+    }
+
+    /**
+     * Remove a certificate or key entry specified by the alias name from the keystore.
+     *
+     * @param name The alias name of the entry to be removed
+     * @return true on success
+     */
+    public boolean removeEntryFromKeyStore(String name) {
+        return mKeyStore.delete(name, Process.WIFI_UID);
     }
 
     /**
