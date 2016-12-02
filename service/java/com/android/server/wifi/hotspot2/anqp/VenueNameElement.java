@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.anqp;
+package com.android.server.wifi.hotspot2.anqp;
 
 import java.net.ProtocolException;
 import java.nio.ByteBuffer;

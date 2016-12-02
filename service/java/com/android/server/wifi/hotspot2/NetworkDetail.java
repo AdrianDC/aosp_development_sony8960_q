@@ -1,14 +1,14 @@
 package com.android.server.wifi.hotspot2;
 
-import static com.android.server.wifi.anqp.Constants.BYTES_IN_EUI48;
-import static com.android.server.wifi.anqp.Constants.BYTE_MASK;
+import static com.android.server.wifi.hotspot2.anqp.Constants.BYTES_IN_EUI48;
+import static com.android.server.wifi.hotspot2.anqp.Constants.BYTE_MASK;
 
 import android.net.wifi.ScanResult;
 import android.util.Log;
 
-import com.android.server.wifi.anqp.ANQPElement;
-import com.android.server.wifi.anqp.Constants;
-import com.android.server.wifi.anqp.RawByteElement;
+import com.android.server.wifi.hotspot2.anqp.ANQPElement;
+import com.android.server.wifi.hotspot2.anqp.Constants;
+import com.android.server.wifi.hotspot2.anqp.RawByteElement;
 import com.android.server.wifi.util.InformationElementUtil;
 
 import java.nio.BufferUnderflowException;

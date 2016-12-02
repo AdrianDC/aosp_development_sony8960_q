@@ -1,4 +1,4 @@
-package com.android.server.wifi.anqp.eap;
+package com.android.server.wifi.hotspot2.anqp.eap;
 
 import java.util.HashMap;
 import java.util.Iterator;

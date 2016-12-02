@@ -1,4 +1,4 @@
-package com.android.server.wifi.anqp;
+package com.android.server.wifi.hotspot2.anqp;
 
 /**
  * Base class for an IEEE802.11u ANQP element.

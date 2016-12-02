@@ -15,13 +15,13 @@
  */
 package com.android.server.wifi.util;
 
-import static com.android.server.wifi.anqp.Constants.getInteger;
+import static com.android.server.wifi.hotspot2.anqp.Constants.getInteger;
 
 import android.net.wifi.ScanResult;
 import android.net.wifi.ScanResult.InformationElement;
 import android.util.Log;
 
-import com.android.server.wifi.anqp.Constants;
+import com.android.server.wifi.hotspot2.anqp.Constants;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 
 import java.nio.BufferUnderflowException;
