@@ -1,5 +1,7 @@
 package com.android.server.wifi.hotspot2.anqp;
 
+import com.android.server.wifi.ByteBufferReader;
+
 import java.net.ProtocolException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -20,7 +22,8 @@ public class DomainNameElement extends ANQPElement {
 
         while (payload.hasRemaining()) {
             // Use latin-1 to decode for now - safe for ASCII and retains encoding
-            mDomains.add(Constants.getPrefixedString(payload, 1, StandardCharsets.ISO_8859_1));
+            mDomains.add(ByteBufferReader.readStringWithByteLength(
+                    payload, StandardCharsets.ISO_8859_1));
         }
     }
 
