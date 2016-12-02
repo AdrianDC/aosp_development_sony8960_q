@@ -1,7 +1,7 @@
-package com.android.server.wifi.anqp.eap;
+package com.android.server.wifi.hotspot2.anqp.eap;
 
 
-import com.android.server.wifi.anqp.Constants;
+import com.android.server.wifi.hotspot2.anqp.Constants;
 import com.android.server.wifi.hotspot2.AuthMatch;
 
 import java.net.ProtocolException;

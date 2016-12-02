@@ -1,4 +1,4 @@
-package com.android.server.wifi.anqp.eap;
+package com.android.server.wifi.hotspot2.anqp.eap;
 
 import java.net.ProtocolException;
 import java.nio.ByteBuffer;

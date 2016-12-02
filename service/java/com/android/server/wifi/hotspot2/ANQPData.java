@@ -1,8 +1,8 @@
 package com.android.server.wifi.hotspot2;
 
 import com.android.server.wifi.Clock;
-import com.android.server.wifi.anqp.ANQPElement;
-import com.android.server.wifi.anqp.Constants;
+import com.android.server.wifi.hotspot2.anqp.ANQPElement;
+import com.android.server.wifi.hotspot2.anqp.Constants;
 
 import java.util.ArrayList;
 import java.util.Collections;
