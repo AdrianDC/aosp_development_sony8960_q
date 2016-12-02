@@ -39,8 +39,8 @@ import com.android.internal.R;
 import com.android.server.am.BatteryStatsService;
 import com.android.server.net.DelayedDiskWrite;
 import com.android.server.net.IpConfigStore;
-import com.android.server.wifi.hotspot2.PasspointEventHandler;
 import com.android.server.wifi.hotspot2.PasspointManager;
+import com.android.server.wifi.hotspot2.PasspointObjectFactory;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
@@ -170,7 +170,8 @@ public class WifiInjector {
         mWifiPermissionsUtil = new WifiPermissionsUtil(mWifiPermissionsWrapper, mContext,
                 mSettingsStore, UserManager.get(mContext), new NetworkScorerAppManager(mContext));
         mSimAccessor = new SIMAccessor(mContext);
-        mPasspointManager = new PasspointManager(mContext, this, mSimAccessor);
+        mPasspointManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
+                mSimAccessor, new PasspointObjectFactory());
     }
 
     /**
@@ -328,14 +329,6 @@ public class WifiInjector {
         } else {
             return new BaseWifiDiagnostics();
         }
-    }
-
-    /**
-     * Create a PasspointEventHandler instance with the given callbacks.
-     */
-    public PasspointEventHandler makePasspointEventHandler(
-            PasspointEventHandler.Callbacks callbacks) {
-        return new PasspointEventHandler(mWifiNative, callbacks);
     }
 
     /**

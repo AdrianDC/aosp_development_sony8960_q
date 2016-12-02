@@ -24,7 +24,9 @@ import static android.net.wifi.WifiManager.PASSPOINT_ICON_RECEIVED_ACTION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
@@ -38,10 +40,13 @@ import android.net.wifi.hotspot2.pps.HomeSP;
 import android.os.UserHandle;
 import android.test.suitebuilder.annotation.SmallTest;
 
+import com.android.server.wifi.Clock;
 import com.android.server.wifi.FakeKeys;
 import com.android.server.wifi.IMSIParameter;
 import com.android.server.wifi.SIMAccessor;
 import com.android.server.wifi.WifiInjector;
+import com.android.server.wifi.WifiKeyStore;
+import com.android.server.wifi.WifiNative;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -63,21 +68,27 @@ public class PasspointManagerTest {
     private static final String TEST_FRIENDLY_NAME = "friendly name";
     private static final String TEST_REALM = "realm.test.com";
     private static final String TEST_IMSI = "1234*";
+    private static final long PROVIDER_ID = 1L;
 
     @Mock Context mContext;
-    @Mock WifiInjector mWifiInjector;
-    @Mock PasspointEventHandler.Callbacks mCallbacks;
+    @Mock WifiNative mWifiNative;
+    @Mock WifiKeyStore mWifiKeyStore;
+    @Mock Clock mClock;
     @Mock SIMAccessor mSimAccessor;
+    @Mock PasspointObjectFactory mObjectFactory;
+    @Mock PasspointEventHandler.Callbacks mCallbacks;
     PasspointManager mManager;
 
     /** Sets up test. */
     @Before
     public void setUp() throws Exception {
         initMocks(this);
-        mManager = new PasspointManager(mContext, mWifiInjector, mSimAccessor);
+        mManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
+                mSimAccessor, mObjectFactory);
         ArgumentCaptor<PasspointEventHandler.Callbacks> callbacks =
                 ArgumentCaptor.forClass(PasspointEventHandler.Callbacks.class);
-        verify(mWifiInjector).makePasspointEventHandler(callbacks.capture());
+        verify(mObjectFactory).makePasspointEventHandler(any(WifiNative.class),
+                                                         callbacks.capture());
         mCallbacks = callbacks.getValue();
     }
 
@@ -112,6 +123,19 @@ public class PasspointManagerTest {
         List<PasspointConfiguration> installedConfigs = mManager.getProviderConfigs();
         assertEquals(1, installedConfigs.size());
         assertEquals(expectedConfig, installedConfigs.get(0));
+    }
+
+    /**
+     * Create a mock PasspointProvider with default expectations.
+     *
+     * @param config The configuration associated with the provider
+     * @return {@link com.android.server.wifi.hotspot2.PasspointProvider}
+     */
+    private PasspointProvider createMockProvider(PasspointConfiguration config) {
+        PasspointProvider provider = mock(PasspointProvider.class);
+        when(provider.installCertsAndKeys()).thenReturn(true);
+        when(provider.getConfig()).thenReturn(config);
+        return provider;
     }
 
     /**
@@ -200,11 +224,16 @@ public class PasspointManagerTest {
         config.credential.userCredential.password = "password";
         config.credential.userCredential.eapType = EAPConstants.EAP_TTLS;
         config.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
+        PasspointProvider provider = createMockProvider(config);
+        when(mClock.getWallClockMillis()).thenReturn(PROVIDER_ID);
+        when(mObjectFactory.makePasspointProvider(config, mWifiKeyStore, PROVIDER_ID))
+                .thenReturn(provider);
         assertTrue(mManager.addProvider(config));
         verifyInstalledConfig(config);
 
         // Remove the provider.
         assertTrue(mManager.removeProvider(TEST_FQDN));
+        verify(provider).uninstallCertsAndKeys();
         assertEquals(null, mManager.getProviderConfigs());
     }
 
@@ -226,11 +255,16 @@ public class PasspointManagerTest {
         config.credential.simCredential.eapType = EAPConstants.EAP_SIM;
         when(mSimAccessor.getMatchingImsis(new IMSIParameter(TEST_IMSI)))
                 .thenReturn(new ArrayList<String>());
+        PasspointProvider provider = createMockProvider(config);
+        when(mClock.getWallClockMillis()).thenReturn(PROVIDER_ID);
+        when(mObjectFactory.makePasspointProvider(config, mWifiKeyStore, PROVIDER_ID))
+                .thenReturn(provider);
         assertTrue(mManager.addProvider(config));
         verifyInstalledConfig(config);
 
         // Remove the provider.
         assertTrue(mManager.removeProvider(TEST_FQDN));
+        verify(provider).uninstallCertsAndKeys();
         assertEquals(null, mManager.getProviderConfigs());
     }
 
@@ -276,6 +310,10 @@ public class PasspointManagerTest {
         origConfig.credential.simCredential.eapType = EAPConstants.EAP_SIM;
         when(mSimAccessor.getMatchingImsis(new IMSIParameter(TEST_IMSI)))
                 .thenReturn(new ArrayList<String>());
+        PasspointProvider origProvider = createMockProvider(origConfig);
+        when(mClock.getWallClockMillis()).thenReturn(PROVIDER_ID);
+        when(mObjectFactory.makePasspointProvider(origConfig, mWifiKeyStore, PROVIDER_ID))
+                .thenReturn(origProvider);
         assertTrue(mManager.addProvider(origConfig));
         verifyInstalledConfig(origConfig);
 
@@ -293,7 +331,49 @@ public class PasspointManagerTest {
         newConfig.credential.userCredential.password = "password";
         newConfig.credential.userCredential.eapType = EAPConstants.EAP_TTLS;
         newConfig.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
+        PasspointProvider newProvider = createMockProvider(newConfig);
+        when(mClock.getWallClockMillis()).thenReturn(PROVIDER_ID);
+        when(mObjectFactory.makePasspointProvider(newConfig, mWifiKeyStore, PROVIDER_ID))
+                .thenReturn(newProvider);
         assertTrue(mManager.addProvider(newConfig));
         verifyInstalledConfig(newConfig);
+    }
+
+    /**
+     * Verify that adding a provider will fail when failing to install certificates and
+     * key to the keystore.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void addProviderOnKeyInstallationFailiure() throws Exception {
+        PasspointConfiguration config = new PasspointConfiguration();
+        config.homeSp = new HomeSP();
+        config.homeSp.fqdn = TEST_FQDN;
+        config.homeSp.friendlyName = TEST_FRIENDLY_NAME;
+        config.credential = new Credential();
+        config.credential.realm = TEST_REALM;
+        config.credential.caCertificate = FakeKeys.CA_CERT0;
+        config.credential.userCredential = new Credential.UserCredential();
+        config.credential.userCredential.username = "username";
+        config.credential.userCredential.password = "password";
+        config.credential.userCredential.eapType = EAPConstants.EAP_TTLS;
+        config.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
+        PasspointProvider provider = mock(PasspointProvider.class);
+        when(provider.installCertsAndKeys()).thenReturn(false);
+        when(mClock.getWallClockMillis()).thenReturn(PROVIDER_ID);
+        when(mObjectFactory.makePasspointProvider(config, mWifiKeyStore, PROVIDER_ID))
+                .thenReturn(provider);
+        assertFalse(mManager.addProvider(config));
+    }
+
+    /**
+     * Verify that removing a non-existing provider will fail.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void removeNonExistingProvider() throws Exception {
+        assertFalse(mManager.removeProvider(TEST_FQDN));
     }
 }
