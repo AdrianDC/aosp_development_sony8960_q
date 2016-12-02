@@ -34,9 +34,11 @@ import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.server.wifi.Clock;
 import com.android.server.wifi.IMSIParameter;
 import com.android.server.wifi.SIMAccessor;
-import com.android.server.wifi.WifiInjector;
+import com.android.server.wifi.WifiKeyStore;
+import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.anqp.ANQPElement;
 import com.android.server.wifi.anqp.Constants;
 
@@ -55,6 +57,9 @@ public class PasspointManager {
 
     private final PasspointEventHandler mHandler;
     private final SIMAccessor mSimAccessor;
+    private final WifiKeyStore mKeyStore;
+    private final Clock mClock;
+    private final PasspointObjectFactory mObjectFactory;
     private final Map<String, PasspointProvider> mProviders;
 
     private class CallbackHandler implements PasspointEventHandler.Callbacks {
@@ -104,9 +109,14 @@ public class PasspointManager {
         }
     }
 
-    public PasspointManager(Context context, WifiInjector wifiInjector, SIMAccessor simAccessor) {
-        mHandler = wifiInjector.makePasspointEventHandler(new CallbackHandler(context));
+    public PasspointManager(Context context, WifiNative wifiNative, WifiKeyStore keyStore,
+            Clock clock, SIMAccessor simAccessor, PasspointObjectFactory objectFactory) {
+        mHandler = objectFactory.makePasspointEventHandler(wifiNative,
+                new CallbackHandler(context));
+        mKeyStore = keyStore;
+        mClock = clock;
         mSimAccessor = simAccessor;
+        mObjectFactory = objectFactory;
         mProviders = new HashMap<>();
         // TODO(zqiu): load providers from the persistent storage.
     }
@@ -144,19 +154,25 @@ public class PasspointManager {
             }
         }
 
-        // TODO(b/32619189): install new key and certificates to the keystore.
+        // Create a provider and install the necessary certificates and keys.
+        PasspointProvider newProvider = mObjectFactory.makePasspointProvider(
+                config, mKeyStore, mClock.getWallClockMillis());
+
+        if (!newProvider.installCertsAndKeys()) {
+            Log.e(TAG, "Failed to install certificates and keys to keystore");
+            return false;
+        }
 
         // Detect existing configuration in the same base domain.
         PasspointProvider existingProvider = findProviderInSameBaseDomain(config.homeSp.fqdn);
         if (existingProvider != null) {
             Log.d(TAG, "Replacing configuration for " + existingProvider.getConfig().homeSp.fqdn
                     + " with " + config.homeSp.fqdn);
-            // TODO(b/32619189): Remove existing key and certificates from the keystore.
-
+            existingProvider.uninstallCertsAndKeys();
             mProviders.remove(existingProvider.getConfig().homeSp.fqdn);
         }
 
-        mProviders.put(config.homeSp.fqdn, new PasspointProvider(config));
+        mProviders.put(config.homeSp.fqdn, newProvider);
 
         // TODO(b/31065385): Persist updated providers configuration to the persistent storage.
 
@@ -175,8 +191,7 @@ public class PasspointManager {
             return false;
         }
 
-        // TODO(b/32619189): Remove key and certificates from the keystore.
-
+        mProviders.get(fqdn).uninstallCertsAndKeys();
         mProviders.remove(fqdn);
         return true;
     }
