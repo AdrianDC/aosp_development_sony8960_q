@@ -1,4 +1,4 @@
-package com.android.server.wifi.anqp;
+package com.android.server.wifi.hotspot2.anqp;
 
 import com.android.server.wifi.hotspot2.Utils;
 
@@ -9,8 +9,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static com.android.server.wifi.anqp.Constants.BYTE_MASK;
-import static com.android.server.wifi.anqp.Constants.getInteger;
+import static com.android.server.wifi.hotspot2.anqp.Constants.BYTE_MASK;
+import static com.android.server.wifi.hotspot2.anqp.Constants.getInteger;
 
 /**
  * The Roaming Consortium ANQP Element, IEEE802.11-2012 section 8.4.4.7

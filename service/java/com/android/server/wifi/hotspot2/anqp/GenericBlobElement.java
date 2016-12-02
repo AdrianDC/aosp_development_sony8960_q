@@ -1,4 +1,4 @@
-package com.android.server.wifi.anqp;
+package com.android.server.wifi.hotspot2.anqp;
 
 import com.android.server.wifi.hotspot2.Utils;
 

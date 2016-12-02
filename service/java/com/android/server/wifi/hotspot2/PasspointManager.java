@@ -39,8 +39,8 @@ import com.android.server.wifi.IMSIParameter;
 import com.android.server.wifi.SIMAccessor;
 import com.android.server.wifi.WifiKeyStore;
 import com.android.server.wifi.WifiNative;
-import com.android.server.wifi.anqp.ANQPElement;
-import com.android.server.wifi.anqp.Constants;
+import com.android.server.wifi.hotspot2.anqp.ANQPElement;
+import com.android.server.wifi.hotspot2.anqp.Constants;
 
 import java.io.IOException;
 import java.util.ArrayList;

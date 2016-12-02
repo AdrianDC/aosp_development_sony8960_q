@@ -20,11 +20,11 @@ import android.net.wifi.AnqpInformationElement;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiSsid;
 
-import com.android.server.wifi.anqp.ANQPElement;
-import com.android.server.wifi.anqp.Constants;
-import com.android.server.wifi.anqp.HSFriendlyNameElement;
-import com.android.server.wifi.anqp.RawByteElement;
-import com.android.server.wifi.anqp.VenueNameElement;
+import com.android.server.wifi.hotspot2.anqp.ANQPElement;
+import com.android.server.wifi.hotspot2.anqp.Constants;
+import com.android.server.wifi.hotspot2.anqp.HSFriendlyNameElement;
+import com.android.server.wifi.hotspot2.anqp.RawByteElement;
+import com.android.server.wifi.hotspot2.anqp.VenueNameElement;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.Utils;
 

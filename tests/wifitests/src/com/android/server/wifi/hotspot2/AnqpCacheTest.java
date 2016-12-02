@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.hotspot2;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -27,11 +27,14 @@ import android.net.wifi.WifiSsid;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
 
-import com.android.server.wifi.anqp.ANQPElement;
-import com.android.server.wifi.anqp.Constants;
+import com.android.server.wifi.Clock;
+import com.android.server.wifi.hotspot2.anqp.ANQPElement;
+import com.android.server.wifi.hotspot2.anqp.Constants;
 import com.android.server.wifi.hotspot2.ANQPData;
 import com.android.server.wifi.hotspot2.AnqpCache;
 import com.android.server.wifi.hotspot2.NetworkDetail;
+import com.android.server.wifi.ScanDetail;
+import com.android.server.wifi.ScanResults;
 
 import org.junit.Test;
 import org.mockito.Mock;

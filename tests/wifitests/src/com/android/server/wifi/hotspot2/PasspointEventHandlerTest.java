@@ -26,7 +26,7 @@ import static org.mockito.MockitoAnnotations.initMocks;
 
 import android.test.suitebuilder.annotation.SmallTest;
 import com.android.server.wifi.WifiNative;
-import com.android.server.wifi.anqp.Constants;
+import com.android.server.wifi.hotspot2.anqp.Constants;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;

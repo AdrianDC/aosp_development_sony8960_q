@@ -1,4 +1,4 @@
-package com.android.server.wifi.anqp.eap;
+package com.android.server.wifi.hotspot2.anqp.eap;
 
 /**
  * An Authentication parameter, part of the NAI Realm ANQP element, specified in

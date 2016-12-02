@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi.anqp;
+package com.android.server.wifi.hotspot2.anqp;
 
 import static org.junit.Assert.*;
 
