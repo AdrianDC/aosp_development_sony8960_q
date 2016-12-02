@@ -1,7 +1,7 @@
-package com.android.server.wifi.anqp;
+package com.android.server.wifi.hotspot2.anqp;
 
 import com.android.server.wifi.SIMAccessor;
-import com.android.server.wifi.anqp.eap.EAPMethod;
+import com.android.server.wifi.hotspot2.anqp.eap.EAPMethod;
 import com.android.server.wifi.hotspot2.AuthMatch;
 import com.android.server.wifi.hotspot2.Utils;
 
@@ -11,8 +11,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static com.android.server.wifi.anqp.Constants.BYTES_IN_SHORT;
-import static com.android.server.wifi.anqp.Constants.SHORT_MASK;
+import static com.android.server.wifi.hotspot2.anqp.Constants.BYTES_IN_SHORT;
+import static com.android.server.wifi.hotspot2.anqp.Constants.SHORT_MASK;
 
 /**
  * The NAI Realm ANQP Element, IEEE802.11-2012 section 8.4.4.10

@@ -1,11 +1,11 @@
-package com.android.server.wifi.anqp;
+package com.android.server.wifi.hotspot2.anqp;
 
 import java.net.ProtocolException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
-import static com.android.server.wifi.anqp.Constants.SHORT_MASK;
+import static com.android.server.wifi.hotspot2.anqp.Constants.SHORT_MASK;
 
 /**
  * The Icons available OSU Providers sub field, as specified in

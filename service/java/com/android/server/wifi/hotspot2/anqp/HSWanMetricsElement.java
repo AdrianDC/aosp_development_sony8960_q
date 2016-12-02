@@ -1,11 +1,11 @@
-package com.android.server.wifi.anqp;
+package com.android.server.wifi.hotspot2.anqp;
 
 import java.net.ProtocolException;
 import java.nio.ByteBuffer;
 
-import static com.android.server.wifi.anqp.Constants.BYTE_MASK;
-import static com.android.server.wifi.anqp.Constants.INT_MASK;
-import static com.android.server.wifi.anqp.Constants.SHORT_MASK;
+import static com.android.server.wifi.hotspot2.anqp.Constants.BYTE_MASK;
+import static com.android.server.wifi.hotspot2.anqp.Constants.INT_MASK;
+import static com.android.server.wifi.hotspot2.anqp.Constants.SHORT_MASK;
 
 /**
  * The WAN Metrics vendor specific ANQP Element,
