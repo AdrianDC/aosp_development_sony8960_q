@@ -41,7 +41,6 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
@@ -78,6 +77,9 @@ public class WifiSupplicantControl {
     private int mFrameworkNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
 
     private boolean mVerboseLoggingEnabled = false;
+
+    // Indicates whether the system is capable of 802.11r fast BSS transition.
+    private boolean mSystemSupportsFastBssTransition = false;
 
     WifiSupplicantControl(TelephonyManager telephonyManager, WifiNative wifiNative,
             LocalLog localLog) {
@@ -409,6 +411,21 @@ public class WifiSupplicantControl {
         return true;
     }
 
+    private BitSet addFastTransitionFlags(BitSet keyManagementFlags) {
+        if (!mSystemSupportsFastBssTransition) {
+            return keyManagementFlags;
+        }
+
+        BitSet modifiedFlags = keyManagementFlags;
+        if (keyManagementFlags.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
+            modifiedFlags.set(WifiConfiguration.KeyMgmt.FT_PSK);
+        }
+        if (keyManagementFlags.get(WifiConfiguration.KeyMgmt.WPA_EAP)) {
+            modifiedFlags.set(WifiConfiguration.KeyMgmt.FT_EAP);
+        }
+        return modifiedFlags;
+    }
+
     /**
      * Save an entire network configuration to wpa_supplicant.
      *
@@ -438,8 +455,9 @@ public class WifiSupplicantControl {
                 return false;
             }
         }
+        BitSet allowedKeyManagement = addFastTransitionFlags(config.allowedKeyManagement);
         String allowedKeyManagementString =
-                makeString(config.allowedKeyManagement, WifiConfiguration.KeyMgmt.strings);
+                makeString(allowedKeyManagement, WifiConfiguration.KeyMgmt.strings);
         if (config.allowedKeyManagement.cardinality() != 0 && !mWifiNative.setNetworkVariable(
                 netId,
                 WifiConfiguration.KeyMgmt.varName,
@@ -890,6 +908,20 @@ public class WifiSupplicantControl {
      */
     public void enableVerboseLogging(boolean verbose) {
         mVerboseLoggingEnabled = verbose;
+    }
+
+    /**
+     * Get Fast BSS Transition capability.
+     */
+    public boolean getSystemSupportsFastBssTransition() {
+        return mSystemSupportsFastBssTransition;
+    }
+
+    /**
+     * Set Fast BSS Transition capability.
+     */
+    public void setSystemSupportsFastBssTransition(boolean supported) {
+        mSystemSupportsFastBssTransition = supported;
     }
 
     private class SupplicantSaver implements WifiEnterpriseConfig.SupplicantSaver {
