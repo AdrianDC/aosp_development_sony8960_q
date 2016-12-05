@@ -587,14 +587,14 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             if (enable) {
                 if (wiFiEnabledState == WifiManager.WIFI_STATE_DISABLING
                         || wiFiEnabledState == WifiManager.WIFI_STATE_DISABLED) {
-                    if (startConsentUiIfNeeded(packageName, Binder.getCallingUid(),
+                    if (startConsentUi(packageName, Binder.getCallingUid(),
                             WifiManager.ACTION_REQUEST_ENABLE)) {
                         return true;
                     }
                 }
             } else if (wiFiEnabledState == WifiManager.WIFI_STATE_ENABLING
                     || wiFiEnabledState == WifiManager.WIFI_STATE_ENABLED) {
-                if (startConsentUiIfNeeded(packageName, Binder.getCallingUid(),
+                if (startConsentUi(packageName, Binder.getCallingUid(),
                         WifiManager.ACTION_REQUEST_DISABLE)) {
                     return true;
                 }
@@ -1418,7 +1418,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
     };
 
-    private boolean startConsentUiIfNeeded(String packageName,
+    private boolean startConsentUi(String packageName,
             int callingUid, String intentAction) throws RemoteException {
         if (UserHandle.getAppId(callingUid) == Process.SYSTEM_UID) {
             return false;
@@ -1434,19 +1434,16 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                         + " not in uid " + callingUid);
             }
 
-            // Legacy apps in permission review mode trigger a user prompt
-            if (applicationInfo.targetSdkVersion < Build.VERSION_CODES.M) {
-                Intent intent = new Intent(intentAction);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                        | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
-                intent.putExtra(Intent.EXTRA_PACKAGE_NAME, packageName);
-                mContext.startActivity(intent);
-                return true;
-            }
+            // Permission review mode, trigger a user prompt
+            Intent intent = new Intent(intentAction);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+            intent.putExtra(Intent.EXTRA_PACKAGE_NAME, packageName);
+            mContext.startActivity(intent);
+            return true;
         } catch (PackageManager.NameNotFoundException e) {
             throw new RemoteException(e.getMessage());
         }
-        return false;
     }
 
     /**
