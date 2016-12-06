@@ -90,6 +90,7 @@ public class WifiInjector {
     private final WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     private final WifiConfigManager mWifiConfigManager;
     private final WifiNetworkSelector mWifiNetworkSelector;
+    private final WifiNetworkScoreCache mWifiNetworkScoreCache;
     private WifiScanner mWifiScanner;
     private final WifiPermissionsWrapper mWifiPermissionsWrapper;
     private final WifiPermissionsUtil mWifiPermissionsUtil;
@@ -175,6 +176,7 @@ public class WifiInjector {
         mSimAccessor = new SIMAccessor(mContext);
         mPasspointManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
                 mSimAccessor, new PasspointObjectFactory());
+        mWifiNetworkScoreCache = new WifiNetworkScoreCache(mContext);
     }
 
     /**
@@ -372,9 +374,9 @@ public class WifiInjector {
                                                                boolean hasConnectionRequests) {
         return new WifiConnectivityManager(mContext, mWifiStateMachine, getWifiScanner(),
                                            mWifiConfigManager, wifiInfo, mWifiNetworkSelector,
-                                           mWifiLastResortWatchdog, mWifiMetrics,
-                                           mWifiStateMachineHandlerThread.getLooper(), mClock,
-                                           hasConnectionRequests);
+                                           mWifiNetworkScoreCache, mWifiLastResortWatchdog,
+                                           mWifiMetrics, mWifiStateMachineHandlerThread.getLooper(),
+                                           mClock, hasConnectionRequests);
     }
 
     public WifiPermissionsUtil getWifiPermissionsUtil() {
