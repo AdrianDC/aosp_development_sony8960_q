@@ -105,6 +105,7 @@ public class WifiConnectivityManagerTest {
     @Mock private Clock mClock;
     @Mock private WifiLastResortWatchdog mWifiLastResortWatchdog;
     @Mock private WifiMetrics mWifiMetrics;
+    @Mock private WifiNetworkScoreCache mScoreCache;
     private MockResources mResources;
 
     private static final int CANDIDATE_NETWORK_ID = 0;
@@ -252,7 +253,7 @@ public class WifiConnectivityManagerTest {
 
     WifiConnectivityManager createConnectivityManager() {
         return new WifiConnectivityManager(mContext, mWifiStateMachine, mWifiScanner,
-                mWifiConfigManager, mWifiInfo, mWifiNS, mWifiLastResortWatchdog,
+                mWifiConfigManager, mWifiInfo, mWifiNS, mScoreCache, mWifiLastResortWatchdog,
                 mWifiMetrics, mLooper.getLooper(), mClock, true);
     }
 
