@@ -467,8 +467,9 @@ public class WifiConnectivityManager {
      */
     WifiConnectivityManager(Context context, WifiStateMachine stateMachine,
                 WifiScanner scanner, WifiConfigManager configManager, WifiInfo wifiInfo,
-                WifiNetworkSelector networkSelector, WifiLastResortWatchdog wifiLastResortWatchdog,
-                WifiMetrics wifiMetrics, Looper looper, Clock clock, boolean enable) {
+                WifiNetworkSelector networkSelector, WifiNetworkScoreCache scoreCache,
+                WifiLastResortWatchdog wifiLastResortWatchdog, WifiMetrics wifiMetrics,
+                Looper looper, Clock clock, boolean enable) {
         mStateMachine = stateMachine;
         mScanner = scanner;
         mConfigManager = configManager;
@@ -519,7 +520,7 @@ public class WifiConnectivityManager {
                     SAVED_NETWORK_EVALUATOR_PRIORITY);
 
         ExternalScoreEvaluator externalScoreEvaluator = new ExternalScoreEvaluator(context,
-                mConfigManager, mClock, mLocalLog);
+                mConfigManager, scoreCache, mClock, mLocalLog);
         mNetworkSelector.registerNetworkEvaluator(externalScoreEvaluator,
                     EXTERNAL_SCORE_EVALUATOR_PRIORITY);
 
