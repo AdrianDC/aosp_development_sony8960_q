@@ -983,11 +983,12 @@ public class WifiConnectivityManager {
     /**
      * Track whether a BSSID should be enabled or disabled for WifiNetworkSelector
      */
-    public boolean trackBssid(String bssid, boolean enable) {
-        localLog("trackBssid: " + (enable ? "enable " : "disable ") + bssid);
+    public boolean trackBssid(String bssid, boolean enable, int reasonCode) {
+        localLog("trackBssid: " + (enable ? "enable " : "disable ") + bssid + " reason code "
+                + reasonCode);
 
         boolean ret = mNetworkSelector
-                            .enableBssidForNetworkSelection(bssid, enable);
+                            .enableBssidForNetworkSelection(bssid, enable, reasonCode);
 
         if (ret && !enable) {
             // Disabling a BSSID can happen when the AP candidate to connect to has
