@@ -22,10 +22,8 @@ import static com.android.server.wifi.WifiConfigurationTestUtil.SECURITY_PSK;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
-import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
 import android.content.res.Resources;
-import android.net.INetworkScoreCache;
 import android.net.NetworkScoreManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
@@ -51,8 +49,9 @@ public class ExternalScoreEvaluatorTest {
     @Before
     public void setUp() throws Exception {
         mResource = getResource();
-        mScoreManager = getScoreManager();
+        mScoreManager = mock(NetworkScoreManager.class);
         mContext = getContext();
+        mScoreCache = new WifiNetworkScoreCache(mContext);
         mWifiConfigManager = getWifiConfigManager();
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
 
@@ -62,7 +61,7 @@ public class ExternalScoreEvaluatorTest {
                 R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_5GHz);
 
         mExternalScoreEvaluator = new ExternalScoreEvaluator(mContext, mWifiConfigManager,
-                mClock, null);
+                mScoreCache, mClock, null);
     }
 
     /** Cleans up test. */
@@ -81,17 +80,6 @@ public class ExternalScoreEvaluatorTest {
     private int mThresholdQualifiedRssi2G;
     private int mThresholdQualifiedRssi5G;
     private static final String TAG = "External Score Evaluator Unit Test";
-
-    NetworkScoreManager getScoreManager() {
-        NetworkScoreManager scoreManager = mock(NetworkScoreManager.class);
-
-        doAnswer(new AnswerWithArguments() {
-                public void answer(int networkType, INetworkScoreCache scoreCache) {
-                    mScoreCache = (WifiNetworkScoreCache) scoreCache;
-                }}).when(scoreManager).registerNetworkScoreCache(anyInt(), anyObject());
-
-        return scoreManager;
-    }
 
     Context getContext() {
         Context context = mock(Context.class);
