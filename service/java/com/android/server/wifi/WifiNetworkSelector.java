@@ -53,6 +53,10 @@ public class WifiNetworkSelector {
     public static final int BSSID_BLACKLIST_THRESHOLD = 3;
     public static final int BSSID_BLACKLIST_EXPIRE_TIME_MS = 5 * 60 * 1000;
 
+    // Association success/failure reason codes
+    @VisibleForTesting
+    public static final int REASON_CODE_AP_UNABLE_TO_HANDLE_NEW_STA = 17;
+
     private WifiConfigManager mWifiConfigManager;
     private Clock mClock;
     private static class BssidBlacklistStatus {
@@ -403,8 +407,9 @@ public class WifiNetworkSelector {
      * @param bssid the bssid to be enabled / disabled
      * @param enable -- true enable a bssid if it has been disabled
      *               -- false disable a bssid
+     * @param reasonCode enable/disable reason code
      */
-    public boolean enableBssidForNetworkSelection(String bssid, boolean enable) {
+    public boolean enableBssidForNetworkSelection(String bssid, boolean enable, int reasonCode) {
         if (enable) {
             return (mBssidBlacklist.remove(bssid) != null);
         } else {
@@ -412,12 +417,14 @@ public class WifiNetworkSelector {
                 BssidBlacklistStatus status = mBssidBlacklist.get(bssid);
                 if (status == null) {
                     // First time for this BSSID
-                    BssidBlacklistStatus newStatus = new BssidBlacklistStatus();
-                    newStatus.counter++;
-                    mBssidBlacklist.put(bssid, newStatus);
-                } else if (!status.isBlacklisted) {
+                    status = new BssidBlacklistStatus();
+                    mBssidBlacklist.put(bssid, status);
+                }
+
+                if (!status.isBlacklisted) {
                     status.counter++;
-                    if (status.counter >= BSSID_BLACKLIST_THRESHOLD) {
+                    if (status.counter >= BSSID_BLACKLIST_THRESHOLD
+                            || reasonCode == REASON_CODE_AP_UNABLE_TO_HANDLE_NEW_STA) {
                         status.isBlacklisted = true;
                         status.blacklistedTimeStamp = mClock.getElapsedSinceBootMillis();
                         return true;

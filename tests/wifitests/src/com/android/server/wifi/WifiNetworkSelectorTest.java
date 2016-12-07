@@ -513,7 +513,7 @@ public class WifiNetworkSelectorTest {
         // Disable this network for BSSID_BLACKLIST_THRESHOLD times so it gets
         // blacklisted by WNS.
         for (int i = 0; i < WifiNetworkSelector.BSSID_BLACKLIST_THRESHOLD; i++) {
-            mWifiNetworkSelector.enableBssidForNetworkSelection(bssids[0], false);
+            mWifiNetworkSelector.enableBssidForNetworkSelection(bssids[0], false, 1);
         }
 
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
@@ -568,6 +568,37 @@ public class WifiNetworkSelectorTest {
 
         // The second network selection is skipped since current connected network is
         // missing from the scan results.
+        assertEquals("Expect null configuration", null, candidate);
+    }
+
+    /**
+     * Wifi network selector blacklists a BSSID immediately if it's unable to handle
+     * new stations.
+     *
+     * Expected behavior: no network recommended by Network Selector
+     */
+    @Test
+    public void blacklistNetworkImmeidatelyIfApHasNoCapacityForNewStation() {
+        String[] ssids = {"\"test1\""};
+        String[] bssids = {"6c:f3:7f:ae:99:f3"};
+        int[] freqs = {2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]"};
+        int[] levels = {mThresholdMinimumRssi2G + 20};
+        int[] securities = {SECURITY_PSK};
+
+        // Disable test1 with reason code indicating it is unable to handle new stations.
+        mWifiNetworkSelector.enableBssidForNetworkSelection(bssids[0], false,
+                WifiNetworkSelector.REASON_CODE_AP_UNABLE_TO_HANDLE_NEW_STA);
+
+        // Make a network selection with test1 in the scan results.
+        ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
+                WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
+                    freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
+        WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
+                mWifiInfo, false, true, false);
+
+        // No network recommended by WNS as test1 is blacklisted.
         assertEquals("Expect null configuration", null, candidate);
     }
 }
