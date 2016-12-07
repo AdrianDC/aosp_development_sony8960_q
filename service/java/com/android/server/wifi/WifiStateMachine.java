@@ -4798,6 +4798,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             String bssid;
             String ssid;
             NetworkUpdateResult result;
+            int reasonCode;
             logStateAndMessage(message, this);
 
             switch (message.what) {
@@ -4806,13 +4807,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             WifiDiagnostics.REPORT_REASON_ASSOC_FAILURE);
                     didBlackListBSSID = false;
                     bssid = (String) message.obj;
+                    reasonCode = message.arg2;
                     if (bssid == null || TextUtils.isEmpty(bssid)) {
                         // If BSSID is null, use the target roam BSSID
                         bssid = mTargetRoamBSSID;
                     }
                     if (bssid != null) {
                         // If we have a BSSID, tell configStore to black list it
-                        didBlackListBSSID = mWifiConnectivityManager.trackBssid(bssid, false);
+                        didBlackListBSSID = mWifiConnectivityManager.trackBssid(bssid, false,
+                            reasonCode);
                     }
                     mWifiConfigManager.updateNetworkSelectionStatus(mTargetNetworkId,
                             WifiConfiguration.NetworkSelectionStatus
@@ -5247,6 +5250,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (mVerboseLoggingEnabled) log("Network connection established");
                     mLastNetworkId = lookupFrameworkNetworkId(message.arg1);
                     mLastBssid = (String) message.obj;
+                    reasonCode = message.arg2;
                     // TODO: This check should not be needed after WifiStateMachinePrime refactor.
                     // Currently, the last connected network configuration is left in
                     // wpa_supplicant, this may result in wpa_supplicant initiating connection
@@ -5256,7 +5260,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (getCurrentWifiConfiguration() != null) {
                         mWifiInfo.setBSSID(mLastBssid);
                         mWifiInfo.setNetworkId(mLastNetworkId);
-                        mWifiConnectivityManager.trackBssid(mLastBssid, true);
+                        mWifiConnectivityManager.trackBssid(mLastBssid, true, reasonCode);
                         sendNetworkStateChangeBroadcast(mLastBssid);
                         transitionTo(mObtainingIpState);
                     } else {
@@ -5978,7 +5982,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mLastBssid = (String) message.obj;
                         mWifiInfo.setBSSID(mLastBssid);
                         mWifiInfo.setNetworkId(mLastNetworkId);
-                        mWifiConnectivityManager.trackBssid(mLastBssid, true);
+                        int reasonCode = message.arg2;
+                        mWifiConnectivityManager.trackBssid(mLastBssid, true, reasonCode);
                         sendNetworkStateChangeBroadcast(mLastBssid);
 
                         // Successful framework roam! (probably)
