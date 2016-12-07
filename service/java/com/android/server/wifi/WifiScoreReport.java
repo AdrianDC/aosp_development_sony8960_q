@@ -249,86 +249,6 @@ public class WifiScoreReport {
         if (isLowRSSI) sb.append(" lr");
         if (isHighRSSI) sb.append(" hr");
 
-        int penalizedDueToUserTriggeredDisconnect = 0;        // Not a user triggered disconnect
-        if (currentConfiguration != null
-                && (wifiInfo.txSuccessRate > MIN_SUCCESS_COUNT
-                        || wifiInfo.rxSuccessRate > MIN_SUCCESS_COUNT)) {
-            if (isBadRSSI) {
-                currentConfiguration.numTicksAtBadRSSI++;
-                if (currentConfiguration.numTicksAtBadRSSI > MIN_NUM_TICKS_AT_STATE) {
-                    // We remained associated for a compound amount of time while passing
-                    // traffic, hence loose the corresponding user triggered disabled stats
-                    if (currentConfiguration.numUserTriggeredWifiDisableBadRSSI > 0) {
-                        currentConfiguration.numUserTriggeredWifiDisableBadRSSI--;
-                    }
-                    if (currentConfiguration.numUserTriggeredWifiDisableLowRSSI > 0) {
-                        currentConfiguration.numUserTriggeredWifiDisableLowRSSI--;
-                    }
-                    if (currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI > 0) {
-                        currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI--;
-                    }
-                    currentConfiguration.numTicksAtBadRSSI = 0;
-                }
-                if (mEnableWifiCellularHandoverUserTriggeredAdjustment
-                        && (currentConfiguration.numUserTriggeredWifiDisableBadRSSI > 0
-                                || currentConfiguration.numUserTriggeredWifiDisableLowRSSI > 0
-                                || currentConfiguration
-                                        .numUserTriggeredWifiDisableNotHighRSSI > 0)) {
-                    score = score - USER_DISCONNECT_PENALTY;
-                    penalizedDueToUserTriggeredDisconnect = 1;
-                    sb.append(" p1");
-                }
-            } else if (isLowRSSI) {
-                currentConfiguration.numTicksAtLowRSSI++;
-                if (currentConfiguration.numTicksAtLowRSSI > MIN_NUM_TICKS_AT_STATE) {
-                    // We remained associated for a compound amount of time while passing
-                    // traffic, hence loose the corresponding user triggered disabled stats
-                    if (currentConfiguration.numUserTriggeredWifiDisableLowRSSI > 0) {
-                        currentConfiguration.numUserTriggeredWifiDisableLowRSSI--;
-                    }
-                    if (currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI > 0) {
-                        currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI--;
-                    }
-                    currentConfiguration.numTicksAtLowRSSI = 0;
-                }
-                if (mEnableWifiCellularHandoverUserTriggeredAdjustment
-                        && (currentConfiguration.numUserTriggeredWifiDisableLowRSSI > 0
-                                || currentConfiguration
-                                        .numUserTriggeredWifiDisableNotHighRSSI > 0)) {
-                    score = score - USER_DISCONNECT_PENALTY;
-                    penalizedDueToUserTriggeredDisconnect = 2;
-                    sb.append(" p2");
-                }
-            } else if (!isHighRSSI) {
-                currentConfiguration.numTicksAtNotHighRSSI++;
-                if (currentConfiguration.numTicksAtNotHighRSSI > MIN_NUM_TICKS_AT_STATE) {
-                    // We remained associated for a compound amount of time while passing
-                    // traffic, hence loose the corresponding user triggered disabled stats
-                    if (currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI > 0) {
-                        currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI--;
-                    }
-                    currentConfiguration.numTicksAtNotHighRSSI = 0;
-                }
-                if (mEnableWifiCellularHandoverUserTriggeredAdjustment
-                        && currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI > 0) {
-                    score = score - USER_DISCONNECT_PENALTY;
-                    penalizedDueToUserTriggeredDisconnect = 3;
-                    sb.append(" p3");
-                }
-            }
-            mWifiConfigManager.setNetworkRSSIStats(
-                    currentConfiguration.networkId,
-                    currentConfiguration.numUserTriggeredWifiDisableLowRSSI,
-                    currentConfiguration.numUserTriggeredWifiDisableBadRSSI,
-                    currentConfiguration.numUserTriggeredWifiDisableNotHighRSSI,
-                    currentConfiguration.numTicksAtLowRSSI,
-                    currentConfiguration.numTicksAtBadRSSI,
-                    currentConfiguration.numTicksAtNotHighRSSI);
-            sb.append(String.format(" ticks %d,%d,%d", currentConfiguration.numTicksAtBadRSSI,
-                    currentConfiguration.numTicksAtLowRSSI,
-                    currentConfiguration.numTicksAtNotHighRSSI));
-        }
-
         if (mVerboseLoggingEnabled) {
             String rssiStatus = "";
             if (isBadRSSI) {
@@ -346,8 +266,7 @@ public class WifiScoreReport {
                     + " -> txbadrate=" + String.format("%.2f", wifiInfo.txBadRate)
                     + " txgoodrate=" + String.format("%.2f", wifiInfo.txSuccessRate)
                     + " txretriesrate=" + String.format("%.2f", wifiInfo.txRetriesRate)
-                    + " rxrate=" + String.format("%.2f", wifiInfo.rxSuccessRate)
-                    + " userTriggerdPenalty" + penalizedDueToUserTriggeredDisconnect);
+                    + " rxrate=" + String.format("%.2f", wifiInfo.rxSuccessRate));
         }
 
         if ((wifiInfo.txBadRate >= 1)
