@@ -1632,29 +1632,6 @@ public class WifiConfigManager {
     }
 
     /**
-     * Sets the various RSSI stats in the provided network.
-     *
-     * @param networkId network ID corresponding to the network.
-     * @return true if the network was found, false otherwise.
-     */
-    public boolean setNetworkRSSIStats(
-            int networkId, int numUserTriggeredWifiDisableLowRSSI,
-            int numUserTriggeredWifiDisableBadRSSI, int numUserTriggeredWifiDisableNotHighRSSI,
-            int numTicksAtLowRSSI, int numTicksAtBadRSSI, int numTicksAtNotHighRSSI) {
-        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
-        if (config == null) {
-            return false;
-        }
-        config.numUserTriggeredWifiDisableLowRSSI = numUserTriggeredWifiDisableLowRSSI;
-        config.numUserTriggeredWifiDisableBadRSSI = numUserTriggeredWifiDisableBadRSSI;
-        config.numUserTriggeredWifiDisableNotHighRSSI = numUserTriggeredWifiDisableNotHighRSSI;
-        config.numTicksAtLowRSSI = numTicksAtLowRSSI;
-        config.numTicksAtBadRSSI = numTicksAtBadRSSI;
-        config.numTicksAtNotHighRSSI = numTicksAtNotHighRSSI;
-        return true;
-    }
-
-    /**
      * Helper method to clear out the {@link #mNextNetworkId} user/app network selection. This
      * is done when either the corresponding network is either removed or disabled.
      */
