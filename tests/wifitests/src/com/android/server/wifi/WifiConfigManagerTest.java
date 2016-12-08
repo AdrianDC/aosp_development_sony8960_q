@@ -69,7 +69,7 @@ public class WifiConfigManagerTest {
     private static final long TEST_WALLCLOCK_CREATION_TIME_MILLIS = 9845637;
     private static final long TEST_WALLCLOCK_UPDATE_TIME_MILLIS = 75455637;
     private static final long TEST_ELAPSED_UPDATE_NETWORK_SELECTION_TIME_MILLIS = 29457631;
-    private static final int TEST_CREATOR_UID = 5;
+    private static final int TEST_CREATOR_UID = WifiConfigurationTestUtil.TEST_UID;
     private static final int TEST_UPDATE_UID = 4;
     private static final int TEST_SYSUI_UID = 56;
     private static final int TEST_DEFAULT_USER = UserHandle.USER_SYSTEM;
@@ -144,7 +144,7 @@ public class WifiConfigManagerTest {
         // default. This maybe modified for particular tests if needed.
         doAnswer(new AnswerWithArguments() {
             public int answer(String permName, int uid) throws Exception {
-                if (uid == TEST_CREATOR_UID || uid == TEST_UPDATE_UID) {
+                if (uid == TEST_CREATOR_UID || uid == TEST_UPDATE_UID || uid == TEST_SYSUI_UID) {
                     return PackageManager.PERMISSION_GRANTED;
                 }
                 return PackageManager.PERMISSION_DENIED;
@@ -2280,7 +2280,7 @@ public class WifiConfigManagerTest {
         ApplicationInfo app = new ApplicationInfo();
         app.uid = TEST_CREATOR_UID;
         app.packageName = TEST_CREATOR_NAME;
-        assertTrue(mWifiConfigManager.removeNetworksForApp(app));
+        assertEquals(3, mWifiConfigManager.removeNetworksForApp(app).size());
 
         // Ensure all the networks are removed now.
         assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
@@ -2298,7 +2298,7 @@ public class WifiConfigManagerTest {
 
         assertFalse(mWifiConfigManager.getConfiguredNetworks().isEmpty());
 
-        assertTrue(mWifiConfigManager.removeNetworksForUser(TEST_DEFAULT_USER));
+        assertEquals(3, mWifiConfigManager.removeNetworksForUser(TEST_DEFAULT_USER).size());
 
         // Ensure all the networks are removed now.
         assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
