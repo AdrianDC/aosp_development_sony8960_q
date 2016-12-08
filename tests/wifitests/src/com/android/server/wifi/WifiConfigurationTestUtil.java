@@ -58,7 +58,7 @@ public class WifiConfigurationTestUtil {
      * These are constants used to generate predefined WifiConfiguration objects.
      */
     public static final int TEST_NETWORK_ID = -1;
-    public static final int TEST_UID = 1;
+    public static final int TEST_UID = 5;
     public static final String TEST_SSID = "WifiConfigurationTestUtilSSID";
     public static final String TEST_PSK = "WifiConfigurationTestUtilPsk";
     public static final String[] TEST_WEP_KEYS =
