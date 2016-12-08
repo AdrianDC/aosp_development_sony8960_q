@@ -354,13 +354,6 @@ public class WifiSupplicantControl {
                 }
                 config.setIpAssignment(IpAssignment.DHCP);
                 config.setProxySettings(ProxySettings.NONE);
-                if (!WifiServiceImpl.isValid(config)) {
-                    if (mVerboseLoggingEnabled) {
-                        localLog("Ignoring network " + config.networkId + " because configuration "
-                                + "loaded from wpa_supplicant.conf is not valid.");
-                    }
-                    continue;
-                }
                 // The configKey is explicitly stored in wpa_supplicant.conf, because config does
                 // not contain sufficient information to compute it at this point.
                 String configKey = extras.get(ID_STRING_KEY_CONFIG_KEY);
