@@ -98,7 +98,7 @@ public class WifiConfigStore {
                     try {
                         writeBufferedData();
                     } catch (IOException e) {
-                        Log.wtf(TAG, "Buffered write failed");
+                        Log.wtf(TAG, "Buffered write failed", e);
                     }
 
                 }
