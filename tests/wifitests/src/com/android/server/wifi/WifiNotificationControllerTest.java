@@ -56,7 +56,6 @@ public class WifiNotificationControllerTest {
     public static final String TAG = "WifiScanningServiceTest";
 
     @Mock private Context mContext;
-    @Mock private WifiStateMachine mWifiStateMachine;
     @Mock private FrameworkFacade mFrameworkFacade;
     @Mock private NotificationManager mNotificationManager;
     @Mock private WifiInjector mWifiInjector;
@@ -87,7 +86,7 @@ public class WifiNotificationControllerTest {
 
         TestLooper mock_looper = new TestLooper();
         mWifiNotificationController = new WifiNotificationController(
-                mContext, mock_looper.getLooper(), mWifiStateMachine, mFrameworkFacade,
+                mContext, mock_looper.getLooper(), mFrameworkFacade,
                 mock(Notification.Builder.class), mWifiInjector);
         ArgumentCaptor<BroadcastReceiver> broadcastReceiverCaptor =
                 ArgumentCaptor.forClass(BroadcastReceiver.class);
