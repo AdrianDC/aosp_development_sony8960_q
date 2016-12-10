@@ -90,7 +90,6 @@ final class WifiNotificationController {
     private int mNumScansSinceNetworkStateChange;
 
     private final Context mContext;
-    private final WifiStateMachine mWifiStateMachine;
     private NetworkInfo mNetworkInfo;
     private NetworkInfo.DetailedState mDetailedState;
     private volatile int mWifiState;
@@ -98,10 +97,12 @@ final class WifiNotificationController {
     private WifiInjector mWifiInjector;
     private WifiScanner mWifiScanner;
 
-    WifiNotificationController(Context context, Looper looper, WifiStateMachine wsm,
-            FrameworkFacade framework, Notification.Builder builder, WifiInjector wifiInjector) {
+    WifiNotificationController(Context context,
+                               Looper looper,
+                               FrameworkFacade framework,
+                               Notification.Builder builder,
+                               WifiInjector wifiInjector) {
         mContext = context;
-        mWifiStateMachine = wsm;
         mFrameworkFacade = framework;
         mNotificationBuilder = builder;
         mWifiInjector = wifiInjector;
