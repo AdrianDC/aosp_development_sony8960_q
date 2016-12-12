@@ -55,8 +55,6 @@ public class ConfigBuilder {
         byte[] b64 = Base64.decode(new String(data, StandardCharsets.ISO_8859_1), Base64.DEFAULT);
         Log.d(TAG, "Decoded: " + b64.length + " bytes.");
 
-        dropFile(Uri.parse(uriString), context);
-
         MIMEContainer mimeContainer = new
                 MIMEContainer(new LineNumberReader(
                 new InputStreamReader(new ByteArrayInputStream(b64), StandardCharsets.ISO_8859_1)),
@@ -78,10 +76,6 @@ public class ConfigBuilder {
             inner = mimeContainer;
         }
         return parse(inner, context);
-    }
-
-    private static void dropFile(Uri uri, Context context) {
-        context.getContentResolver().delete(uri, null, null);
     }
 
     private static WifiConfiguration parse(MIMEContainer root, Context context)
