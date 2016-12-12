@@ -13,7 +13,6 @@
 # limitations under the License.
 
 LOCAL_PATH := $(call my-dir)
-ifneq ($(TARGET_BUILD_PDK), true)
 
 wifi_hal_cflags := \
     -Wall \
@@ -130,5 +129,3 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := \
     $(LOCAL_PATH)/include \
     $(LOCAL_PATH)/testlib/include
 include $(BUILD_STATIC_LIBRARY)
-
-endif
