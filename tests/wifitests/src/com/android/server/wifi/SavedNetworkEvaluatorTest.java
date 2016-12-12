@@ -147,6 +147,32 @@ public class SavedNetworkEvaluatorTest {
         return wifiConfigManager;
     }
 
+    /**
+     * Do not evaluate networks that {@link WifiConfiguration#useExternalScores}.
+     */
+    @Test
+    public void ignoreNetworksIfUseExternalScores() {
+        String[] ssids = {"\"test1\"", "\"test2\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] freqs = {2470, 2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
+        int[] levels = {mThresholdQualifiedRssi2G + 8, mThresholdQualifiedRssi2G + 10};
+        int[] securities = {SECURITY_PSK, SECURITY_PSK};
+
+        ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
+                WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
+                        freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
+        WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
+        for (WifiConfiguration wifiConfiguration : savedConfigs) {
+            wifiConfiguration.useExternalScores = true;
+        }
+
+        WifiConfiguration candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
+                null, null, true, false, null);
+
+        assertNull(candidate);
+    }
 
     /**
      * Between two 2G networks, choose the one with stronger RSSI value if other conditions
