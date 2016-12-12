@@ -26,6 +26,7 @@ import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.app.test.TestAlarmManager;
 import android.content.Context;
 import android.content.res.Resources;
+import android.net.NetworkScoreManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.ScanResult.InformationElement;
 import android.net.wifi.SupplicantState;
@@ -62,7 +63,6 @@ import java.util.HashSet;
  */
 @SmallTest
 public class WifiConnectivityManagerTest {
-
     /**
      * Called before each test
      */
@@ -92,6 +92,7 @@ public class WifiConnectivityManagerTest {
     }
 
     private Resources mResource;
+
     private Context mContext;
     private TestAlarmManager mAlarmManager;
     private TestLooper mLooper = new TestLooper();
@@ -102,6 +103,8 @@ public class WifiConnectivityManagerTest {
     private ScanData mScanData;
     private WifiConfigManager mWifiConfigManager;
     private WifiInfo mWifiInfo;
+    @Mock private FrameworkFacade mFrameworkFacade;
+    @Mock private NetworkScoreManager mNetworkScoreManager;
     @Mock private Clock mClock;
     @Mock private WifiLastResortWatchdog mWifiLastResortWatchdog;
     @Mock private WifiMetrics mWifiMetrics;
@@ -253,8 +256,9 @@ public class WifiConnectivityManagerTest {
 
     WifiConnectivityManager createConnectivityManager() {
         return new WifiConnectivityManager(mContext, mWifiStateMachine, mWifiScanner,
-                mWifiConfigManager, mWifiInfo, mWifiNS, mScoreCache, mWifiLastResortWatchdog,
-                mWifiMetrics, mLooper.getLooper(), mClock, true);
+                mWifiConfigManager, mWifiInfo, mWifiNS,
+                mWifiLastResortWatchdog, mWifiMetrics, mLooper.getLooper(), mClock, true,
+                mFrameworkFacade, null, null, null);
     }
 
     /**
