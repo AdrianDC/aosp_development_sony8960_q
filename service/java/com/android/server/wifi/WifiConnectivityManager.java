@@ -29,6 +29,7 @@ import android.net.wifi.WifiScanner.PnoSettings;
 import android.net.wifi.WifiScanner.ScanSettings;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.util.LocalLog;
 
 import com.android.internal.R;
@@ -466,10 +467,13 @@ public class WifiConnectivityManager {
      * WifiConnectivityManager constructor
      */
     WifiConnectivityManager(Context context, WifiStateMachine stateMachine,
-                WifiScanner scanner, WifiConfigManager configManager, WifiInfo wifiInfo,
-                WifiNetworkSelector networkSelector, WifiNetworkScoreCache scoreCache,
-                WifiLastResortWatchdog wifiLastResortWatchdog, WifiMetrics wifiMetrics,
-                Looper looper, Clock clock, boolean enable) {
+            WifiScanner scanner, WifiConfigManager configManager, WifiInfo wifiInfo,
+            WifiNetworkSelector networkSelector,
+            WifiLastResortWatchdog wifiLastResortWatchdog, WifiMetrics wifiMetrics,
+            Looper looper, Clock clock, boolean enable, FrameworkFacade frameworkFacade,
+            SavedNetworkEvaluator savedNetworkEvaluator,
+            ExternalScoreEvaluator externalScoreEvaluator,
+            RecommendedNetworkEvaluator recommendedNetworkEvaluator) {
         mStateMachine = stateMachine;
         mScanner = scanner;
         mConfigManager = configManager;
@@ -514,15 +518,14 @@ public class WifiConnectivityManager {
                     + " initialScoreMax " + mInitialScoreMax);
 
         // Register the network evaluators
-        SavedNetworkEvaluator savedNetworkEvaluator = new SavedNetworkEvaluator(context,
-                mConfigManager, mClock, mLocalLog);
         mNetworkSelector.registerNetworkEvaluator(savedNetworkEvaluator,
-                    SAVED_NETWORK_EVALUATOR_PRIORITY);
-
-        ExternalScoreEvaluator externalScoreEvaluator = new ExternalScoreEvaluator(context,
-                mConfigManager, scoreCache, mClock, mLocalLog);
-        mNetworkSelector.registerNetworkEvaluator(externalScoreEvaluator,
-                    EXTERNAL_SCORE_EVALUATOR_PRIORITY);
+                SAVED_NETWORK_EVALUATOR_PRIORITY);
+        final WifiNetworkSelector.NetworkEvaluator networkEvaluator =
+                frameworkFacade.getIntegerSetting(context,
+                        Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0) == 1
+                        ? recommendedNetworkEvaluator : externalScoreEvaluator;
+        mNetworkSelector.registerNetworkEvaluator(networkEvaluator,
+                EXTERNAL_SCORE_EVALUATOR_PRIORITY);
 
         // Register for all single scan results
         mScanner.registerScanListener(mAllSingleScanListener);
