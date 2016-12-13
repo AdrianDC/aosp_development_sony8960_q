@@ -51,10 +51,9 @@ public class NAIRealmElement extends ANQPElement {
         if (mRealmData.isEmpty())
             return AuthMatch.Indeterminate;
 
-        List<String> credLabels = Utils.splitDomain(realm);
         int best = AuthMatch.None;
         for (NAIRealmData realmData : mRealmData) {
-            int match = realmData.match(credLabels, credMethod);
+            int match = realmData.match(realm, credMethod);
             if (match > best) {
                 best = match;
                 if (best == AuthMatch.Exact) {
