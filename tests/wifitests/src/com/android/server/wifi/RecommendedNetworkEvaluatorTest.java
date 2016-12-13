@@ -162,7 +162,8 @@ public class RecommendedNetworkEvaluatorTest {
     public void testEvaluateNetworks_recommendation_onlyTrustedNetworkAllowed() {
         when(mWifiConfigManager.wasEphemeralNetworkDeleted(anyString())).thenReturn(false);
         when(mNetworkScoreManager.requestRecommendation(any(RecommendationRequest.class)))
-                .thenReturn(new RecommendationResult(TRUSTED_WIFI_CONFIGURATION));
+                .thenReturn(RecommendationResult
+                    .createConnectRecommendation(TRUSTED_WIFI_CONFIGURATION));
 
         WifiConfiguration result = mRecommendedNetworkEvaluator.evaluateNetworks(
                 Lists.newArrayList(TRUSTED_SCAN_DETAIL, UNTRUSTED_SCAN_DETAIL),
@@ -179,7 +180,8 @@ public class RecommendedNetworkEvaluatorTest {
     public void testEvaluateNetworks_recommendation_untrustedNetworksAllowed() {
         when(mWifiConfigManager.wasEphemeralNetworkDeleted(anyString())).thenReturn(false);
         when(mNetworkScoreManager.requestRecommendation(any(RecommendationRequest.class)))
-                .thenReturn(new RecommendationResult(TRUSTED_WIFI_CONFIGURATION));
+                .thenReturn(RecommendationResult
+                    .createConnectRecommendation(TRUSTED_WIFI_CONFIGURATION));
 
         WifiConfiguration result = mRecommendedNetworkEvaluator.evaluateNetworks(
                 Lists.newArrayList(TRUSTED_SCAN_DETAIL, UNTRUSTED_SCAN_DETAIL),
@@ -195,10 +197,10 @@ public class RecommendedNetworkEvaluatorTest {
     }
 
     @Test
-    public void testEvaluateNetworks_noRecommendation_untrustedNetworksAllowed() {
+    public void testEvaluateNetworks_doNotConnectRecommendation_untrustedNetworksAllowed() {
         when(mWifiConfigManager.wasEphemeralNetworkDeleted(anyString())).thenReturn(false);
         when(mNetworkScoreManager.requestRecommendation(any(RecommendationRequest.class)))
-                .thenReturn(new RecommendationResult(null));
+                .thenReturn(RecommendationResult.createDoNotConnectRecommendation());
 
         WifiConfiguration result = mRecommendedNetworkEvaluator.evaluateNetworks(
                 Lists.newArrayList(TRUSTED_SCAN_DETAIL, UNTRUSTED_SCAN_DETAIL),
