@@ -80,6 +80,8 @@ import java.util.regex.Pattern;
 public class WifiScanningServiceTest {
     public static final String TAG = "WifiScanningServiceTest";
 
+    private static final int TEST_MAX_SCAN_BUCKETS_IN_CAPABILITIES = 8;
+
     @Mock Context mContext;
     TestAlarmManager mAlarmManager;
     @Mock WifiScannerImpl mWifiScannerImpl;
@@ -332,15 +334,15 @@ public class WifiScanningServiceTest {
     private static final int MAX_AP_PER_SCAN = 16;
     private void startServiceAndLoadDriver() {
         mWifiScanningServiceImpl.startService();
-        setupAndLoadDriver();
+        setupAndLoadDriver(TEST_MAX_SCAN_BUCKETS_IN_CAPABILITIES);
     }
 
-    private void setupAndLoadDriver() {
+    private void setupAndLoadDriver(int max_scan_buckets) {
         when(mWifiScannerImpl.getScanCapabilities(any(WifiNative.ScanCapabilities.class)))
                 .thenAnswer(new AnswerWithArguments() {
                         public boolean answer(WifiNative.ScanCapabilities capabilities) {
                             capabilities.max_scan_cache_size = Integer.MAX_VALUE;
-                            capabilities.max_scan_buckets = 8;
+                            capabilities.max_scan_buckets = max_scan_buckets;
                             capabilities.max_ap_cache_per_scan = MAX_AP_PER_SCAN;
                             capabilities.max_rssi_sample_size = 8;
                             capabilities.max_scan_reporting_threshold = 10;
@@ -442,7 +444,7 @@ public class WifiScanningServiceTest {
         BidirectionalAsyncChannel controlChannel = connectChannel(mock(Handler.class));
         mLooper.dispatchAll();
 
-        setupAndLoadDriver();
+        setupAndLoadDriver(TEST_MAX_SCAN_BUCKETS_IN_CAPABILITIES);
 
         controlChannel.disconnect();
         mLooper.dispatchAll();
@@ -469,6 +471,19 @@ public class WifiScanningServiceTest {
         mLooper.dispatchAll();
         verifyFailedResponse(order, handler, 0, WifiScanner.REASON_INVALID_REQUEST,
                 "Invalid request");
+    }
+
+    @Test
+    public void rejectBackgroundScanRequestWhenHalReturnsInvalidCapabilities() throws Exception {
+        mWifiScanningServiceImpl.startService();
+        setupAndLoadDriver(0);
+
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler);
+        sendBackgroundScanRequest(controlChannel, 122, generateValidScanSettings(), null);
+        mLooper.dispatchAll();
+        verifyFailedResponse(order, handler, 122, WifiScanner.REASON_UNSPECIFIED, "not available");
     }
 
     private void doSuccessfulSingleScan(WifiScanner.ScanSettings requestSettings,
