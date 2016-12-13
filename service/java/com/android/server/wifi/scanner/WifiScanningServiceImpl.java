@@ -1002,6 +1002,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                             loge("could not get scan capabilities");
                             return HANDLED;
                         }
+                        if (capabilities.max_scan_buckets <= 0) {
+                            loge("invalid max buckets in scan capabilities "
+                                    + capabilities.max_scan_buckets);
+                            return HANDLED;
+                        }
                         mBackgroundScheduler.setMaxBuckets(capabilities.max_scan_buckets);
                         mBackgroundScheduler.setMaxApPerScan(capabilities.max_ap_cache_per_scan);
 
