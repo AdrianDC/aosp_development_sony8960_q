@@ -232,7 +232,7 @@ static void ndefHandlerCallback (tNFA_NDEF_EVT event, tNFA_NDEF_EVT_DATA *eventD
 
     case NFA_NDEF_DATA_EVT:
         {
-            ALOGD ("%s: NFA_NDEF_DATA_EVT; data_len = %lu", __func__, eventData->ndef_data.len);
+            ALOGD ("%s: NFA_NDEF_DATA_EVT; data_len = %u", __func__, eventData->ndef_data.len);
             sReadDataLen = eventData->ndef_data.len;
             sReadData = (uint8_t*) malloc (sReadDataLen);
             memcpy (sReadData, eventData->ndef_data.p_data, eventData->ndef_data.len);
@@ -441,7 +441,7 @@ static jboolean nativeNfcTag_doWrite (JNIEnv* e, jobject, jbyteArray buf)
         //if (NXP TagWriter wants to erase tag) then create and write an empty ndef message
         NDEF_MsgInit (buffer, maxBufferSize, &curDataSize);
         status = NDEF_MsgAddRec (buffer, maxBufferSize, &curDataSize, NDEF_TNF_EMPTY, NULL, 0, NULL, 0, NULL, 0);
-        ALOGD ("%s: create empty ndef msg; status=%u; size=%lu", __func__, status, curDataSize);
+        ALOGD ("%s: create empty ndef msg; status=%u; size=%u", __func__, status, curDataSize);
         if (sCurrentConnectedTargetProtocol == NFA_PROTOCOL_MIFARE)
         {
             status = EXTNS_MfcWriteNDef (buffer, curDataSize);
