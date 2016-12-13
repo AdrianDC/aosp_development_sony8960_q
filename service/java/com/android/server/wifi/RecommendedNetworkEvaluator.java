@@ -23,6 +23,7 @@ import android.net.RecommendationResult;
 import android.net.WifiKey;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiNetworkScoreCache;
 import android.util.LocalLog;
 import android.util.Pair;
 
