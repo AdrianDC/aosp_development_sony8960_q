@@ -31,6 +31,7 @@ import android.net.RecommendationRequest;
 import android.net.RecommendationResult;
 import android.net.WifiKey;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiNetworkScoreCache;
 import android.net.wifi.WifiSsid;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.LocalLog;
