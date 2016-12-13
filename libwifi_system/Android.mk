@@ -14,8 +14,6 @@
 
 LOCAL_PATH := $(call my-dir)
 
-ifneq ($(TARGET_BUILD_PDK), true)
-
 wifi_system_cflags := \
     -Wall \
     -Werror \
@@ -88,5 +86,3 @@ LOCAL_SHARED_LIBRARIES := \
     libbase \
     libwifi-system
 include $(BUILD_NATIVE_TEST)
-
-endif
