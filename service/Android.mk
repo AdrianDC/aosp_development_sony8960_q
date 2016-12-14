@@ -37,12 +37,8 @@ LOCAL_SHARED_LIBRARIES += \
 
 LOCAL_SRC_FILES := \
 	jni/com_android_server_wifi_WifiNative.cpp \
-	jni/jni_helper.cpp
-
-ifeq ($(BOARD_HAS_AWARE), true)
-LOCAL_SRC_FILES += \
+	jni/jni_helper.cpp \
 	jni/com_android_server_wifi_aware_WifiAwareNative.cpp
-endif
 
 LOCAL_MODULE := libwifi-service
 
@@ -62,11 +58,6 @@ LOCAL_SRC_FILES := $(call all-java-files-under, java) \
 	$(call all-Iaidl-files-under, $(wificond_aidl_rel_path)) \
 	$(call all-logtags-files-under, java) \
 	$(call all-proto-files-under, proto)
-
-ifneq ($(BOARD_HAS_AWARE), true)
-LOCAL_SRC_FILES := $(filter-out $(call all-java-files-under, \
-          java/com/android/server/wifi/aware),$(LOCAL_SRC_FILES))
-endif
 
 LOCAL_JAVA_LIBRARIES := bouncycastle conscrypt jsr305 services
 LOCAL_REQUIRED_MODULES := services
