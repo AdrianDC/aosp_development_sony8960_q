@@ -16,7 +16,6 @@
 
 #define LOG_TAG "wifi"
 
-#include <android_runtime/AndroidRuntime.h>
 #include <hardware_legacy/wifi_hal.h>
 #include <nativehelper/ScopedUtfChars.h>
 #include <nativehelper/jni.h>
