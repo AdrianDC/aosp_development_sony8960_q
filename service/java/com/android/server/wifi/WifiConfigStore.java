@@ -113,11 +113,9 @@ public class WifiConfigStore {
      * @param clock       clock instance to retrieve timestamps for alarms.
      * @param sharedStore StoreFile instance pointing to the shared store file. This should
      *                    be retrieved using {@link #createSharedFile()} method.
-     * @param userStore   StoreFile instance pointing to the user specific store file. This should
-     *                    be retrieved using {@link #createUserFile(int)} method.
      */
     public WifiConfigStore(Context context, Looper looper, Clock clock,
-            StoreFile sharedStore, StoreFile userStore) {
+            StoreFile sharedStore) {
 
         mAlarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         mEventHandler = new Handler(looper);
@@ -125,7 +123,9 @@ public class WifiConfigStore {
 
         // Initialize the store files.
         mSharedStore = sharedStore;
-        mUserStore = userStore;
+        // The user store is initialized to null, this will be set when the user unlocks and
+        // CE storage is accessible via |switchUserStoreAndRead|.
+        mUserStore = null;
     }
 
     /**
@@ -181,7 +181,7 @@ public class WifiConfigStore {
      * @return true if any of the store file is present, false otherwise.
      */
     public boolean areStoresPresent() {
-        return (mSharedStore.exists() || mUserStore.exists());
+        return (mSharedStore.exists() || (mUserStore != null && mUserStore.exists()));
     }
 
     /**
@@ -198,10 +198,11 @@ public class WifiConfigStore {
         // Serialize the provided data and send it to the respective stores. The actual write will
         // be performed later depending on the |forceSync| flag .
         byte[] sharedDataBytes = storeData.createSharedRawData();
-        byte[] userDataBytes = storeData.createUserRawData();
-
         mSharedStore.storeRawDataToWrite(sharedDataBytes);
-        mUserStore.storeRawDataToWrite(userDataBytes);
+        if (mUserStore != null) {
+            byte[] userDataBytes = storeData.createUserRawData();
+            mUserStore.storeRawDataToWrite(userDataBytes);
+        }
 
         // Every write provides a new snapshot to be persisted, so |forceSync| flag overrides any
         // pending buffer writes.
@@ -243,7 +244,9 @@ public class WifiConfigStore {
 
         long writeStartTime = mClock.getElapsedSinceBootMillis();
         mSharedStore.writeBufferedRawData();
-        mUserStore.writeBufferedRawData();
+        if (mUserStore != null) {
+            mUserStore.writeBufferedRawData();
+        }
         long writeTime = mClock.getElapsedSinceBootMillis() - writeStartTime;
 
         Log.d(TAG, "Writing to stores completed in " + writeTime + " ms.");
@@ -259,7 +262,10 @@ public class WifiConfigStore {
     public WifiConfigStoreData read() throws XmlPullParserException, IOException {
         long readStartTime = mClock.getElapsedSinceBootMillis();
         byte[] sharedDataBytes = mSharedStore.readRawData();
-        byte[] userDataBytes = mUserStore.readRawData();
+        byte[] userDataBytes = null;
+        if (mUserStore != null) {
+            userDataBytes = mUserStore.readRawData();
+        }
         long readTime = mClock.getElapsedSinceBootMillis() - readStartTime;
         Log.d(TAG, "Reading from stores completed in " + readTime + " ms.");
 
