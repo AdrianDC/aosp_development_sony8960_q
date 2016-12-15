@@ -373,7 +373,7 @@ TheEnd:
 ** Returns:         Text representation of power level.
 **
 *******************************************************************************/
-const char* PowerSwitch::deviceMgtPowerStateToString (UINT8 deviceMgtPowerState)
+const char* PowerSwitch::deviceMgtPowerStateToString (uint8_t deviceMgtPowerState)
 {
     switch (deviceMgtPowerState)
     {
@@ -468,7 +468,7 @@ void PowerSwitch::abort ()
 ** Returns:         None
 **
 *******************************************************************************/
-void PowerSwitch::deviceManagementCallback (UINT8 event, tNFA_DM_CBACK_DATA* eventData)
+void PowerSwitch::deviceManagementCallback (uint8_t event, tNFA_DM_CBACK_DATA* eventData)
 {
     static const char fn [] = "PowerSwitch::deviceManagementCallback";
 
