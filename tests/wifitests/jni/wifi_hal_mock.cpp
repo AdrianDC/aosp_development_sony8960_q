@@ -19,7 +19,6 @@
 #include <ScopedUtfChars.h>
 #include <ScopedBytes.h>
 #include <utils/misc.h>
-#include <android_runtime/AndroidRuntime.h>
 #include <utils/Log.h>
 #include <utils/String16.h>
 #include <ctype.h>
