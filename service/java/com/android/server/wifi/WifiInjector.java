@@ -145,8 +145,7 @@ public class WifiInjector {
         mWifiKeyStore = new WifiKeyStore(mKeyStore);
         mWifiConfigStore = new WifiConfigStore(
                 mContext, mWifiStateMachineHandlerThread.getLooper(), mClock,
-                WifiConfigStore.createSharedFile(),
-                WifiConfigStore.createUserFile(UserHandle.USER_SYSTEM));
+                WifiConfigStore.createSharedFile());
         // Legacy config store
         DelayedDiskWrite writer = new DelayedDiskWrite();
         mWifiNetworkHistory = new WifiNetworkHistory(mContext, mWifiNative.getLocalLog(), writer);
