@@ -78,9 +78,7 @@ public class WifiConfigStoreTest {
     public void setUp() throws Exception {
         setupMocks();
 
-        mWifiConfigStore =
-                new WifiConfigStore(
-                        mContext, mLooper.getLooper(), mClock, mSharedStore, mUserStore);
+        mWifiConfigStore = new WifiConfigStore(mContext, mLooper.getLooper(), mClock, mSharedStore);
 
         // Enable verbose logging before tests.
         mWifiConfigStore.enableVerboseLogging(true);
@@ -101,6 +99,7 @@ public class WifiConfigStoreTest {
      */
     @Test
     public void testForceWrite() throws Exception {
+        mWifiConfigStore.switchUserStoreAndRead(mUserStore);
         mWifiConfigStore.write(true, getEmptyStoreData());
 
         assertFalse(mAlarmManager.isPending(WifiConfigStore.BUFFERED_WRITE_ALARM_TAG));
@@ -114,6 +113,7 @@ public class WifiConfigStoreTest {
      */
     @Test
     public void testBufferedWrite() throws Exception {
+        mWifiConfigStore.switchUserStoreAndRead(mUserStore);
         mWifiConfigStore.write(false, getEmptyStoreData());
 
         assertTrue(mAlarmManager.isPending(WifiConfigStore.BUFFERED_WRITE_ALARM_TAG));
@@ -135,6 +135,7 @@ public class WifiConfigStoreTest {
     @Test
     public void testForceWriteAfterBufferedWrite() throws Exception {
         WifiConfigStoreData bufferedStoreData = createSingleOpenNetworkStoreData();
+        mWifiConfigStore.switchUserStoreAndRead(mUserStore);
         mWifiConfigStore.write(false, bufferedStoreData);
 
         assertTrue(mAlarmManager.isPending(WifiConfigStore.BUFFERED_WRITE_ALARM_TAG));
@@ -160,7 +161,21 @@ public class WifiConfigStoreTest {
     }
 
     /**
-     * Tests the read API behaviour when there is no file on the device.
+     * Tests the read API behaviour after a write to the store files.
+     * Expected behaviour: The read should return the same data that was last written.
+     */
+    @Test
+    public void testReadAfterWrite() throws Exception {
+        WifiConfigStoreData writeData = createSingleOpenNetworkStoreData();
+        mWifiConfigStore.switchUserStoreAndRead(mUserStore);
+        mWifiConfigStore.write(true, writeData);
+        WifiConfigStoreData readData = mWifiConfigStore.read();
+
+        assertConfigStoreDataEqual(writeData, readData);
+    }
+
+    /**
+     * Tests the read API behaviour when there is no store files on the device.
      * Expected behaviour: The read should return an empty store data instance when the file not
      * found exception is raised.
      */
@@ -168,16 +183,18 @@ public class WifiConfigStoreTest {
     public void testReadWithNoStoreFile() throws Exception {
         // Reading the mock store without a write should simulate the file not found case because
         // |readRawData| would return null.
+        assertFalse(mWifiConfigStore.areStoresPresent());
         WifiConfigStoreData readData = mWifiConfigStore.read();
         assertConfigStoreDataEqual(getEmptyStoreData(), readData);
     }
 
     /**
-     * Tests the read API behaviour after a write to the store file.
+     * Tests the read API behaviour after a write to the shared store file when the user
+     * store file is null.
      * Expected behaviour: The read should return the same data that was last written.
      */
     @Test
-    public void testReadAfterWrite() throws Exception {
+    public void testReadAfterWriteWithNoUserStore() throws Exception {
         WifiConfigStoreData writeData = createSingleOpenNetworkStoreData();
         mWifiConfigStore.write(true, writeData);
         WifiConfigStoreData readData = mWifiConfigStore.read();
@@ -238,6 +255,10 @@ public class WifiConfigStoreTest {
         }
 
         @Override
+        public boolean exists() {
+            return (mStoreBytes != null);
+        }
+
         public void writeBufferedRawData() {
             mStoreWritten = true;
         }
