@@ -255,6 +255,9 @@ public class NfcService implements DeviceHostListener {
 
     private static NfcService sService;
 
+    boolean mIsLiveCaseEnabled; // whether live cases are enabled
+    int mLiveCaseTechnology; // Technology mask of accepted NFC tags
+
     public static NfcService getInstance() {
         return sService;
     }
@@ -353,6 +356,31 @@ public class NfcService implements DeviceHostListener {
             isNfcProvisioningEnabled = mContext.getResources().getBoolean(
                     R.bool.enable_nfc_provisioning);
         } catch (NotFoundException e) {
+        }
+
+        try {
+            mIsLiveCaseEnabled = mContext.getResources().getBoolean(R.bool.enable_live_cases);
+        } catch (NotFoundException e) {
+            mIsLiveCaseEnabled = false;
+        }
+
+        mLiveCaseTechnology = 0;
+        String[] liveCaseTechList;
+        try {
+            liveCaseTechList = mContext.getResources().getStringArray(R.array.live_case_tag_types);
+            for (int i=0; i < liveCaseTechList.length; i++) {
+                if (liveCaseTechList[i].equals("TypeA")) {
+                    mLiveCaseTechnology |= NFC_POLL_A;
+                } else if (liveCaseTechList[i].equals("TypeB")) {
+                    mLiveCaseTechnology |= NFC_POLL_B;
+                } else if (liveCaseTechList[i].equals("TypeF")) {
+                    mLiveCaseTechnology |= NFC_POLL_F;
+                } else if (liveCaseTechList[i].equals("TypeV")) {
+                    mLiveCaseTechnology |= NFC_POLL_ISO15693;
+                }
+            }
+        } catch (NotFoundException e) {
+            mLiveCaseTechnology = 0;
         }
 
         if (isNfcProvisioningEnabled) {
@@ -1553,9 +1581,14 @@ public class NfcService implements DeviceHostListener {
             // enable P2P for MFM/EDU/Corp provisioning
             paramsBuilder.setEnableP2p(true);
         } else if (screenState == ScreenStateHelper.SCREEN_STATE_ON_LOCKED &&
-                mNfcUnlockManager.isLockscreenPollingEnabled()) {
-            // For lock-screen tags, no low-power polling
-            paramsBuilder.setTechMask(mNfcUnlockManager.getLockscreenPollMask());
+                (mIsLiveCaseEnabled || mNfcUnlockManager.isLockscreenPollingEnabled())) {
+            int techMask = 0;
+            // enable polling for Live Case technologies
+            if (mIsLiveCaseEnabled)
+                techMask |= mLiveCaseTechnology;
+            if (mNfcUnlockManager.isLockscreenPollingEnabled())
+                techMask |= mNfcUnlockManager.getLockscreenPollMask();
+            paramsBuilder.setTechMask(techMask);
             paramsBuilder.setEnableLowPowerDiscovery(false);
             paramsBuilder.setEnableP2p(false);
         }
