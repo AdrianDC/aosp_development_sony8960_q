@@ -19,6 +19,7 @@ package com.android.server.wifi.hotspot2.anqp;
 import static com.android.server.wifi.hotspot2.anqp.Constants.BYTE_MASK;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.wifi.ByteBufferReader;
 
 import java.net.ProtocolException;
 import java.nio.ByteBuffer;
@@ -48,11 +49,11 @@ public class I18Name {
         if (length < Constants.LANG_CODE_LENGTH || length > payload.remaining()) {
             throw new ProtocolException("Invalid I18Name length field value " + length);
         }
-        mLanguage = Constants.getTrimmedString(payload,
-                Constants.LANG_CODE_LENGTH, StandardCharsets.US_ASCII);
+        mLanguage = ByteBufferReader.readString(
+                payload, Constants.LANG_CODE_LENGTH, StandardCharsets.US_ASCII).trim();
         mLocale = Locale.forLanguageTag(mLanguage);
-        mText = Constants.getString(payload, length
-                - Constants.LANG_CODE_LENGTH, StandardCharsets.UTF_8);
+        mText = ByteBufferReader.readString(payload, length - Constants.LANG_CODE_LENGTH,
+                StandardCharsets.UTF_8);
     }
 
     @VisibleForTesting

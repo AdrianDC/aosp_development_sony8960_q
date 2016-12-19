@@ -10,7 +10,8 @@ import java.util.Collections;
 import java.util.List;
 
 import static com.android.server.wifi.hotspot2.anqp.Constants.BYTE_MASK;
-import static com.android.server.wifi.hotspot2.anqp.Constants.getInteger;
+
+import com.android.server.wifi.ByteBufferReader;
 
 /**
  * The Roaming Consortium ANQP Element, IEEE802.11-2012 section 8.4.4.7
@@ -30,7 +31,7 @@ public class RoamingConsortiumElement extends ANQPElement {
             if (length > payload.remaining()) {
                 throw new ProtocolException("Bad OI length: " + length);
             }
-            mOis.add(getInteger(payload, ByteOrder.BIG_ENDIAN, length));
+            mOis.add(ByteBufferReader.readInteger(payload, ByteOrder.BIG_ENDIAN, length));
         }
     }
 
