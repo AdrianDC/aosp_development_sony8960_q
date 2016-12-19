@@ -50,7 +50,6 @@ import android.net.wifi.p2p.nsd.WifiP2pServiceResponse;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
@@ -83,6 +82,7 @@ import com.android.server.wifi.WifiMonitor;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.WifiStateMachine;
 import com.android.server.wifi.util.WifiAsyncChannel;
+import com.android.server.wifi.util.WifiHandler;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
@@ -316,14 +316,15 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
     /**
      * Handles client connections
      */
-    private class ClientHandler extends Handler {
+    private class ClientHandler extends WifiHandler {
 
-        ClientHandler(android.os.Looper looper) {
-            super(looper);
+        ClientHandler(String tag, android.os.Looper looper) {
+            super(tag, looper);
         }
 
         @Override
         public void handleMessage(Message msg) {
+            super.handleMessage(msg);
             switch (msg.what) {
                 case WifiP2pManager.SET_DEVICE_NAME:
                 case WifiP2pManager.SET_WFD_INFO:
@@ -372,7 +373,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
 
         HandlerThread wifiP2pThread = new HandlerThread("WifiP2pService");
         wifiP2pThread.start();
-        mClientHandler = new ClientHandler(wifiP2pThread.getLooper());
+        mClientHandler = new ClientHandler(TAG, wifiP2pThread.getLooper());
         mP2pStateMachine = new P2pStateMachine(TAG, wifiP2pThread.getLooper(), mP2pSupported);
         mP2pStateMachine.start();
     }
