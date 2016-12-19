@@ -33,10 +33,12 @@ import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.Pair;
 
 import com.android.server.wifi.Clock;
 import com.android.server.wifi.IMSIParameter;
 import com.android.server.wifi.SIMAccessor;
+import com.android.server.wifi.ScanDetail;
 import com.android.server.wifi.WifiKeyStore;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
@@ -61,6 +63,8 @@ public class PasspointManager {
     private final Clock mClock;
     private final PasspointObjectFactory mObjectFactory;
     private final Map<String, PasspointProvider> mProviders;
+    private final AnqpCache mAnqpCache;
+    private final Map<Long, ANQPNetworkKey> mPendingAnqpQueries;
 
     private class CallbackHandler implements PasspointEventHandler.Callbacks {
         private final Context mContext;
@@ -71,7 +75,22 @@ public class PasspointManager {
         @Override
         public void onANQPResponse(long bssid,
                 Map<Constants.ANQPElementType, ANQPElement> anqpElements) {
-            // TO BE IMPLEMENTED.
+            // Remove the entry from pending list.
+            ANQPNetworkKey anqpKey = mPendingAnqpQueries.remove(bssid);
+
+            if (anqpElements == null) {
+                // Query failed.
+                // TODO(b/33246489): keep track of failed ANQP queries for backing off
+                // future queries.
+                return;
+            }
+
+            if (anqpKey == null) {
+                return;
+            }
+
+            // Add new entry to the cache.
+            mAnqpCache.addEntry(anqpKey, anqpElements);
         }
 
         @Override
@@ -118,6 +137,8 @@ public class PasspointManager {
         mSimAccessor = simAccessor;
         mObjectFactory = objectFactory;
         mProviders = new HashMap<>();
+        mAnqpCache = objectFactory.makeAnqpCache(clock);
+        mPendingAnqpQueries = new HashMap<>();
         // TODO(zqiu): load providers from the persistent storage.
     }
 
@@ -211,6 +232,55 @@ public class PasspointManager {
             configs.add(entry.getValue().getConfig());
         }
         return configs;
+    }
+
+    /**
+     * Find the providers that can provide service through the given AP, which means the
+     * providers contained credential to authenticate with the given AP.
+     *
+     * An empty list will returned in the case when no match is found.
+     *
+     * @param scanDetail The detail information of the AP
+     * @return List of {@link PasspointProvider}
+     */
+    public List<Pair<PasspointProvider, PasspointMatch>> matchProvider(ScanDetail scanDetail) {
+        // Nothing to be done if no Passpoint provider is installed.
+        if (mProviders.isEmpty()) {
+            return new ArrayList<Pair<PasspointProvider, PasspointMatch>>();
+        }
+
+        // Lookup ANQP data in the cache.
+        NetworkDetail networkDetail = scanDetail.getNetworkDetail();
+        ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(networkDetail.getSSID(),
+                networkDetail.getBSSID(), networkDetail.getHESSID(),
+                networkDetail.getAnqpDomainID());
+        ANQPData anqpEntry = mAnqpCache.getEntry(anqpKey);
+
+        if (anqpEntry == null) {
+            if (!mPendingAnqpQueries.containsValue(anqpKey)) {
+                // TODO(b/33246489): Request ANQP data.
+                mPendingAnqpQueries.put(networkDetail.getBSSID(), anqpKey);
+            }
+            return new ArrayList<Pair<PasspointProvider, PasspointMatch>>();
+        }
+
+        List<Pair<PasspointProvider, PasspointMatch>> results = new ArrayList<>();
+        for (Map.Entry<String, PasspointProvider> entry : mProviders.entrySet()) {
+            PasspointProvider provider = entry.getValue();
+            PasspointMatch matchStatus = provider.match(anqpEntry.getElements());
+            if (matchStatus == PasspointMatch.HomeProvider
+                    || matchStatus == PasspointMatch.RoamingProvider) {
+                results.add(new Pair<PasspointProvider, PasspointMatch>(provider, matchStatus));
+            }
+        }
+        return results;
+    }
+
+    /**
+     * Sweep the ANQP cache to remove expired entries.
+     */
+    public void sweepCache() {
+        mAnqpCache.sweep();
     }
 
     /**

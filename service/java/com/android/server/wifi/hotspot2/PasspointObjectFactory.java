@@ -18,6 +18,7 @@ package com.android.server.wifi.hotspot2;
 
 import android.net.wifi.hotspot2.PasspointConfiguration;
 
+import com.android.server.wifi.Clock;
 import com.android.server.wifi.WifiKeyStore;
 import com.android.server.wifi.WifiNative;
 
@@ -49,5 +50,15 @@ public class PasspointObjectFactory{
     public PasspointProvider makePasspointProvider(PasspointConfiguration config,
             WifiKeyStore keyStore, long providerId) {
         return new PasspointProvider(config, keyStore, providerId);
+    }
+
+    /**
+     * Create a AnqpCache instance.
+     *
+     * @param clock Instance of {@link Clock}
+     * @return {@link AnqpCache}
+     */
+    public AnqpCache makeAnqpCache(Clock clock) {
+        return new AnqpCache(clock);
     }
 }
