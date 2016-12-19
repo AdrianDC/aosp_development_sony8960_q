@@ -15,14 +15,13 @@
  */
 package com.android.server.wifi.util;
 
-import static com.android.server.wifi.hotspot2.anqp.Constants.getInteger;
-
 import android.net.wifi.ScanResult;
 import android.net.wifi.ScanResult.InformationElement;
 import android.util.Log;
 
-import com.android.server.wifi.hotspot2.anqp.Constants;
+import com.android.server.wifi.ByteBufferReader;
 import com.android.server.wifi.hotspot2.NetworkDetail;
+import com.android.server.wifi.hotspot2.anqp.Constants;
 
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
@@ -183,7 +182,7 @@ public class InformationElementUtil {
             }
 
             if (ie.bytes.length == 7 || ie.bytes.length == 9) {
-                hessid = getInteger(data, ByteOrder.BIG_ENDIAN, 6);
+                hessid = ByteBufferReader.readInteger(data, ByteOrder.BIG_ENDIAN, 6);
             }
         }
     }
@@ -217,15 +216,15 @@ public class InformationElementUtil {
             roamingConsortiums = new long[oiCount];
             if (oi1Length > 0 && roamingConsortiums.length > 0) {
                 roamingConsortiums[0] =
-                        getInteger(data, ByteOrder.BIG_ENDIAN, oi1Length);
+                        ByteBufferReader.readInteger(data, ByteOrder.BIG_ENDIAN, oi1Length);
             }
             if (oi2Length > 0 && roamingConsortiums.length > 1) {
                 roamingConsortiums[1] =
-                        getInteger(data, ByteOrder.BIG_ENDIAN, oi2Length);
+                        ByteBufferReader.readInteger(data, ByteOrder.BIG_ENDIAN, oi2Length);
             }
             if (oi3Length > 0 && roamingConsortiums.length > 2) {
                 roamingConsortiums[2] =
-                        getInteger(data, ByteOrder.BIG_ENDIAN, oi3Length);
+                        ByteBufferReader.readInteger(data, ByteOrder.BIG_ENDIAN, oi3Length);
             }
         }
     }
@@ -284,7 +283,7 @@ public class InformationElementUtil {
         public void from(InformationElement ie) {
             ByteBuffer data = ByteBuffer.wrap(ie.bytes).order(ByteOrder.LITTLE_ENDIAN);
             extendedCapabilities =
-                    Constants.getInteger(data, ByteOrder.LITTLE_ENDIAN, ie.bytes.length);
+                    ByteBufferReader.readInteger(data, ByteOrder.LITTLE_ENDIAN, ie.bytes.length);
 
             int index = RTT_RESP_ENABLE_BIT / 8;
             byte offset = RTT_RESP_ENABLE_BIT % 8;

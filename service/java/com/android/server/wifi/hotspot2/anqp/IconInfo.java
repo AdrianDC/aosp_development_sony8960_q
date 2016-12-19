@@ -7,6 +7,8 @@ import java.util.Locale;
 
 import static com.android.server.wifi.hotspot2.anqp.Constants.SHORT_MASK;
 
+import com.android.server.wifi.ByteBufferReader;
+
 /**
  * The Icons available OSU Providers sub field, as specified in
  * Wi-Fi Alliance Hotspot 2.0 (Release 2) Technical Specification - Version 5.00,
@@ -26,10 +28,10 @@ public class IconInfo {
 
         mWidth = payload.getShort() & SHORT_MASK;
         mHeight = payload.getShort() & SHORT_MASK;
-        mLanguage = Constants.getTrimmedString(payload,
-                Constants.LANG_CODE_LENGTH, StandardCharsets.US_ASCII);
-        mIconType = Constants.getPrefixedString(payload, 1, StandardCharsets.US_ASCII);
-        mFileName = Constants.getPrefixedString(payload, 1, StandardCharsets.UTF_8);
+        mLanguage = ByteBufferReader.readString(
+                payload, Constants.LANG_CODE_LENGTH, StandardCharsets.US_ASCII).trim();
+        mIconType = ByteBufferReader.readStringWithByteLength(payload, StandardCharsets.US_ASCII);
+        mFileName = ByteBufferReader.readStringWithByteLength(payload, StandardCharsets.UTF_8);
     }
 
     public int getWidth() {
