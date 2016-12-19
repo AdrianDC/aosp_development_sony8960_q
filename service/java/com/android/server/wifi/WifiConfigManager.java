@@ -3191,6 +3191,35 @@ public class WifiConfigManager {
     }
 
     /**
+     * Saves the network and set the candidate.
+     * @param config WifiConfiguration to save.
+     * @param scanResult ScanResult to be used as the network selection candidate.
+     * @return WifiConfiguration that was saved and with the status updated.
+     */
+    public WifiConfiguration saveNetworkAndSetCandidate(WifiConfiguration config,
+                                                        ScanResult scanResult) {
+        // Mark this config as ephemeral so it isn't persisted.
+        config.ephemeral = true;
+        saveNetwork(config, WifiConfiguration.UNKNOWN_UID);
+
+        config.getNetworkSelectionStatus().setCandidate(scanResult);
+        return config;
+    }
+
+
+    /**
+     * Get the Scan Result candidate.
+     * @param config WifiConfiguration to get status for.
+     * @return scanResult which is the selection candidate.
+     */
+    public ScanResult getScanResultCandidate(WifiConfiguration config) {
+        if (config == null) {
+            return null;
+        }
+        return  config.getNetworkSelectionStatus().getCandidate();
+    }
+
+    /**
      * Checks if uid has access to modify config.
      */
     boolean canModifyNetwork(int uid, WifiConfiguration config, boolean onlyAnnotate) {

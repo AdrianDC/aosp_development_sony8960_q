@@ -26,6 +26,7 @@ import android.net.NetworkScoreManager;
 import android.net.WifiKey;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.PersistableBundle;
@@ -78,6 +79,10 @@ public class WifiQualifiedNetworkSelector {
     //usable only when current state is connected state   default 10 s
     private static final int MINIMUM_QUALIFIED_NETWORK_SELECTION_INTERVAL = 10 * 1000;
 
+    private static final int CARRIER_SSID = 0;
+    private static final int CARRIER_KEY = 1;
+    private static final int CARRIER_EAP_METHOD = 2;
+
     //if current network is on 2.4GHz band and has a RSSI over this, need not new network selection
     public static final int QUALIFIED_RSSI_24G_BAND = -73;
     //if current network is on 5GHz band and has a RSSI over this, need not new network selection
@@ -118,7 +123,7 @@ public class WifiQualifiedNetworkSelector {
     private Map<String, BssidBlacklistStatus> mBssidBlacklist =
             new HashMap<String, BssidBlacklistStatus>();
     private List<WifiConfiguration> mCarrierConfiguredNetworks = new ArrayList<WifiConfiguration>();
-    private CarrierConfigManager mCarrierConfigManager;
+    private Context mContext;
 
     /**
      * class save the blacklist status of a given BSSID
@@ -134,6 +139,11 @@ public class WifiQualifiedNetworkSelector {
         if (mDbg) {
             mLocalLog.log(log);
         }
+    }
+
+    @VisibleForTesting
+    public void setCarrierConfiguredNetworks(List<WifiConfiguration> carrierConfiguredNetworks) {
+        mCarrierConfiguredNetworks = carrierConfiguredNetworks;
     }
 
     private void localLoge(String log) {
@@ -176,6 +186,7 @@ public class WifiQualifiedNetworkSelector {
         mWifiConfigManager = configureStore;
         mWifiInfo = wifiInfo;
         mClock = clock;
+        mContext = context;
         mScoreManager =
                 (NetworkScoreManager) context.getSystemService(Context.NETWORK_SCORE_SERVICE);
         if (mScoreManager != null) {
@@ -202,51 +213,69 @@ public class WifiQualifiedNetworkSelector {
         mNoIntnetPenalty = (mWifiConfigManager.mThresholdSaturatedRssi24.get() + mRssiScoreOffset)
                 * mRssiScoreSlope + mWifiConfigManager.mBandAward5Ghz.get()
                 + mWifiConfigManager.mCurrentNetworkBoost.get() + mSameBssidAward + mSecurityAward;
-        mCarrierConfigManager = (CarrierConfigManager)
-                context.getSystemService(Context.CARRIER_CONFIG_SERVICE);
 
-        final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                localLog("mBroadcastReceiver: onReceive " + intent.getAction());
-                PersistableBundle b = mCarrierConfigManager.getConfig();
-                String[] mWifiArray =
-                        b.getStringArray(CarrierConfigManager.KEY_CARRIER_WIFI_STRING_ARRAY);
-                WifiConfiguration wifiConfig;
-                if (mWifiArray == null) {
-                    return;
-                }
-
-                for (String config : mWifiArray) {
-                    String[] wc = config.split("\\|");
-                    wifiConfig = new WifiConfiguration();
-                    try {
-                        byte[] decodedBytes = Base64.decode(wc[0], Base64.DEFAULT);
-                        String ssid = new String(decodedBytes);
-                        wifiConfig.SSID = "\"" + ssid  + "\"";
-                    } catch (IllegalArgumentException ex) {
-                        localLog("mBroadcaseReceiver: Could not decode base64 string");
-                        continue;
-                    }
-                    try {
-                        int s = Integer.parseInt(wc[1]);
-                        wifiConfig.allowedKeyManagement.set(s);
-                    } catch (NumberFormatException e) {
-                        localLog("mBroadcastReceiver: not an integer" + wc[1]);
-                    }
-                    mCarrierConfiguredNetworks.add(wifiConfig);
-                    localLog("mBroadcastReceiver: onReceive networks:" + wifiConfig.SSID);
-                }
-            }
-        };
         context.registerReceiver(mBroadcastReceiver, new IntentFilter(
                 CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED));
     }
 
     @VisibleForTesting
-    public void setCarrierConfiguredNetworks(List<WifiConfiguration> carrierConfiguredNetworks) {
-        mCarrierConfiguredNetworks = carrierConfiguredNetworks;
+    public List<WifiConfiguration> parseCarrierSuppliedWifiInfo(String[] wifiArray) {
+        List<WifiConfiguration> carrierConfiguredNetworks = new ArrayList<WifiConfiguration>();
+        for (String config : wifiArray) {
+            String[] wc = config.split("\\|");
+            if (wc.length != 3) {
+                continue;
+            }
+            WifiConfiguration wifiConfig = new WifiConfiguration();
+            try {
+                byte[] decodedBytes = Base64.decode(wc[CARRIER_SSID], Base64.DEFAULT);
+                String ssid = new String(decodedBytes);
+                wifiConfig.SSID = "\"" + ssid + "\"";
+            } catch (IllegalArgumentException ex) {
+                localLog("mBroadcaseReceiver: Could not decode base64 string");
+                continue;
+            }
+            try {
+                int key = Integer.parseInt(wc[CARRIER_KEY]);
+                wifiConfig.allowedKeyManagement.set(key);
+                int eapType = Integer.parseInt(wc[CARRIER_EAP_METHOD]);
+                wifiConfig.enterpriseConfig = new WifiEnterpriseConfig();
+                wifiConfig.enterpriseConfig.setEapMethod(eapType);
+            } catch (NumberFormatException e) {
+                localLog("mBroadcastReceiver: not an integer:" + wc[CARRIER_KEY] + "," +
+                        wc[CARRIER_EAP_METHOD]);
+                continue;
+            } catch (IllegalArgumentException e) {
+                localLog("mBroadcastReceiver: invalid config" + wc[CARRIER_KEY] + "," +
+                        wc[CARRIER_EAP_METHOD]);
+            }
+            carrierConfiguredNetworks.add(wifiConfig);
+            localLog("mBroadcastReceiver: carrier config:" + wifiConfig.SSID);
+        }
+        return carrierConfiguredNetworks;
     }
+
+    final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            localLog("mBroadcastReceiver: onReceive " + intent.getAction());
+            String[] wifiArray = null;
+            CarrierConfigManager carrierConfigManager = (CarrierConfigManager)
+                    mContext.getSystemService(Context.CARRIER_CONFIG_SERVICE);
+            if (carrierConfigManager != null) {
+                PersistableBundle b = carrierConfigManager.getConfig();
+                if (b != null) {
+                    wifiArray = b.getStringArray(
+                            CarrierConfigManager.KEY_CARRIER_WIFI_STRING_ARRAY);
+                }
+            }
+
+            if (wifiArray == null) {
+                return;
+            }
+            mCarrierConfiguredNetworks = parseCarrierSuppliedWifiInfo(wifiArray);
+        }
+    };
 
     void enableVerboseLogging(int verbose) {
         mDbg = verbose > 0 || FORCE_DEBUG;
@@ -638,13 +667,8 @@ public class WifiQualifiedNetworkSelector {
     }
 
     private boolean isCarrierNetwork(ScanResult scanResult) {
-        String ssid = "\"" + scanResult.SSID + "\"";
-        for (WifiConfiguration config : mCarrierConfiguredNetworks) {
-            if (config.SSID.equals(ssid)) {
-                return true;
-            }
-        }
-        return false;
+        return (getMatchingConfigForEAPNetworks(scanResult,
+                mCarrierConfiguredNetworks) != null ? true : false);
     }
 
     /**
@@ -800,24 +824,25 @@ public class WifiQualifiedNetworkSelector {
             // Evaluate the potentially ephemeral network as a possible candidate if untrusted
             // connections are allowed and we have an external score for the scan result.
             if (potentiallyEphemeral) {
-                localLog("Network is a ephemeral network...");
-                if (isUntrustedConnectionsAllowed) {
-                    Integer netScore = getNetworkScore(scanResult, false);
-                    if (netScore == null) {
-                        localLog("Checking the carrierScoreEvaluator for candidates...");
-                        // Evaluate the carrier network as a possible candidate.
-                        if (!mCarrierConfiguredNetworks.isEmpty() && isCarrierNetwork(scanResult)) {
-                            carrierScoreEvaluator.evalCarrierCandidate(scanResult,
-                                    getCarrierScore(scanResult, mCurrentConnectedNetwork,
-                                            (mCurrentBssid == null ? false :
-                                                    mCurrentBssid.equals(scanResult.BSSID))));
+                if (!mWifiConfigManager.wasEphemeralNetworkDeleted(
+                        ScanDetailUtil.createQuotedSSID(scanResult.SSID))) {
+                    if (isUntrustedConnectionsAllowed) {
+                        Integer netScore = getNetworkScore(scanResult, false);
+                        if (netScore != null) {
+                            externalScoreEvaluator.evalUntrustedCandidate(netScore, scanResult);
+                            // scanDetail is for available ephemeral network
+                            filteredScanDetails.add(Pair.create(scanDetail,
+                                    potentialEphemeralCandidate));
                         }
-
-                    }
-                    else if (!mWifiConfigManager.wasEphemeralNetworkDeleted(
-                                ScanDetailUtil.createQuotedSSID(scanResult.SSID))) {
-                        externalScoreEvaluator.evalUntrustedCandidate(netScore, scanResult);
-                        // scanDetail is for available ephemeral network
+                        // Evaluate the carrier network as a possible candidate.
+                        // todo need to add flag isCarrierConnectionsAllowed, config in settings.
+                    } else if (!mCarrierConfiguredNetworks.isEmpty() &&
+                            isCarrierNetwork(scanResult)) {
+                        localLog("Checking the carrierScoreEvaluator for candidates...");
+                        carrierScoreEvaluator.evalCarrierCandidate(scanResult,
+                                getCarrierScore(scanResult, mCurrentConnectedNetwork,
+                                        (mCurrentBssid == null ? false :
+                                                mCurrentBssid.equals(scanResult.BSSID))));
                         filteredScanDetails.add(Pair.create(scanDetail,
                                 potentialEphemeralCandidate));
                     }
@@ -953,7 +978,8 @@ public class WifiQualifiedNetworkSelector {
             networkCandidate = getCarrierScoreCandidate(carrierScoreEvaluator);
             localLog("Carrier candidate::" + networkCandidate);
             if (networkCandidate != null) {
-                scanResultCandidate = networkCandidate.getNetworkSelectionStatus().getCandidate();
+                scanResultCandidate =
+                        mWifiConfigManager.getScanResultCandidate(networkCandidate);
             }
         }
 
@@ -1046,25 +1072,22 @@ public class WifiQualifiedNetworkSelector {
      */
     @Nullable
     WifiConfiguration getCarrierScoreCandidate(CarrierScoreEvaluator scoreEvaluator) {
-        WifiConfiguration networkCandidate = null;
 
-        ScanResult untrustedScanResultCandidate = scoreEvaluator.getScanResultCandidate();
-        if (untrustedScanResultCandidate == null) {
+        ScanResult untrustedCarrierScanResult = scoreEvaluator.getScanResultCandidate();
+        if (untrustedCarrierScanResult == null) {
             return null;
         }
-        WifiConfiguration unTrustedNetworkCandidate =
-                mWifiConfigManager.wifiConfigurationFromScanResult(
-                                untrustedScanResultCandidate);
-        // Mark this config as ephemeral so it isn't persisted.
-        unTrustedNetworkCandidate.ephemeral = true;
-        mWifiConfigManager.saveNetwork(unTrustedNetworkCandidate, WifiConfiguration.UNKNOWN_UID);
-        localLog(String.format("new carrier candidate %s network ID:%d, ",
-                toScanId(untrustedScanResultCandidate), unTrustedNetworkCandidate.networkId));
 
-        unTrustedNetworkCandidate.getNetworkSelectionStatus()
-                .setCandidate(untrustedScanResultCandidate);
-        networkCandidate = unTrustedNetworkCandidate;
-        return networkCandidate;
+        WifiConfiguration untrustedCandidateConfig = getMatchingConfigForEAPNetworks(
+                untrustedCarrierScanResult, mCarrierConfiguredNetworks);
+
+        if (untrustedCandidateConfig == null) {
+            return null;
+        }
+
+        mWifiConfigManager.saveNetworkAndSetCandidate(
+                untrustedCandidateConfig, untrustedCarrierScanResult);
+        return untrustedCandidateConfig;
     }
 
     /**
@@ -1217,7 +1240,6 @@ public class WifiQualifiedNetworkSelector {
     static class CarrierScoreEvaluator {
         // Always set to the best known candidate
         private int mHighScore = WifiNetworkScoreCache.INVALID_NETWORK_SCORE;
-        private WifiConfiguration mSavedConfig;
         private ScanResult mScanResultCandidate;
         private final LocalLog mLocalLog;
         private final boolean mDbg;
@@ -1245,14 +1267,32 @@ public class WifiQualifiedNetworkSelector {
             return mScanResultCandidate;
         }
 
-        WifiConfiguration getSavedConfig() {
-            return mSavedConfig;
-        }
-
         private void localLog(String log) {
             if (mDbg) {
                 mLocalLog.log(log);
             }
         }
+    }
+
+    private WifiConfiguration getMatchingConfigForEAPNetworks(
+            ScanResult scanResult, List<WifiConfiguration> candidateConfigs) {
+        if (scanResult == null || candidateConfigs == null) {
+            return null;
+        }
+        // TODO currently we only support EAP. We'll add to this in OC.
+        if (!scanResult.capabilities.contains("EAP")) {
+            return null;
+        }
+        String ssid = "\"" + scanResult.SSID + "\"";
+        for (WifiConfiguration config : candidateConfigs) {
+            if (config.SSID.equals(ssid)) {
+                // TODO currently we only support EAP. We'll add to this in OC.
+                if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP) ||
+                        config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
+                    return config;
+                }
+            }
+        }
+        return null;
     }
 }
