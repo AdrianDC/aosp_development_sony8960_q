@@ -19,17 +19,17 @@ package com.android.server.wifi.hotspot2;
 import android.util.Base64;
 import android.util.Log;
 
+import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.ANQPFactory;
 import com.android.server.wifi.hotspot2.anqp.Constants;
-import com.android.server.wifi.WifiNative;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 import java.net.ProtocolException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -122,10 +122,9 @@ public class PasspointEventHandler {
                 if (element != null) {
                     elements.put(element.getID(), element);
                 }
-            }
-            catch (ProtocolException pe) {
+            } catch (ProtocolException | BufferUnderflowException e) {
                 Log.e(Utils.hs2LogTag(PasspointEventHandler.class),
-                      "Failed to parse ANQP: " + pe);
+                        "Failed to parse ANQP: " + e);
             }
         }
         return elements;
@@ -184,14 +183,9 @@ public class PasspointEventHandler {
                 Log.d(Utils.hs2LogTag(getClass()),
                       String.format("Successful ANQP response for %012x: %s",
                                     bssid, elements));
-            }
-            catch (IOException ioe) {
+            } catch (IOException | BufferUnderflowException e) {
                 Log.e(Utils.hs2LogTag(getClass()), "Failed to parse ANQP: " +
-                        ioe.toString() + ": " + bssData);
-            }
-            catch (RuntimeException rte) {
-                Log.e(Utils.hs2LogTag(getClass()), "Failed to parse ANQP: " +
-                        rte.toString() + ": " + bssData, rte);
+                        e.toString() + ": " + bssData);
             }
         }
         mCallbacks.onANQPResponse(bssid, elements);
@@ -312,10 +306,12 @@ public class PasspointEventHandler {
                   "Failed to parse hex string");
             return null;
         }
+        // Wrap the payload inside a ByteBuffer.
+        ByteBuffer buffer = ByteBuffer.wrap(payload);
+
         return Constants.getANQPElementID(elementType) != null ?
-                ANQPFactory.buildElement(ByteBuffer.wrap(payload), elementType, payload.length) :
-                ANQPFactory.buildHS20Element(elementType,
-                        ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN));
+                ANQPFactory.buildElement(elementType, buffer) :
+                ANQPFactory.buildHS20Element(elementType, buffer);
     }
 
     private byte[] retrieveIcon(IconEvent iconEvent) throws IOException {

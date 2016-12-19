@@ -16,19 +16,20 @@
 
 package com.android.server.wifi.hotspot2.anqp;
 
-import static com.android.server.wifi.hotspot2.anqp.Constants.BYTE_MASK;
+import android.text.TextUtils;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.ByteBufferReader;
 
 import java.net.ProtocolException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 /**
  * A generic Internationalized name field used in the Operator Friendly Name ANQP element
- * (see HS2.0 R2 Spec 4.2), and the Venue Name ANQP element (see 802.11-2012 8.4.4.4).
+ * (see HS2.0 R2 Spec 4.2) and the Venue Name ANQP element (see 802.11-2012 8.4.4.4).
  *
  * Format:
  *
@@ -36,31 +37,49 @@ import java.util.Locale;
  *      1           3         variable
  */
 public class I18Name {
+    @VisibleForTesting
+    public static final int LANGUAGE_CODE_LENGTH = 3;
+
+    @VisibleForTesting
+    public static final int MINIMUM_LENGTH = LANGUAGE_CODE_LENGTH;
+
     private final String mLanguage;
     private final Locale mLocale;
     private final String mText;
-
-    public I18Name(ByteBuffer payload) throws ProtocolException {
-        if (payload.remaining() < Constants.LANG_CODE_LENGTH + 1) {
-            throw new ProtocolException("Truncated I18Name payload of length "
-                    + payload.remaining());
-        }
-        int length = payload.get() & BYTE_MASK;
-        if (length < Constants.LANG_CODE_LENGTH || length > payload.remaining()) {
-            throw new ProtocolException("Invalid I18Name length field value " + length);
-        }
-        mLanguage = ByteBufferReader.readString(
-                payload, Constants.LANG_CODE_LENGTH, StandardCharsets.US_ASCII).trim();
-        mLocale = Locale.forLanguageTag(mLanguage);
-        mText = ByteBufferReader.readString(payload, length - Constants.LANG_CODE_LENGTH,
-                StandardCharsets.UTF_8);
-    }
 
     @VisibleForTesting
     public I18Name(String language, Locale locale, String text) {
         mLanguage = language;
         mLocale = locale;
         mText = text;
+    }
+
+    /**
+     * Parse a I18Name from the given buffer.
+     *
+     * @param payload The byte buffer to read from
+     * @return {@link I18Name}
+     * @throws BufferUnderflowException
+     * @throws ProtocolException
+     */
+    public static I18Name parse(ByteBuffer payload) throws ProtocolException {
+        // Retrieve the length field.
+        int length = payload.get() & 0xFF;
+
+        // Check for the minimum required length.
+        if (length < MINIMUM_LENGTH) {
+            throw new ProtocolException("Invalid length: " + length);
+        }
+
+        // Read the language string.
+        String language = ByteBufferReader.readString(
+                payload, LANGUAGE_CODE_LENGTH, StandardCharsets.US_ASCII).trim();
+        Locale locale = Locale.forLanguageTag(language);
+
+        // Read the text string.
+        String text = ByteBufferReader.readString(payload, length - LANGUAGE_CODE_LENGTH,
+                StandardCharsets.UTF_8);
+        return new I18Name(language, locale, text);
     }
 
     public String getLanguage() {
@@ -80,12 +99,13 @@ public class I18Name {
         if (this == thatObject) {
             return true;
         }
-        if (thatObject == null || getClass() != thatObject.getClass()) {
+        if (!(thatObject instanceof I18Name)) {
             return false;
         }
 
         I18Name that = (I18Name) thatObject;
-        return mLanguage.equals(that.mLanguage) && mText.equals(that.mText);
+        return TextUtils.equals(mLanguage, that.mLanguage)
+                && TextUtils.equals(mText, that.mText);
     }
 
     @Override
