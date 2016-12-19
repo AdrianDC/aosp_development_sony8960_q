@@ -16,117 +16,154 @@
 
 package com.android.server.wifi.hotspot2.anqp;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import android.test.suitebuilder.annotation.SmallTest;
 
 import org.junit.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.net.ProtocolException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * Unit tests for {@link com.android.server.wifi.anqp.VenueNameElement}.
+ * Unit tests for {@link com.android.server.wifi.hotspot2.anqp.VenueNameElement}.
  */
 @SmallTest
 public class VenueNameElementTest {
-    private static class VenueNameElementTestMapping {
-        byte[] mBytes;
-        List<I18Name> mExpectedNames;
-        VenueNameElementTestMapping(byte[] bytes, List<I18Name> names) {
-            this.mBytes = bytes;
-            this.mExpectedNames = names;
-        }
-    }
-
-    // Raw bytes, laid out in little endian, that represent malformed Venue Name Element payloads
-    // that do not conform to IEEE802.11-2012 section 8.4.4.4.
-    private static final byte[][] MALFORMED_VENUE_NAME_ELEMENT_BYTES =
-            new byte[][] {
-                    // Too short.
-                    new byte[0],
-                    new byte[] {(byte) 0x01},
-                    // 1 trailing byte.
-                    new byte[] {
-                        (byte) 0x00, (byte) 0x00, (byte) 0x03, (byte) 0x65,
-                        (byte) 0x6e, (byte) 0x00, (byte) 0xab},
-                    // Length field (0xff) exceeds remaining payload size.
-                    new byte[] {
-                        (byte) 0x00, (byte) 0x00, (byte) 0xff, (byte) 0x65,
-                        (byte) 0x6e, (byte) 0x00, (byte) 0xab},
-            };
-
-    private static final VenueNameElementTestMapping[] VENUE_NAME_ELEMENT_MAPPINGS =
-            new VenueNameElementTestMapping[] {
-                // 0 Venue name Duples (i.e. Venue info field only).
-                new VenueNameElementTestMapping(
-                        new byte[] {
-                            (byte) 0x00, (byte) 0x00},
-                        new ArrayList<I18Name>()),
-                // 1 Venue name Duple.
-                new VenueNameElementTestMapping(
-                        new byte[] {
-                            (byte) 0x00, (byte) 0x00, (byte) 0x0d, (byte) 0x65,
-                            (byte) 0x6e, (byte) 0x00, (byte) 0x74, (byte) 0x65,
-                            (byte) 0x73, (byte) 0x74, (byte) 0x56, (byte) 0x65,
-                            (byte) 0x6e, (byte) 0x75, (byte) 0x65, (byte) 0x31},
-                        new ArrayList<I18Name>() {{
-                            add(new I18Name("en", Locale.ENGLISH, "testVenue1"));
-                        }}),
-                // 2 Venue Name Duples.
-                new VenueNameElementTestMapping(
-                        new byte[] {
-                            (byte) 0x00, (byte) 0x00, (byte) 0x0d, (byte) 0x65,
-                            (byte) 0x6e, (byte) 0x00, (byte) 0x74, (byte) 0x65,
-                            (byte) 0x73, (byte) 0x74, (byte) 0x56, (byte) 0x65,
-                            (byte) 0x6e, (byte) 0x75, (byte) 0x65, (byte) 0x31,
-                            (byte) 0x0d, (byte) 0x66, (byte) 0x72, (byte) 0x00,
-                            (byte) 0x74, (byte) 0x65, (byte) 0x73, (byte) 0x74,
-                            (byte) 0x56, (byte) 0x65, (byte) 0x6e, (byte) 0x75,
-                            (byte) 0x65, (byte) 0x32},
-                        new ArrayList<I18Name>() {{
-                            add(new I18Name("en", Locale.ENGLISH, "testVenue1"));
-                            add(new I18Name("fr", Locale.FRENCH, "testVenue2"));
-                        }}),
-            };
+    private static final String TEST_LANGUAGE = "en";
+    private static final Locale TEST_LOCALE = Locale.forLanguageTag(TEST_LANGUAGE);
+    private static final String TEST_VENUE_NAME1 = "Venue1";
+    private static final String TEST_VENUE_NAME2 = "Venue2";
 
     /**
-     * Verifies that parsing malformed Venue Name Element bytes results in a ProtocolException.
+     * Helper function for appending a Venue Name to an output stream.
+     *
+     * @param stream Stream to write to
+     * @param venue The venue name string
+     * @throws IOException
      */
-    @Test
-    public void testMalformedVenueNameElementBytes() {
-        for (byte[] invalidBytes : MALFORMED_VENUE_NAME_ELEMENT_BYTES) {
-            try {
-                VenueNameElement venueNameElement = new VenueNameElement(
-                        Constants.ANQPElementType.ANQPVenueName,
-                        ByteBuffer.wrap(invalidBytes).order(ByteOrder.LITTLE_ENDIAN));
-            } catch (ProtocolException e) {
-                continue;
-            }
-            fail("Expected exception while parsing malformed Venue Name Element bytes: "
-                    + invalidBytes);
-        }
+    private void appendVenue(ByteArrayOutputStream stream, String venue) throws IOException {
+        byte[] venueBytes = venue.getBytes(StandardCharsets.UTF_8);
+        int length = I18Name.LANGUAGE_CODE_LENGTH + venue.length();
+        stream.write((byte) length);
+        stream.write(TEST_LANGUAGE.getBytes(StandardCharsets.US_ASCII));
+        stream.write(new byte[]{(byte) 0x0});  // Padding for language code.
+        stream.write(venueBytes);
     }
 
     /**
-     * Verifies that valid Venue Name Element bytes are properly parsed.
+     * Helper function for generating test data.
+     *
+     * @return byte[] of data
+     * @throws IOException
+     */
+    private byte[] getTestData(String[] names) throws IOException {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        // Venue info data not currently used.
+        stream.write(new byte[VenueNameElement.VENUE_INFO_LENGTH]);
+        for (String name : names) {
+            appendVenue(stream, name);
+        }
+        return stream.toByteArray();
+    }
+
+    /**
+     * Verify that BufferUnderflowException will be thrown when parsing an empty buffer.
+     *
+     * @throws Exception
+     */
+    @Test(expected = BufferUnderflowException.class)
+    public void parseEmptyBuffer() throws Exception {
+        VenueNameElement.parse(ByteBuffer.allocate(0));
+    }
+
+    /**
+     * Verify that BufferUnderflowException will be thrown when parsing a truncated buffer
+     * (missing a byte at the end).
+     *
+     * @throws Exception
+     */
+    @Test(expected = BufferUnderflowException.class)
+    public void parseTruncatedBuffer() throws Exception {
+        ByteBuffer buffer = ByteBuffer.wrap(getTestData(new String[] {TEST_VENUE_NAME1}));
+        // Truncate a byte at the end.
+        buffer.limit(buffer.remaining() - 1);
+        VenueNameElement.parse(buffer);
+    }
+
+    /**
+     * Verify that a VenueNameElement with empty name list will be returned when parsing a buffer
+     * contained no venue name (only contained the venue info data).
+     *
+     * @throws Exception
      */
     @Test
-    public void testVenueNameElementParsing() {
-        try {
-            for (VenueNameElementTestMapping testMapping : VENUE_NAME_ELEMENT_MAPPINGS) {
-                VenueNameElement venueNameElement =
-                        new VenueNameElement(
-                                Constants.ANQPElementType.ANQPVenueName,
-                                ByteBuffer.wrap(testMapping.mBytes).order(ByteOrder.LITTLE_ENDIAN));
-                assertEquals(testMapping.mExpectedNames, venueNameElement.getNames());
-            }
-        } catch (ProtocolException e) {
-            fail("Exception encountered during parsing: " + e);
-        }
+    public void parseBufferWithEmptyVenueName() throws Exception {
+        ByteBuffer buffer = ByteBuffer.wrap(getTestData(new String[0]));
+        assertTrue(VenueNameElement.parse(buffer).getNames().isEmpty());
+    }
+    /**
+     * Verify that an expected VenueNameElement will be returned when parsing a buffer contained
+     * valid Venue Name data.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void parseBufferWithValidVenueNames() throws Exception {
+        // Setup expected element.
+        List<I18Name> nameList = new ArrayList<>();
+        nameList.add(new I18Name(TEST_LANGUAGE, TEST_LOCALE, TEST_VENUE_NAME1));
+        nameList.add(new I18Name(TEST_LANGUAGE, TEST_LOCALE, TEST_VENUE_NAME2));
+        VenueNameElement expectedElement = new VenueNameElement(nameList);
+
+        ByteBuffer buffer = ByteBuffer.wrap(
+                getTestData(new String[] {TEST_VENUE_NAME1, TEST_VENUE_NAME2}));
+        assertEquals(expectedElement, VenueNameElement.parse(buffer));
+    }
+
+    /**
+     * Verify that an expected VenueNameElement will be returned when parsing a buffer
+     * contained a venue name with the maximum length.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void parseBufferWithMaxLengthVenueName() throws Exception {
+        // Venue name with maximum length.
+        byte[] textData = new byte[VenueNameElement.MAXIMUM_VENUE_NAME_LENGTH];
+        Arrays.fill(textData, (byte) 'a');
+        String text = new String(textData);
+        ByteBuffer buffer = ByteBuffer.wrap(getTestData(new String[] {text}));
+
+        // Setup expected element.
+        List<I18Name> nameList = new ArrayList<>();
+        nameList.add(new I18Name(TEST_LANGUAGE, TEST_LOCALE, text));
+        VenueNameElement expectedElement = new VenueNameElement(nameList);
+
+        assertEquals(expectedElement, VenueNameElement.parse(buffer));
+    }
+
+    /**
+     * Verify that ProtocolException will be thrown when parsing a buffer contained a
+     * venue name that exceeds the maximum length.
+     *
+     * @throws Exception
+     */
+    @Test(expected = ProtocolException.class)
+    public void parseBufferWithVenueNameLengthExceedMax() throws Exception {
+        byte[] textData = new byte[VenueNameElement.MAXIMUM_VENUE_NAME_LENGTH + 1];
+        Arrays.fill(textData, (byte) 'a');
+        String text = new String(textData);
+        ByteBuffer buffer = ByteBuffer.wrap(getTestData(new String[] {text}));
+        VenueNameElement.parse(buffer);
     }
 }

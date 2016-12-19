@@ -6,10 +6,7 @@ import com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType;
 import com.android.server.wifi.hotspot2.anqp.HSConnectionCapabilityElement;
 import com.android.server.wifi.hotspot2.anqp.HSWanMetricsElement;
 import com.android.server.wifi.hotspot2.anqp.IPAddressTypeAvailabilityElement;
-import com.android.server.wifi.hotspot2.anqp.IPAddressTypeAvailabilityElement.IPv4Availability;
-import com.android.server.wifi.hotspot2.anqp.IPAddressTypeAvailabilityElement.IPv6Availability;
 
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -21,10 +18,8 @@ public class PasspointMatchInfo implements Comparable<PasspointMatchInfo> {
     private final ScanDetail mScanDetail;
     private final int mScore;
 
-    private static final Map<IPv4Availability, Integer> sIP4Scores =
-            new EnumMap<>(IPv4Availability.class);
-    private static final Map<IPv6Availability, Integer> sIP6Scores =
-            new EnumMap<>(IPv6Availability.class);
+    private static final Map<Integer, Integer> sIP4Scores = new HashMap<>();
+    private static final Map<Integer, Integer> sIP6Scores = new HashMap<>();
 
     private static final Map<Integer, Map<Integer, Integer>> sPortScores = new HashMap<>();
 
@@ -46,19 +41,18 @@ public class PasspointMatchInfo implements Comparable<PasspointMatchInfo> {
         sAntScores.put(NetworkDetail.Ant.Wildcard, 1);
         sAntScores.put(NetworkDetail.Ant.TestOrExperimental, 0);
 
-        sIP4Scores.put(IPv4Availability.NotAvailable, 0);
-        sIP4Scores.put(IPv4Availability.PortRestricted, 1);
-        sIP4Scores.put(IPv4Availability.PortRestrictedAndSingleNAT, 1);
-        sIP4Scores.put(IPv4Availability.PortRestrictedAndDoubleNAT, 1);
-        sIP4Scores.put(IPv4Availability.Unknown, 1);
-        sIP4Scores.put(IPv4Availability.Public, 2);
-        sIP4Scores.put(IPv4Availability.SingleNAT, 2);
-        sIP4Scores.put(IPv4Availability.DoubleNAT, 2);
+        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_NOT_AVAILABLE, 0);
+        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_PORT_RESTRICTED, 1);
+        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_PORT_RESTRICTED_AND_SINGLE_NAT, 1);
+        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_PORT_RESTRICTED_AND_DOUBLE_NAT, 1);
+        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_UNKNOWN, 1);
+        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_PUBLIC, 2);
+        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_SINGLE_NAT, 2);
+        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_DOUBLE_NAT, 2);
 
-        sIP6Scores.put(IPv6Availability.NotAvailable, 0);
-        sIP6Scores.put(IPv6Availability.Reserved, 1);
-        sIP6Scores.put(IPv6Availability.Unknown, 1);
-        sIP6Scores.put(IPv6Availability.Available, 2);
+        sIP6Scores.put(IPAddressTypeAvailabilityElement.IPV6_NOT_AVAILABLE, 0);
+        sIP6Scores.put(IPAddressTypeAvailabilityElement.IPV6_UNKNOWN, 1);
+        sIP6Scores.put(IPAddressTypeAvailabilityElement.IPV6_AVAILABLE, 2);
 
         Map<Integer, Integer> tcpMap = new HashMap<>();
         tcpMap.put(20, 1);
