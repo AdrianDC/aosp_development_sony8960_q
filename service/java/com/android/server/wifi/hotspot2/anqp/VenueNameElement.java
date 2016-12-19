@@ -16,8 +16,12 @@
 
 package com.android.server.wifi.hotspot2.anqp;
 
+import com.android.internal.annotations.VisibleForTesting;
+
 import java.net.ProtocolException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -27,36 +31,59 @@ import java.util.List;
  *
  * Format:
  *
- * | Info ID | Length | Venue Info | Venue Name Duple #1 (optional) | ...
- *      2        2          2                  variable
+ * | Venue Info | Venue Name Duple #1 (optional) | ...
+ *      2                  variable
+ *
  * | Venue Name Duple #N (optional) |
  *             variable
  *
- * Refer to {@link com.android.server.wifi.anqp.I18Name} for the format of the Venue Name Duple
+ * Refer to {@link I18Name} for the format of the Venue Name Duple
  * fields.
- *
- * Note: The payload parsed by this class already has 'Info ID' and 'Length' stripped off.
  */
 public class VenueNameElement extends ANQPElement {
+    @VisibleForTesting
+    public static final int VENUE_INFO_LENGTH = 2;
+
+    /**
+     * Maximum length for a Venue Name.  Refer to IEEE802.11-2012 section 8.4.4.4 for more info.
+     */
+    @VisibleForTesting
+    public static final int MAXIMUM_VENUE_NAME_LENGTH = 252;
+
     private final List<I18Name> mNames;
 
-    public VenueNameElement(Constants.ANQPElementType infoID, ByteBuffer payload)
+    @VisibleForTesting
+    public VenueNameElement(List<I18Name> names) {
+        super(Constants.ANQPElementType.ANQPVenueName);
+        mNames = names;
+    }
+
+    /**
+     * Parse a VenueNameElement from the given buffer.
+     *
+     * @param payload The byte buffer to read from
+     * @return {@link VenueNameElement}
+     * @throws BufferUnderflowException
+     * @throws ProtocolException
+     */
+    public static VenueNameElement parse(ByteBuffer payload)
             throws ProtocolException {
-        super(infoID);
-
-        if (payload.remaining() < 2) {
-            throw new ProtocolException("Venue Name Element cannot contain less than 2 bytes");
-        }
-
         // Skip the Venue Info field, which we don't use.
-        for (int i = 0; i < Constants.VENUE_INFO_LENGTH; ++i) {
+        for (int i = 0; i < VENUE_INFO_LENGTH; ++i) {
             payload.get();
         }
 
-        mNames = new ArrayList<I18Name>();
+        List<I18Name> names = new ArrayList<I18Name>();
         while (payload.hasRemaining()) {
-            mNames.add(new I18Name(payload));
+            I18Name name = I18Name.parse(payload);
+            // Verify that the number of octets for the venue name doesn't exceed the max allowed.
+            int textBytes = name.getText().getBytes(StandardCharsets.UTF_8).length;
+            if (textBytes > MAXIMUM_VENUE_NAME_LENGTH) {
+                throw new ProtocolException("Venue Name exceeds the maximum allowed " + textBytes);
+            }
+            names.add(name);
         }
+        return new VenueNameElement(names);
     }
 
     public List<I18Name> getNames() {
@@ -64,7 +91,25 @@ public class VenueNameElement extends ANQPElement {
     }
 
     @Override
+    public boolean equals(Object thatObject) {
+        if (this == thatObject) {
+            return true;
+        }
+        if (!(thatObject instanceof VenueNameElement)) {
+            return false;
+        }
+        VenueNameElement that = (VenueNameElement) thatObject;
+        return mNames.equals(that.mNames);
+    }
+
+    @Override
+    public int hashCode() {
+        return mNames.hashCode();
+    }
+
+    @Override
     public String toString() {
         return "VenueName{ mNames=" + mNames + "}";
     }
+
 }
