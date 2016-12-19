@@ -48,6 +48,7 @@ import com.android.internal.util.AsyncChannel;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.test.BidirectionalAsyncChannel;
 import com.android.server.wifi.Clock;
+import com.android.server.wifi.FakeWifiLog;
 import com.android.server.wifi.ScanResults;
 import com.android.server.wifi.TestUtil;
 import com.android.server.wifi.WifiInjector;
@@ -62,6 +63,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
 import org.mockito.internal.matchers.CapturingMatcher;
 
 import java.io.FileDescriptor;
@@ -89,6 +91,7 @@ public class WifiScanningServiceTest {
     @Mock IBatteryStats mBatteryStats;
     @Mock WifiInjector mWifiInjector;
     @Mock Clock mClock;
+    @Spy FakeWifiLog mLog;
     WifiMetrics mWifiMetrics;
     TestLooper mLooper;
     WifiScanningServiceImpl mWifiScanningServiceImpl;
@@ -114,6 +117,7 @@ public class WifiScanningServiceTest {
                 .thenReturn(mWifiScannerImpl);
         when(mWifiScannerImpl.getChannelHelper()).thenReturn(channelHelper);
         when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
+        when(mWifiInjector.makeLog(anyString())).thenReturn(mLog);
         mWifiScanningServiceImpl = new WifiScanningServiceImpl(mContext, mLooper.getLooper(),
                 mWifiScannerImplFactory, mBatteryStats, mWifiInjector);
     }

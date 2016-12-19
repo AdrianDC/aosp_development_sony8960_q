@@ -35,7 +35,6 @@ import android.net.wifi.WifiScanner.ScanData;
 import android.net.wifi.WifiScanner.ScanSettings;
 import android.os.Binder;
 import android.os.Bundle;
-import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
@@ -54,11 +53,14 @@ import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.Clock;
 import com.android.server.wifi.WifiInjector;
+import com.android.server.wifi.WifiLog;
 import com.android.server.wifi.WifiMetrics;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.WifiStateMachine;
 import com.android.server.wifi.nano.WifiMetricsProto;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
+import com.android.server.wifi.util.WifiAsyncChannel;
+import com.android.server.wifi.util.WifiHandler;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -81,6 +83,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
     private final LocalLog mLocalLog = new LocalLog(512);
 
+    private WifiLog mLog;
+
     private void localLog(String message) {
         mLocalLog.log(message);
     }
@@ -100,11 +104,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     @Override
     public Messenger getMessenger() {
         if (mClientHandler != null) {
+            mLog.trace("getMessenger() uid=%").c(Binder.getCallingUid()).flush();
             return new Messenger(mClientHandler);
-        } else {
-            loge("WifiScanningServiceImpl trying to get messenger w/o initialization");
-            return null;
         }
+        loge("WifiScanningServiceImpl trying to get messenger w/o initialization");
+        return null;
     }
 
     @Override
@@ -117,6 +121,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         }
         Bundle b = new Bundle();
         b.putIntegerArrayList(WifiScanner.GET_AVAILABLE_CHANNELS_EXTRA, list);
+        mLog.trace("getAvailableChannels uid=%").c(Binder.getCallingUid()).flush();
         return b;
     }
 
@@ -127,14 +132,15 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 "LocationHardware");
     }
 
-    private class ClientHandler extends Handler {
+    private class ClientHandler extends WifiHandler {
 
-        ClientHandler(Looper looper) {
-            super(looper);
+        ClientHandler(String tag, Looper looper) {
+            super(tag, looper);
         }
 
         @Override
         public void handleMessage(Message msg) {
+            super.handleMessage(msg);
             switch (msg.what) {
                 case AsyncChannel.CMD_CHANNEL_FULL_CONNECTION: {
                     ExternalClientInfo client = (ExternalClientInfo) mClients.get(msg.replyTo);
@@ -146,7 +152,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         return;
                     }
 
-                    AsyncChannel ac = new AsyncChannel();
+                    AsyncChannel ac = new WifiAsyncChannel(TAG);
                     ac.connected(mContext, this, msg.replyTo);
 
                     client = new ExternalClientInfo(msg.sendingUid, msg.replyTo, ac);
@@ -154,7 +160,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
                     ac.replyToMessage(msg, AsyncChannel.CMD_CHANNEL_FULLY_CONNECTED,
                             AsyncChannel.STATUS_SUCCESSFUL);
-
                     localLog("client connected: " + client);
                     return;
                 }
@@ -289,12 +294,12 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         mAlarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
         mWifiMetrics = wifiInjector.getWifiMetrics();
         mClock = wifiInjector.getClock();
-
+        mLog = wifiInjector.makeLog(TAG);
         mPreviousSchedule = null;
     }
 
     public void startService() {
-        mClientHandler = new ClientHandler(mLooper);
+        mClientHandler = new ClientHandler(TAG, mLooper);
         mBackgroundScanStateMachine = new WifiBackgroundScanStateMachine(mLooper);
         mWifiChangeStateMachine = new WifiChangeStateMachine(mLooper);
         mSingleScanStateMachine = new WifiSingleScanStateMachine(mLooper);
@@ -2140,6 +2145,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
             try {
                 msg.replyTo.send(reply);
+                mLog.trace("replySucceeded recvdMessage=%").c(msg.what).flush();
             } catch (RemoteException e) {
                 // There's not much we can do if reply can't be sent!
             }
@@ -2156,6 +2162,10 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             reply.obj = new WifiScanner.OperationResult(reason, description);
             try {
                 msg.replyTo.send(reply);
+                mLog.trace("replyFailed recvdMessage=% reason=%")
+                            .c(msg.what)
+                            .c(reason)
+                            .flush();
             } catch (RemoteException e) {
                 // There's not much we can do if reply can't be sent!
             }
