@@ -16,11 +16,11 @@
 
 package com.android.server.wifi.aware;
 
+import android.net.wifi.aware.Characteristics;
 import android.net.wifi.aware.ConfigRequest;
+import android.net.wifi.aware.DiscoverySessionCallback;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
-import android.net.wifi.aware.WifiAwareCharacteristics;
-import android.net.wifi.aware.WifiAwareDiscoverySessionCallback;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -70,13 +70,13 @@ public class WifiAwareNative {
          * Converts the internal capabilities to a parcelable & potentially app-facing
          * characteristics bundle. Only some of the information is exposed.
          */
-        public WifiAwareCharacteristics toPublicCharacteristics() {
+        public Characteristics toPublicCharacteristics() {
             Bundle bundle = new Bundle();
-            bundle.putInt(WifiAwareCharacteristics.KEY_MAX_SERVICE_NAME_LENGTH, maxServiceNameLen);
-            bundle.putInt(WifiAwareCharacteristics.KEY_MAX_SERVICE_SPECIFIC_INFO_LENGTH,
+            bundle.putInt(Characteristics.KEY_MAX_SERVICE_NAME_LENGTH, maxServiceNameLen);
+            bundle.putInt(Characteristics.KEY_MAX_SERVICE_SPECIFIC_INFO_LENGTH,
                     maxServiceSpecificInfoLen);
-            bundle.putInt(WifiAwareCharacteristics.KEY_MAX_MATCH_FILTER_LENGTH, maxMatchFilterLen);
-            return new WifiAwareCharacteristics(bundle);
+            bundle.putInt(Characteristics.KEY_MAX_MATCH_FILTER_LENGTH, maxMatchFilterLen);
+            return new Characteristics(bundle);
         }
 
         @Override
@@ -823,8 +823,8 @@ public class WifiAwareNative {
 
         sWifiAwareStateManager.onSessionTerminatedNotification(publishId,
                 status == AWARE_STATUS_SUCCESS
-                        ? WifiAwareDiscoverySessionCallback.TERMINATE_REASON_DONE
-                        : WifiAwareDiscoverySessionCallback.TERMINATE_REASON_FAIL, true);
+                        ? DiscoverySessionCallback.TERMINATE_REASON_DONE
+                        : DiscoverySessionCallback.TERMINATE_REASON_FAIL, true);
     }
 
     // callback from native
@@ -835,8 +835,8 @@ public class WifiAwareNative {
 
         sWifiAwareStateManager.onSessionTerminatedNotification(subscribeId,
                 status == AWARE_STATUS_SUCCESS
-                        ? WifiAwareDiscoverySessionCallback.TERMINATE_REASON_DONE
-                        : WifiAwareDiscoverySessionCallback.TERMINATE_REASON_FAIL, false);
+                        ? DiscoverySessionCallback.TERMINATE_REASON_DONE
+                        : DiscoverySessionCallback.TERMINATE_REASON_FAIL, false);
     }
 
     // callback from native
