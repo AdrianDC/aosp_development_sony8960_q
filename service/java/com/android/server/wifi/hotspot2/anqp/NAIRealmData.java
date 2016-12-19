@@ -1,6 +1,7 @@
 package com.android.server.wifi.hotspot2.anqp;
 
 import com.android.server.wifi.hotspot2.anqp.eap.EAPMethod;
+import com.android.server.wifi.ByteBufferReader;
 import com.android.server.wifi.hotspot2.AuthMatch;
 import com.android.server.wifi.hotspot2.DomainMatcher;
 import com.android.server.wifi.hotspot2.Utils;
@@ -30,9 +31,8 @@ public class NAIRealmData {
         }
         boolean utf8 = (payload.get() & 1) == Constants.UTF8_INDICATOR;
 
-        String realm = Constants.getPrefixedString(payload, 1, utf8 ?
-                StandardCharsets.UTF_8 :
-                StandardCharsets.US_ASCII);
+        String realm = ByteBufferReader.readStringWithByteLength(
+                payload, utf8 ? StandardCharsets.UTF_8 : StandardCharsets.US_ASCII);
         String[] realms = realm.split(";");
         mRealms = new ArrayList<>();
         for (String realmElement : realms) {
