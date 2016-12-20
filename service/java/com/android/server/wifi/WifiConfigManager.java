@@ -259,6 +259,12 @@ public class WifiConfigManager {
     /* configured networks with network id as the key */
     private final ConfigurationMap mConfiguredNetworks;
 
+    /*
+     * Stores whether carrier networks are configured.
+     * This information is provided externally from the CarrierConfig.
+     */
+    private boolean mHasCarrierConfiguredNetworks;
+
     private final LocalLog mLocalLog;
     private final KeyStore mKeyStore;
     private final WifiNetworkHistory mWifiNetworkHistory;
@@ -485,6 +491,22 @@ public class WifiConfigManager {
      */
     public List<WifiConfiguration> getSavedNetworks() {
         return getSavedNetworks(null);
+    }
+
+    /**
+     * Check if Carrier networks have ben configured.
+     * @return true if carrier networks are present else false.
+     */
+    public boolean hasCarrierNetworks() {
+        return mHasCarrierConfiguredNetworks;
+    }
+
+    /**
+     * Set true/false depending on whether Carrier networks have been configured.
+     * @param hasCarrierNetworks if Carrier networks have been configured.
+     */
+    public void setHasCarrierNetworks(boolean hasCarrierNetworks) {
+        mHasCarrierConfiguredNetworks = hasCarrierNetworks;
     }
 
     /**

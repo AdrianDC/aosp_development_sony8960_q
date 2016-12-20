@@ -626,6 +626,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     static final int CMD_GET_PRIVILEGED_CONFIGURED_NETWORKS             = BASE + 62;
     /* Get Link Layer Stats thru HAL */
     static final int CMD_GET_LINK_LAYER_STATS                           = BASE + 63;
+    /* Has Carrier configured networks */
+    static final int CMD_HAS_CARRIER_CONFIGURED_NETWORKS                = BASE + 64;
     /* Supplicant commands after driver start*/
     /* Initiate a scan */
     static final int CMD_START_SCAN                                     = BASE + 71;
@@ -2019,6 +2021,21 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return result;
     }
 
+    /**
+     * Check if Carrier networks have been configured synchronously
+     *
+     * @param channel
+     * @return
+     */
+    public boolean syncHasCarrierConfiguredNetworks(
+            int uuid, AsyncChannel channel) {
+        Message resultMsg = channel.sendMessageSynchronously(
+                CMD_HAS_CARRIER_CONFIGURED_NETWORKS, uuid);
+        boolean result = (boolean) resultMsg.obj;
+        resultMsg.recycle();
+        return result;
+    }
+
     public List<WifiConfiguration> syncGetPrivilegedConfiguredNetwork(AsyncChannel channel) {
         Message resultMsg = channel.sendMessageSynchronously(
                 CMD_GET_PRIVILEGED_CONFIGURED_NETWORKS);
@@ -2786,6 +2803,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 sb.append(" ");
                 sb.append(Integer.toString(msg.arg2));
                 sb.append(" num=").append(mWifiConfigManager.getConfiguredNetworksSize());
+                break;
+            case CMD_HAS_CARRIER_CONFIGURED_NETWORKS:
+                sb.append(" ");
+                sb.append(Integer.toString(msg.arg1));
+                sb.append(" ");
+                sb.append(Integer.toString(msg.arg2));
+                sb.append(" hasCarrierNetworks=").append(mWifiConfigManager.hasCarrierNetworks());
                 break;
             case DhcpClient.CMD_PRE_DHCP_ACTION:
                 sb.append(" ");
@@ -4078,6 +4102,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_GET_CONFIGURED_NETWORKS:
                     replyToMessage(message, message.what, (List<WifiConfiguration>) null);
+                    break;
+                case CMD_HAS_CARRIER_CONFIGURED_NETWORKS:
+                    replyToMessage(message, message.what, null);
                     break;
                 case CMD_GET_PRIVILEGED_CONFIGURED_NETWORKS:
                     replyToMessage(message, message.what, (List<WifiConfiguration>) null);
@@ -5675,6 +5702,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_GET_CONFIGURED_NETWORKS:
                     replyToMessage(message, message.what,
                             mWifiConfigManager.getSavedNetworks());
+                    break;
+                case CMD_HAS_CARRIER_CONFIGURED_NETWORKS:
+                    replyToMessage(message, message.what,
+                            (Boolean)mWifiConfigManager.hasCarrierNetworks());
                     break;
                 case WifiMonitor.SUP_REQUEST_IDENTITY:
                     int networkId = message.arg2;
