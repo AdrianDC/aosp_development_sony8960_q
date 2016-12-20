@@ -5689,8 +5689,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // For SIM & AKA/AKA' EAP method Only, get identity from ICC
                     if (targetWificonfiguration != null
                             && targetWificonfiguration.networkId == networkId
-                            && targetWificonfiguration.allowedKeyManagement
+                            && (targetWificonfiguration.allowedKeyManagement
                                     .get(WifiConfiguration.KeyMgmt.IEEE8021X)
+                                || targetWificonfiguration.allowedKeyManagement
+                                    .get(WifiConfiguration.KeyMgmt.WPA_EAP))
                             && TelephonyUtil.isSimEapMethod(eapMethod)) {
                         String identity = TelephonyUtil.getSimIdentity(mContext, eapMethod);
                         if (identity != null) {
@@ -5840,7 +5842,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     //Determine if this CONNECTION is for a user selection
                     if (mWifiConfigManager.isLastSelectedConfiguration(config)
                             && mWifiConfigManager.isCurrentUserProfile(
-                                    UserHandle.getUserId(config.lastConnectUid))) {
+                                UserHandle.getUserId(config.lastConnectUid))) {
                         lastConnectUid = config.lastConnectUid;
                         mWifiMetrics.setConnectionEventRoamType(
                                 WifiMetricsProto.ConnectionEvent.ROAM_USER_SELECTED);
