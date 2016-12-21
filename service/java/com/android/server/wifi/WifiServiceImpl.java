@@ -273,12 +273,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     /**
      * Handles interaction with WifiStateMachine
      */
-    private class WifiStateMachineHandler extends Handler {
+    protected class WifiStateMachineHandler extends Handler {
         private AsyncChannel mWsmChannel;
 
-        WifiStateMachineHandler(Looper looper) {
+        public WifiStateMachineHandler(Looper looper, AsyncChannel asyncChannel) {
             super(looper);
-            mWsmChannel = new AsyncChannel();
+            mWsmChannel = asyncChannel;
             mWsmChannel.connect(mContext, this, mWifiStateMachine.getHandler());
         }
 
@@ -314,9 +314,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private final WifiLockManager mWifiLockManager;
     private final WifiMulticastLockManager mWifiMulticastLockManager;
 
-    public WifiServiceImpl(Context context) {
+    public WifiServiceImpl(Context context, WifiInjector wifiInjector, AsyncChannel asyncChannel) {
         mContext = context;
-        mWifiInjector = new WifiInjector(context);
+        mWifiInjector = wifiInjector;
 
         mFacade = mWifiInjector.getFrameworkFacade();
         mWifiMetrics = mWifiInjector.getWifiMetrics();
@@ -337,8 +337,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mWifiMulticastLockManager = mWifiInjector.getWifiMulticastLockManager();
         HandlerThread wifiServiceHandlerThread = mWifiInjector.getWifiServiceHandlerThread();
         mClientHandler = new ClientHandler(wifiServiceHandlerThread.getLooper());
-        mWifiStateMachineHandler =
-                new WifiStateMachineHandler(wifiServiceHandlerThread.getLooper());
+        mWifiStateMachineHandler = new WifiStateMachineHandler(wifiServiceHandlerThread.getLooper(),
+                                                                asyncChannel);
         mWifiController = mWifiInjector.getWifiController();
         mWifiBackupRestore = mWifiInjector.getWifiBackupRestore();
         mPermissionReviewRequired = Build.PERMISSIONS_REVIEW_REQUIRED
@@ -349,7 +349,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         enableVerboseLoggingInternal(getVerboseLoggingLevel());
     }
-
 
     /**
      * Check if Wi-Fi needs to be enabled and start
@@ -1553,7 +1552,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         enableVerboseLoggingInternal(verbose);
     }
 
-    private void enableVerboseLoggingInternal(int verbose) {
+    void enableVerboseLoggingInternal(int verbose) {
         mWifiStateMachine.enableVerboseLogging(verbose);
         mWifiLockManager.enableVerboseLogging(verbose);
         mWifiMulticastLockManager.enableVerboseLogging(verbose);

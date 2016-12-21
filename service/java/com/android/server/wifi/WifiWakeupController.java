@@ -35,7 +35,7 @@ import java.io.PrintWriter;
  * Handles enabling Wi-Fi for the Wi-Fi Wakeup feature.
  * @hide
  */
-final class WifiWakeupController {
+public class WifiWakeupController {
 
     private Context mContext;
     private final FrameworkFacade mFrameworkFacade;

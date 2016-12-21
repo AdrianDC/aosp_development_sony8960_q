@@ -38,8 +38,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/* Polls for traffic stats and notifies the clients */
-final class WifiTrafficPoller {
+/**
+ * Polls for traffic stats and notifies the clients
+ */
+public class WifiTrafficPoller {
 
     private static final boolean DBG = false;
     private static final String TAG = "WifiTrafficPoller";

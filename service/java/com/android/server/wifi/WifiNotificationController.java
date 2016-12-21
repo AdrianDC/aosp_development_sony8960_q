@@ -39,8 +39,11 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.List;
 
-/* Takes care of handling the "open wi-fi network available" notification @hide */
-final class WifiNotificationController {
+/**
+ * Takes care of handling the "open wi-fi network available" notification
+ * @hide
+ */
+public class WifiNotificationController {
     /**
      * The icon to show in the 'available networks' notification. This will also
      * be the ID of the Notification given to the NotificationManager.
