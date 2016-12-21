@@ -1167,7 +1167,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    void enableVerboseLogging(int verbose) {
+    /**
+     * Method to update logging level in wifi service related classes.
+     *
+     * @param verbose int logging level to use
+     */
+    public void enableVerboseLogging(int verbose) {
         if (verbose > 0) {
             mVerboseLoggingEnabled = true;
             setLogRecSize(ActivityManager.isLowRamDeviceStatic()
