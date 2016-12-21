@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import android.content.Context;
 import android.util.Log;
 
+import com.android.internal.util.AsyncChannel;
 import com.android.server.SystemService;
 
 public final class WifiService extends SystemService {
@@ -28,7 +29,7 @@ public final class WifiService extends SystemService {
 
     public WifiService(Context context) {
         super(context);
-        mImpl = new WifiServiceImpl(context);
+        mImpl = new WifiServiceImpl(context, new WifiInjector(context), new AsyncChannel());
     }
 
     @Override
