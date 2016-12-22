@@ -1,93 +1,85 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.android.server.wifi.hotspot2.anqp.eap;
 
-import java.net.ProtocolException;
-import java.nio.ByteBuffer;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.Map;
+import com.android.internal.annotations.VisibleForTesting;
 
-import static com.android.server.wifi.hotspot2.anqp.Constants.BYTE_MASK;
+import java.net.ProtocolException;
+import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
 
 /**
- * An EAP authentication parameter, IEEE802.11-2012, table 8-188
+ * The Non-EAP Inner Authentication Type authentication parameter, IEEE802.11-2012, table 8-188.
+ *
+ * Format:
+ * | Type |
+ *    1
  */
-public class NonEAPInnerAuth implements AuthParam {
+public class NonEAPInnerAuth extends AuthParam {
+    public static final int AUTH_TYPE_PAP = 1;
+    public static final int AUTH_TYPE_CHAP = 2;
+    public static final int AUTH_TYPE_MSCHAP = 3;
+    public static final int AUTH_TYPE_MSCHAPV2 = 4;
 
-    public enum NonEAPType {Reserved, PAP, CHAP, MSCHAP, MSCHAPv2}
-    private static final Map<NonEAPType, String> sOmaMap = new EnumMap<>(NonEAPType.class);
-    private static final Map<String, NonEAPType> sRevOmaMap = new HashMap<>();
+    @VisibleForTesting
+    public static final int EXPECTED_LENGTH_VALUE = 1;
 
-    private final NonEAPType mType;
+    private final int mAuthType;
 
-    static {
-        sOmaMap.put(NonEAPType.PAP, "PAP");
-        sOmaMap.put(NonEAPType.CHAP, "CHAP");
-        sOmaMap.put(NonEAPType.MSCHAP, "MS-CHAP");
-        sOmaMap.put(NonEAPType.MSCHAPv2, "MS-CHAP-V2");
-
-        for (Map.Entry<NonEAPType, String> entry : sOmaMap.entrySet()) {
-            sRevOmaMap.put(entry.getValue(), entry.getKey());
-        }
-    }
-
-    public NonEAPInnerAuth(int length, ByteBuffer payload) throws ProtocolException {
-        if (length != 1) {
-            throw new ProtocolException("Bad length: " + payload.remaining());
-        }
-
-        int typeID = payload.get() & BYTE_MASK;
-        mType = typeID < NonEAPType.values().length ?
-                NonEAPType.values()[typeID] :
-                NonEAPType.Reserved;
-    }
-
-    public NonEAPInnerAuth(NonEAPType type) {
-        mType = type;
+    public NonEAPInnerAuth(int authType) {
+        super(AuthParam.PARAM_TYPE_NON_EAP_INNER_AUTH_TYPE);
+        mAuthType = authType;
     }
 
     /**
-     * Construct from the OMA-DM PPS data
-     * @param eapType as defined in the HS2.0 spec.
+     * Parse a NonEAPInnerAuth from the given buffer.
+     *
+     * @param payload The byte buffer to read from
+     * @param length The length of the data
+     * @return {@link NonEAPInnerAuth}
+     * @throws BufferUnderflowException
      */
-    public NonEAPInnerAuth(String eapType) {
-        mType = sRevOmaMap.get(eapType);
-    }
-
-    @Override
-    public EAP.AuthInfoID getAuthInfoID() {
-        return EAP.AuthInfoID.NonEAPInnerAuthType;
-    }
-
-    public NonEAPType getType() {
-        return mType;
-    }
-
-    public String getOMAtype() {
-        return sOmaMap.get(mType);
-    }
-
-    public static String mapInnerType(NonEAPType type) {
-        return sOmaMap.get(type);
-    }
-
-    @Override
-    public int hashCode() {
-        return mType.hashCode();
+    public static NonEAPInnerAuth parse(ByteBuffer payload, int length) throws ProtocolException {
+        if (length != EXPECTED_LENGTH_VALUE) {
+            throw new ProtocolException("Invalid length: " + length);
+        }
+        int authType = payload.get() & 0xFF;
+        return new NonEAPInnerAuth(authType);
     }
 
     @Override
     public boolean equals(Object thatObject) {
         if (thatObject == this) {
             return true;
-        } else if (thatObject == null || thatObject.getClass() != NonEAPInnerAuth.class) {
-            return false;
-        } else {
-            return ((NonEAPInnerAuth) thatObject).getType() == getType();
         }
+        if (!(thatObject instanceof NonEAPInnerAuth)) {
+            return false;
+        }
+        NonEAPInnerAuth that = (NonEAPInnerAuth) thatObject;
+        return mAuthType == that.mAuthType;
+    }
+
+    @Override
+    public int hashCode() {
+        return mAuthType;
     }
 
     @Override
     public String toString() {
-        return "Auth method NonEAPInnerAuthEAP, inner = " + mType + '\n';
+        return "NonEAPInnerAuth{mAuthType=" + mAuthType + "}";
     }
 }
