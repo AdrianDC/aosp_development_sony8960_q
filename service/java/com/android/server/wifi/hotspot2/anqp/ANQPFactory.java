@@ -94,7 +94,7 @@ public class ANQPFactory {
             case ANQPIPAddrAvailability:
                 return IPAddressTypeAvailabilityElement.parse(payload);
             case ANQPNAIRealm:
-                return new NAIRealmElement(infoID, payload);
+                return NAIRealmElement.parse(payload);
             case ANQP3GPPNetwork:
                 return ThreeGPPNetworkElement.parse(payload);
             case ANQPDomName:
