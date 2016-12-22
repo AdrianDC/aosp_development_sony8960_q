@@ -1,50 +1,113 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.android.server.wifi.hotspot2.anqp;
+
+import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.wifi.ByteBufferReader;
 
 import java.net.ProtocolException;
 import java.nio.ByteBuffer;
-
-import static com.android.server.wifi.hotspot2.anqp.Constants.BYTE_MASK;
-import static com.android.server.wifi.hotspot2.anqp.Constants.INT_MASK;
-import static com.android.server.wifi.hotspot2.anqp.Constants.SHORT_MASK;
+import java.nio.ByteOrder;
 
 /**
  * The WAN Metrics vendor specific ANQP Element,
  * Wi-Fi Alliance Hotspot 2.0 (Release 2) Technical Specification - Version 5.00,
  * section 4.4
+ *
+ * Format:
+ * | WAN Info | Downlink Speed | Uplink Speed | Downlink Load | Uplink Load | LMD |
+ *      1             4               4               1              1         2
+ *
+ * WAN Info Format:
+ * | Link Status | Symmetric Link | At Capacity | Reserved |
+ *      B0 B1            B2             B3        B4 - B7
  */
 public class HSWanMetricsElement extends ANQPElement {
+    public static final int LINK_STATUS_RESERVED = 0;
+    public static final int LINK_STATUS_UP = 1;
+    public static final int LINK_STATUS_DOWN = 2;
+    public static final int LINK_STATUS_TEST = 3;
 
-    public enum LinkStatus {Reserved, Up, Down, Test}
+    @VisibleForTesting
+    public static final int EXPECTED_BUFFER_SIZE = 13;
 
-    private final LinkStatus mStatus;
+    @VisibleForTesting
+    public static final int LINK_STATUS_MASK = (1 << 0 | 1 << 1);
+
+    @VisibleForTesting
+    public static final int SYMMETRIC_LINK_MASK = 1 << 2;
+
+    @VisibleForTesting
+    public static final int AT_CAPACITY_MASK = 1 << 3;
+
+    private static final int MAX_LOAD = 256;
+
+    private final int mStatus;
     private final boolean mSymmetric;
     private final boolean mCapped;
-    private final long mDlSpeed;
-    private final long mUlSpeed;
-    private final int mDlLoad;
-    private final int mUlLoad;
-    private final int mLMD;
+    private final long mDownlinkSpeed;
+    private final long mUplinkSpeed;
+    private final int mDownlinkLoad;
+    private final int mUplinkLoad;
+    private final int mLMD;     // Load Measurement Duration.
 
-    public HSWanMetricsElement(Constants.ANQPElementType infoID, ByteBuffer payload)
-            throws ProtocolException {
-        super(infoID);
-
-        if (payload.remaining() != 13) {
-            throw new ProtocolException("Bad WAN metrics length: " + payload.remaining());
-        }
-
-        int status = payload.get() & BYTE_MASK;
-        mStatus = LinkStatus.values()[status & 0x03];
-        mSymmetric = (status & 0x04) != 0;
-        mCapped = (status & 0x08) != 0;
-        mDlSpeed = payload.getInt() & INT_MASK;
-        mUlSpeed = payload.getInt() & INT_MASK;
-        mDlLoad = payload.get() & BYTE_MASK;
-        mUlLoad = payload.get() & BYTE_MASK;
-        mLMD = payload.getShort() & SHORT_MASK;
+    @VisibleForTesting
+    public HSWanMetricsElement(int status, boolean symmetric, boolean capped, long downlinkSpeed,
+            long uplinkSpeed, int downlinkLoad, int uplinkLoad, int lmd) {
+        super(Constants.ANQPElementType.HSWANMetrics);
+        mStatus = status;
+        mSymmetric = symmetric;
+        mCapped = capped;
+        mDownlinkSpeed = downlinkSpeed;
+        mUplinkSpeed = uplinkSpeed;
+        mDownlinkLoad = downlinkLoad;
+        mUplinkLoad = uplinkLoad;
+        mLMD = lmd;
     }
 
-    public LinkStatus getStatus() {
+    /**
+     * Parse a HSWanMetricsElement from the given buffer.
+     *
+     * @param payload The byte buffer to read from
+     * @return {@link HSWanMetricsElement}
+     * @throws ProtocolException
+     */
+    public static HSWanMetricsElement parse(ByteBuffer payload)
+            throws ProtocolException {
+        if (payload.remaining() != EXPECTED_BUFFER_SIZE) {
+            throw new ProtocolException("Unexpected buffer size: " + payload.remaining());
+        }
+
+        int wanInfo = payload.get() & 0xFF;
+        int status = wanInfo & LINK_STATUS_MASK;
+        boolean symmetric = (wanInfo & SYMMETRIC_LINK_MASK) != 0;
+        boolean capped = (wanInfo & AT_CAPACITY_MASK) != 0;
+        long downlinkSpeed = ByteBufferReader.readInteger(payload, ByteOrder.LITTLE_ENDIAN, 4)
+                & 0xFFFFFFFFL;
+        long uplinkSpeed = ByteBufferReader.readInteger(payload, ByteOrder.LITTLE_ENDIAN, 4)
+                & 0xFFFFFFFFL;
+        int downlinkLoad = payload.get() & 0xFF;
+        int uplinkLoad = payload.get() & 0xFF;
+        int lmd = (int) ByteBufferReader.readInteger(payload, ByteOrder.LITTLE_ENDIAN, 2) & 0xFFFF;
+        return new HSWanMetricsElement(status, symmetric, capped, downlinkSpeed, uplinkSpeed,
+                downlinkLoad, uplinkLoad, lmd);
+    }
+
+    public int getStatus() {
         return mStatus;
     }
 
@@ -56,20 +119,20 @@ public class HSWanMetricsElement extends ANQPElement {
         return mCapped;
     }
 
-    public long getDlSpeed() {
-        return mDlSpeed;
+    public long getDownlinkSpeed() {
+        return mDownlinkSpeed;
     }
 
-    public long getUlSpeed() {
-        return mUlSpeed;
+    public long getUplinkSpeed() {
+        return mUplinkSpeed;
     }
 
-    public int getDlLoad() {
-        return mDlLoad;
+    public int getDownlinkLoad() {
+        return mDownlinkLoad;
     }
 
-    public int getUlLoad() {
-        return mUlLoad;
+    public int getUplinkLoad() {
+        return mUplinkLoad;
     }
 
     public int getLMD() {
@@ -77,13 +140,38 @@ public class HSWanMetricsElement extends ANQPElement {
     }
 
     @Override
+    public boolean equals(Object thatObject) {
+        if (this == thatObject) {
+            return true;
+        }
+        if (!(thatObject instanceof HSWanMetricsElement)) {
+            return false;
+        }
+        HSWanMetricsElement that = (HSWanMetricsElement) thatObject;
+        return mStatus == that.mStatus
+                && mSymmetric == that.mSymmetric
+                && mCapped == that.mCapped
+                && mDownlinkSpeed == that.mDownlinkSpeed
+                && mUplinkSpeed == that.mUplinkSpeed
+                && mDownlinkLoad == that.mDownlinkLoad
+                && mUplinkLoad == that.mUplinkLoad
+                && mLMD == that.mLMD;
+    }
+
+    @Override
+    public int hashCode() {
+        return (int) (mStatus + mDownlinkSpeed + mUplinkSpeed + mDownlinkLoad
+                + mUplinkLoad + mLMD);
+    }
+
+    @Override
     public String toString() {
         return String.format("HSWanMetrics{mStatus=%s, mSymmetric=%s, mCapped=%s, " +
                 "mDlSpeed=%d, mUlSpeed=%d, mDlLoad=%f, mUlLoad=%f, mLMD=%d}",
                 mStatus, mSymmetric, mCapped,
-                mDlSpeed, mUlSpeed,
-                (double)mDlLoad * 100.0 / 256.0,
-                (double)mUlLoad * 100.0 / 256.0,
+                mDownlinkSpeed, mUplinkSpeed,
+                mDownlinkLoad * 100.0 / MAX_LOAD,
+                mUplinkLoad * 100.0 / MAX_LOAD,
                 mLMD);
     }
 }
