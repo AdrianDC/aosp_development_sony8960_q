@@ -96,7 +96,7 @@ public class ANQPFactory {
             case ANQPNAIRealm:
                 return new NAIRealmElement(infoID, payload);
             case ANQP3GPPNetwork:
-                return new ThreeGPPNetworkElement(infoID, payload);
+                return ThreeGPPNetworkElement.parse(payload);
             case ANQPDomName:
                 return DomainNameElement.parse(payload);
             case ANQPVendorSpec:
