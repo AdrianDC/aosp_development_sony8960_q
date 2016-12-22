@@ -62,7 +62,6 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
 
     public WifiAwareServiceImpl(Context context) {
         mContext = context.getApplicationContext();
-        mStateManager = WifiAwareStateManager.getInstance();
     }
 
     /**
@@ -77,14 +76,11 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
      * Start the service: allocate a new thread (for now), start the handlers of
      * the components of the service.
      */
-    public void start() {
+    public void start(HandlerThread handlerThread, WifiAwareStateManager awareStateManager) {
         Log.i(TAG, "Starting Wi-Fi Aware service");
 
-        // TODO: share worker thread with other Wi-Fi handlers (b/27924886)
-        HandlerThread wifiAwareThread = new HandlerThread("wifiAwareService");
-        wifiAwareThread.start();
-
-        mStateManager.start(mContext, wifiAwareThread.getLooper());
+        mStateManager = awareStateManager;
+        mStateManager.start(mContext, handlerThread.getLooper());
     }
 
     /**

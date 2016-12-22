@@ -37,6 +37,7 @@ import android.net.wifi.aware.IWifiAwareEventCallback;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
 import android.net.wifi.aware.WifiAwareCharacteristics;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -65,6 +66,8 @@ public class WifiAwareServiceImplTest {
     @Mock
     private Context mContextMock;
     @Mock
+    private HandlerThread mHandlerThreadMock;
+    @Mock
     private PackageManager mPackageManagerMock;
     @Mock
     private WifiAwareStateManager mAwareStateManagerMock;
@@ -74,6 +77,8 @@ public class WifiAwareServiceImplTest {
     private IWifiAwareEventCallback mCallbackMock;
     @Mock
     private IWifiAwareDiscoverySessionCallback mSessionCallbackMock;
+
+    private HandlerThread mHandlerThread;
 
     /**
      * Using instead of spy to avoid native crash failures - possibly due to
@@ -109,19 +114,9 @@ public class WifiAwareServiceImplTest {
                 .thenReturn(true);
         when(mAwareStateManagerMock.getCharacteristics()).thenReturn(getCharacteristics());
 
-        installMockAwareStateManager();
-
         mDut = new WifiAwareServiceImplSpy(mContextMock);
         mDut.fakeUid = mDefaultUid;
-    }
-
-    /**
-     * Validate start() function: passes a valid looper.
-     */
-    @Test
-    public void testStart() {
-        mDut.start();
-
+        mDut.start(mHandlerThreadMock, mAwareStateManagerMock);
         verify(mAwareStateManagerMock).start(eq(mContextMock), any(Looper.class));
     }
 
@@ -652,13 +647,6 @@ public class WifiAwareServiceImplTest {
                 eq(false));
 
         return clientId.getValue();
-    }
-
-    private void installMockAwareStateManager()
-            throws Exception {
-        Field field = WifiAwareStateManager.class.getDeclaredField("sAwareStateManagerSingleton");
-        field.setAccessible(true);
-        field.set(null, mAwareStateManagerMock);
     }
 
     private static WifiAwareCharacteristics getCharacteristics() {
