@@ -142,7 +142,8 @@ public class BeamShareActivity extends Activity {
     }
 
     public void parseShareIntentAndFinish(Intent intent) {
-        if (intent == null || (!intent.getAction().equalsIgnoreCase(Intent.ACTION_SEND) &&
+        if (intent == null || intent.getAction() == null ||
+                (!intent.getAction().equalsIgnoreCase(Intent.ACTION_SEND) &&
                 !intent.getAction().equalsIgnoreCase(Intent.ACTION_SEND_MULTIPLE))) return;
 
         // First, see if the intent contains clip-data, and if so get data from there
