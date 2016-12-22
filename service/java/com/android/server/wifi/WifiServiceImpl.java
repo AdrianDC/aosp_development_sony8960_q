@@ -1558,6 +1558,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mWifiMulticastLockManager.enableVerboseLogging(verbose);
         mWifiInjector.getWifiLastResortWatchdog().enableVerboseLogging(verbose);
         mWifiInjector.getWifiBackupRestore().enableVerboseLogging(verbose);
+        LogcatLog.enableVerboseLogging(verbose);
     }
 
     @Override
