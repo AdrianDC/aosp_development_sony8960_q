@@ -6,6 +6,7 @@ import com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType;
 import com.android.server.wifi.hotspot2.anqp.HSConnectionCapabilityElement;
 import com.android.server.wifi.hotspot2.anqp.HSWanMetricsElement;
 import com.android.server.wifi.hotspot2.anqp.IPAddressTypeAvailabilityElement;
+import com.android.server.wifi.hotspot2.anqp.ProtocolPortTuple;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -119,12 +120,12 @@ public class PasspointMatchInfo implements Comparable<PasspointMatchInfo> {
             HSWanMetricsElement wm = (HSWanMetricsElement) anqp.get(ANQPElementType.HSWANMetrics);
 
             if (wm != null) {
-                if (wm.getStatus() != HSWanMetricsElement.LinkStatus.Up || wm.isCapped()) {
+                if (wm.getStatus() != HSWanMetricsElement.LINK_STATUS_UP || wm.isCapped()) {
                     score -= 1000;
                 } else {
                     long scaledSpeed =
-                            wm.getDlSpeed() * (255 - wm.getDlLoad()) * 8 +
-                                    wm.getUlSpeed() * (255 - wm.getUlLoad()) * 2;
+                            wm.getDownlinkSpeed() * (255 - wm.getDownlinkLoad()) * 8
+                            + wm.getUplinkSpeed() * (255 - wm.getUplinkLoad()) * 2;
                     score += Math.min(scaledSpeed, 255000000L) >>> 23;
                     // Max value is 30 capped at 100Mb/s
                 }
@@ -176,9 +177,9 @@ public class PasspointMatchInfo implements Comparable<PasspointMatchInfo> {
 
     private static int protoScore(HSConnectionCapabilityElement cce) {
         int score = 0;
-        for (HSConnectionCapabilityElement.ProtocolTuple tuple : cce.getStatusList()) {
-            int sign = tuple.getStatus() == HSConnectionCapabilityElement.ProtoStatus.Open ?
-                    1 : -1;
+        for (ProtocolPortTuple tuple : cce.getStatusList()) {
+            int sign = tuple.getStatus() == ProtocolPortTuple.PROTO_STATUS_OPEN
+                    ? 1 : -1;
 
             int elementScore = 1;
             if (tuple.getProtocol() == IPPROTO_ICMP) {
