@@ -274,6 +274,9 @@ public class WifiQualifiedNetworkSelector {
                 return;
             }
             mCarrierConfiguredNetworks = parseCarrierSuppliedWifiInfo(wifiArray);
+            boolean hasCarrierNetworks = (mCarrierConfiguredNetworks == null ||
+                    mCarrierConfiguredNetworks.size() == 0) ? false : true;
+            mWifiConfigManager.setHasCarrierNetworks(hasCarrierNetworks);
         }
     };
 

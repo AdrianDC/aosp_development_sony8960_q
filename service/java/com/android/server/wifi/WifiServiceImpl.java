@@ -834,6 +834,21 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
+     * see {@link android.net.wifi.WifiManager#getHasCarrierNetworks()}
+     * @return if Carrier Networks have been configured
+     */
+    public boolean hasCarrierConfiguredNetworks() {
+        enforceAccessPermission();
+        if (mWifiStateMachineChannel != null) {
+            return mWifiStateMachine.syncHasCarrierConfiguredNetworks(Binder.getCallingUid(),
+                    mWifiStateMachineChannel);
+        } else {
+            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
+            return false;
+        }
+    }
+
+    /**
      * see {@link android.net.wifi.WifiManager#getPrivilegedConfiguredNetworks()}
      * @return the list of configured networks with real preSharedKey
      */
