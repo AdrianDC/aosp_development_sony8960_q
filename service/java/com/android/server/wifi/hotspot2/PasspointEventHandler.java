@@ -21,7 +21,7 @@ import android.util.Log;
 
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
-import com.android.server.wifi.hotspot2.anqp.ANQPFactory;
+import com.android.server.wifi.hotspot2.anqp.ANQPParser;
 import com.android.server.wifi.hotspot2.anqp.Constants;
 
 import java.io.BufferedReader;
@@ -310,8 +310,8 @@ public class PasspointEventHandler {
         ByteBuffer buffer = ByteBuffer.wrap(payload);
 
         return Constants.getANQPElementID(elementType) != null ?
-                ANQPFactory.buildElement(elementType, buffer) :
-                ANQPFactory.buildHS20Element(elementType, buffer);
+                ANQPParser.parseElement(elementType, buffer) :
+                ANQPParser.parseHS20Element(elementType, buffer);
     }
 
     private byte[] retrieveIcon(IconEvent iconEvent) throws IOException {
