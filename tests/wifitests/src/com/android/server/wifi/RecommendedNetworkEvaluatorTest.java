@@ -60,6 +60,7 @@ public class RecommendedNetworkEvaluatorTest {
     static {
         TRUSTED_WIFI_CONFIGURATION.networkId = 5;
         TRUSTED_WIFI_CONFIGURATION.SSID = TRUSTED_SCAN_DETAIL.getSSID();
+        TRUSTED_WIFI_CONFIGURATION.BSSID = TRUSTED_SCAN_DETAIL.getBSSIDString();
         TRUSTED_WIFI_CONFIGURATION.getNetworkSelectionStatus().setCandidate(
                 TRUSTED_SCAN_DETAIL.getScanResult());
     }
