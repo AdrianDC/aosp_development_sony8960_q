@@ -98,7 +98,7 @@ public class ANQPFactory {
             case ANQP3GPPNetwork:
                 return new ThreeGPPNetworkElement(infoID, payload);
             case ANQPDomName:
-                return new DomainNameElement(infoID, payload);
+                return DomainNameElement.parse(payload);
             case ANQPVendorSpec:
                 if (payload.remaining() > 5) {
                     int oi = payload.getInt();
@@ -135,11 +135,11 @@ public class ANQPFactory {
             case HSFriendlyName:
                 return HSFriendlyNameElement.parse(payload);
             case HSWANMetrics:
-                return new HSWanMetricsElement(infoID, payload);
+                return HSWanMetricsElement.parse(payload);
             case HSConnCapability:
-                return new HSConnectionCapabilityElement(infoID, payload);
+                return HSConnectionCapabilityElement.parse(payload);
             case HSOSUProviders:
-                return new RawByteElement(infoID, payload);
+                return RawByteElement.parse(infoID, payload);
             default:
                 throw new ProtocolException("Unknown element ID: " + infoID);
         }
