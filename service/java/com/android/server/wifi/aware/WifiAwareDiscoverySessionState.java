@@ -39,6 +39,7 @@ public class WifiAwareDiscoverySessionState {
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
 
+    private final WifiAwareNative mWifiAwareNative;
     private int mSessionId;
     private int mPubSubId;
     private IWifiAwareDiscoverySessionCallback mCallback;
@@ -46,8 +47,9 @@ public class WifiAwareDiscoverySessionState {
 
     private final SparseArray<String> mMacByRequestorInstanceId = new SparseArray<>();
 
-    public WifiAwareDiscoverySessionState(int sessionId, int pubSubId,
-            IWifiAwareDiscoverySessionCallback callback, boolean isPublishSession) {
+    public WifiAwareDiscoverySessionState(WifiAwareNative wifiAwareNative, int sessionId,
+            int pubSubId, IWifiAwareDiscoverySessionCallback callback, boolean isPublishSession) {
+        mWifiAwareNative = wifiAwareNative;
         mSessionId = sessionId;
         mPubSubId = pubSubId;
         mCallback = callback;
@@ -91,9 +93,9 @@ public class WifiAwareDiscoverySessionState {
         mCallback = null;
 
         if (mIsPublishSession) {
-            WifiAwareNative.getInstance().stopPublish((short) 0, mPubSubId);
+            mWifiAwareNative.stopPublish((short) 0, mPubSubId);
         } else {
-            WifiAwareNative.getInstance().stopSubscribe((short) 0, mPubSubId);
+            mWifiAwareNative.stopSubscribe((short) 0, mPubSubId);
         }
     }
 
@@ -126,7 +128,7 @@ public class WifiAwareDiscoverySessionState {
             return false;
         }
 
-        return WifiAwareNative.getInstance().publish(transactionId, mPubSubId, config);
+        return mWifiAwareNative.publish(transactionId, mPubSubId, config);
     }
 
     /**
@@ -147,7 +149,7 @@ public class WifiAwareDiscoverySessionState {
             return false;
         }
 
-        return WifiAwareNative.getInstance().subscribe(transactionId, mPubSubId, config);
+        return mWifiAwareNative.subscribe(transactionId, mPubSubId, config);
     }
 
     /**
@@ -175,8 +177,8 @@ public class WifiAwareDiscoverySessionState {
         }
         byte[] peerMac = HexEncoding.decode(peerMacStr.toCharArray(), false);
 
-        return WifiAwareNative.getInstance().sendMessage(transactionId, mPubSubId, peerId, peerMac,
-                message, messageId);
+        return mWifiAwareNative.sendMessage(transactionId, mPubSubId, peerId, peerMac, message,
+            messageId);
     }
 
     /**
