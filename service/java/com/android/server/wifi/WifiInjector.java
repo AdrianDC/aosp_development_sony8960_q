@@ -31,7 +31,6 @@ import android.os.IBinder;
 import android.os.INetworkManagementService;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
-import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
 import android.security.KeyStore;
@@ -103,6 +102,7 @@ public class WifiInjector {
     private final WifiPermissionsUtil mWifiPermissionsUtil;
     private final PasspointManager mPasspointManager;
     private final SIMAccessor mSimAccessor;
+    private HandlerThread mWifiAwareHandlerThread;
 
     private final boolean mUseRealLogger;
 
@@ -398,5 +398,18 @@ public class WifiInjector {
 
     public WifiPermissionsWrapper getWifiPermissionsWrapper() {
         return mWifiPermissionsWrapper;
+    }
+
+    /**
+     * Returns a singleton instance of a HandlerThread for injection. Uses lazy initialization.
+     *
+     * TODO: share worker thread with other Wi-Fi handlers (b/27924886)
+     */
+    public HandlerThread getmWifiAwareHandlerThread() {
+        if (mWifiAwareHandlerThread == null) { // lazy initialization
+            mWifiAwareHandlerThread = new HandlerThread("wifiAwareService");
+            mWifiAwareHandlerThread.start();
+        }
+        return mWifiAwareHandlerThread;
     }
 }
