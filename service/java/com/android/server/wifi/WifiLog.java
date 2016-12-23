@@ -187,6 +187,13 @@ public interface WifiLog {
         LogMessage c(char value);
 
         /**
+         * Like {@link #c(String) c(String)}, except that the value is a boolean.
+         */
+        @CheckReturnValue
+        @NonNull
+        LogMessage c(boolean value);
+
+        /**
          * Write this LogMessage to the logging daemon. Writing the
          * message is best effort. More specifically:
          * 1) The operation is non-blocking. If we’re unable to write

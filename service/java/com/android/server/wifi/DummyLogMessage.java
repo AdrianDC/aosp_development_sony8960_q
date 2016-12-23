@@ -39,6 +39,11 @@ public class DummyLogMessage implements WifiLog.LogMessage {
     }
 
     @Override
+    public WifiLog.LogMessage c(boolean value) {
+        return this;
+    }
+
+    @Override
     public void flush() {
         // Nothing to do.
     }
