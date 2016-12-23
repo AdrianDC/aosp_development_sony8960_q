@@ -173,6 +173,16 @@ class LogcatLog implements WifiLog {
         }
 
         @Override
+        public WifiLog.LogMessage c(boolean value) {
+            copyUntilPlaceholder();
+            if (mNextFormatCharPos < mFormat.length()) {
+                mStringBuilder.append(value);
+                ++mNextFormatCharPos;
+            }
+            return this;
+        }
+
+        @Override
         public void flush() {
             if (mNextFormatCharPos < mFormat.length()) {
                 mStringBuilder.append(mFormat, mNextFormatCharPos, mFormat.length());
