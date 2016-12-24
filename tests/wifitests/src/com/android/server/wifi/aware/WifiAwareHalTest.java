@@ -23,7 +23,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import android.net.wifi.aware.ConfigRequest;
-import android.net.wifi.aware.DiscoverySessionCallback;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
 import android.net.wifi.aware.TlvBufferUtils;
@@ -663,7 +662,7 @@ public class WifiAwareHalTest {
         WifiAwareHalMock.callPublishTerminated(HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mAwareStateManager).onSessionTerminatedNotification(publishId,
-                DiscoverySessionCallback.TERMINATE_REASON_DONE, true);
+                WifiAwareNative.AWARE_STATUS_SUCCESS, true);
         verifyNoMoreInteractions(mAwareStateManager);
     }
 
@@ -678,7 +677,7 @@ public class WifiAwareHalTest {
         WifiAwareHalMock.callSubscribeTerminated(HalMockUtils.convertBundleToJson(args).toString());
 
         verify(mAwareStateManager).onSessionTerminatedNotification(subscribeId,
-                DiscoverySessionCallback.TERMINATE_REASON_FAIL, false);
+                WifiAwareNative.AWARE_STATUS_INTERNAL_FAILURE, false);
         verifyNoMoreInteractions(mAwareStateManager);
     }
 

@@ -18,7 +18,6 @@ package com.android.server.wifi.aware;
 
 import android.net.wifi.aware.Characteristics;
 import android.net.wifi.aware.ConfigRequest;
-import android.net.wifi.aware.DiscoverySessionCallback;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
 import android.os.Bundle;
@@ -821,10 +820,7 @@ public class WifiAwareNative {
     private static void onPublishTerminated(int publishId, int status) {
         if (VDBG) Log.v(TAG, "onPublishTerminated: publishId=" + publishId + ", status=" + status);
 
-        sWifiAwareStateManager.onSessionTerminatedNotification(publishId,
-                status == AWARE_STATUS_SUCCESS
-                        ? DiscoverySessionCallback.TERMINATE_REASON_DONE
-                        : DiscoverySessionCallback.TERMINATE_REASON_FAIL, true);
+        sWifiAwareStateManager.onSessionTerminatedNotification(publishId, status, true);
     }
 
     // callback from native
@@ -833,10 +829,7 @@ public class WifiAwareNative {
             Log.v(TAG, "onSubscribeTerminated: subscribeId=" + subscribeId + ", status=" + status);
         }
 
-        sWifiAwareStateManager.onSessionTerminatedNotification(subscribeId,
-                status == AWARE_STATUS_SUCCESS
-                        ? DiscoverySessionCallback.TERMINATE_REASON_DONE
-                        : DiscoverySessionCallback.TERMINATE_REASON_FAIL, false);
+        sWifiAwareStateManager.onSessionTerminatedNotification(subscribeId, status, false);
     }
 
     // callback from native
