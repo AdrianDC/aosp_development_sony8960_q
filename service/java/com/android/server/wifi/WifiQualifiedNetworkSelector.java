@@ -748,6 +748,9 @@ public class WifiQualifiedNetworkSelector {
         ArrayList<NetworkKey> unscoredNetworks = new ArrayList<NetworkKey>();
         boolean scanResultsHaveCurrentBssid = false;
 
+        localLog("isCarrierNetworkEnabledByUser: " +
+                mWifiConfigManager.getIsCarrierNetworkEnabledByUser());
+
         //iterate all scan results and find the best candidate with the highest score
         for (ScanDetail scanDetail : mScanDetails) {
             ScanResult scanResult = scanDetail.getScanResult();
@@ -840,7 +843,8 @@ public class WifiQualifiedNetworkSelector {
                         // Evaluate the carrier network as a possible candidate.
                         // todo need to add flag isCarrierConnectionsAllowed, config in settings.
                     } else if (!mCarrierConfiguredNetworks.isEmpty() &&
-                            isCarrierNetwork(scanResult)) {
+                            isCarrierNetwork(scanResult) &&
+                            mWifiConfigManager.getIsCarrierNetworkEnabledByUser()) {
                         localLog("Checking the carrierScoreEvaluator for candidates...");
                         carrierScoreEvaluator.evalCarrierCandidate(scanResult,
                                 getCarrierScore(scanResult, mCurrentConnectedNetwork,

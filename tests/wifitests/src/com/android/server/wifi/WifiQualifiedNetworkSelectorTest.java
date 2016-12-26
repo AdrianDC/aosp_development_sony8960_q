@@ -2443,6 +2443,7 @@ public class WifiQualifiedNetworkSelectorTest {
                 any(ScanResult.class))).then(AdditionalAnswers.returnsFirstArg());
         when(mWifiConfigManager.getScanResultCandidate(
                 mCarrierConfiguredNetworks.get(1))).thenReturn(chosenScanResult);
+        when(mWifiConfigManager.getIsCarrierNetworkEnabledByUser()).thenReturn(true);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 false, scanDetails, false, false, true, false);
@@ -2471,6 +2472,7 @@ public class WifiQualifiedNetworkSelectorTest {
                 any(ScanResult.class))).then(AdditionalAnswers.returnsFirstArg());
         when(mWifiConfigManager.getScanResultCandidate(
                 mCarrierConfiguredNetworks.get(1))).thenReturn(chosenScanResult);
+        when(mWifiConfigManager.getIsCarrierNetworkEnabledByUser()).thenReturn(true);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 false, scanDetails, false, false, true, false);
@@ -2503,6 +2505,7 @@ public class WifiQualifiedNetworkSelectorTest {
                 mCarrierConfiguredNetworks.get(0))).thenReturn(chosenScanResult);
         when(mWifiInfo.getNetworkId()).thenReturn(0);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
+        when(mWifiConfigManager.getIsCarrierNetworkEnabledByUser()).thenReturn(true);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 false, scanDetails, false, true, false, false);
@@ -2526,6 +2529,7 @@ public class WifiQualifiedNetworkSelectorTest {
 
         List<WifiConfiguration> nullCarrierConfiguredNetworks = new ArrayList<WifiConfiguration>();
         mWifiQualifiedNetworkSelector.setCarrierConfiguredNetworks(nullCarrierConfiguredNetworks);
+        when(mWifiConfigManager.getIsCarrierNetworkEnabledByUser()).thenReturn(true);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 true, scanDetails, false, false, true, false);
@@ -2633,5 +2637,32 @@ public class WifiQualifiedNetworkSelectorTest {
                 mWifiQualifiedNetworkSelector.parseCarrierSuppliedWifiInfo(wifiArray);
         assertEquals("Expect right network", configList.get(0).SSID, "\"Wifi Extra\"");
         assertEquals("Expect right network", configList.get(2).SSID, "\"Google-Guest\"");
+    }
+
+    /**
+     * Case #57 Test condition where no Carrier networks are defined.
+     */
+    @Test
+    public void testCarrierNotEnabledByUser()  {
+
+        String[] ssids = {"TEST1", "TEST2"};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] frequencies = {2437, 5240};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
+        int[] levels = {-65,-55};
+
+        List<ScanDetail> scanDetails = getScanDetails(ssids, bssids, frequencies, caps, levels);
+        ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
+        when(mWifiConfigManager.updateSavedNetworkWithNewScanDetail(any(ScanDetail.class),
+                any(Boolean.class))).thenReturn(null);
+        when(mWifiConfigManager.saveNetworkAndSetCandidate(any(WifiConfiguration.class),
+                any(ScanResult.class))).then(AdditionalAnswers.returnsFirstArg());
+        when(mWifiConfigManager.getScanResultCandidate(
+                mCarrierConfiguredNetworks.get(1))).thenReturn(chosenScanResult);
+        when(mWifiConfigManager.getIsCarrierNetworkEnabledByUser()).thenReturn(false);
+
+        WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
+                false, scanDetails, false, false, true, false);
+        assertEquals("Expect no network selection", null, candidate);
     }
 }

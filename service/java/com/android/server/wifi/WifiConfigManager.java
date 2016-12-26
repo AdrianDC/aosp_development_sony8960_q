@@ -3318,4 +3318,13 @@ public class WifiConfigManager {
     public boolean wasEphemeralNetworkDeleted(String ssid) {
         return mDeletedEphemeralSSIDs.contains(ssid);
     }
+
+    /**
+     * Check if the User has enabled connecting to carrier networks from Settings.
+     * @return true if enabled in Settings, false otherwise.
+     */
+    public boolean getIsCarrierNetworkEnabledByUser() {
+        return android.provider.Settings.Global.getInt(mContext.getContentResolver(),
+                        Settings.Global.WIFI_CONNECT_CARRIER_NETWORKS, 0) == 1;
+    }
 }
