@@ -655,7 +655,7 @@ static jint android_net_wifi_nan_initiate_nan_data_path(
   NanDataPathInitiatorRequest msg;
   memset(&msg, 0, sizeof(NanDataPathInitiatorRequest));
 
-  msg.service_instance_id = pub_sub_id;
+  msg.requestor_instance_id = pub_sub_id;
   msg.channel_request_type = (NanDataPathChannelCfg) channel_request_type;
   msg.channel = channel;
 
