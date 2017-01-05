@@ -20,6 +20,7 @@ import android.net.IpConfiguration.IpAssignment;
 import android.net.IpConfiguration.ProxySettings;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.WpsResult;
@@ -89,15 +90,6 @@ public class WifiSupplicantControl {
         mLocalLog = localLog;
         mFileObserver = new WpaConfigFileObserver();
         mFileObserver.startWatching();
-    }
-
-    private static String removeDoubleQuotes(String string) {
-        int length = string.length();
-        if ((length > 1) && (string.charAt(0) == '"')
-                && (string.charAt(length - 1) == '"')) {
-            return string.substring(1, length - 1);
-        }
-        return string;
     }
 
     /**
@@ -963,7 +955,7 @@ public class WifiSupplicantControl {
             String value = mWifiNative.getNetworkVariable(mNetId, key);
             if (!TextUtils.isEmpty(value)) {
                 if (!enterpriseConfigKeyShouldBeQuoted(key)) {
-                    value = removeDoubleQuotes(value);
+                    value = WifiInfo.removeDoubleQuotes(value);
                 }
                 return value;
             } else {
