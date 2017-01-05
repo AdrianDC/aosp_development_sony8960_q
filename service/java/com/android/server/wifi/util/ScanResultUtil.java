@@ -124,6 +124,16 @@ public class ScanResultUtil {
     public static WifiConfiguration createNetworkFromScanResult(ScanResult scanResult) {
         WifiConfiguration config = new WifiConfiguration();
         config.SSID = createQuotedSSID(scanResult.SSID);
+        setAllowedKeyManagementFromScanResult(scanResult, config);
+        return config;
+    }
+
+    /**
+     * Sets the {@link WifiConfiguration#allowedKeyManagement} field on the given
+     * {@link WifiConfiguration} based on its corresponding {@link ScanResult}.
+     */
+    public static void setAllowedKeyManagementFromScanResult(ScanResult scanResult,
+            WifiConfiguration config) {
         if (isScanResultForPskNetwork(scanResult)) {
             config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
         } else if (isScanResultForEapNetwork(scanResult)) {
@@ -136,7 +146,5 @@ public class ScanResultUtil {
         } else {
             config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
         }
-        return config;
     }
-
 }
