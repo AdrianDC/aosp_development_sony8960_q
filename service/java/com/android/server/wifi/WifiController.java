@@ -581,8 +581,10 @@ public class WifiController extends StateMachine {
 
         @Override
         public void enter() {
-            mWifiStateMachine.setSupplicantRunning(true);
+            // need to set the mode before starting supplicant because WSM will assume we are going
+            // in to client mode
             mWifiStateMachine.setOperationalMode(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE);
+            mWifiStateMachine.setSupplicantRunning(true);
             mWifiStateMachine.setDriverStart(true);
             // Supplicant can't restart right away, so not the time we switched off
             mDisabledTimestamp = SystemClock.elapsedRealtime();

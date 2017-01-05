@@ -4459,7 +4459,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             switch(message.what) {
                 case WifiMonitor.SUP_CONNECTION_EVENT:
                     if (DBG) log("Supplicant connection established");
-                    setWifiState(WIFI_STATE_ENABLED);
+
                     mSupplicantRestartCount = 0;
                     /* Reset the supplicant state to indicate the supplicant
                      * state is not known at this time */
@@ -4517,10 +4517,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     class SupplicantStartedState extends State {
         @Override
         public void enter() {
-            /* Wifi is available as long as we have a connection to supplicant */
-            mNetworkInfo.setIsAvailable(true);
-            if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
-
             int defaultInterval = mContext.getResources().getInteger(
                     R.integer.config_wifi_supplicant_scan_interval);
 
@@ -5392,18 +5388,30 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         @Override
         public void enter() {
+            // Let the system know that wifi is enabled
+            setWifiState(WIFI_STATE_ENABLED);
+
+            mNetworkInfo.setIsAvailable(true);
+            if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
+
+            // initialize network state
+            setNetworkDetailedState(DetailedState.DISCONNECTED);
+
             // Inform WifiConnectivityManager that Wifi is enabled
             if (mWifiConnectivityManager != null) {
                 mWifiConnectivityManager.setWifiEnabled(true);
             }
             // Inform metrics that Wifi is Enabled (but not yet connected)
             mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_DISCONNECTED);
-
-
         }
 
         @Override
         public void exit() {
+            // Let the system know that wifi is not available since we are exiting client mode.
+            setWifiState(WIFI_STATE_DISABLED);
+            mNetworkInfo.setIsAvailable(false);
+            if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
+
             // Inform WifiConnectivityManager that Wifi is disabled
             if (mWifiConnectivityManager != null) {
                 mWifiConnectivityManager.setWifiEnabled(false);
