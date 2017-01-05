@@ -49,6 +49,8 @@ public class WifiApConfigStoreTest {
     private static final String TEST_DEFAULT_2G_CHANNEL_LIST = "1,2,3,4,5,6";
     private static final String TEST_DEFAULT_AP_SSID = "TestAP";
     private static final String TEST_CONFIGURED_AP_SSID = "ConfiguredAP";
+    private static final int RAND_SSID_INT_MIN = 1000;
+    private static final int RAND_SSID_INT_MAX = 9999;
 
     @Mock Context mContext;
     @Mock BackupManagerProxy mBackupManagerProxy;
@@ -106,7 +108,11 @@ public class WifiApConfigStoreTest {
     }
 
     private void verifyDefaultApConfig(WifiConfiguration config) {
-        assertEquals(TEST_DEFAULT_AP_SSID, config.SSID);
+        String[] splitSsid = config.SSID.split("_");
+        assertEquals(2, splitSsid.length);
+        assertEquals(TEST_DEFAULT_AP_SSID, splitSsid[0]);
+        int randomPortion = Integer.parseInt(splitSsid[1]);
+        assertTrue(randomPortion >= RAND_SSID_INT_MIN && randomPortion <= RAND_SSID_INT_MAX);
         assertTrue(config.allowedKeyManagement.get(KeyMgmt.WPA2_PSK));
     }
 
