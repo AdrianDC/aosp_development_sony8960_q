@@ -862,7 +862,7 @@ public class WifiAwareHalTest {
 
         Bundle argsData = HalMockUtils.convertJsonToBundle(mArgs.getValue());
 
-        collector.checkThat("service_instance_id", argsData.getInt("service_instance_id"),
+        collector.checkThat("requestor_instance_id", argsData.getInt("requestor_instance_id"),
                 equalTo(pubSubId));
         collector.checkThat("channel_request_type", argsData.getInt("channel_request_type"),
                 equalTo(channelRequestType));
