@@ -2031,7 +2031,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             int uuid, AsyncChannel channel) {
         Message resultMsg = channel.sendMessageSynchronously(
                 CMD_HAS_CARRIER_CONFIGURED_NETWORKS, uuid);
-        boolean result = (boolean) resultMsg.obj;
+        boolean result = resultMsg.obj != null && (boolean) resultMsg.obj;
         resultMsg.recycle();
         return result;
     }
