@@ -3336,7 +3336,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 // WifiDiagnostics doesn't care about success, or pre-empted connections.
                 break;
             default:
-                mWifiDiagnostics.reportConnectionFailure();
+                mWifiDiagnostics.reportConnectionEvent(WifiDiagnostics.CONNECTION_EVENT_FAILED);
         }
     }
 
