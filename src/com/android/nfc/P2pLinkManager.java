@@ -763,7 +763,10 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                     response = snepResponse.getNdefMessage();
                 }
                 if (response == null) {
-                    return HANDOVER_UNSUPPORTED;
+                    if (snepClient != null)
+                        return HANDOVER_UNSUPPORTED;
+                    else
+                        return HANDOVER_FAILURE;
                 }
             } else {
                 return HANDOVER_UNSUPPORTED;
