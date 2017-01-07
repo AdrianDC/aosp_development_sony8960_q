@@ -837,7 +837,7 @@ public class WifiStateMachineTest {
     @Test
     public void normalLogRecSizeIsUsedByDefault() {
         for (int i = 0; i < WifiStateMachine.NUM_LOG_RECS_NORMAL * 2; i++) {
-            mWsm.sendMessage(WifiStateMachine.CMD_BOOT_COMPLETED);
+            mWsm.sendMessage(WifiStateMachine.CMD_DISCONNECT);
         }
         mLooper.dispatchAll();
         assertEquals(WifiStateMachine.NUM_LOG_RECS_NORMAL, mWsm.getLogRecSize());
@@ -851,7 +851,7 @@ public class WifiStateMachineTest {
         assertTrue(LOG_REC_LIMIT_IN_VERBOSE_MODE > WifiStateMachine.NUM_LOG_RECS_NORMAL);
         mWsm.enableVerboseLogging(1);
         for (int i = 0; i < LOG_REC_LIMIT_IN_VERBOSE_MODE * 2; i++) {
-            mWsm.sendMessage(WifiStateMachine.CMD_BOOT_COMPLETED);
+            mWsm.sendMessage(WifiStateMachine.CMD_DISCONNECT);
         }
         mLooper.dispatchAll();
         assertEquals(LOG_REC_LIMIT_IN_VERBOSE_MODE, mWsm.getLogRecSize());
@@ -865,7 +865,7 @@ public class WifiStateMachineTest {
     public void disablingVerboseLoggingClearsRecordsAndDecreasesLogRecSize() {
         mWsm.enableVerboseLogging(1);
         for (int i = 0; i < LOG_REC_LIMIT_IN_VERBOSE_MODE; i++) {
-            mWsm.sendMessage(WifiStateMachine.CMD_BOOT_COMPLETED);
+            mWsm.sendMessage(WifiStateMachine.CMD_DISCONNECT);
         }
         mLooper.dispatchAll();
         assertEquals(LOG_REC_LIMIT_IN_VERBOSE_MODE, mWsm.getLogRecSize());
@@ -873,7 +873,7 @@ public class WifiStateMachineTest {
         mWsm.enableVerboseLogging(0);
         assertEquals(0, mWsm.getLogRecSize());
         for (int i = 0; i < LOG_REC_LIMIT_IN_VERBOSE_MODE; i++) {
-            mWsm.sendMessage(WifiStateMachine.CMD_BOOT_COMPLETED);
+            mWsm.sendMessage(WifiStateMachine.CMD_DISCONNECT);
         }
         mLooper.dispatchAll();
         assertEquals(WifiStateMachine.NUM_LOG_RECS_NORMAL, mWsm.getLogRecSize());
