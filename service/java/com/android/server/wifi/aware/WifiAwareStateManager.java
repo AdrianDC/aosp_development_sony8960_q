@@ -19,12 +19,12 @@ package com.android.server.wifi.aware;
 import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.RttManager;
+import android.net.wifi.aware.Characteristics;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
 import android.net.wifi.aware.IWifiAwareEventCallback;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
-import android.net.wifi.aware.WifiAwareCharacteristics;
 import android.net.wifi.aware.WifiAwareManager;
 import android.os.Bundle;
 import android.os.Looper;
@@ -181,7 +181,7 @@ public class WifiAwareStateManager {
      */
     private Context mContext;
     private volatile WifiAwareNative.Capabilities mCapabilities;
-    private volatile WifiAwareCharacteristics mCharacteristics = null;
+    private volatile Characteristics mCharacteristics = null;
     private WifiAwareStateMachine mSm;
     private WifiAwareRttStateManager mRtt;
     private WifiAwareDataPathStateManager mDataPathMgr;
@@ -243,7 +243,7 @@ public class WifiAwareStateManager {
     /**
      * Get the public characteristics derived from the capabilities. Use lazy initialization.
      */
-    public WifiAwareCharacteristics getCharacteristics() {
+    public Characteristics getCharacteristics() {
         if (mCharacteristics == null && mCapabilities != null) {
             mCharacteristics = mCapabilities.toPublicCharacteristics();
         }
