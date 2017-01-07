@@ -27,6 +27,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import android.content.ContentResolver;
+import android.content.Context;
 import android.net.NetworkKey;
 import android.net.NetworkScoreManager;
 import android.net.RecommendationRequest;
@@ -36,7 +38,9 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiNetworkScoreCache;
 import android.net.wifi.WifiSsid;
+import android.os.Looper;
 import android.os.Process;
+import android.provider.Settings;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.LocalLog;
 
@@ -73,10 +77,14 @@ public class RecommendedNetworkEvaluatorTest {
         UNTRUSTED_WIFI_CONFIGURATION.BSSID = UNTRUSTED_SCAN_DETAIL.getBSSIDString();
     }
 
+    @Mock private Context mContext;
+    @Mock private ContentResolver mContentResolver;
+    @Mock private FrameworkFacade mFrameworkFacade;
     @Mock private NetworkScoreManager mNetworkScoreManager;
     @Mock private WifiConfigManager mWifiConfigManager;
     @Mock private NetworkScoreManager mScoreManager;
     @Mock private WifiNetworkScoreCache mNetworkScoreCache;
+    @Mock private ExternalScoreEvaluator mExternalScoreEvaluator;
 
     @Captor private ArgumentCaptor<NetworkKey[]> mNetworkKeyArrayCaptor;
     @Captor private ArgumentCaptor<RecommendationRequest> mRecommendationRequestCaptor;
@@ -86,8 +94,12 @@ public class RecommendedNetworkEvaluatorTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        mRecommendedNetworkEvaluator = new RecommendedNetworkEvaluator(
-                mNetworkScoreCache, mNetworkScoreManager, mWifiConfigManager, new LocalLog(0));
+        when(mFrameworkFacade.getIntegerSetting(mContext,
+                Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0))
+                .thenReturn(1);
+        mRecommendedNetworkEvaluator = new RecommendedNetworkEvaluator(mContext, mContentResolver,
+                Looper.getMainLooper(), mFrameworkFacade, mNetworkScoreCache, mNetworkScoreManager,
+                mWifiConfigManager, new LocalLog(0), mExternalScoreEvaluator);
 
         when(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(TRUSTED_SCAN_DETAIL))
                 .thenReturn(TRUSTED_WIFI_CONFIGURATION);
@@ -95,6 +107,21 @@ public class RecommendedNetworkEvaluatorTest {
                 .thenReturn(null);
         when(mWifiConfigManager.getConfiguredNetwork(TRUSTED_WIFI_CONFIGURATION.networkId))
                 .thenReturn(TRUSTED_WIFI_CONFIGURATION);
+    }
+
+    @Test
+    public void testUpdate_recommendationsDisabled() {
+        ArrayList<ScanDetail> scanDetails = new ArrayList<>();
+        when(mFrameworkFacade.getIntegerSetting(mContext,
+                Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0))
+                .thenReturn(0);
+
+        mRecommendedNetworkEvaluator.mContentObserver.onChange(false /* unused */);
+
+        mRecommendedNetworkEvaluator.update(scanDetails);
+
+        verify(mExternalScoreEvaluator).update(scanDetails);
+        verifyZeroInteractions(mNetworkScoreManager, mNetworkScoreManager);
     }
 
     @Test
@@ -133,6 +160,21 @@ public class RecommendedNetworkEvaluatorTest {
         NetworkKey expectedNetworkKey = new NetworkKey(new WifiKey(ScanResultUtil.createQuotedSSID(
                 UNTRUSTED_SCAN_DETAIL.getSSID()), UNTRUSTED_SCAN_DETAIL.getBSSIDString()));
         assertEquals(expectedNetworkKey, mNetworkKeyArrayCaptor.getValue()[0]);
+    }
+
+    @Test
+    public void testEvaluateNetworks_recommendationsDisabled() {
+        when(mFrameworkFacade.getIntegerSetting(mContext,
+                Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0))
+                .thenReturn(0);
+
+        mRecommendedNetworkEvaluator.mContentObserver.onChange(false /* unused */);
+
+        mRecommendedNetworkEvaluator.evaluateNetworks(null, null, null, false, false, null);
+
+        verify(mExternalScoreEvaluator).evaluateNetworks(null, null, null, false, false, null);
+
+        verifyZeroInteractions(mWifiConfigManager, mNetworkScoreManager);
     }
 
     @Test

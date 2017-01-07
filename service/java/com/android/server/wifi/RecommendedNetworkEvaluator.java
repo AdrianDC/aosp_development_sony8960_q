@@ -16,6 +16,9 @@
 
 package com.android.server.wifi;
 
+import android.content.ContentResolver;
+import android.content.Context;
+import android.database.ContentObserver;
 import android.net.NetworkKey;
 import android.net.NetworkScoreManager;
 import android.net.RecommendationRequest;
@@ -25,11 +28,15 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiNetworkScoreCache;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Process;
+import android.provider.Settings;
 import android.util.LocalLog;
 import android.util.Pair;
 import android.util.Slog;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.util.ScanResultUtil;
 
 import java.util.ArrayList;
@@ -45,19 +52,42 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
     private final WifiNetworkScoreCache mNetworkScoreCache;
     private final WifiConfigManager mWifiConfigManager;
     private final LocalLog mLocalLog;
+    private final ExternalScoreEvaluator mExternalScoreEvaluator;
+    @VisibleForTesting final ContentObserver mContentObserver;
+    private boolean mNetworkRecommendationsEnabled;
 
-    RecommendedNetworkEvaluator(WifiNetworkScoreCache networkScoreCache,
+    RecommendedNetworkEvaluator(final Context context, ContentResolver contentResolver,
+            Looper looper, final FrameworkFacade frameworkFacade,
+            WifiNetworkScoreCache networkScoreCache,
             NetworkScoreManager networkScoreManager, WifiConfigManager wifiConfigManager,
-            LocalLog localLog) {
+            LocalLog localLog, ExternalScoreEvaluator externalScoreEvaluator) {
         mNetworkScoreCache = networkScoreCache;
         mNetworkScoreManager = networkScoreManager;
         mWifiConfigManager = wifiConfigManager;
         mLocalLog = localLog;
+        mExternalScoreEvaluator = externalScoreEvaluator; // TODO(b/33694202): Remove
+        mContentObserver = new ContentObserver(new Handler(looper)) {
+            @Override
+            public void onChange(boolean selfChange) {
+                mNetworkRecommendationsEnabled = frameworkFacade.getIntegerSetting(context,
+                        Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0) == 1;
+            }
+        };
+        contentResolver.registerContentObserver(
+                Settings.Global.getUriFor(Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED),
+                false /* notifyForDescendents */, mContentObserver);
+        mContentObserver.onChange(false /* unused */);
+        mLocalLog.log("RecommendedNetworkEvaluator constructed. mNetworkRecommendationsEnabled: "
+                + mNetworkRecommendationsEnabled);
     }
 
     @Override
     public void update(List<ScanDetail> scanDetails) {
-        updateNetworkScoreCache(scanDetails);
+        if (mNetworkRecommendationsEnabled) {
+            updateNetworkScoreCache(scanDetails);
+        } else {
+            mExternalScoreEvaluator.update(scanDetails);
+        }
     }
 
     private void updateNetworkScoreCache(List<ScanDetail> scanDetails) {
@@ -91,6 +121,10 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
             WifiConfiguration currentNetwork, String currentBssid, boolean connected,
             boolean untrustedNetworkAllowed,
             List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks) {
+        if (!mNetworkRecommendationsEnabled) {
+            return mExternalScoreEvaluator.evaluateNetworks(scanDetails, currentNetwork,
+                    currentBssid, connected, untrustedNetworkAllowed, connectableNetworks);
+        }
         List<ScanResult> scanResults = new ArrayList<>();
         for (int i = 0; i < scanDetails.size(); i++) {
             ScanDetail scanDetail = scanDetails.get(i);
@@ -169,6 +203,9 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
 
     @Override
     public String getName() {
-        return TAG;
+        if (mNetworkRecommendationsEnabled) {
+            return TAG;
+        }
+        return TAG + "-" + mExternalScoreEvaluator.getName();
     }
 }
