@@ -25,6 +25,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
@@ -66,11 +67,9 @@ public class PasspointManagerTest {
     private static final long BSSID = 0x112233445566L;
     private static final String ICON_FILENAME = "test";
     private static final String TEST_FQDN = "test1.test.com";
-    private static final String TEST_FQDN1 = "test.com";
     private static final String TEST_FRIENDLY_NAME = "friendly name";
     private static final String TEST_REALM = "realm.test.com";
     private static final String TEST_IMSI = "1234*";
-    private static final long PROVIDER_ID = 1L;
 
     private static final String TEST_SSID = "TestSSID";
     private static final long TEST_BSSID = 0x1234L;
@@ -167,10 +166,9 @@ public class PasspointManagerTest {
         config.credential.userCredential.eapType = EAPConstants.EAP_TTLS;
         config.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
         PasspointProvider provider = createMockProvider(config);
-        when(mClock.getWallClockMillis()).thenReturn(PROVIDER_ID);
-        when(mObjectFactory.makePasspointProvider(config, mWifiKeyStore, PROVIDER_ID))
+        when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore), anyLong()))
                 .thenReturn(provider);
-        assertTrue(mManager.addProvider(config));
+        assertTrue(mManager.addOrUpdateProvider(config));
 
         return provider;
     }
@@ -222,7 +220,7 @@ public class PasspointManagerTest {
      */
     @Test
     public void addProviderWithNullConfig() throws Exception {
-        assertFalse(mManager.addProvider(null));
+        assertFalse(mManager.addOrUpdateProvider(null));
     }
 
     /**
@@ -232,7 +230,7 @@ public class PasspointManagerTest {
      */
     @Test
     public void addProviderWithEmptyConfig() throws Exception {
-        assertFalse(mManager.addProvider(new PasspointConfiguration()));
+        assertFalse(mManager.addOrUpdateProvider(new PasspointConfiguration()));
     }
 
     /**
@@ -256,7 +254,7 @@ public class PasspointManagerTest {
         // EAP-TLS not allowed for user credential.
         config.credential.userCredential.eapType = EAPConstants.EAP_TLS;
         config.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
-        assertFalse(mManager.addProvider(config));
+        assertFalse(mManager.addOrUpdateProvider(config));
     }
 
     /**
@@ -279,16 +277,15 @@ public class PasspointManagerTest {
         config.credential.userCredential.eapType = EAPConstants.EAP_TTLS;
         config.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
         PasspointProvider provider = createMockProvider(config);
-        when(mClock.getWallClockMillis()).thenReturn(PROVIDER_ID);
-        when(mObjectFactory.makePasspointProvider(config, mWifiKeyStore, PROVIDER_ID))
+        when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore), anyLong()))
                 .thenReturn(provider);
-        assertTrue(mManager.addProvider(config));
+        assertTrue(mManager.addOrUpdateProvider(config));
         verifyInstalledConfig(config);
 
         // Remove the provider.
         assertTrue(mManager.removeProvider(TEST_FQDN));
         verify(provider).uninstallCertsAndKeys();
-        assertEquals(null, mManager.getProviderConfigs());
+        assertTrue(mManager.getProviderConfigs().isEmpty());
     }
 
     /**
@@ -310,16 +307,15 @@ public class PasspointManagerTest {
         when(mSimAccessor.getMatchingImsis(new IMSIParameter(TEST_IMSI)))
                 .thenReturn(new ArrayList<String>());
         PasspointProvider provider = createMockProvider(config);
-        when(mClock.getWallClockMillis()).thenReturn(PROVIDER_ID);
-        when(mObjectFactory.makePasspointProvider(config, mWifiKeyStore, PROVIDER_ID))
+        when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore), anyLong()))
                 .thenReturn(provider);
-        assertTrue(mManager.addProvider(config));
+        assertTrue(mManager.addOrUpdateProvider(config));
         verifyInstalledConfig(config);
 
         // Remove the provider.
         assertTrue(mManager.removeProvider(TEST_FQDN));
         verify(provider).uninstallCertsAndKeys();
-        assertEquals(null, mManager.getProviderConfigs());
+        assertTrue(mManager.getProviderConfigs().isEmpty());
     }
 
     /**
@@ -340,7 +336,7 @@ public class PasspointManagerTest {
         config.credential.simCredential.imsi = TEST_IMSI;
         config.credential.simCredential.eapType = EAPConstants.EAP_SIM;
         when(mSimAccessor.getMatchingImsis(new IMSIParameter(TEST_IMSI))).thenReturn(null);
-        assertFalse(mManager.addProvider(config));
+        assertFalse(mManager.addOrUpdateProvider(config));
     }
 
     /**
@@ -365,17 +361,16 @@ public class PasspointManagerTest {
         when(mSimAccessor.getMatchingImsis(new IMSIParameter(TEST_IMSI)))
                 .thenReturn(new ArrayList<String>());
         PasspointProvider origProvider = createMockProvider(origConfig);
-        when(mClock.getWallClockMillis()).thenReturn(PROVIDER_ID);
-        when(mObjectFactory.makePasspointProvider(origConfig, mWifiKeyStore, PROVIDER_ID))
+        when(mObjectFactory.makePasspointProvider(eq(origConfig), eq(mWifiKeyStore), anyLong()))
                 .thenReturn(origProvider);
-        assertTrue(mManager.addProvider(origConfig));
+        assertTrue(mManager.addOrUpdateProvider(origConfig));
         verifyInstalledConfig(origConfig);
 
         // Add another provider with the same base domain as the existing provider.
         // This should replace the existing provider with the new configuration.
         PasspointConfiguration newConfig = new PasspointConfiguration();
         newConfig.homeSp = new HomeSP();
-        newConfig.homeSp.fqdn = TEST_FQDN1;
+        newConfig.homeSp.fqdn = TEST_FQDN;
         newConfig.homeSp.friendlyName = TEST_FRIENDLY_NAME;
         newConfig.credential = new Credential();
         newConfig.credential.realm = TEST_REALM;
@@ -386,10 +381,9 @@ public class PasspointManagerTest {
         newConfig.credential.userCredential.eapType = EAPConstants.EAP_TTLS;
         newConfig.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
         PasspointProvider newProvider = createMockProvider(newConfig);
-        when(mClock.getWallClockMillis()).thenReturn(PROVIDER_ID);
-        when(mObjectFactory.makePasspointProvider(newConfig, mWifiKeyStore, PROVIDER_ID))
+        when(mObjectFactory.makePasspointProvider(eq(newConfig), eq(mWifiKeyStore), anyLong()))
                 .thenReturn(newProvider);
-        assertTrue(mManager.addProvider(newConfig));
+        assertTrue(mManager.addOrUpdateProvider(newConfig));
         verifyInstalledConfig(newConfig);
     }
 
@@ -415,10 +409,9 @@ public class PasspointManagerTest {
         config.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
         PasspointProvider provider = mock(PasspointProvider.class);
         when(provider.installCertsAndKeys()).thenReturn(false);
-        when(mClock.getWallClockMillis()).thenReturn(PROVIDER_ID);
-        when(mObjectFactory.makePasspointProvider(config, mWifiKeyStore, PROVIDER_ID))
+        when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore), anyLong()))
                 .thenReturn(provider);
-        assertFalse(mManager.addProvider(config));
+        assertFalse(mManager.addOrUpdateProvider(config));
     }
 
     /**
