@@ -62,4 +62,15 @@ public class PasspointObjectFactory{
     public AnqpCache makeAnqpCache(Clock clock) {
         return new AnqpCache(clock);
     }
+
+    /**
+     * Create an instance of {@link ANQPRequestManager}.
+     *
+     * @param handler Instance of {@link PasspointEventHandler}
+     * @param clock Instance of {@link Clock}
+     * @return {@link ANQPRequestManager}
+     */
+    public ANQPRequestManager makeANQPRequestManager(PasspointEventHandler handler, Clock clock) {
+        return new ANQPRequestManager(handler, clock);
+    }
 }

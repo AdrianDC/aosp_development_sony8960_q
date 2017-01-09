@@ -25,10 +25,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
@@ -50,6 +52,9 @@ import com.android.server.wifi.SIMAccessor;
 import com.android.server.wifi.ScanDetail;
 import com.android.server.wifi.WifiKeyStore;
 import com.android.server.wifi.WifiNative;
+import com.android.server.wifi.hotspot2.anqp.ANQPElement;
+import com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType;
+import com.android.server.wifi.hotspot2.anqp.DomainNameElement;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -57,7 +62,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Unit tests for {@link com.android.server.wifi.hotspot2.PasspointManager}.
@@ -85,6 +93,7 @@ public class PasspointManagerTest {
     @Mock PasspointObjectFactory mObjectFactory;
     @Mock PasspointEventHandler.Callbacks mCallbacks;
     @Mock AnqpCache mAnqpCache;
+    @Mock ANQPRequestManager mAnqpRequestManager;
     PasspointManager mManager;
 
     /** Sets up test. */
@@ -92,6 +101,8 @@ public class PasspointManagerTest {
     public void setUp() throws Exception {
         initMocks(this);
         when(mObjectFactory.makeAnqpCache(mClock)).thenReturn(mAnqpCache);
+        when(mObjectFactory.makeANQPRequestManager(any(PasspointEventHandler.class), eq(mClock)))
+                .thenReturn(mAnqpRequestManager);
         mManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
                 mSimAccessor, mObjectFactory);
         ArgumentCaptor<PasspointEventHandler.Callbacks> callbacks =
@@ -189,6 +200,61 @@ public class PasspointManagerTest {
         ScanDetail scanDetail = mock(ScanDetail.class);
         when(scanDetail.getNetworkDetail()).thenReturn(networkDetail);
         return scanDetail;
+    }
+
+    /**
+     * Verify that the ANQP elements will be added to the ANQP cache on receiving a successful
+     * response.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void anqpResponseSuccess() throws Exception {
+        Map<ANQPElementType, ANQPElement> anqpElementMap = new HashMap<>();
+        anqpElementMap.put(ANQPElementType.ANQPDomName,
+                new DomainNameElement(Arrays.asList(new String[] {"test.com"})));
+
+        ScanDetail scanDetail = createMockScanDetail();
+        ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(TEST_SSID, TEST_BSSID, TEST_HESSID,
+                TEST_ANQP_DOMAIN_ID);
+        when(mAnqpRequestManager.onRequestCompleted(TEST_BSSID, true)).thenReturn(scanDetail);
+        mCallbacks.onANQPResponse(TEST_BSSID, anqpElementMap);
+        verify(mAnqpCache).addEntry(anqpKey, anqpElementMap);
+        verify(scanDetail).propagateANQPInfo(anqpElementMap);
+    }
+
+    /**
+     * Verify that no ANQP elements will be added to the ANQP cache on receiving a successful
+     * response for a request that's not sent by us.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void anqpResponseSuccessWithUnknownRequest() throws Exception {
+        Map<ANQPElementType, ANQPElement> anqpElementMap = new HashMap<>();
+        anqpElementMap.put(ANQPElementType.ANQPDomName,
+                new DomainNameElement(Arrays.asList(new String[] {"test.com"})));
+
+        when(mAnqpRequestManager.onRequestCompleted(TEST_BSSID, true)).thenReturn(null);
+        mCallbacks.onANQPResponse(TEST_BSSID, anqpElementMap);
+        verify(mAnqpCache, never()).addEntry(any(ANQPNetworkKey.class), anyMap());
+    }
+
+    /**
+     * Verify that no ANQP elements will be added to the ANQP cache on receiving a failure response.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void anqpResponseFailure() throws Exception {
+        ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(TEST_SSID, TEST_BSSID, TEST_HESSID,
+                TEST_ANQP_DOMAIN_ID);
+
+        ScanDetail scanDetail = createMockScanDetail();
+        when(mAnqpRequestManager.onRequestCompleted(TEST_BSSID, false)).thenReturn(scanDetail);
+        mCallbacks.onANQPResponse(TEST_BSSID, null);
+        verify(mAnqpCache, never()).addEntry(any(ANQPNetworkKey.class), anyMap());
+
     }
 
     /**
@@ -449,6 +515,9 @@ public class PasspointManagerTest {
         when(mAnqpCache.getEntry(anqpKey)).thenReturn(null);
         List<Pair<PasspointProvider, PasspointMatch>> result =
                 mManager.matchProvider(createMockScanDetail());
+        // Verify that a request for ANQP elements is initiated.
+        verify(mAnqpRequestManager).requestANQPElements(eq(TEST_BSSID), any(ScanDetail.class),
+                anyBoolean(), anyBoolean());
         assertTrue(result.isEmpty());
     }
 
