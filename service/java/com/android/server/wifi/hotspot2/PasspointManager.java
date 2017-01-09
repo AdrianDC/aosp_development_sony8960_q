@@ -43,7 +43,6 @@ import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.Constants;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -177,20 +176,16 @@ public class PasspointManager {
 
         // Verify IMSI against the IMSI of the installed SIM cards for SIM credential.
         if (config.credential.simCredential != null) {
-            try {
-                if (mSimAccessor.getMatchingImsis(
-                        new IMSIParameter(config.credential.simCredential.imsi)) == null) {
-                    Log.e(TAG, "IMSI does not match any SIM card");
-                    return false;
-                }
-            } catch (IOException e) {
+            if (mSimAccessor.getMatchingImsis(
+                    IMSIParameter.build(config.credential.simCredential.imsi)) == null) {
+                Log.e(TAG, "IMSI does not match any SIM card");
                 return false;
             }
         }
 
         // Create a provider and install the necessary certificates and keys.
         PasspointProvider newProvider = mObjectFactory.makePasspointProvider(
-                config, mKeyStore, mProviderID++);
+                config, mKeyStore, mSimAccessor, mProviderID++);
 
         if (!newProvider.installCertsAndKeys()) {
             Log.e(TAG, "Failed to install certificates and keys to keystore");

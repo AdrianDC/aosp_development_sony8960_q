@@ -70,6 +70,7 @@ public class PasspointManagerTest {
     private static final String TEST_FRIENDLY_NAME = "friendly name";
     private static final String TEST_REALM = "realm.test.com";
     private static final String TEST_IMSI = "1234*";
+    private static final IMSIParameter TEST_IMSI_PARAM = IMSIParameter.build(TEST_IMSI);
 
     private static final String TEST_SSID = "TestSSID";
     private static final long TEST_BSSID = 0x1234L;
@@ -166,8 +167,8 @@ public class PasspointManagerTest {
         config.credential.userCredential.eapType = EAPConstants.EAP_TTLS;
         config.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
         PasspointProvider provider = createMockProvider(config);
-        when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore), anyLong()))
-                .thenReturn(provider);
+        when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
+                eq(mSimAccessor), anyLong())).thenReturn(provider);
         assertTrue(mManager.addOrUpdateProvider(config));
 
         return provider;
@@ -277,8 +278,8 @@ public class PasspointManagerTest {
         config.credential.userCredential.eapType = EAPConstants.EAP_TTLS;
         config.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
         PasspointProvider provider = createMockProvider(config);
-        when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore), anyLong()))
-                .thenReturn(provider);
+        when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
+                eq(mSimAccessor), anyLong())).thenReturn(provider);
         assertTrue(mManager.addOrUpdateProvider(config));
         verifyInstalledConfig(config);
 
@@ -304,11 +305,10 @@ public class PasspointManagerTest {
         config.credential.simCredential = new Credential.SimCredential();
         config.credential.simCredential.imsi = TEST_IMSI;
         config.credential.simCredential.eapType = EAPConstants.EAP_SIM;
-        when(mSimAccessor.getMatchingImsis(new IMSIParameter(TEST_IMSI)))
-                .thenReturn(new ArrayList<String>());
+        when(mSimAccessor.getMatchingImsis(TEST_IMSI_PARAM)).thenReturn(new ArrayList<String>());
         PasspointProvider provider = createMockProvider(config);
-        when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore), anyLong()))
-                .thenReturn(provider);
+        when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
+                eq(mSimAccessor), anyLong())).thenReturn(provider);
         assertTrue(mManager.addOrUpdateProvider(config));
         verifyInstalledConfig(config);
 
@@ -335,7 +335,7 @@ public class PasspointManagerTest {
         config.credential.simCredential = new Credential.SimCredential();
         config.credential.simCredential.imsi = TEST_IMSI;
         config.credential.simCredential.eapType = EAPConstants.EAP_SIM;
-        when(mSimAccessor.getMatchingImsis(new IMSIParameter(TEST_IMSI))).thenReturn(null);
+        when(mSimAccessor.getMatchingImsis(TEST_IMSI_PARAM)).thenReturn(null);
         assertFalse(mManager.addOrUpdateProvider(config));
     }
 
@@ -358,11 +358,10 @@ public class PasspointManagerTest {
         origConfig.credential.simCredential = new Credential.SimCredential();
         origConfig.credential.simCredential.imsi = TEST_IMSI;
         origConfig.credential.simCredential.eapType = EAPConstants.EAP_SIM;
-        when(mSimAccessor.getMatchingImsis(new IMSIParameter(TEST_IMSI)))
-                .thenReturn(new ArrayList<String>());
+        when(mSimAccessor.getMatchingImsis(TEST_IMSI_PARAM)).thenReturn(new ArrayList<String>());
         PasspointProvider origProvider = createMockProvider(origConfig);
-        when(mObjectFactory.makePasspointProvider(eq(origConfig), eq(mWifiKeyStore), anyLong()))
-                .thenReturn(origProvider);
+        when(mObjectFactory.makePasspointProvider(eq(origConfig), eq(mWifiKeyStore),
+                eq(mSimAccessor), anyLong())).thenReturn(origProvider);
         assertTrue(mManager.addOrUpdateProvider(origConfig));
         verifyInstalledConfig(origConfig);
 
@@ -381,8 +380,8 @@ public class PasspointManagerTest {
         newConfig.credential.userCredential.eapType = EAPConstants.EAP_TTLS;
         newConfig.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
         PasspointProvider newProvider = createMockProvider(newConfig);
-        when(mObjectFactory.makePasspointProvider(eq(newConfig), eq(mWifiKeyStore), anyLong()))
-                .thenReturn(newProvider);
+        when(mObjectFactory.makePasspointProvider(eq(newConfig), eq(mWifiKeyStore),
+                eq(mSimAccessor), anyLong())).thenReturn(newProvider);
         assertTrue(mManager.addOrUpdateProvider(newConfig));
         verifyInstalledConfig(newConfig);
     }
@@ -409,8 +408,8 @@ public class PasspointManagerTest {
         config.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
         PasspointProvider provider = mock(PasspointProvider.class);
         when(provider.installCertsAndKeys()).thenReturn(false);
-        when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore), anyLong()))
-                .thenReturn(provider);
+        when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
+                eq(mSimAccessor), anyLong())).thenReturn(provider);
         assertFalse(mManager.addOrUpdateProvider(config));
     }
 
