@@ -17,8 +17,14 @@
 package com.android.server.wifi.hotspot2;
 
 import android.net.wifi.EAPConstants;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.hotspot2.PasspointConfiguration;
+import android.net.wifi.hotspot2.pps.Credential;
+import android.net.wifi.hotspot2.pps.Credential.SimCredential;
+import android.net.wifi.hotspot2.pps.Credential.UserCredential;
 import android.security.Credentials;
+import android.util.Base64;
 import android.util.Log;
 
 import com.android.server.wifi.IMSIParameter;
@@ -33,6 +39,7 @@ import com.android.server.wifi.hotspot2.anqp.ThreeGPPNetworkElement;
 import com.android.server.wifi.hotspot2.anqp.eap.AuthParam;
 import com.android.server.wifi.hotspot2.anqp.eap.NonEAPInnerAuth;
 
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
@@ -48,20 +55,29 @@ import java.util.Map;
 public class PasspointProvider {
     private static final String TAG = "PasspointProvider";
 
-    // Prefix for certificates and keys aliases.
-    private static final String ALIAS_PREFIX = "HS2_";
+    /**
+     * Used as part of alias string for certificates and keys.  The alias string is in the format
+     * of: [KEY_TYPE]_HS2_[ProviderID]
+     * For example: "CACERT_HS2_0", "USRCERT_HS2_0", "USRPKEY_HS2_0"
+     */
+    private static final String ALIAS_HS_TYPE = "HS2_";
 
     private final PasspointConfiguration mConfig;
     private final WifiKeyStore mKeyStore;
-
-    // Unique identifier for this provider. Used as part of the alias names for identifying
-    // certificates and keys installed on the keystore.
-    private final long mProviderId;
 
     // Aliases for the private keys and certificates installed in the keystore.
     private String mCaCertificateAlias;
     private String mClientPrivateKeyAlias;
     private String mClientCertificateAlias;
+
+    /**
+     * The suffix of the alias using for storing certificates and keys.  Each alias is prefix
+     * with the key or certificate type.  In key/certificate installation, the full alias is
+     * used.  However, the setCaCertificateAlias and setClientCertificateAlias function
+     * in WifiEnterpriseConfig, the alias that it is referring to is actually the suffix, since
+     * WifiEnterpriseConfig will append the appropriate prefix to that alias based on the type.
+     */
+    private final String mKeyStoreAliasSuffix;
 
     private final IMSIParameter mImsiParameter;
     private final List<String> mMatchingSIMImsiList;
@@ -74,7 +90,7 @@ public class PasspointProvider {
         // Maintain a copy of the configuration to avoid it being updated by others.
         mConfig = new PasspointConfiguration(config);
         mKeyStore = keyStore;
-        mProviderId = providerId;
+        mKeyStoreAliasSuffix = ALIAS_HS_TYPE + providerId;
 
         // Setup EAP method and authentication parameter based on the credential.
         if (mConfig.credential.userCredential != null) {
@@ -123,7 +139,7 @@ public class PasspointProvider {
     public boolean installCertsAndKeys() {
         // Install CA certificate.
         if (mConfig.credential.caCertificate != null) {
-            String alias = formatAliasName(Credentials.CA_CERTIFICATE, mProviderId);
+            String alias = Credentials.CA_CERTIFICATE + mKeyStoreAliasSuffix;
             if (!mKeyStore.putCertInKeyStore(alias, mConfig.credential.caCertificate)) {
                 Log.e(TAG, "Failed to install CA Certificate");
                 uninstallCertsAndKeys();
@@ -134,7 +150,7 @@ public class PasspointProvider {
 
         // Install the client private key.
         if (mConfig.credential.clientPrivateKey != null) {
-            String alias = formatAliasName(Credentials.USER_PRIVATE_KEY, mProviderId);
+            String alias = Credentials.USER_PRIVATE_KEY + mKeyStoreAliasSuffix;
             if (!mKeyStore.putKeyInKeyStore(alias, mConfig.credential.clientPrivateKey)) {
                 Log.e(TAG, "Failed to install client private key");
                 uninstallCertsAndKeys();
@@ -153,7 +169,7 @@ public class PasspointProvider {
                 uninstallCertsAndKeys();
                 return false;
             }
-            String alias = formatAliasName(Credentials.USER_CERTIFICATE, mProviderId);
+            String alias = Credentials.USER_CERTIFICATE + mKeyStoreAliasSuffix;
             if (!mKeyStore.putCertInKeyStore(alias, clientCert)) {
                 Log.e(TAG, "Failed to install client certificate");
                 uninstallCertsAndKeys();
@@ -223,14 +239,39 @@ public class PasspointProvider {
     }
 
     /**
-     * Create and return a certificate or key alias name based on the given prefix and uid.
+     * Generate a WifiConfiguration based on the provider's configuration.  The generated
+     * WifiConfiguration will include all the necessary credentials for network connection except
+     * the SSID, which should be added by the caller when the config is being used for network
+     * connection.
      *
-     * @param type The key or certificate type string
-     * @param uid The UID of the alias
-     * @return String
+     * @return {@link WifiConfiguration}
      */
-    private static String formatAliasName(String type, long uid) {
-        return type + ALIAS_PREFIX + uid;
+    public WifiConfiguration getWifiConfig() {
+        WifiConfiguration wifiConfig = new WifiConfiguration();
+        wifiConfig.FQDN = mConfig.homeSp.fqdn;
+        if (mConfig.homeSp.roamingConsortiumOIs != null) {
+            wifiConfig.roamingConsortiumIds = Arrays.copyOf(mConfig.homeSp.roamingConsortiumOIs,
+                    mConfig.homeSp.roamingConsortiumOIs.length);
+        }
+        wifiConfig.providerFriendlyName = mConfig.homeSp.friendlyName;
+        wifiConfig.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_EAP);
+        wifiConfig.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.IEEE8021X);
+
+        WifiEnterpriseConfig enterpriseConfig = new WifiEnterpriseConfig();
+        enterpriseConfig.setRealm(mConfig.credential.realm);
+        if (mConfig.credential.userCredential != null) {
+            buildEnterpriseConfigForUserCredential(enterpriseConfig,
+                    mConfig.credential.userCredential);
+            setAnonymousIdentityToNaiRealm(enterpriseConfig, mConfig.credential.realm);
+        } else if (mConfig.credential.certCredential != null) {
+            buildEnterpriseConfigForCertCredential(enterpriseConfig);
+            setAnonymousIdentityToNaiRealm(enterpriseConfig, mConfig.credential.realm);
+        } else {
+            buildEnterpriseConfigForSimCredential(enterpriseConfig,
+                    mConfig.credential.simCredential);
+        }
+        wifiConfig.enterpriseConfig = enterpriseConfig;
+        return wifiConfig;
     }
 
     /**
@@ -290,5 +331,99 @@ public class PasspointProvider {
             return PasspointMatch.RoamingProvider;
         }
         return PasspointMatch.None;
+    }
+
+    /**
+     * Fill in WifiEnterpriseConfig with information from an user credential.
+     *
+     * @param config Instance of {@link WifiEnterpriseConfig}
+     * @param credential Instance of {@link UserCredential}
+     */
+    private void buildEnterpriseConfigForUserCredential(WifiEnterpriseConfig config,
+            Credential.UserCredential credential) {
+        byte[] pwOctets = Base64.decode(credential.password, Base64.DEFAULT);
+        String decodedPassword = new String(pwOctets, StandardCharsets.UTF_8);
+        config.setEapMethod(WifiEnterpriseConfig.Eap.TTLS);
+        config.setIdentity(credential.username);
+        config.setPassword(decodedPassword);
+        config.setCaCertificateAlias(mKeyStoreAliasSuffix);
+        int phase2Method = WifiEnterpriseConfig.Phase2.NONE;
+        switch (credential.nonEapInnerMethod) {
+            case "PAP":
+                phase2Method = WifiEnterpriseConfig.Phase2.PAP;
+                break;
+            case "MS-CHAP":
+                phase2Method = WifiEnterpriseConfig.Phase2.MSCHAP;
+                break;
+            case "MS-CHAP-V2":
+                phase2Method = WifiEnterpriseConfig.Phase2.MSCHAPV2;
+                break;
+            default:
+                // Should never happen since this is already validated when the provider is
+                // added.
+                Log.wtf(TAG, "Unsupported Auth: " + credential.nonEapInnerMethod);
+                break;
+        }
+        config.setPhase2Method(phase2Method);
+    }
+
+    /**
+     * Fill in WifiEnterpriseConfig with information from a certificate credential.
+     *
+     * @param config Instance of {@link WifiEnterpriseConfig}
+     */
+    private void buildEnterpriseConfigForCertCredential(WifiEnterpriseConfig config) {
+        config.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
+        config.setClientCertificateAlias(mKeyStoreAliasSuffix);
+        config.setCaCertificateAlias(mKeyStoreAliasSuffix);
+    }
+
+    /**
+     * Fill in WifiEnterpriseConfig with information from a SIM credential.
+     *
+     * @param config Instance of {@link WifiEnterpriseConfig}
+     * @param credential Instance of {@link SimCredential}
+     */
+    private void buildEnterpriseConfigForSimCredential(WifiEnterpriseConfig config,
+            Credential.SimCredential credential) {
+        int eapMethod = WifiEnterpriseConfig.Eap.NONE;
+        switch(credential.eapType) {
+            case EAPConstants.EAP_SIM:
+                eapMethod = WifiEnterpriseConfig.Eap.SIM;
+                break;
+            case EAPConstants.EAP_AKA:
+                eapMethod = WifiEnterpriseConfig.Eap.AKA;
+                break;
+            case EAPConstants.EAP_AKA_PRIME:
+                eapMethod = WifiEnterpriseConfig.Eap.AKA_PRIME;
+                break;
+            default:
+                // Should never happen since this is already validated when the provider is
+                // added.
+                Log.wtf(TAG, "Unsupported EAP Method: " + credential.eapType);
+                break;
+        }
+        config.setEapMethod(eapMethod);
+        config.setPlmn(credential.imsi);
+    }
+
+    private static void setAnonymousIdentityToNaiRealm(WifiEnterpriseConfig config, String realm) {
+        /**
+         * Set WPA supplicant's anonymous identity field to a string containing the NAI realm, so
+         * that this value will be sent to the EAP server as part of the EAP-Response/ Identity
+         * packet. WPA supplicant will reset this field after using it for the EAP-Response/Identity
+         * packet, and revert to using the (real) identity field for subsequent transactions that
+         * request an identity (e.g. in EAP-TTLS).
+         *
+         * This NAI realm value (the portion of the identity after the '@') is used to tell the
+         * AAA server which AAA/H to forward packets to. The hardcoded username, "anonymous", is a
+         * placeholder that is not used--it is set to this value by convention. See Section 5.1 of
+         * RFC3748 for more details.
+         *
+         * NOTE: we do not set this value for EAP-SIM/AKA/AKA', since the EAP server expects the
+         * EAP-Response/Identity packet to contain an actual, IMSI-based identity, in order to
+         * identify the device.
+         */
+        config.setAnonymousIdentity("anonymous@" + realm);
     }
 }
