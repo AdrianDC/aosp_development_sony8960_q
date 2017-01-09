@@ -105,11 +105,8 @@ public class WifiConfigurationTestUtil {
         config.shared = shared;
         config.status = enabled ? WifiConfiguration.Status.ENABLED
                 : WifiConfiguration.Status.DISABLED;
-        if (fqdn != null) {
-            config.FQDN = fqdn;
-            config.providerFriendlyName = providerFriendlyName;
-            config.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.SIM);
-        }
+        config.FQDN = fqdn;
+        config.providerFriendlyName = providerFriendlyName;
         return config;
     }
 
@@ -141,6 +138,7 @@ public class WifiConfigurationTestUtil {
             if ((security & SECURITY_EAP) != 0) {
                 config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_EAP);
                 config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.IEEE8021X);
+                config.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TTLS);
             }
         }
         return config;
@@ -277,7 +275,7 @@ public class WifiConfigurationTestUtil {
     public static WifiConfiguration createEapNetwork() {
         WifiConfiguration configuration =
                 generateWifiConfig(TEST_NETWORK_ID, TEST_UID, createNewSSID(), true, true,
-                        TEST_FQDN, TEST_PROVIDER_FRIENDLY_NAME, SECURITY_EAP);
+                        null, null, SECURITY_EAP);
         return configuration;
     }
 
