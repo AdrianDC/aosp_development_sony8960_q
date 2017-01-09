@@ -843,15 +843,24 @@ public class WifiConfigManagerTest {
         WifiConfiguration originalNetwork = new WifiConfiguration(network);
 
         // Now set all the public fields to null and try updating the network.
-        network.allowedAuthAlgorithms = null;
-        network.allowedProtocols = null;
-        network.allowedKeyManagement = null;
-        network.allowedPairwiseCiphers = null;
-        network.allowedGroupCiphers = null;
+        network.allowedAuthAlgorithms.clear();
+        network.allowedProtocols.clear();
+        network.allowedKeyManagement.clear();
+        network.allowedPairwiseCiphers.clear();
+        network.allowedGroupCiphers.clear();
         network.setIpConfiguration(null);
         network.enterpriseConfig = null;
 
-        verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(network);
+        // Update the network.
+        NetworkUpdateResult result = updateNetworkToWifiConfigManager(network);
+        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
+        assertFalse(result.isNewNetwork());
+
+        // Verify no changes to the original network configuration.
+        verifyNetworkUpdateBroadcast(originalNetwork);
+        verifyNetworkInConfigStoreData(originalNetwork);
+        assertFalse(result.hasIpChanged());
+        assertFalse(result.hasProxyChanged());
 
         // Copy over the updated debug params to the original network config before comparison.
         originalNetwork.lastUpdateUid = network.lastUpdateUid;
