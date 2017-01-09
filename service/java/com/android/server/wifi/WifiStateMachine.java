@@ -4068,7 +4068,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             switch(message.what) {
                 case WifiMonitor.SUP_CONNECTION_EVENT:
                     if (mVerboseLoggingEnabled) log("Supplicant connection established");
-                    setWifiState(WIFI_STATE_ENABLED);
+
                     mSupplicantRestartCount = 0;
                     /* Reset the supplicant state to indicate the supplicant
                      * state is not known at this time */
@@ -4125,10 +4125,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 logd("SupplicantStartedState enter");
             }
 
-            /* Wifi is available as long as we have a connection to supplicant */
-            mNetworkInfo.setIsAvailable(true);
-            if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
-
             int defaultInterval = mContext.getResources().getInteger(
                     R.integer.config_wifi_supplicant_scan_interval);
 
@@ -4169,7 +4165,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
              * driver are changed to reduce interference with bluetooth
              */
             mWifiNative.setBluetoothCoexistenceScanMode(mBluetoothConnectionActive);
-            /* initialize network state */
+            // initialize network state
             setNetworkDetailedState(DetailedState.DISCONNECTED);
 
             // Disable legacy multicast filtering, which on some chipsets defaults to enabled.
@@ -4743,6 +4739,16 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         @Override
         public void enter() {
+            // Let the system know that wifi is available in client mode.
+            setWifiState(WIFI_STATE_ENABLED);
+
+            mNetworkInfo.setIsAvailable(true);
+            if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
+
+            // initialize network state
+            setNetworkDetailedState(DetailedState.DISCONNECTED);
+
+
             // Inform WifiConnectivityManager that Wifi is enabled
             mWifiConnectivityManager.setWifiEnabled(true);
             // Inform metrics that Wifi is Enabled (but not yet connected)
@@ -4751,6 +4757,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         @Override
         public void exit() {
+            // Let the system know that wifi is not available since we are exiting client mode.
+            mNetworkInfo.setIsAvailable(false);
+            if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
             // Inform WifiConnectivityManager that Wifi is disabled
             mWifiConnectivityManager.setWifiEnabled(false);
             // Inform metrics that Wifi is being disabled (Toggled, airplane enabled, etc)
