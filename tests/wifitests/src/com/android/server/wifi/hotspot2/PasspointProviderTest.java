@@ -24,10 +24,13 @@ import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
 import android.net.wifi.EAPConstants;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.hotspot2.pps.Credential;
 import android.net.wifi.hotspot2.pps.HomeSP;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.util.Base64;
 
 import com.android.server.wifi.FakeKeys;
 import com.android.server.wifi.IMSIParameter;
@@ -49,6 +52,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
@@ -66,6 +70,7 @@ public class PasspointProviderTest {
     private static final String CA_CERTIFICATE_ALIAS = "CACERT_HS2_12";
     private static final String CLIENT_CERTIFICATE_ALIAS = "USRCERT_HS2_12";
     private static final String CLIENT_PRIVATE_KEY_ALIAS = "USRPKEY_HS2_12";
+    private static final String ALIAS_SUFFIX = "HS2_12";
 
     @Mock WifiKeyStore mKeyStore;
     @Mock SIMAccessor mSimAccessor;
@@ -557,5 +562,162 @@ public class PasspointProviderTest {
                 createThreeGPPNetworkElement(new String[] {"123456"}));
 
         assertEquals(PasspointMatch.HomeProvider, mProvider.match(anqpElementMap));
+    }
+
+    /**
+     * Verify that an expected WifiConfiguration will be returned for a Passpoint provider
+     * with an user credential.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getWifiConfigWithUserCredential() throws Exception {
+        // Test data.
+        String fqdn = "test.com";
+        String friendlyName = "Friendly Name";
+        long[] rcOIs = new long[] {0x1234L, 0x2345L};
+        String realm = "realm.com";
+        String username = "username";
+        String password = "password";
+        byte[] base64EncodedPw =
+                Base64.encode(password.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT);
+        String encodedPasswordStr = new String(base64EncodedPw, StandardCharsets.UTF_8);
+
+        // Create provider.
+        PasspointConfiguration config = new PasspointConfiguration();
+        config.homeSp = new HomeSP();
+        config.homeSp.fqdn = fqdn;
+        config.homeSp.friendlyName = friendlyName;
+        config.homeSp.roamingConsortiumOIs = rcOIs;
+        config.credential = new Credential();
+        config.credential.realm = realm;
+        config.credential.userCredential = new Credential.UserCredential();
+        config.credential.userCredential.username = username;
+        config.credential.userCredential.password = encodedPasswordStr;
+        config.credential.userCredential.nonEapInnerMethod = "MS-CHAP-V2";
+        config.credential.caCertificate = FakeKeys.CA_CERT0;
+        mProvider = createProvider(config);
+
+        // Install certificate.
+        when(mKeyStore.putCertInKeyStore(CA_CERTIFICATE_ALIAS, FakeKeys.CA_CERT0))
+                .thenReturn(true);
+        assertTrue(mProvider.installCertsAndKeys());
+
+        // Retrieve the WifiConfiguration associated with the provider, and verify the content of
+        // the configuration.  Need to verify field by field since WifiConfiguration doesn't
+        // override equals() function.
+        WifiConfiguration wifiConfig = mProvider.getWifiConfig();
+        WifiEnterpriseConfig wifiEnterpriseConfig = wifiConfig.enterpriseConfig;
+        assertEquals(fqdn, wifiConfig.FQDN);
+        assertEquals(friendlyName, wifiConfig.providerFriendlyName);
+        assertTrue(Arrays.equals(rcOIs, wifiConfig.roamingConsortiumIds));
+        assertTrue(wifiConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP));
+        assertTrue(wifiConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X));
+        assertEquals(realm, wifiEnterpriseConfig.getRealm());
+        assertEquals("anonymous@" + realm, wifiEnterpriseConfig.getAnonymousIdentity());
+        assertEquals(WifiEnterpriseConfig.Eap.TTLS, wifiEnterpriseConfig.getEapMethod());
+        assertEquals(WifiEnterpriseConfig.Phase2.MSCHAPV2, wifiEnterpriseConfig.getPhase2Method());
+        assertEquals(username, wifiEnterpriseConfig.getIdentity());
+        assertEquals(password, wifiEnterpriseConfig.getPassword());
+        assertEquals(ALIAS_SUFFIX, wifiEnterpriseConfig.getCaCertificateAlias());
+    }
+
+    /**
+     * Verify that an expected WifiConfiguration will be returned for a Passpoint provider
+     * with a certificate credential.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getWifiConfigWithCertCredential() throws Exception {
+        // Test data.
+        String fqdn = "test.com";
+        String friendlyName = "Friendly Name";
+        long[] rcOIs = new long[] {0x1234L, 0x2345L};
+        String realm = "realm.com";
+
+        // Create provider.
+        PasspointConfiguration config = new PasspointConfiguration();
+        config.homeSp = new HomeSP();
+        config.homeSp.fqdn = fqdn;
+        config.homeSp.friendlyName = friendlyName;
+        config.homeSp.roamingConsortiumOIs = rcOIs;
+        config.credential = new Credential();
+        config.credential.realm = realm;
+        config.credential.certCredential = new Credential.CertificateCredential();
+        config.credential.certCredential.certSha256FingerPrint =
+                MessageDigest.getInstance("SHA-256").digest(FakeKeys.CLIENT_CERT.getEncoded());
+        config.credential.caCertificate = FakeKeys.CA_CERT0;
+        config.credential.clientPrivateKey = FakeKeys.RSA_KEY1;
+        config.credential.clientCertificateChain = new X509Certificate[] {FakeKeys.CLIENT_CERT};
+        mProvider = createProvider(config);
+
+        // Install certificate.
+        when(mKeyStore.putCertInKeyStore(CA_CERTIFICATE_ALIAS, FakeKeys.CA_CERT0))
+                .thenReturn(true);
+        when(mKeyStore.putKeyInKeyStore(CLIENT_PRIVATE_KEY_ALIAS, FakeKeys.RSA_KEY1))
+                .thenReturn(true);
+        when(mKeyStore.putCertInKeyStore(CLIENT_CERTIFICATE_ALIAS, FakeKeys.CLIENT_CERT))
+                .thenReturn(true);
+        assertTrue(mProvider.installCertsAndKeys());
+
+        // Retrieve the WifiConfiguration associated with the provider, and verify the content of
+        // the configuration.  Need to verify field by field since WifiConfiguration doesn't
+        // override equals() function.
+        WifiConfiguration wifiConfig = mProvider.getWifiConfig();
+        WifiEnterpriseConfig wifiEnterpriseConfig = wifiConfig.enterpriseConfig;
+        assertEquals(fqdn, wifiConfig.FQDN);
+        assertEquals(friendlyName, wifiConfig.providerFriendlyName);
+        assertTrue(Arrays.equals(rcOIs, wifiConfig.roamingConsortiumIds));
+        assertTrue(wifiConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP));
+        assertTrue(wifiConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X));
+        assertEquals(realm, wifiEnterpriseConfig.getRealm());
+        assertEquals("anonymous@" + realm, wifiEnterpriseConfig.getAnonymousIdentity());
+        assertEquals(WifiEnterpriseConfig.Eap.TLS, wifiEnterpriseConfig.getEapMethod());
+        assertEquals(ALIAS_SUFFIX, wifiEnterpriseConfig.getClientCertificateAlias());
+        assertEquals(ALIAS_SUFFIX, wifiEnterpriseConfig.getCaCertificateAlias());
+    }
+
+    /**
+     * Verify that an expected WifiConfiguration will be returned for a Passpoint provider
+     * with a SIM credential.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getWifiConfigWithSimCredential() throws Exception {
+        // Test data.
+        String fqdn = "test.com";
+        String friendlyName = "Friendly Name";
+        long[] rcOIs = new long[] {0x1234L, 0x2345L};
+        String realm = "realm.com";
+        String imsi = "1234*";
+
+        // Create provider.
+        PasspointConfiguration config = new PasspointConfiguration();
+        config.homeSp = new HomeSP();
+        config.homeSp.fqdn = fqdn;
+        config.homeSp.friendlyName = friendlyName;
+        config.homeSp.roamingConsortiumOIs = rcOIs;
+        config.credential = new Credential();
+        config.credential.realm = realm;
+        config.credential.simCredential = new Credential.SimCredential();
+        config.credential.simCredential.imsi = imsi;
+        config.credential.simCredential.eapType = EAPConstants.EAP_SIM;
+        mProvider = createProvider(config);
+
+        // Retrieve the WifiConfiguration associated with the provider, and verify the content of
+        // the configuration.  Need to verify field by field since WifiConfiguration doesn't
+        // override equals() function.
+        WifiConfiguration wifiConfig = mProvider.getWifiConfig();
+        WifiEnterpriseConfig wifiEnterpriseConfig = wifiConfig.enterpriseConfig;
+        assertEquals(fqdn, wifiConfig.FQDN);
+        assertEquals(friendlyName, wifiConfig.providerFriendlyName);
+        assertTrue(Arrays.equals(rcOIs, wifiConfig.roamingConsortiumIds));
+        assertTrue(wifiConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP));
+        assertTrue(wifiConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X));
+        assertEquals(realm, wifiEnterpriseConfig.getRealm());
+        assertEquals(WifiEnterpriseConfig.Eap.SIM, wifiEnterpriseConfig.getEapMethod());
+        assertEquals(imsi, wifiEnterpriseConfig.getPlmn());
     }
 }
