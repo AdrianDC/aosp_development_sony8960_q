@@ -16,19 +16,29 @@
 
 package com.android.server.wifi.hotspot2;
 
+import android.net.wifi.EAPConstants;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.security.Credentials;
 import android.util.Log;
 
+import com.android.server.wifi.IMSIParameter;
+import com.android.server.wifi.SIMAccessor;
 import com.android.server.wifi.WifiKeyStore;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType;
+import com.android.server.wifi.hotspot2.anqp.DomainNameElement;
+import com.android.server.wifi.hotspot2.anqp.NAIRealmElement;
+import com.android.server.wifi.hotspot2.anqp.RoamingConsortiumElement;
+import com.android.server.wifi.hotspot2.anqp.ThreeGPPNetworkElement;
+import com.android.server.wifi.hotspot2.anqp.eap.AuthParam;
+import com.android.server.wifi.hotspot2.anqp.eap.NonEAPInnerAuth;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -53,12 +63,37 @@ public class PasspointProvider {
     private String mClientPrivateKeyAlias;
     private String mClientCertificateAlias;
 
+    private final IMSIParameter mImsiParameter;
+    private final List<String> mMatchingSIMImsiList;
+
+    private final int mEAPMethodID;
+    private final AuthParam mAuthParam;
+
     public PasspointProvider(PasspointConfiguration config, WifiKeyStore keyStore,
-            long providerId) {
+            SIMAccessor simAccessor, long providerId) {
         // Maintain a copy of the configuration to avoid it being updated by others.
         mConfig = new PasspointConfiguration(config);
         mKeyStore = keyStore;
         mProviderId = providerId;
+
+        // Setup EAP method and authentication parameter based on the credential.
+        if (mConfig.credential.userCredential != null) {
+            mEAPMethodID = EAPConstants.EAP_TTLS;
+            mAuthParam = new NonEAPInnerAuth(NonEAPInnerAuth.getAuthTypeID(
+                    mConfig.credential.userCredential.nonEapInnerMethod));
+            mImsiParameter = null;
+            mMatchingSIMImsiList = null;
+        } else if (mConfig.credential.certCredential != null) {
+            mEAPMethodID = EAPConstants.EAP_TLS;
+            mAuthParam = null;
+            mImsiParameter = null;
+            mMatchingSIMImsiList = null;
+        } else {
+            mEAPMethodID = mConfig.credential.simCredential.eapType;
+            mAuthParam = null;
+            mImsiParameter = IMSIParameter.build(mConfig.credential.simCredential.imsi);
+            mMatchingSIMImsiList = simAccessor.getMatchingImsis(mImsiParameter);
+        }
     }
 
     public PasspointConfiguration getConfig() {
@@ -160,12 +195,31 @@ public class PasspointProvider {
 
     /**
      * Return the matching status with the given AP, based on the ANQP elements from the AP.
+     *
      * @param anqpElements ANQP elements from the AP
-     * @return {@link com.android.server.wifi.hotspot2.PasspointMatch}
+     * @return {@link PasspointMatch}
      */
     public PasspointMatch match(Map<ANQPElementType, ANQPElement> anqpElements) {
-        // TODO(b/33246489): To be implemented.
-        return PasspointMatch.None;
+        PasspointMatch providerMatch = matchProvider(anqpElements);
+
+        // Perform authentication match against the NAI Realm.
+        int authMatch = ANQPMatcher.matchNAIRealm(
+                (NAIRealmElement) anqpElements.get(ANQPElementType.ANQPNAIRealm),
+                mConfig.credential.realm, mEAPMethodID, mAuthParam);
+
+        // Auth mismatch, demote provider match.
+        if (authMatch == AuthMatch.NONE) {
+            return PasspointMatch.None;
+        }
+
+        // No realm match, return provider match as is.
+        if ((authMatch & AuthMatch.REALM) == 0) {
+            return providerMatch;
+        }
+
+        // Realm match, promote provider match to roaming if no other provider match is found.
+        return providerMatch == PasspointMatch.None ? PasspointMatch.RoamingProvider
+                : providerMatch;
     }
 
     /**
@@ -206,5 +260,35 @@ public class PasspointProvider {
         }
 
         return null;
+    }
+
+    /**
+     * Perform a provider match based on the given ANQP elements.
+     *
+     * @param anqpElements List of ANQP elements
+     * @return {@link PasspointMatch}
+     */
+    private PasspointMatch matchProvider(Map<ANQPElementType, ANQPElement> anqpElements) {
+        // Domain name matching.
+        if (ANQPMatcher.matchDomainName(
+                (DomainNameElement) anqpElements.get(ANQPElementType.ANQPDomName),
+                mConfig.homeSp.fqdn, mImsiParameter, mMatchingSIMImsiList)) {
+            return PasspointMatch.HomeProvider;
+        }
+
+        // Roaming Consortium OI matching.
+        if (ANQPMatcher.matchRoamingConsortium(
+                (RoamingConsortiumElement) anqpElements.get(ANQPElementType.ANQPRoamingConsortium),
+                mConfig.homeSp.roamingConsortiumOIs)) {
+            return PasspointMatch.RoamingProvider;
+        }
+
+        // 3GPP Network matching.
+        if (ANQPMatcher.matchThreeGPPNetwork(
+                (ThreeGPPNetworkElement) anqpElements.get(ANQPElementType.ANQP3GPPNetwork),
+                mImsiParameter, mMatchingSIMImsiList)) {
+            return PasspointMatch.RoamingProvider;
+        }
+        return PasspointMatch.None;
     }
 }

@@ -21,6 +21,8 @@ import com.android.internal.annotations.VisibleForTesting;
 import java.net.ProtocolException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * The Non-EAP Inner Authentication Type authentication parameter, IEEE802.11-2012, table 8-188.
@@ -30,10 +32,19 @@ import java.nio.ByteBuffer;
  *    1
  */
 public class NonEAPInnerAuth extends AuthParam {
+    public static final int AUTH_TYPE_UNKNOWN = 0;
     public static final int AUTH_TYPE_PAP = 1;
     public static final int AUTH_TYPE_CHAP = 2;
     public static final int AUTH_TYPE_MSCHAP = 3;
     public static final int AUTH_TYPE_MSCHAPV2 = 4;
+
+    private static final Map<String, Integer> AUTH_TYPE_MAP = new HashMap<>();
+    static {
+        AUTH_TYPE_MAP.put("PAP", AUTH_TYPE_PAP);
+        AUTH_TYPE_MAP.put("CHAP", AUTH_TYPE_CHAP);
+        AUTH_TYPE_MAP.put("MS-CHAP", AUTH_TYPE_MSCHAP);
+        AUTH_TYPE_MAP.put("MS-CHAP-V2", AUTH_TYPE_MSCHAPV2);
+    }
 
     @VisibleForTesting
     public static final int EXPECTED_LENGTH_VALUE = 1;
@@ -59,6 +70,19 @@ public class NonEAPInnerAuth extends AuthParam {
         }
         int authType = payload.get() & 0xFF;
         return new NonEAPInnerAuth(authType);
+    }
+
+    /**
+     * Convert an authentication type string to an integer representation.
+     *
+     * @param typeStr The string of authentication type
+     * @return int
+     */
+    public static int getAuthTypeID(String typeStr) {
+        if (AUTH_TYPE_MAP.containsKey(typeStr)) {
+            return AUTH_TYPE_MAP.get(typeStr).intValue();
+        }
+        return AUTH_TYPE_UNKNOWN;
     }
 
     @Override

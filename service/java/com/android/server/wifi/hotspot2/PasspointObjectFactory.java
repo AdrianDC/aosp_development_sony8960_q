@@ -19,6 +19,7 @@ package com.android.server.wifi.hotspot2;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 
 import com.android.server.wifi.Clock;
+import com.android.server.wifi.SIMAccessor;
 import com.android.server.wifi.WifiKeyStore;
 import com.android.server.wifi.WifiNative;
 
@@ -48,8 +49,8 @@ public class PasspointObjectFactory{
      * @return {@link PasspointProvider}
      */
     public PasspointProvider makePasspointProvider(PasspointConfiguration config,
-            WifiKeyStore keyStore, long providerId) {
-        return new PasspointProvider(config, keyStore, providerId);
+            WifiKeyStore keyStore, SIMAccessor simAccessor, long providerId) {
+        return new PasspointProvider(config, keyStore, simAccessor, providerId);
     }
 
     /**
