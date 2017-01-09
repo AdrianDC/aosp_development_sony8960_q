@@ -73,7 +73,7 @@ public class PasspointManager {
     private final PasspointObjectFactory mObjectFactory;
     private final Map<String, PasspointProvider> mProviders;
     private final AnqpCache mAnqpCache;
-    private final Map<Long, ANQPNetworkKey> mPendingAnqpQueries;
+    private final ANQPRequestManager mAnqpRequestManager;
 
     // Counter used for assigning unique identifier to a provider.
     private long mProviderID;
@@ -87,22 +87,24 @@ public class PasspointManager {
         @Override
         public void onANQPResponse(long bssid,
                 Map<Constants.ANQPElementType, ANQPElement> anqpElements) {
-            // Remove the entry from pending list.
-            ANQPNetworkKey anqpKey = mPendingAnqpQueries.remove(bssid);
-
-            if (anqpElements == null) {
-                // Query failed.
-                // TODO(b/33246489): keep track of failed ANQP queries for backing off
-                // future queries.
-                return;
-            }
-
-            if (anqpKey == null) {
+            // Notify request manager for the completion of a request.
+            ScanDetail scanDetail =
+                    mAnqpRequestManager.onRequestCompleted(bssid, anqpElements != null);
+            if (anqpElements == null || scanDetail == null) {
+                // Query failed or the request wasn't originated from us (not tracked by the
+                // request manager). Nothing to be done.
                 return;
             }
 
             // Add new entry to the cache.
+            NetworkDetail networkDetail = scanDetail.getNetworkDetail();
+            ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(networkDetail.getSSID(),
+                    networkDetail.getBSSID(), networkDetail.getHESSID(),
+                    networkDetail.getAnqpDomainID());
             mAnqpCache.addEntry(anqpKey, anqpElements);
+
+            // Update ANQP elements in the ScanDetail.
+            scanDetail.propagateANQPInfo(anqpElements);
         }
 
         @Override
@@ -149,7 +151,7 @@ public class PasspointManager {
         mObjectFactory = objectFactory;
         mProviders = new HashMap<>();
         mAnqpCache = objectFactory.makeAnqpCache(clock);
-        mPendingAnqpQueries = new HashMap<>();
+        mAnqpRequestManager = objectFactory.makeANQPRequestManager(mHandler, clock);
         mProviderID = 0;
         // TODO(zqiu): load providers from the persistent storage.
     }
@@ -260,10 +262,9 @@ public class PasspointManager {
         ANQPData anqpEntry = mAnqpCache.getEntry(anqpKey);
 
         if (anqpEntry == null) {
-            if (!mPendingAnqpQueries.containsValue(anqpKey)) {
-                // TODO(b/33246489): Request ANQP data.
-                mPendingAnqpQueries.put(networkDetail.getBSSID(), anqpKey);
-            }
+            mAnqpRequestManager.requestANQPElements(networkDetail.getBSSID(), scanDetail,
+                    networkDetail.getAnqpOICount() > 0,
+                    networkDetail.getHSRelease() == NetworkDetail.HSRelease.R2);
             return new ArrayList<Pair<PasspointProvider, PasspointMatch>>();
         }
 
