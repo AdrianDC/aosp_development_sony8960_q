@@ -341,6 +341,8 @@ public class WifiConfigStore {
 
         readNetworkBitsetVariable(config.networkId, config.allowedKeyManagement,
                 WifiConfiguration.KeyMgmt.varName, WifiConfiguration.KeyMgmt.strings);
+        // The FT flags should not be exposed to external apps.
+        config.allowedKeyManagement = removeFastTransitionFlags(config.allowedKeyManagement);
 
         readNetworkBitsetVariable(config.networkId, config.allowedAuthAlgorithms,
                 WifiConfiguration.AuthAlgorithm.varName, WifiConfiguration.AuthAlgorithm.strings);
@@ -602,6 +604,13 @@ public class WifiConfigStore {
         if (keyManagementFlags.get(WifiConfiguration.KeyMgmt.WPA_EAP)) {
             modifiedFlags.set(WifiConfiguration.KeyMgmt.FT_EAP);
         }
+        return modifiedFlags;
+    }
+
+    private BitSet removeFastTransitionFlags(BitSet keyManagementFlags) {
+        BitSet modifiedFlags = keyManagementFlags;
+        modifiedFlags.clear(WifiConfiguration.KeyMgmt.FT_PSK);
+        modifiedFlags.clear(WifiConfiguration.KeyMgmt.FT_EAP);
         return modifiedFlags;
     }
 
