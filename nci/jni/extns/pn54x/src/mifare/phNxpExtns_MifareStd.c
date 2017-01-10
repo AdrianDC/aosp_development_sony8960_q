@@ -15,6 +15,8 @@
  */
 #define LOG_TAG "pn54x"
 
+#include <log/log.h>
+
 #include <nfc_api.h>
 #include <rw_api.h>
 #include <phNfcCompId.h>
