@@ -3654,15 +3654,16 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     private void getAdditionalWifiServiceInterfaces() {
         // First set up Wifi Direct
-        // TODO: b/34193861 determine if we can avoid starting WIFI_P2P_SERVICE when not supported
-        IBinder s1 = mFacade.getService(Context.WIFI_P2P_SERVICE);
-        WifiP2pServiceImpl wifiP2pServiceImpl =
-                (WifiP2pServiceImpl) IWifiP2pManager.Stub.asInterface(s1);
+        if (mP2pSupported) {
+            IBinder s1 = mFacade.getService(Context.WIFI_P2P_SERVICE);
+            WifiP2pServiceImpl wifiP2pServiceImpl =
+                    (WifiP2pServiceImpl) IWifiP2pManager.Stub.asInterface(s1);
 
-        if (wifiP2pServiceImpl != null) {
-            mWifiP2pChannel = new AsyncChannel();
-            mWifiP2pChannel.connect(mContext, getHandler(),
-                    wifiP2pServiceImpl.getP2pStateMachineMessenger());
+            if (wifiP2pServiceImpl != null) {
+                mWifiP2pChannel = new AsyncChannel();
+                mWifiP2pChannel.connect(mContext, getHandler(),
+                        wifiP2pServiceImpl.getP2pStateMachineMessenger());
+            }
         }
 
         // Set up Wifi Aware
