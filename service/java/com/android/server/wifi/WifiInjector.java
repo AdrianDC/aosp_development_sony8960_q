@@ -91,7 +91,6 @@ public class WifiInjector {
     private final WifiConfigManager mWifiConfigManager;
     private final WifiNetworkSelector mWifiNetworkSelector;
     private final SavedNetworkEvaluator mSavedNetworkEvaluator;
-    private final ExternalScoreEvaluator mExternalScoreEvaluator;
     private final RecommendedNetworkEvaluator mRecommendedNetworkEvaluator;
     private final WifiNetworkScoreCache mWifiNetworkScoreCache;
     private final NetworkScoreManager mNetworkScoreManager;
@@ -163,10 +162,12 @@ public class WifiInjector {
         LocalLog localLog = mWifiNetworkSelector.getLocalLog();
         mSavedNetworkEvaluator = new SavedNetworkEvaluator(mContext,
                 mWifiConfigManager, mClock, localLog);
-        mExternalScoreEvaluator = new ExternalScoreEvaluator(
+        ExternalScoreEvaluator externalScoreEvaluator = new ExternalScoreEvaluator(
                 mContext, mWifiConfigManager, mWifiNetworkScoreCache, mClock, localLog);
-        mRecommendedNetworkEvaluator = new RecommendedNetworkEvaluator(
-                mWifiNetworkScoreCache, mNetworkScoreManager, mWifiConfigManager, localLog);
+        mRecommendedNetworkEvaluator = new RecommendedNetworkEvaluator(context,
+                context.getContentResolver(), mWifiStateMachineHandlerThread.getLooper(),
+                mFrameworkFacade, mWifiNetworkScoreCache, mNetworkScoreManager, mWifiConfigManager,
+                localLog, externalScoreEvaluator);
         mWifiStateMachine = new WifiStateMachine(mContext, mFrameworkFacade,
                 mWifiStateMachineHandlerThread.getLooper(), UserManager.get(mContext),
                 this, mBackupManagerProxy, mCountryCode, mWifiNative);
@@ -375,7 +376,7 @@ public class WifiInjector {
                 mWifiConfigManager, wifiInfo, mWifiNetworkSelector, mWifiLastResortWatchdog,
                 mWifiMetrics, mWifiStateMachineHandlerThread.getLooper(), mClock,
                 hasConnectionRequests, mFrameworkFacade, mSavedNetworkEvaluator,
-                mExternalScoreEvaluator, mRecommendedNetworkEvaluator);
+                mRecommendedNetworkEvaluator);
     }
 
     public WifiPermissionsUtil getWifiPermissionsUtil() {
