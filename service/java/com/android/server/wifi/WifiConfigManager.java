@@ -2254,8 +2254,7 @@ public class WifiConfigManager {
      */
     public boolean needsUnlockedKeyStore() {
         for (WifiConfiguration config : getInternalConfiguredNetworks()) {
-            if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP)
-                    && config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
+            if (WifiConfigurationUtil.isConfigForEapNetwork(config)) {
                 if (mWifiKeyStore.needsSoftwareBackedKeyStore(config.enterpriseConfig)) {
                     return true;
                 }
