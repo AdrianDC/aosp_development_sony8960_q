@@ -46,12 +46,14 @@ import android.util.LocalLog;
 import android.util.Log;
 import android.util.Pair;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.AsyncChannel;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.Clock;
+import com.android.server.wifi.FrameworkFacade;
 import com.android.server.wifi.WifiInjector;
 import com.android.server.wifi.WifiLog;
 import com.android.server.wifi.WifiMetrics;
@@ -59,7 +61,6 @@ import com.android.server.wifi.WifiMetricsProto;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.WifiStateMachine;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
-import com.android.server.wifi.util.WifiAsyncChannel;
 import com.android.server.wifi.util.WifiHandler;
 
 import java.io.FileDescriptor;
@@ -152,7 +153,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         return;
                     }
 
-                    AsyncChannel ac = new WifiAsyncChannel(TAG);
+                    AsyncChannel ac = mFrameworkFacade.makeWifiAsyncChannel(TAG);
                     ac.connected(mContext, this, msg.replyTo);
 
                     client = new ExternalClientInfo(msg.sendingUid, msg.replyTo, ac);
@@ -282,6 +283,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private final AlarmManager mAlarmManager;
     private final WifiMetrics mWifiMetrics;
     private final Clock mClock;
+    private final FrameworkFacade mFrameworkFacade;
 
     WifiScanningServiceImpl(Context context, Looper looper,
             WifiScannerImpl.WifiScannerImplFactory scannerImplFactory, IBatteryStats batteryStats,
@@ -295,6 +297,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         mWifiMetrics = wifiInjector.getWifiMetrics();
         mClock = wifiInjector.getClock();
         mLog = wifiInjector.makeLog(TAG);
+        mFrameworkFacade = wifiInjector.getFrameworkFacade();
         mPreviousSchedule = null;
     }
 
@@ -328,6 +331,15 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         mWifiChangeStateMachine.start();
         mSingleScanStateMachine.start();
         mPnoScanStateMachine.start();
+    }
+
+    /**
+     * Provide a way for unit tests to set valid log object in the WifiHandler
+     * @param log WifiLog object to assign to the clientHandler
+     */
+    @VisibleForTesting
+    public void setWifiHandlerLogForTest(WifiLog log) {
+        mClientHandler.setWifiLog(log);
     }
 
     private static boolean isWorkSourceValid(WorkSource workSource) {
