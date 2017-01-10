@@ -24,7 +24,7 @@
 #include <errno.h>
 #include <string.h>
 
-#include <android/log.h>
+#include <log/log.h>
 
 /*******************************************************************************
 **
