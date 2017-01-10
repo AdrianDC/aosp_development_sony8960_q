@@ -18,7 +18,8 @@
  *  Manage the listen-mode routing table.
  */
 
-#include <android/log.h>
+#include <log/log.h>
+
 #include <ScopedLocalRef.h>
 #include <JNIHelp.h>
 #include "config.h"

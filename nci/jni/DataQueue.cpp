@@ -23,7 +23,7 @@
 #include <malloc.h>
 #include <string.h>
 
-#include <android/log.h>
+#include <log/log.h>
 
 /*******************************************************************************
 **

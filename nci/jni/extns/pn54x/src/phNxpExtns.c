@@ -22,6 +22,8 @@
 #include <sys/ioctl.h>
 #include <sys/time.h>
 
+#include <log/log.h>
+
 #include <phNxpExtns_MifareStd.h>
 #include <phNxpLog.h>
 #include <phNxpConfig.h>

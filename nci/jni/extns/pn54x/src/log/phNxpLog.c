@@ -22,6 +22,7 @@
 #    include "phNxpConfig.h"
 #endif
 #include <cutils/properties.h>
+#include <log/log.h>
 
 const char * NXPLOG_ITEM_EXTNS   = "NxpExtns";
 const char * NXPLOG_ITEM_NCIHAL  = "NxpHal";
