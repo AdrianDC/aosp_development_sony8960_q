@@ -18,7 +18,7 @@
 
 #include <errno.h>
 
-#include <android/log.h>
+#include <log/log.h>
 
 #include <JNIHelp.h>
 #include <ScopedLocalRef.h>
