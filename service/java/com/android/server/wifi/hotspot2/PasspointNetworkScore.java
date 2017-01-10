@@ -1,232 +1,185 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.android.server.wifi.hotspot2;
 
+import android.net.RssiCurve;
+
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.ScanDetail;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType;
-import com.android.server.wifi.hotspot2.anqp.HSConnectionCapabilityElement;
 import com.android.server.wifi.hotspot2.anqp.HSWanMetricsElement;
 import com.android.server.wifi.hotspot2.anqp.IPAddressTypeAvailabilityElement;
-import com.android.server.wifi.hotspot2.anqp.ProtocolPortTuple;
 
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * TODO(b/32714185): update using the new HomeSP object.
+ * This is an utility class for calculating score for Passpoint networks.
  */
-public class PasspointMatchInfo implements Comparable<PasspointMatchInfo> {
-    private final PasspointMatch mPasspointMatch;
-    private final ScanDetail mScanDetail;
-    private final int mScore;
+public class PasspointNetworkScore {
+    /**
+     * Award points for network that's a Passpoint home provider.
+     */
+    @VisibleForTesting
+    public static final int HOME_PROVIDER_AWARD = 100;
 
-    private static final Map<Integer, Integer> sIP4Scores = new HashMap<>();
-    private static final Map<Integer, Integer> sIP6Scores = new HashMap<>();
+    /**
+     * Award points for network that provides Internet access.
+     */
+    @VisibleForTesting
+    public static final int INTERNET_ACCESS_AWARD = 50;
 
-    private static final Map<Integer, Map<Integer, Integer>> sPortScores = new HashMap<>();
+    /**
+     * Award points for public or private network.
+     */
+    @VisibleForTesting
+    public static final int PUBLIC_OR_PRIVATE_NETWORK_AWARDS = 4;
 
-    private static final int IPPROTO_ICMP = 1;
-    private static final int IPPROTO_TCP = 6;
-    private static final int IPPROTO_UDP = 17;
-    private static final int IPPROTO_ESP = 50;
-    private static final Map<NetworkDetail.Ant, Integer> sAntScores = new HashMap<>();
+    /**
+     * Award points for personal or emergency network.
+     */
+    @VisibleForTesting
+    public static final int PERSONAL_OR_EMERGENCY_NETWORK_AWARDS = 2;
+
+    /**
+     * Award points for network providing restricted or unknown IP address.
+     */
+    @VisibleForTesting
+    public static final int RESTRICTED_OR_UNKNOWN_IP_AWARDS = 1;
+
+    /**
+     * Award points for network providing unrestricted IP address.
+     */
+    @VisibleForTesting
+    public static final int UNRESTRICTED_IP_AWARDS = 2;
+
+    /**
+     * Penalty points for network with WAN port that's down or the load already reached the max.
+     */
+    @VisibleForTesting
+    public static final int WAN_PORT_DOWN_OR_CAPPED_PENALTY = 50;
+
+    // Award points for availability of IPv4 and IPv6 addresses.
+    private static final Map<Integer, Integer> IPV4_SCORES = new HashMap<>();
+    private static final Map<Integer, Integer> IPV6_SCORES = new HashMap<>();
+
+    // Award points based on access network type.
+    private static final Map<NetworkDetail.Ant, Integer> NETWORK_TYPE_SCORES = new HashMap<>();
+
+    /**
+     * Curve for calculating score for RSSI level.
+     */
+    @VisibleForTesting
+    public static final RssiCurve RSSI_SCORE = new RssiCurve(-80 /* start */, 20 /* bucketWidth */,
+            new byte[] {-10, 0, 10, 20, 30, 40} /* rssiBuckets */,
+            20 /* activeNetworkRssiBoost */);
 
     static {
         // These are all arbitrarily chosen scores, subject to tuning.
 
-        sAntScores.put(NetworkDetail.Ant.FreePublic, 4);
-        sAntScores.put(NetworkDetail.Ant.ChargeablePublic, 4);
-        sAntScores.put(NetworkDetail.Ant.PrivateWithGuest, 4);
-        sAntScores.put(NetworkDetail.Ant.Private, 4);
-        sAntScores.put(NetworkDetail.Ant.Personal, 2);
-        sAntScores.put(NetworkDetail.Ant.EmergencyOnly, 2);
-        sAntScores.put(NetworkDetail.Ant.Wildcard, 1);
-        sAntScores.put(NetworkDetail.Ant.TestOrExperimental, 0);
+        NETWORK_TYPE_SCORES.put(NetworkDetail.Ant.FreePublic, PUBLIC_OR_PRIVATE_NETWORK_AWARDS);
+        NETWORK_TYPE_SCORES.put(NetworkDetail.Ant.ChargeablePublic,
+                PUBLIC_OR_PRIVATE_NETWORK_AWARDS);
+        NETWORK_TYPE_SCORES.put(NetworkDetail.Ant.PrivateWithGuest,
+                PUBLIC_OR_PRIVATE_NETWORK_AWARDS);
+        NETWORK_TYPE_SCORES.put(NetworkDetail.Ant.Private,
+                PUBLIC_OR_PRIVATE_NETWORK_AWARDS);
+        NETWORK_TYPE_SCORES.put(NetworkDetail.Ant.Personal, PERSONAL_OR_EMERGENCY_NETWORK_AWARDS);
+        NETWORK_TYPE_SCORES.put(NetworkDetail.Ant.EmergencyOnly,
+                PERSONAL_OR_EMERGENCY_NETWORK_AWARDS);
+        NETWORK_TYPE_SCORES.put(NetworkDetail.Ant.Wildcard, 0);
+        NETWORK_TYPE_SCORES.put(NetworkDetail.Ant.TestOrExperimental, 0);
 
-        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_NOT_AVAILABLE, 0);
-        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_PORT_RESTRICTED, 1);
-        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_PORT_RESTRICTED_AND_SINGLE_NAT, 1);
-        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_PORT_RESTRICTED_AND_DOUBLE_NAT, 1);
-        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_UNKNOWN, 1);
-        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_PUBLIC, 2);
-        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_SINGLE_NAT, 2);
-        sIP4Scores.put(IPAddressTypeAvailabilityElement.IPV4_DOUBLE_NAT, 2);
+        IPV4_SCORES.put(IPAddressTypeAvailabilityElement.IPV4_NOT_AVAILABLE, 0);
+        IPV4_SCORES.put(IPAddressTypeAvailabilityElement.IPV4_PORT_RESTRICTED,
+                RESTRICTED_OR_UNKNOWN_IP_AWARDS);
+        IPV4_SCORES.put(IPAddressTypeAvailabilityElement.IPV4_PORT_RESTRICTED_AND_SINGLE_NAT,
+                RESTRICTED_OR_UNKNOWN_IP_AWARDS);
+        IPV4_SCORES.put(IPAddressTypeAvailabilityElement.IPV4_PORT_RESTRICTED_AND_DOUBLE_NAT,
+                RESTRICTED_OR_UNKNOWN_IP_AWARDS);
+        IPV4_SCORES.put(IPAddressTypeAvailabilityElement.IPV4_UNKNOWN,
+                RESTRICTED_OR_UNKNOWN_IP_AWARDS);
+        IPV4_SCORES.put(IPAddressTypeAvailabilityElement.IPV4_PUBLIC, UNRESTRICTED_IP_AWARDS);
+        IPV4_SCORES.put(IPAddressTypeAvailabilityElement.IPV4_SINGLE_NAT, UNRESTRICTED_IP_AWARDS);
+        IPV4_SCORES.put(IPAddressTypeAvailabilityElement.IPV4_DOUBLE_NAT, UNRESTRICTED_IP_AWARDS);
 
-        sIP6Scores.put(IPAddressTypeAvailabilityElement.IPV6_NOT_AVAILABLE, 0);
-        sIP6Scores.put(IPAddressTypeAvailabilityElement.IPV6_UNKNOWN, 1);
-        sIP6Scores.put(IPAddressTypeAvailabilityElement.IPV6_AVAILABLE, 2);
-
-        Map<Integer, Integer> tcpMap = new HashMap<>();
-        tcpMap.put(20, 1);
-        tcpMap.put(21, 1);
-        tcpMap.put(22, 3);
-        tcpMap.put(23, 2);
-        tcpMap.put(25, 8);
-        tcpMap.put(26, 8);
-        tcpMap.put(53, 3);
-        tcpMap.put(80, 10);
-        tcpMap.put(110, 6);
-        tcpMap.put(143, 6);
-        tcpMap.put(443, 10);
-        tcpMap.put(993, 6);
-        tcpMap.put(1723, 7);
-
-        Map<Integer, Integer> udpMap = new HashMap<>();
-        udpMap.put(53, 10);
-        udpMap.put(500, 7);
-        udpMap.put(5060, 10);
-        udpMap.put(4500, 4);
-
-        sPortScores.put(IPPROTO_TCP, tcpMap);
-        sPortScores.put(IPPROTO_UDP, udpMap);
+        IPV6_SCORES.put(IPAddressTypeAvailabilityElement.IPV6_NOT_AVAILABLE, 0);
+        IPV6_SCORES.put(IPAddressTypeAvailabilityElement.IPV6_UNKNOWN,
+                RESTRICTED_OR_UNKNOWN_IP_AWARDS);
+        IPV6_SCORES.put(IPAddressTypeAvailabilityElement.IPV6_AVAILABLE,
+                UNRESTRICTED_IP_AWARDS);
     }
 
 
-    public PasspointMatchInfo(PasspointMatch passpointMatch,
-                              ScanDetail scanDetail) {
-        mPasspointMatch = passpointMatch;
-        mScanDetail = scanDetail;
-
-        int score;
-        if (passpointMatch == PasspointMatch.HomeProvider) {
-            score = 100;
-        }
-        else if (passpointMatch == PasspointMatch.RoamingProvider) {
-            score = 0;
-        }
-        else {
-            score = -1000;  // Don't expect to see anything not home or roaming.
-        }
-
-        if (getNetworkDetail().getHSRelease() != null) {
-            score += getNetworkDetail().getHSRelease() != NetworkDetail.HSRelease.Unknown ? 50 : 0;
-        }
-
-        if (getNetworkDetail().hasInterworking()) {
-            score += getNetworkDetail().isInternet() ? 20 : -20;
-        }
-
-        score += (Math.max(200-getNetworkDetail().getStationCount(), 0) *
-                (255-getNetworkDetail().getChannelUtilization()) *
-                getNetworkDetail().getCapacity()) >>> 26;
-                // Gives a value of 23 max capped at 200 stations and max cap 31250
-
-        if (getNetworkDetail().hasInterworking()) {
-            score += sAntScores.get(getNetworkDetail().getAnt());
+    /**
+     * Calculate and return a score associated with the given Passpoint network.
+     * The score is calculated with the following preferences:
+     * - Prefer home provider
+     * - Prefer network that provides Internet access
+     * - Prefer network with active WAN port with available load
+     * - Prefer network that provides unrestricted IP address
+     * - Prefer currently active network
+     * - Prefer AP with higher RSSI
+     *
+     * This can be expanded for additional preference in the future (e.g. AP station count, link
+     * speed, and etc).
+     *
+     * @param isHomeProvider Flag indicating home provider
+     * @param scanDetail The ScanDetail associated with the AP
+     * @param isActiveNetwork Flag indicating current active network
+     * @return integer score
+     */
+    public static int calculateScore(boolean isHomeProvider, ScanDetail scanDetail,
+            boolean isActiveNetwork) {
+        NetworkDetail networkDetail = scanDetail.getNetworkDetail();
+        int score = 0;
+        if (isHomeProvider) {
+            score += HOME_PROVIDER_AWARD;
         }
 
-        Map<ANQPElementType, ANQPElement> anqp = getNetworkDetail().getANQPElements();
+        // Adjust score based on Internet accessibility.
+        score += (networkDetail.isInternet() ? 1 : -1) * INTERNET_ACCESS_AWARD;
 
+        // Adjust score based on the network type.
+        score += NETWORK_TYPE_SCORES.get(networkDetail.getAnt());
+
+        Map<ANQPElementType, ANQPElement> anqp = networkDetail.getANQPElements();
         if (anqp != null) {
             HSWanMetricsElement wm = (HSWanMetricsElement) anqp.get(ANQPElementType.HSWANMetrics);
-
             if (wm != null) {
                 if (wm.getStatus() != HSWanMetricsElement.LINK_STATUS_UP || wm.isCapped()) {
-                    score -= 1000;
-                } else {
-                    long scaledSpeed =
-                            wm.getDownlinkSpeed() * (255 - wm.getDownlinkLoad()) * 8
-                            + wm.getUplinkSpeed() * (255 - wm.getUplinkLoad()) * 2;
-                    score += Math.min(scaledSpeed, 255000000L) >>> 23;
-                    // Max value is 30 capped at 100Mb/s
+                    score -= WAN_PORT_DOWN_OR_CAPPED_PENALTY;
                 }
             }
 
-            IPAddressTypeAvailabilityElement ipa =
-                    (IPAddressTypeAvailabilityElement) anqp.get(ANQPElementType.ANQPIPAddrAvailability);
+            IPAddressTypeAvailabilityElement ipa = (IPAddressTypeAvailabilityElement)
+                    anqp.get(ANQPElementType.ANQPIPAddrAvailability);
 
             if (ipa != null) {
-                Integer as14 = sIP4Scores.get(ipa.getV4Availability());
-                Integer as16 = sIP6Scores.get(ipa.getV6Availability());
-                as14 = as14 != null ? as14 : 1;
-                as16 = as16 != null ? as16 : 1;
-                // Is IPv4 twice as important as IPv6???
-                score += as14 * 2 + as16;
-            }
-
-            HSConnectionCapabilityElement cce =
-                    (HSConnectionCapabilityElement) anqp.get(ANQPElementType.HSConnCapability);
-
-            if (cce != null) {
-                score = Math.min(Math.max(protoScore(cce) >> 3, -10), 10);
+                Integer v4Score = IPV4_SCORES.get(ipa.getV4Availability());
+                Integer v6Score = IPV6_SCORES.get(ipa.getV6Availability());
+                v4Score = v4Score != null ? v4Score : 0;
+                v6Score = v6Score != null ? v6Score : 0;
+                score += (v4Score + v6Score);
             }
         }
 
-        mScore = score;
-    }
-
-    public PasspointMatch getPasspointMatch() {
-        return mPasspointMatch;
-    }
-
-    public ScanDetail getScanDetail() {
-        return mScanDetail;
-    }
-
-    public NetworkDetail getNetworkDetail() {
-        return mScanDetail.getNetworkDetail();
-    }
-
-    public int getScore() {
-        return mScore;
-    }
-
-    @Override
-    public int compareTo(PasspointMatchInfo that) {
-        return getScore() - that.getScore();
-    }
-
-    private static int protoScore(HSConnectionCapabilityElement cce) {
-        int score = 0;
-        for (ProtocolPortTuple tuple : cce.getStatusList()) {
-            int sign = tuple.getStatus() == ProtocolPortTuple.PROTO_STATUS_OPEN
-                    ? 1 : -1;
-
-            int elementScore = 1;
-            if (tuple.getProtocol() == IPPROTO_ICMP) {
-                elementScore = 1;
-            }
-            else if (tuple.getProtocol() == IPPROTO_ESP) {
-                elementScore = 5;
-            }
-            else {
-                Map<Integer, Integer> protoMap = sPortScores.get(tuple.getProtocol());
-                if (protoMap != null) {
-                    Integer portScore = protoMap.get(tuple.getPort());
-                    elementScore = portScore != null ? portScore : 0;
-                }
-            }
-            score += elementScore * sign;
-        }
+        score += RSSI_SCORE.lookupScore(scanDetail.getScanResult().level, isActiveNetwork);
         return score;
-    }
-
-    @Override
-    public boolean equals(Object thatObject) {
-        if (this == thatObject) {
-            return true;
-        }
-        if (thatObject == null || getClass() != thatObject.getClass()) {
-            return false;
-        }
-
-        PasspointMatchInfo that = (PasspointMatchInfo)thatObject;
-
-        return getNetworkDetail().equals(that.getNetworkDetail()) &&
-                getPasspointMatch().equals(that.getPasspointMatch());
-    }
-
-    @Override
-    public int hashCode() {
-        int result = mPasspointMatch != null ? mPasspointMatch.hashCode() : 0;
-        result = 31 * result + getNetworkDetail().hashCode();
-        return result;
-    }
-
-    @Override
-    public String toString() {
-        return "PasspointMatchInfo{" +
-                ", mPasspointMatch=" + mPasspointMatch +
-                ", mNetworkInfo=" + getNetworkDetail().getSSID() +
-                '}';
     }
 }
