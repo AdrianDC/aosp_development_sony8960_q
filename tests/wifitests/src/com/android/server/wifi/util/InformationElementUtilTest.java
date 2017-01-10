@@ -18,6 +18,8 @@ package com.android.server.wifi.util;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import android.net.wifi.ScanResult.InformationElement;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -407,6 +409,61 @@ public class InformationElementUtilTest {
 
 
         assertEquals("", result);
+    }
+
+    /**
+     * Verify the expectations when building an ExtendedCapabilites IE from data with no bits set.
+     * Both ExtendedCapabilities#isStrictUtf8() and ExtendedCapabilites#is80211McRTTResponder()
+     * should return false.
+     */
+    @Test
+    public void buildExtendedCapabilities_emptyBitSet() {
+        InformationElement ie = new InformationElement();
+        ie.id = InformationElement.EID_EXTENDED_CAPS;
+        ie.bytes = new byte[8];
+
+        InformationElementUtil.ExtendedCapabilities extendedCap =
+                new InformationElementUtil.ExtendedCapabilities();
+        extendedCap.from(ie);
+        assertFalse(extendedCap.isStrictUtf8());
+        assertFalse(extendedCap.is80211McRTTResponder());
+    }
+
+    /**
+     * Verify the expectations when building an ExtendedCapabilites IE from data with UTF-8 SSID
+     * bit set (bit 48).  ExtendedCapabilities#isStrictUtf8() should return true.
+     */
+    @Test
+    public void buildExtendedCapabilites_strictUtf8() {
+        InformationElement ie = new InformationElement();
+        ie.id = InformationElement.EID_EXTENDED_CAPS;
+        ie.bytes = new byte[] { (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
+                                (byte) 0x00, (byte) 0x00, (byte) 0x01, (byte) 0x00 };
+
+        InformationElementUtil.ExtendedCapabilities extendedCap =
+                new InformationElementUtil.ExtendedCapabilities();
+        extendedCap.from(ie);
+        assertTrue(extendedCap.isStrictUtf8());
+        assertFalse(extendedCap.is80211McRTTResponder());
+    }
+
+    /**
+     * Verify the expectations when building an ExtendedCapabilites IE from data with RTT Response
+     * Enable bit set (bit 70).  ExtendedCapabilities#is80211McRTTResponder() should return true.
+     */
+    @Test
+    public void buildExtendedCapabilites_80211McRTTResponder() {
+        InformationElement ie = new InformationElement();
+        ie.id = InformationElement.EID_EXTENDED_CAPS;
+        ie.bytes = new byte[] { (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
+                                (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
+                                (byte) 0x40 };
+
+        InformationElementUtil.ExtendedCapabilities extendedCap =
+                new InformationElementUtil.ExtendedCapabilities();
+        extendedCap.from(ie);
+        assertFalse(extendedCap.isStrictUtf8());
+        assertTrue(extendedCap.is80211McRTTResponder());
     }
 
     /**
