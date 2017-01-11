@@ -4683,8 +4683,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // hence record the time we were connected last
             WifiConfiguration config = mWifiConfigManager.getConfiguredNetwork(mLastNetworkId);
             if (config != null) {
-                if (config.ephemeral) {
-                    // Remove ephemeral WifiConfigurations from file
+                // Remove WifiConfiguration for ephemeral or Passpoint networks, since they're
+                // temporary networks.
+                if (config.ephemeral || config.isPasspoint()) {
                     mWifiConfigManager.removeNetwork(mLastNetworkId, Process.WIFI_UID);
                 }
             }
