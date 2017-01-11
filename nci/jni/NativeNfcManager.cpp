@@ -427,7 +427,7 @@ static void nfaConnectionCallback (uint8_t connEvent, tNFA_CONN_EVT_DATA* eventD
         //pass the failure status to the NFC Service;
         status = eventData->ndef_detect.status;
         ALOGD("%s: NFA_NDEF_DETECT_EVT: status = 0x%X, protocol = %u, "
-             "max_size = %lu, cur_size = %lu, flags = 0x%X", __func__,
+             "max_size = %u, cur_size = %u, flags = 0x%X", __func__,
              status,
              eventData->ndef_detect.protocol, eventData->ndef_detect.max_size,
              eventData->ndef_detect.cur_size, eventData->ndef_detect.flags);
@@ -479,7 +479,7 @@ static void nfaConnectionCallback (uint8_t connEvent, tNFA_CONN_EVT_DATA* eventD
         break;
 
     case NFA_CE_NDEF_WRITE_CPLT_EVT: // NDEF write completed
-        ALOGD("%s: FA_CE_NDEF_WRITE_CPLT_EVT: len = %lu", __func__, eventData->ndef_write_cplt.len);
+        ALOGD("%s: FA_CE_NDEF_WRITE_CPLT_EVT: len = %u", __func__, eventData->ndef_write_cplt.len);
         break;
 
     case NFA_LLCP_ACTIVATED_EVT: // LLCP link is activated
