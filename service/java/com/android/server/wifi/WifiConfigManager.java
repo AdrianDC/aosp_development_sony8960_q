@@ -899,9 +899,11 @@ public class WifiConfigManager {
                             existingInternalConfig, config, uid);
         }
 
-        // Update the keys for enterprise networks.
+        // Update the keys for non-Passpoint enterprise networks.  For Passpoint, the certificates
+        // and keys are installed at the time the provider is installed.
         if (config.enterpriseConfig != null
-                && config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
+                && config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE
+                && !config.isPasspoint()) {
             if (!(mWifiKeyStore.updateNetworkKeys(newInternalConfig, existingInternalConfig))) {
                 return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
             }
@@ -2558,8 +2560,8 @@ public class WifiConfigManager {
         ArrayList<WifiConfiguration> sharedConfigurations = new ArrayList<>();
         ArrayList<WifiConfiguration> userConfigurations = new ArrayList<>();
         for (WifiConfiguration config : mConfiguredNetworks.valuesForAllUsers()) {
-            // Don't persist ephemeral networks to store.
-            if (!config.ephemeral) {
+            // Don't persist ephemeral and passpoint networks to store.
+            if (!config.ephemeral && !config.isPasspoint()) {
                 // We push all shared networks & private networks not belonging to the current
                 // user to the shared store. Ideally, private networks for other users should
                 // not even be in memory,

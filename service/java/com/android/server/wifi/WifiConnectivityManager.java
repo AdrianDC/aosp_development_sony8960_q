@@ -33,6 +33,7 @@ import android.util.LocalLog;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.wifi.hotspot2.PasspointNetworkEvaluator;
 import com.android.server.wifi.util.ScanResultUtil;
 
 import java.io.FileDescriptor;
@@ -118,7 +119,8 @@ public class WifiConnectivityManager {
 
     // Saved network evaluator priority
     private static final int SAVED_NETWORK_EVALUATOR_PRIORITY = 1;
-    private static final int RECOMMENDED_NETWORK_EVALUATOR_PRIORITY = 2;
+    private static final int PASSPOINT_NETWORK_EVALUATOR_PRIORITY = 2;
+    private static final int RECOMMENDED_NETWORK_EVALUATOR_PRIORITY = 3;
 
     private final WifiStateMachine mStateMachine;
     private final WifiScanner mScanner;
@@ -471,7 +473,8 @@ public class WifiConnectivityManager {
             WifiLastResortWatchdog wifiLastResortWatchdog, WifiMetrics wifiMetrics,
             Looper looper, Clock clock, boolean enable, FrameworkFacade frameworkFacade,
             SavedNetworkEvaluator savedNetworkEvaluator,
-            RecommendedNetworkEvaluator recommendedNetworkEvaluator) {
+            RecommendedNetworkEvaluator recommendedNetworkEvaluator,
+            PasspointNetworkEvaluator passpointNetworkEvaluator) {
         mStateMachine = stateMachine;
         mScanner = scanner;
         mConfigManager = configManager;
@@ -518,6 +521,8 @@ public class WifiConnectivityManager {
         // Register the network evaluators
         mNetworkSelector.registerNetworkEvaluator(savedNetworkEvaluator,
                 SAVED_NETWORK_EVALUATOR_PRIORITY);
+        mNetworkSelector.registerNetworkEvaluator(passpointNetworkEvaluator,
+                PASSPOINT_NETWORK_EVALUATOR_PRIORITY);
         mNetworkSelector.registerNetworkEvaluator(recommendedNetworkEvaluator,
                 RECOMMENDED_NETWORK_EVALUATOR_PRIORITY);
 
