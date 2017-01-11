@@ -47,21 +47,21 @@ AidBuffer::AidBuffer (std::string& aid)
     std::string::size_type pos2 = aid.find_first_of (delimiter);
 
     //parse the AID string; each hex number is separated by a colon;
-    mBuffer = new UINT8 [aid.length()];
+    mBuffer = new uint8_t [aid.length()];
     while (true)
     {
         num = 0;
         if (pos2 == std::string::npos)
         {
             sscanf (aid.substr(pos1).c_str(), "%x", &num);
-            mBuffer [mBufferLen] = (UINT8) num;
+            mBuffer [mBufferLen] = (uint8_t) num;
             mBufferLen++;
             break;
         }
         else
         {
             sscanf (aid.substr(pos1, pos2-pos1+1).c_str(), "%x", &num);
-            mBuffer [mBufferLen] = (UINT8) num;
+            mBuffer [mBufferLen] = (uint8_t) num;
             mBufferLen++;
             pos1 = pos2 + 1;
             pos2 = aid.find_first_of (delimiter, pos1);

@@ -214,7 +214,7 @@ tNFC_PROTOCOL NfcTag::getProtocol()
 ** Returns          Time difference in milliseconds
 **
 *******************************************************************************/
-UINT32 TimeDiff(timespec start, timespec end)
+uint32_t TimeDiff(timespec start, timespec end)
 {
     timespec temp;
     if ((end.tv_nsec-start.tv_nsec)<0)
@@ -341,7 +341,7 @@ void NfcTag::discoverTechnologies (tNFA_ACTIVATED& activationData)
     }
     else if (NFC_PROTOCOL_T3T == rfDetail.protocol)
     {
-        UINT8 xx = 0;
+        uint8_t xx = 0;
 
         mTechList [mNumTechList] = TARGET_TYPE_FELICA;
 
@@ -762,7 +762,7 @@ void NfcTag::fillNativeNfcTagMembers3 (JNIEnv* e, jclass tag_cls, jobject tag, t
             System Code: 2 bytes;
             ****************/
             ALOGD ("%s: tech F", fn);
-            UINT8 result [10]; //return result to NFC service
+            uint8_t result [10]; //return result to NFC service
             memset (result, 0, sizeof(result));
             len =  10;
 
@@ -776,9 +776,9 @@ void NfcTag::fillNativeNfcTagMembers3 (JNIEnv* e, jclass tag_cls, jobject tag, t
             memcpy (result, mTechParams [i].param.pf.sensf_res + 8, 8); //copy PMm
             if (activationData.params.t3t.num_system_codes > 0) //copy the first System Code
             {
-                UINT16 systemCode = *(activationData.params.t3t.p_system_codes);
-                result [8] = (UINT8) (systemCode >> 8);
-                result [9] = (UINT8) systemCode;
+                uint16_t systemCode = *(activationData.params.t3t.p_system_codes);
+                result [8] = (uint8_t) (systemCode >> 8);
+                result [9] = (uint8_t) systemCode;
                 ALOGD ("%s: tech F; sys code=0x%X 0x%X", fn, result [8], result [9]);
             }
             pollBytes.reset(e->NewByteArray(len));
@@ -1065,7 +1065,7 @@ bool NfcTag::isP2pDiscovered ()
 void NfcTag::selectP2p()
 {
     static const char fn [] = "NfcTag::selectP2p";
-    UINT8 rfDiscoveryId = 0;
+    uint8_t rfDiscoveryId = 0;
 
     for (int i = 0; i < mNumTechList; i++)
     {
@@ -1336,7 +1336,7 @@ bool NfcTag::isFelicaLite ()
 ** Returns:         True if the response is NACK
 **
 *******************************************************************************/
-bool NfcTag::isT2tNackResponse (const UINT8* response, UINT32 responseLen)
+bool NfcTag::isT2tNackResponse (const uint8_t* response, uint32_t responseLen)
 {
     static const char fn [] = "NfcTag::isT2tNackResponse";
     bool isNack = false;
@@ -1379,7 +1379,7 @@ bool NfcTag::isNdefDetectionTimedOut ()
 ** Returns:         None
 **
 *******************************************************************************/
-void NfcTag::connectionEventHandler (UINT8 event, tNFA_CONN_EVT_DATA* data)
+void NfcTag::connectionEventHandler (uint8_t event, tNFA_CONN_EVT_DATA* data)
 {
     static const char fn [] = "NfcTag::connectionEventHandler";
 
@@ -1575,7 +1575,7 @@ bool NfcTag::isInfineonMyDMove ()
             //Short Product Information, 2011-11-24, section 3.5
             if (mTechParams[i].param.pa.nfcid1[0] == 0x05)
             {
-                UINT8 highNibble = mTechParams[i].param.pa.nfcid1[1] & 0xF0;
+                uint8_t highNibble = mTechParams[i].param.pa.nfcid1[1] & 0xF0;
                 if (highNibble == 0x30)
                     retval = true;
             }
