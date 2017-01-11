@@ -31,7 +31,7 @@ phLibNfc_NdefInfo_t        NdefInfo;
 #if(NFC_NXP_NOT_OPEN_INCLUDED == TRUE)
 pthread_mutex_t SharedDataMutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
-UINT8 current_key[6]={0};
+uint8_t current_key[6]={0};
 phNci_mfc_auth_cmd_t       gAuthCmdBuf;
 STATIC NFCSTATUS phNciNfc_SendMfReq(phNciNfc_TransceiveInfo_t tTranscvInfo,
                                     uint8_t *buff, uint16_t *buffSz);
@@ -579,7 +579,7 @@ STATIC void Mfc_SetRdOnly_Completion_Routine(void *NdefCtxt, NFCSTATUS status)
 {
     (void)NdefCtxt;
     tNFA_CONN_EVT_DATA conn_evt_data;
-    ALOGE("%s status = 0x%x", __FUNCTION__, status);
+    ALOGE("%s status = 0x%x", __func__, status);
     conn_evt_data.status = status;
     (*gphNxpExtns_Context.p_conn_cback) (NFA_SET_TAG_RO_EVT, &conn_evt_data);
 
@@ -600,7 +600,7 @@ STATIC void Mfc_SetRdOnly_Completion_Routine(void *NdefCtxt, NFCSTATUS status)
 *******************************************************************************/
 NFCSTATUS Mfc_SetReadOnly(uint8_t *secrtkey, uint8_t len)
 {
-    NXPLOG_EXTNS_D("%s Entering ", __FUNCTION__);
+    NXPLOG_EXTNS_D("%s Entering ", __func__);
     NFCSTATUS status = NFCSTATUS_FAILED;
     uint8_t mif_secrete_key[6] = {0};
     uint8_t id = 0;
@@ -774,7 +774,7 @@ NFCSTATUS Mfc_PresenceCheck(void)
     {
         status = NFCSTATUS_NOT_ALLOWED;
     }
-    NXPLOG_EXTNS_D("%s status = 0x%x", __FUNCTION__, status);
+    NXPLOG_EXTNS_D("%s status = 0x%x", __func__, status);
     return status;
 }
 /*******************************************************************************
@@ -1006,7 +1006,7 @@ NFCSTATUS phNxNciExtns_MifareStd_Reconnect(void)
     EXTNS_SetDeactivateFlag(TRUE);
     if (NFA_STATUS_OK != (status = NFA_Deactivate (TRUE))) /* deactivate to sleep state */
     {
-        NXPLOG_EXTNS_E ("%s: deactivate failed, status = %d", __FUNCTION__, status);
+        NXPLOG_EXTNS_E ("%s: deactivate failed, status = %d", __func__, status);
         return NFCSTATUS_FAILED;
     }
 
@@ -1032,7 +1032,7 @@ void Mfc_DeactivateCbackSelect(void)
     if (NFA_STATUS_OK != (status = NFA_Select (0x01, phNciNfc_e_RfProtocolsMifCProtocol,
                                                      phNciNfc_e_RfInterfacesTagCmd_RF)))
     {
-        NXPLOG_EXTNS_E ("%s: NFA_Select failed, status = %d", __FUNCTION__, status);
+        NXPLOG_EXTNS_E ("%s: NFA_Select failed, status = %d", __func__, status);
     }
 
     return;
@@ -1187,7 +1187,7 @@ STATIC NFCSTATUS nativeNfcExtns_doTransceive(uint8_t *buff, uint16_t buffSz)
 
     if (status != NFA_STATUS_OK)
     {
-        NXPLOG_EXTNS_E ("%s: fail send; error=%d", __FUNCTION__, status);
+        NXPLOG_EXTNS_E ("%s: fail send; error=%d", __func__, status);
         wStatus = NFCSTATUS_FAILED;
     }
 
@@ -1421,7 +1421,7 @@ NFCSTATUS Mfc_RecvPacket(uint8_t *buff, uint8_t buffSz)
     status = phNciNfc_RecvMfResp(&RspBuff, status);
     if (TRUE == gAuthCmdBuf.auth_sent)
     {
-        ALOGD("%s Mfc Check Presence in progress", __FUNCTION__);
+        ALOGD("%s Mfc Check Presence in progress", __func__);
         gAuthCmdBuf.auth_sent = FALSE;
         return status;
     }
