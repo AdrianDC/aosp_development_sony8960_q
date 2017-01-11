@@ -631,7 +631,7 @@ NFCSTATUS EXTNS_GetPresenceCheckStatus (void)
     {
         ALOGE ("%s: failed to wait (errno=%d)", __func__, errno);
         sem_destroy (&gAuthCmdBuf.semPresenceCheck);
-        gAuthCmdBuf.auth_sent = FALSE;
+        gAuthCmdBuf.auth_sent = false;
         return NFCSTATUS_FAILED;
     }
     if (sem_destroy (&gAuthCmdBuf.semPresenceCheck))
@@ -644,12 +644,12 @@ NFCSTATUS EXTNS_GetPresenceCheckStatus (void)
 void MfcPresenceCheckResult (NFCSTATUS status)
 {
     gAuthCmdBuf.status = status;
-    EXTNS_SetCallBackFlag (TRUE);
+    EXTNS_SetCallBackFlag (true);
     sem_post (&gAuthCmdBuf.semPresenceCheck);
 }
 void MfcResetPresenceCheckStatus (void)
 {
-    gAuthCmdBuf.auth_sent = FALSE;
+    gAuthCmdBuf.auth_sent = false;
 }
 /*******************************************************************************
 **
