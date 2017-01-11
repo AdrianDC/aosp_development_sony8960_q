@@ -136,7 +136,7 @@ bool RoutingManager::initialize (nfc_jni_native_data* native)
         }
 
         ALOGD ("%s: Number of EE is %d", fn, mEeInfo.num_ee);
-        for (UINT8 i = 0; i < mEeInfo.num_ee; i++)
+        for (uint8_t i = 0; i < mEeInfo.num_ee; i++)
         {
             tNFA_HANDLE eeHandle = mEeInfo.ee_disc_info[i].ee_handle;
             tNFA_TECHNOLOGY_MASK seTechMask = 0;
@@ -326,11 +326,11 @@ void RoutingManager::disableRoutingToHost()
     }
 }
 
-bool RoutingManager::addAidRouting(const UINT8* aid, UINT8 aidLen, int route)
+bool RoutingManager::addAidRouting(const uint8_t* aid, uint8_t aidLen, int route)
 {
     static const char fn [] = "RoutingManager::addAidRouting";
     ALOGD ("%s: enter", fn);
-    tNFA_STATUS nfaStat = NFA_EeAddAidRouting(route, aidLen, (UINT8*) aid, 0x01);
+    tNFA_STATUS nfaStat = NFA_EeAddAidRouting(route, aidLen, (uint8_t*) aid, 0x01);
     if (nfaStat == NFA_STATUS_OK)
     {
         ALOGD ("%s: routed AID", fn);
@@ -342,11 +342,11 @@ bool RoutingManager::addAidRouting(const UINT8* aid, UINT8 aidLen, int route)
     }
 }
 
-bool RoutingManager::removeAidRouting(const UINT8* aid, UINT8 aidLen)
+bool RoutingManager::removeAidRouting(const uint8_t* aid, uint8_t aidLen)
 {
     static const char fn [] = "RoutingManager::removeAidRouting";
     ALOGD ("%s: enter", fn);
-    tNFA_STATUS nfaStat = NFA_EeRemoveAidRouting(aidLen, (UINT8*) aid);
+    tNFA_STATUS nfaStat = NFA_EeRemoveAidRouting(aidLen, (uint8_t*) aid);
     if (nfaStat == NFA_STATUS_OK)
     {
         ALOGD ("%s: removed AID", fn);
@@ -380,7 +380,7 @@ void RoutingManager::onNfccShutdown ()
     if (mActiveSe == 0x00) return;
 
     tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
-    UINT8 actualNumEe = MAX_NUM_EE;
+    uint8_t actualNumEe = MAX_NUM_EE;
     tNFA_EE_INFO eeInfo[MAX_NUM_EE];
 
     memset (&eeInfo, 0, sizeof(eeInfo));
@@ -391,7 +391,7 @@ void RoutingManager::onNfccShutdown ()
     }
     if (actualNumEe != 0)
     {
-        for (UINT8 xx = 0; xx < actualNumEe; xx++)
+        for (uint8_t xx = 0; xx < actualNumEe; xx++)
         {
             if ((eeInfo[xx].num_interface != 0)
                 && (eeInfo[xx].ee_interface[0] != NCI_NFCEE_INTERFACE_HCI_ACCESS)
@@ -416,7 +416,7 @@ void RoutingManager::onNfccShutdown ()
     }
 }
 
-void RoutingManager::notifyActivated (UINT8 technology)
+void RoutingManager::notifyActivated (uint8_t technology)
 {
     JNIEnv* e = NULL;
     ScopedAttach attach(mNativeData->vm, &e);
@@ -434,7 +434,7 @@ void RoutingManager::notifyActivated (UINT8 technology)
     }
 }
 
-void RoutingManager::notifyDeactivated (UINT8 technology)
+void RoutingManager::notifyDeactivated (uint8_t technology)
 {
     mRxDataBuffer.clear();
     JNIEnv* e = NULL;
@@ -453,7 +453,7 @@ void RoutingManager::notifyDeactivated (UINT8 technology)
     }
 }
 
-void RoutingManager::handleData (UINT8 technology, const UINT8* data, UINT32 dataLen, tNFA_STATUS status)
+void RoutingManager::handleData (uint8_t technology, const uint8_t* data, uint32_t dataLen, tNFA_STATUS status)
 {
     if (status == NFA_STATUS_CONTINUE)
     {
@@ -514,7 +514,7 @@ TheEnd:
     mRxDataBuffer.clear();
 }
 
-void RoutingManager::stackCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData)
+void RoutingManager::stackCallback (uint8_t event, tNFA_CONN_EVT_DATA* eventData)
 {
     static const char fn [] = "RoutingManager::stackCallback";
     ALOGD("%s: event=0x%X", fn, event);
@@ -636,7 +636,7 @@ void RoutingManager::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* event
 
     case NFA_EE_DISCOVER_REQ_EVT:
         {
-            ALOGD ("%s: NFA_EE_DISCOVER_REQ_EVT; status=0x%X; num ee=%u", __FUNCTION__,
+            ALOGD ("%s: NFA_EE_DISCOVER_REQ_EVT; status=0x%X; num ee=%u", __func__,
                     eventData->discover_req.status, eventData->discover_req.num_ee);
             SyncEventGuard guard (routingManager.mEeInfoEvent);
             memcpy (&routingManager.mEeInfo, &eventData->discover_req, sizeof(routingManager.mEeInfo));
@@ -682,7 +682,7 @@ void RoutingManager::nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* event
     }
 }
 
-int RoutingManager::registerT3tIdentifier(UINT8* t3tId, UINT8 t3tIdLen)
+int RoutingManager::registerT3tIdentifier(uint8_t* t3tId, uint8_t t3tIdLen)
 {
     static const char fn [] = "RoutingManager::registerT3tIdentifier";
 
@@ -698,7 +698,7 @@ int RoutingManager::registerT3tIdentifier(UINT8* t3tId, UINT8 t3tIdLen)
     mNfcFOnDhHandle = NFA_HANDLE_INVALID;
 
     int systemCode;
-    UINT8 nfcid2[NCI_RF_F_UID_LEN];
+    uint8_t nfcid2[NCI_RF_F_UID_LEN];
 
     systemCode = (((int)t3tId[0] << 8) | ((int)t3tId[1] << 0));
     memcpy(nfcid2, t3tId + 2, NCI_RF_F_UID_LEN);
@@ -738,12 +738,12 @@ void RoutingManager::deregisterT3tIdentifier(int handle)
     }
 }
 
-void RoutingManager::nfcFCeCallback (UINT8 event, tNFA_CONN_EVT_DATA* eventData)
+void RoutingManager::nfcFCeCallback (uint8_t event, tNFA_CONN_EVT_DATA* eventData)
 {
     static const char fn [] = "RoutingManager::nfcFCeCallback";
     RoutingManager& routingManager = RoutingManager::getInstance();
 
-    ALOGD("%s: 0x%x", __FUNCTION__, event);
+    ALOGD("%s: 0x%x", __func__, event);
 
     switch (event)
     {
