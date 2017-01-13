@@ -1812,7 +1812,7 @@ public class WifiNative {
             }
         }
 
-        if (extendedCaps.is80211McRTTResponder) {
+        if (extendedCaps.is80211McRTTResponder()) {
             result.setFlag(ScanResult.FLAG_80211mc_RESPONDER);
         } else {
             result.clearFlag(ScanResult.FLAG_80211mc_RESPONDER);
@@ -1844,8 +1844,9 @@ public class WifiNative {
         if(DBG) {
             Log.d(TAG, dbg + "SSID: " + result.SSID + " ChannelWidth is: " + result.channelWidth
                     + " PrimaryFreq: " + result.frequency + " mCenterfreq0: " + result.centerFreq0
-                    + " mCenterfreq1: " + result.centerFreq1 + (extendedCaps.is80211McRTTResponder
-                    ? "Support RTT reponder: " : "Do not support RTT responder")
+                    + " mCenterfreq1: " + result.centerFreq1
+                    + (extendedCaps.is80211McRTTResponder() ? "Support RTT reponder: "
+                            : "Do not support RTT responder")
                     + " Capabilities: " + result.capabilities);
         }
 
