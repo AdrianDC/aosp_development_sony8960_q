@@ -261,37 +261,52 @@ public class InformationElementUtil {
         }
     }
 
+    /**
+     * This IE contained a bit field indicating the capabilities being advertised by the STA.
+     * The size of the bit field (number of bytes) is indicated by the |Length| field in the IE.
+     *
+     * Refer to Section 8.4.2.29 in IEEE 802.11-2012 Spec for capability associated with each
+     * bit.
+     *
+     * Here is the wire format of this IE:
+     * | Element ID | Length | Capabilities |
+     *       1           1          n
+     */
     public static class ExtendedCapabilities {
         private static final int RTT_RESP_ENABLE_BIT = 70;
-        private static final long SSID_UTF8_BIT = 0x0001000000000000L;
+        private static final int SSID_UTF8_BIT = 48;
 
-        public Long extendedCapabilities = null;
-        public boolean is80211McRTTResponder = false;
+        public BitSet capabilitiesBitSet;
+
+        /**
+         * @return true if SSID should be interpreted using UTF-8 encoding
+         */
+        public boolean isStrictUtf8() {
+            return capabilitiesBitSet.get(SSID_UTF8_BIT);
+        }
+
+        /**
+         * @return true if 802.11 MC RTT Response is enabled
+         */
+        public boolean is80211McRTTResponder() {
+            return capabilitiesBitSet.get(RTT_RESP_ENABLE_BIT);
+        }
 
         public ExtendedCapabilities() {
+            capabilitiesBitSet = new BitSet();
         }
 
         public ExtendedCapabilities(ExtendedCapabilities other) {
-            extendedCapabilities = other.extendedCapabilities;
-            is80211McRTTResponder = other.is80211McRTTResponder;
+            capabilitiesBitSet = other.capabilitiesBitSet;
         }
 
-        public boolean isStrictUtf8() {
-            return extendedCapabilities != null && (extendedCapabilities & SSID_UTF8_BIT) != 0;
-        }
-
+        /**
+         * Parse an ExtendedCapabilities from the IE containing raw bytes.
+         *
+         * @param ie The Information element data
+         */
         public void from(InformationElement ie) {
-            ByteBuffer data = ByteBuffer.wrap(ie.bytes).order(ByteOrder.LITTLE_ENDIAN);
-            extendedCapabilities =
-                    ByteBufferReader.readInteger(data, ByteOrder.LITTLE_ENDIAN, ie.bytes.length);
-
-            int index = RTT_RESP_ENABLE_BIT / 8;
-            byte offset = RTT_RESP_ENABLE_BIT % 8;
-            if (ie.bytes.length < index + 1) {
-                is80211McRTTResponder = false;
-            } else {
-                is80211McRTTResponder = (ie.bytes[index] & ((byte) 0x1 << offset)) != 0;
-            }
+            capabilitiesBitSet = BitSet.valueOf(ie.bytes);
         }
     }
 
