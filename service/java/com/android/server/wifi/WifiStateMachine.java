@@ -3700,7 +3700,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (ac == mWifiP2pChannel) {
                         if (message.arg1 == AsyncChannel.STATUS_SUCCESSFUL) {
                             p2pSendMessage(AsyncChannel.CMD_CHANNEL_FULL_CONNECTION);
+                            // since the p2p channel is connected, we should enable p2p if we are in
+                            // connect mode.  We may not be in connect mode yet, we may have just
+                            // set the operational mode and started to set up for connect mode.
+                            if (mOperationalMode == CONNECT_MODE) {
+                                // This message will only be handled if we are in Connect mode.
+                                // If we are not in connect mode yet, this will be dropped and the
+                                // ConnectMode.enter method will call to enable p2p.
+                                sendMessage(CMD_ENABLE_P2P);
+                            }
                         } else {
+                            // TODO: We should probably do some cleanup or attempt a retry
+                            // b/34283611
                             loge("WifiP2pService connection failure, error=" + message.arg1);
                         }
                     } else {
@@ -3712,7 +3723,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     AsyncChannel ac = (AsyncChannel) message.obj;
                     if (ac == mWifiP2pChannel) {
                         loge("WifiP2pService channel lost, message.arg1 =" + message.arg1);
-                        //TODO: Re-establish connection to state machine after a delay
+                        //TODO: Re-establish connection to state machine after a delay (b/34283611)
                         // mWifiP2pChannel.connect(mContext, getHandler(),
                         // mWifiP2pManager.getMessenger());
                     }
@@ -3789,6 +3800,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE:
                 case DhcpClient.CMD_POST_DHCP_ACTION:
                 case CMD_NO_NETWORKS_PERIODIC_SCAN:
+                case CMD_ENABLE_P2P:
                 case CMD_DISABLE_P2P_RSP:
                 case WifiMonitor.SUP_REQUEST_IDENTITY:
                 case CMD_TEST_NETWORK_DISCONNECT:
@@ -4802,6 +4814,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiConnectivityManager.setWifiEnabled(true);
             // Inform metrics that Wifi is Enabled (but not yet connected)
             mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_DISCONNECTED);
+            // Inform p2p service that wifi is up and ready when applicable
+            p2pSendMessage(WifiStateMachine.CMD_ENABLE_P2P);
         }
 
         @Override
@@ -5330,6 +5344,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_MATCH_PROVIDER_NETWORK:
                     // TODO(b/31065385): Passpoint config management.
                     replyToMessage(message, message.what, 0);
+                    break;
+                case CMD_ENABLE_P2P:
+                    p2pSendMessage(WifiStateMachine.CMD_ENABLE_P2P);
                     break;
                 default:
                     return NOT_HANDLED;
