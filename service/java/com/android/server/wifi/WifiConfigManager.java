@@ -2032,6 +2032,7 @@ public class WifiConfigManager {
                 currentConfig.updateTime = config.updateTime;
                 currentConfig.creationTime = config.creationTime;
                 currentConfig.shared = config.shared;
+                currentConfig.isCarrierNetwork = config.isCarrierNetwork;
             }
             if (DBG) {
                 log("created new config netId=" + Integer.toString(netId)
@@ -3220,8 +3221,6 @@ public class WifiConfigManager {
      */
     public WifiConfiguration saveNetworkAndSetCandidate(WifiConfiguration config,
                                                         ScanResult scanResult) {
-        // Mark this config as ephemeral so it isn't persisted.
-        config.ephemeral = true;
         saveNetwork(config, WifiConfiguration.UNKNOWN_UID);
 
         config.getNetworkSelectionStatus().setCandidate(scanResult);

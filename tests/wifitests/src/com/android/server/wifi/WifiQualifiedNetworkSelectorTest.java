@@ -2447,7 +2447,8 @@ public class WifiQualifiedNetworkSelectorTest {
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 false, scanDetails, false, false, true, false);
-
+        assertTrue(candidate.isCarrierNetwork);
+        assertTrue(candidate.ephemeral);
         assertTrue(candidate.SSID.contains(chosenScanResult.SSID));
     }
 

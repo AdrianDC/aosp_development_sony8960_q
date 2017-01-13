@@ -1092,6 +1092,11 @@ public class WifiQualifiedNetworkSelector {
             return null;
         }
 
+        // Mark this config as ephemeral so it isn't persisted.
+        untrustedCandidateConfig.ephemeral = true;
+        // Mark this config as a Carrier Network.
+        untrustedCandidateConfig.isCarrierNetwork = true;
+
         mWifiConfigManager.saveNetworkAndSetCandidate(
                 untrustedCandidateConfig, untrustedCarrierScanResult);
         return untrustedCandidateConfig;

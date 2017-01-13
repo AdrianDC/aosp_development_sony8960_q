@@ -6349,7 +6349,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private void updateCapabilities(WifiConfiguration config) {
         NetworkCapabilities networkCapabilities = new NetworkCapabilities(mDfltNetworkCapabilities);
         if (config != null) {
-            if (config.ephemeral) {
+            Log.d(TAG, "updateCapabilities for config:" + config.getPrintableSsid() + config.ephemeral +
+                    "," + config.isCarrierNetwork);
+            if (config.ephemeral && !config.isCarrierNetwork) {
                 networkCapabilities.removeCapability(
                         NetworkCapabilities.NET_CAPABILITY_TRUSTED);
             } else {
