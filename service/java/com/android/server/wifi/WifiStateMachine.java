@@ -430,7 +430,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     // Channel for sending replies.
     private AsyncChannel mReplyChannel = new AsyncChannel();
 
-    private WifiP2pServiceImpl mWifiP2pServiceImpl;
     private WifiAwareManager mWifiAwareManager;
 
     // Used to initiate a connection with WifiP2pService
@@ -877,6 +876,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 .hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE);
 
         mWifiConfigManager = mWifiInjector.getWifiConfigManager();
+        mWifiApConfigStore = mWifiInjector.getWifiApConfigStore();
         mWifiSupplicantControl = mWifiInjector.getWifiSupplicantControl();
         mWifiSupplicantControl.setSystemSupportsFastBssTransition(
                 mContext.getResources().getBoolean(R.bool.config_wifi_fast_bss_transition_enabled));
@@ -892,13 +892,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 mFacade.makeSupplicantStateTracker(context, mWifiConfigManager, getHandler());
 
         mLinkProperties = new LinkProperties();
-
-        IBinder s1 = mFacade.getService(Context.WIFI_P2P_SERVICE);
-        mWifiP2pServiceImpl = (WifiP2pServiceImpl) IWifiP2pManager.Stub.asInterface(s1);
-
-        if (mAwareSupported) {
-            mWifiAwareManager = mContext.getSystemService(WifiAwareManager.class);
-        }
 
         mNetworkInfo.setIsAvailable(false);
         mLastBssid = null;
@@ -3646,6 +3639,31 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
+    /**
+     * WifiStateMachine needs to enable/disable other services when wifi is in client mode.  This
+     * method allows WifiStateMachine to get these additional system services.
+     *
+     * At this time, this method is used to setup variables for P2P service and Wifi Aware.
+     */
+    private void getAdditionalWifiServiceInterfaces() {
+        // First set up Wifi Direct
+        // TODO: b/34193861 determine if we can avoid starting WIFI_P2P_SERVICE when not supported
+        IBinder s1 = mFacade.getService(Context.WIFI_P2P_SERVICE);
+        WifiP2pServiceImpl wifiP2pServiceImpl =
+                (WifiP2pServiceImpl) IWifiP2pManager.Stub.asInterface(s1);
+
+        if (wifiP2pServiceImpl != null) {
+            mWifiP2pChannel = new AsyncChannel();
+            mWifiP2pChannel.connect(mContext, getHandler(),
+                    wifiP2pServiceImpl.getP2pStateMachineMessenger());
+        }
+
+        // Set up Wifi Aware
+        if (mAwareSupported) {
+            mWifiAwareManager = mContext.getSystemService(WifiAwareManager.class);
+        }
+    }
+
     /********************************************************
      * HSM states
      *******************************************************/
@@ -3709,6 +3727,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case CMD_BOOT_COMPLETED:
+                    // get other services that we need to manage
+                    getAdditionalWifiServiceInterfaces();
                     maybeRegisterNetworkFactory();
                     break;
                 case CMD_SCREEN_STATE_CHANGED:
@@ -3937,16 +3957,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         @Override
         public void enter() {
             cleanup();
-            if (mWifiP2pChannel == null && mWifiP2pServiceImpl != null) {
-                mWifiP2pChannel = new AsyncChannel();
-                mWifiP2pChannel.connect(mContext, getHandler(),
-                    mWifiP2pServiceImpl.getP2pStateMachineMessenger());
-            }
-
-            if (mWifiApConfigStore == null) {
-                mWifiApConfigStore = mWifiInjector.getWifiApConfigStore();
-            }
         }
+
         @Override
         public boolean processMessage(Message message) {
             logStateAndMessage(message, this);
