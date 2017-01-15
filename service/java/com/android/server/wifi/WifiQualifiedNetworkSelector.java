@@ -1092,14 +1092,17 @@ public class WifiQualifiedNetworkSelector {
             return null;
         }
 
+        WifiConfiguration newUntrustedCandidateConfig =
+                new WifiConfiguration(untrustedCandidateConfig);
+
         // Mark this config as ephemeral so it isn't persisted.
-        untrustedCandidateConfig.ephemeral = true;
+        newUntrustedCandidateConfig.ephemeral = true;
         // Mark this config as a Carrier Network.
-        untrustedCandidateConfig.isCarrierNetwork = true;
+        newUntrustedCandidateConfig.isCarrierNetwork = true;
 
         mWifiConfigManager.saveNetworkAndSetCandidate(
-                untrustedCandidateConfig, untrustedCarrierScanResult);
-        return untrustedCandidateConfig;
+                newUntrustedCandidateConfig, untrustedCarrierScanResult);
+        return newUntrustedCandidateConfig;
     }
 
     /**

@@ -2421,6 +2421,23 @@ public class WifiQualifiedNetworkSelectorTest {
         assertEquals("Expect no network selection", null, candidate);
     }
 
+    boolean compareCarrierConfigs(WifiConfiguration candidate, WifiConfiguration carrierConfig) {
+        if (!candidate.SSID.equals(carrierConfig.SSID)) {
+            return false;
+        }
+        if (!candidate.ephemeral || carrierConfig.ephemeral) {
+            return false;
+        }
+        if (!candidate.isCarrierNetwork || carrierConfig.isCarrierNetwork) {
+            return false;
+        }
+        if (candidate.enterpriseConfig.getEapMethod() !=
+                carrierConfig.enterpriseConfig.getEapMethod()) {
+            return false;
+        }
+        return true;
+    }
+
     /**
      * Case #49 Between two 2G Carrier networks, choose the one with stronger RSSI value
      * if other conditions are the same and the RSSI values are not staturated.
@@ -2441,15 +2458,13 @@ public class WifiQualifiedNetworkSelectorTest {
                 any(Boolean.class))).thenReturn(null);
         when(mWifiConfigManager.saveNetworkAndSetCandidate(any(WifiConfiguration.class),
                 any(ScanResult.class))).then(AdditionalAnswers.returnsFirstArg());
-        when(mWifiConfigManager.getScanResultCandidate(
-                mCarrierConfiguredNetworks.get(1))).thenReturn(chosenScanResult);
+        when(mWifiConfigManager.getScanResultCandidate(any(WifiConfiguration.class)))
+                .thenReturn(chosenScanResult);
         when(mWifiConfigManager.getIsCarrierNetworkEnabledByUser()).thenReturn(true);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 false, scanDetails, false, false, true, false);
-        assertTrue(candidate.isCarrierNetwork);
-        assertTrue(candidate.ephemeral);
-        assertTrue(candidate.SSID.contains(chosenScanResult.SSID));
+        assertTrue(compareCarrierConfigs(candidate, mCarrierConfiguredNetworks.get(1)));
     }
 
 
@@ -2471,13 +2486,13 @@ public class WifiQualifiedNetworkSelectorTest {
                 any(Boolean.class))).thenReturn(null);
         when(mWifiConfigManager.saveNetworkAndSetCandidate(any(WifiConfiguration.class),
                 any(ScanResult.class))).then(AdditionalAnswers.returnsFirstArg());
-        when(mWifiConfigManager.getScanResultCandidate(
-                mCarrierConfiguredNetworks.get(1))).thenReturn(chosenScanResult);
+        when(mWifiConfigManager.getScanResultCandidate(any(WifiConfiguration.class)))
+                .thenReturn(chosenScanResult);
         when(mWifiConfigManager.getIsCarrierNetworkEnabledByUser()).thenReturn(true);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 false, scanDetails, false, false, true, false);
-        assertTrue(candidate.SSID.contains(chosenScanResult.SSID));
+        assertTrue(compareCarrierConfigs(candidate, mCarrierConfiguredNetworks.get(1)));
     }
 
     /**
@@ -2502,15 +2517,16 @@ public class WifiQualifiedNetworkSelectorTest {
                 any(Boolean.class))).thenReturn(null);
         when(mWifiConfigManager.saveNetworkAndSetCandidate(any(WifiConfiguration.class),
                 any(ScanResult.class))).then(AdditionalAnswers.returnsFirstArg());
-        when(mWifiConfigManager.getScanResultCandidate(
-                mCarrierConfiguredNetworks.get(0))).thenReturn(chosenScanResult);
+        when(mWifiConfigManager.getScanResultCandidate(any(WifiConfiguration.class)))
+                .thenReturn(chosenScanResult);
         when(mWifiInfo.getNetworkId()).thenReturn(0);
         when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
         when(mWifiConfigManager.getIsCarrierNetworkEnabledByUser()).thenReturn(true);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
                 false, scanDetails, false, true, false, false);
-        assertTrue(candidate.SSID.contains(chosenScanResult.SSID));
+
+        assertTrue(compareCarrierConfigs(candidate, mCarrierConfiguredNetworks.get(0)));
     }
 
     /**
@@ -2658,8 +2674,8 @@ public class WifiQualifiedNetworkSelectorTest {
                 any(Boolean.class))).thenReturn(null);
         when(mWifiConfigManager.saveNetworkAndSetCandidate(any(WifiConfiguration.class),
                 any(ScanResult.class))).then(AdditionalAnswers.returnsFirstArg());
-        when(mWifiConfigManager.getScanResultCandidate(
-                mCarrierConfiguredNetworks.get(1))).thenReturn(chosenScanResult);
+        when(mWifiConfigManager.getScanResultCandidate(any(WifiConfiguration.class)))
+                .thenReturn(chosenScanResult);
         when(mWifiConfigManager.getIsCarrierNetworkEnabledByUser()).thenReturn(false);
 
         WifiConfiguration candidate = mWifiQualifiedNetworkSelector.selectQualifiedNetwork(false,
