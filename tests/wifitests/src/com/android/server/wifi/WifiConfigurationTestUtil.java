@@ -333,6 +333,26 @@ public class WifiConfigurationTestUtil {
                 TEST_PAC_PROXY_LOCATION);
     }
 
+    /**
+     * Creates an IP configuration with specific parameters.
+     * @param proxySetting Must be one of {@link WifiConfigurationTestUtil#STATIC_PROXY_SETTING},
+     * {@link WifiConfigurationTestUtil#PAC_PROXY_SETTING},
+     * {@link WifiConfigurationTestUtil#NONE_PROXY_SETTING}
+     */
+    public static IpConfiguration createDHCPIpConfigurationWithSpecificProxy(
+            int proxySetting,
+            String staticProxyHost,
+            int staticProxyPort,
+            String staticProxyExclusionList,
+            String pacProxyLocation) {
+        return generateIpConfig(
+                DHCP_IP_ASSIGNMENT, proxySetting,
+                TEST_STATIC_IP_LINK_ADDRESS, TEST_STATIC_IP_LINK_PREFIX_LENGTH,
+                TEST_STATIC_IP_GATEWAY_ADDRESS, TEST_STATIC_IP_DNS_SERVER_ADDRESSES,
+                staticProxyHost, staticProxyPort, staticProxyExclusionList,
+                pacProxyLocation);
+    }
+
     // TODO: These enterprise configurations may need more parameters set.
     public static WifiEnterpriseConfig createPEAPWifiEnterpriseConfigWithGTCPhase2() {
         WifiEnterpriseConfig config = new WifiEnterpriseConfig();
