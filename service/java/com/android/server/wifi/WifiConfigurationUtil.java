@@ -18,7 +18,6 @@ package com.android.server.wifi;
 
 import android.content.pm.UserInfo;
 import android.net.IpConfiguration;
-import android.net.ProxyInfo;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiScanner;
@@ -139,23 +138,18 @@ public class WifiConfigurationUtil {
      *
      * @param existingConfig Existing WifiConfiguration object corresponding to the network.
      * @param newConfig      New WifiConfiguration object corresponding to the network.
-     * @return true if proxy parameters have changed, false otherwise.
+     * @return true if proxy parameters have changed, false if no existing config and proxy settings
+     * are NONE, false otherwise.
      */
     public static boolean hasProxyChanged(WifiConfiguration existingConfig,
             WifiConfiguration newConfig) {
-        if (existingConfig.getProxySettings() != newConfig.getProxySettings()) {
+        if (existingConfig == null) {
+            return newConfig.getProxySettings() != IpConfiguration.ProxySettings.NONE;
+        }
+        if (newConfig.getProxySettings() != existingConfig.getProxySettings()) {
             return true;
         }
-        if (newConfig.getProxySettings() == IpConfiguration.ProxySettings.PAC) {
-            ProxyInfo existingHttpProxy = existingConfig.getHttpProxy();
-            ProxyInfo newHttpProxy = newConfig.getHttpProxy();
-            if (existingHttpProxy != null) {
-                return !existingHttpProxy.equals(newHttpProxy);
-            } else {
-                return (newHttpProxy != null);
-            }
-        }
-        return false;
+        return !Objects.equals(existingConfig.getHttpProxy(), newConfig.getHttpProxy());
     }
 
     /**
