@@ -52,6 +52,7 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -78,6 +79,7 @@ public class WifiConnectivityManagerTest {
         mWifiInfo = getWifiInfo();
         mScanData = mockScanData();
         mWifiScanner = mockWifiScanner();
+        mWifiConnectivityHelper = mockWifiConnectivityHelper();
         mWifiNS = mockWifiNetworkSelector();
         mWifiConnectivityManager = createConnectivityManager();
         mWifiConnectivityManager.setWifiEnabled(true);
@@ -101,6 +103,7 @@ public class WifiConnectivityManagerTest {
     private WifiNetworkSelector mWifiNS;
     private WifiStateMachine mWifiStateMachine;
     private WifiScanner mWifiScanner;
+    private WifiConnectivityHelper mWifiConnectivityHelper;
     private ScanData mScanData;
     private WifiConfigManager mWifiConfigManager;
     private WifiInfo mWifiInfo;
@@ -110,6 +113,7 @@ public class WifiConnectivityManagerTest {
     @Mock private WifiLastResortWatchdog mWifiLastResortWatchdog;
     @Mock private WifiMetrics mWifiMetrics;
     @Mock private WifiNetworkScoreCache mScoreCache;
+    @Captor ArgumentCaptor<ScanResult> mCandidateScanResultCaptor;
     private MockResources mResources;
 
     private static final int CANDIDATE_NETWORK_ID = 0;
@@ -202,6 +206,14 @@ public class WifiConnectivityManagerTest {
         return scanner;
     }
 
+    WifiConnectivityHelper mockWifiConnectivityHelper() {
+        WifiConnectivityHelper connectivityHelper = mock(WifiConnectivityHelper.class);
+
+        when(connectivityHelper.isFirmwareRoamingSupported()).thenReturn(false);
+
+        return connectivityHelper;
+    }
+
     WifiStateMachine mockWifiStateMachine() {
         WifiStateMachine stateMachine = mock(WifiStateMachine.class);
 
@@ -256,7 +268,7 @@ public class WifiConnectivityManagerTest {
 
     WifiConnectivityManager createConnectivityManager() {
         return new WifiConnectivityManager(mContext, mWifiStateMachine, mWifiScanner,
-                mWifiConfigManager, mWifiInfo, mWifiNS,
+                mWifiConfigManager, mWifiInfo, mWifiNS, mWifiConnectivityHelper,
                 mWifiLastResortWatchdog, mWifiMetrics, mLooper.getLooper(), mClock, true,
                 mFrameworkFacade, null, null, null);
     }
@@ -1115,5 +1127,208 @@ public class WifiConnectivityManagerTest {
                 + WifiConnectivityManager.BSSID_BLACKLIST_EXPIRE_TIME_MS);
         mWifiConnectivityManager.forceConnectivityScan();
         assertFalse(mWifiConnectivityManager.isBssidDisabled(bssid));
+    }
+
+    /**
+     * When WifiConnectivityManager is on and Wifi client mode is enabled, framework
+     * queries firmware via WifiConnectivityHelper to check if firmware roaming is
+     * supported and its capability.
+     *
+     * Expected behavior: WifiConnectivityManager#setWifiEnabled calls into
+     * WifiConnectivityHelper#getFirmwareRoamingInfo
+     */
+    @Test
+    public void verifyGetFirmwareRoamingInfoIsCalledWhenEnableWiFiAndWcmOn() {
+        reset(mWifiConnectivityHelper);
+        // WifiConnectivityManager is on by default
+        mWifiConnectivityManager.setWifiEnabled(true);
+        verify(mWifiConnectivityHelper).getFirmwareRoamingInfo();
+    }
+
+    /**
+     * When WifiConnectivityManager is off,  verify that framework does not
+     * query firmware via WifiConnectivityHelper to check if firmware roaming is
+     * supported and its capability when enabling Wifi client mode.
+     *
+     * Expected behavior: WifiConnectivityManager#setWifiEnabled does not call into
+     * WifiConnectivityHelper#getFirmwareRoamingInfo
+     */
+    @Test
+    public void verifyGetFirmwareRoamingInfoIsNotCalledWhenEnableWiFiAndWcmOff() {
+        reset(mWifiConnectivityHelper);
+        mWifiConnectivityManager.enable(false);
+        mWifiConnectivityManager.setWifiEnabled(true);
+        verify(mWifiConnectivityHelper, times(0)).getFirmwareRoamingInfo();
+    }
+
+    /*
+     * Firmware supports controlled roaming.
+     * Connect to a network which doesn't have a config specified BSSID.
+     *
+     * Expected behavior: WifiConnectivityManager calls
+     * WifiStateMachine.startConnectToNetwork() with the
+     * expected candidate network ID, and the BSSID value should be
+     * 'any' since firmware controls the roaming.
+     */
+    @Test
+    public void useAnyBssidToConnectWhenFirmwareRoamingOnAndConfigHasNoBssidSpecified() {
+        // Firmware controls roaming
+        when(mWifiConnectivityHelper.isFirmwareRoamingSupported()).thenReturn(true);
+
+        // Set screen to on
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        // Set WiFi to disconnected state
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        verify(mWifiStateMachine).startConnectToNetwork(
+                CANDIDATE_NETWORK_ID, WifiStateMachine.SUPPLICANT_BSSID_ANY);
+    }
+
+    /*
+     * Firmware supports controlled roaming.
+     * Connect to a network which has a config specified BSSID.
+     *
+     * Expected behavior: WifiConnectivityManager calls
+     * WifiStateMachine.startConnectToNetwork() with the
+     * expected candidate network ID, and the BSSID value should be
+     * 'any' since firmware controls the roaming.
+     */
+    @Test
+    public void useAnyBssidToConnectWhenFirmwareRoamingOnAndConfigHasBssidSpecified() {
+        // Firmware controls roaming
+        when(mWifiConnectivityHelper.isFirmwareRoamingSupported()).thenReturn(true);
+
+        // Set up the candidate configuration such that it has a BSSID specified.
+        WifiConfiguration candidate = generateWifiConfig(
+                0, CANDIDATE_NETWORK_ID, CANDIDATE_SSID, false, true, null, null);
+        candidate.BSSID = CANDIDATE_BSSID; // config specified
+        ScanResult candidateScanResult = new ScanResult();
+        candidateScanResult.SSID = CANDIDATE_SSID;
+        candidateScanResult.BSSID = CANDIDATE_BSSID;
+        candidate.getNetworkSelectionStatus().setCandidate(candidateScanResult);
+
+        when(mWifiNS.selectNetwork(anyObject(), anyObject(), anyObject(), anyBoolean(),
+              anyBoolean(), anyBoolean())).thenReturn(candidate);
+
+        // Set screen to on
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        // Set WiFi to disconnected state
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        verify(mWifiStateMachine).startConnectToNetwork(
+                CANDIDATE_NETWORK_ID, WifiStateMachine.SUPPLICANT_BSSID_ANY);
+    }
+
+    /*
+     * Firmware does not support controlled roaming.
+     * Connect to a network which doesn't have a config specified BSSID.
+     *
+     * Expected behavior: WifiConnectivityManager calls
+     * WifiStateMachine.startConnectToNetwork() with the expected candidate network ID,
+     * and the BSSID value should be the candidate scan result specified.
+     */
+    @Test
+    public void useScanResultBssidToConnectWhenFirmwareRoamingOffAndConfigHasNoBssidSpecified() {
+        // Set screen to on
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        // Set WiFi to disconnected state
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        verify(mWifiStateMachine).startConnectToNetwork(CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
+    }
+
+    /*
+     * Firmware does not support controlled roaming.
+     * Connect to a network which has a config specified BSSID.
+     *
+     * Expected behavior: WifiConnectivityManager calls
+     * WifiStateMachine.startConnectToNetwork() with the expected candidate network ID,
+     * and the BSSID value should be the config specified one.
+     */
+    @Test
+    public void useConfigSpecifiedBssidToConnectionWhenFirmwareRoamingOff() {
+        // Set up the candidate configuration such that it has a BSSID specified.
+        WifiConfiguration candidate = generateWifiConfig(
+                0, CANDIDATE_NETWORK_ID, CANDIDATE_SSID, false, true, null, null);
+        candidate.BSSID = CANDIDATE_BSSID; // config specified
+        ScanResult candidateScanResult = new ScanResult();
+        candidateScanResult.SSID = CANDIDATE_SSID;
+        candidateScanResult.BSSID = CANDIDATE_BSSID;
+        candidate.getNetworkSelectionStatus().setCandidate(candidateScanResult);
+
+        when(mWifiNS.selectNetwork(anyObject(), anyObject(), anyObject(), anyBoolean(),
+              anyBoolean(), anyBoolean())).thenReturn(candidate);
+
+        // Set screen to on
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        // Set WiFi to disconnected state
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        verify(mWifiStateMachine).startConnectToNetwork(CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
+    }
+
+    /**
+     * Firmware does not support controlled roaming.
+     * WiFi in connected state, framework triggers roaming.
+     *
+     * Expected behavior: WifiConnectivityManager invokes
+     * WifiStateMachine.startRoamToNetwork().
+     */
+    @Test
+    public void frameworkInitiatedRoaming() {
+        // Mock the currently connected network which has the same networkID and
+        // SSID as the one to be selected.
+        WifiConfiguration currentNetwork = generateWifiConfig(
+                0, CANDIDATE_NETWORK_ID, CANDIDATE_SSID, false, true, null, null);
+        when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(currentNetwork);
+
+        // Set WiFi to connected state
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        // Set screen to on
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        verify(mWifiStateMachine).startRoamToNetwork(eq(CANDIDATE_NETWORK_ID),
+                mCandidateScanResultCaptor.capture());
+        assertEquals(mCandidateScanResultCaptor.getValue().BSSID, CANDIDATE_BSSID);
+    }
+
+    /**
+     * Firmware supports controlled roaming.
+     * WiFi in connected state, framework does not trigger roaming
+     * as it's handed off to the firmware.
+     *
+     * Expected behavior: WifiConnectivityManager doesn't invoke
+     * WifiStateMachine.startRoamToNetwork().
+     */
+    @Test
+    public void noFrameworkRoamingIfConnectedAndFirmwareRoamingSupported() {
+        // Mock the currently connected network which has the same networkID and
+        // SSID as the one to be selected.
+        WifiConfiguration currentNetwork = generateWifiConfig(
+                0, CANDIDATE_NETWORK_ID, CANDIDATE_SSID, false, true, null, null);
+        when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(currentNetwork);
+
+        // Firmware controls roaming
+        when(mWifiConnectivityHelper.isFirmwareRoamingSupported()).thenReturn(true);
+
+        // Set WiFi to connected state
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        // Set screen to on
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        verify(mWifiStateMachine, times(0)).startRoamToNetwork(
+                anyInt(), anyObject());
     }
 }

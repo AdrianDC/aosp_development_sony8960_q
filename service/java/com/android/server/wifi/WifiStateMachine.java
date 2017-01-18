@@ -333,7 +333,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * Value to set in wpa_supplicant "bssid" field when we don't want to restrict connection to
      * a specific AP.
      */
-    private static final String SUPPLICANT_BSSID_ANY = "any";
+    public static final String SUPPLICANT_BSSID_ANY = "any";
 
     private int mSupplicantRestartCount = 0;
 

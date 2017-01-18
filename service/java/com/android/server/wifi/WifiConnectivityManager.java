@@ -129,6 +129,7 @@ public class WifiConnectivityManager {
     private final WifiScanner mScanner;
     private final WifiConfigManager mConfigManager;
     private final WifiInfo mWifiInfo;
+    private final WifiConnectivityHelper mConnectivityHelper;
     private final WifiNetworkSelector mNetworkSelector;
     private final WifiLastResortWatchdog mWifiLastResortWatchdog;
     private final WifiMetrics mWifiMetrics;
@@ -339,9 +340,8 @@ public class WifiConnectivityManager {
             }
 
             if (mDbg) {
-                localLog("AllSingleScanListener onFullResult: "
-                            + fullScanResult.SSID + " capabilities "
-                            + fullScanResult.capabilities);
+                localLog("AllSingleScanListener onFullResult: " + fullScanResult.SSID
+                        + " capabilities " + fullScanResult.capabilities);
             }
 
             mScanDetails.add(ScanResultUtil.toScanDetail(fullScanResult));
@@ -372,7 +372,7 @@ public class WifiConnectivityManager {
         @Override
         public void onFailure(int reason, String description) {
             localLog("SingleScanListener onFailure:"
-                      + " reason: " + reason + " description: " + description);
+                    + " reason: " + reason + " description: " + description);
 
             // reschedule the scan
             if (mSingleScanRestartCount++ < MAX_SCAN_RESTART_ALLOWED) {
@@ -380,14 +380,14 @@ public class WifiConnectivityManager {
             } else {
                 mSingleScanRestartCount = 0;
                 localLog("Failed to successfully start single scan for "
-                          + MAX_SCAN_RESTART_ALLOWED + " times");
+                        + MAX_SCAN_RESTART_ALLOWED + " times");
             }
         }
 
         @Override
         public void onPeriodChanged(int periodInMs) {
             localLog("SingleScanListener onPeriodChanged: "
-                          + "actual scan period " + periodInMs + "ms");
+                    + "actual scan period " + periodInMs + "ms");
         }
 
         @Override
@@ -429,7 +429,7 @@ public class WifiConnectivityManager {
         @Override
         public void onFailure(int reason, String description) {
             localLog("PnoScanListener onFailure:"
-                      + " reason: " + reason + " description: " + description);
+                    + " reason: " + reason + " description: " + description);
 
             // reschedule the scan
             if (mScanRestartCount++ < MAX_SCAN_RESTART_ALLOWED) {
@@ -437,14 +437,14 @@ public class WifiConnectivityManager {
             } else {
                 mScanRestartCount = 0;
                 localLog("Failed to successfully start PNO scan for "
-                          + MAX_SCAN_RESTART_ALLOWED + " times");
+                        + MAX_SCAN_RESTART_ALLOWED + " times");
             }
         }
 
         @Override
         public void onPeriodChanged(int periodInMs) {
             localLog("PnoScanListener onPeriodChanged: "
-                          + "actual scan period " + periodInMs + "ms");
+                    + "actual scan period " + periodInMs + "ms");
         }
 
         // Currently the PNO scan results doesn't include IE,
@@ -493,7 +493,7 @@ public class WifiConnectivityManager {
      */
     WifiConnectivityManager(Context context, WifiStateMachine stateMachine,
             WifiScanner scanner, WifiConfigManager configManager, WifiInfo wifiInfo,
-            WifiNetworkSelector networkSelector,
+            WifiNetworkSelector networkSelector, WifiConnectivityHelper connectivityHelper,
             WifiLastResortWatchdog wifiLastResortWatchdog, WifiMetrics wifiMetrics,
             Looper looper, Clock clock, boolean enable, FrameworkFacade frameworkFacade,
             SavedNetworkEvaluator savedNetworkEvaluator,
@@ -504,6 +504,7 @@ public class WifiConnectivityManager {
         mConfigManager = configManager;
         mWifiInfo = wifiInfo;
         mNetworkSelector = networkSelector;
+        mConnectivityHelper = connectivityHelper;
         mLocalLog = networkSelector.getLocalLog();
         mWifiLastResortWatchdog = wifiLastResortWatchdog;
         mWifiMetrics = wifiMetrics;
@@ -536,11 +537,11 @@ public class WifiConnectivityManager {
                         R.integer.config_wifi_framework_RSSI_SCORE_SLOPE);
 
         localLog("PNO settings:" + " min5GHzRssi " + mMin5GHzRssi
-                    + " min24GHzRssi " + mMin24GHzRssi
-                    + " currentConnectionBonus " + mCurrentConnectionBonus
-                    + " sameNetworkBonus " + mSameNetworkBonus
-                    + " secureNetworkBonus " + mSecureBonus
-                    + " initialScoreMax " + mInitialScoreMax);
+                + " min24GHzRssi " + mMin24GHzRssi
+                + " currentConnectionBonus " + mCurrentConnectionBonus
+                + " sameNetworkBonus " + mSameNetworkBonus
+                + " secureNetworkBonus " + mSecureBonus
+                + " initialScoreMax " + mInitialScoreMax);
 
         boolean hs2Enabled = context.getResources().getBoolean(
                 R.bool.config_wifi_hotspot2_enabled);
@@ -650,13 +651,29 @@ public class WifiConnectivityManager {
         if (currentConnectedNetwork != null
                 && (currentConnectedNetwork.networkId == candidate.networkId
                 || currentConnectedNetwork.isLinked(candidate))) {
-            localLog("connectToNetwork: Roaming from " + currentAssociationId + " to "
-                        + targetAssociationId);
-            mStateMachine.startRoamToNetwork(candidate.networkId, scanResultCandidate);
+            // Framework initiates roaming only if firmware doesn't support
+            // {@link android.net.wifi.WifiManager#WIFI_FEATURE_CONTROL_ROAMING}.
+            if (mConnectivityHelper.isFirmwareRoamingSupported()) {
+                // Keep this logging here for now to validate the firmware roaming behavior.
+                localLog("connectToNetwork: Roaming candidate - " + targetAssociationId + "."
+                        + " The actual roaming target is up to the firmware.");
+            } else {
+                localLog("connectToNetwork: Roaming to " + targetAssociationId + " from "
+                        + currentAssociationId);
+                mStateMachine.startRoamToNetwork(candidate.networkId, scanResultCandidate);
+            }
         } else {
-            localLog("connectToNetwork: Reconnect from " + currentAssociationId + " to "
-                        + targetAssociationId);
-            mStateMachine.startConnectToNetwork(candidate.networkId, scanResultCandidate.BSSID);
+            // Framework specifies the connection target BSSID only if firmware doesn't support
+            // {@link android.net.wifi.WifiManager#WIFI_FEATURE_CONTROL_ROAMING}.
+            if (mConnectivityHelper.isFirmwareRoamingSupported()) {
+                targetBssid = WifiStateMachine.SUPPLICANT_BSSID_ANY;
+                localLog("connectToNetwork: Connect to " + candidate.SSID + ":" + targetBssid
+                        + " from " + currentAssociationId);
+            } else {
+                localLog("connectToNetwork: Connect to " + targetAssociationId + " from "
+                        + currentAssociationId);
+            }
+            mStateMachine.startConnectToNetwork(candidate.networkId, targetBssid);
         }
     }
 
@@ -736,8 +753,8 @@ public class WifiConnectivityManager {
                 && (mWifiInfo.txSuccessRate > MAX_TX_PACKET_FOR_FULL_SCANS
                     || mWifiInfo.rxSuccessRate > MAX_RX_PACKET_FOR_FULL_SCANS)) {
             localLog("No full band scan due to heavy traffic, txSuccessRate="
-                        + mWifiInfo.txSuccessRate + " rxSuccessRate="
-                        + mWifiInfo.rxSuccessRate);
+                    + mWifiInfo.txSuccessRate + " rxSuccessRate="
+                    + mWifiInfo.rxSuccessRate);
             isFullBandScan = false;
         }
 
@@ -916,11 +933,11 @@ public class WifiConnectivityManager {
     // the current screen state and WiFi state.
     private void startConnectivityScan(boolean scanImmediately) {
         localLog("startConnectivityScan: screenOn=" + mScreenOn
-                        + " wifiState=" + mWifiState
-                        + " scanImmediately=" + scanImmediately
-                        + " wifiEnabled=" + mWifiEnabled
-                        + " wifiConnectivityManagerEnabled="
-                        + mWifiConnectivityManagerEnabled);
+                + " wifiState=" + mWifiState
+                + " scanImmediately=" + scanImmediately
+                + " wifiEnabled=" + mWifiEnabled
+                + " wifiConnectivityManagerEnabled="
+                + mWifiConnectivityManagerEnabled);
 
         if (!mWifiEnabled || !mWifiConnectivityManagerEnabled) {
             return;
@@ -1137,12 +1154,13 @@ public class WifiConnectivityManager {
             mLastConnectionAttemptBssid = null;
             mWaitForFullBandScanResults = false;
         } else if (mWifiConnectivityManagerEnabled) {
+            mConnectivityHelper.getFirmwareRoamingInfo();
             startConnectivityScan(SCAN_IMMEDIATELY);
         }
     }
 
     /**
-     * Turn on/off the WifiConnectivityMangager at runtime
+     * Turn on/off the WifiConnectivityManager at runtime
      */
     public void enable(boolean enable) {
         localLog("Set WiFiConnectivityManager " + (enable ? "enabled" : "disabled"));
@@ -1155,6 +1173,7 @@ public class WifiConnectivityManager {
             mLastConnectionAttemptBssid = null;
             mWaitForFullBandScanResults = false;
         } else if (mWifiEnabled) {
+            mConnectivityHelper.getFirmwareRoamingInfo();
             startConnectivityScan(SCAN_IMMEDIATELY);
         }
     }
