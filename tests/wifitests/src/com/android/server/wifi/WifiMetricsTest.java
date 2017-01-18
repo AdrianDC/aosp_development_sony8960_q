@@ -26,7 +26,6 @@ import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Base64;
 
 import com.android.server.wifi.hotspot2.NetworkDetail;
-import com.android.server.wifi.nano.WifiMetricsProto;
 
 import org.junit.Before;
 import org.junit.Test;
