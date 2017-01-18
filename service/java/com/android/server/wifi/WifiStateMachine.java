@@ -111,6 +111,7 @@ import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.hotspot2.WnmData;
+import com.android.server.wifi.nano.WifiMetricsProto;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
 import com.android.server.wifi.util.TelephonyUtil;
 import com.android.server.wifi.util.TelephonyUtil.SimAuthRequestData;
