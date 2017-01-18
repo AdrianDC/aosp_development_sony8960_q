@@ -53,8 +53,8 @@ import com.android.server.wifi.ScanResults;
 import com.android.server.wifi.TestUtil;
 import com.android.server.wifi.WifiInjector;
 import com.android.server.wifi.WifiMetrics;
+import com.android.server.wifi.WifiMetricsProto;
 import com.android.server.wifi.WifiNative;
-import com.android.server.wifi.nano.WifiMetricsProto;
 
 import org.junit.After;
 import org.junit.Before;
