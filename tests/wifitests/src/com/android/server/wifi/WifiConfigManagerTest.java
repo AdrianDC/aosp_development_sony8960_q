@@ -19,6 +19,8 @@ package com.android.server.wifi;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
+import android.app.admin.DeviceAdminInfo;
+import android.app.admin.DevicePolicyManagerInternal;
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
 import android.content.Intent;
@@ -41,6 +43,7 @@ import android.text.TextUtils;
 
 import com.android.internal.R;
 import com.android.server.wifi.WifiConfigStoreLegacy.WifiConfigStoreDataLegacy;
+import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import org.junit.After;
 import org.junit.Before;
@@ -70,14 +73,24 @@ public class WifiConfigManagerTest {
     private static final long TEST_WALLCLOCK_UPDATE_TIME_MILLIS = 75455637;
     private static final long TEST_ELAPSED_UPDATE_NETWORK_SELECTION_TIME_MILLIS = 29457631;
     private static final int TEST_CREATOR_UID = WifiConfigurationTestUtil.TEST_UID;
+    private static final int TEST_NO_PERM_UID = 7;
     private static final int TEST_UPDATE_UID = 4;
     private static final int TEST_SYSUI_UID = 56;
     private static final int TEST_DEFAULT_USER = UserHandle.USER_SYSTEM;
     private static final int TEST_MAX_NUM_ACTIVE_CHANNELS_FOR_PARTIAL_SCAN = 5;
     private static final Integer[] TEST_FREQ_LIST = {2400, 2450, 5150, 5175, 5650};
-    private static final String TEST_CREATOR_NAME = "com.wificonfigmanagerNew.creator";
-    private static final String TEST_UPDATE_NAME = "com.wificonfigmanagerNew.update";
+    private static final String TEST_CREATOR_NAME = "com.wificonfigmanager.creator";
+    private static final String TEST_UPDATE_NAME = "com.wificonfigmanager.update";
+    private static final String TEST_NO_PERM_NAME = "com.wificonfigmanager.noperm";
     private static final String TEST_DEFAULT_GW_MAC_ADDRESS = "0f:67:ad:ef:09:34";
+    private static final String TEST_STATIC_PROXY_HOST_1 = "192.168.48.1";
+    private static final int    TEST_STATIC_PROXY_PORT_1 = 8000;
+    private static final String TEST_STATIC_PROXY_EXCLUSION_LIST_1 = "";
+    private static final String TEST_PAC_PROXY_LOCATION_1 = "http://bleh";
+    private static final String TEST_STATIC_PROXY_HOST_2 = "192.168.1.1";
+    private static final int    TEST_STATIC_PROXY_PORT_2 = 3000;
+    private static final String TEST_STATIC_PROXY_EXCLUSION_LIST_2 = "";
+    private static final String TEST_PAC_PROXY_LOCATION_2 = "http://blah";
 
     @Mock private Context mContext;
     @Mock private FrameworkFacade mFrameworkFacade;
@@ -88,6 +101,8 @@ public class WifiConfigManagerTest {
     @Mock private WifiConfigStore mWifiConfigStore;
     @Mock private WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     @Mock private PackageManager mPackageManager;
+    @Mock private DevicePolicyManagerInternal mDevicePolicyManagerInternal;
+    @Mock private WifiPermissionsWrapper mWifiPermissionsWrapper;
 
     private MockResources mResources;
     private InOrder mContextConfigStoreMockOrder;
@@ -125,6 +140,8 @@ public class WifiConfigManagerTest {
                     return TEST_UPDATE_NAME;
                 } else if (uid == TEST_SYSUI_UID) {
                     return WifiConfigManager.SYSUI_PACKAGE_NAME;
+                } else if (uid == TEST_NO_PERM_UID) {
+                    return TEST_NO_PERM_NAME;
                 }
                 fail("Unexpected UID: " + uid);
                 return "";
@@ -157,6 +174,10 @@ public class WifiConfigManagerTest {
 
         when(mWifiConfigStore.areStoresPresent()).thenReturn(true);
 
+        when(mDevicePolicyManagerInternal.isActiveAdminWithPolicy(anyInt(), anyInt()))
+                .thenReturn(false);
+        when(mWifiPermissionsWrapper.getDevicePolicyManagerInternal())
+                .thenReturn(mDevicePolicyManagerInternal);
         createWifiConfigManager();
     }
 
@@ -387,6 +408,11 @@ public class WifiConfigManagerTest {
         // are not set.
         verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(openNetwork);
 
+        // Configure mock DevicePolicyManager to give Profile Owner permission so that we can modify
+        // proxy settings on a configuration
+        when(mDevicePolicyManagerInternal.isActiveAdminWithPolicy(anyInt(),
+                eq(DeviceAdminInfo.USES_POLICY_PROFILE_OWNER))).thenReturn(true);
+
         // Change the IpConfiguration now and ensure that the IP configuration flags are set now.
         assertAndSetNetworkIpConfiguration(
                 openNetwork,
@@ -467,6 +493,11 @@ public class WifiConfigManagerTest {
         assertAndSetNetworkIpConfiguration(
                 wepNetwork,
                 WifiConfigurationTestUtil.createStaticIpConfigurationWithPacProxy());
+
+        // Configure mock DevicePolicyManager to give Profile Owner permission so that we can modify
+        // proxy settings on a configuration
+        when(mDevicePolicyManagerInternal.isActiveAdminWithPolicy(anyInt(),
+                eq(DeviceAdminInfo.USES_POLICY_PROFILE_OWNER))).thenReturn(true);
 
         verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(openNetwork);
         verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(pskNetwork);
@@ -2549,11 +2580,395 @@ public class WifiConfigManagerTest {
                 networks, retrievedNetworks);
     }
 
+    /**
+     * Verifies that adding a network with a proxy, without having permission OVERRIDE_WIFI_CONFIG,
+     * holding device policy, or profile owner policy fails.
+     */
+    @Test
+    public void testAddNetworkWithProxyFails() {
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                false, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy(),
+                false, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                false, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithStaticProxy(),
+                false, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+    }
+
+    /**
+     * Verifies that adding a network with a PAC or STATIC proxy with permission
+     * OVERRIDE_WIFI_CONFIG is successful
+     */
+    @Test
+    public void testAddNetworkWithProxyWithConfOverride() {
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                true,  // withConfOverride
+                false, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy(),
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                true,  // withConfOverride
+                false, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithStaticProxy(),
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+    }
+
+    /**
+     * Verifies that adding a network with a PAC or STATIC proxy, while holding policy
+     * {@link DeviceAdminInfo.USES_POLICY_PROFILE_OWNER} is successful
+     */
+    @Test
+    public void testAddNetworkWithProxyAsProfileOwner() {
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false,  // withConfOverride
+                true, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy(),
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false,  // withConfOverride
+                true, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithStaticProxy(),
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+    }
+    /**
+     * Verifies that adding a network with a PAC or STATIC proxy, while holding policy
+     * {@link DeviceAdminInfo.USES_POLICY_DEVICE_OWNER} is successful
+     */
+    @Test
+    public void testAddNetworkWithProxyAsDeviceOwner() {
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false,  // withConfOverride
+                false, // withProfileOwnerPolicy
+                true, // withDeviceOwnerPolicy
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy(),
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false,  // withConfOverride
+                false, // withProfileOwnerPolicy
+                true, // withDeviceOwnerPolicy
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithStaticProxy(),
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+    }
+    /**
+     * Verifies that updating a network (that has no proxy) and adding a PAC or STATIC proxy fails
+     * without being able to override configs, or holding Device or Profile owner policies.
+     */
+    @Test
+    public void testUpdateNetworkAddProxyFails() {
+        WifiConfiguration network = WifiConfigurationTestUtil.createOpenHiddenNetwork();
+        NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(network);
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                false, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy(),
+                false, // assertSuccess
+                result.getNetworkId()); // Update networkID
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                false, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithStaticProxy(),
+                false, // assertSuccess
+                result.getNetworkId()); // Update networkID
+    }
+    /**
+     * Verifies that updating a network and adding a proxy is successful in the cases where app can
+     * override configs, holds policy {@link DeviceAdminInfo.USES_POLICY_PROFILE_OWNER},
+     * and holds policy {@link DeviceAdminInfo.USES_POLICY_DEVICE_OWNER}, and that it fails
+     * otherwise.
+     */
+    @Test
+    public void testUpdateNetworkAddProxyWithPermissionAndSystem() {
+        // Testing updating network with uid permission OVERRIDE_WIFI_CONFIG
+        WifiConfiguration network = WifiConfigurationTestUtil.createOpenHiddenNetwork();
+        NetworkUpdateResult result =
+                mWifiConfigManager.addOrUpdateNetwork(network, TEST_CREATOR_UID);
+        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                true, // withConfOverride
+                false, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy(),
+                true, // assertSuccess
+                result.getNetworkId()); // Update networkID
+
+        // Testing updating network with proxy while holding Profile Owner policy
+        network = WifiConfigurationTestUtil.createOpenHiddenNetwork();
+        result = mWifiConfigManager.addOrUpdateNetwork(network, TEST_NO_PERM_UID);
+        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                true, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy(),
+                true, // assertSuccess
+                result.getNetworkId()); // Update networkID
+
+        // Testing updating network with proxy while holding Device Owner Policy
+        network = WifiConfigurationTestUtil.createOpenHiddenNetwork();
+        result = mWifiConfigManager.addOrUpdateNetwork(network, TEST_NO_PERM_UID);
+        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                false, // withProfileOwnerPolicy
+                true, // withDeviceOwnerPolicy
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy(),
+                true, // assertSuccess
+                result.getNetworkId()); // Update networkID
+    }
+
+    /**
+     * Verifies that updating a network that has a proxy without changing the proxy, can succeed
+     * without proxy specific permissions.
+     */
+    @Test
+    public void testUpdateNetworkUnchangedProxy() {
+        IpConfiguration ipConf = WifiConfigurationTestUtil.createDHCPIpConfigurationWithPacProxy();
+        // First create a WifiConfiguration with proxy
+        NetworkUpdateResult result = verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                        false, // withConfOverride
+                        true, // withProfileOwnerPolicy
+                        false, // withDeviceOwnerPolicy
+                        ipConf,
+                        true, // assertSuccess
+                        WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+        // Update the network while using the same ipConf, and no proxy specific permissions
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                        false, // withConfOverride
+                        false, // withProfileOwnerPolicy
+                        false, // withDeviceOwnerPolicy
+                        ipConf,
+                        true, // assertSuccess
+                        result.getNetworkId()); // Update networkID
+    }
+
+    /**
+     * Verifies that updating a network with a different proxy succeeds in the cases where app can
+     * override configs, holds policy {@link DeviceAdminInfo.USES_POLICY_PROFILE_OWNER},
+     * and holds policy {@link DeviceAdminInfo.USES_POLICY_DEVICE_OWNER}, and that it fails
+     * otherwise.
+     */
+    @Test
+    public void testUpdateNetworkDifferentProxy() {
+        // Create two proxy configurations of the same type, but different values
+        IpConfiguration ipConf1 =
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithSpecificProxy(
+                        WifiConfigurationTestUtil.STATIC_PROXY_SETTING,
+                        TEST_STATIC_PROXY_HOST_1,
+                        TEST_STATIC_PROXY_PORT_1,
+                        TEST_STATIC_PROXY_EXCLUSION_LIST_1,
+                        TEST_PAC_PROXY_LOCATION_1);
+        IpConfiguration ipConf2 =
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithSpecificProxy(
+                        WifiConfigurationTestUtil.STATIC_PROXY_SETTING,
+                        TEST_STATIC_PROXY_HOST_2,
+                        TEST_STATIC_PROXY_PORT_2,
+                        TEST_STATIC_PROXY_EXCLUSION_LIST_2,
+                        TEST_PAC_PROXY_LOCATION_2);
+
+        // Update with Conf Override
+        NetworkUpdateResult result = verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                true, // withConfOverride
+                false, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                ipConf1,
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                true, // withConfOverride
+                false, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                ipConf2,
+                true, // assertSuccess
+                result.getNetworkId()); // Update networkID
+
+        // Update as Device Owner
+        result = verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                false, // withProfileOwnerPolicy
+                true, // withDeviceOwnerPolicy
+                ipConf1,
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                false, // withProfileOwnerPolicy
+                true, // withDeviceOwnerPolicy
+                ipConf2,
+                true, // assertSuccess
+                result.getNetworkId()); // Update networkID
+
+        // Update as Profile Owner
+        result = verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                true, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                ipConf1,
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                true, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                ipConf2,
+                true, // assertSuccess
+                result.getNetworkId()); // Update networkID
+
+        // Update with no permissions (should fail)
+        result = verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                true, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                ipConf1,
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                false, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                ipConf2,
+                false, // assertSuccess
+                result.getNetworkId()); // Update networkID
+    }
+    /**
+     * Verifies that updating a network removing its proxy succeeds in the cases where app can
+     * override configs, holds policy {@link DeviceAdminInfo.USES_POLICY_PROFILE_OWNER},
+     * and holds policy {@link DeviceAdminInfo.USES_POLICY_DEVICE_OWNER}, and that it fails
+     * otherwise.
+     */
+    @Test
+    public void testUpdateNetworkRemoveProxy() {
+        // Create two different IP configurations, one with a proxy and another without.
+        IpConfiguration ipConf1 =
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithSpecificProxy(
+                        WifiConfigurationTestUtil.STATIC_PROXY_SETTING,
+                        TEST_STATIC_PROXY_HOST_1,
+                        TEST_STATIC_PROXY_PORT_1,
+                        TEST_STATIC_PROXY_EXCLUSION_LIST_1,
+                        TEST_PAC_PROXY_LOCATION_1);
+        IpConfiguration ipConf2 =
+                WifiConfigurationTestUtil.createDHCPIpConfigurationWithSpecificProxy(
+                        WifiConfigurationTestUtil.NONE_PROXY_SETTING,
+                        TEST_STATIC_PROXY_HOST_2,
+                        TEST_STATIC_PROXY_PORT_2,
+                        TEST_STATIC_PROXY_EXCLUSION_LIST_2,
+                        TEST_PAC_PROXY_LOCATION_2);
+
+        // Update with Conf Override
+        NetworkUpdateResult result = verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                true, // withConfOverride
+                false, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                ipConf1,
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                true, // withConfOverride
+                false, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                ipConf2,
+                true, // assertSuccess
+                result.getNetworkId()); // Update networkID
+
+        // Update as Device Owner
+        result = verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                false, // withProfileOwnerPolicy
+                true, // withDeviceOwnerPolicy
+                ipConf1,
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                false, // withProfileOwnerPolicy
+                true, // withDeviceOwnerPolicy
+                ipConf2,
+                true, // assertSuccess
+                result.getNetworkId()); // Update networkID
+
+        // Update as Profile Owner
+        result = verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                true, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                ipConf1,
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                true, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                ipConf2,
+                true, // assertSuccess
+                result.getNetworkId()); // Update networkID
+
+        // Update with no permissions (should fail)
+        result = verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                true, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                ipConf1,
+                true, // assertSuccess
+                WifiConfiguration.INVALID_NETWORK_ID); // Update networkID
+        verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+                false, // withConfOverride
+                false, // withProfileOwnerPolicy
+                false, // withDeviceOwnerPolicy
+                ipConf2,
+                false, // assertSuccess
+                result.getNetworkId()); // Update networkID
+    }
+
+    private NetworkUpdateResult verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
+            boolean withConfOverride,
+            boolean withProfileOwnerPolicy,
+            boolean withDeviceOwnerPolicy,
+            IpConfiguration ipConfiguration,
+            boolean assertSuccess,
+            int networkId) {
+        WifiConfiguration network;
+        if (networkId == WifiConfiguration.INVALID_NETWORK_ID) {
+            network = WifiConfigurationTestUtil.createOpenHiddenNetwork();
+        } else {
+            network = mWifiConfigManager.getConfiguredNetwork(networkId);
+        }
+        network.setIpConfiguration(ipConfiguration);
+        when(mDevicePolicyManagerInternal.isActiveAdminWithPolicy(anyInt(),
+                eq(DeviceAdminInfo.USES_POLICY_PROFILE_OWNER)))
+                .thenReturn(withProfileOwnerPolicy);
+        when(mDevicePolicyManagerInternal.isActiveAdminWithPolicy(anyInt(),
+                eq(DeviceAdminInfo.USES_POLICY_DEVICE_OWNER)))
+                .thenReturn(withDeviceOwnerPolicy);
+        int uid = withConfOverride ? TEST_CREATOR_UID : TEST_NO_PERM_UID;
+        NetworkUpdateResult result = mWifiConfigManager.addOrUpdateNetwork(network, uid);
+        assertEquals(assertSuccess, result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
+        return result;
+    }
+
     private void createWifiConfigManager() {
         mWifiConfigManager =
                 new WifiConfigManager(
                         mContext, mFrameworkFacade, mClock, mUserManager, mTelephonyManager,
-                        mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy);
+                        mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy,
+                        mWifiPermissionsWrapper);
         mWifiConfigManager.enableVerboseLogging(1);
     }
 

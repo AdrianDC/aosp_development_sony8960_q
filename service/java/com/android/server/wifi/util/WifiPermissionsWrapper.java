@@ -17,8 +17,11 @@
 package com.android.server.wifi.util;
 
 import android.app.ActivityManager;
+import android.app.admin.DevicePolicyManagerInternal;
 import android.content.Context;
 import android.os.UserHandle;
+
+import com.android.server.LocalServices;
 
 import java.util.List;
 
@@ -70,5 +73,12 @@ public class WifiPermissionsWrapper {
      */
     public int getUidPermission(String permissionType, int uid) {
         return ActivityManager.checkUidPermission(permissionType, uid);
+    }
+
+    /**
+     * Gets the local service {link@ DevicePolicyManagerInternal}, can be null
+     */
+    public DevicePolicyManagerInternal getDevicePolicyManagerInternal() {
+        return LocalServices.getService(DevicePolicyManagerInternal.class);
     }
 }
