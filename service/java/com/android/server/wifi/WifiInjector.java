@@ -18,7 +18,6 @@ package com.android.server.wifi;
 
 import android.content.Context;
 import android.net.NetworkScoreManager;
-import android.net.NetworkScorerAppManager;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IWifiScanner;
 import android.net.wifi.IWificond;
@@ -123,8 +122,9 @@ public class WifiInjector {
                 R.bool.config_wifi_enable_wifi_firmware_debugging);
         mSettingsStore = new WifiSettingsStore(mContext);
         mWifiPermissionsWrapper = new WifiPermissionsWrapper(mContext);
+        mNetworkScoreManager = mContext.getSystemService(NetworkScoreManager.class);
         mWifiPermissionsUtil = new WifiPermissionsUtil(mWifiPermissionsWrapper, mContext,
-                mSettingsStore, UserManager.get(mContext), new NetworkScorerAppManager(mContext));
+                mSettingsStore, UserManager.get(mContext), mNetworkScoreManager);
 
         // Now create and start handler threads
         mWifiServiceHandlerThread = new HandlerThread("WifiService");
@@ -161,8 +161,6 @@ public class WifiInjector {
         mWifiConfigManager = new WifiConfigManager(mContext, mFrameworkFacade, mClock,
                 UserManager.get(mContext), TelephonyManager.from(mContext),
                 mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy, mWifiPermissionsWrapper);
-        mNetworkScoreManager = (NetworkScoreManager)
-                mContext.getSystemService(Context.NETWORK_SCORE_SERVICE);
         mWifiNetworkScoreCache = new WifiNetworkScoreCache(mContext);
         mWifiNetworkSelector = new WifiNetworkSelector(mContext, mWifiConfigManager, mClock);
         LocalLog localLog = mWifiNetworkSelector.getLocalLog();
