@@ -62,11 +62,8 @@ public class NativeScanResult implements Parcelable {
     /** implement Parcelable interface */
     @Override
     public void writeToParcel(Parcel out, int flags) {
-        out.writeInt(ssid.length);
         out.writeByteArray(ssid);
-        out.writeInt(bssid.length);
         out.writeByteArray(bssid);
-        out.writeInt(infoElement.length);
         out.writeByteArray(infoElement);
         out.writeInt(frequency);
         out.writeInt(signalMbm);
@@ -87,12 +84,9 @@ public class NativeScanResult implements Parcelable {
         @Override
         public NativeScanResult createFromParcel(Parcel in) {
             NativeScanResult result = new NativeScanResult();
-            result.ssid = new byte[in.readInt()];
-            in.readByteArray(result.ssid);
-            result.bssid = new byte[in.readInt()];
-            in.readByteArray(result.bssid);
-            result.infoElement = new byte[in.readInt()];
-            in.readByteArray(result.infoElement);
+            result.ssid = in.createByteArray();
+            result.bssid = in.createByteArray();
+            result.infoElement = in.createByteArray();
             result.frequency = in.readInt();
             result.signalMbm = in.readInt();
             result.tsf = in.readLong();
