@@ -135,8 +135,8 @@ public class PreferredServices implements com.android.nfc.ForegroundUtils.Callba
         ComponentName newDefault = name != null ? ComponentName.unflattenFromString(name) : null;
         boolean preferForeground = false;
         try {
-            preferForeground = Settings.Secure.getInt(mContext.getContentResolver(),
-                    Settings.Secure.NFC_PAYMENT_FOREGROUND) != 0;
+            preferForeground = Settings.Secure.getIntForUser(mContext.getContentResolver(),
+                    Settings.Secure.NFC_PAYMENT_FOREGROUND, userId) != 0;
         } catch (SettingNotFoundException e) {
         }
         synchronized (mLock) {
