@@ -149,6 +149,10 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
                 availableConfiguredNetworks.add(configuredNetwork);
             }
             scanResults.add(scanResult);
+            // Track potential connectable networks for the watchdog.
+            if (connectableNetworks != null) {
+                connectableNetworks.add(Pair.create(scanDetail, configuredNetwork));
+            }
         }
 
         if (scanResults.isEmpty()) {
