@@ -54,6 +54,7 @@ import android.net.NetworkRequest;
 import android.net.NetworkUtils;
 import android.net.RouteInfo;
 import android.net.StaticIpConfiguration;
+import android.net.TrafficStats;
 import android.net.dhcp.DhcpClient;
 import android.net.ip.IpManager;
 import android.net.wifi.IApInterface;
@@ -3002,6 +3003,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     /* The gateway's MAC address is known */
                     if ((address == null) && (timeout > 0)) {
                         boolean reachable = false;
+                        TrafficStats.setThreadStatsTag(TrafficStats.TAG_SYSTEM_PROBE);
                         try {
                             reachable = gateway.isReachable(timeout);
                         } catch (Exception e) {
@@ -3009,6 +3011,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                     + gateway.getHostAddress());
 
                         } finally {
+                            TrafficStats.clearThreadStatsTag();
                             if (reachable == true) {
 
                                 address = macAddressFromRoute(gateway.getHostAddress());
