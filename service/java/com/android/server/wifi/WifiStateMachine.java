@@ -1263,8 +1263,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /**
      * Initiates connection to a network specified by the user/app. This method checks if the
      * requesting app holds the WIFI_CONFIG_OVERRIDE permission.
-     * a) If yes, we start a new connection attempt to the specified network.
-     * b) if no, then we ask connectivity manager to start a new scan and trigger network selection.
      */
     private boolean connectToUserSelectNetwork(int netId, int uid) {
         if (!mWifiConfigManager.enableNetwork(netId, true, uid)) {
@@ -1273,22 +1271,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             return false;
         }
         if (!mWifiConfigManager.checkAndUpdateLastConnectUid(netId, uid)) {
-            loge("connectToUserSelectNetwork uid " + uid
-                    + " did not have the permissions to connect=" + netId);
-            // App does not have the permission to force a connection. But, we should still
-            // reconsider this newly enabled network for network selection.
-            mWifiConnectivityManager.forceConnectivityScan();
+            logi("connectToUserSelectNetwork Allowing uid " + uid
+                    + " with insufficient permissions to connect=" + netId);
+        }
+        // Trigger an immediate connection to the specified network. We're also noting the user
+        // connect choice here, so that it will be considered in the next network selection.
+        mWifiConnectivityManager.setUserConnectChoice(netId);
+        if (mWifiInfo.getNetworkId() == netId) {
+            // We're already connected to the user specified network, don't trigger a
+            // reconnection.
+            logi("connectToUserSelectNetwork already connecting/connected=" + netId);
         } else {
-            // Trigger an immediate connection to the specified network. We're also noting the user
-            // connect choice here, so that it will be considered in the next network selection.
-            mWifiConnectivityManager.setUserConnectChoice(netId);
-            if (mWifiInfo.getNetworkId() == netId) {
-                // We're already connected to the user specified network, don't trigger a
-                // reconnection.
-                logi("connectToUserSelectNetwork already connecting/connected=" + netId);
-            } else {
-                startConnectToNetwork(netId, SUPPLICANT_BSSID_ANY);
-            }
+            startConnectToNetwork(netId, SUPPLICANT_BSSID_ANY);
         }
         return true;
     }
