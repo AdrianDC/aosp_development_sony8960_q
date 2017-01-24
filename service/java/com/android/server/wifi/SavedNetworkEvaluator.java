@@ -17,12 +17,17 @@
 package com.android.server.wifi;
 
 import android.content.Context;
+import android.database.ContentObserver;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.Settings;
 import android.util.LocalLog;
 import android.util.Pair;
 
 import com.android.internal.R;
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,9 +52,11 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
     private final int mSecurityAward;
     private final int mNoInternetPenalty;
     private final int mThresholdSaturatedRssi24;
+    @VisibleForTesting final ContentObserver mContentObserver;
+    private boolean mCurateSavedOpenNetworks;
 
-    SavedNetworkEvaluator(Context context, WifiConfigManager configManager,
-                        Clock clock, LocalLog localLog) {
+    SavedNetworkEvaluator(final Context context, WifiConfigManager configManager, Clock clock,
+            LocalLog localLog, Looper looper, final FrameworkFacade frameworkFacade) {
         mWifiConfigManager = configManager;
         mClock = clock;
         mLocalLog = localLog;
@@ -75,6 +82,23 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
         mNoInternetPenalty = (mThresholdSaturatedRssi24 + mRssiScoreOffset)
                 * mRssiScoreSlope + mBand5GHzAward + mSameNetworkAward
                 + mSameBssidAward + mSecurityAward;
+        mContentObserver = new ContentObserver(new Handler(looper)) {
+            @Override
+            public void onChange(boolean selfChange) {
+                boolean networkRecommendationsEnabled = frameworkFacade.getIntegerSetting(context,
+                                Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0) == 1;
+                boolean curateSavedOpenNetworks = frameworkFacade.getIntegerSetting(context,
+                        Settings.Global.CURATE_SAVED_OPEN_NETWORKS, 0) == 1;
+                mCurateSavedOpenNetworks = networkRecommendationsEnabled && curateSavedOpenNetworks;
+            }
+        };
+        mContentObserver.onChange(false /* selfChange*/);
+        context.getContentResolver().registerContentObserver(
+                Settings.Global.getUriFor(Settings.Global.CURATE_SAVED_OPEN_NETWORKS),
+                false /* notifyForDescendents */, mContentObserver);
+        context.getContentResolver().registerContentObserver(
+                Settings.Global.getUriFor(Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED),
+                false /* notifyForDescendents */, mContentObserver);
     }
 
     private void localLog(String log) {
@@ -292,6 +316,13 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
                 if (network.useExternalScores) {
                     localLog("Network " + WifiNetworkSelector.toNetworkString(network)
                             + " has external score.");
+                    continue;
+                }
+
+                if (mCurateSavedOpenNetworks
+                        && WifiConfigurationUtil.isConfigForOpenNetwork(network)) {
+                    localLog("Network " + WifiNetworkSelector.toNetworkString(network)
+                            + " is open and CURATE_SAVED_OPEN_NETWORKS is enabled.");
                     continue;
                 }
 

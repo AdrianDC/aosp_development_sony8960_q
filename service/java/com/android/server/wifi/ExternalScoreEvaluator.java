@@ -38,7 +38,9 @@ import java.util.List;
 /**
  * This class is the WifiNetworkSelector.NetworkEvaluator implementation for
  * externally scored networks.
+ * @deprecated TODO(b/33694078): remove this evaluator in favor of RecommendedNetworkEvaluator
  */
+@Deprecated
 public class ExternalScoreEvaluator implements WifiNetworkSelector.NetworkEvaluator {
     private static final String NAME = "WifiExternalScoreEvaluator";
     private final WifiConfigManager mWifiConfigManager;
