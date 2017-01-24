@@ -1349,16 +1349,16 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     // For debugging, keep track of last message status handling
     // TODO, find an equivalent mechanism as part of parent class
-    private static int MESSAGE_HANDLING_STATUS_PROCESSED = 2;
-    private static int MESSAGE_HANDLING_STATUS_OK = 1;
-    private static int MESSAGE_HANDLING_STATUS_UNKNOWN = 0;
-    private static int MESSAGE_HANDLING_STATUS_REFUSED = -1;
-    private static int MESSAGE_HANDLING_STATUS_FAIL = -2;
-    private static int MESSAGE_HANDLING_STATUS_OBSOLETE = -3;
-    private static int MESSAGE_HANDLING_STATUS_DEFERRED = -4;
-    private static int MESSAGE_HANDLING_STATUS_DISCARD = -5;
-    private static int MESSAGE_HANDLING_STATUS_LOOPED = -6;
-    private static int MESSAGE_HANDLING_STATUS_HANDLING_ERROR = -7;
+    private static final int MESSAGE_HANDLING_STATUS_PROCESSED = 2;
+    private static final int MESSAGE_HANDLING_STATUS_OK = 1;
+    private static final int MESSAGE_HANDLING_STATUS_UNKNOWN = 0;
+    private static final int MESSAGE_HANDLING_STATUS_REFUSED = -1;
+    private static final int MESSAGE_HANDLING_STATUS_FAIL = -2;
+    private static final int MESSAGE_HANDLING_STATUS_OBSOLETE = -3;
+    private static final int MESSAGE_HANDLING_STATUS_DEFERRED = -4;
+    private static final int MESSAGE_HANDLING_STATUS_DISCARD = -5;
+    private static final int MESSAGE_HANDLING_STATUS_LOOPED = -6;
+    private static final int MESSAGE_HANDLING_STATUS_HANDLING_ERROR = -7;
 
     private int messageHandlingStatus = 0;
 
