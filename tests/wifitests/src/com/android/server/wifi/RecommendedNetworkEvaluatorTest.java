@@ -45,6 +45,7 @@ import android.os.Process;
 import android.provider.Settings;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.LocalLog;
+import android.util.Pair;
 
 import com.android.server.wifi.util.ScanResultUtil;
 
@@ -403,6 +404,44 @@ public class RecommendedNetworkEvaluatorTest {
         RecommendationRequest request = mRecommendationRequestCaptor.getValue();
         assertEquals(1, request.getScanResults().length);
         assertTrue(request.getScanResults()[0].untrusted);
+    }
+
+    @Test
+    public void testEvaluateNetworks_potentialConnectableNetworksPopulated() {
+        when(mWifiConfigManager.wasEphemeralNetworkDeleted(anyString())).thenReturn(false);
+        when(mNetworkScoreManager.requestRecommendation(any(RecommendationRequest.class)))
+                .thenReturn(RecommendationResult.createDoNotConnectRecommendation());
+
+        List<Pair<ScanDetail, WifiConfiguration>> potentialConnectableNetworks = new ArrayList<>();
+        mRecommendedNetworkEvaluator.evaluateNetworks(
+                Lists.newArrayList(TRUSTED_SCAN_DETAIL, EPHEMERAL_SCAN_DETAIL,
+                        UNTRUSTED_SCAN_DETAIL), null, null, false,
+                true /* untrustedNetworkAllowed */, potentialConnectableNetworks);
+
+        assertEquals(3, potentialConnectableNetworks.size());
+        Pair<ScanDetail, WifiConfiguration> expectedTrustedPair =
+                Pair.create(TRUSTED_SCAN_DETAIL, TRUSTED_WIFI_CONFIGURATION);
+        Pair<ScanDetail, WifiConfiguration> expectedUntrustedPair =
+                Pair.create(UNTRUSTED_SCAN_DETAIL, null);
+        Pair<ScanDetail, WifiConfiguration> expectedEphemPair =
+                Pair.create(EPHEMERAL_SCAN_DETAIL, EPHEMERAL_WIFI_CONFIGURATION);
+        assertTrue(potentialConnectableNetworks.contains(expectedTrustedPair));
+        assertTrue(potentialConnectableNetworks.contains(expectedUntrustedPair));
+        assertTrue(potentialConnectableNetworks.contains(expectedEphemPair));
+    }
+
+    @Test
+    public void testEvaluateNetworks_potentialConnectableNetworksIsNull() {
+        when(mWifiConfigManager.wasEphemeralNetworkDeleted(anyString())).thenReturn(false);
+        when(mNetworkScoreManager.requestRecommendation(any(RecommendationRequest.class)))
+                .thenReturn(RecommendationResult.createDoNotConnectRecommendation());
+
+        mRecommendedNetworkEvaluator.evaluateNetworks(
+                Lists.newArrayList(TRUSTED_SCAN_DETAIL, EPHEMERAL_SCAN_DETAIL,
+                        UNTRUSTED_SCAN_DETAIL),
+                null, null, false, true /* untrustedNetworkAllowed */, null);
+
+        // should not throw a NPE.
     }
 
     @Test
