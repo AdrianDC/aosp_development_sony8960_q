@@ -405,6 +405,23 @@ public class RecommendedNetworkEvaluatorTest {
         assertTrue(request.getScanResults()[0].untrusted);
     }
 
+    @Test
+    public void testEvaluateNetworks_requestContainsLastSelectedNetwork() {
+        int lastSelectedNetworkId = 5;
+        long lastSelectedTimestamp = 1000;
+        when(mWifiConfigManager.wasEphemeralNetworkDeleted(anyString())).thenReturn(false);
+        when(mWifiConfigManager.getLastSelectedNetwork()).thenReturn(lastSelectedNetworkId);
+        when(mWifiConfigManager.getLastSelectedTimeStamp()).thenReturn(lastSelectedTimestamp);
+
+        mRecommendedNetworkEvaluator.evaluateNetworks(Lists.newArrayList(TRUSTED_SCAN_DETAIL),
+                null, null, false, false /* untrustedNetworkAllowed */, null);
+
+        verify(mNetworkScoreManager).requestRecommendation(mRecommendationRequestCaptor.capture());
+        RecommendationRequest request = mRecommendationRequestCaptor.getValue();
+        assertEquals(lastSelectedNetworkId, request.getLastSelectedNetworkId());
+        assertEquals(lastSelectedTimestamp, request.getLastSelectedNetworkTimestamp());
+    }
+
     private static ScanDetail buildScanDetail(String ssid) {
         return new ScanDetail(WifiSsid.createFromAsciiEncoded(ssid),
                 "00:00:00:00:00:00", "", 0, 0, 0, 0);
