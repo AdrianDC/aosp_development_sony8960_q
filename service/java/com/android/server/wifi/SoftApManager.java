@@ -278,6 +278,8 @@ public class SoftApManager implements ActiveModeManager {
                             mDeathRecipient.unlinkToDeath();
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED,
                                     WifiManager.SAP_START_FAILURE_GENERAL);
+                            mWifiMetrics.incrementSoftApStartResult(
+                                    false, WifiManager.SAP_START_FAILURE_GENERAL);
                             break;
                         }
 
@@ -289,6 +291,8 @@ public class SoftApManager implements ActiveModeManager {
                             unregisterObserver();
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED,
                                           WifiManager.SAP_START_FAILURE_GENERAL);
+                            mWifiMetrics.incrementSoftApStartResult(
+                                    false, WifiManager.SAP_START_FAILURE_GENERAL);
                             break;
                         }
 
@@ -301,6 +305,7 @@ public class SoftApManager implements ActiveModeManager {
                             mDeathRecipient.unlinkToDeath();
                             unregisterObserver();
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED, failureReason);
+                            mWifiMetrics.incrementSoftApStartResult(false, failureReason);
                             break;
                         }
 
@@ -336,6 +341,7 @@ public class SoftApManager implements ActiveModeManager {
                 if (isUp) {
                     Log.d(TAG, "SoftAp is ready for use");
                     updateApState(WifiManager.WIFI_AP_STATE_ENABLED, 0);
+                    mWifiMetrics.incrementSoftApStartResult(true, 0);
                 } else {
                     // TODO: handle the case where the interface was up, but goes down
                 }
