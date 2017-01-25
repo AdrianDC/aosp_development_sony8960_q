@@ -3668,11 +3668,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         wifiP2pServiceImpl.getP2pStateMachineMessenger());
             }
         }
-
-        // Set up Wifi Aware
-        if (mAwareSupported) {
-            mWifiAwareManager = mContext.getSystemService(WifiAwareManager.class);
-        }
     }
 
     /********************************************************
@@ -4228,14 +4223,21 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 }
             }
 
-            if (mAwareSupported && mWifiAwareManager != null) {
-                if (mOperationalMode == CONNECT_MODE) {
-                    mWifiAwareManager.enableUsage();
+            if (mAwareSupported) {
+                if (mWifiAwareManager == null) {
+                    mWifiAwareManager = mContext.getSystemService(WifiAwareManager.class);
+                }
+                if (mWifiAwareManager == null) {
+                    Log.e(TAG, "Can't get WifiAwareManager to enable usage!");
                 } else {
+                    if (mOperationalMode == CONNECT_MODE) {
+                        mWifiAwareManager.enableUsage();
+                    } else {
                     /*
                      * Aware state machine starts in disabled state. Nothing
                      * needed to keep it disabled.
                      */
+                    }
                 }
             }
 
@@ -4403,8 +4405,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
             mBufferedScanMsg.clear();
 
-            if (mAwareSupported && mWifiAwareManager != null) {
-                mWifiAwareManager.disableUsage();
+            if (mAwareSupported) {
+                if (mWifiAwareManager == null) {
+                    mWifiAwareManager = mContext.getSystemService(WifiAwareManager.class);
+                }
+                if (mWifiAwareManager == null) {
+                    Log.e(TAG, "Can't get WifiAwareManager (to disable usage)!");
+                } else {
+                    mWifiAwareManager.disableUsage();
+                }
             }
 
             mNetworkInfo.setIsAvailable(false);
