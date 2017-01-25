@@ -196,8 +196,12 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     }
 
     @Override
-    synchronized void reportConnectionFailure() {
-        mPacketFatesForLastFailure = fetchPacketFates();
+    synchronized void reportConnectionEvent(byte event) {
+        switch (event) {
+            case CONNECTION_EVENT_FAILED:
+                mPacketFatesForLastFailure = fetchPacketFates();
+                break;
+        }
     }
 
     @Override
