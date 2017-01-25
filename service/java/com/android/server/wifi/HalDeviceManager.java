@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import android.hardware.wifi.V1_0.IWifi;
 import android.hardware.wifi.V1_0.IWifiApIface;
 import android.hardware.wifi.V1_0.IWifiChip;
+import android.hardware.wifi.V1_0.IWifiChipEventCallback;
 import android.hardware.wifi.V1_0.IWifiEventCallback;
 import android.hardware.wifi.V1_0.IWifiIface;
 import android.hardware.wifi.V1_0.IWifiNanIface;
@@ -26,6 +27,7 @@ import android.hardware.wifi.V1_0.IWifiP2pIface;
 import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
 import android.hardware.wifi.V1_0.IfaceType;
+import android.hardware.wifi.V1_0.WifiDebugRingBufferStatus;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.hidl.manager.V1_0.IServiceManager;
@@ -35,14 +37,18 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.util.Log;
+import android.util.MutableBoolean;
 import android.util.MutableInt;
 import android.util.SparseArray;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -52,6 +58,17 @@ import java.util.Set;
 public class HalDeviceManager {
     private static final String TAG = "HalDeviceManager";
     private static final boolean DBG = true;
+
+    private static final int[] IFACE_PRIORITIES = new int[4];
+    static {
+        IFACE_PRIORITIES[IfaceType.AP] = 3;
+        IFACE_PRIORITIES[IfaceType.STA] = 2;
+        IFACE_PRIORITIES[IfaceType.P2P] = 1;
+        IFACE_PRIORITIES[IfaceType.NAN] = 0;
+    }
+
+    private static final int[] IFACE_TYPES_BY_PRIORITY =
+            {IfaceType.AP, IfaceType.STA, IfaceType.P2P, IfaceType.NAN};
 
     // public API
     public HalDeviceManager() {
@@ -349,10 +366,17 @@ public class HalDeviceManager {
     private final Set<ManagerStatusCallbackProxy> mManagerStatusCallbacks = new HashSet<>();
     private final SparseArray<Set<InterfaceAvailableForRequestListenerProxy>>
             mInterfaceAvailableForRequestListeners = new SparseArray<>();
+
+    /*
+     * This is the only place where we cache HIDL information in this manager. Necessary since
+     * we need to keep a list of registered destroyed listeners. Will be validated regularly
+     * in getAllChipInfoAndValidateCache().
+     */
     private final Map<IWifiIface, IfaceCacheEntry> mInterfaceInfoCache = new HashMap<>();
 
     private class IfaceCacheEntry {
         public IWifiChip chip;
+        public int chipId;
         public String name;
         public int type;
         public Set<InterfaceDestroyedListenerProxy> destroyedListeners = new HashSet<>();
@@ -362,6 +386,32 @@ public class HalDeviceManager {
             sb.append("{name=").append(name).append(", type=").append(type)
                     .append(", destroyedListeners.size()=").append(destroyedListeners.size())
                     .append("}");
+            return sb.toString();
+        }
+    }
+
+    private class IWifiIfaceInfo {
+        public String name;
+        public IWifiIface iface;
+    }
+
+    private class IWifiChipInfo {
+        public IWifiChip chip;
+        public int chipId;
+        public ArrayList<IWifiChip.ChipMode> availableModes;
+        public boolean currentModeIdValid;
+        public int currentModeId;
+        public IWifiIfaceInfo[][] ifaces = new IWifiIfaceInfo[IFACE_TYPES_BY_PRIORITY.length][];
+
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("{chipId=").append(chipId).append(", availableModes=").append(availableModes)
+                    .append(", currentModeIdValid=").append(currentModeIdValid)
+                    .append(", currentModeId=").append(currentModeId);
+            for (int type: IFACE_TYPES_BY_PRIORITY) {
+                sb.append(", ifaces[" + type + "].length=").append(ifaces[type].length);
+            }
+            sb.append(")");
             return sb.toString();
         }
     }
@@ -454,7 +504,6 @@ public class HalDeviceManager {
         }
     }
 
-
     /**
      * Initialize IWifi and register death listener and event callback.
      *
@@ -502,6 +551,403 @@ public class HalDeviceManager {
         }
     }
 
+    /**
+     * Registers event listeners on all IWifiChips after a successful start: DEBUG only!
+     *
+     * We don't need the listeners since any callbacks are just confirmation of status codes we
+     * obtain directly from mode changes or interface creation/deletion.
+     *
+     * Relies (to the degree we care) on the service removing all listeners when Wi-Fi is stopped.
+     */
+    private void initIWifiChipDebugListeners() {
+        if (DBG) Log.d(TAG, "initIWifiChipDebugListeners");
+
+        if (!DBG) {
+            return;
+        }
+
+        synchronized (mLock) {
+            try {
+                MutableBoolean statusOk = new MutableBoolean(false);
+                Mutable<ArrayList<Integer>> chipIdsResp = new Mutable<>();
+
+                // get all chip IDs
+                mWifi.getChipIds((WifiStatus status, ArrayList<Integer> chipIds) -> {
+                    statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                    if (statusOk.value) {
+                        chipIdsResp.value = chipIds;
+                    } else {
+                        Log.e(TAG, "getChipIds failed: " + statusString(status));
+                    }
+                });
+                if (!statusOk.value) {
+                    return;
+                }
+
+                if (DBG) Log.d(TAG, "getChipIds=" + chipIdsResp.value);
+                if (chipIdsResp.value.size() == 0) {
+                    Log.e(TAG, "Should have at least 1 chip!");
+                    return;
+                }
+
+                // register a callback for each chip
+                Mutable<IWifiChip> chipResp = new Mutable<>();
+                for (Integer chipId: chipIdsResp.value) {
+                    mWifi.getChip(chipId, (WifiStatus status, IWifiChip chip) -> {
+                        statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                        if (statusOk.value) {
+                            chipResp.value = chip;
+                        } else {
+                            Log.e(TAG, "getChip failed: " + statusString(status));
+                        }
+                    });
+                    if (!statusOk.value) {
+                        continue; // still try next one?
+                    }
+
+                    WifiStatus status = chipResp.value.registerEventCallback(
+                            new IWifiChipEventCallback.Stub() {
+                                @Override
+                                public void onChipReconfigured(int modeId) throws RemoteException {
+                                    Log.d(TAG, "onChipReconfigured: modeId=" + modeId);
+                                }
+
+                                @Override
+                                public void onChipReconfigureFailure(WifiStatus status)
+                                        throws RemoteException {
+                                    Log.d(TAG, "onChipReconfigureFailure: status=" + statusString(
+                                            status));
+                                }
+
+                                @Override
+                                public void onIfaceAdded(int type, String name)
+                                        throws RemoteException {
+                                    Log.d(TAG, "onIfaceAdded: type=" + type + ", name=" + name);
+                                }
+
+                                @Override
+                                public void onIfaceRemoved(int type, String name)
+                                        throws RemoteException {
+                                    Log.d(TAG, "onIfaceRemoved: type=" + type + ", name=" + name);
+                                }
+
+                                @Override
+                                public void onDebugRingBufferDataAvailable(
+                                        WifiDebugRingBufferStatus status,
+                                        ArrayList<Byte> data) throws RemoteException {
+                                    Log.d(TAG, "onDebugRingBufferDataAvailable");
+                                }
+
+                                @Override
+                                public void onDebugErrorAlert(int errorCode,
+                                        ArrayList<Byte> debugData)
+                                        throws RemoteException {
+                                    Log.d(TAG, "onDebugErrorAlert");
+                                }
+                            });
+                    if (status.code != WifiStatusCode.SUCCESS) {
+                        Log.e(TAG, "registerEventCallback failed: " + statusString(status));
+                        continue; // still try next one?
+                    }
+                }
+            } catch (RemoteException e) {
+                Log.e(TAG, "initIWifiChipDebugListeners: exception: " + e);
+                return;
+            }
+        }
+    }
+
+    /**
+     * Get current information about all the chips in the system: modes, current mode (if any), and
+     * any existing interfaces.
+     *
+     * Intended to be called whenever we need to configure the chips - information is NOT cached (to
+     * reduce the likelihood that we get out-of-sync).
+     */
+    private IWifiChipInfo[] getAllChipInfo() {
+        if (DBG) Log.d(TAG, "getAllChipInfo");
+
+        synchronized (mLock) {
+            try {
+                MutableBoolean statusOk = new MutableBoolean(false);
+                Mutable<ArrayList<Integer>> chipIdsResp = new Mutable<>();
+
+                // get all chip IDs
+                mWifi.getChipIds((WifiStatus status, ArrayList<Integer> chipIds) -> {
+                    statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                    if (statusOk.value) {
+                        chipIdsResp.value = chipIds;
+                    } else {
+                        Log.e(TAG, "getChipIds failed: " + statusString(status));
+                    }
+                });
+                if (!statusOk.value) {
+                    return null;
+                }
+
+                if (DBG) Log.d(TAG, "getChipIds=" + chipIdsResp.value);
+                if (chipIdsResp.value.size() == 0) {
+                    Log.e(TAG, "Should have at least 1 chip!");
+                    return null;
+                }
+
+                int chipInfoIndex = 0;
+                IWifiChipInfo[] chipsInfo = new IWifiChipInfo[chipIdsResp.value.size()];
+
+                Mutable<IWifiChip> chipResp = new Mutable<>();
+                for (Integer chipId: chipIdsResp.value) {
+                    mWifi.getChip(chipId, (WifiStatus status, IWifiChip chip) -> {
+                        statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                        if (statusOk.value) {
+                            chipResp.value = chip;
+                        } else {
+                            Log.e(TAG, "getChip failed: " + statusString(status));
+                        }
+                    });
+                    if (!statusOk.value) {
+                        return null;
+                    }
+
+                    Mutable<ArrayList<IWifiChip.ChipMode>> availableModesResp = new Mutable<>();
+                    chipResp.value.getAvailableModes(
+                            (WifiStatus status, ArrayList<IWifiChip.ChipMode> modes) -> {
+                                statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                                if (statusOk.value) {
+                                    availableModesResp.value = modes;
+                                } else {
+                                    Log.e(TAG, "getAvailableModes failed: " + statusString(status));
+                                }
+                            });
+                    if (!statusOk.value) {
+                        return null;
+                    }
+
+                    MutableBoolean currentModeValidResp = new MutableBoolean(false);
+                    MutableInt currentModeResp = new MutableInt(0);
+                    chipResp.value.getMode((WifiStatus status, int modeId) -> {
+                        statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                        if (statusOk.value) {
+                            currentModeValidResp.value = true;
+                            currentModeResp.value = modeId;
+                        } else if (status.code == WifiStatusCode.ERROR_NOT_AVAILABLE) {
+                            statusOk.value = true; // valid response
+                        } else {
+                            Log.e(TAG, "getMode failed: " + statusString(status));
+                        }
+                    });
+                    if (!statusOk.value) {
+                        return null;
+                    }
+
+                    Mutable<ArrayList<String>> ifaceNamesResp = new Mutable<>();
+                    MutableInt ifaceIndex = new MutableInt(0);
+
+                    chipResp.value.getStaIfaceNames(
+                            (WifiStatus status, ArrayList<String> ifnames) -> {
+                                statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                                if (statusOk.value) {
+                                    ifaceNamesResp.value = ifnames;
+                                } else {
+                                    Log.e(TAG, "getStaIfaceNames failed: " + statusString(status));
+                                }
+                            });
+                    if (!statusOk.value) {
+                        return null;
+                    }
+
+                    IWifiIfaceInfo[] staIfaces = new IWifiIfaceInfo[ifaceNamesResp.value.size()];
+                    for (String ifaceName: ifaceNamesResp.value) {
+                        chipResp.value.getStaIface(ifaceName,
+                                (WifiStatus status, IWifiStaIface iface) -> {
+                                    statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                                    if (statusOk.value) {
+                                        IWifiIfaceInfo ifaceInfo = new IWifiIfaceInfo();
+                                        ifaceInfo.name = ifaceName;
+                                        ifaceInfo.iface = iface;
+                                        staIfaces[ifaceIndex.value++] = ifaceInfo;
+                                    } else {
+                                        Log.e(TAG, "getStaIface failed: " + statusString(status));
+                                    }
+                                });
+                        if (!statusOk.value) {
+                            return null;
+                        }
+                    }
+
+                    ifaceIndex.value = 0;
+                    chipResp.value.getApIfaceNames(
+                            (WifiStatus status, ArrayList<String> ifnames) -> {
+                                statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                                if (statusOk.value) {
+                                    ifaceNamesResp.value = ifnames;
+                                } else {
+                                    Log.e(TAG, "getApIfaceNames failed: " + statusString(status));
+                                }
+                            });
+                    if (!statusOk.value) {
+                        return null;
+                    }
+
+                    IWifiIfaceInfo[] apIfaces = new IWifiIfaceInfo[ifaceNamesResp.value.size()];
+                    for (String ifaceName: ifaceNamesResp.value) {
+                        chipResp.value.getApIface(ifaceName,
+                                (WifiStatus status, IWifiApIface iface) -> {
+                                    statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                                    if (statusOk.value) {
+                                        IWifiIfaceInfo ifaceInfo = new IWifiIfaceInfo();
+                                        ifaceInfo.name = ifaceName;
+                                        ifaceInfo.iface = iface;
+                                        apIfaces[ifaceIndex.value++] = ifaceInfo;
+                                    } else {
+                                        Log.e(TAG, "getApIface failed: " + statusString(status));
+                                    }
+                                });
+                        if (!statusOk.value) {
+                            return null;
+                        }
+                    }
+
+                    ifaceIndex.value = 0;
+                    chipResp.value.getP2pIfaceNames(
+                            (WifiStatus status, ArrayList<String> ifnames) -> {
+                                statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                                if (statusOk.value) {
+                                    ifaceNamesResp.value = ifnames;
+                                } else {
+                                    Log.e(TAG, "getP2pIfaceNames failed: " + statusString(status));
+                                }
+                            });
+                    if (!statusOk.value) {
+                        return null;
+                    }
+
+                    IWifiIfaceInfo[] p2pIfaces = new IWifiIfaceInfo[ifaceNamesResp.value.size()];
+                    for (String ifaceName: ifaceNamesResp.value) {
+                        chipResp.value.getP2pIface(ifaceName,
+                                (WifiStatus status, IWifiP2pIface iface) -> {
+                                    statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                                    if (statusOk.value) {
+                                        IWifiIfaceInfo ifaceInfo = new IWifiIfaceInfo();
+                                        ifaceInfo.name = ifaceName;
+                                        ifaceInfo.iface = iface;
+                                        p2pIfaces[ifaceIndex.value++] = ifaceInfo;
+                                    } else {
+                                        Log.e(TAG, "getP2pIface failed: " + statusString(status));
+                                    }
+                                });
+                        if (!statusOk.value) {
+                            return null;
+                        }
+                    }
+
+                    ifaceIndex.value = 0;
+                    chipResp.value.getNanIfaceNames(
+                            (WifiStatus status, ArrayList<String> ifnames) -> {
+                                statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                                if (statusOk.value) {
+                                    ifaceNamesResp.value = ifnames;
+                                } else {
+                                    Log.e(TAG, "getNanIfaceNames failed: " + statusString(status));
+                                }
+                            });
+                    if (!statusOk.value) {
+                        return null;
+                    }
+
+                    IWifiIfaceInfo[] nanIfaces = new IWifiIfaceInfo[ifaceNamesResp.value.size()];
+                    for (String ifaceName: ifaceNamesResp.value) {
+                        chipResp.value.getNanIface(ifaceName,
+                                (WifiStatus status, IWifiNanIface iface) -> {
+                                    statusOk.value = status.code == WifiStatusCode.SUCCESS;
+                                    if (statusOk.value) {
+                                        IWifiIfaceInfo ifaceInfo = new IWifiIfaceInfo();
+                                        ifaceInfo.name = ifaceName;
+                                        ifaceInfo.iface = iface;
+                                        nanIfaces[ifaceIndex.value++] = ifaceInfo;
+                                    } else {
+                                        Log.e(TAG, "getNanIface failed: " + statusString(status));
+                                    }
+                                });
+                        if (!statusOk.value) {
+                            return null;
+                        }
+                    }
+
+                    IWifiChipInfo chipInfo = new IWifiChipInfo();
+                    chipsInfo[chipInfoIndex++] = chipInfo;
+
+                    chipInfo.chip = chipResp.value;
+                    chipInfo.chipId = chipId;
+                    chipInfo.availableModes = availableModesResp.value;
+                    chipInfo.currentModeIdValid = currentModeValidResp.value;
+                    chipInfo.currentModeId = currentModeResp.value;
+                    chipInfo.ifaces[IfaceType.STA] = staIfaces;
+                    chipInfo.ifaces[IfaceType.AP] = apIfaces;
+                    chipInfo.ifaces[IfaceType.P2P] = p2pIfaces;
+                    chipInfo.ifaces[IfaceType.NAN] = nanIfaces;
+                }
+
+                return chipsInfo;
+            } catch (RemoteException e) {
+                Log.e(TAG, "getAllChipInfoAndValidateCache exception: " + e);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Checks the local state of this object (the cached state) against the input 'chipInfos'
+     * state (which is a live representation of the Wi-Fi firmware status - read through the HAL).
+     * Returns 'true' if there are no discrepancies - 'false' otherwise.
+     *
+     * A discrepancy is if any local state contains references to a chip or interface which are not
+     * found on the information read from the chip.
+     */
+    private boolean validateInterfaceCache(IWifiChipInfo[] chipInfos) {
+        if (DBG) Log.d(TAG, "validateInterfaceCache");
+
+        synchronized (mLock) {
+            for (Map.Entry<IWifiIface, IfaceCacheEntry> entry: mInterfaceInfoCache.entrySet()) {
+                // search for chip
+                IWifiChipInfo matchingChipInfo = null;
+                for (IWifiChipInfo ci: chipInfos) {
+                    if (ci.chipId == entry.getValue().chipId) {
+                        matchingChipInfo = ci;
+                        break;
+                    }
+                }
+                if (matchingChipInfo == null) {
+                    Log.e(TAG, "validateInterfaceCache: no chip found for " + entry.getValue());
+                    return false;
+                }
+
+                // search for interface
+                IWifiIfaceInfo[] ifaceInfoList = matchingChipInfo.ifaces[entry.getValue().type];
+                if (ifaceInfoList == null) {
+                    Log.e(TAG, "validateInterfaceCache: invalid type on entry " + entry.getValue());
+                    return false;
+                }
+
+                boolean matchFound = false;
+                for (IWifiIfaceInfo ifaceInfo: ifaceInfoList) {
+                    if (ifaceInfo.name.equals(entry.getValue().name)
+                            && ifaceInfo.iface == entry.getKey()) {
+                        matchFound = true;
+                        break;
+                    }
+                }
+                if (!matchFound) {
+                    Log.e(TAG, "validateInterfaceCache: no interface found for "
+                            + entry.getValue());
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     private boolean isWifiStarted() {
         if (DBG) Log.d(TAG, "isWifiStart");
 
@@ -532,6 +978,7 @@ public class HalDeviceManager {
                     WifiStatus status = mWifi.start();
                     boolean success = status.code == WifiStatusCode.SUCCESS;
                     if (success) {
+                        initIWifiChipDebugListeners();
                         managerStatusCallbackDispatchStart();
                     } else {
                         Log.e(TAG, "Cannot start IWifi: " + statusString(status));
@@ -661,20 +1108,368 @@ public class HalDeviceManager {
     private IWifiIface createIface(int ifaceType, InterfaceDestroyedListener destroyedListener,
             InterfaceAvailableForRequestListener availableListener,
             Looper looper) {
-        IWifiIface iface = createIfaceIfPossible(ifaceType, destroyedListener, looper);
-        if (iface == null && availableListener != null) {
-            mInterfaceAvailableForRequestListeners.get(ifaceType).add(
-                    new InterfaceAvailableForRequestListenerProxy(availableListener,
-                            looper == null ? Looper.myLooper() : looper));
-        }
+        if (DBG) Log.d(TAG, "createIface: ifaceType=" + ifaceType);
 
-        return iface;
+        synchronized (mLock) {
+            IWifiChipInfo[] chipInfos = getAllChipInfo();
+            if (chipInfos == null) {
+                Log.e(TAG, "createIface: no chip info found");
+                stopWifi(); // major error: shutting down
+                return null;
+            }
+
+            if (!validateInterfaceCache(chipInfos)) {
+                Log.e(TAG, "createIface: local cache is invalid!");
+                stopWifi(); // major error: shutting down
+                return null;
+            }
+
+            IWifiIface iface = createIfaceIfPossible(chipInfos, ifaceType, destroyedListener,
+                    looper);
+            if (iface == null && availableListener != null) {
+                mInterfaceAvailableForRequestListeners.get(ifaceType).add(
+                        new InterfaceAvailableForRequestListenerProxy(availableListener,
+                                looper == null ? Looper.myLooper() : looper));
+            }
+
+            return iface;
+        }
     }
 
-    private IWifiIface createIfaceIfPossible(int ifaceType,
+    private IWifiIface createIfaceIfPossible(IWifiChipInfo[] chipInfos, int ifaceType,
             InterfaceDestroyedListener destroyedListener, Looper looper) {
-        // TODO
+        synchronized (mLock) {
+            IfaceCreationData bestIfaceCreationProposal = null;
+            for (IWifiChipInfo chipInfo: chipInfos) {
+                for (IWifiChip.ChipMode chipMode: chipInfo.availableModes) {
+                    for (IWifiChip.ChipIfaceCombination chipIfaceCombo : chipMode
+                            .availableCombinations) {
+                        int[][] expandedIfaceCombos = expandIfaceCombos(chipIfaceCombo);
+                        if (DBG) {
+                            Log.d(TAG, chipIfaceCombo + " expands to "
+                                    + Arrays.deepToString(expandedIfaceCombos));
+                        }
+
+                        for (int[] expandedIfaceCombo: expandedIfaceCombos) {
+                            IfaceCreationData currentProposal = canIfaceComboSupportRequest(
+                                    chipInfo, chipMode, expandedIfaceCombo, ifaceType);
+                            if (compareIfaceCreationData(currentProposal,
+                                    bestIfaceCreationProposal)) {
+                                if (DBG) Log.d(TAG, "new proposal accepted");
+                                bestIfaceCreationProposal = currentProposal;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (bestIfaceCreationProposal != null) {
+                IWifiIface iface = executeChipReconfiguration(bestIfaceCreationProposal, ifaceType);
+                if (iface != null) {
+                    IfaceCacheEntry cacheEntry = new IfaceCacheEntry();
+
+                    cacheEntry.chip = bestIfaceCreationProposal.chipInfo.chip;
+                    cacheEntry.chipId = bestIfaceCreationProposal.chipInfo.chipId;
+                    cacheEntry.name = getName(iface);
+                    cacheEntry.type = ifaceType;
+                    if (destroyedListener != null) {
+                        cacheEntry.destroyedListeners.add(
+                                new InterfaceDestroyedListenerProxy(destroyedListener,
+                                        looper == null ? Looper.myLooper() : looper));
+                    }
+
+                    mInterfaceInfoCache.put(iface, cacheEntry);
+                    return iface;
+                }
+            }
+        }
+
         return null;
+    }
+
+    /**
+     * Expands (or provides an alternative representation) of the ChipIfaceCombination as all
+     * possible combinations of interface.
+     *
+     * Returns [# of combinations][4 (IfaceType)]
+     *
+     * Note: there could be duplicates - allow (inefficient but ...).
+     * TODO: optimize by using a Set as opposed to a []: will remove duplicates. Will need to
+     * provide correct hashes.
+     */
+    private int[][] expandIfaceCombos(IWifiChip.ChipIfaceCombination chipIfaceCombo) {
+        int numOfCombos = 1;
+        for (IWifiChip.ChipIfaceCombinationLimit limit: chipIfaceCombo.limits) {
+            for (int i = 0; i < limit.maxIfaces; ++i) {
+                numOfCombos *= limit.types.size();
+            }
+        }
+
+        int[][] expandedIfaceCombos = new int[numOfCombos][IFACE_TYPES_BY_PRIORITY.length];
+
+        int span = numOfCombos; // span of an individual type (or sub-tree size)
+        for (IWifiChip.ChipIfaceCombinationLimit limit: chipIfaceCombo.limits) {
+            for (int i = 0; i < limit.maxIfaces; ++i) {
+                span /= limit.types.size();
+                for (int k = 0; k < numOfCombos; ++k) {
+                    expandedIfaceCombos[k][limit.types.get((k / span) % limit.types.size())]++;
+                }
+            }
+        }
+
+        return expandedIfaceCombos;
+    }
+
+    private class IfaceCreationData {
+        public IWifiChipInfo chipInfo;
+        public int chipModeId;
+        public List<IWifiIfaceInfo> interfacesToBeRemovedFirst;
+
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("{chipInfo=").append(chipInfo).append(", chipModeId=").append(chipModeId)
+                    .append(", interfacesToBeRemovedFirst=").append(interfacesToBeRemovedFirst)
+                    .append(")");
+            return sb.toString();
+        }
+    }
+
+    /**
+     * Checks whether the input chip-iface-combo can support the requested interface type: if not
+     * then returns null, if yes then returns information containing the list of interfaces which
+     * would have to be removed first before the requested interface can be created.
+     *
+     * Note: the list of interfaces to be removed is EMPTY if a chip mode change is required - in
+     * that case ALL the interfaces on the current chip have to be removed first.
+     *
+     * Response determined based on:
+     * - Mode configuration: i.e. could the mode support the interface type in principle
+     * - Priority information: i.e. are we 'allowed' to remove interfaces in order to create the
+     *   requested interface
+     */
+    private IfaceCreationData canIfaceComboSupportRequest(IWifiChipInfo chipInfo,
+            IWifiChip.ChipMode chipMode, int[] chipIfaceCombo, int ifaceType) {
+        if (DBG) {
+            Log.d(TAG, "canIfaceComboSupportRequest: chipInfo=" + chipInfo + ", chipMode="
+                    + chipMode + ", chipIfaceCombo=" + chipIfaceCombo + ", ifaceType=" + ifaceType);
+        }
+
+        // short-circuit: does the chipIfaceCombo even support the requested type?
+        if (chipIfaceCombo[ifaceType] == 0) {
+            if (DBG) Log.d(TAG, "Requested type not supported by combo");
+            return null;
+        }
+
+        boolean isChipModeChangeProposed =
+                chipInfo.currentModeIdValid && chipInfo.currentModeId != chipMode.id;
+
+        // short-circuit: can't change chip-mode if an existing interface on this chip has a higher
+        // priority than the requested interface
+        if (isChipModeChangeProposed) {
+            for (int type: IFACE_TYPES_BY_PRIORITY) {
+                if (chipInfo.ifaces[type].length != 0) {
+                    if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType)) {
+                        if (DBG) {
+                            Log.d(TAG, "Couldn't delete existing type " + type
+                                    + " interfaces for requested type");
+                        }
+                        return null;
+                    }
+                }
+            }
+
+            // but if priority allows the mode change then we're good to go
+            IfaceCreationData ifaceCreationData = new IfaceCreationData();
+            ifaceCreationData.chipInfo = chipInfo;
+            ifaceCreationData.chipModeId = chipMode.id;
+
+            return ifaceCreationData;
+        }
+
+        // possibly supported
+        List<IWifiIfaceInfo> interfacesToBeRemovedFirst = new ArrayList<>();
+
+        for (int type: IFACE_TYPES_BY_PRIORITY) {
+            int tooManyInterfaces = chipInfo.ifaces[type].length - chipIfaceCombo[type];
+            if (tooManyInterfaces > 0) { // may need to delete some
+                if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType)) {
+                    if (DBG) {
+                        Log.d(TAG, "Would need to delete some higher priority interfaces");
+                    }
+                    return null;
+                }
+
+                // arbitrarily pick the first interfaces to delete
+                for (int i = 0; i < tooManyInterfaces; ++i) {
+                    interfacesToBeRemovedFirst.add(chipInfo.ifaces[type][i]);
+                }
+            }
+        }
+
+        IfaceCreationData ifaceCreationData = new IfaceCreationData();
+        ifaceCreationData.chipInfo = chipInfo;
+        ifaceCreationData.chipModeId = chipMode.id;
+        ifaceCreationData.interfacesToBeRemovedFirst = interfacesToBeRemovedFirst;
+
+        return ifaceCreationData;
+    }
+
+    /**
+     * Compares two options to create an interface and determines which is the 'best'. Returns
+     * true if proposal 1 (val1) is better, other false.
+     *
+     * Note: both proposals are 'acceptable' bases on priority criteria.
+     *
+     * Criteria:
+     * - Proposal is better if it means removing fewer high priority interfaces
+     */
+    private boolean compareIfaceCreationData(IfaceCreationData val1, IfaceCreationData val2) {
+        if (DBG) Log.d(TAG, "compareIfaceCreationData: val1=" + val1 + ", val2=" + val2);
+
+        // deal with trivial case of one or the other being null
+        if (val1 == null) {
+            return false;
+        } else if (val2 == null) {
+            return true;
+        }
+
+        for (int type: IFACE_TYPES_BY_PRIORITY) {
+            // # of interfaces to be deleted: the list or all interfaces of the type if mode change
+            int numIfacesToDelete1 = 0;
+            if (val1.chipInfo.currentModeIdValid
+                    && val1.chipInfo.currentModeId != val1.chipModeId) {
+                numIfacesToDelete1 = val1.chipInfo.ifaces[type].length;
+            } else {
+                numIfacesToDelete1 = val1.interfacesToBeRemovedFirst.size();
+            }
+
+            int numIfacesToDelete2 = 0;
+            if (val2.chipInfo.currentModeIdValid
+                    && val2.chipInfo.currentModeId != val2.chipModeId) {
+                numIfacesToDelete2 = val2.chipInfo.ifaces[type].length;
+            } else {
+                numIfacesToDelete2 = val2.interfacesToBeRemovedFirst.size();
+            }
+
+            if (numIfacesToDelete1 < numIfacesToDelete2) {
+                if (DBG) {
+                    Log.d(TAG, "decision based on type=" + type + ": " + numIfacesToDelete1
+                            + " < " + numIfacesToDelete2);
+                }
+                return true;
+            }
+        }
+
+        // arbitrary - flip a coin
+        if (DBG) Log.d(TAG, "proposals identical - flip a coin");
+        return false;
+    }
+
+    /**
+     * Returns true if we're allowed to delete the existing interface type for the requested
+     * interface type.
+     *
+     * Criteria is strict priority: AP > STA > P2P > NAN
+     * Two interfaces of the same type result in a false (not allowed to delete).
+     */
+    private boolean allowedToDeleteIfaceTypeForRequestedType(int existingIfaceType,
+            int requestedIfactType) {
+        return IFACE_PRIORITIES[requestedIfactType] > IFACE_PRIORITIES[existingIfaceType];
+    }
+
+    /**
+     * Performs chip reconfiguration per the input:
+     * - Removes the specified interfaces
+     * - Reconfigures the chip to the new chip mode (if necessary)
+     * - Creates the new interface
+     *
+     * Returns the newly created interface or a null on any error.
+     */
+    private IWifiIface executeChipReconfiguration(IfaceCreationData ifaceCreationData,
+            int ifaceType) {
+        if (DBG) {
+            Log.d(TAG, "executeChipReconfiguration: ifaceCreationData=" + ifaceCreationData
+                    + ", ifaceType=" + ifaceType);
+        }
+        synchronized (mLock) {
+            try {
+                // is this a mode change?
+                boolean isModeConfigNeeded = !ifaceCreationData.chipInfo.currentModeIdValid
+                        || ifaceCreationData.chipInfo.currentModeId != ifaceCreationData.chipModeId;
+                if (DBG) Log.d(TAG, "isModeConfigNeeded=" + isModeConfigNeeded);
+
+                // first delete interfaces/change modes
+                if (isModeConfigNeeded) {
+                    // remove all interfaces pre mode-change
+                    // TODO: is this necessary? note that even if we don't want to explicitly
+                    // remove the interfaces we do need to call the onDeleted callbacks - which
+                    // this does
+                    for (IWifiIfaceInfo[] ifaceInfos: ifaceCreationData.chipInfo.ifaces) {
+                        for (IWifiIfaceInfo ifaceInfo: ifaceInfos) {
+                            removeIfaceInternal(ifaceInfo.iface); // ignore return value
+                        }
+                    }
+
+                    WifiStatus status = ifaceCreationData.chipInfo.chip.configureChip(
+                            ifaceCreationData.chipModeId);
+                    if (status.code != WifiStatusCode.SUCCESS) {
+                        Log.e(TAG, "executeChipReconfiguration: configureChip error: "
+                                + statusString(status));
+                        return null;
+                    }
+                } else {
+                    // remove all interfaces on the delete list
+                    for (IWifiIfaceInfo ifaceInfo: ifaceCreationData.interfacesToBeRemovedFirst) {
+                        removeIfaceInternal(ifaceInfo.iface); // ignore return value
+                    }
+                }
+
+                // create new interface
+                Mutable<WifiStatus> statusResp = new Mutable<>();
+                Mutable<IWifiIface> ifaceResp = new Mutable<>();
+                switch (ifaceType) {
+                    case IfaceType.STA:
+                        ifaceCreationData.chipInfo.chip.createStaIface(
+                                (WifiStatus status, IWifiStaIface iface) -> {
+                                    statusResp.value = status;
+                                    ifaceResp.value = iface;
+                                });
+                        break;
+                    case IfaceType.AP:
+                        ifaceCreationData.chipInfo.chip.createApIface(
+                                (WifiStatus status, IWifiApIface iface) -> {
+                                    statusResp.value = status;
+                                    ifaceResp.value = iface;
+                                });
+                        break;
+                    case IfaceType.P2P:
+                        ifaceCreationData.chipInfo.chip.createP2pIface(
+                                (WifiStatus status, IWifiP2pIface iface) -> {
+                                    statusResp.value = status;
+                                    ifaceResp.value = iface;
+                                });
+                        break;
+                    case IfaceType.NAN:
+                        ifaceCreationData.chipInfo.chip.createNanIface(
+                                (WifiStatus status, IWifiNanIface iface) -> {
+                                    statusResp.value = status;
+                                    ifaceResp.value = iface;
+                                });
+                        break;
+                }
+
+                if (statusResp.value.code != WifiStatusCode.SUCCESS) {
+                    Log.e(TAG, "executeChipReconfiguration: failed to create interface ifaceType="
+                            + ifaceType + ": " + statusString(statusResp.value));
+                    return null;
+                }
+
+                return ifaceResp.value;
+            } catch (RemoteException e) {
+                Log.e(TAG, "executeChipReconfiguration exception: " + e);
+                return null;
+            }
+        }
     }
 
     private boolean removeIfaceInternal(IWifiIface iface) {
