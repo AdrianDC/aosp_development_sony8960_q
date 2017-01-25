@@ -43,20 +43,23 @@ class WifiAwareNativeManager {
             HalDeviceManager halDeviceManager) {
         mWifiAwareStateManager = awareStateManager;
         mHalDeviceManager = halDeviceManager;
-        mHalDeviceManager.registerStatusCallback(
-                new HalDeviceManager.ManagerStatusCallback() {
+        mHalDeviceManager.registerStatusListener(
+                new HalDeviceManager.ManagerStatusListener() {
                     @Override
-                    public void onStart() {
-                        if (DBG) Log.d(TAG, "Wi-Fi started");
-                        tryToGetAware();
-                    }
-
-                    @Override
-                    public void onStop() {
-                        if (DBG) Log.d(TAG, "Wi-Fi stopped");
-                        awareIsDown();
+                    public void onStatusChanged() {
+                        if (DBG) Log.d(TAG, "onStatusChanged");
+                        // only care about isStarted (Wi-Fi started) not isReady - since if not
+                        // ready then Wi-Fi will also be down.
+                        if (mHalDeviceManager.isStarted()) {
+                            tryToGetAware();
+                        } else {
+                            awareIsDown();
+                        }
                     }
                 }, null);
+        if (mHalDeviceManager.isStarted()) {
+            tryToGetAware();
+        }
     }
 
     /* package */ IWifiNanIface getWifiNanIface() {
@@ -67,6 +70,10 @@ class WifiAwareNativeManager {
 
     private void tryToGetAware() {
         synchronized (mLock) {
+            if (mWifiNanIface != null) {
+                if (DBG) Log.d(TAG, "Already have a NAN interface");
+                return;
+            }
             IWifiNanIface iface = mHalDeviceManager.createNanIface(
                     mInterfaceDestroyedListener, mInterfaceAvailableForRequestListener, null);
             if (iface == null) {
