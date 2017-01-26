@@ -204,7 +204,7 @@ public class HalDeviceManager {
     public boolean removeIface(IWifiIface iface) {
         boolean success = removeIfaceInternal(iface);
 
-        IWifiChipInfo[] chipInfos = getAllChipInfo();
+        WifiChipInfo[] chipInfos = getAllChipInfo();
         if (chipInfos == null) {
             Log.e(TAG, "removeIface: not able to find any chip information!?");
         } else {
@@ -225,7 +225,7 @@ public class HalDeviceManager {
         if (DBG) Log.d(TAG, "getChip: iface(name)=" + getName(iface));
 
         synchronized (mLock) {
-            IfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(iface);
+            InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(iface);
             if (cacheEntry == null) {
                 Log.e(TAG, "getChip: no entry for iface(name)=" + getName(iface));
                 return null;
@@ -248,7 +248,7 @@ public class HalDeviceManager {
         if (DBG) Log.d(TAG, "registerDestroyedListener: iface(name)=" + getName(iface));
 
         synchronized (mLock) {
-            IfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(iface);
+            InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(iface);
             if (cacheEntry == null) {
                 Log.e(TAG, "registerDestroyedListener: no entry for iface(name)="
                         + getName(iface));
@@ -379,9 +379,9 @@ public class HalDeviceManager {
      * we need to keep a list of registered destroyed listeners. Will be validated regularly
      * in getAllChipInfoAndValidateCache().
      */
-    private final Map<IWifiIface, IfaceCacheEntry> mInterfaceInfoCache = new HashMap<>();
+    private final Map<IWifiIface, InterfaceCacheEntry> mInterfaceInfoCache = new HashMap<>();
 
-    private class IfaceCacheEntry {
+    private class InterfaceCacheEntry {
         public IWifiChip chip;
         public int chipId;
         public String name;
@@ -398,18 +398,18 @@ public class HalDeviceManager {
         }
     }
 
-    private class IWifiIfaceInfo {
+    private class WifiIfaceInfo {
         public String name;
         public IWifiIface iface;
     }
 
-    private class IWifiChipInfo {
+    private class WifiChipInfo {
         public IWifiChip chip;
         public int chipId;
         public ArrayList<IWifiChip.ChipMode> availableModes;
         public boolean currentModeIdValid;
         public int currentModeId;
-        public IWifiIfaceInfo[][] ifaces = new IWifiIfaceInfo[IFACE_TYPES_BY_PRIORITY.length][];
+        public WifiIfaceInfo[][] ifaces = new WifiIfaceInfo[IFACE_TYPES_BY_PRIORITY.length][];
 
         @Override
         public String toString() {
@@ -673,7 +673,7 @@ public class HalDeviceManager {
      * Intended to be called whenever we need to configure the chips - information is NOT cached (to
      * reduce the likelihood that we get out-of-sync).
      */
-    private IWifiChipInfo[] getAllChipInfo() {
+    private WifiChipInfo[] getAllChipInfo() {
         if (DBG) Log.d(TAG, "getAllChipInfo");
 
         synchronized (mLock) {
@@ -701,7 +701,7 @@ public class HalDeviceManager {
                 }
 
                 int chipInfoIndex = 0;
-                IWifiChipInfo[] chipsInfo = new IWifiChipInfo[chipIdsResp.value.size()];
+                WifiChipInfo[] chipsInfo = new WifiChipInfo[chipIdsResp.value.size()];
 
                 Mutable<IWifiChip> chipResp = new Mutable<>();
                 for (Integer chipId: chipIdsResp.value) {
@@ -764,13 +764,13 @@ public class HalDeviceManager {
                         return null;
                     }
 
-                    IWifiIfaceInfo[] staIfaces = new IWifiIfaceInfo[ifaceNamesResp.value.size()];
+                    WifiIfaceInfo[] staIfaces = new WifiIfaceInfo[ifaceNamesResp.value.size()];
                     for (String ifaceName: ifaceNamesResp.value) {
                         chipResp.value.getStaIface(ifaceName,
                                 (WifiStatus status, IWifiStaIface iface) -> {
                                     statusOk.value = status.code == WifiStatusCode.SUCCESS;
                                     if (statusOk.value) {
-                                        IWifiIfaceInfo ifaceInfo = new IWifiIfaceInfo();
+                                        WifiIfaceInfo ifaceInfo = new WifiIfaceInfo();
                                         ifaceInfo.name = ifaceName;
                                         ifaceInfo.iface = iface;
                                         staIfaces[ifaceIndex.value++] = ifaceInfo;
@@ -797,13 +797,13 @@ public class HalDeviceManager {
                         return null;
                     }
 
-                    IWifiIfaceInfo[] apIfaces = new IWifiIfaceInfo[ifaceNamesResp.value.size()];
+                    WifiIfaceInfo[] apIfaces = new WifiIfaceInfo[ifaceNamesResp.value.size()];
                     for (String ifaceName: ifaceNamesResp.value) {
                         chipResp.value.getApIface(ifaceName,
                                 (WifiStatus status, IWifiApIface iface) -> {
                                     statusOk.value = status.code == WifiStatusCode.SUCCESS;
                                     if (statusOk.value) {
-                                        IWifiIfaceInfo ifaceInfo = new IWifiIfaceInfo();
+                                        WifiIfaceInfo ifaceInfo = new WifiIfaceInfo();
                                         ifaceInfo.name = ifaceName;
                                         ifaceInfo.iface = iface;
                                         apIfaces[ifaceIndex.value++] = ifaceInfo;
@@ -830,13 +830,13 @@ public class HalDeviceManager {
                         return null;
                     }
 
-                    IWifiIfaceInfo[] p2pIfaces = new IWifiIfaceInfo[ifaceNamesResp.value.size()];
+                    WifiIfaceInfo[] p2pIfaces = new WifiIfaceInfo[ifaceNamesResp.value.size()];
                     for (String ifaceName: ifaceNamesResp.value) {
                         chipResp.value.getP2pIface(ifaceName,
                                 (WifiStatus status, IWifiP2pIface iface) -> {
                                     statusOk.value = status.code == WifiStatusCode.SUCCESS;
                                     if (statusOk.value) {
-                                        IWifiIfaceInfo ifaceInfo = new IWifiIfaceInfo();
+                                        WifiIfaceInfo ifaceInfo = new WifiIfaceInfo();
                                         ifaceInfo.name = ifaceName;
                                         ifaceInfo.iface = iface;
                                         p2pIfaces[ifaceIndex.value++] = ifaceInfo;
@@ -863,13 +863,13 @@ public class HalDeviceManager {
                         return null;
                     }
 
-                    IWifiIfaceInfo[] nanIfaces = new IWifiIfaceInfo[ifaceNamesResp.value.size()];
+                    WifiIfaceInfo[] nanIfaces = new WifiIfaceInfo[ifaceNamesResp.value.size()];
                     for (String ifaceName: ifaceNamesResp.value) {
                         chipResp.value.getNanIface(ifaceName,
                                 (WifiStatus status, IWifiNanIface iface) -> {
                                     statusOk.value = status.code == WifiStatusCode.SUCCESS;
                                     if (statusOk.value) {
-                                        IWifiIfaceInfo ifaceInfo = new IWifiIfaceInfo();
+                                        WifiIfaceInfo ifaceInfo = new WifiIfaceInfo();
                                         ifaceInfo.name = ifaceName;
                                         ifaceInfo.iface = iface;
                                         nanIfaces[ifaceIndex.value++] = ifaceInfo;
@@ -882,7 +882,7 @@ public class HalDeviceManager {
                         }
                     }
 
-                    IWifiChipInfo chipInfo = new IWifiChipInfo();
+                    WifiChipInfo chipInfo = new WifiChipInfo();
                     chipsInfo[chipInfoIndex++] = chipInfo;
 
                     chipInfo.chip = chipResp.value;
@@ -913,14 +913,14 @@ public class HalDeviceManager {
      * A discrepancy is if any local state contains references to a chip or interface which are not
      * found on the information read from the chip.
      */
-    private boolean validateInterfaceCache(IWifiChipInfo[] chipInfos) {
+    private boolean validateInterfaceCache(WifiChipInfo[] chipInfos) {
         if (DBG) Log.d(TAG, "validateInterfaceCache");
 
         synchronized (mLock) {
-            for (Map.Entry<IWifiIface, IfaceCacheEntry> entry: mInterfaceInfoCache.entrySet()) {
+            for (Map.Entry<IWifiIface, InterfaceCacheEntry> entry: mInterfaceInfoCache.entrySet()) {
                 // search for chip
-                IWifiChipInfo matchingChipInfo = null;
-                for (IWifiChipInfo ci: chipInfos) {
+                WifiChipInfo matchingChipInfo = null;
+                for (WifiChipInfo ci: chipInfos) {
                     if (ci.chipId == entry.getValue().chipId) {
                         matchingChipInfo = ci;
                         break;
@@ -932,14 +932,14 @@ public class HalDeviceManager {
                 }
 
                 // search for interface
-                IWifiIfaceInfo[] ifaceInfoList = matchingChipInfo.ifaces[entry.getValue().type];
+                WifiIfaceInfo[] ifaceInfoList = matchingChipInfo.ifaces[entry.getValue().type];
                 if (ifaceInfoList == null) {
                     Log.e(TAG, "validateInterfaceCache: invalid type on entry " + entry.getValue());
                     return false;
                 }
 
                 boolean matchFound = false;
-                for (IWifiIfaceInfo ifaceInfo: ifaceInfoList) {
+                for (WifiIfaceInfo ifaceInfo: ifaceInfoList) {
                     if (ifaceInfo.name.equals(entry.getValue().name)
                             && ifaceInfo.iface == entry.getKey()) {
                         matchFound = true;
@@ -1120,7 +1120,7 @@ public class HalDeviceManager {
         if (DBG) Log.d(TAG, "createIface: ifaceType=" + ifaceType);
 
         synchronized (mLock) {
-            IWifiChipInfo[] chipInfos = getAllChipInfo();
+            WifiChipInfo[] chipInfos = getAllChipInfo();
             if (chipInfos == null) {
                 Log.e(TAG, "createIface: no chip info found");
                 stopWifi(); // major error: shutting down
@@ -1157,7 +1157,7 @@ public class HalDeviceManager {
         }
     }
 
-    private IWifiIface createIfaceIfPossible(IWifiChipInfo[] chipInfos, int ifaceType,
+    private IWifiIface createIfaceIfPossible(WifiChipInfo[] chipInfos, int ifaceType,
             InterfaceDestroyedListener destroyedListener, Looper looper) {
         if (DBG) {
             Log.d(TAG, "createIfaceIfPossible: chipInfos=" + chipInfos + ", ifaceType="
@@ -1165,7 +1165,7 @@ public class HalDeviceManager {
         }
         synchronized (mLock) {
             IfaceCreationData bestIfaceCreationProposal = null;
-            for (IWifiChipInfo chipInfo: chipInfos) {
+            for (WifiChipInfo chipInfo: chipInfos) {
                 for (IWifiChip.ChipMode chipMode: chipInfo.availableModes) {
                     for (IWifiChip.ChipIfaceCombination chipIfaceCombo : chipMode
                             .availableCombinations) {
@@ -1191,7 +1191,7 @@ public class HalDeviceManager {
             if (bestIfaceCreationProposal != null) {
                 IWifiIface iface = executeChipReconfiguration(bestIfaceCreationProposal, ifaceType);
                 if (iface != null) {
-                    IfaceCacheEntry cacheEntry = new IfaceCacheEntry();
+                    InterfaceCacheEntry cacheEntry = new InterfaceCacheEntry();
 
                     cacheEntry.chip = bestIfaceCreationProposal.chipInfo.chip;
                     cacheEntry.chipId = bestIfaceCreationProposal.chipInfo.chipId;
@@ -1214,13 +1214,13 @@ public class HalDeviceManager {
 
     // similar to createIfaceIfPossible - but simpler code: not looking for best option just
     // for any option (so terminates on first one).
-    private boolean isItPossibleToCreateIface(IWifiChipInfo[] chipInfos, int ifaceType) {
+    private boolean isItPossibleToCreateIface(WifiChipInfo[] chipInfos, int ifaceType) {
         if (DBG) {
             Log.d(TAG, "isItPossibleToCreateIface: chipInfos=" + chipInfos + ", ifaceType="
                     + ifaceType);
         }
 
-        for (IWifiChipInfo chipInfo: chipInfos) {
+        for (WifiChipInfo chipInfo: chipInfos) {
             for (IWifiChip.ChipMode chipMode: chipInfo.availableModes) {
                 for (IWifiChip.ChipIfaceCombination chipIfaceCombo : chipMode
                         .availableCombinations) {
@@ -1277,9 +1277,9 @@ public class HalDeviceManager {
     }
 
     private class IfaceCreationData {
-        public IWifiChipInfo chipInfo;
+        public WifiChipInfo chipInfo;
         public int chipModeId;
-        public List<IWifiIfaceInfo> interfacesToBeRemovedFirst;
+        public List<WifiIfaceInfo> interfacesToBeRemovedFirst;
 
         @Override
         public String toString() {
@@ -1304,7 +1304,7 @@ public class HalDeviceManager {
      * - Priority information: i.e. are we 'allowed' to remove interfaces in order to create the
      *   requested interface
      */
-    private IfaceCreationData canIfaceComboSupportRequest(IWifiChipInfo chipInfo,
+    private IfaceCreationData canIfaceComboSupportRequest(WifiChipInfo chipInfo,
             IWifiChip.ChipMode chipMode, int[] chipIfaceCombo, int ifaceType) {
         if (DBG) {
             Log.d(TAG, "canIfaceComboSupportRequest: chipInfo=" + chipInfo + ", chipMode="
@@ -1344,7 +1344,7 @@ public class HalDeviceManager {
         }
 
         // possibly supported
-        List<IWifiIfaceInfo> interfacesToBeRemovedFirst = new ArrayList<>();
+        List<WifiIfaceInfo> interfacesToBeRemovedFirst = new ArrayList<>();
 
         for (int type: IFACE_TYPES_BY_PRIORITY) {
             int tooManyInterfaces = chipInfo.ifaces[type].length - chipIfaceCombo[type];
@@ -1481,8 +1481,8 @@ public class HalDeviceManager {
                     // TODO: is this necessary? note that even if we don't want to explicitly
                     // remove the interfaces we do need to call the onDeleted callbacks - which
                     // this does
-                    for (IWifiIfaceInfo[] ifaceInfos: ifaceCreationData.chipInfo.ifaces) {
-                        for (IWifiIfaceInfo ifaceInfo: ifaceInfos) {
+                    for (WifiIfaceInfo[] ifaceInfos: ifaceCreationData.chipInfo.ifaces) {
+                        for (WifiIfaceInfo ifaceInfo: ifaceInfos) {
                             removeIfaceInternal(ifaceInfo.iface); // ignore return value
                         }
                     }
@@ -1496,7 +1496,7 @@ public class HalDeviceManager {
                     }
                 } else {
                     // remove all interfaces on the delete list
-                    for (IWifiIfaceInfo ifaceInfo: ifaceCreationData.interfacesToBeRemovedFirst) {
+                    for (WifiIfaceInfo ifaceInfo: ifaceCreationData.interfacesToBeRemovedFirst) {
                         removeIfaceInternal(ifaceInfo.iface); // ignore return value
                     }
                 }
@@ -1613,7 +1613,7 @@ public class HalDeviceManager {
 
     // dispatch all available for request listeners of the specified type AND clean-out the list:
     // listeners are called once at most!
-    private void dispatchAvailableForRequestListeners(IWifiChipInfo[] chipInfos) {
+    private void dispatchAvailableForRequestListeners(WifiChipInfo[] chipInfos) {
         if (DBG) Log.d(TAG, "dispatchAvailableForRequestListeners: chipInfos=" + chipInfos);
 
         for (int ifaceType: IFACE_TYPES_BY_PRIORITY) {
@@ -1643,7 +1643,7 @@ public class HalDeviceManager {
         if (DBG) Log.d(TAG, "dispatchDestroyedListeners: iface(name)=" + getName(iface));
 
         synchronized (mLock) {
-            IfaceCacheEntry entry = mInterfaceInfoCache.get(iface);
+            InterfaceCacheEntry entry = mInterfaceInfoCache.get(iface);
             if (entry == null) {
                 Log.e(TAG, "dispatchDestroyedListeners: no cache entry for iface(name)="
                         + getName(iface));
@@ -1663,10 +1663,10 @@ public class HalDeviceManager {
         if (DBG) Log.d(TAG, "dispatchAllDestroyedListeners");
 
         synchronized (mLock) {
-            Iterator<Map.Entry<IWifiIface, IfaceCacheEntry>> it =
+            Iterator<Map.Entry<IWifiIface, InterfaceCacheEntry>> it =
                     mInterfaceInfoCache.entrySet().iterator();
             while (it.hasNext()) {
-                IfaceCacheEntry entry = it.next().getValue();
+                InterfaceCacheEntry entry = it.next().getValue();
                 for (InterfaceDestroyedListenerProxy listener : entry.destroyedListeners) {
                     listener.trigger();
                 }
