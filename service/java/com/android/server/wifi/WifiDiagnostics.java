@@ -103,12 +103,13 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     private WifiStateMachine mWifiStateMachine;
     private final WifiNative mWifiNative;
     private final BuildProperties mBuildProperties;
+    private final WifiLog mLog;
+    private final LastMileLogger mLastMileLogger;
     private int mMaxRingBufferSizeBytes;
-    private WifiLog mLog;
 
     public WifiDiagnostics(Context context, WifiInjector wifiInjector,
                            WifiStateMachine wifiStateMachine, WifiNative wifiNative,
-                           BuildProperties buildProperties) {
+                           BuildProperties buildProperties, LastMileLogger lastMileLogger) {
         RING_BUFFER_BYTE_LIMIT_SMALL = context.getResources().getInteger(
                 R.integer.config_wifi_logger_ring_buffer_default_size_limit_kb) * 1024;
         RING_BUFFER_BYTE_LIMIT_LARGE = context.getResources().getInteger(
@@ -120,6 +121,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         mIsLoggingEventHandlerRegistered = false;
         mMaxRingBufferSizeBytes = RING_BUFFER_BYTE_LIMIT_SMALL;
         mLog = wifiInjector.makeLog(TAG);
+        mLastMileLogger = lastMileLogger;
     }
 
     @Override
@@ -197,10 +199,9 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
 
     @Override
     synchronized void reportConnectionEvent(byte event) {
-        switch (event) {
-            case CONNECTION_EVENT_FAILED:
-                mPacketFatesForLastFailure = fetchPacketFates();
-                break;
+        mLastMileLogger.reportConnectionEvent(event);
+        if (event == CONNECTION_EVENT_FAILED) {
+            mPacketFatesForLastFailure = fetchPacketFates();
         }
     }
 
@@ -236,6 +237,8 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         }
 
         dumpPacketFates(pw);
+        mLastMileLogger.dump(pw);
+
         pw.println("--------------------------------------------------------------------");
 
         pw.println("WifiNative - Log Begin ----");
