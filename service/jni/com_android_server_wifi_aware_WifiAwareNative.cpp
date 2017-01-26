@@ -391,7 +391,7 @@ static jint android_net_wifi_nan_publish(JNIEnv *env, jclass cls,
     memset(&msg, 0, sizeof(NanPublishRequest));
 
     /* hard-coded settings - TBD: move to configurable */
-    msg.period = 500;
+    msg.period = 1;
     msg.publish_match_indicator = NAN_MATCH_ALG_MATCH_ONCE;
     msg.rssi_threshold_flag = 0;
     msg.connmap = 0;
@@ -468,7 +468,7 @@ static jint android_net_wifi_nan_subscribe(JNIEnv *env, jclass cls,
     memset(&msg, 0, sizeof(NanSubscribeRequest));
 
     /* hard-coded settings - TBD: move to configurable */
-    msg.period = 500;
+    msg.period = 1;
     msg.serviceResponseFilter = NAN_SRF_ATTR_PARTIAL_MAC_ADDR;
     msg.serviceResponseInclude = NAN_SRF_INCLUDE_RESPOND;
     msg.useServiceResponseFilter = NAN_DO_NOT_USE_SRF;
