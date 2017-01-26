@@ -3735,6 +3735,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_BOOT_COMPLETED:
                     // get other services that we need to manage
                     getAdditionalWifiServiceInterfaces();
+                    if (!mWifiConfigManager.loadFromStore()) {
+                        Log.e(TAG, "Failed to load from config store");
+                    }
                     maybeRegisterNetworkFactory();
                     break;
                 case CMD_SCREEN_STATE_CHANGED:
@@ -4090,7 +4093,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mLastSignalLevel = -1;
 
                     mWifiInfo.setMacAddress(mWifiNative.getMacAddress());
-                    mWifiConfigManager.loadFromStore();
+                    // Attempt to migrate data out of legacy store.
+                    if (!mWifiConfigManager.migrateFromLegacyStore()) {
+                        Log.e(TAG, "Failed to migrate from legacy config store");
+                    }
                     initializeWpsDetails();
                     sendSupplicantConnectionChangedBroadcast(true);
                     transitionTo(mSupplicantStartedState);
