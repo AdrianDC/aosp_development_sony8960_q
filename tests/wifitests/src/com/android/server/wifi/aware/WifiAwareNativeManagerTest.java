@@ -45,8 +45,8 @@ public class WifiAwareNativeManagerTest {
     @Mock private WifiAwareStateManager mWifiAwareStateManagerMock;
     @Mock private HalDeviceManager mHalDeviceManager;
     @Mock private IWifiNanIface mWifiNanIfaceMock;
-    private ArgumentCaptor<HalDeviceManager.ManagerStatusCallback> mManagerStatusCbCaptor =
-            ArgumentCaptor.forClass(HalDeviceManager.ManagerStatusCallback.class);
+    private ArgumentCaptor<HalDeviceManager.ManagerStatusListener> mManagerStatusListenerCaptor =
+            ArgumentCaptor.forClass(HalDeviceManager.ManagerStatusListener.class);
     private ArgumentCaptor<HalDeviceManager.InterfaceDestroyedListener>
             mDestroyedListenerCaptor = ArgumentCaptor.forClass(
             HalDeviceManager.InterfaceDestroyedListener.class);
@@ -80,9 +80,13 @@ public class WifiAwareNativeManagerTest {
      */
     @Test
     public void testControlFlow() {
+        // configure HalDeviceManager as ready/wifi started
+        when(mHalDeviceManager.isReady()).thenReturn(true);
+        when(mHalDeviceManager.isStarted()).thenReturn(true);
+
         // validate (and capture) that register manage status callback
-        mInOrder.verify(mHalDeviceManager).registerStatusCallback(
-                mManagerStatusCbCaptor.capture(), any(Looper.class));
+        mInOrder.verify(mHalDeviceManager).registerStatusListener(
+                mManagerStatusListenerCaptor.capture(), any(Looper.class));
 
         // 1 & 2 onReady: validate that trying to get a NAN interface (make sure gets a NULL)
         when(mHalDeviceManager.createNanIface(
@@ -91,7 +95,7 @@ public class WifiAwareNativeManagerTest {
                 any(Looper.class)))
                 .thenReturn(null);
 
-        mManagerStatusCbCaptor.getValue().onStart();
+        mManagerStatusListenerCaptor.getValue().onStatusChanged();
 
         mInOrder.verify(mHalDeviceManager).createNanIface(
                 mDestroyedListenerCaptor.capture(), mAvailListenerCaptor.capture(),
@@ -115,13 +119,15 @@ public class WifiAwareNativeManagerTest {
                 equalTo(mWifiNanIfaceMock));
 
         // 5 onStop: disable usage
-        mManagerStatusCbCaptor.getValue().onStop();
+        when(mHalDeviceManager.isStarted()).thenReturn(false);
+        mManagerStatusListenerCaptor.getValue().onStatusChanged();
 
         mInOrder.verify(mWifiAwareStateManagerMock).disableUsage();
         collector.checkThat("null interface", mDut.getWifiNanIface(), nullValue());
 
         // 6 & 7 onReady + non-null NAN interface: enable usage
-        mManagerStatusCbCaptor.getValue().onStart();
+        when(mHalDeviceManager.isStarted()).thenReturn(true);
+        mManagerStatusListenerCaptor.getValue().onStatusChanged();
 
         mInOrder.verify(mHalDeviceManager).createNanIface(
                 mDestroyedListenerCaptor.capture(), mAvailListenerCaptor.capture(),
@@ -137,8 +143,9 @@ public class WifiAwareNativeManagerTest {
         collector.checkThat("null interface", mDut.getWifiNanIface(), nullValue());
 
         // 9 onStop: nothing more happens
-        mManagerStatusCbCaptor.getValue().onStop();
+        when(mHalDeviceManager.isStarted()).thenReturn(false);
+        mManagerStatusListenerCaptor.getValue().onStatusChanged();
 
-        verifyNoMoreInteractions(mWifiAwareStateManagerMock, mHalDeviceManager);
+        verifyNoMoreInteractions(mWifiAwareStateManagerMock);
     }
 }

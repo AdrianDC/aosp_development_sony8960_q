@@ -79,23 +79,32 @@ public class HalDeviceManager {
     }
 
     /**
-     * Register a ManagerStatusCallback to get information about status of Wi-Fi. Use the
-     * isStarted() method to check status immediately after registration - don't expect callbacks
-     * for current status (no 'sticky' behavior).
+     * Register a ManagerStatusListener to get information about the status of the manager. Use the
+     * isReady() and isStarted() methods to check status immediately after registration and when
+     * triggered.
      *
      * It is safe to re-register the same callback object - duplicates are detected and only a
      * single copy kept.
      *
-     * @param callback ManagerStatusCallback callback object.
-     * @param looper Looper on which to dispatch callbacks. Null implies current looper.
+     * @param listener ManagerStatusListener listener object.
+     * @param looper Looper on which to dispatch listener. Null implies current looper.
      */
-    public void registerStatusCallback(ManagerStatusCallback callback, Looper looper) {
+    public void registerStatusListener(ManagerStatusListener listener, Looper looper) {
         synchronized (mLock) {
-            if (!mManagerStatusCallbacks.add(new ManagerStatusCallbackProxy(callback,
+            if (!mManagerStatusListeners.add(new ManagerStatusListenerProxy(listener,
                     looper == null ? Looper.myLooper() : looper))) {
-                Log.w(TAG, "registerStatusCallback: duplicate registration ignored");
+                Log.w(TAG, "registerStatusListener: duplicate registration ignored");
             }
         }
+    }
+
+    /**
+     * Returns the current status of the HalDeviceManager: whether or not it is ready to execute
+     * commands. A return of 'false' indicates that the HAL service (IWifi) is not available. Use
+     * the registerStatusListener() to listener for status changes.
+     */
+    public boolean isReady() {
+        return mWifi != null;
     }
 
     /**
@@ -128,18 +137,14 @@ public class HalDeviceManager {
     }
 
     /**
-     * HAL device manager status callbacks.
+     * HAL device manager status change listener.
      */
-    public interface ManagerStatusCallback {
+    public interface ManagerStatusListener {
         /**
-         * Indicates that Wi-Fi is up.
+         * Indicates that the status of the HalDeviceManager has changed. Use isReady() and
+         * isStarted() to obtain status information.
          */
-        void onStart();
-
-        /**
-         * Indicates that Wi-Fi is down.
-         */
-        void onStop();
+        void onStatusChanged();
     }
 
     // interface-specific behavior
@@ -370,7 +375,7 @@ public class HalDeviceManager {
     private IServiceManager mServiceManager;
     private IWifi mWifi;
     private final WifiEventCallback mWifiEventCallback = new WifiEventCallback();
-    private final Set<ManagerStatusCallbackProxy> mManagerStatusCallbacks = new HashSet<>();
+    private final Set<ManagerStatusListenerProxy> mManagerStatusListeners = new HashSet<>();
     private final SparseArray<Set<InterfaceAvailableForRequestListenerProxy>>
             mInterfaceAvailableForRequestListeners = new SparseArray<>();
 
@@ -453,7 +458,7 @@ public class HalDeviceManager {
     }
 
     private void teardownInternal() {
-        managerStatusCallbackDispatchStop();
+        managerStatusListenerDispatch();
         dispatchAllDestroyedListeners();
         mInterfaceAvailableForRequestListeners.get(IfaceType.STA).clear();
         mInterfaceAvailableForRequestListeners.get(IfaceType.AP).clear();
@@ -553,7 +558,10 @@ public class HalDeviceManager {
                 WifiStatus status = mWifi.registerEventCallback(mWifiEventCallback);
                 if (status.code != WifiStatusCode.SUCCESS) {
                     Log.e(TAG, "IWifi.registerEventCallback failed: " + statusString(status));
+                    mWifi = null;
+                    return;
                 }
+                managerStatusListenerDispatch();
             } catch (RemoteException e) {
                 Log.e(TAG, "Exception while operating on IWifi: " + e);
             }
@@ -988,7 +996,7 @@ public class HalDeviceManager {
                     boolean success = status.code == WifiStatusCode.SUCCESS;
                     if (success) {
                         initIWifiChipDebugListeners();
-                        managerStatusCallbackDispatchStart();
+                        managerStatusListenerDispatch();
                     } else {
                         Log.e(TAG, "Cannot start IWifi: " + statusString(status));
                     }
@@ -1045,72 +1053,24 @@ public class HalDeviceManager {
         }
     }
 
-    private void managerStatusCallbackDispatchStart() {
+    private void managerStatusListenerDispatch() {
         synchronized (mLock) {
-            for (ManagerStatusCallbackProxy cb : mManagerStatusCallbacks) {
-                cb.onStart();
+            for (ManagerStatusListenerProxy cb : mManagerStatusListeners) {
+                cb.trigger();
             }
         }
     }
 
-    private void managerStatusCallbackDispatchStop() {
-        synchronized (mLock) {
-            for (ManagerStatusCallbackProxy cb : mManagerStatusCallbacks) {
-                cb.onStop();
-            }
-        }
-    }
-
-    private class ManagerStatusCallbackProxy  {
-        private static final int CALLBACK_ON_START = 0;
-        private static final int CALLBACK_ON_STOP = 1;
-
-        private ManagerStatusCallback mCallback;
-        private Handler mHandler;
-
-        void onStart() {
-            mHandler.sendMessage(mHandler.obtainMessage(CALLBACK_ON_START));
-        }
-
-        void onStop() {
-            mHandler.sendMessage(mHandler.obtainMessage(CALLBACK_ON_STOP));
-        }
-
-        // override equals & hash to make sure that the container HashSet is unique with respect to
-        // the contained callback
-        @Override
-        public boolean equals(Object obj) {
-            return mCallback == ((ManagerStatusCallbackProxy) obj).mCallback;
+    private class ManagerStatusListenerProxy  extends
+            ListenerProxy<ManagerStatusListener> {
+        ManagerStatusListenerProxy(ManagerStatusListener statusListener,
+                Looper looper) {
+            super(statusListener, looper);
         }
 
         @Override
-        public int hashCode() {
-            return mCallback.hashCode();
-        }
-
-        ManagerStatusCallbackProxy(ManagerStatusCallback callback, Looper looper) {
-            mCallback = callback;
-            mHandler = new Handler(looper) {
-                @Override
-                public void handleMessage(Message msg) {
-                    if (DBG) {
-                        Log.d(TAG, "ManagerStatusCallbackProxy.handleMessage: what=" + msg.what);
-                    }
-                    switch (msg.what) {
-                        case CALLBACK_ON_START:
-                            mCallback.onStart();
-                            break;
-                        case CALLBACK_ON_STOP:
-                            mCallback.onStop();
-                            break;
-                        default:
-                            Log.e(TAG,
-                                    "ManagerStatusCallbackProxy.handleMessage: unknown message "
-                                            + "what="
-                                            + msg.what);
-                    }
-                }
-            };
+        protected void action() {
+            mListener.onStatusChanged();
         }
     }
 
@@ -1795,7 +1755,7 @@ public class HalDeviceManager {
         pw.println("HalDeviceManager:");
         pw.println("  mServiceManager: " + mServiceManager);
         pw.println("  mWifi: " + mWifi);
-        pw.println("  mManagerStatusCallbacks: " + mManagerStatusCallbacks);
+        pw.println("  mManagerStatusListeners: " + mManagerStatusListeners);
         pw.println("  mInterfaceAvailableForRequestListeners: "
                 + mInterfaceAvailableForRequestListeners);
         pw.println("  mInterfaceInfoCache: " + mInterfaceInfoCache);
