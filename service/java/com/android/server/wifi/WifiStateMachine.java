@@ -3318,6 +3318,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     /**
+     * Inform other components that a new connection attempt is starting.
+     */
+    private void reportConnectionAttemptStart(
+            WifiConfiguration config, String targetBSSID, int roamType) {
+        mWifiMetrics.startConnectionEvent(config, targetBSSID, roamType);
+        mWifiDiagnostics.reportConnectionEvent(WifiDiagnostics.CONNECTION_EVENT_STARTED);
+    }
+
+    /**
      * Inform other components (WifiMetrics, WifiDiagnostics, etc.) that the current connection attempt
      * has concluded.
      */
@@ -3325,9 +3334,21 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiMetrics.endConnectionEvent(level2FailureCode, connectivityFailureCode);
         switch (level2FailureCode) {
             case WifiMetrics.ConnectionEvent.FAILURE_NONE:
+                // Ideally, we'd wait until IP reachability has been confirmed. this code falls
+                // short in two ways:
+                // - at the time of the CMD_IP_CONFIGURATION_SUCCESSFUL event, we don't know if we
+                //   actually have ARP reachability. it might be better to wait until the wifi
+                //   network has been validated by IpManager.
+                // - in the case of a roaming event (intra-SSID), we probably trigger when L2 is
+                //   complete.
+                //
+                // TODO(b/34181219): Fix the above.
+                mWifiDiagnostics.reportConnectionEvent(WifiDiagnostics.CONNECTION_EVENT_SUCCEEDED);
+                break;
             case WifiMetrics.ConnectionEvent.FAILURE_REDUNDANT_CONNECTION_ATTEMPT:
             case WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED:
-                // WifiDiagnostics doesn't care about success, or pre-empted connections.
+                // WifiDiagnostics doesn't care about pre-empted connections, or cases
+                // where we failed to initiate a connection attempt with supplicant.
                 break;
             default:
                 mWifiDiagnostics.reportConnectionEvent(WifiDiagnostics.CONNECTION_EVENT_FAILED);
@@ -5085,7 +5106,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mTargetNetworkId = netId;
                     setTargetBssid(config, bssid);
 
-                    mWifiMetrics.startConnectionEvent(config, mTargetRoamBSSID,
+                    reportConnectionAttemptStart(config, mTargetRoamBSSID,
                             WifiMetricsProto.ConnectionEvent.ROAM_UNRELATED);
                     boolean shouldDisconnect = (getCurrentState() != mDisconnectedState);
                     if (mWifiSupplicantControl.connectToNetwork(config, shouldDisconnect)) {
@@ -6247,7 +6268,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             + " config " + config.configKey()
                             + " targetRoamBSSID " + mTargetRoamBSSID);
 
-                    mWifiMetrics.startConnectionEvent(config, mTargetRoamBSSID,
+                    reportConnectionAttemptStart(config, mTargetRoamBSSID,
                             WifiMetricsProto.ConnectionEvent.ROAM_ENTERPRISE);
                     if (mWifiSupplicantControl.roamToNetwork(config)) {
                         lastConnectAttemptTimestamp = mClock.getWallClockMillis();
