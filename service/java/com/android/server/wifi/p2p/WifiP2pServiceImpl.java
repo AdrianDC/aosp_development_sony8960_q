@@ -1922,6 +1922,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             }
                         })
                         .create();
+                dialog.setCanceledOnTouchOutside(false);
 
                 dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
                 WindowManager.LayoutParams attrs = dialog.getWindow().getAttributes();
@@ -2412,6 +2413,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                     .setMessage(r.getString(R.string.wifi_p2p_failed_message))
                     .setPositiveButton(r.getString(R.string.ok), null)
                     .create();
+            dialog.setCanceledOnTouchOutside(false);
             dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
             WindowManager.LayoutParams attrs = dialog.getWindow().getAttributes();
             attrs.privateFlags = WindowManager.LayoutParams.PRIVATE_FLAG_SHOW_FOR_ALL_USERS;
@@ -2443,6 +2445,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                     .setView(textEntryView)
                     .setPositiveButton(r.getString(R.string.ok), null)
                     .create();
+            dialog.setCanceledOnTouchOutside(false);
             dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
             WindowManager.LayoutParams attrs = dialog.getWindow().getAttributes();
             attrs.privateFlags = WindowManager.LayoutParams.PRIVATE_FLAG_SHOW_FOR_ALL_USERS;
