@@ -70,6 +70,7 @@ public class WifiInjector {
     private final BackupManagerProxy mBackupManagerProxy = new BackupManagerProxy();
     private final WifiApConfigStore mWifiApConfigStore;
     private final WifiNative mWifiNative;
+    private final WifiSupplicantHal mWifiSupplicantHal;
     private final WifiStateMachine mWifiStateMachine;
     private final WifiSettingsStore mSettingsStore;
     private final WifiCertManager mCertManager;
@@ -143,7 +144,10 @@ public class WifiInjector {
                 mContext.getResources()
                         .getBoolean(R.bool.config_wifi_revert_country_code_on_cellular_loss));
         mWifiApConfigStore = new WifiApConfigStore(mContext, mBackupManagerProxy);
+        mWifiSupplicantHal = new WifiSupplicantHal();
         mWifiNative = WifiNative.getWlanNativeInterface();
+        mWifiNative.setWifiSupplicantHal(mWifiSupplicantHal);
+        WifiNative.getP2pNativeInterface().setWifiSupplicantHal(mWifiSupplicantHal);
 
         // WifiConfigManager/Store objects and their dependencies.
         // New config store
@@ -207,6 +211,10 @@ public class WifiInjector {
 
     public WifiMetrics getWifiMetrics() {
         return mWifiMetrics;
+    }
+
+    public WifiSupplicantHal getWifiSupplicantHal() {
+        return mWifiSupplicantHal;
     }
 
     public BackupManagerProxy getBackupManagerProxy() {
