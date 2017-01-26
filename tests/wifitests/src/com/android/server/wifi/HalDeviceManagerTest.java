@@ -73,7 +73,7 @@ public class HalDeviceManagerTest {
     private HalDeviceManager mDut;
     @Mock IServiceManager mServiceManagerMock;
     @Mock IWifi mWifiMock;
-    @Mock HalDeviceManager.ManagerStatusCallback mManagerStatusCallbackMock;
+    @Mock HalDeviceManager.ManagerStatusListener mManagerStatusListenerMock;
     private TestLooper mTestLooper;
     private ArgumentCaptor<IHwBinder.DeathRecipient> mDeathRecipientCaptor =
             ArgumentCaptor.forClass(IHwBinder.DeathRecipient.class);
@@ -140,7 +140,7 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testStartStopFlow() throws Exception {
-        mInOrder = inOrder(mServiceManagerMock, mWifiMock, mManagerStatusCallbackMock);
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, mManagerStatusListenerMock);
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
@@ -150,9 +150,9 @@ public class HalDeviceManagerTest {
 
         // verify: onStop called
         mInOrder.verify(mWifiMock).stop();
-        mInOrder.verify(mManagerStatusCallbackMock).onStop();
+        mInOrder.verify(mManagerStatusListenerMock).onStatusChanged();
 
-        verifyNoMoreInteractions(mManagerStatusCallbackMock);
+        verifyNoMoreInteractions(mManagerStatusListenerMock);
     }
 
     /**
@@ -161,26 +161,26 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testMultipleCallbackRegistrations() throws Exception {
-        mInOrder = inOrder(mServiceManagerMock, mWifiMock, mManagerStatusCallbackMock);
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, mManagerStatusListenerMock);
         executeAndValidateInitializationSequence();
 
         // register another 2 callbacks - one of them twice
-        HalDeviceManager.ManagerStatusCallback callback1 = mock(
-                HalDeviceManager.ManagerStatusCallback.class);
-        HalDeviceManager.ManagerStatusCallback callback2 = mock(
-                HalDeviceManager.ManagerStatusCallback.class);
-        mDut.registerStatusCallback(callback2, mTestLooper.getLooper());
-        mDut.registerStatusCallback(callback1, mTestLooper.getLooper());
-        mDut.registerStatusCallback(callback2, mTestLooper.getLooper());
+        HalDeviceManager.ManagerStatusListener callback1 = mock(
+                HalDeviceManager.ManagerStatusListener.class);
+        HalDeviceManager.ManagerStatusListener callback2 = mock(
+                HalDeviceManager.ManagerStatusListener.class);
+        mDut.registerStatusListener(callback2, mTestLooper.getLooper());
+        mDut.registerStatusListener(callback1, mTestLooper.getLooper());
+        mDut.registerStatusListener(callback2, mTestLooper.getLooper());
 
         // startup
         executeAndValidateStartupSequence();
 
         // verify
-        verify(callback1).onStart();
-        verify(callback2).onStart();
+        verify(callback1).onStatusChanged();
+        verify(callback2).onStatusChanged();
 
-        verifyNoMoreInteractions(mManagerStatusCallbackMock, callback1, callback2);
+        verifyNoMoreInteractions(mManagerStatusListenerMock, callback1, callback2);
     }
 
     /**
@@ -188,7 +188,7 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testWifiDeathAndRegistration() throws Exception {
-        mInOrder = inOrder(mServiceManagerMock, mWifiMock, mManagerStatusCallbackMock);
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, mManagerStatusListenerMock);
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
@@ -197,7 +197,7 @@ public class HalDeviceManagerTest {
         mTestLooper.dispatchAll();
 
         // verify: getting onStop
-        mInOrder.verify(mManagerStatusCallbackMock).onStop();
+        mInOrder.verify(mManagerStatusListenerMock).onStatusChanged();
 
         // act: service startup
         mServiceNotificationCaptor.getValue().onRegistration(IWifi.kInterfaceName, "", false);
@@ -213,9 +213,9 @@ public class HalDeviceManagerTest {
 
         // verify: service and callback calls
         mInOrder.verify(mWifiMock).start();
-        mInOrder.verify(mManagerStatusCallbackMock).onStart();
+        mInOrder.verify(mManagerStatusListenerMock, times(2)).onStatusChanged();
 
-        verifyNoMoreInteractions(mManagerStatusCallbackMock);
+        verifyNoMoreInteractions(mManagerStatusListenerMock);
     }
 
     /**
@@ -223,7 +223,7 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testWifiFail() throws Exception {
-        mInOrder = inOrder(mServiceManagerMock, mWifiMock, mManagerStatusCallbackMock);
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, mManagerStatusListenerMock);
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
@@ -232,7 +232,7 @@ public class HalDeviceManagerTest {
         mTestLooper.dispatchAll();
 
         // verify: getting onStop
-        mInOrder.verify(mManagerStatusCallbackMock).onStop();
+        mInOrder.verify(mManagerStatusListenerMock).onStatusChanged();
 
         // act: start again
         mDut.start();
@@ -241,9 +241,9 @@ public class HalDeviceManagerTest {
 
         // verify: service and callback calls
         mInOrder.verify(mWifiMock).start();
-        mInOrder.verify(mManagerStatusCallbackMock).onStart();
+        mInOrder.verify(mManagerStatusListenerMock).onStatusChanged();
 
-        verifyNoMoreInteractions(mManagerStatusCallbackMock);
+        verifyNoMoreInteractions(mManagerStatusListenerMock);
     }
 
     /**
@@ -256,7 +256,7 @@ public class HalDeviceManagerTest {
         BaselineChip chipMock = new BaselineChip();
         chipMock.initialize();
         mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
-                mManagerStatusCallbackMock);
+                mManagerStatusListenerMock);
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
@@ -285,7 +285,7 @@ public class HalDeviceManagerTest {
         mInOrder.verify(chipMock.chip).removeStaIface(name);
         verify(idl).onDestroyed();
 
-        verifyNoMoreInteractions(mManagerStatusCallbackMock, idl, iafrl);
+        verifyNoMoreInteractions(mManagerStatusListenerMock, idl, iafrl);
     }
 
     /**
@@ -298,7 +298,7 @@ public class HalDeviceManagerTest {
         BaselineChip chipMock = new BaselineChip();
         chipMock.initialize();
         mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
-                mManagerStatusCallbackMock);
+                mManagerStatusListenerMock);
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
@@ -327,7 +327,7 @@ public class HalDeviceManagerTest {
         mInOrder.verify(chipMock.chip).removeApIface(name);
         verify(idl).onDestroyed();
 
-        verifyNoMoreInteractions(mManagerStatusCallbackMock, idl, iafrl);
+        verifyNoMoreInteractions(mManagerStatusListenerMock, idl, iafrl);
     }
 
     /**
@@ -340,7 +340,7 @@ public class HalDeviceManagerTest {
         BaselineChip chipMock = new BaselineChip();
         chipMock.initialize();
         mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
-                mManagerStatusCallbackMock);
+                mManagerStatusListenerMock);
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
@@ -369,7 +369,7 @@ public class HalDeviceManagerTest {
         mInOrder.verify(chipMock.chip).removeP2pIface(name);
         verify(idl).onDestroyed();
 
-        verifyNoMoreInteractions(mManagerStatusCallbackMock, idl, iafrl);
+        verifyNoMoreInteractions(mManagerStatusListenerMock, idl, iafrl);
     }
 
     /**
@@ -382,7 +382,7 @@ public class HalDeviceManagerTest {
         BaselineChip chipMock = new BaselineChip();
         chipMock.initialize();
         mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
-                mManagerStatusCallbackMock);
+                mManagerStatusListenerMock);
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
@@ -411,7 +411,7 @@ public class HalDeviceManagerTest {
         mInOrder.verify(chipMock.chip).removeNanIface(name);
         verify(idl).onDestroyed();
 
-        verifyNoMoreInteractions(mManagerStatusCallbackMock, idl, iafrl);
+        verifyNoMoreInteractions(mManagerStatusListenerMock, idl, iafrl);
     }
 
     /**
@@ -425,7 +425,7 @@ public class HalDeviceManagerTest {
         BaselineChip chipMock = new BaselineChip();
         chipMock.initialize();
         mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
-                mManagerStatusCallbackMock);
+                mManagerStatusListenerMock);
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
@@ -452,9 +452,9 @@ public class HalDeviceManagerTest {
 
         // verify: callback triggered
         verify(idl).onDestroyed();
-        verify(mManagerStatusCallbackMock).onStop();
+        verify(mManagerStatusListenerMock, times(2)).onStatusChanged();
 
-        verifyNoMoreInteractions(mManagerStatusCallbackMock, idl, iafrl);
+        verifyNoMoreInteractions(mManagerStatusListenerMock, idl, iafrl);
     }
 
     /**
@@ -468,7 +468,7 @@ public class HalDeviceManagerTest {
         BaselineChip chipMock = new BaselineChip();
         chipMock.initialize();
         mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
-                mManagerStatusCallbackMock);
+                mManagerStatusListenerMock);
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
@@ -495,9 +495,9 @@ public class HalDeviceManagerTest {
 
         // verify: callback triggered
         verify(idl).onDestroyed();
-        verify(mManagerStatusCallbackMock).onStop();
+        verify(mManagerStatusListenerMock, times(2)).onStatusChanged();
 
-        verifyNoMoreInteractions(mManagerStatusCallbackMock, idl, iafrl);
+        verifyNoMoreInteractions(mManagerStatusListenerMock, idl, iafrl);
     }
 
     /**
@@ -523,7 +523,7 @@ public class HalDeviceManagerTest {
         BaselineChip chipMock = new BaselineChip();
         chipMock.initialize();
         mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
-                mManagerStatusCallbackMock);
+                mManagerStatusListenerMock);
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
@@ -660,7 +660,7 @@ public class HalDeviceManagerTest {
         );
         collector.checkThat("allocated NAN interface", nanIface, IsNull.notNullValue());
 
-        verifyNoMoreInteractions(mManagerStatusCallbackMock, staDestroyedListener, staAvailListener,
+        verifyNoMoreInteractions(mManagerStatusListenerMock, staDestroyedListener, staAvailListener,
                 staDestroyedListener2, apDestroyedListener, apAvailListener, p2pDestroyedListener,
                 nanDestroyedListener, nanAvailListener, p2pDestroyedListener2);
     }
@@ -682,7 +682,7 @@ public class HalDeviceManagerTest {
         BaselineChip chipMock = new BaselineChip();
         chipMock.initialize();
         mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
-                mManagerStatusCallbackMock);
+                mManagerStatusListenerMock);
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
@@ -763,7 +763,7 @@ public class HalDeviceManagerTest {
                 nanAvailListener // availableListener
         );
 
-        verifyNoMoreInteractions(mManagerStatusCallbackMock, staDestroyedListener, staAvailListener,
+        verifyNoMoreInteractions(mManagerStatusListenerMock, staDestroyedListener, staAvailListener,
                 nanDestroyedListener, nanAvailListener, p2pDestroyedListener);
     }
 
@@ -776,7 +776,7 @@ public class HalDeviceManagerTest {
         BaselineChip chipMock = new BaselineChip();
         chipMock.initialize();
         mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
-                mManagerStatusCallbackMock);
+                mManagerStatusListenerMock);
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
@@ -826,11 +826,11 @@ public class HalDeviceManagerTest {
         // registered (even if they seem out-of-sync to chip)
         mTestLooper.dispatchAll();
         verify(mWifiMock).stop();
-        verify(mManagerStatusCallbackMock).onStop();
+        verify(mManagerStatusListenerMock, times(2)).onStatusChanged();
         verify(staDestroyedListener).onDestroyed();
         verify(nanDestroyedListener).onDestroyed();
 
-        verifyNoMoreInteractions(mManagerStatusCallbackMock, staDestroyedListener, staAvailListener,
+        verifyNoMoreInteractions(mManagerStatusListenerMock, staDestroyedListener, staAvailListener,
                 nanDestroyedListener, nanAvailListener);
     }
 
@@ -859,11 +859,12 @@ public class HalDeviceManagerTest {
         // verify: wifi initialization sequence
         inOrder.verify(mWifiMock).linkToDeath(mDeathRecipientCaptor.capture(), anyLong());
         inOrder.verify(mWifiMock).registerEventCallback(mWifiEventCallbackCaptor.capture());
+        collector.checkThat("isReady is true", mDut.isReady(), equalTo(true));
     }
 
     private void executeAndValidateStartupSequence() throws Exception {
         // act: register listener & start Wi-Fi
-        mDut.registerStatusCallback(mManagerStatusCallbackMock, mTestLooper.getLooper());
+        mDut.registerStatusListener(mManagerStatusListenerMock, mTestLooper.getLooper());
         mDut.start();
 
         // verify
@@ -874,7 +875,7 @@ public class HalDeviceManagerTest {
         mTestLooper.dispatchAll();
 
         // verify: onStart called on registered listener
-        mInOrder.verify(mManagerStatusCallbackMock).onStart();
+        mInOrder.verify(mManagerStatusListenerMock).onStatusChanged();
     }
 
     private IWifiIface validateInterfaceSequence(ChipMockBase chipMock,
