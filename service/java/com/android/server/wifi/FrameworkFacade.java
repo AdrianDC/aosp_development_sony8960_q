@@ -29,6 +29,8 @@ import android.os.ServiceManager;
 import android.provider.Settings;
 import android.telephony.CarrierConfigManager;
 
+import com.android.server.wifi.util.WifiAsyncChannel;
+
 /**
  * This class allows overriding objects with mocks to write unit tests
  */
@@ -112,5 +114,14 @@ public class FrameworkFacade {
      */
     public int checkUidPermission(String permName, int uid) throws RemoteException {
         return AppGlobals.getPackageManager().checkUidPermission(permName, uid);
+    }
+
+    /**
+     * Create a new instance of WifiAsyncChannel
+     * @param tag String corresponding to the service creating the channel
+     * @return WifiAsyncChannel object created
+     */
+    public WifiAsyncChannel makeWifiAsyncChannel(String tag) {
+        return new WifiAsyncChannel(tag);
     }
 }
