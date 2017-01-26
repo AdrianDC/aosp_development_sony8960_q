@@ -78,6 +78,7 @@ public class WifiInjector {
     private final WifiCertManager mCertManager;
     private final WifiLockManager mLockManager;
     private final WifiController mWifiController;
+    private final WificondControl mWificondControl;
     private final Clock mClock = new Clock();
     private final WifiMetrics mWifiMetrics = new WifiMetrics(mClock);
     private final WifiLastResortWatchdog mWifiLastResortWatchdog;
@@ -152,12 +153,15 @@ public class WifiInjector {
         mHalDeviceManager = new HalDeviceManager();
         mWifiVendorHal = new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread);
         mSupplicantStaIfaceHal = new SupplicantStaIfaceHal(mWifiStateMachineHandlerThread);
+        mWificondControl = new WificondControl(this);
         mWifiNative = WifiNative.getWlanNativeInterface();
         mWifiNative.setSupplicantStaIfaceHal(mSupplicantStaIfaceHal);
         mWifiNative.setWifiVendorHal(mWifiVendorHal);
+        mWifiNative.setWificondControl(mWificondControl);
         mWifiP2pNative = WifiNative.getP2pNativeInterface();
         mWifiP2pNative.setSupplicantStaIfaceHal(mSupplicantStaIfaceHal);
         mWifiP2pNative.setWifiVendorHal(mWifiVendorHal);
+        mWifiP2pNative.setWificondControl(mWificondControl);
 
         // WifiConfigManager/Store objects and their dependencies.
         // New config store

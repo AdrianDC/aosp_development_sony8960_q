@@ -22,10 +22,15 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.net.wifi.IApInterface;
+import android.net.wifi.IClientInterface;
+import android.net.wifi.IWificond;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import org.junit.Before;
@@ -439,4 +444,116 @@ public class WifiNativeTest {
     }
 
     // TODO(b/28005116): Add test for the success case of getDriverStateDump().
+
+    /**
+     * Verifies that setupDriverForClientMode() calls underlying WificondControl.
+     */
+    @Test
+    public void testSetupDriverForClientMode() {
+        WificondControl wificondControl = mock(WificondControl.class);
+        IWificond wificond = mock(IWificond.class);
+        IClientInterface clientInterface = mock(IClientInterface.class);
+
+        when(wificondControl.setupDriverForClientMode()).thenReturn(clientInterface);
+        mWifiNative.setWificondControl(wificondControl);
+
+        IClientInterface returnedClientInterface = mWifiNative.setupDriverForClientMode();
+        assertEquals(clientInterface, returnedClientInterface);
+        verify(wificondControl).setupDriverForClientMode();
+        verify(mWifiNative).startHal(eq(true));
+    }
+
+    /**
+     * Verifies that setupDriverForClientMode() returns null when underlying WificondControl
+     * call fails.
+     */
+    @Test
+    public void testSetupDriverForClientModeError() {
+        WificondControl wificondControl = mock(WificondControl.class);
+        IWificond wificond = mock(IWificond.class);
+
+        when(wificondControl.setupDriverForClientMode()).thenReturn(null);
+        mWifiNative.setWificondControl(wificondControl);
+
+        IClientInterface returnedClientInterface = mWifiNative.setupDriverForClientMode();
+        assertEquals(null, returnedClientInterface);
+        verify(wificondControl).setupDriverForClientMode();
+    }
+
+    /**
+     * Verifies that setupDriverForSoftApMode() calls underlying WificondControl.
+     */
+    @Test
+    public void testSetupDriverForSoftApMode() {
+        WificondControl wificondControl = mock(WificondControl.class);
+        IWificond wificond = mock(IWificond.class);
+        IApInterface apInterface = mock(IApInterface.class);
+
+        when(wificondControl.setupDriverForSoftApMode()).thenReturn(apInterface);
+        mWifiNative.setWificondControl(wificondControl);
+
+        IApInterface returnedApInterface = mWifiNative.setupDriverForSoftApMode();
+        assertEquals(apInterface, returnedApInterface);
+        verify(wificondControl).setupDriverForSoftApMode();
+        verify(mWifiNative).startHal(eq(false));
+    }
+
+    /**
+     * Verifies that setupDriverForSoftApMode() returns null when underlying WificondControl
+     * call fails.
+     */
+    @Test
+    public void testSetupDriverForSoftApModeError() {
+        WificondControl wificondControl = mock(WificondControl.class);
+        IWificond wificond = mock(IWificond.class);
+
+        when(wificondControl.setupDriverForSoftApMode()).thenReturn(null);
+        mWifiNative.setWificondControl(wificondControl);
+
+        IApInterface returnedApInterface = mWifiNative.setupDriverForSoftApMode();
+        assertEquals(null, returnedApInterface);
+        verify(wificondControl).setupDriverForSoftApMode();
+    }
+
+    /**
+     * Verifies that enableSupplicant() calls underlying WificondControl.
+     */
+    @Test
+    public void testEnableSupplicant() {
+        WificondControl wificondControl = mock(WificondControl.class);
+        IWificond wificond = mock(IWificond.class);
+
+        mWifiNative.setWificondControl(wificondControl);
+
+        mWifiNative.enableSupplicant();
+        verify(wificondControl).enableSupplicant();
+    }
+
+    /**
+     * Verifies that disableSupplicant() calls underlying WificondControl.
+     */
+    @Test
+    public void testDisableSupplicant() {
+        WificondControl wificondControl = mock(WificondControl.class);
+        IWificond wificond = mock(IWificond.class);
+
+        mWifiNative.setWificondControl(wificondControl);
+
+        mWifiNative.disableSupplicant();
+        verify(wificondControl).disableSupplicant();
+    }
+
+    /**
+     * Verifies that tearDownInterfaces() calls underlying WificondControl.
+     */
+    @Test
+    public void testTearDownInterfaces() {
+        WificondControl wificondControl = mock(WificondControl.class);
+
+        when(wificondControl.tearDownInterfaces()).thenReturn(true);
+        mWifiNative.setWificondControl(wificondControl);
+
+        assertTrue(mWifiNative.tearDownInterfaces());
+        verify(wificondControl).tearDownInterfaces();
+    }
 }
