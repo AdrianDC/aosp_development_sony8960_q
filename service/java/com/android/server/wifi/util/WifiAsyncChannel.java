@@ -19,6 +19,7 @@ package com.android.server.wifi.util;
 import android.annotation.NonNull;
 import android.os.Message;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.AsyncChannel;
 import com.android.server.wifi.WifiInjector;
 import com.android.server.wifi.WifiLog;
@@ -94,5 +95,10 @@ public class WifiAsyncChannel extends AsyncChannel {
             .c(replyMessage.sendingUid)
             .flush();
         return replyMessage;
+    }
+
+    @VisibleForTesting
+    public void setWifiLog(WifiLog log) {
+        mLog = log;
     }
 }
