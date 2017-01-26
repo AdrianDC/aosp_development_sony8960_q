@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "OverrideLog.h"
+#include "_OverrideLog.h"
 #include <android/log.h>
 
 #include "NfcJniUtil.h"
