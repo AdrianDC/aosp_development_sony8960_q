@@ -511,6 +511,20 @@ public class WifiVendorHal {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Helper function that parses unquoted MAC address string to a byte array
+     *
+     * @param macWithColons mac address string without double quotes
+     * @param mac an array of 6 bytes to receive the parsed mac address
+     */
+    private void parseUnquotedMacStrToByteArray(String macWithColons, byte[] mac) {
+        String[] macAddrStr = macWithColons.split(":");
+        for (int i = 0; i < 6; i++) {
+            Integer hexVal = Integer.parseInt(macAddrStr[i], 16);
+            mac[i] = hexVal.byteValue();
+        }
+    }
+
     StackTraceElement[] mTrace;
 
     private void kilroy() {
