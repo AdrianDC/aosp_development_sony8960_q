@@ -70,7 +70,9 @@ public class WifiInjector {
     private final BackupManagerProxy mBackupManagerProxy = new BackupManagerProxy();
     private final WifiApConfigStore mWifiApConfigStore;
     private final WifiNative mWifiNative;
+    private final WifiNative mWifiP2pNative;
     private final WifiSupplicantHal mWifiSupplicantHal;
+    private final WifiVendorHal mWifiVendorHal;
     private final WifiStateMachine mWifiStateMachine;
     private final WifiSettingsStore mSettingsStore;
     private final WifiCertManager mCertManager;
@@ -145,10 +147,18 @@ public class WifiInjector {
                 mContext.getResources()
                         .getBoolean(R.bool.config_wifi_revert_country_code_on_cellular_loss));
         mWifiApConfigStore = new WifiApConfigStore(mContext, mBackupManagerProxy);
-        mWifiSupplicantHal = new WifiSupplicantHal();
+
+        // Modules interacting with Native.
+        mHalDeviceManager = new HalDeviceManager();
+        mWifiVendorHal = new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread);
+        mWifiSupplicantHal =
+                new WifiSupplicantHal(mHalDeviceManager, mWifiStateMachineHandlerThread);
         mWifiNative = WifiNative.getWlanNativeInterface();
         mWifiNative.setWifiSupplicantHal(mWifiSupplicantHal);
-        WifiNative.getP2pNativeInterface().setWifiSupplicantHal(mWifiSupplicantHal);
+        mWifiNative.setWifiVendorHal(mWifiVendorHal);
+        mWifiP2pNative = WifiNative.getP2pNativeInterface();
+        mWifiP2pNative.setWifiSupplicantHal(mWifiSupplicantHal);
+        mWifiP2pNative.setWifiVendorHal(mWifiVendorHal);
 
         // WifiConfigManager/Store objects and their dependencies.
         // New config store
@@ -415,14 +425,9 @@ public class WifiInjector {
     }
 
     /**
-     * returns a single instance of HalDeviceManager for injection. Uses lazy instantiation
-     * and initialization.
+     * Returns a single instance of HalDeviceManager for injection.
      */
     public HalDeviceManager getHalDeviceManager() {
-        if (mHalDeviceManager == null) {
-            mHalDeviceManager = new HalDeviceManager();
-            mHalDeviceManager.initialize();
-        }
         return mHalDeviceManager;
     }
 }
