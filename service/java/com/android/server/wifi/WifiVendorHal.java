@@ -16,8 +16,9 @@
 package com.android.server.wifi;
 
 import android.annotation.Nullable;
-import android.hardware.wifi.V1_0.IWifi;
+import android.hardware.wifi.V1_0.IWifiApIface;
 import android.hardware.wifi.V1_0.IWifiChip;
+import android.hardware.wifi.V1_0.IWifiIface;
 import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
 import android.hardware.wifi.V1_0.WifiDebugHostWakeReasonStats;
@@ -28,6 +29,7 @@ import android.net.wifi.RttManager.ResponderConfig;
 import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiWakeReasonAndCounts;
+import android.os.HandlerThread;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -41,10 +43,20 @@ public class WifiVendorHal {
     private static final String TAG = "WifiVendorHal";
 
     // Vendor HAL HIDL interface objects.
-    private IWifi mIWifi;
     private IWifiChip mIWifiChip;
     private IWifiStaIface mIWifiStaIface;
+    private IWifiApIface mIWifiApIface;
     private IWifiRttController mIWifiRttController;
+    private final HalDeviceManager mHalDeviceManager;
+    private final HalDeviceManagerStatusListener mHalDeviceManagerStatusCallbacks;
+    private final HandlerThread mWifiStateMachineHandlerThread;
+
+    public WifiVendorHal(HalDeviceManager halDeviceManager,
+                         HandlerThread wifiStateMachineHandlerThread) {
+        mHalDeviceManager = halDeviceManager;
+        mWifiStateMachineHandlerThread = wifiStateMachineHandlerThread;
+        mHalDeviceManagerStatusCallbacks = new HalDeviceManagerStatusListener();
+    }
 
     private void handleRemoteException(RemoteException e) {
         kilroy();
@@ -58,31 +70,60 @@ public class WifiVendorHal {
     }
 
     /**
-     * Bring up the HIDL Vendor HAL and configure for STA mode
+     * Initialize the Hal device manager and register for status callbacks.
+     * @return
      */
-    public boolean startVendorHal() {
-        kilroy();
-        throw new UnsupportedOperationException();
+    public boolean initialize() {
+        mHalDeviceManager.initialize();
+        mHalDeviceManager.registerStatusListener(
+                mHalDeviceManagerStatusCallbacks, mWifiStateMachineHandlerThread.getLooper());
+        return true;
+    }
+
+    /**
+     * Bring up the HIDL Vendor HAL and configure for STA mode or AP mode.
+     *
+     * @param isStaMode true to start HAL in STA mode, false to start in AP mode.
+     */
+    public boolean startVendorHal(boolean isStaMode) {
+        if (!mHalDeviceManager.start()) {
+            Log.e(TAG, "Failed to start the vendor HAL");
+            return false;
+        }
+        if (isStaMode) {
+            mIWifiStaIface = mHalDeviceManager.createStaIface(null, null);
+            if (mIWifiStaIface == null) {
+                Log.e(TAG, "Failed to create STA Iface");
+                return false;
+            }
+        } else {
+            mIWifiApIface = mHalDeviceManager.createApIface(null, null);
+            if (mIWifiApIface == null) {
+                Log.e(TAG, "Failed to create AP Iface");
+                return false;
+            }
+        }
+        IWifiIface iface = (IWifiIface) (mIWifiStaIface != null ? mIWifiStaIface : mIWifiApIface);
+        mIWifiChip = mHalDeviceManager.getChip(iface);
+        if (mIWifiStaIface == null) {
+            Log.e(TAG, "Failed to get the chip created for the Iface");
+            return false;
+        }
+        return true;
     }
 
     /**
      * Stops the HAL
      */
     public void stopVendorHal() {
-        kilroy();
-        // TODO(mplass): Actually stop b/33383725
-        mIWifi = null;
-        mIWifiChip = null;
-        mDriverDescription = null;
-        mFirmwareDescription = null;
-        throw new UnsupportedOperationException();
+        mHalDeviceManager.stop();
     }
 
     /**
      * Tests whether the HAL is running or not
      */
     public boolean isHalStarted() {
-        return mIWifiStaIface != null;
+        return (mIWifiStaIface != null || mIWifiApIface != null);
     }
 
     /**
@@ -547,4 +588,23 @@ public class WifiVendorHal {
         Log.e(TAG, "th " + cur.getId() + " line " + s.getLineNumber() + " " + name);
     }
 
+    /**
+     * Hal Device Manager callbacks.
+     */
+    public class HalDeviceManagerStatusListener implements HalDeviceManager.ManagerStatusListener {
+        @Override
+        public void onStatusChanged() {
+            Log.i(TAG, "Device Manager onStatusChanged. isReady(): " + mHalDeviceManager.isReady()
+                    + "isStarted(): " + mHalDeviceManager.isStarted());
+            // Reset all our cached handles.
+            if (!mHalDeviceManager.isReady() || !mHalDeviceManager.isStarted())  {
+                mIWifiChip = null;
+                mIWifiStaIface = null;
+                mIWifiApIface = null;
+                mIWifiRttController = null;
+                mDriverDescription = null;
+                mFirmwareDescription = null;
+            }
+        }
+    }
 }
