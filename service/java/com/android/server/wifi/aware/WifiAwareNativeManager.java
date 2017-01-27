@@ -17,6 +17,7 @@
 package com.android.server.wifi.aware;
 
 import android.hardware.wifi.V1_0.IWifiNanIface;
+import android.hardware.wifi.V1_0.IfaceType;
 import android.util.Log;
 
 import com.android.server.wifi.HalDeviceManager;
@@ -51,7 +52,10 @@ class WifiAwareNativeManager {
                         // only care about isStarted (Wi-Fi started) not isReady - since if not
                         // ready then Wi-Fi will also be down.
                         if (mHalDeviceManager.isStarted()) {
-                            tryToGetAware();
+                            // 1. no problem registering duplicates - only one will be called
+                            // 2. will be called immediately if available
+                            mHalDeviceManager.registerInterfaceAvailableForRequestListener(
+                                    IfaceType.NAN, mInterfaceAvailableForRequestListener, null);
                         } else {
                             awareIsDown();
                         }
@@ -70,12 +74,13 @@ class WifiAwareNativeManager {
 
     private void tryToGetAware() {
         synchronized (mLock) {
+            if (DBG) Log.d(TAG, "tryToGetAware: mWifiNanIface=" + mWifiNanIface);
+
             if (mWifiNanIface != null) {
-                if (DBG) Log.d(TAG, "Already have a NAN interface");
                 return;
             }
-            IWifiNanIface iface = mHalDeviceManager.createNanIface(
-                    mInterfaceDestroyedListener, mInterfaceAvailableForRequestListener, null);
+            IWifiNanIface iface = mHalDeviceManager.createNanIface(mInterfaceDestroyedListener,
+                    null);
             if (iface == null) {
                 if (DBG) Log.d(TAG, "Was not able to obtain an IWifiNanIface");
             } else {
@@ -88,8 +93,9 @@ class WifiAwareNativeManager {
     }
 
     private void awareIsDown() {
-        if (mWifiNanIface != null) {
-            synchronized (mLock) {
+        synchronized (mLock) {
+            if (DBG) Log.d(TAG, "awareIsDown: mWifiNanIface=" + mWifiNanIface);
+            if (mWifiNanIface != null) {
                 mWifiNanIface = null;
                 mWifiAwareStateManager.disableUsage();
             }
