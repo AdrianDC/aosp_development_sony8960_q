@@ -262,6 +262,16 @@ public class WifiConfigManager {
      */
     private boolean mPendingUnlockStoreRead = true;
     /**
+     * Flag to indicate if we have performed a read from store at all. This is used to gate
+     * any user unlock/switch operations until we read the store (Will happen if wifi is disabled
+     * when user updates from N to O).
+     */
+    private boolean mPendingStoreRead = true;
+    /**
+     * Flag to indicate if the user unlock was deferred until the store load occurs.
+     */
+    private boolean mDeferredUserUnlockRead = false;
+    /**
      * This is keeping track of the next network ID to be assigned. Any new networks will be
      * assigned |mNextNetworkId| as network ID.
      */
@@ -2293,12 +2303,6 @@ public class WifiConfigManager {
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "Loading from store after user switch/unlock for " + userId);
         }
-        // Don't handle user unlock or switch unless the migration from legacy stores is complete.
-        if (mWifiConfigStoreLegacy.areStoresPresent() && !mWifiConfigStore.areStoresPresent()) {
-            Log.d(TAG, "Legacy store files found. Ignore user switch/unlock until migration is "
-                    + "complete!");
-            return;
-        }
         // Switch out the user store file.
         if (loadFromUserStoreAfterUnlockOrSwitch(userId)) {
             saveToStore(true);
@@ -2326,6 +2330,10 @@ public class WifiConfigManager {
         }
         if (userId == mCurrentUserId) {
             Log.w(TAG, "User already in foreground " + userId);
+            return new HashSet<>();
+        }
+        if (mPendingStoreRead) {
+            Log.wtf(TAG, "Unexpected user switch before store is read!");
             return new HashSet<>();
         }
         if (mUserManager.isUserUnlockingOrUnlocked(mCurrentUserId)) {
@@ -2357,6 +2365,11 @@ public class WifiConfigManager {
     public void handleUserUnlock(int userId) {
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "Handling user unlock for " + userId);
+        }
+        if (mPendingStoreRead) {
+            Log.w(TAG, "Ignore user unlock until store is read!");
+            mDeferredUserUnlockRead = true;
+            return;
         }
         if (userId == mCurrentUserId && mPendingUnlockStoreRead) {
             handleUserUnlockOrSwitch(mCurrentUserId);
@@ -2483,6 +2496,7 @@ public class WifiConfigManager {
             Log.w(TAG, "No stored networks found.");
         }
         sendConfiguredNetworksChangedBroadcast();
+        mPendingStoreRead = false;
     }
 
     /**
@@ -2539,6 +2553,13 @@ public class WifiConfigManager {
         }
         loadInternalData(storeData.getSharedConfigurations(), storeData.getUserConfigurations(),
                 storeData.getDeletedEphemeralSSIDs());
+        // If the user unlock comes in before we load from store, we defer the handling until
+        // the load from store is triggered.
+        if (mDeferredUserUnlockRead) {
+            Log.i(TAG, "Handling user unlock after loading from store.");
+            handleUserUnlockOrSwitch(mCurrentUserId);
+            mDeferredUserUnlockRead = false;
+        }
         return true;
     }
 

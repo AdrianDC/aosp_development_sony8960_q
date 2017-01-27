@@ -173,6 +173,9 @@ public class WifiConfigManagerTest {
                 .thenReturn(true);
 
         when(mWifiConfigStore.areStoresPresent()).thenReturn(true);
+        when(mWifiConfigStore.read())
+                .thenReturn(new WifiConfigStoreData(new ArrayList<WifiConfiguration>(),
+                        new ArrayList<WifiConfiguration>(), new HashSet<String>()));
 
         when(mDevicePolicyManagerInternal.isActiveAdminWithPolicy(anyInt(), anyInt()))
                 .thenReturn(false);
@@ -2057,6 +2060,9 @@ public class WifiConfigManagerTest {
         int user2 = TEST_DEFAULT_USER + 1;
         setupUserProfiles(user2);
 
+        // Set up the internal data first.
+        assertTrue(mWifiConfigManager.loadFromStore());
+
         when(mWifiConfigStore.switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class)))
                 .thenReturn(new WifiConfigStoreData(
                         new ArrayList<WifiConfiguration>(), new ArrayList<WifiConfiguration>(),
@@ -2079,6 +2085,9 @@ public class WifiConfigManagerTest {
         int user1 = TEST_DEFAULT_USER;
         int user2 = TEST_DEFAULT_USER + 1;
         setupUserProfiles(user2);
+
+        // Set up the internal data first.
+        assertTrue(mWifiConfigManager.loadFromStore());
 
         // user2 is locked and switched to foreground.
         when(mUserManager.isUserUnlockingOrUnlocked(user2)).thenReturn(false);
@@ -2136,6 +2145,14 @@ public class WifiConfigManagerTest {
     public void testHandleUserUnlockAfterBootup() throws Exception {
         int user1 = TEST_DEFAULT_USER;
 
+        // Set up the internal data first.
+        assertTrue(mWifiConfigManager.loadFromStore());
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore).read();
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never())
+                .write(anyBoolean(), any(WifiConfigStoreData.class));
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never())
+                .switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class));
+
         when(mWifiConfigStore.switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class)))
                 .thenReturn(new WifiConfigStoreData(
                         new ArrayList<WifiConfiguration>(), new ArrayList<WifiConfiguration>(),
@@ -2143,8 +2160,43 @@ public class WifiConfigManagerTest {
 
         // Unlock the user1 (default user) for the first time and ensure that we read the data.
         mWifiConfigManager.handleUserUnlock(user1);
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never()).read();
         mContextConfigStoreMockOrder.verify(mWifiConfigStore)
                 .switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class));
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore)
+                .write(anyBoolean(), any(WifiConfigStoreData.class));
+    }
+
+    /**
+     * Verifies that the store read after bootup received after
+     * foreground user unlock via {@link WifiConfigManager#handleUserUnlock(int)}
+     * results in a user store read.
+     */
+    @Test
+    public void testHandleBootupAfterUserUnlock() throws Exception {
+        int user1 = TEST_DEFAULT_USER;
+
+        // Unlock the user1 (default user) for the first time and ensure that we don't read the
+        // data.
+        mWifiConfigManager.handleUserUnlock(user1);
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never()).read();
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never())
+                .write(anyBoolean(), any(WifiConfigStoreData.class));
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never())
+                .switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class));
+
+        when(mWifiConfigStore.switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class)))
+                .thenReturn(new WifiConfigStoreData(
+                        new ArrayList<WifiConfiguration>(), new ArrayList<WifiConfiguration>(),
+                        new HashSet<String>()));
+
+        // Read from store now.
+        assertTrue(mWifiConfigManager.loadFromStore());
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore).read();
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore)
+                .switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class));
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore)
+                .write(anyBoolean(), any(WifiConfigStoreData.class));
     }
 
     /**
@@ -2156,6 +2208,9 @@ public class WifiConfigManagerTest {
         int user1 = TEST_DEFAULT_USER;
         int user2 = TEST_DEFAULT_USER + 1;
         setupUserProfiles(user2);
+
+        // Set up the internal data first.
+        assertTrue(mWifiConfigManager.loadFromStore());
 
         when(mWifiConfigStore.switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class)))
                 .thenReturn(new WifiConfigStoreData(
@@ -2183,16 +2238,13 @@ public class WifiConfigManagerTest {
     public void testHandleUserSwitchAfterBootupBeforeLegacyStoreMigration() throws Exception {
         int user2 = TEST_DEFAULT_USER + 1;
 
-        when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(true);
-        when(mWifiConfigStore.areStoresPresent()).thenReturn(false);
-
         // Switch to user2 for the first time and ensure that we don't read or
         // write the store files.
         when(mUserManager.isUserUnlockingOrUnlocked(user2)).thenReturn(false);
         mWifiConfigManager.handleUserSwitch(user2);
         mContextConfigStoreMockOrder.verify(mWifiConfigStore, never())
                 .switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class));
-        mContextConfigStoreMockOrder.verify(mWifiConfigStore, times(1))
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never())
                 .write(anyBoolean(), any(WifiConfigStoreData.class));
     }
 
@@ -2203,9 +2255,6 @@ public class WifiConfigManagerTest {
     @Test
     public void testHandleUserUnlockAfterBootupBeforeLegacyStoreMigration() throws Exception {
         int user1 = TEST_DEFAULT_USER;
-
-        when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(true);
-        when(mWifiConfigStore.areStoresPresent()).thenReturn(false);
 
         // Unlock the user1 (default user) for the first time and ensure that we don't read or
         // write the store files.
