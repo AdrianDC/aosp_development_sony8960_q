@@ -458,6 +458,11 @@ public class WifiController extends StateMachine {
                             break;
                         }
                         if (mDeviceIdle == false) {
+                            // wifi is toggled, we need to explicitly tell WifiStateMachine that we
+                            // are headed to connect mode before going to the DeviceActiveState
+                            // since that will start supplicant and WifiStateMachine may not know
+                            // what state to head to (it might go to scan mode).
+                            mWifiStateMachine.setOperationalMode(WifiStateMachine.CONNECT_MODE);
                             transitionTo(mDeviceActiveState);
                         } else {
                             checkLocksAndTransitionWhenDeviceIdle();
