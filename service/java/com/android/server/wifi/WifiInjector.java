@@ -103,6 +103,7 @@ public class WifiInjector {
     private final PasspointManager mPasspointManager;
     private final SIMAccessor mSimAccessor;
     private HandlerThread mWifiAwareHandlerThread;
+    private HalDeviceManager mHalDeviceManager;
 
     private final boolean mUseRealLogger;
 
@@ -411,5 +412,17 @@ public class WifiInjector {
             mWifiAwareHandlerThread.start();
         }
         return mWifiAwareHandlerThread;
+    }
+
+    /**
+     * returns a single instance of HalDeviceManager for injection. Uses lazy instantiation
+     * and initialization.
+     */
+    public HalDeviceManager getHalDeviceManager() {
+        if (mHalDeviceManager == null) {
+            mHalDeviceManager = new HalDeviceManager();
+            mHalDeviceManager.initialize();
+        }
+        return mHalDeviceManager;
     }
 }
