@@ -85,7 +85,8 @@ public class WifiKeyStore {
         boolean ret = true;
         String privKeyName = Credentials.USER_PRIVATE_KEY + name;
         String userCertName = Credentials.USER_CERTIFICATE + name;
-        if (config.getClientCertificate() != null) {
+        Certificate[] clientCertificateChain = config.getClientCertificateChain();
+        if (clientCertificateChain != null && clientCertificateChain.length != 0) {
             byte[] privKeyData = config.getClientPrivateKey().getEncoded();
             if (mVerboseLoggingEnabled) {
                 if (isHardwareBackedKey(config.getClientPrivateKey())) {
@@ -101,7 +102,7 @@ public class WifiKeyStore {
                 return ret;
             }
 
-            ret = putCertInKeyStore(userCertName, config.getClientCertificate());
+            ret = putCertsInKeyStore(userCertName, clientCertificateChain);
             if (!ret) {
                 // Remove private key installed
                 mKeyStore.delete(privKeyName, Process.WIFI_UID);
@@ -166,9 +167,23 @@ public class WifiKeyStore {
      * @return true on success
      */
     public boolean putCertInKeyStore(String name, Certificate cert) {
+        return putCertsInKeyStore(name, new Certificate[] {cert});
+    }
+
+    /**
+     * Install a client certificate chain into the keystore.
+     *
+     * @param name The alias name of the certificate to be installed
+     * @param certs The certificate chain to be installed
+     * @return true on success
+     */
+    public boolean putCertsInKeyStore(String name, Certificate[] certs) {
         try {
-            byte[] certData = Credentials.convertToPem(cert);
-            if (mVerboseLoggingEnabled) Log.d(TAG, "putting certificate " + name + " in keystore");
+            byte[] certData = Credentials.convertToPem(certs);
+            if (mVerboseLoggingEnabled) {
+                Log.d(TAG, "putting " + certs.length + " certificate(s) "
+                        + name + " in keystore");
+            }
             return mKeyStore.put(name, certData, Process.WIFI_UID, KeyStore.FLAG_NONE);
         } catch (IOException e1) {
             return false;
