@@ -22,6 +22,8 @@ import android.hardware.wifi.V1_0.IWifiChip;
 import android.hardware.wifi.V1_0.IWifiIface;
 import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
+import android.hardware.wifi.V1_0.WifiStatus;
+import android.hardware.wifi.V1_0.WifiStatusCode;
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
@@ -43,13 +45,22 @@ import org.mockito.MockitoAnnotations;
 public class WifiVendorHalTest {
 
     WifiVendorHal mWifiVendorHal;
-    @Mock private HalDeviceManager mHalDeviceManager;
-    @Mock private HandlerThread mWifiStateMachineHandlerThread;
-    @Mock private WifiVendorHal.HalDeviceManagerStatusListener mHalDeviceManagerStatusCallbacks;
-    @Mock private IWifiApIface mIWifiApIface;
-    @Mock private IWifiChip mIWifiChip;
-    @Mock private IWifiStaIface mIWifiStaIface;
-    @Mock private IWifiRttController mIWifiRttController;
+    private WifiStatus mWifiStatusSuccess;
+    private WifiStatus mWifiStatusFailure;
+    @Mock
+    private HalDeviceManager mHalDeviceManager;
+    @Mock
+    private HandlerThread mWifiStateMachineHandlerThread;
+    @Mock
+    private WifiVendorHal.HalDeviceManagerStatusListener mHalDeviceManagerStatusCallbacks;
+    @Mock
+    private IWifiApIface mIWifiApIface;
+    @Mock
+    private IWifiChip mIWifiChip;
+    @Mock
+    private IWifiStaIface mIWifiStaIface;
+    @Mock
+    private IWifiRttController mIWifiRttController;
 
     /**
      * Sets up for unit test
@@ -57,6 +68,13 @@ public class WifiVendorHalTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
+        mWifiStatusSuccess = new WifiStatus();
+        mWifiStatusSuccess.code = WifiStatusCode.SUCCESS;
+        mWifiStatusFailure = new WifiStatus();
+        mWifiStatusFailure.code = WifiStatusCode.ERROR_UNKNOWN;
+        mWifiStatusFailure.description = "I don't even know what a Mock Turtle is.";
+        when(mIWifiStaIface.enableLinkLayerStatsCollection(false)).thenReturn(mWifiStatusSuccess);
+
 
         // Setup the HalDeviceManager mock's start/stop behaviour. This can be overridden in
         // individual tests, if needed.
@@ -290,4 +308,54 @@ public class WifiVendorHalTest {
         verify(mHalDeviceManager, never()).createStaIface(eq(null), eq(null));
         verify(mHalDeviceManager, never()).createRttController(any(IWifiIface.class));
     }
+
+    /**
+     * Test enablement of link layer stats after startup
+     * <p>
+     * Request link layer stats before HAL start
+     * - should not make it to the HAL layer
+     * Start the HAL in STA mode
+     * Request link layer stats twice more
+     * - enable request should make it to the HAL layer
+     * - HAL layer should have been called to make the requests (i.e., two calls total)
+     */
+    @Test
+    public void testLinkLayerStatsEnableAfterStartup() throws Exception {
+        doNothing().when(mIWifiStaIface).getLinkLayerStats(any());
+
+        assertNull(mWifiVendorHal.getWifiLinkLayerStats());
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertTrue(mWifiVendorHal.isHalStarted());
+
+        verify(mHalDeviceManager).start();
+        mWifiVendorHal.getWifiLinkLayerStats();
+        mWifiVendorHal.getWifiLinkLayerStats();
+        verify(mIWifiStaIface).enableLinkLayerStatsCollection(false); // mLinkLayerStatsDebug
+        verify(mIWifiStaIface, times(2)).getLinkLayerStats(any());
+    }
+
+    /**
+     * Test that link layer stats are not enabled and harmless in AP mode
+     * <p>
+     * Start the HAL in AP mode
+     * - stats should not be enabled
+     * Request link layer stats
+     * - HAL layer should have been called to make the request
+     */
+    @Test
+    public void testLinkLayerStatsNotEnabledAndHarmlessInApMode() throws Exception {
+        doNothing().when(mIWifiStaIface).getLinkLayerStats(any());
+
+        assertTrue(mWifiVendorHal.startVendorHalAp());
+        assertTrue(mWifiVendorHal.isHalStarted());
+        assertNull(mWifiVendorHal.getWifiLinkLayerStats());
+
+        verify(mHalDeviceManager).start();
+
+        verify(mIWifiStaIface, never()).enableLinkLayerStatsCollection(false);
+        verify(mIWifiStaIface, never()).getLinkLayerStats(any());
+    }
+
+    // TODO(b/34900534) add test for correct MOVE CORRESPONDING of fields
+
 }
