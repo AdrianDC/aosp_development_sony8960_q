@@ -129,7 +129,7 @@ public class WifiInjector {
         mWifiPermissionsWrapper = new WifiPermissionsWrapper(mContext);
         mNetworkScoreManager = mContext.getSystemService(NetworkScoreManager.class);
         mWifiPermissionsUtil = new WifiPermissionsUtil(mWifiPermissionsWrapper, mContext,
-                mSettingsStore, UserManager.get(mContext), mNetworkScoreManager);
+                mSettingsStore, UserManager.get(mContext), mNetworkScoreManager, this);
 
         // Now create and start handler threads
         mWifiServiceHandlerThread = new HandlerThread("WifiService");
