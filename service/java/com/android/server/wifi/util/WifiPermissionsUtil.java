@@ -47,13 +47,13 @@ public class WifiPermissionsUtil {
 
     public WifiPermissionsUtil(WifiPermissionsWrapper wifiPermissionsWrapper,
             Context context, WifiSettingsStore settingsStore, UserManager userManager,
-            NetworkScoreManager networkScoreManager) {
+            NetworkScoreManager networkScoreManager, WifiInjector wifiInjector) {
         mWifiPermissionsWrapper = wifiPermissionsWrapper;
         mContext = context;
         mUserManager = userManager;
         mAppOps = (AppOpsManager) mContext.getSystemService(Context.APP_OPS_SERVICE);
         mSettingsStore = settingsStore;
-        mLog = WifiInjector.getInstance().makeLog(TAG);
+        mLog = wifiInjector.makeLog(TAG);
         mNetworkScoreManager = networkScoreManager;
     }
 
