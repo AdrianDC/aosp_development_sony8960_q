@@ -213,7 +213,7 @@ public class HalDeviceManagerTest {
 
         // verify: service and callback calls
         mInOrder.verify(mWifiMock).start();
-        mInOrder.verify(mManagerStatusListenerMock, times(2)).onStatusChanged();
+        mInOrder.verify(mManagerStatusListenerMock, times(3)).onStatusChanged();
 
         verifyNoMoreInteractions(mManagerStatusListenerMock);
     }
@@ -835,7 +835,7 @@ public class HalDeviceManagerTest {
         // verify that Wi-Fi is shut-down: should also get all onDestroyed messages that are
         // registered (even if they seem out-of-sync to chip)
         mTestLooper.dispatchAll();
-        verify(mWifiMock).stop();
+        verify(mWifiMock, times(2)).stop();
         verify(mManagerStatusListenerMock, times(2)).onStatusChanged();
         verify(staDestroyedListener).onDestroyed();
         verify(nanDestroyedListener).onDestroyed();

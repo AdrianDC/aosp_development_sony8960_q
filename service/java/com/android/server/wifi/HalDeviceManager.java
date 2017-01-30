@@ -534,6 +534,7 @@ public class HalDeviceManager {
                                             + ", name=" + name + ", preexisting=" + preexisting);
                                     mWifi = null; // get rid of old copy!
                                     initIWifiIfNecessary();
+                                    stopWifi(); // just in case
                                 }
                             })) {
                         Log.wtf(TAG, "Failed to register a listener for IWifi service");
