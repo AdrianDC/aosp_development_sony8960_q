@@ -3088,4 +3088,84 @@ public class WifiNative {
         }
         return false;
     }
+
+    // Firmware roaming control.
+
+    /**
+     * Class to retrieve firmware roaming capability parameters.
+     */
+    public static class RoamingCapabilities {
+        public int  maxBlacklistSize;
+        public int  maxWhitelistSize;
+    }
+
+    /**
+     * Query the firmware roaming capabilities.
+     */
+    public boolean getRoamingCapabilities(RoamingCapabilities capabilities) {
+        Log.d(TAG, "getRoamingCapabilities ");
+        try {
+            if (mWifiVendorHal != null) {
+                return mWifiVendorHal.getRoamingCapabilities(capabilities);
+            }
+        } catch (UnsupportedOperationException e) {
+        }
+
+        return false;
+    }
+
+    /**
+     * Macros for controlling firmware roaming.
+     */
+    public static final int DISABLE_FIRMWARE_ROAMING = 0;
+    public static final int ENABLE_FIRMWARE_ROAMING = 1;
+
+    /**
+     * Enable/disable firmware roaming.
+     */
+    public int enableFirmwareRoaming(int state) {
+        Log.d(TAG, "enableFirmwareRoaming: state =" + state);
+        try {
+            if (mWifiVendorHal != null) {
+                return mWifiVendorHal.enableFirmwareRoaming(state);
+            }
+        } catch (UnsupportedOperationException e) {
+        }
+
+        return -1;
+    }
+
+    /**
+     * Class for specifying the roaming configurations.
+     */
+    public static class RoamingConfig {
+        public ArrayList<String> blacklistBssids;
+        public ArrayList<String> whitelistSsids;
+    }
+
+    /**
+     * Set firmware roaming configurations.
+     */
+    public boolean configureRoaming(RoamingConfig config) {
+        Log.d(TAG, "configureRoaming ");
+        try {
+            if (mWifiVendorHal != null) {
+                return mWifiVendorHal.configureRoaming(config);
+            }
+        } catch (UnsupportedOperationException e) {
+        }
+
+        return false;
+    }
+
+
+    StackTraceElement[] mTrace;
+    void legacyHalWarning() {
+        Thread cur = Thread.currentThread();
+        mTrace = cur.getStackTrace();
+        StackTraceElement s = mTrace[3];
+        Log.e(TAG, "LEGACY HAL th " + cur.getId()
+                + " line " + s.getLineNumber() + " " + s.getMethodName());
+    }
+
 }
