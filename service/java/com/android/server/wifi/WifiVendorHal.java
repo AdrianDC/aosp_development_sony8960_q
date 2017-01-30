@@ -21,17 +21,22 @@ import android.hardware.wifi.V1_0.IWifiChip;
 import android.hardware.wifi.V1_0.IWifiIface;
 import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
+import android.hardware.wifi.V1_0.StaRoamingConfig;
+import android.hardware.wifi.V1_0.StaRoamingState;
 import android.hardware.wifi.V1_0.WifiDebugHostWakeReasonStats;
 import android.hardware.wifi.V1_0.WifiStatus;
+import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.HandlerThread;
 import android.os.RemoteException;
 import android.util.Log;
+import android.util.MutableBoolean;
 
 import com.android.server.connectivity.KeepalivePacketData;
 
@@ -57,6 +62,9 @@ public class WifiVendorHal {
         mWifiStateMachineHandlerThread = wifiStateMachineHandlerThread;
         mHalDeviceManagerStatusCallbacks = new HalDeviceManagerStatusListener();
     }
+
+    // TODO(mplass): figure out where we need locking in hidl world. b/33383725
+    public static final Object sLock = new Object();
 
     private void handleRemoteException(RemoteException e) {
         kilroy();
@@ -550,6 +558,139 @@ public class WifiVendorHal {
     public boolean configureNeighborDiscoveryOffload(boolean enabled) {
         kilroy();
         throw new UnsupportedOperationException();
+    }
+
+    // Firmware roaming control.
+
+    /**
+     * Query the firmware roaming capabilities.
+     *
+     * @param capabilities object to be filled in
+     * @return true for success; false for failure
+     */
+    public boolean getRoamingCapabilities(WifiNative.RoamingCapabilities capabilities) {
+        kilroy();
+        synchronized (sLock) {
+            kilroy();
+            try {
+                kilroy();
+                if (!isHalStarted()) return false;
+                MutableBoolean ok = new MutableBoolean(false);
+                WifiNative.RoamingCapabilities out = capabilities;
+                mIWifiStaIface.getRoamingCapabilities((status, cap) -> {
+                    kilroy();
+                    if (status.code != WifiStatusCode.SUCCESS) return;
+                    out.maxBlacklistSize = cap.maxBlacklistSize;
+                    out.maxWhitelistSize = cap.maxWhitelistSize;
+                    ok.value = true;
+                });
+                return ok.value;
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Enable/disable firmware roaming.
+     *
+     * @param state the intended roaming state
+     * @return SUCCESS, FAILURE, or BUSY
+     */
+    public int enableFirmwareRoaming(int state) {
+        kilroy();
+        synchronized (sLock) {
+            kilroy();
+            try {
+                kilroy();
+                if (!isHalStarted()) return WifiStatusCode.ERROR_NOT_STARTED;
+                byte val;
+                switch (state) {
+                    case WifiNative.DISABLE_FIRMWARE_ROAMING:
+                        val = StaRoamingState.DISABLED;
+                        break;
+                    case WifiNative.ENABLE_FIRMWARE_ROAMING:
+                        val = StaRoamingState.ENABLED;
+                        break;
+                    default:
+                        Log.e(TAG, "enableFirmwareRoaming invalid argument " + state);
+                        return WifiStatusCode.ERROR_INVALID_ARGS;
+                }
+
+                kilroy();
+                WifiStatus status = mIWifiStaIface.setRoamingState(val);
+                Log.d(TAG, "setRoamingState returned " + status.code);
+                return status.code;
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return WifiStatusCode.ERROR_UNKNOWN;
+            }
+        }
+    }
+
+    /**
+     * Set firmware roaming configurations.
+     *
+     * @param config new roaming configuration object
+     * @return true for success; false for failure
+     */
+    public boolean configureRoaming(WifiNative.RoamingConfig config) {
+        kilroy();
+        synchronized (sLock) {
+            kilroy();
+            try {
+                kilroy();
+                if (!isHalStarted()) return false;
+                StaRoamingConfig roamingConfig = new StaRoamingConfig();
+
+                // parse the blacklist BSSIDs if any
+                if (config.blacklistBssids != null) {
+                    kilroy();
+                    for (String bssid : config.blacklistBssids) {
+                        String unquotedMacStr = WifiInfo.removeDoubleQuotes(bssid);
+                        byte[] mac = new byte[6];
+                        parseUnquotedMacStrToByteArray(unquotedMacStr, mac);
+                        roamingConfig.bssidBlacklist.add(mac);
+                    }
+                }
+
+                // parse the whitelist SSIDs if any
+                if (config.whitelistSsids != null) {
+                    kilroy();
+                    for (String ssidStr : config.whitelistSsids) {
+                        String unquotedSsidStr = WifiInfo.removeDoubleQuotes(ssidStr);
+
+                        int len = unquotedSsidStr.length();
+                        if (len > 32) {
+                            Log.e(TAG, "configureRoaming: skip invalid SSID " + unquotedSsidStr);
+                            continue;
+                        }
+                        byte[] ssid = new byte[len];
+                        for (int i = 0; i < len; i++) {
+                            ssid[i] = (byte) unquotedSsidStr.charAt(i);
+                        }
+                        roamingConfig.ssidWhitelist.add(ssid);
+                    }
+                }
+
+                kilroy();
+                WifiStatus status = mIWifiStaIface.configureRoaming(roamingConfig);
+                if (status.code != WifiStatusCode.SUCCESS) {
+                    kilroy();
+                    noteHidlError(status, "configureRoaming");
+                    return false;
+                }
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return false;
+            }
+            kilroy();
+            return true;
+        }
     }
 
     /**
