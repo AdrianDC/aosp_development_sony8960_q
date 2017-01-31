@@ -942,23 +942,21 @@ public class HalDeviceManagerTest {
     }
 
     private void executeAndValidateInitializationSequence() throws Exception {
-        InOrder inOrder = inOrder(mServiceManagerMock, mWifiMock);
-
         // act:
         mDut.initialize();
 
         // verify: service manager initialization sequence
         mInOrder.verify(mServiceManagerMock).linkToDeath(any(IHwBinder.DeathRecipient.class),
                 anyLong());
-        inOrder.verify(mServiceManagerMock).registerForNotifications(eq(IWifi.kInterfaceName),
+        mInOrder.verify(mServiceManagerMock).registerForNotifications(eq(IWifi.kInterfaceName),
                 eq(""), mServiceNotificationCaptor.capture());
 
         // act: get the service started (which happens even when service was already up)
         mServiceNotificationCaptor.getValue().onRegistration(IWifi.kInterfaceName, "", true);
 
         // verify: wifi initialization sequence
-        inOrder.verify(mWifiMock).linkToDeath(mDeathRecipientCaptor.capture(), anyLong());
-        inOrder.verify(mWifiMock).registerEventCallback(mWifiEventCallbackCaptor.capture());
+        mInOrder.verify(mWifiMock).linkToDeath(mDeathRecipientCaptor.capture(), anyLong());
+        mInOrder.verify(mWifiMock).registerEventCallback(mWifiEventCallbackCaptor.capture());
         collector.checkThat("isReady is true", mDut.isReady(), equalTo(true));
     }
 
