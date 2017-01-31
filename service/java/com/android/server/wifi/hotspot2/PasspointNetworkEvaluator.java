@@ -126,6 +126,7 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
         }
         mWifiConfigManager.setNetworkCandidateScanResult(result.getNetworkId(),
                 scanDetail.getScanResult(), 0);
+        mWifiConfigManager.updateScanDetailForNetwork(result.getNetworkId(), scanDetail);
         return mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
     }
 
