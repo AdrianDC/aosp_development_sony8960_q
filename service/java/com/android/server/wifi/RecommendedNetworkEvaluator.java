@@ -176,33 +176,43 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
             return null;
         }
 
-        WifiConfiguration wifiConfiguration = result.getWifiConfiguration();
-        ScanResult scanResult = findMatchingScanResult(scanResultArray, wifiConfiguration);
-        if (scanResult == null) {
-            Slog.e(TAG, "Could not match WifiConfiguration to a ScanResult.");
+        WifiConfiguration recommendedConfig = result.getWifiConfiguration();
+        ScanDetail matchingScanDetail = findMatchingScanDetail(scanDetails, recommendedConfig);
+        if (matchingScanDetail == null) {
+            Slog.e(TAG, "Could not match WifiConfiguration to a ScanDetail.");
             return null;
         }
+        ScanResult matchingScanResult = matchingScanDetail.getScanResult();
 
-        int networkId = wifiConfiguration.networkId;
-        if (networkId == WifiConfiguration.INVALID_NETWORK_ID) {
-            networkId = addEphemeralNetwork(wifiConfiguration, scanResult);
+        // Look for a matching saved config. This can be null for ephemeral networks.
+        final WifiConfiguration existingConfig =
+                mWifiConfigManager.getSavedNetworkForScanDetailAndCache(matchingScanDetail);
+
+        final int networkId;
+        if (existingConfig == null) { // attempt to add a new ephemeral network.
+            networkId = addEphemeralNetwork(recommendedConfig, matchingScanResult);
             if (networkId == WifiConfiguration.INVALID_NETWORK_ID) {
                 return null;
             }
+        } else { // Use the existing config
+            networkId = existingConfig.networkId;
         }
-        mWifiConfigManager.setNetworkCandidateScanResult(networkId, scanResult, 0 /* score */);
+        mWifiConfigManager.setNetworkCandidateScanResult(networkId,
+                matchingScanResult, 0 /* score */);
         return mWifiConfigManager.getConfiguredNetwork(networkId);
     }
 
-    private ScanResult findMatchingScanResult(ScanResult[] scanResults,
+    private ScanDetail findMatchingScanDetail(List<ScanDetail> scanDetails,
             WifiConfiguration wifiConfiguration) {
         String ssid = WifiInfo.removeDoubleQuotes(wifiConfiguration.SSID);
         String bssid = wifiConfiguration.BSSID;
-        for (int i = 0; i < scanResults.length; i++) {
-            if (ssid.equals(scanResults[i].SSID) && bssid.equals(scanResults[i].BSSID)) {
-                return scanResults[i];
+        for (int i = 0; i < scanDetails.size(); i++) {
+            final ScanDetail scanDetail = scanDetails.get(i);
+            if (ssid.equals(scanDetail.getSSID()) && bssid.equals(scanDetail.getBSSIDString())) {
+                return scanDetail;
             }
         }
+
         return null;
     }
 
