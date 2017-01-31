@@ -193,6 +193,18 @@ public class WifiConfigManagerTest {
     }
 
     /**
+     * Verifies that network retrieval via
+     * {@link WifiConfigManager#getConfiguredNetworks()} and
+     * {@link WifiConfigManager#getConfiguredNetworksWithPasswords()} works even if we have not
+     * yet loaded data from store.
+     */
+    @Test
+    public void testGetConfiguredNetworksBeforeLoadFromStore() {
+        assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+        assertTrue(mWifiConfigManager.getConfiguredNetworksWithPasswords().isEmpty());
+    }
+
+    /**
      * Verifies the addition of a single network using
      * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)}
      */

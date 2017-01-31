@@ -3735,10 +3735,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     replyToMessage(message, message.what, FAILURE);
                     break;
                 case CMD_GET_CONFIGURED_NETWORKS:
-                    replyToMessage(message, message.what, (List<WifiConfiguration>) null);
+                    replyToMessage(message, message.what, mWifiConfigManager.getSavedNetworks());
                     break;
                 case CMD_GET_PRIVILEGED_CONFIGURED_NETWORKS:
-                    replyToMessage(message, message.what, (List<WifiConfiguration>) null);
+                    replyToMessage(message, message.what,
+                            mWifiConfigManager.getConfiguredNetworksWithPasswords());
                     break;
                 case CMD_ENABLE_RSSI_POLL:
                     mEnableRssiPolling = (message.arg1 == 1);
@@ -5018,10 +5019,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // Inform the backup manager about a data change
                     mBackupManagerProxy.notifyDataChanged();
                     break;
-                case CMD_GET_CONFIGURED_NETWORKS:
-                    replyToMessage(message, message.what,
-                            mWifiConfigManager.getSavedNetworks());
-                    break;
                 case WifiMonitor.SUP_REQUEST_IDENTITY:
                     int supplicantNetworkId = message.arg2;
                     netId = lookupFrameworkNetworkId(supplicantNetworkId);
@@ -5073,10 +5070,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     } else {
                         loge("Invalid sim auth request");
                     }
-                    break;
-                case CMD_GET_PRIVILEGED_CONFIGURED_NETWORKS:
-                    replyToMessage(message, message.what,
-                            mWifiConfigManager.getConfiguredNetworksWithPasswords());
                     break;
                 case CMD_GET_MATCHING_CONFIG:
                     // TODO(b/31065385)
