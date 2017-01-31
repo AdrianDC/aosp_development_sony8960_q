@@ -109,6 +109,7 @@ import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.connectivity.KeepalivePacketData;
 import com.android.server.wifi.hotspot2.IconEvent;
+import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.hotspot2.WnmData;
@@ -3184,6 +3185,21 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiInfo.setSSID(stateChangeResult.wifiSsid);
         WifiConfiguration config = getCurrentWifiConfiguration();
         if (config != null) {
+            // Set meteredHint to true if the access network type of the connecting/connected AP
+            // is a chargeable public network.
+            ScanDetailCache scanDetailCache = mWifiConfigManager.getScanDetailCacheForNetwork(
+                    config.networkId);
+            if (scanDetailCache != null) {
+                ScanDetail scanDetail = scanDetailCache.getScanDetail(stateChangeResult.BSSID);
+                if (scanDetail != null) {
+                    NetworkDetail networkDetail = scanDetail.getNetworkDetail();
+                    if (networkDetail != null
+                            && networkDetail.getAnt() == NetworkDetail.Ant.ChargeablePublic) {
+                        mWifiInfo.setMeteredHint(true);
+                    }
+                }
+            }
+
             mWifiInfo.setEphemeral(config.ephemeral);
             if (!mWifiInfo.getMeteredHint()) { // don't override the value if already set.
                 mWifiInfo.setMeteredHint(config.meteredHint);
