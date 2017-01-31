@@ -1877,6 +1877,22 @@ public class WifiConfigManager {
     }
 
     /**
+     * Save the ScanDetail to the ScanDetailCache of the given network.  This is used
+     * by {@link com.android.server.wifi.hotspot2.PasspointNetworkEvaluator} for caching
+     * ScanDetail for newly created {@link WifiConfiguration} for Passpoint network.
+     *
+     * @param networkId The ID of the network to save ScanDetail to
+     * @param scanDetail The ScanDetail to cache
+     */
+    public void updateScanDetailForNetwork(int networkId, ScanDetail scanDetail) {
+        WifiConfiguration network = getInternalConfiguredNetwork(networkId);
+        if (network == null) {
+            return;
+        }
+        saveToScanDetailCacheForNetwork(network, scanDetail);
+    }
+
+    /**
      * Helper method to check if the 2 provided networks can be linked or not.
      * Networks are considered for linking if:
      * 1. Share the same GW MAC address.
