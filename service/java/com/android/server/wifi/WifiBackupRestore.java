@@ -118,7 +118,7 @@ public class WifiBackupRestore {
     public byte[] retrieveBackupDataFromConfigurations(List<WifiConfiguration> configurations) {
         if (configurations == null) {
             Log.e(TAG, "Invalid configuration list received");
-            return null;
+            return new byte[0];
         }
 
         try {
@@ -147,7 +147,7 @@ public class WifiBackupRestore {
         } catch (IOException e) {
             Log.e(TAG, "Error retrieving the backup data: " + e);
         }
-        return null;
+        return new byte[0];
     }
 
     /**
