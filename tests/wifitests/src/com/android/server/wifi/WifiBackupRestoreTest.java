@@ -82,6 +82,18 @@ public class WifiBackupRestoreTest {
     }
 
     /**
+     * Verify that a null network list is serialized correctly.
+     */
+    @Test
+    public void testNullNetworkListBackup() {
+        byte[] backupData = mWifiBackupRestore.retrieveBackupDataFromConfigurations(null);
+        assertTrue(backupData != null);
+        assertEquals(backupData.length, 0);
+        // No valid data to check in dump.
+        mCheckDump = false;
+    }
+
+    /**
      * Verify that a single open network configuration is serialized & deserialized correctly.
      */
     @Test
