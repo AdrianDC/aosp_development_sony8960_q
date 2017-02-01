@@ -76,7 +76,6 @@ import android.net.wifi.WifiSsid;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.WpsResult;
 import android.net.wifi.WpsResult.Status;
-import android.net.wifi.aware.WifiAwareManager;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
 import android.os.Binder;
@@ -210,7 +209,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private WifiApConfigStore mWifiApConfigStore;
     private final boolean mP2pSupported;
     private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
-    private final boolean mAwareSupported;
     private boolean mTemporarilyDisconnectWifi = false;
     private final String mPrimaryDeviceType;
     private final Clock mClock;
@@ -431,8 +429,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     // Channel for sending replies.
     private AsyncChannel mReplyChannel = new AsyncChannel();
-
-    private WifiAwareManager mWifiAwareManager;
 
     // Used to initiate a connection with WifiP2pService
     private AsyncChannel mWifiP2pChannel;
@@ -874,8 +870,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         mP2pSupported = mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_WIFI_DIRECT);
-        mAwareSupported = mContext.getPackageManager()
-                .hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE);
 
         mWifiConfigManager = mWifiInjector.getWifiConfigManager();
         mWifiApConfigStore = mWifiInjector.getWifiApConfigStore();
@@ -4270,24 +4264,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 }
             }
 
-            if (mAwareSupported) {
-                if (mWifiAwareManager == null) {
-                    mWifiAwareManager = mContext.getSystemService(WifiAwareManager.class);
-                }
-                if (mWifiAwareManager == null) {
-                    Log.e(TAG, "Can't get WifiAwareManager to enable usage!");
-                } else {
-                    if (mOperationalMode == CONNECT_MODE) {
-                        mWifiAwareManager.enableUsage();
-                    } else {
-                    /*
-                     * Aware state machine starts in disabled state. Nothing
-                     * needed to keep it disabled.
-                     */
-                    }
-                }
-            }
-
             final Intent intent = new Intent(WifiManager.WIFI_SCAN_AVAILABLE);
             intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
             intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_ENABLED);
@@ -4451,17 +4427,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_DISABLED);
             mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
             mBufferedScanMsg.clear();
-
-            if (mAwareSupported) {
-                if (mWifiAwareManager == null) {
-                    mWifiAwareManager = mContext.getSystemService(WifiAwareManager.class);
-                }
-                if (mWifiAwareManager == null) {
-                    Log.e(TAG, "Can't get WifiAwareManager (to disable usage)!");
-                } else {
-                    mWifiAwareManager.disableUsage();
-                }
-            }
 
             mNetworkInfo.setIsAvailable(false);
             if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);

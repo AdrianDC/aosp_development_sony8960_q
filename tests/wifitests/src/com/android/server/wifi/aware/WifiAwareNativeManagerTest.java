@@ -25,7 +25,10 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.hardware.wifi.V1_0.IWifiNanIface;
+import android.hardware.wifi.V1_0.IWifiNanIfaceEventCallback;
 import android.hardware.wifi.V1_0.IfaceType;
+import android.hardware.wifi.V1_0.WifiStatus;
+import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.os.Looper;
 
 import com.android.server.wifi.HalDeviceManager;
@@ -46,6 +49,7 @@ public class WifiAwareNativeManagerTest {
     private WifiAwareNativeManager mDut;
     @Mock private WifiAwareStateManager mWifiAwareStateManagerMock;
     @Mock private HalDeviceManager mHalDeviceManager;
+    @Mock private WifiAwareNativeCallback mWifiAwareNativeCallback;
     @Mock private IWifiNanIface mWifiNanIfaceMock;
     private ArgumentCaptor<HalDeviceManager.ManagerStatusListener> mManagerStatusListenerCaptor =
             ArgumentCaptor.forClass(HalDeviceManager.ManagerStatusListener.class);
@@ -58,12 +62,20 @@ public class WifiAwareNativeManagerTest {
     private InOrder mInOrder;
     @Rule public ErrorCollector collector = new ErrorCollector();
 
+    private WifiStatus mStatusOk;
+
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
+        mStatusOk = new WifiStatus();
+        mStatusOk.code = WifiStatusCode.SUCCESS;
+
+        when(mWifiNanIfaceMock.registerEventCallback(
+                any(IWifiNanIfaceEventCallback.class))).thenReturn(mStatusOk);
+
         mDut = new WifiAwareNativeManager(mWifiAwareStateManagerMock,
-                mHalDeviceManager);
+                mHalDeviceManager, mWifiAwareNativeCallback);
 
         mInOrder = inOrder(mWifiAwareStateManagerMock, mHalDeviceManager);
     }
