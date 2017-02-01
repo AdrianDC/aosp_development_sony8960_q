@@ -37,8 +37,7 @@ LOCAL_SHARED_LIBRARIES += \
 
 LOCAL_SRC_FILES := \
 	jni/com_android_server_wifi_WifiNative.cpp \
-	jni/jni_helper.cpp \
-	jni/com_android_server_wifi_aware_WifiAwareNative.cpp
+	jni/jni_helper.cpp
 
 LOCAL_MODULE := libwifi-service
 

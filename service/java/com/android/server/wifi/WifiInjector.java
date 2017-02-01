@@ -416,7 +416,7 @@ public class WifiInjector {
      *
      * TODO: share worker thread with other Wi-Fi handlers (b/27924886)
      */
-    public HandlerThread getmWifiAwareHandlerThread() {
+    public HandlerThread getWifiAwareHandlerThread() {
         if (mWifiAwareHandlerThread == null) { // lazy initialization
             mWifiAwareHandlerThread = new HandlerThread("wifiAwareService");
             mWifiAwareHandlerThread.start();

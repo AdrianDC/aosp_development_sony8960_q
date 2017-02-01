@@ -650,7 +650,7 @@ public class WifiAwareServiceImplTest {
     }
 
     private static Characteristics getCharacteristics() {
-        WifiAwareNative.Capabilities cap = new WifiAwareNative.Capabilities();
+        Capabilities cap = new Capabilities();
         cap.maxConcurrentAwareClusters = 1;
         cap.maxPublishes = 2;
         cap.maxSubscribes = 2;
@@ -659,7 +659,6 @@ public class WifiAwareServiceImplTest {
         cap.maxTotalMatchFilterLen = 255;
         cap.maxServiceSpecificInfoLen = MAX_LENGTH;
         cap.maxVsaDataLen = 255;
-        cap.maxMeshDataLen = 255;
         cap.maxNdiInterfaces = 1;
         cap.maxNdpSessions = 1;
         cap.maxAppInfoLen = 255;
