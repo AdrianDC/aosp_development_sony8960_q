@@ -3305,7 +3305,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private void reportConnectionAttemptStart(
             WifiConfiguration config, String targetBSSID, int roamType) {
         mWifiMetrics.startConnectionEvent(config, targetBSSID, roamType);
-        mWifiDiagnostics.reportConnectionEvent(WifiDiagnostics.CONNECTION_EVENT_STARTED);
+        mWifiDiagnostics.reportConnectionEvent(-1, WifiDiagnostics.CONNECTION_EVENT_STARTED);
     }
 
     /**
@@ -3325,7 +3325,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 //   complete.
                 //
                 // TODO(b/34181219): Fix the above.
-                mWifiDiagnostics.reportConnectionEvent(WifiDiagnostics.CONNECTION_EVENT_SUCCEEDED);
+                mWifiDiagnostics.reportConnectionEvent(
+                        -1, WifiDiagnostics.CONNECTION_EVENT_SUCCEEDED);
                 break;
             case WifiMetrics.ConnectionEvent.FAILURE_REDUNDANT_CONNECTION_ATTEMPT:
             case WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED:
@@ -3333,7 +3334,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 // where we failed to initiate a connection attempt with supplicant.
                 break;
             default:
-                mWifiDiagnostics.reportConnectionEvent(WifiDiagnostics.CONNECTION_EVENT_FAILED);
+                mWifiDiagnostics.reportConnectionEvent(-1, WifiDiagnostics.CONNECTION_EVENT_FAILED);
         }
     }
 

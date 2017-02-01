@@ -61,9 +61,10 @@ public class LastMileLogger {
 
     /**
      * Informs LastMileLogger that a connection event has occurred.
+     * @param connectionId A non-negative connection identifier, or -1 to indicate unknown
      * @param event an event defined in BaseWifiDiagnostics
      */
-    public void reportConnectionEvent(byte event) {
+    public void reportConnectionEvent(long connectionId, byte event) {
         switch (event) {
             case BaseWifiDiagnostics.CONNECTION_EVENT_STARTED:
                 enableTracing();
