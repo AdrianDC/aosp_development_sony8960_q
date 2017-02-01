@@ -38,6 +38,7 @@ import android.os.RemoteException;
 import android.util.Log;
 import android.util.MutableBoolean;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.connectivity.KeepalivePacketData;
 
 /**
@@ -699,7 +700,8 @@ public class WifiVendorHal {
      * @param macWithColons mac address string without double quotes
      * @param mac an array of 6 bytes to receive the parsed mac address
      */
-    private void parseUnquotedMacStrToByteArray(String macWithColons, byte[] mac) {
+    @VisibleForTesting
+    void parseUnquotedMacStrToByteArray(String macWithColons, byte[] mac) {
         String[] macAddrStr = macWithColons.split(":");
         for (int i = 0; i < 6; i++) {
             Integer hexVal = Integer.parseInt(macAddrStr[i], 16);
