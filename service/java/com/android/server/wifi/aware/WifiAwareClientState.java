@@ -105,6 +105,10 @@ public class WifiAwareClientState {
         return mUid;
     }
 
+    public boolean getNotifyIdentityChange() {
+        return mNotifyIdentityChange;
+    }
+
     /**
      * Searches the discovery sessions of this client and returns the one
      * corresponding to the publish/subscribe ID. Used on callbacks from HAL to

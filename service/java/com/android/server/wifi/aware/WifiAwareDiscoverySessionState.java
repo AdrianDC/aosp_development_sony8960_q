@@ -16,6 +16,7 @@
 
 package com.android.server.wifi.aware;
 
+import android.hardware.wifi.V1_0.NanStatusType;
 import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
@@ -39,7 +40,7 @@ public class WifiAwareDiscoverySessionState {
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
 
-    private final WifiAwareNative mWifiAwareNative;
+    private final WifiAwareNativeApi mWifiAwareNativeApi;
     private int mSessionId;
     private int mPubSubId;
     private IWifiAwareDiscoverySessionCallback mCallback;
@@ -47,9 +48,9 @@ public class WifiAwareDiscoverySessionState {
 
     private final SparseArray<String> mMacByRequestorInstanceId = new SparseArray<>();
 
-    public WifiAwareDiscoverySessionState(WifiAwareNative wifiAwareNative, int sessionId,
+    public WifiAwareDiscoverySessionState(WifiAwareNativeApi wifiAwareNativeApi, int sessionId,
             int pubSubId, IWifiAwareDiscoverySessionCallback callback, boolean isPublishSession) {
-        mWifiAwareNative = wifiAwareNative;
+        mWifiAwareNativeApi = wifiAwareNativeApi;
         mSessionId = sessionId;
         mPubSubId = pubSubId;
         mCallback = callback;
@@ -93,9 +94,9 @@ public class WifiAwareDiscoverySessionState {
         mCallback = null;
 
         if (mIsPublishSession) {
-            mWifiAwareNative.stopPublish((short) 0, mPubSubId);
+            mWifiAwareNativeApi.stopPublish((short) 0, mPubSubId);
         } else {
-            mWifiAwareNative.stopSubscribe((short) 0, mPubSubId);
+            mWifiAwareNativeApi.stopSubscribe((short) 0, mPubSubId);
         }
     }
 
@@ -121,14 +122,14 @@ public class WifiAwareDiscoverySessionState {
         if (!mIsPublishSession) {
             Log.e(TAG, "A SUBSCRIBE session is being used to publish");
             try {
-                mCallback.onSessionConfigFail(WifiAwareNative.AWARE_STATUS_ERROR);
+                mCallback.onSessionConfigFail(NanStatusType.INTERNAL_FAILURE);
             } catch (RemoteException e) {
                 Log.e(TAG, "updatePublish: RemoteException=" + e);
             }
             return false;
         }
 
-        return mWifiAwareNative.publish(transactionId, mPubSubId, config);
+        return mWifiAwareNativeApi.publish(transactionId, mPubSubId, config);
     }
 
     /**
@@ -142,14 +143,14 @@ public class WifiAwareDiscoverySessionState {
         if (mIsPublishSession) {
             Log.e(TAG, "A PUBLISH session is being used to subscribe");
             try {
-                mCallback.onSessionConfigFail(WifiAwareNative.AWARE_STATUS_ERROR);
+                mCallback.onSessionConfigFail(NanStatusType.INTERNAL_FAILURE);
             } catch (RemoteException e) {
                 Log.e(TAG, "updateSubscribe: RemoteException=" + e);
             }
             return false;
         }
 
-        return mWifiAwareNative.subscribe(transactionId, mPubSubId, config);
+        return mWifiAwareNativeApi.subscribe(transactionId, mPubSubId, config);
     }
 
     /**
@@ -169,7 +170,7 @@ public class WifiAwareDiscoverySessionState {
             Log.e(TAG, "sendMessage: attempting to send a message to an address which didn't "
                     + "match/contact us");
             try {
-                mCallback.onMessageSendFail(messageId, WifiAwareNative.AWARE_STATUS_ERROR);
+                mCallback.onMessageSendFail(messageId, NanStatusType.INTERNAL_FAILURE);
             } catch (RemoteException e) {
                 Log.e(TAG, "sendMessage: RemoteException=" + e);
             }
@@ -177,7 +178,7 @@ public class WifiAwareDiscoverySessionState {
         }
         byte[] peerMac = HexEncoding.decode(peerMacStr.toCharArray(), false);
 
-        return mWifiAwareNative.sendMessage(transactionId, mPubSubId, peerId, peerMac, message,
+        return mWifiAwareNativeApi.sendMessage(transactionId, mPubSubId, peerId, peerMac, message,
             messageId);
     }
 

@@ -18,9 +18,15 @@ package com.android.server.wifi.aware;
 
 import android.hardware.wifi.V1_0.IWifiNanIface;
 import android.hardware.wifi.V1_0.IfaceType;
+import android.hardware.wifi.V1_0.WifiStatus;
+import android.hardware.wifi.V1_0.WifiStatusCode;
+import android.os.RemoteException;
 import android.util.Log;
 
 import com.android.server.wifi.HalDeviceManager;
+
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
 
 /**
  * Manages the interface to Wi-Fi Aware HIDL (HAL).
@@ -34,6 +40,7 @@ class WifiAwareNativeManager {
 
     private WifiAwareStateManager mWifiAwareStateManager;
     private HalDeviceManager mHalDeviceManager;
+    private WifiAwareNativeCallback mWifiAwareNativeCallback;
     private IWifiNanIface mWifiNanIface = null;
     private InterfaceDestroyedListener mInterfaceDestroyedListener =
             new InterfaceDestroyedListener();
@@ -41,9 +48,11 @@ class WifiAwareNativeManager {
             new InterfaceAvailableForRequestListener();
 
     WifiAwareNativeManager(WifiAwareStateManager awareStateManager,
-            HalDeviceManager halDeviceManager) {
+            HalDeviceManager halDeviceManager,
+            WifiAwareNativeCallback wifiAwareNativeCallback) {
         mWifiAwareStateManager = awareStateManager;
         mHalDeviceManager = halDeviceManager;
+        mWifiAwareNativeCallback = wifiAwareNativeCallback;
         mHalDeviceManager.registerStatusListener(
                 new HalDeviceManager.ManagerStatusListener() {
                     @Override
@@ -86,6 +95,19 @@ class WifiAwareNativeManager {
             } else {
                 if (DBG) Log.d(TAG, "Obtained an IWifiNanIface");
 
+                try {
+                    WifiStatus status = iface.registerEventCallback(mWifiAwareNativeCallback);
+                    if (status.code != WifiStatusCode.SUCCESS) {
+                        Log.e(TAG, "IWifiNanIface.registerEventCallback error: " + statusString(
+                                status));
+                        mHalDeviceManager.removeIface(iface);
+                        return;
+                    }
+                } catch (RemoteException e) {
+                    Log.e(TAG, "IWifiNanIface.registerEventCallback exception: " + e);
+                    mHalDeviceManager.removeIface(iface);
+                    return;
+                }
                 mWifiNanIface = iface;
                 mWifiAwareStateManager.enableUsage();
             }
@@ -118,5 +140,23 @@ class WifiAwareNativeManager {
             if (DBG) Log.d(TAG, "Interface is possibly available");
             tryToGetAware();
         }
+    }
+
+    private static String statusString(WifiStatus status) {
+        if (status == null) {
+            return "status=null";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append(status.code).append(" (").append(status.description).append(")");
+        return sb.toString();
+    }
+
+    /**
+     * Dump the internal state of the class.
+     */
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        pw.println("WifiAwareNativeManager:");
+        pw.println("  mWifiNanIface: " + mWifiNanIface);
+        mHalDeviceManager.dump(fd, pw, args);
     }
 }
