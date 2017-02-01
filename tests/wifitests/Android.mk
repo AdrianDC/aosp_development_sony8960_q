@@ -14,42 +14,6 @@
 
 LOCAL_PATH:= $(call my-dir)
 
-# Make mock HAL library
-# ============================================================
-
-include $(CLEAR_VARS)
-
-LOCAL_REQUIRED_MODULES :=
-
-LOCAL_CFLAGS += -Wall -Werror -Wextra -Wno-unused-parameter -Wno-unused-function \
-                -Wunused-variable -Winit-self -Wwrite-strings -Wshadow
-
-LOCAL_C_INCLUDES += \
-	$(JNI_H_INCLUDE) \
-	$(LOCAL_PATH)/../../service/jni \
-	$(call include-path-for, libhardware)/hardware \
-	$(call include-path-for, libhardware_legacy) \
-	packages/apps/Test/connectivity/sl4n/rapidjson/include \
-
-LOCAL_SRC_FILES := \
-	jni/wifi_hal_mock.cpp \
-	jni/wifi_aware_hal_mock.cpp
-
-LOCAL_MODULE := libwifi-hal-mock
-
-LOCAL_SHARED_LIBRARIES += \
-	libnativehelper \
-	liblog \
-	libcutils \
-	libutils \
-	libhardware \
-	libnl \
-	libdl \
-	libwifi-service \
-	libwifi-system
-
-include $(BUILD_SHARED_LIBRARY)
-
 # Make test APK
 # ============================================================
 include $(CLEAR_VARS)
@@ -145,6 +109,5 @@ LOCAL_JNI_SHARED_LIBRARIES += libwpa_client
 endif
 
 LOCAL_PACKAGE_NAME := FrameworksWifiTests
-LOCAL_JNI_SHARED_LIBRARIES += libwifi-hal-mock
 
 include $(BUILD_PACKAGE)

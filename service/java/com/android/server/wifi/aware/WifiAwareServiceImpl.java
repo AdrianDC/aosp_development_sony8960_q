@@ -18,6 +18,7 @@ package com.android.server.wifi.aware;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.hardware.wifi.V1_0.NanStatusType;
 import android.net.wifi.RttManager;
 import android.net.wifi.aware.Characteristics;
 import android.net.wifi.aware.ConfigRequest;
@@ -190,7 +191,7 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         } catch (RemoteException e) {
             Log.e(TAG, "Error on linkToDeath - " + e);
             try {
-                callback.onConnectFail(WifiAwareNative.AWARE_STATUS_ERROR);
+                callback.onConnectFail(NanStatusType.INTERNAL_FAILURE);
             } catch (RemoteException e1) {
                 Log.e(TAG, "Error on onConnectFail()");
             }
