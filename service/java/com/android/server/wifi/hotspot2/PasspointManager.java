@@ -177,9 +177,9 @@ public class PasspointManager {
         }
 
         // Verify IMSI against the IMSI of the installed SIM cards for SIM credential.
-        if (config.credential.simCredential != null) {
-            if (mSimAccessor.getMatchingImsis(
-                    IMSIParameter.build(config.credential.simCredential.imsi)) == null) {
+        if (config.getCredential().getSimCredential() != null) {
+            if (mSimAccessor.getMatchingImsis(IMSIParameter.build(
+                    config.getCredential().getSimCredential().getImsi())) == null) {
                 Log.e(TAG, "IMSI does not match any SIM card");
                 return false;
             }
@@ -195,12 +195,12 @@ public class PasspointManager {
         }
 
         // Remove existing provider with the same FQDN.
-        if (mProviders.containsKey(config.homeSp.fqdn)) {
-            Log.d(TAG, "Replacing configuration for " + config.homeSp.fqdn);
-            removeProvider(config.homeSp.fqdn);
+        if (mProviders.containsKey(config.getHomeSp().getFqdn())) {
+            Log.d(TAG, "Replacing configuration for " + config.getHomeSp().getFqdn());
+            removeProvider(config.getHomeSp().getFqdn());
         }
 
-        mProviders.put(config.homeSp.fqdn, newProvider);
+        mProviders.put(config.getHomeSp().getFqdn(), newProvider);
 
         // TODO(b/31065385): Persist updated providers configuration to the persistent storage.
 
