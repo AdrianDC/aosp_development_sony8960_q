@@ -65,17 +65,35 @@ public class LastMileLogger {
      * @param event an event defined in BaseWifiDiagnostics
      */
     public void reportConnectionEvent(long connectionId, byte event) {
+        if (connectionId < 0) {
+            mLog.warn("Ignoring negative connection id: %").c(connectionId);
+            return;
+        }
+
         switch (event) {
             case BaseWifiDiagnostics.CONNECTION_EVENT_STARTED:
+                mPendingConnectionId = connectionId;
                 enableTracing();
                 return;
             case BaseWifiDiagnostics.CONNECTION_EVENT_SUCCEEDED:
+                mPendingConnectionId = -1;
                 disableTracing();
                 return;
             case BaseWifiDiagnostics.CONNECTION_EVENT_FAILED:
-                disableTracing();
-                mLastMileLogForLastFailure = readTrace();
-                break;
+                if (connectionId >= mPendingConnectionId) {
+                    mPendingConnectionId = -1;
+                    disableTracing();
+                    mLastMileLogForLastFailure = readTrace();
+                    return;
+                } else {
+                    // Spurious failure message. Here's one scenario where this might happen:
+                    // t=00sec      start first connection attempt
+                    // t=30sec      start second connection attempt
+                    // t=60sec      timeout first connection attempt
+                    // We should not stop tracing in this case, since the second connection attempt
+                    // is still in progress.
+                    return;
+                }
         }
     }
 
@@ -103,6 +121,7 @@ public class LastMileLogger {
     private WifiLog mLog;
     private byte[] mLastMileLogForLastFailure;
     private FileInputStream mLastMileTraceHandle;
+    private long mPendingConnectionId = -1;
 
     private void enableTracing() {
         try {

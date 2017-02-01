@@ -58,6 +58,7 @@ public class LastMileLoggerTest {
         mTraceDataFile.deleteOnExit();
         mTraceEnableFile.deleteOnExit();
         mTraceReleaseFile.deleteOnExit();
+        FileUtils.stringToFile(mTraceEnableFile, "0");
         mLastMileLogger = new LastMileLogger(mWifiInjector, mTraceDataFile.getPath(),
                 mTraceEnableFile.getPath(),  mTraceReleaseFile.getPath());
     }
@@ -82,6 +83,14 @@ public class LastMileLoggerTest {
         mLastMileLogger.reportConnectionEvent(
                 FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_STARTED);
         assertEquals("1", IoUtils.readFileAsString(mTraceEnableFile.getPath()));
+    }
+
+    @Test
+    public void connectionEventStartedDoesNotEnableTracingForInvalidConnectionId()
+            throws Exception {
+        mLastMileLogger.reportConnectionEvent(
+                -1, BaseWifiDiagnostics.CONNECTION_EVENT_STARTED);
+        assertEquals("0", IoUtils.readFileAsString(mTraceEnableFile.getPath()));
     }
 
     @Test
@@ -122,9 +131,33 @@ public class LastMileLoggerTest {
     }
 
     @Test
-    public void connectionEventFailedDisablesTracing() throws Exception {
+    public void connectionEventFailedDisablesTracingWhenPendingFails() throws Exception {
+        mLastMileLogger.reportConnectionEvent(
+                FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_STARTED);
+        mLastMileLogger.reportConnectionEvent(
+                    FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_FAILED);
+        assertEquals("0", IoUtils.readFileAsString(mTraceEnableFile.getPath()));
+    }
+
+    @Test
+    public void connectionEventFailedDoesNotDisableTracingOnFailureOfStaleConnection()
+            throws Exception {
+        mLastMileLogger.reportConnectionEvent(
+                FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_STARTED);
+        mLastMileLogger.reportConnectionEvent(
+                FAKE_CONNECTION_ID + 1, BaseWifiDiagnostics.CONNECTION_EVENT_STARTED);
         mLastMileLogger.reportConnectionEvent(
                 FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_FAILED);
+        assertEquals("1", IoUtils.readFileAsString(mTraceEnableFile.getPath()));
+    }
+
+    @Test
+    public void connectionEventFailedDisablesTracingOnFailureOfFutureConnection()
+            throws Exception {
+        mLastMileLogger.reportConnectionEvent(
+                FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_STARTED);
+        mLastMileLogger.reportConnectionEvent(
+                FAKE_CONNECTION_ID + 1, BaseWifiDiagnostics.CONNECTION_EVENT_FAILED);
         assertEquals("0", IoUtils.readFileAsString(mTraceEnableFile.getPath()));
     }
 
@@ -157,6 +190,18 @@ public class LastMileLoggerTest {
         FileUtils.stringToFile(mTraceDataFile.getPath(), "rdev_connect");
         mLastMileLogger.reportConnectionEvent(
                 FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_FAILED);
+        assertTrue(getDumpString().contains("--- Last failed"));
+        assertTrue(getDumpString().contains("rdev_connect"));
+    }
+
+    @Test
+    public void dumpShowsFailureTraceEvenIfConnectionIdIncreases() throws Exception {
+        mLastMileLogger.reportConnectionEvent(
+                FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_STARTED);
+        FileUtils.stringToFile(mTraceDataFile.getPath(), "rdev_connect");
+        mLastMileLogger.reportConnectionEvent(
+                FAKE_CONNECTION_ID + 1, BaseWifiDiagnostics.CONNECTION_EVENT_FAILED);
+        assertTrue(getDumpString().contains("--- Last failed"));
         assertTrue(getDumpString().contains("rdev_connect"));
     }
 
@@ -165,6 +210,8 @@ public class LastMileLoggerTest {
         mLastMileLogger.reportConnectionEvent(
                 FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_STARTED);
         FileUtils.stringToFile(mTraceDataFile.getPath(), "rdev_connect");
+        assertTrue(getDumpString().contains("No last mile log for \"Last failed"));
+        assertTrue(getDumpString().contains("--- Latest"));
         assertTrue(getDumpString().contains("rdev_connect"));
     }
 
