@@ -17,6 +17,7 @@
 package com.android.server.wifi.aware;
 
 import android.content.Context;
+import android.hardware.wifi.V1_0.NanDataPathChannelCfg;
 import android.net.ConnectivityManager;
 import android.net.IpPrefix;
 import android.net.LinkAddress;
@@ -79,7 +80,7 @@ public class WifiAwareDataPathStateManager {
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
 
-    private static final String AWARE_INTERFACE_PREFIX = "aware";
+    private static final String AWARE_INTERFACE_PREFIX = "aware_data";
     private static final String NETWORK_TAG = "WIFI_AWARE_FACTORY";
     private static final String AGENT_TAG_PREFIX = "WIFI_AWARE_AGENT_";
     private static final int NETWORK_FACTORY_SCORE_AVAIL = 1;
@@ -595,9 +596,8 @@ public class WifiAwareDataPathStateManager {
 
                 nnri.interfaceName = selectInterfaceForRequest(nnri);
                 mMgr.initiateDataPathSetup(networkSpecifier, nnri.peerId,
-                        WifiAwareNative.CHANNEL_REQUEST_TYPE_REQUESTED,
-                        selectChannelForRequest(nnri), nnri.peerDiscoveryMac, nnri.interfaceName,
-                        nnri.token);
+                        NanDataPathChannelCfg.REQUEST_CHANNEL_SETUP, selectChannelForRequest(nnri),
+                        nnri.peerDiscoveryMac, nnri.interfaceName, nnri.token);
                 nnri.state =
                         AwareNetworkRequestInformation.STATE_INITIATOR_WAIT_FOR_REQUEST_RESPONSE;
             } else {
