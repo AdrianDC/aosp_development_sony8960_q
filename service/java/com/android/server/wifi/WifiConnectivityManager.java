@@ -633,6 +633,14 @@ public class WifiConnectivityManager {
             return;
         }
 
+        if (candidate.BSSID != null
+                && !candidate.BSSID.equals(WifiStateMachine.SUPPLICANT_BSSID_ANY)
+                && !candidate.BSSID.equals(targetBssid)) {
+            localLog("connecToNetwork: target BSSID " + targetBssid + " does not match the "
+                    + "config specified BSSID " + candidate.BSSID + ". Drop it!");
+            return;
+        }
+
         Long elapsedTimeMillis = mClock.getElapsedSinceBootMillis();
         if (!mScreenOn && shouldSkipConnectionAttempt(elapsedTimeMillis)) {
             localLog("connectToNetwork: Too many connection attempts. Skipping this attempt!");
@@ -663,9 +671,11 @@ public class WifiConnectivityManager {
                 mStateMachine.startRoamToNetwork(candidate.networkId, scanResultCandidate);
             }
         } else {
-            // Framework specifies the connection target BSSID only if firmware doesn't support
-            // {@link android.net.wifi.WifiManager#WIFI_FEATURE_CONTROL_ROAMING}.
-            if (mConnectivityHelper.isFirmwareRoamingSupported()) {
+            // Framework specifies the connection target BSSID if firmware doesn't support
+            // {@link android.net.wifi.WifiManager#WIFI_FEATURE_CONTROL_ROAMING} or the
+            // candidate configuration contains a specified BSSID.
+            if (mConnectivityHelper.isFirmwareRoamingSupported() && (candidate.BSSID == null
+                      || candidate.BSSID.equals(WifiStateMachine.SUPPLICANT_BSSID_ANY))) {
                 targetBssid = WifiStateMachine.SUPPLICANT_BSSID_ANY;
                 localLog("connectToNetwork: Connect to " + candidate.SSID + ":" + targetBssid
                         + " from " + currentAssociationId);
