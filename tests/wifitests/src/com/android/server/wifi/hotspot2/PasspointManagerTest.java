@@ -159,24 +159,58 @@ public class PasspointManagerTest {
     }
 
     /**
+     * Helper function for creating a test configuration with user credential.
+     *
+     * @return {@link PasspointConfiguration}
+     */
+    private PasspointConfiguration createTestConfigWithUserCredential() {
+        PasspointConfiguration config = new PasspointConfiguration();
+        HomeSP homeSp = new HomeSP();
+        homeSp.setFqdn(TEST_FQDN);
+        homeSp.setFriendlyName(TEST_FRIENDLY_NAME);
+        config.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        credential.setRealm(TEST_REALM);
+        credential.setCaCertificate(FakeKeys.CA_CERT0);
+        Credential.UserCredential userCredential = new Credential.UserCredential();
+        userCredential.setUsername("username");
+        userCredential.setPassword("password");
+        userCredential.setEapType(EAPConstants.EAP_TTLS);
+        userCredential.setNonEapInnerMethod("MS-CHAP");
+        credential.setUserCredential(userCredential);
+        config.setCredential(credential);
+        return config;
+    }
+
+    /**
+     * Helper function for creating a test configuration with SIM credential.
+     *
+     * @return {@link PasspointConfiguration}
+     */
+    private PasspointConfiguration createTestConfigWithSimCredential() {
+        PasspointConfiguration config = new PasspointConfiguration();
+        HomeSP homeSp = new HomeSP();
+        homeSp.setFqdn(TEST_FQDN);
+        homeSp.setFriendlyName(TEST_FRIENDLY_NAME);
+        config.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        credential.setRealm(TEST_REALM);
+        Credential.SimCredential simCredential = new Credential.SimCredential();
+        simCredential.setImsi(TEST_IMSI);
+        simCredential.setEapType(EAPConstants.EAP_SIM);
+        credential.setSimCredential(simCredential);
+        config.setCredential(credential);
+        return config;
+    }
+
+    /**
      * Helper function for adding a test provider to the manager.  Return the mock
      * provider that's added to the manager.
      *
      * @return {@link PasspointProvider}
      */
     private PasspointProvider addTestProvider() {
-        PasspointConfiguration config = new PasspointConfiguration();
-        config.homeSp = new HomeSP();
-        config.homeSp.fqdn = TEST_FQDN;
-        config.homeSp.friendlyName = TEST_FRIENDLY_NAME;
-        config.credential = new Credential();
-        config.credential.realm = TEST_REALM;
-        config.credential.caCertificate = FakeKeys.CA_CERT0;
-        config.credential.userCredential = new Credential.UserCredential();
-        config.credential.userCredential.username = "username";
-        config.credential.userCredential.password = "password";
-        config.credential.userCredential.eapType = EAPConstants.EAP_TTLS;
-        config.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
+        PasspointConfiguration config = createTestConfigWithUserCredential();
         PasspointProvider provider = createMockProvider(config);
         when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
                 eq(mSimAccessor), anyLong())).thenReturn(provider);
@@ -308,19 +342,9 @@ public class PasspointManagerTest {
      */
     @Test
     public void addProviderWithInvalidCredential() throws Exception {
-        PasspointConfiguration config = new PasspointConfiguration();
-        config.homeSp = new HomeSP();
-        config.homeSp.fqdn = TEST_FQDN;
-        config.homeSp.friendlyName = TEST_FRIENDLY_NAME;
-        config.credential = new Credential();
-        config.credential.realm = TEST_REALM;
-        config.credential.caCertificate = FakeKeys.CA_CERT0;
-        config.credential.userCredential = new Credential.UserCredential();
-        config.credential.userCredential.username = "username";
-        config.credential.userCredential.password = "password";
+        PasspointConfiguration config = createTestConfigWithUserCredential();
         // EAP-TLS not allowed for user credential.
-        config.credential.userCredential.eapType = EAPConstants.EAP_TLS;
-        config.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
+        config.getCredential().getUserCredential().setEapType(EAPConstants.EAP_TLS);
         assertFalse(mManager.addOrUpdateProvider(config));
     }
 
@@ -331,18 +355,7 @@ public class PasspointManagerTest {
      */
     @Test
     public void addRemoveProviderWithValidUserCredential() throws Exception {
-        PasspointConfiguration config = new PasspointConfiguration();
-        config.homeSp = new HomeSP();
-        config.homeSp.fqdn = TEST_FQDN;
-        config.homeSp.friendlyName = TEST_FRIENDLY_NAME;
-        config.credential = new Credential();
-        config.credential.realm = TEST_REALM;
-        config.credential.caCertificate = FakeKeys.CA_CERT0;
-        config.credential.userCredential = new Credential.UserCredential();
-        config.credential.userCredential.username = "username";
-        config.credential.userCredential.password = "password";
-        config.credential.userCredential.eapType = EAPConstants.EAP_TTLS;
-        config.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
+        PasspointConfiguration config = createTestConfigWithUserCredential();
         PasspointProvider provider = createMockProvider(config);
         when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
                 eq(mSimAccessor), anyLong())).thenReturn(provider);
@@ -362,15 +375,7 @@ public class PasspointManagerTest {
      */
     @Test
     public void addRemoveProviderWithValidSimCredential() throws Exception {
-        PasspointConfiguration config = new PasspointConfiguration();
-        config.homeSp = new HomeSP();
-        config.homeSp.fqdn = TEST_FQDN;
-        config.homeSp.friendlyName = TEST_FRIENDLY_NAME;
-        config.credential = new Credential();
-        config.credential.realm = TEST_REALM;
-        config.credential.simCredential = new Credential.SimCredential();
-        config.credential.simCredential.imsi = TEST_IMSI;
-        config.credential.simCredential.eapType = EAPConstants.EAP_SIM;
+        PasspointConfiguration config = createTestConfigWithSimCredential();
         when(mSimAccessor.getMatchingImsis(TEST_IMSI_PARAM)).thenReturn(new ArrayList<String>());
         PasspointProvider provider = createMockProvider(config);
         when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
@@ -392,15 +397,7 @@ public class PasspointManagerTest {
      */
     @Test
     public void addProviderWithValidSimCredentialWithInvalidIMSI() throws Exception {
-        PasspointConfiguration config = new PasspointConfiguration();
-        config.homeSp = new HomeSP();
-        config.homeSp.fqdn = TEST_FQDN;
-        config.homeSp.friendlyName = TEST_FRIENDLY_NAME;
-        config.credential = new Credential();
-        config.credential.realm = TEST_REALM;
-        config.credential.simCredential = new Credential.SimCredential();
-        config.credential.simCredential.imsi = TEST_IMSI;
-        config.credential.simCredential.eapType = EAPConstants.EAP_SIM;
+        PasspointConfiguration config = createTestConfigWithSimCredential();
         when(mSimAccessor.getMatchingImsis(TEST_IMSI_PARAM)).thenReturn(null);
         assertFalse(mManager.addOrUpdateProvider(config));
     }
@@ -415,15 +412,7 @@ public class PasspointManagerTest {
     @Test
     public void addProviderWithExistingConfig() throws Exception {
         // Add a provider with the original configuration.
-        PasspointConfiguration origConfig = new PasspointConfiguration();
-        origConfig.homeSp = new HomeSP();
-        origConfig.homeSp.fqdn = TEST_FQDN;
-        origConfig.homeSp.friendlyName = TEST_FRIENDLY_NAME;
-        origConfig.credential = new Credential();
-        origConfig.credential.realm = TEST_REALM;
-        origConfig.credential.simCredential = new Credential.SimCredential();
-        origConfig.credential.simCredential.imsi = TEST_IMSI;
-        origConfig.credential.simCredential.eapType = EAPConstants.EAP_SIM;
+        PasspointConfiguration origConfig = createTestConfigWithSimCredential();
         when(mSimAccessor.getMatchingImsis(TEST_IMSI_PARAM)).thenReturn(new ArrayList<String>());
         PasspointProvider origProvider = createMockProvider(origConfig);
         when(mObjectFactory.makePasspointProvider(eq(origConfig), eq(mWifiKeyStore),
@@ -433,18 +422,7 @@ public class PasspointManagerTest {
 
         // Add another provider with the same base domain as the existing provider.
         // This should replace the existing provider with the new configuration.
-        PasspointConfiguration newConfig = new PasspointConfiguration();
-        newConfig.homeSp = new HomeSP();
-        newConfig.homeSp.fqdn = TEST_FQDN;
-        newConfig.homeSp.friendlyName = TEST_FRIENDLY_NAME;
-        newConfig.credential = new Credential();
-        newConfig.credential.realm = TEST_REALM;
-        newConfig.credential.caCertificate = FakeKeys.CA_CERT0;
-        newConfig.credential.userCredential = new Credential.UserCredential();
-        newConfig.credential.userCredential.username = "username";
-        newConfig.credential.userCredential.password = "password";
-        newConfig.credential.userCredential.eapType = EAPConstants.EAP_TTLS;
-        newConfig.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
+        PasspointConfiguration newConfig = createTestConfigWithUserCredential();
         PasspointProvider newProvider = createMockProvider(newConfig);
         when(mObjectFactory.makePasspointProvider(eq(newConfig), eq(mWifiKeyStore),
                 eq(mSimAccessor), anyLong())).thenReturn(newProvider);
@@ -460,18 +438,7 @@ public class PasspointManagerTest {
      */
     @Test
     public void addProviderOnKeyInstallationFailiure() throws Exception {
-        PasspointConfiguration config = new PasspointConfiguration();
-        config.homeSp = new HomeSP();
-        config.homeSp.fqdn = TEST_FQDN;
-        config.homeSp.friendlyName = TEST_FRIENDLY_NAME;
-        config.credential = new Credential();
-        config.credential.realm = TEST_REALM;
-        config.credential.caCertificate = FakeKeys.CA_CERT0;
-        config.credential.userCredential = new Credential.UserCredential();
-        config.credential.userCredential.username = "username";
-        config.credential.userCredential.password = "password";
-        config.credential.userCredential.eapType = EAPConstants.EAP_TTLS;
-        config.credential.userCredential.nonEapInnerMethod = "MS-CHAP";
+        PasspointConfiguration config = createTestConfigWithUserCredential();
         PasspointProvider provider = mock(PasspointProvider.class);
         when(provider.installCertsAndKeys()).thenReturn(false);
         when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
@@ -540,7 +507,6 @@ public class PasspointManagerTest {
                 mManager.matchProvider(createMockScanDetail());
         assertEquals(1, result.size());
         assertEquals(PasspointMatch.HomeProvider, result.get(0).second);
-        assertEquals(TEST_FQDN, provider.getConfig().homeSp.fqdn);
     }
 
     /**
@@ -562,7 +528,7 @@ public class PasspointManagerTest {
                 mManager.matchProvider(createMockScanDetail());
         assertEquals(1, result.size());
         assertEquals(PasspointMatch.RoamingProvider, result.get(0).second);
-        assertEquals(TEST_FQDN, provider.getConfig().homeSp.fqdn);
+        assertEquals(TEST_FQDN, provider.getConfig().getHomeSp().getFqdn());
     }
 
     /**
