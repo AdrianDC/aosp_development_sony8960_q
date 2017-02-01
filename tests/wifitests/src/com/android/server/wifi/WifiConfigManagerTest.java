@@ -2397,18 +2397,41 @@ public class WifiConfigManagerTest {
      */
     @Test
     public void testFreshInstallDoesNotLoadFromStore() throws Exception {
-        // New store files not present, so migrate from the old store.
         when(mWifiConfigStore.areStoresPresent()).thenReturn(false);
         when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(false);
 
-        // Now trigger a load from store. This should populate the in memory list with all the
-        // networks above.
         assertTrue(mWifiConfigManager.loadFromStore());
 
         verify(mWifiConfigStore, never()).read();
         verify(mWifiConfigStoreLegacy, never()).read();
 
         assertTrue(mWifiConfigManager.getConfiguredNetworksWithPasswords().isEmpty());
+    }
+
+    /**
+     * Verifies the user switch using {@link WifiConfigManager#handleUserSwitch(int)} is handled
+     * when the store files (new or legacy) are not present.
+     */
+    @Test
+    public void testHandleUserSwitchAfterFreshInstall() throws Exception {
+        int user2 = TEST_DEFAULT_USER + 1;
+        when(mWifiConfigStore.areStoresPresent()).thenReturn(false);
+        when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(false);
+
+        assertTrue(mWifiConfigManager.loadFromStore());
+        verify(mWifiConfigStore, never()).read();
+        verify(mWifiConfigStoreLegacy, never()).read();
+
+        when(mWifiConfigStore.switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class)))
+                .thenReturn(new WifiConfigStoreData(
+                        new ArrayList<WifiConfiguration>(), new ArrayList<WifiConfiguration>(),
+                        new HashSet<String>()));
+        // Now switch the user to user 2.
+        when(mUserManager.isUserUnlockingOrUnlocked(user2)).thenReturn(true);
+        mWifiConfigManager.handleUserSwitch(user2);
+        // Ensure that the read was invoked.
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore)
+                .switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class));
     }
 
     /**

@@ -2555,6 +2555,10 @@ public class WifiConfigManager {
     public boolean loadFromStore() {
         if (!mWifiConfigStore.areStoresPresent()) {
             Log.d(TAG, "New store files not found. No saved networks loaded!");
+            if (!mWifiConfigStoreLegacy.areStoresPresent()) {
+                // No legacy store files either, so reset the pending store read flag.
+                mPendingStoreRead = false;
+            }
             return true;
         }
         WifiConfigStoreData storeData;
