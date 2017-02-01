@@ -1002,8 +1002,8 @@ public class WifiConfigManager {
                 result.isNewNetwork()
                         ? WifiManager.CHANGE_REASON_ADDED
                         : WifiManager.CHANGE_REASON_CONFIG_CHANGE);
-        // Unless the added network is ephemeral, persist the network update/addition.
-        if (!config.ephemeral) {
+        // Unless the added network is ephemeral or Passpoint, persist the network update/addition.
+        if (!config.ephemeral && !config.isPasspoint()) {
             saveToStore(true);
         }
         return result;
@@ -1019,8 +1019,8 @@ public class WifiConfigManager {
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "Removing network " + config.getPrintableSsid());
         }
-        // Remove any associated enterprise keys.
-        if (config.enterpriseConfig != null
+        // Remove any associated enterprise keys for non-Passpoint networks.
+        if (!config.isPasspoint() && config.enterpriseConfig != null
                 && config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
             mWifiKeyStore.removeKeys(config.enterpriseConfig);
         }
@@ -1066,8 +1066,8 @@ public class WifiConfigManager {
             clearLastSelectedNetwork();
         }
         sendConfiguredNetworkChangedBroadcast(config, WifiManager.CHANGE_REASON_REMOVED);
-        // Unless the removed network is ephemeral, persist the network removal.
-        if (!config.ephemeral) {
+        // Unless the removed network is ephemeral or Passpoint, persist the network removal.
+        if (!config.ephemeral && !config.isPasspoint()) {
             saveToStore(true);
         }
         return true;
