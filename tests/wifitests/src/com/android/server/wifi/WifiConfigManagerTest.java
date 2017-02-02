@@ -477,6 +477,23 @@ public class WifiConfigManagerTest {
     }
 
     /**
+     * Verifies the removal of a Passpoint network using
+     * {@link WifiConfigManager#removeNetwork(int)}
+     */
+    @Test
+    public void testRemoveSinglePasspointNetwork() throws Exception {
+        WifiConfiguration passpointNetwork = WifiConfigurationTestUtil.createPasspointNetwork();
+
+        verifyAddPasspointNetworkToWifiConfigManager(passpointNetwork);
+        // Ensure that configured network list is not empty.
+        assertFalse(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+
+        verifyRemovePasspointNetworkFromWifiConfigManager(passpointNetwork);
+        // Ensure that configured network list is empty now.
+        assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+    }
+
+    /**
      * Verifies the addition & update of multiple networks using
      * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} and the
      * removal of networks using
@@ -3430,6 +3447,27 @@ public class WifiConfigManagerTest {
     }
 
     /**
+     * Add Passpoint network to WifiConfigManager and ensure that it was successful.
+     */
+    private NetworkUpdateResult verifyAddPasspointNetworkToWifiConfigManager(
+            WifiConfiguration configuration) throws Exception {
+        NetworkUpdateResult result = addNetworkToWifiConfigManager(configuration);
+        assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
+        assertTrue(result.isNewNetwork());
+        assertTrue(result.hasIpChanged());
+        assertTrue(result.hasProxyChanged());
+
+        // Verify keys are not being installed.
+        verify(mWifiKeyStore, never()).updateNetworkKeys(any(WifiConfiguration.class),
+                any(WifiConfiguration.class));
+        verifyNetworkAddBroadcast(configuration);
+        // Ensure that the write was not invoked for Passpoint network addition.
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never())
+                .write(anyBoolean(), any(WifiConfigStoreData.class));
+        return result;
+    }
+
+    /**
      * Updates the provided configuration to WifiConfigManager and modifies the provided
      * configuration with update uid, package name and time.
      * These fields are populated internally by WifiConfigManager and hence we need
@@ -3503,6 +3541,21 @@ public class WifiConfigManagerTest {
 
         verifyNetworkRemoveBroadcast(configuration);
         // Ensure that the write was not invoked for ephemeral network remove.
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never())
+                .write(anyBoolean(), any(WifiConfigStoreData.class));
+    }
+
+    /**
+     * Removes Passpoint network from WifiConfigManager and ensure that it was successful.
+     */
+    private void verifyRemovePasspointNetworkFromWifiConfigManager(
+            WifiConfiguration configuration) throws Exception {
+        assertTrue(mWifiConfigManager.removeNetwork(configuration.networkId, TEST_CREATOR_UID));
+
+        // Verify keys are not being removed.
+        verify(mWifiKeyStore, never()).removeKeys(any(WifiEnterpriseConfig.class));
+        verifyNetworkRemoveBroadcast(configuration);
+        // Ensure that the write was not invoked for Passpoint network remove.
         mContextConfigStoreMockOrder.verify(mWifiConfigStore, never())
                 .write(anyBoolean(), any(WifiConfigStoreData.class));
     }
