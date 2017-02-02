@@ -32,6 +32,7 @@ import android.net.DhcpResults;
 import android.net.LinkProperties;
 import android.net.dhcp.DhcpClient;
 import android.net.ip.IpManager;
+import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
 import android.net.wifi.IWificond;
 import android.net.wifi.ScanResult;
@@ -315,11 +316,14 @@ public class WifiStateMachineTest {
     @Mock PropertyService mPropertyService;
     @Mock BuildProperties mBuildProperties;
     @Mock IWificond mWificond;
+    @Mock IApInterface mApInterface;
     @Mock IClientInterface mClientInterface;
+    @Mock IBinder mApInterfaceBinder;
     @Mock IBinder mClientInterfaceBinder;
     @Mock WifiConfigManager mWifiConfigManager;
     @Mock WifiSupplicantControl mWifiSupplicantControl;
     @Mock WifiConnectivityManager mWifiConnectivityManager;
+    @Mock SoftApManager mSoftApManager;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -353,6 +357,10 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiNetworkSelector()).thenReturn(mock(WifiNetworkSelector.class));
         when(mWifiInjector.makeWifiConnectivityManager(any(WifiInfo.class), anyBoolean()))
                 .thenReturn(mWifiConnectivityManager);
+        when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
+                any(SoftApManager.Listener.class), any(IApInterface.class),
+                any(WifiConfiguration.class)))
+                .thenReturn(mSoftApManager);
 
         when(mWifiNative.getInterfaceName()).thenReturn("mockWlan");
         when(mWifiSupplicantControl.getFrameworkNetworkId(anyInt())).thenReturn(0);
@@ -382,6 +390,8 @@ public class WifiStateMachineTest {
                 new UserInfo(UserHandle.USER_SYSTEM, "owner", 0),
                 new UserInfo(11, "managed profile", 0)));
 
+        when(mWificond.createApInterface()).thenReturn(mApInterface);
+        when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
         when(mWificond.createClientInterface()).thenReturn(mClientInterface);
         when(mClientInterface.asBinder()).thenReturn(mClientInterfaceBinder);
         when(mClientInterface.enableSupplicant()).thenReturn(true);
@@ -442,12 +452,13 @@ public class WifiStateMachineTest {
     }
 
     @Test
-    public void loadComponents() throws Exception {
-        when(mWifiNative.startHal()).thenReturn(true);
+    public void loadComponentsInStaMode() throws Exception {
+        when(mWifiNative.startHal(anyBoolean())).thenReturn(true);
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
 
         assertEquals("SupplicantStartingState", getCurrentState().getName());
+        verify(mWifiNative).startHal(eq(true));
 
         when(mWifiNative.setDeviceName(anyString())).thenReturn(true);
         when(mWifiNative.setManufacturer(anyString())).thenReturn(true);
@@ -463,6 +474,18 @@ public class WifiStateMachineTest {
         mLooper.dispatchAll();
 
         assertEquals("DisconnectedState", getCurrentState().getName());
+    }
+
+    @Test
+    public void loadComponentsInApMode() throws Exception {
+        when(mWifiNative.startHal(anyBoolean())).thenReturn(true);
+        mWsm.setHostApRunning(new WifiConfiguration(), true);
+        mLooper.dispatchAll();
+
+        assertEquals("SoftApState", getCurrentState().getName());
+
+        verify(mWifiNative).startHal(eq(false));
+        verify(mSoftApManager).start();
     }
 
     @Test
@@ -499,14 +522,14 @@ public class WifiStateMachineTest {
 
     @Test
     public void loadComponentsFailure() throws Exception {
-        when(mWifiNative.startHal()).thenReturn(false);
+        when(mWifiNative.startHal(anyBoolean())).thenReturn(false);
         when(mClientInterface.enableSupplicant()).thenReturn(false);
 
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
 
-        when(mWifiNative.startHal()).thenReturn(true);
+        when(mWifiNative.startHal(anyBoolean())).thenReturn(true);
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
@@ -526,7 +549,7 @@ public class WifiStateMachineTest {
 
     @Test
     public void shouldStartSupplicantWhenConnectModeRequested() throws Exception {
-        when(mWifiNative.startHal()).thenReturn(true);
+        when(mWifiNative.startHal(anyBoolean())).thenReturn(true);
 
         // The first time we start out in InitialState, we sit around here.
         mLooper.dispatchAll();
@@ -545,7 +568,7 @@ public class WifiStateMachineTest {
      */
     @Test
     public void checkStartInCorrectStateAfterChangingInitialState() throws Exception {
-        when(mWifiNative.startHal()).thenReturn(true);
+        when(mWifiNative.startHal(anyBoolean())).thenReturn(true);
 
         // Check initial state
         mLooper.dispatchAll();
@@ -582,7 +605,7 @@ public class WifiStateMachineTest {
     }
 
     private void addNetworkAndVerifySuccess(boolean isHidden) throws Exception {
-        loadComponents();
+        loadComponentsInStaMode();
 
         WifiConfiguration config = new WifiConfiguration();
         config.SSID = sSSID;
