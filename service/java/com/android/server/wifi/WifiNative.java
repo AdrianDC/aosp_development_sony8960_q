@@ -131,6 +131,8 @@ public class WifiNative {
     }
 
 
+    // TODO(b/34884202): Set this to true to enable HIDL once we're fully ready.
+    private static final boolean HIDL_ENABLE = false;
     private final String mTAG;
     private final String mInterfaceName;
     private final String mInterfacePrefix;
@@ -178,6 +180,9 @@ public class WifiNative {
      * Initializes the vendor HAL. This is just used to initialize the {@link HalDeviceManager}.
      */
     public boolean initializeVendorHal() {
+        if (!HIDL_ENABLE) {
+            return true;
+        }
         return mWifiVendorHal.initialize();
     }
 
@@ -187,6 +192,9 @@ public class WifiNative {
      * @return true if the service notification was successfully registered
      */
     public boolean initializeSupplicantHal() {
+        if (!HIDL_ENABLE) {
+            return true;
+        }
         return mWifiSupplicantHal.initialize();
     }
 
@@ -1538,7 +1546,12 @@ public class WifiNative {
         }
     }
 
-    public boolean startHal() {
+    /**
+     * Bring up the Vendor HAL and configure for STA mode or AP mode.
+     *
+     * @param isStaMode true to start HAL in STA mode, false to start in AP mode.
+     */
+    public boolean startHal(boolean isStaMode) {
         String debugLog = "startHal stack: ";
         java.lang.StackTraceElement[] elements = Thread.currentThread().getStackTrace();
         for (int i = 2; i < elements.length && i <= 7; i++ ) {
