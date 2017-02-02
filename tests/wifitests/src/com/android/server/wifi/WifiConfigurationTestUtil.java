@@ -279,6 +279,13 @@ public class WifiConfigurationTestUtil {
         return configuration;
     }
 
+    public static WifiConfiguration createPasspointNetwork() {
+        WifiConfiguration configuration =
+                generateWifiConfig(TEST_NETWORK_ID, TEST_UID, createNewSSID(), true, true,
+                        TEST_FQDN, TEST_PROVIDER_FRIENDLY_NAME, SECURITY_EAP);
+        return configuration;
+    }
+
     public static IpConfiguration createStaticIpConfigurationWithPacProxy() {
         return generateIpConfig(
                 STATIC_IP_ASSIGNMENT, PAC_PROXY_SETTING,
