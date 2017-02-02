@@ -396,6 +396,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         registerForPackageOrUserRemoval();
         mInIdleMode = mPowerManager.isDeviceIdleMode();
 
+        if (!mWifiStateMachine.syncInitialize(mWifiStateMachineChannel)) {
+            Log.wtf(TAG, "Failed to initialize WifiStateMachine");
+        }
         mWifiController.start();
 
         // If we are already disabled (could be due to airplane mode), avoid changing persist
