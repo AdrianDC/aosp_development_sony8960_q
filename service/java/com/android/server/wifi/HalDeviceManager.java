@@ -978,8 +978,7 @@ public class HalDeviceManager {
 
                 boolean matchFound = false;
                 for (WifiIfaceInfo ifaceInfo: ifaceInfoList) {
-                    if (ifaceInfo.name.equals(entry.getValue().name)
-                            && ifaceInfo.iface == entry.getKey()) {
+                    if (ifaceInfo.name.equals(entry.getValue().name)) {
                         matchFound = true;
                         break;
                     }
