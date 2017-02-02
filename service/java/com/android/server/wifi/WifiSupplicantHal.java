@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ package com.android.server.wifi;
 
 import android.hardware.wifi.supplicant.V1_0.ISupplicant;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantIface;
-import android.hardware.wifi.supplicant.V1_0.ISupplicantP2pIface;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIface;
 import android.hardware.wifi.supplicant.V1_0.IfaceType;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
@@ -38,92 +37,93 @@ import java.util.ArrayList;
 public class WifiSupplicantHal {
     private static final boolean DBG = false;
     private static final String TAG = "WifiSupplicantHal";
-    // Supplicant HAL HIDL interface objects
-    private ISupplicant mHidlSupplicant;
-    private ISupplicantStaIface mHidlSupplicantStaIface;
-    private ISupplicantP2pIface mHidlSupplicantP2pIface;
+    private static final String SERVICE_MANAGER_NAME = "manager";
+    private IServiceManager mIServiceManager = null;
+    // Supplicant HAL interface objects
+    private ISupplicant mISupplicant;
+    private ISupplicantStaIface mISupplicantStaIface;
     private final Object mLock = new Object();
-    private final HalDeviceManager mHalDeviceManager;
-    private final HalDeviceManagerStatusListener mHalDeviceManagerStatusCallbacks;
-    private final HandlerThread mWifiStateMachineHandlerThread;
-
-    public WifiSupplicantHal(HalDeviceManager halDeviceManager,
-                         HandlerThread wifiStateMachineHandlerThread) {
-        mHalDeviceManager = halDeviceManager;
-        // This object is going to be used by both WifiService & WifiP2pService, so we may
-        // need to use different loopers here.
-        mWifiStateMachineHandlerThread = wifiStateMachineHandlerThread;
-        mHalDeviceManagerStatusCallbacks = new HalDeviceManagerStatusListener();
+    private final HandlerThread mHandlerThread;
+    public WifiSupplicantHal(HandlerThread handlerThread) {
+        mHandlerThread = handlerThread;
     }
 
     /**
-     * Registers a service notification for the ISupplicant service, which gets the service,
-     * ISupplicantStaIface and ISupplicantP2pIface.
+     * Registers a service notification for the ISupplicant service, which triggers intialization of
+     * the ISupplicantStaIface
      * @return true if the service notification was successfully registered
      */
     public boolean initialize() {
-        Log.i(TAG, "Registering SupplicantHidl service ready callback.");
+        if (DBG) Log.i(TAG, "Registering ISupplicant service ready callback.");
         synchronized (mLock) {
-            mHidlSupplicant = null;
-            mHidlSupplicantStaIface = null;
-            mHidlSupplicantP2pIface = null;
+            mISupplicant = null;
+            mISupplicantStaIface = null;
+            if (mIServiceManager != null) {
+                // Already have an IServiceManager and serviceNotification registered, don't
+                // don't register another.
+                return true;
+            }
             try {
-                final IServiceManager serviceManager = IServiceManager.getService("manager");
-                if (serviceManager == null) {
+                mIServiceManager = getServiceManagerMockable();
+                if (mIServiceManager == null) {
                     Log.e(TAG, "Failed to get HIDL Service Manager");
                     return false;
                 }
-                if (!serviceManager.linkToDeath(cookie -> {
+                if (!mIServiceManager.linkToDeath(cookie -> {
                     Log.wtf(TAG, "IServiceManager died: cookie=" + cookie);
                     synchronized (mLock) {
                         supplicantServiceDiedHandler();
+                        mIServiceManager = null; // Will need to register a new ServiceNotification
                     }
                 }, 0)) {
                     Log.wtf(TAG, "Error on linkToDeath on IServiceManager");
                     supplicantServiceDiedHandler();
+                    mIServiceManager = null; // Will need to register a new ServiceNotification
                     return false;
                 }
                 IServiceNotification serviceNotificationCb = new IServiceNotification.Stub() {
                     public void onRegistration(String fqName, String name, boolean preexisting) {
-                        Log.i(TAG, "IServiceNotification.onRegistration for: " + fqName + ", "
-                                + name + " preexisting=" + preexisting);
-                        if (!getSupplicantService() || !getSupplicantStaIface()
-                                || !getSupplicantP2pIface()) {
-                            Log.e(TAG, "initalizing ISupplicantIfaces failed.");
-                            supplicantServiceDiedHandler();
+                        synchronized (mLock) {
+                            if (DBG) {
+                                Log.i(TAG, "IServiceNotification.onRegistration for: " + fqName
+                                        + ", " + name + " preexisting=" + preexisting);
+                            }
+                            if (!initSupplicantService() || !initSupplicantStaIface()) {
+                                Log.e(TAG, "initalizing ISupplicantIfaces failed.");
+                                supplicantServiceDiedHandler();
+                            } else {
+                                Log.i(TAG, "Completed initialization of ISupplicant interfaces.");
+                            }
                         }
-                        Log.i(TAG, "Completed initialization of ISupplicant service and Ifaces!");
                     }
                 };
                 /* TODO(b/33639391) : Use the new ISupplicant.registerForNotifications() once it
                    exists */
-                if (!serviceManager.registerForNotifications(ISupplicant.kInterfaceName,
+                if (!mIServiceManager.registerForNotifications(ISupplicant.kInterfaceName,
                         "", serviceNotificationCb)) {
                     Log.e(TAG, "Failed to register for notifications to "
                             + ISupplicant.kInterfaceName);
+                    mIServiceManager = null; // Will need to register a new ServiceNotification
                     return false;
                 }
             } catch (RemoteException e) {
                 Log.e(TAG, "Exception while trying to register a listener for ISupplicant service: "
                         + e);
+                supplicantServiceDiedHandler();
             }
-
-            mHalDeviceManager.initialize();
-            mHalDeviceManager.registerStatusListener(
-                    mHalDeviceManagerStatusCallbacks, mWifiStateMachineHandlerThread.getLooper());
             return true;
         }
     }
 
-    private boolean getSupplicantService() {
+    private boolean initSupplicantService() {
         synchronized (mLock) {
             try {
-                mHidlSupplicant = ISupplicant.getService();
+                mISupplicant = getSupplicantMockable();
             } catch (RemoteException e) {
                 Log.e(TAG, "ISupplicant.getService exception: " + e);
                 return false;
             }
-            if (mHidlSupplicant == null) {
+            if (mISupplicant == null) {
                 Log.e(TAG, "Got null ISupplicant service. Stopping supplicant HIDL startup");
                 return false;
             }
@@ -131,15 +131,12 @@ public class WifiSupplicantHal {
         return true;
     }
 
-    /**
-     * @return ISupplicantIface of the requested type
-     */
-    private ISupplicantIface getSupplicantIface(int ifaceType) {
+    private boolean initSupplicantStaIface() {
         synchronized (mLock) {
             /** List all supplicant Ifaces */
             final ArrayList<ISupplicant.IfaceInfo> supplicantIfaces = new ArrayList<>();
             try {
-                mHidlSupplicant.listInterfaces((SupplicantStatus status,
+                mISupplicant.listInterfaces((SupplicantStatus status,
                         ArrayList<ISupplicant.IfaceInfo> ifaces) -> {
                     if (status.code != SupplicantStatusCode.SUCCESS) {
                         Log.e(TAG, "Getting Supplicant Interfaces failed: " + status.code);
@@ -149,20 +146,17 @@ public class WifiSupplicantHal {
                 });
             } catch (RemoteException e) {
                 Log.e(TAG, "ISupplicant.listInterfaces exception: " + e);
-                return null;
+                return false;
             }
             if (supplicantIfaces.size() == 0) {
                 Log.e(TAG, "Got zero HIDL supplicant ifaces. Stopping supplicant HIDL startup.");
-                return null;
+                return false;
             }
-            /** Get the STA iface */
-            boolean hasStaIface = false;
             Mutable<ISupplicantIface> supplicantIface = new Mutable<>();
             for (ISupplicant.IfaceInfo ifaceInfo : supplicantIfaces) {
-                if (ifaceInfo.type == ifaceType) {
-                    hasStaIface = true;
+                if (ifaceInfo.type == IfaceType.STA) {
                     try {
-                        mHidlSupplicant.getInterface(ifaceInfo,
+                        mISupplicant.getInterface(ifaceInfo,
                                 (SupplicantStatus status, ISupplicantIface iface) -> {
                                 if (status.code != SupplicantStatusCode.SUCCESS) {
                                     Log.e(TAG, "Failed to get ISupplicantIface " + status.code);
@@ -172,72 +166,48 @@ public class WifiSupplicantHal {
                             });
                     } catch (RemoteException e) {
                         Log.e(TAG, "ISupplicant.getInterface exception: " + e);
-                        return null;
+                        return false;
                     }
                     break;
                 }
             }
-            if (!hasStaIface) {
-                Log.e(TAG, "No ISupplicantIface matching requested type: " + ifaceType + ", got "
-                        + supplicantIfaces.size() + " ifaces.");
-            }
-            return supplicantIface.value;
-        }
-    }
-
-    private boolean getSupplicantStaIface() {
-        synchronized (mLock) {
-            /** Cast ISupplicantIface into ISupplicantStaIface*/
-            ISupplicantIface supplicantIface = getSupplicantIface(IfaceType.STA);
-            if (supplicantIface == null) {
-                Log.e(TAG, "getSupplicantStaIface failed");
+            if (supplicantIface.value == null) {
+                Log.e(TAG, "initSupplicantStaIface got null iface");
                 return false;
             }
-            mHidlSupplicantStaIface =
-                ISupplicantStaIface.asInterface(supplicantIface.asBinder());
+            mISupplicantStaIface = getStaIfaceMockable(supplicantIface.value);
             return true;
-        }
-    }
-
-    private boolean getSupplicantP2pIface() {
-        synchronized (mLock) {
-            /** Cast ISupplicantIface into ISupplicantStaIface*/
-            ISupplicantIface supplicantIface = getSupplicantIface(IfaceType.P2P);
-            if (supplicantIface == null) {
-                Log.e(TAG, "getSupplicantP2pIface failed");
-                return false;
-            }
-            mHidlSupplicantP2pIface =
-                ISupplicantP2pIface.asInterface(supplicantIface.asBinder());
-            return true;
-        }
-    }
-
-    private void resetHandles() {
-        synchronized (mLock) {
-            mHidlSupplicant = null;
-            mHidlSupplicantStaIface = null;
-            mHidlSupplicantP2pIface = null;
         }
     }
 
     private void supplicantServiceDiedHandler() {
-        resetHandles();
+        synchronized (mLock) {
+            mISupplicant = null;
+            mISupplicantStaIface = null;
+        }
     }
 
     /**
-     * Hal Device Manager callbacks.
+     * Signals whether Initialization completed successfully. Only necessary for testing, is not
+     * needed to guard calls etc.
      */
-    public class HalDeviceManagerStatusListener implements HalDeviceManager.ManagerStatusListener {
-        @Override
-        public void onStatusChanged() {
-            Log.i(TAG, "Device Manager onStatusChanged. isReady(): " + mHalDeviceManager.isReady()
-                    + "isStarted(): " + mHalDeviceManager.isStarted());
-            // Reset all our cached handles.
-            if (!mHalDeviceManager.isReady() || !mHalDeviceManager.isStarted())  {
-                resetHandles();
-            }
-        }
+    public boolean isInitializationComplete() {
+        return mISupplicantStaIface != null;
+    }
+
+    /**
+     * Wrapper functions to access static HAL methods, created to be mockable in unit tests
+     */
+    protected IServiceManager getServiceManagerMockable() throws RemoteException {
+        return IServiceManager.getService(SERVICE_MANAGER_NAME);
+    }
+
+    protected ISupplicant getSupplicantMockable() throws RemoteException {
+        return ISupplicant.getService();
+    }
+
+    protected ISupplicantStaIface getStaIfaceMockable(ISupplicantIface iface) {
+        return ISupplicantStaIface.asInterface(iface.asBinder());
     }
 
     private static class Mutable<E> {
