@@ -20,7 +20,7 @@
 #include <time.h>
 #include <signal.h>
 #include <string.h>
-#include "OverrideLog.h"
+#include "_OverrideLog.h"
 #include "NfcJniUtil.h"
 #include "NfcTag.h"
 #include "config.h"

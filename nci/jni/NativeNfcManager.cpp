@@ -16,7 +16,7 @@
 
 #include <semaphore.h>
 #include <errno.h>
-#include "OverrideLog.h"
+#include "_OverrideLog.h"
 #include "NfcJniUtil.h"
 #include "NfcAdaptation.h"
 #include "SyncEvent.h"
