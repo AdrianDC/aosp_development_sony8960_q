@@ -18,7 +18,7 @@
 #include <malloc.h>
 #include <semaphore.h>
 #include <string.h>
-#include "OverrideLog.h"
+#include "_OverrideLog.h"
 #include "NfcJniUtil.h"
 #include "JavaClassConstants.h"
 #include <ScopedLocalRef.h>
