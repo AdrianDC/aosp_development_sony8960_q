@@ -36,14 +36,12 @@ import java.util.ArrayList;
 /**
  * Hal calls for bring up/shut down of the supplicant daemon and for
  * sending requests to the supplicant daemon
- *
- * {@hide}
  */
-public class WifiSupplicantHal {
+public class SupplicantStaIfaceHal {
     /** Invalid Supplicant Iface type */
     public static final int INVALID_IFACE_TYPE = -1;
     private static final boolean DBG = false;
-    private static final String TAG = "WifiSupplicantHal";
+    private static final String TAG = "SupplicantStaIfaceHal";
     private static final String SERVICE_MANAGER_NAME = "manager";
     private IServiceManager mIServiceManager = null;
     // Supplicant HAL interface objects
@@ -51,7 +49,7 @@ public class WifiSupplicantHal {
     private ISupplicantStaIface mISupplicantStaIface;
     private final Object mLock = new Object();
     private final HandlerThread mHandlerThread;
-    public WifiSupplicantHal(HandlerThread handlerThread) {
+    public SupplicantStaIfaceHal(HandlerThread handlerThread) {
         mHandlerThread = handlerThread;
     }
 
@@ -394,7 +392,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean reassociate() {
         synchronized (mLock) {
             final String methodStr = "reassociate";
@@ -410,7 +408,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean reconnect() {
         synchronized (mLock) {
             final String methodStr = "reconnect";
@@ -426,7 +424,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean disconnect() {
         synchronized (mLock) {
             final String methodStr = "disconnect";
@@ -442,7 +440,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean setPowerSave(boolean enable) {
         synchronized (mLock) {
             final String methodStr = "setPowerSave";
@@ -458,7 +456,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean initiateTdlsDiscover(byte[/* 6 */] macAddress) {
         synchronized (mLock) {
             final String methodStr = "initiateTdlsDiscover";
@@ -474,7 +472,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean initiateTdlsSetup(byte[/* 6 */] macAddress) {
         synchronized (mLock) {
             final String methodStr = "initiateTdlsSetup";
@@ -490,7 +488,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean initiateTdlsTeardown(byte[/* 6 */] macAddress) {
         synchronized (mLock) {
             final String methodStr = "initiateTdlsTeardown";
@@ -506,7 +504,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean initiateAnqpQuery(byte[/* 6 */] macAddress,
             java.util.ArrayList<Short> infoElements, java.util.ArrayList<Integer> subTypes) {
         synchronized (mLock) {
@@ -524,7 +522,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean initiateHs20IconQuery(byte[/* 6 */] macAddress, String fileName) {
         synchronized (mLock) {
             final String methodStr = "initiateHs20IconQuery";
@@ -573,7 +571,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean startRxFilter() {
         synchronized (mLock) {
             final String methodStr = "startRxFilter";
@@ -589,7 +587,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean stopRxFilter() {
         synchronized (mLock) {
             final String methodStr = "stopRxFilter";
@@ -605,7 +603,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean addRxFilter(byte type) {
         synchronized (mLock) {
             final String methodStr = "addRxFilter";
@@ -621,7 +619,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean removeRxFilter(byte type) {
         synchronized (mLock) {
             final String methodStr = "removeRxFilter";
@@ -637,7 +635,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean setBtCoexistenceMode(byte mode) {
         synchronized (mLock) {
             final String methodStr = "setBtCoexistenceMode";
@@ -653,7 +651,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean setBtCoexistenceScanModeEnabled(boolean enable) {
         synchronized (mLock) {
             final String methodStr = "setBtCoexistenceScanModeEnabled";
@@ -670,7 +668,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean setSuspendModeEnabled(boolean enable) {
         synchronized (mLock) {
             final String methodStr = "setSuspendModeEnabled";
@@ -686,7 +684,7 @@ public class WifiSupplicantHal {
             }
         }
     }
-    /** See SupplicantStaIface.hal for documentation */
+    /** See ISupplicantStaIface.hal for documentation */
     private boolean setCountryCode(byte[/* 2 */] code) {
         synchronized (mLock) {
             final String methodStr = "setCountryCode";

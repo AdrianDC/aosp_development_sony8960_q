@@ -49,11 +49,11 @@ import org.mockito.MockitoAnnotations;
 import java.util.ArrayList;
 
 /**
- * Unit tests for WifiSupplicantHal
+ * Unit tests for SupplicantStaIfaceHal
  */
-public class WifiSupplicantHalTest {
-    private static final String TAG = "WifiSupplicantHalTest";
-    private WifiSupplicantHal mDut;
+public class SupplicantStaIfaceHalTest {
+    private static final String TAG = "SupplicantStaIfaceHalTest";
+    private SupplicantStaIfaceHal mDut;
     @Mock IServiceManager mServiceManagerMock;
     @Mock ISupplicant mISupplicantMock;
     @Mock ISupplicantIface mISupplicantIfaceMock;
@@ -72,8 +72,8 @@ public class WifiSupplicantHalTest {
     private TestLooper mTestLooper;
     private InOrder mInOrder;
 
-    private class WifiSupplicantHalSpy extends WifiSupplicantHal {
-        WifiSupplicantHalSpy(HandlerThread handlerThread) {
+    private class SupplicantStaIfaceHalSpy extends SupplicantStaIfaceHal {
+        SupplicantStaIfaceHalSpy(HandlerThread handlerThread) {
             super(handlerThread);
         }
         @Override
@@ -109,11 +109,11 @@ public class WifiSupplicantHalTest {
         when(mServiceManagerMock.registerForNotifications(anyString(), anyString(),
                 any(IServiceNotification.Stub.class))).thenReturn(true);
         when(mHandlerThread.getLooper()).thenReturn(mTestLooper.getLooper());
-        mDut = new WifiSupplicantHalSpy(mHandlerThread);
+        mDut = new SupplicantStaIfaceHalSpy(mHandlerThread);
     }
 
     /**
-     * Sunny day scenario for WifiSupplicantHal initialization
+     * Sunny day scenario for SupplicantStaIfaceHal initialization
      * Asserts successful initialization
      */
     @Test
@@ -176,7 +176,7 @@ public class WifiSupplicantHalTest {
         }
 
         mInOrder = inOrder(mServiceManagerMock, mISupplicantMock);
-        // Initialize WifiSupplicantHal, should call serviceManager.registerForNotifications
+        // Initialize SupplicantStaIfaceHal, should call serviceManager.registerForNotifications
         assertTrue(mDut.initialize());
         // verify: service manager initialization sequence
         mInOrder.verify(mServiceManagerMock).linkToDeath(any(IHwBinder.DeathRecipient.class),
