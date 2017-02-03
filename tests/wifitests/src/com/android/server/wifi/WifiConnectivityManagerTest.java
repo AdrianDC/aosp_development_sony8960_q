@@ -44,6 +44,7 @@ import android.os.SystemClock;
 import android.os.WorkSource;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.util.LocalLog;
 
 import com.android.internal.R;
 
@@ -56,6 +57,9 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -74,6 +78,7 @@ public class WifiConnectivityManagerTest {
         mResource = mockResource();
         mAlarmManager = new TestAlarmManager();
         mContext = mockContext();
+        mLocalLog = new LocalLog(512);
         mWifiStateMachine = mockWifiStateMachine();
         mWifiConfigManager = mockWifiConfigManager();
         mWifiInfo = getWifiInfo();
@@ -107,6 +112,7 @@ public class WifiConnectivityManagerTest {
     private ScanData mScanData;
     private WifiConfigManager mWifiConfigManager;
     private WifiInfo mWifiInfo;
+    private LocalLog mLocalLog;
     @Mock private FrameworkFacade mFrameworkFacade;
     @Mock private NetworkScoreManager mNetworkScoreManager;
     @Mock private Clock mClock;
@@ -274,8 +280,8 @@ public class WifiConnectivityManagerTest {
     WifiConnectivityManager createConnectivityManager() {
         return new WifiConnectivityManager(mContext, mWifiStateMachine, mWifiScanner,
                 mWifiConfigManager, mWifiInfo, mWifiNS, mWifiConnectivityHelper,
-                mWifiLastResortWatchdog, mWifiMetrics, mLooper.getLooper(), mClock, true,
-                mFrameworkFacade, null, null, null);
+                mWifiLastResortWatchdog, mWifiMetrics, mLooper.getLooper(), mClock,
+                mLocalLog, true, mFrameworkFacade, null, null, null);
     }
 
     /**
@@ -1529,5 +1535,22 @@ public class WifiConnectivityManagerTest {
         mWifiConnectivityManager.handleScreenStateChanged(true);
 
         verify(mWifiStateMachine, times(0)).startRoamToNetwork(anyInt(), anyObject());
+    }
+
+    /**
+     *  Dump local log buffer.
+     *
+     * Expected behavior: Logs dumped from WifiConnectivityManager.dump()
+     * contain the message we put in mLocalLog.
+     */
+    @Test
+    public void dumpLocalLog() {
+        final String localLogMessage = "This is a message from the test";
+        mLocalLog.log(localLogMessage);
+
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        mWifiConnectivityManager.dump(new FileDescriptor(), pw, new String[]{});
+        assertTrue(sw.toString().contains(localLogMessage));
     }
 }

@@ -98,9 +98,7 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
     }
 
     private void localLog(String log) {
-        if (mLocalLog != null) {
-            mLocalLog.log(log);
-        }
+        mLocalLog.log(log);
     }
 
     /**

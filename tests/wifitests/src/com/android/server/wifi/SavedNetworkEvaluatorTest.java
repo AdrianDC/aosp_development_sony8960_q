@@ -33,6 +33,7 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.util.LocalLog;
 
 import com.android.internal.R;
 import com.android.server.wifi.WifiNetworkSelectorTestUtil.ScanDetailsAndWifiConfigs;
@@ -59,6 +60,7 @@ public class SavedNetworkEvaluatorTest {
         setupContext();
         setupResource();
         setupWifiConfigManager();
+        mLocalLog = new LocalLog(512);
 
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
         when(mFrameworkFacade.getIntegerSetting(mContext,
@@ -83,7 +85,7 @@ public class SavedNetworkEvaluatorTest {
                 ArgumentCaptor.forClass(ContentObserver.class);
 
         mSavedNetworkEvaluator = new SavedNetworkEvaluator(mContext, mWifiConfigManager,
-                mClock, null, Looper.getMainLooper(), mFrameworkFacade);
+                mClock, mLocalLog, Looper.getMainLooper(), mFrameworkFacade);
         verify(mFrameworkFacade, times(2)).registerContentObserver(eq(mContext), any(Uri.class),
                 eq(false), observerCaptor.capture());
         // SavedNetworkEvaluator uses a single ContentObserver for two registrations, we only need
@@ -104,6 +106,7 @@ public class SavedNetworkEvaluatorTest {
     @Mock private FrameworkFacade mFrameworkFacade;
     @Mock private Resources mResource;
     @Mock private Clock mClock;
+    private LocalLog mLocalLog;
     private int mThresholdMinimumRssi2G;
     private int mThresholdMinimumRssi5G;
     private int mThresholdQualifiedRssi2G;
