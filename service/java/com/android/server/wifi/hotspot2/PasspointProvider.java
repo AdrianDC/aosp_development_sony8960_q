@@ -251,10 +251,10 @@ public class PasspointProvider {
     public WifiConfiguration getWifiConfig() {
         WifiConfiguration wifiConfig = new WifiConfiguration();
         wifiConfig.FQDN = mConfig.getHomeSp().getFqdn();
-        if (mConfig.getHomeSp().getRoamingConsortiumOIs() != null) {
+        if (mConfig.getHomeSp().getRoamingConsortiumOis() != null) {
             wifiConfig.roamingConsortiumIds = Arrays.copyOf(
-                    mConfig.getHomeSp().getRoamingConsortiumOIs(),
-                    mConfig.getHomeSp().getRoamingConsortiumOIs().length);
+                    mConfig.getHomeSp().getRoamingConsortiumOis(),
+                    mConfig.getHomeSp().getRoamingConsortiumOis().length);
         }
         wifiConfig.providerFriendlyName = mConfig.getHomeSp().getFriendlyName();
         wifiConfig.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_EAP);
@@ -323,7 +323,7 @@ public class PasspointProvider {
         // Roaming Consortium OI matching.
         if (ANQPMatcher.matchRoamingConsortium(
                 (RoamingConsortiumElement) anqpElements.get(ANQPElementType.ANQPRoamingConsortium),
-                mConfig.getHomeSp().getRoamingConsortiumOIs())) {
+                mConfig.getHomeSp().getRoamingConsortiumOis())) {
             return PasspointMatch.RoamingProvider;
         }
 
