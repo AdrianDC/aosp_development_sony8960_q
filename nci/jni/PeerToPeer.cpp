@@ -17,7 +17,7 @@
 /*
  *  Communicate with a peer using NFC-DEP, LLCP, SNEP.
  */
-#include "OverrideLog.h"
+#include "_OverrideLog.h"
 #include "PeerToPeer.h"
 #include "NfcJniUtil.h"
 #include "llcp_defs.h"
