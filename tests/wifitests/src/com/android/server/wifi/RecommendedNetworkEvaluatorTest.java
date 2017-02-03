@@ -129,6 +129,8 @@ public class RecommendedNetworkEvaluatorTest {
                 .thenReturn(mEphemeralWifiConfiguration);
         when(mWifiConfigManager.getConfiguredNetwork(mTrustedWifiConfiguration.networkId))
                 .thenReturn(mTrustedWifiConfiguration);
+        when(mWifiConfigManager.getSavedNetworks())
+                .thenReturn(Lists.newArrayList(mTrustedWifiConfiguration));
     }
 
     @Test
@@ -144,6 +146,8 @@ public class RecommendedNetworkEvaluatorTest {
 
         verify(mExternalScoreEvaluator).update(scanDetails);
         verifyZeroInteractions(mNetworkScoreManager, mNetworkScoreManager);
+        verify(mWifiConfigManager).updateNetworkNotRecommended(
+                mTrustedWifiConfiguration.networkId, false /* notRecommended */);
     }
 
     @Test
@@ -151,6 +155,8 @@ public class RecommendedNetworkEvaluatorTest {
         mRecommendedNetworkEvaluator.update(new ArrayList<ScanDetail>());
 
         verifyZeroInteractions(mNetworkScoreManager);
+        verify(mWifiConfigManager).updateNetworkNotRecommended(
+                mTrustedWifiConfiguration.networkId, false /* notRecommended */);
     }
 
     @Test
@@ -164,6 +170,8 @@ public class RecommendedNetworkEvaluatorTest {
                 mUntrustedScanDetail));
 
         verifyZeroInteractions(mNetworkScoreManager);
+        verify(mWifiConfigManager).updateNetworkNotRecommended(
+                mTrustedWifiConfiguration.networkId, false /* notRecommended */);
     }
 
     @Test
@@ -182,6 +190,8 @@ public class RecommendedNetworkEvaluatorTest {
         NetworkKey expectedNetworkKey = new NetworkKey(new WifiKey(ScanResultUtil.createQuotedSSID(
                 mUntrustedScanDetail.getSSID()), mUntrustedScanDetail.getBSSIDString()));
         assertEquals(expectedNetworkKey, mNetworkKeyArrayCaptor.getValue()[0]);
+        verify(mWifiConfigManager).updateNetworkNotRecommended(
+                mTrustedWifiConfiguration.networkId, false /* notRecommended */);
     }
 
     @Test
@@ -324,6 +334,7 @@ public class RecommendedNetworkEvaluatorTest {
                 mRecommendationRequestCaptor.getValue().getScanResults()[1]);
         verify(mWifiConfigManager).setNetworkCandidateScanResult(
                 networkUpdateResult.getNetworkId(), mUntrustedScanDetail.getScanResult(), 0);
+        verify(mWifiConfigManager, never()).updateNetworkSelectionStatus(anyInt(), anyInt());
     }
 
     @Test
@@ -369,6 +380,8 @@ public class RecommendedNetworkEvaluatorTest {
                 mRecommendationRequestCaptor.getValue().getScanResults()[0]);
         assertEquals(mUntrustedScanDetail.getScanResult(),
                 mRecommendationRequestCaptor.getValue().getScanResults()[1]);
+        verify(mWifiConfigManager)
+                .updateNetworkNotRecommended(mTrustedWifiConfiguration.networkId, true);
     }
 
     @Test
@@ -383,6 +396,7 @@ public class RecommendedNetworkEvaluatorTest {
 
         assertNull(result);
         verify(mNetworkScoreManager).requestRecommendation(any(RecommendationRequest.class));
+        verify(mWifiConfigManager, never()).updateNetworkSelectionStatus(anyInt(), anyInt());
     }
 
     @Test
@@ -398,6 +412,8 @@ public class RecommendedNetworkEvaluatorTest {
         verify(mNetworkScoreManager).requestRecommendation(mRecommendationRequestCaptor.capture());
         assertSame(mTrustedWifiConfiguration,
                 mRecommendationRequestCaptor.getValue().getConnectedConfig());
+        verify(mWifiConfigManager)
+                .updateNetworkNotRecommended(mTrustedWifiConfiguration.networkId, true);
     }
 
     @Test

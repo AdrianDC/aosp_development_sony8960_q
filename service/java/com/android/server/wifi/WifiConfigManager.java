@@ -1275,6 +1275,26 @@ public class WifiConfigManager {
     }
 
     /**
+     * Update whether a network is currently not recommended by {@link RecommendedNetworkEvaluator}.
+     *
+     * @param networkId network ID of the network to be updated
+     * @param notRecommended whether this network is not recommended
+     * @return true if the network is updated, false otherwise
+     */
+    public boolean updateNetworkNotRecommended(int networkId, boolean notRecommended) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return false;
+        }
+
+        config.getNetworkSelectionStatus().setNotRecommended(notRecommended);
+        localLog("updateNetworkRecommendation: configKey=" + config.configKey()
+                + " recommended=" + notRecommended);
+        saveToStore(false);
+        return true;
+    }
+
+    /**
      * Attempt to re-enable a network for network selection, if this network was either:
      * a) Previously temporarily disabled, but its disable timeout has expired, or
      * b) Previously disabled because of a user switch, but is now visible to the current
