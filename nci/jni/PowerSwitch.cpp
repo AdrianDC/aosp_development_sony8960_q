@@ -17,7 +17,7 @@
 /*
  *  Adjust the controller's power states.
  */
-#include "OverrideLog.h"
+#include "_OverrideLog.h"
 #include "PowerSwitch.h"
 #include "NfcJniUtil.h"
 #include "config.h"
