@@ -136,7 +136,7 @@ public class WifiNative {
     private final String mTAG;
     private final String mInterfaceName;
     private final String mInterfacePrefix;
-    private WifiSupplicantHal mWifiSupplicantHal;
+    private SupplicantStaIfaceHal mSupplicantStaIfaceHal;
     private WifiVendorHal mWifiVendorHal;
 
     private Context mContext = null;
@@ -147,12 +147,12 @@ public class WifiNative {
     }
 
     /**
-     * Explicitly sets the WifiSupplicantHal instance
+     * Explicitly sets the SupplicantStaIfaceHal instance
      * TODO(b/34722734): move this into the constructor of WifiNative when I clean up the awful
      * double singleton pattern
      */
-    public void setWifiSupplicantHal(WifiSupplicantHal wifiSupplicantHal) {
-        mWifiSupplicantHal = wifiSupplicantHal;
+    public void setSupplicantStaIfaceHal(SupplicantStaIfaceHal wifiSupplicantHal) {
+        mSupplicantStaIfaceHal = wifiSupplicantHal;
     }
 
     /**
@@ -195,7 +195,7 @@ public class WifiNative {
         if (!HIDL_ENABLE) {
             return true;
         }
-        return mWifiSupplicantHal.initialize();
+        return mSupplicantStaIfaceHal.initialize();
     }
 
     public String getInterfaceName() {
