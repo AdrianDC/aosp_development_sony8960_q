@@ -37,8 +37,8 @@ import android.util.SparseArray;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.hotspot2.IconEvent;
-import com.android.server.wifi.hotspot2.WnmData;
 import com.android.server.wifi.hotspot2.Utils;
+import com.android.server.wifi.hotspot2.WnmData;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl.P2pStatus;
 import com.android.server.wifi.util.TelephonyUtil.SimAuthRequestData;
 
@@ -127,7 +127,6 @@ public class WifiMonitor {
     private static final String IDENTITY_STR = "IDENTITY";
 
     private static final String SIM_STR = "SIM";
-
 
     //used to debug and detect if we miss an event
     private static int eventLogCounter = 0;
@@ -522,6 +521,15 @@ public class WifiMonitor {
      */
     private static final int MAX_RECV_ERRORS    = 10;
 
+    /**
+     * Authentication Failure reasonCode, used internally by WifiStateMachine
+     * @hide
+     */
+    public static final int AUTHENTICATION_FAILURE_REASON_DEFAULT = 0;
+    public static final int AUTHENTICATION_FAILURE_REASON_TIMEOUT = 1;
+    public static final int AUTHENTICATION_FAILURE_REASON_WRONG_PSWD = 2;
+    public static final int AUTHENTICATION_FAILURE_REASON_EAP_FAILURE = 3;
+
     // Singleton instance
     private static WifiMonitor sWifiMonitor = new WifiMonitor();
     public static WifiMonitor getInstance() {
@@ -851,9 +859,14 @@ public class WifiMonitor {
                 handleTargetBSSIDEvent(eventStr, iface);
             } else if (eventStr.startsWith(ASSOCIATED_WITH_STR)) {
                 handleAssociatedBSSIDEvent(eventStr, iface);
-            } else if (eventStr.startsWith(AUTH_EVENT_PREFIX_STR) &&
-                    eventStr.endsWith(AUTH_TIMEOUT_STR)) {
-                sendMessage(iface, AUTHENTICATION_FAILURE_EVENT);
+            } else if (eventStr.startsWith(AUTH_EVENT_PREFIX_STR)
+                    && eventStr.endsWith(AUTH_TIMEOUT_STR)) {
+                sendMessage(iface, AUTHENTICATION_FAILURE_EVENT, eventLogCounter,
+                        AUTHENTICATION_FAILURE_REASON_TIMEOUT);
+            } else if (eventStr.startsWith(WPA_EVENT_PREFIX_STR)
+                    && eventStr.endsWith(PASSWORD_MAY_BE_INCORRECT_STR)) {
+                sendMessage(iface, AUTHENTICATION_FAILURE_EVENT, eventLogCounter,
+                        AUTHENTICATION_FAILURE_REASON_WRONG_PSWD);
             } else {
                 if (mVerboseLoggingEnabled) {
                     Log.w(TAG, "couldn't identify event type - " + eventStr);
@@ -995,7 +1008,8 @@ public class WifiMonitor {
             return true;
         } else if (event == EAP_FAILURE) {
             if (eventData.startsWith(EAP_AUTH_FAILURE_STR)) {
-                sendMessage(iface, AUTHENTICATION_FAILURE_EVENT, eventLogCounter);
+                sendMessage(iface, AUTHENTICATION_FAILURE_EVENT, eventLogCounter,
+                        AUTHENTICATION_FAILURE_REASON_EAP_FAILURE);
             }
         } else if (event == ASSOC_REJECT) {
             Matcher match = mAssocRejectEventPattern.matcher(eventData);
