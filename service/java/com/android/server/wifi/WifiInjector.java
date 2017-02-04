@@ -23,7 +23,6 @@ import android.net.wifi.IWifiScanner;
 import android.net.wifi.IWificond;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
-import android.net.wifi.WifiNetworkScoreCache;
 import android.net.wifi.WifiScanner;
 import android.os.BatteryStats;
 import android.os.HandlerThread;
@@ -102,7 +101,6 @@ public class WifiInjector {
     private final SavedNetworkEvaluator mSavedNetworkEvaluator;
     private final PasspointNetworkEvaluator mPasspointNetworkEvaluator;
     private final RecommendedNetworkEvaluator mRecommendedNetworkEvaluator;
-    private final WifiNetworkScoreCache mWifiNetworkScoreCache;
     private final NetworkScoreManager mNetworkScoreManager;
     private WifiScanner mWifiScanner;
     private final WifiPermissionsWrapper mWifiPermissionsWrapper;
@@ -195,17 +193,13 @@ public class WifiInjector {
                 UserManager.get(mContext), TelephonyManager.from(mContext),
                 mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy, mWifiPermissionsWrapper,
                 new NetworkListStoreData(), new DeletedEphemeralSsidsStoreData());
-        mWifiNetworkScoreCache = new WifiNetworkScoreCache(mContext);
         mWifiNetworkSelector = new WifiNetworkSelector(mContext, mWifiConfigManager, mClock);
         LocalLog localLog = mWifiNetworkSelector.getLocalLog();
         mSavedNetworkEvaluator = new SavedNetworkEvaluator(mContext,
                 mWifiConfigManager, mClock, localLog, wifiStateMachineLooper, mFrameworkFacade);
-        ExternalScoreEvaluator externalScoreEvaluator = new ExternalScoreEvaluator(
-                mContext, mWifiConfigManager, mWifiNetworkScoreCache, mClock, localLog);
         mRecommendedNetworkEvaluator = new RecommendedNetworkEvaluator(context,
-                context.getContentResolver(), wifiStateMachineLooper,
-                mFrameworkFacade, mWifiNetworkScoreCache, mNetworkScoreManager, mWifiConfigManager,
-                localLog, externalScoreEvaluator);
+                context.getContentResolver(), wifiStateMachineLooper, mFrameworkFacade,
+                mNetworkScoreManager, mWifiConfigManager, localLog);
         mSimAccessor = new SIMAccessor(mContext);
         mPasspointManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
                 mSimAccessor, new PasspointObjectFactory(), mWifiConfigManager, mWifiConfigStore);
