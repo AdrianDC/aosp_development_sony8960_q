@@ -1293,7 +1293,7 @@ public class SupplicantStaNetworkHal {
         if (DBG) Log.i(TAG, methodStr);
         if (status.code != SupplicantStatusCode.SUCCESS) {
             Log.e(TAG, methodStr + " failed: "
-                    + WifiSupplicantHal.supplicantStatusCodeToString(status.code) + ", "
+                    + SupplicantStaIfaceHal.supplicantStatusCodeToString(status.code) + ", "
                     + status.debugMessage);
             return false;
         }
