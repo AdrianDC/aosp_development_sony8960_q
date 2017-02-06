@@ -31,12 +31,14 @@ import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiLinkLayerStats;
+import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.HandlerThread;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.MutableBoolean;
+import android.util.MutableInt;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.connectivity.KeepalivePacketData;
@@ -313,13 +315,91 @@ public class WifiVendorHal {
     }
 
     /**
+     * Translation table used by getSupportedFeatureSet for translating IWifiStaIface caps
+     */
+    private static final int[][] sFeatureCapabilityTranslation = {
+            {WifiManager.WIFI_FEATURE_INFRA_5G,
+                    IWifiStaIface.StaIfaceCapabilityMask.STA_5G
+            },
+            {WifiManager.WIFI_FEATURE_PASSPOINT,
+                    IWifiStaIface.StaIfaceCapabilityMask.HOTSPOT
+            },
+            {WifiManager.WIFI_FEATURE_SCANNER,
+                    IWifiStaIface.StaIfaceCapabilityMask.BACKGROUND_SCAN,
+            },
+            {WifiManager.WIFI_FEATURE_PNO,
+                    IWifiStaIface.StaIfaceCapabilityMask.PNO
+            },
+            {WifiManager.WIFI_FEATURE_TDLS,
+                    IWifiStaIface.StaIfaceCapabilityMask.TDLS
+            },
+            {WifiManager.WIFI_FEATURE_TDLS_OFFCHANNEL,
+                    IWifiStaIface.StaIfaceCapabilityMask.TDLS_OFFCHANNEL
+            },
+            {WifiManager.WIFI_FEATURE_LINK_LAYER_STATS,
+                    IWifiStaIface.StaIfaceCapabilityMask.LINK_LAYER_STATS
+            },
+            {WifiManager.WIFI_FEATURE_RSSI_MONITOR,
+                    IWifiStaIface.StaIfaceCapabilityMask.RSSI_MONITOR
+            },
+            {WifiManager.WIFI_FEATURE_MKEEP_ALIVE,
+                    IWifiStaIface.StaIfaceCapabilityMask.KEEP_ALIVE
+            },
+            {WifiManager.WIFI_FEATURE_CONFIG_NDO,
+                    IWifiStaIface.StaIfaceCapabilityMask.ND_OFFLOAD
+            },
+            {WifiManager.WIFI_FEATURE_CONTROL_ROAMING,
+                    IWifiStaIface.StaIfaceCapabilityMask.CONTROL_ROAMING
+            },
+            {WifiManager.WIFI_FEATURE_IE_WHITELIST,
+                    IWifiStaIface.StaIfaceCapabilityMask.PROBE_IE_WHITELIST
+            },
+            {WifiManager.WIFI_FEATURE_SCAN_RAND,
+                    IWifiStaIface.StaIfaceCapabilityMask.SCAN_RAND
+            },
+    };
+
+    /**
+     * Feature bit mask translation for STAs
+     *
+     * @param capabilities bitmask defined IWifiStaIface.StaIfaceCapabilityMask
+     * @return bitmask defined by WifiManager.WIFI_FEATURE_*
+     */
+    @VisibleForTesting
+    int wifiFeatureMaskFromStaCapabilities(int capabilities) {
+        int features = WifiManager.WIFI_FEATURE_INFRA; // Always set this if we have a STA interface
+        for (int i = 0; i < sFeatureCapabilityTranslation.length; i++) {
+            if ((capabilities & sFeatureCapabilityTranslation[i][1]) != 0) {
+                features |= sFeatureCapabilityTranslation[i][0];
+            }
+        }
+        return features;
+    }
+
+    /**
      * Get the supported features
+     * <p>
+     * Note that not all the WifiManager.WIFI_FEATURE_* bits are supplied through
+     * this call. //TODO(b/34900537) fix this
      *
      * @return bitmask defined by WifiManager.WIFI_FEATURE_*
      */
     public int getSupportedFeatureSet() {
-        kilroy();
-        throw new UnsupportedOperationException();
+        try {
+            final MutableInt feat = new MutableInt(0);
+            synchronized (sLock) {
+                if (mIWifiStaIface != null) {
+                    mIWifiStaIface.getCapabilities((status, capabilities) -> {
+                        if (status.code != WifiStatusCode.SUCCESS) return;
+                        feat.value = wifiFeatureMaskFromStaCapabilities(capabilities);
+                    });
+                }
+            }
+            return feat.value;
+        } catch (RemoteException e) {
+            handleRemoteException(e);
+            return 0;
+        }
     }
 
     /* RTT related commands/events */
