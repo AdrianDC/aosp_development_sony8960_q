@@ -32,6 +32,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
 import android.provider.Settings;
+import android.text.TextUtils;
 import android.util.LocalLog;
 import android.util.Pair;
 import android.util.Slog;
@@ -206,9 +207,11 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
             WifiConfiguration wifiConfiguration) {
         String ssid = WifiInfo.removeDoubleQuotes(wifiConfiguration.SSID);
         String bssid = wifiConfiguration.BSSID;
+        boolean ignoreBssid = TextUtils.isEmpty(bssid) || "any".equals(bssid);
         for (int i = 0; i < scanDetails.size(); i++) {
             final ScanDetail scanDetail = scanDetails.get(i);
-            if (ssid.equals(scanDetail.getSSID()) && bssid.equals(scanDetail.getBSSIDString())) {
+            if (ssid.equals(scanDetail.getSSID())
+                    && (ignoreBssid || bssid.equals(scanDetail.getBSSIDString()))) {
                 return scanDetail;
             }
         }
@@ -222,6 +225,7 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
                     wifiConfiguration);
         }
         wifiConfiguration.ephemeral = true;
+        wifiConfiguration.BSSID = null;
         NetworkUpdateResult networkUpdateResult = mWifiConfigManager
                 .addOrUpdateNetwork(wifiConfiguration, Process.WIFI_UID);
         if (networkUpdateResult.isSuccess()) {
