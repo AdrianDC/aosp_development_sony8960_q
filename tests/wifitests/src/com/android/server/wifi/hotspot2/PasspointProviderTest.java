@@ -28,7 +28,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.hotspot2.pps.Credential;
-import android.net.wifi.hotspot2.pps.HomeSP;
+import android.net.wifi.hotspot2.pps.HomeSp;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Base64;
 
@@ -171,7 +171,7 @@ public class PasspointProviderTest {
     public void verifyModifyOriginalConfig() throws Exception {
         // Create a dummy PasspointConfiguration.
         PasspointConfiguration config = new PasspointConfiguration();
-        HomeSP homeSp = new HomeSP();
+        HomeSp homeSp = new HomeSp();
         homeSp.setFqdn("test1");
         config.setHomeSp(homeSp);
         Credential credential = new Credential();
@@ -196,7 +196,7 @@ public class PasspointProviderTest {
     public void verifyModifyRetrievedConfig() throws Exception {
         // Create a dummy PasspointConfiguration.
         PasspointConfiguration config = new PasspointConfiguration();
-        HomeSP homeSp = new HomeSP();
+        HomeSp homeSp = new HomeSp();
         homeSp.setFqdn("test1");
         config.setHomeSp(homeSp);
         Credential credential = new Credential();
@@ -344,7 +344,7 @@ public class PasspointProviderTest {
 
         // Setup test provider.
         PasspointConfiguration config = new PasspointConfiguration();
-        HomeSP homeSp = new HomeSP();
+        HomeSp homeSp = new HomeSp();
         homeSp.setFqdn(testDomain);
         config.setHomeSp(homeSp);
         Credential credential = new Credential();
@@ -375,7 +375,7 @@ public class PasspointProviderTest {
 
         // Setup test provider.
         PasspointConfiguration config = new PasspointConfiguration();
-        HomeSP homeSp = new HomeSP();
+        HomeSp homeSp = new HomeSp();
         homeSp.setFqdn(testDomain);
         config.setHomeSp(homeSp);
         Credential credential = new Credential();
@@ -411,7 +411,7 @@ public class PasspointProviderTest {
 
         // Setup test provider.
         PasspointConfiguration config = new PasspointConfiguration();
-        HomeSP homeSp = new HomeSP();
+        HomeSp homeSp = new HomeSp();
         homeSp.setFqdn(testDomain);
         config.setHomeSp(homeSp);
         Credential credential = new Credential();
@@ -444,7 +444,7 @@ public class PasspointProviderTest {
 
         // Setup test provider.
         PasspointConfiguration config = new PasspointConfiguration();
-        config.setHomeSp(new HomeSP());
+        config.setHomeSp(new HomeSp());
         Credential credential = new Credential();
         Credential.SimCredential simCredential = new Credential.SimCredential();
         simCredential.setImsi(testImsi);
@@ -475,8 +475,8 @@ public class PasspointProviderTest {
 
         // Setup test provider.
         PasspointConfiguration config = new PasspointConfiguration();
-        HomeSP homeSp = new HomeSP();
-        homeSp.setRoamingConsortiumOIs(providerRCOIs);
+        HomeSp homeSp = new HomeSp();
+        homeSp.setRoamingConsortiumOis(providerRCOIs);
         config.setHomeSp(homeSp);
         Credential credential = new Credential();
         Credential.UserCredential userCredential = new Credential.UserCredential();
@@ -505,7 +505,7 @@ public class PasspointProviderTest {
 
         // Setup test provider.
         PasspointConfiguration config = new PasspointConfiguration();
-        config.setHomeSp(new HomeSP());
+        config.setHomeSp(new HomeSp());
         Credential credential = new Credential();
         Credential.SimCredential simCredential = new Credential.SimCredential();
         simCredential.setImsi(testImsi);
@@ -535,7 +535,7 @@ public class PasspointProviderTest {
 
         // Setup test provider.
         PasspointConfiguration config = new PasspointConfiguration();
-        config.setHomeSp(new HomeSP());
+        config.setHomeSp(new HomeSp());
         Credential credential = new Credential();
         credential.setRealm(testRealm);
         Credential.UserCredential userCredential = new Credential.UserCredential();
@@ -570,9 +570,9 @@ public class PasspointProviderTest {
 
         // Setup test provider.
         PasspointConfiguration config = new PasspointConfiguration();
-        HomeSP homeSp = new HomeSP();
+        HomeSp homeSp = new HomeSp();
         homeSp.setFqdn(testDomain);
-        homeSp.setRoamingConsortiumOIs(providerRCOIs);
+        homeSp.setRoamingConsortiumOis(providerRCOIs);
         config.setHomeSp(homeSp);
         Credential credential = new Credential();
         Credential.SimCredential simCredential = new Credential.SimCredential();
@@ -616,10 +616,10 @@ public class PasspointProviderTest {
 
         // Create provider.
         PasspointConfiguration config = new PasspointConfiguration();
-        HomeSP homeSp = new HomeSP();
+        HomeSp homeSp = new HomeSp();
         homeSp.setFqdn(fqdn);
         homeSp.setFriendlyName(friendlyName);
-        homeSp.setRoamingConsortiumOIs(rcOIs);
+        homeSp.setRoamingConsortiumOis(rcOIs);
         config.setHomeSp(homeSp);
         Credential credential = new Credential();
         credential.setRealm(realm);
@@ -672,10 +672,10 @@ public class PasspointProviderTest {
 
         // Create provider.
         PasspointConfiguration config = new PasspointConfiguration();
-        HomeSP homeSp = new HomeSP();
+        HomeSp homeSp = new HomeSp();
         homeSp.setFqdn(fqdn);
         homeSp.setFriendlyName(friendlyName);
-        homeSp.setRoamingConsortiumOIs(rcOIs);
+        homeSp.setRoamingConsortiumOis(rcOIs);
         config.setHomeSp(homeSp);
         Credential credential = new Credential();
         credential.setRealm(realm);
@@ -732,10 +732,10 @@ public class PasspointProviderTest {
 
         // Create provider.
         PasspointConfiguration config = new PasspointConfiguration();
-        HomeSP homeSp = new HomeSP();
+        HomeSp homeSp = new HomeSp();
         homeSp.setFqdn(fqdn);
         homeSp.setFriendlyName(friendlyName);
-        homeSp.setRoamingConsortiumOIs(rcOIs);
+        homeSp.setRoamingConsortiumOis(rcOIs);
         config.setHomeSp(homeSp);
         Credential credential = new Credential();
         credential.setRealm(realm);

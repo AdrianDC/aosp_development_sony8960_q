@@ -40,7 +40,7 @@ import android.content.Intent;
 import android.net.wifi.EAPConstants;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.hotspot2.pps.Credential;
-import android.net.wifi.hotspot2.pps.HomeSP;
+import android.net.wifi.hotspot2.pps.HomeSp;
 import android.os.UserHandle;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Pair;
@@ -165,7 +165,7 @@ public class PasspointManagerTest {
      */
     private PasspointConfiguration createTestConfigWithUserCredential() {
         PasspointConfiguration config = new PasspointConfiguration();
-        HomeSP homeSp = new HomeSP();
+        HomeSp homeSp = new HomeSp();
         homeSp.setFqdn(TEST_FQDN);
         homeSp.setFriendlyName(TEST_FRIENDLY_NAME);
         config.setHomeSp(homeSp);
@@ -189,7 +189,7 @@ public class PasspointManagerTest {
      */
     private PasspointConfiguration createTestConfigWithSimCredential() {
         PasspointConfiguration config = new PasspointConfiguration();
-        HomeSP homeSp = new HomeSP();
+        HomeSp homeSp = new HomeSp();
         homeSp.setFqdn(TEST_FQDN);
         homeSp.setFriendlyName(TEST_FRIENDLY_NAME);
         config.setHomeSp(homeSp);
