@@ -25,9 +25,11 @@ import android.hardware.wifi.supplicant.V1_0.ISupplicantStaNetwork;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatusCode;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.os.HandlerThread;
 import android.os.RemoteException;
 import android.os.test.TestLooper;
+import android.text.TextUtils;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -47,10 +49,8 @@ public class SupplicantStaNetworkHalTest {
     private SupplicantStaNetworkHal mSupplicantNetwork;
     private SupplicantStatus mStatusSuccess;
     private SupplicantStatus mStatusFailure;
-    @Mock
-    private ISupplicantStaNetwork mISupplicantStaNetworkMock;
-    @Mock
-    private HandlerThread mHandlerThread;
+    @Mock private ISupplicantStaNetwork mISupplicantStaNetworkMock;
+    @Mock private HandlerThread mHandlerThread;
     private TestLooper mTestLooper;
     private SupplicantNetworkVariables mSupplicantVariables;
 
@@ -95,6 +95,40 @@ public class SupplicantStaNetworkHalTest {
     public void testWepNetworkWifiConfigurationSaveLoad() throws Exception {
         WifiConfiguration config = WifiConfigurationTestUtil.createWepHiddenNetwork();
         config.BSSID = "34:45:19:09:45";
+        testWifiConfigurationSaveLoad(config);
+    }
+
+    /**
+     * Tests the saving of WifiConfiguration to wpa_supplicant.
+     */
+    @Test
+    public void testEapPeapGtcNetworkWifiConfigurationSaveLoad() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createEapNetwork();
+        config.enterpriseConfig =
+                WifiConfigurationTestUtil.createPEAPWifiEnterpriseConfigWithGTCPhase2();
+        testWifiConfigurationSaveLoad(config);
+    }
+
+    /**
+     * Tests the saving of WifiConfiguration to wpa_supplicant.
+     */
+    @Test
+    public void testEapTlsNoneNetworkWifiConfigurationSaveLoad() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createEapNetwork();
+        config.enterpriseConfig =
+                WifiConfigurationTestUtil.createTLSWifiEnterpriseConfigWithNonePhase2();
+        testWifiConfigurationSaveLoad(config);
+    }
+
+    /**
+     * Tests the saving of WifiConfiguration to wpa_supplicant.
+     */
+    @Test
+    public void testEapTlsNoneClientCertNetworkWifiConfigurationSaveLoad() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createEapNetwork();
+        config.enterpriseConfig =
+                WifiConfigurationTestUtil.createTLSWifiEnterpriseConfigWithNonePhase2();
+        config.enterpriseConfig.setClientCertificateAlias("test_alias");
         testWifiConfigurationSaveLoad(config);
     }
 
@@ -186,6 +220,7 @@ public class SupplicantStaNetworkHalTest {
         }
         assertTrue(false);
     }
+
     /**
      * Tests the failure to load invalid bssid (less than 6 bytes in the supplicant bssid variable
      * read).
@@ -207,6 +242,60 @@ public class SupplicantStaNetworkHalTest {
         assertTrue(false);
     }
 
+    /**
+     * Tests the loading of invalid ssid from wpa_supplicant.
+     */
+    @Test
+    public void testInvalidSsidLoadFailure() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createWepHiddenNetwork();
+        assertTrue(mSupplicantNetwork.saveWifiConfiguration(config));
+
+        // Modify the supplicant variable directly.
+        mSupplicantVariables.ssid = null;
+
+        WifiConfiguration loadConfig = new WifiConfiguration();
+        Map<String, String> networkExtras = new HashMap<>();
+        assertFalse(mSupplicantNetwork.loadWifiConfiguration(loadConfig, networkExtras));
+    }
+
+    /**
+     * Tests the loading of invalid eap method from wpa_supplicant.
+     * Invalid eap method is assumed to be a non enterprise network. So, the loading should
+     * succeed as a non-enterprise network.
+     */
+    @Test
+    public void testInvalidEapMethodLoadFailure() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createEapNetwork();
+        config.enterpriseConfig =
+                WifiConfigurationTestUtil.createPEAPWifiEnterpriseConfigWithGTCPhase2();
+        assertTrue(mSupplicantNetwork.saveWifiConfiguration(config));
+
+        // Modify the supplicant variable directly.
+        mSupplicantVariables.eapMethod = -1;
+
+        WifiConfiguration loadConfig = new WifiConfiguration();
+        Map<String, String> networkExtras = new HashMap<>();
+        assertTrue(mSupplicantNetwork.loadWifiConfiguration(loadConfig, networkExtras));
+    }
+
+    /**
+     * Tests the loading of invalid eap phase2 method from wpa_supplicant.
+     */
+    @Test
+    public void testInvalidEapPhase2MethodLoadFailure() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createEapNetwork();
+        config.enterpriseConfig =
+                WifiConfigurationTestUtil.createPEAPWifiEnterpriseConfigWithGTCPhase2();
+        assertTrue(mSupplicantNetwork.saveWifiConfiguration(config));
+
+        // Modify the supplicant variable directly.
+        mSupplicantVariables.eapPhase2Method = -1;
+
+        WifiConfiguration loadConfig = new WifiConfiguration();
+        Map<String, String> networkExtras = new HashMap<>();
+        assertFalse(mSupplicantNetwork.loadWifiConfiguration(loadConfig, networkExtras));
+    }
+
     private void testWifiConfigurationSaveLoad(WifiConfiguration config) {
         assertTrue(mSupplicantNetwork.saveWifiConfiguration(config));
         WifiConfiguration loadConfig = new WifiConfiguration();
@@ -220,9 +309,17 @@ public class SupplicantStaNetworkHalTest {
                 Integer.parseInt(networkExtras.get(
                         SupplicantStaNetworkHal.ID_STRING_KEY_CREATOR_UID)));
         // There is no getter for this one, so check the supplicant variable.
-        if (config.updateIdentifier != null) {
+        if (!TextUtils.isEmpty(config.updateIdentifier)) {
             assertEquals(Integer.parseInt(config.updateIdentifier),
                     mSupplicantVariables.updateIdentifier);
+        }
+        // There is no getter for this one, so check the supplicant variable.
+        String oppKeyCaching =
+                config.enterpriseConfig.getFieldValue(WifiEnterpriseConfig.OPP_KEY_CACHING);
+        if (!TextUtils.isEmpty(oppKeyCaching)) {
+            assertEquals(
+                    Integer.parseInt(oppKeyCaching) == 1 ? true : false,
+                    mSupplicantVariables.eapProactiveKeyCaching);
         }
     }
 
@@ -426,6 +523,237 @@ public class SupplicantStaNetworkHalTest {
                 return mStatusSuccess;
             }
         }).when(mISupplicantStaNetworkMock).setUpdateIdentifier(any(int.class));
+
+        /** EAP method */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(int method) throws RemoteException {
+                mSupplicantVariables.eapMethod = method;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapMethod(any(int.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapMethodCallback cb)
+                    throws RemoteException {
+                // When not set, return failure.
+                if (mSupplicantVariables.eapMethod == -1) {
+                    cb.onValues(mStatusFailure, mSupplicantVariables.eapMethod);
+                } else {
+                    cb.onValues(mStatusSuccess, mSupplicantVariables.eapMethod);
+                }
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapMethod(any(ISupplicantStaNetwork.getEapMethodCallback.class));
+
+        /** EAP Phase 2 method */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(int method) throws RemoteException {
+                mSupplicantVariables.eapPhase2Method = method;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapPhase2Method(any(int.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapPhase2MethodCallback cb)
+                    throws RemoteException {
+                // When not set, return failure.
+                if (mSupplicantVariables.eapPhase2Method == -1) {
+                    cb.onValues(mStatusFailure, mSupplicantVariables.eapPhase2Method);
+                } else {
+                    cb.onValues(mStatusSuccess, mSupplicantVariables.eapPhase2Method);
+                }
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapPhase2Method(any(ISupplicantStaNetwork.getEapPhase2MethodCallback.class));
+
+        /** EAP Identity */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(ArrayList<Byte> identity) throws RemoteException {
+                mSupplicantVariables.eapIdentity = identity;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapIdentity(any(ArrayList.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapIdentityCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.eapIdentity);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapIdentity(any(ISupplicantStaNetwork.getEapIdentityCallback.class));
+
+        /** EAP Anonymous Identity */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(ArrayList<Byte> identity) throws RemoteException {
+                mSupplicantVariables.eapAnonymousIdentity = identity;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapAnonymousIdentity(any(ArrayList.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapAnonymousIdentityCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.eapAnonymousIdentity);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapAnonymousIdentity(
+                        any(ISupplicantStaNetwork.getEapAnonymousIdentityCallback.class));
+
+        /** EAP Password */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(ArrayList<Byte> password) throws RemoteException {
+                mSupplicantVariables.eapPassword = password;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapPassword(any(ArrayList.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapPasswordCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.eapPassword);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapPassword(any(ISupplicantStaNetwork.getEapPasswordCallback.class));
+
+        /** EAP Client Cert */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(String cert) throws RemoteException {
+                mSupplicantVariables.eapClientCert = cert;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapClientCert(any(String.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapClientCertCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.eapClientCert);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapClientCert(any(ISupplicantStaNetwork.getEapClientCertCallback.class));
+
+        /** EAP CA Cert */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(String cert) throws RemoteException {
+                mSupplicantVariables.eapCACert = cert;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapCACert(any(String.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapCACertCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.eapCACert);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapCACert(any(ISupplicantStaNetwork.getEapCACertCallback.class));
+
+        /** EAP Subject Match */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(String match) throws RemoteException {
+                mSupplicantVariables.eapSubjectMatch = match;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapSubjectMatch(any(String.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapSubjectMatchCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.eapSubjectMatch);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapSubjectMatch(any(ISupplicantStaNetwork.getEapSubjectMatchCallback.class));
+
+        /** EAP Engine */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(boolean enable) throws RemoteException {
+                mSupplicantVariables.eapEngine = enable;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapEngine(any(boolean.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapEngineCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.eapEngine);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapEngine(any(ISupplicantStaNetwork.getEapEngineCallback.class));
+
+        /** EAP Engine ID */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(String id) throws RemoteException {
+                mSupplicantVariables.eapEngineID = id;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapEngineID(any(String.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapEngineIDCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.eapEngineID);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapEngineID(any(ISupplicantStaNetwork.getEapEngineIDCallback.class));
+
+        /** EAP Private Key */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(String key) throws RemoteException {
+                mSupplicantVariables.eapPrivateKey = key;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapPrivateKey(any(String.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapPrivateKeyCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.eapPrivateKey);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapPrivateKey(any(ISupplicantStaNetwork.getEapPrivateKeyCallback.class));
+
+        /** EAP Alt Subject Match */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(String match) throws RemoteException {
+                mSupplicantVariables.eapAltSubjectMatch = match;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapAltSubjectMatch(any(String.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapAltSubjectMatchCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.eapAltSubjectMatch);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapAltSubjectMatch(
+                        any(ISupplicantStaNetwork.getEapAltSubjectMatchCallback.class));
+
+        /** EAP Domain Suffix Match */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(String match) throws RemoteException {
+                mSupplicantVariables.eapDomainSuffixMatch = match;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapDomainSuffixMatch(any(String.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapDomainSuffixMatchCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.eapDomainSuffixMatch);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapDomainSuffixMatch(
+                        any(ISupplicantStaNetwork.getEapDomainSuffixMatchCallback.class));
+
+        /** EAP CA Path*/
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(String path) throws RemoteException {
+                mSupplicantVariables.eapCAPath = path;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setEapCAPath(any(String.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getEapCAPathCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.eapCAPath);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getEapCAPath(any(ISupplicantStaNetwork.getEapCAPathCallback.class));
+
+        /** EAP Proactive Key Caching */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(boolean enable) throws RemoteException {
+                mSupplicantVariables.eapProactiveKeyCaching = enable;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setProactiveKeyCaching(any(boolean.class));
     }
 
     private SupplicantStatus createSupplicantStatus(int code) {
@@ -450,5 +778,20 @@ public class SupplicantStaNetworkHalTest {
         public String pskPassphrase;
         public ArrayList<Byte>[] wepKey = new ArrayList[4];
         public int wepTxKeyIdx;
+        public int eapMethod = -1;
+        public int eapPhase2Method = -1;
+        public ArrayList<Byte> eapIdentity;
+        public ArrayList<Byte> eapAnonymousIdentity;
+        public ArrayList<Byte> eapPassword;
+        public String eapCACert;
+        public String eapCAPath;
+        public String eapClientCert;
+        public String eapPrivateKey;
+        public String eapSubjectMatch;
+        public String eapAltSubjectMatch;
+        public boolean eapEngine;
+        public String eapEngineID;
+        public String eapDomainSuffixMatch;
+        public boolean eapProactiveKeyCaching;
     }
 }
