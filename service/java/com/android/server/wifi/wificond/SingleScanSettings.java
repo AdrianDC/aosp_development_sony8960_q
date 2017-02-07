@@ -30,7 +30,6 @@ import java.util.ArrayList;
 public class SingleScanSettings implements Parcelable {
     private static final String TAG = "SingleScanSettings";
 
-    public boolean isFullScan;
     public ArrayList<ChannelSettings> channelSettings;
     public ArrayList<HiddenNetwork> hiddenNetworks;
 
@@ -49,7 +48,6 @@ public class SingleScanSettings implements Parcelable {
      */
     @Override
     public void writeToParcel(Parcel out, int flags) {
-        out.writeInt(isFullScan ? 1 : 0);
         out.writeTypedList(channelSettings);
         out.writeTypedList(hiddenNetworks);
     }
@@ -63,7 +61,6 @@ public class SingleScanSettings implements Parcelable {
         @Override
         public SingleScanSettings createFromParcel(Parcel in) {
             SingleScanSettings result = new SingleScanSettings();
-            result.isFullScan = in.readInt() != 0 ? true : false;
             result.channelSettings = new ArrayList<ChannelSettings>();
             in.readTypedList(result.channelSettings, ChannelSettings.CREATOR);
             result.hiddenNetworks = new ArrayList<HiddenNetwork>();
