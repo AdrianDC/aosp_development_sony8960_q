@@ -24,6 +24,8 @@ import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
+import android.net.wifi.WifiManager;
+
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
@@ -307,6 +309,25 @@ public class WifiVendorHalTest {
 
         verify(mHalDeviceManager, never()).createStaIface(eq(null), eq(null));
         verify(mHalDeviceManager, never()).createRttController(any(IWifiIface.class));
+    }
+
+    /**
+     * Test translation to WifiManager.WIFI_FEATURE_*
+     *
+     * Just do a spot-check with a few feature bits here; since the code is table-
+     * driven we don't have to work hard to exercise all of it.
+     */
+    @Test
+    public void testFeatureMaskTranslation() {
+        int caps = (
+                IWifiStaIface.StaIfaceCapabilityMask.BACKGROUND_SCAN
+                | IWifiStaIface.StaIfaceCapabilityMask.LINK_LAYER_STATS
+            );
+        int expected = (
+                WifiManager.WIFI_FEATURE_INFRA
+                | WifiManager.WIFI_FEATURE_SCANNER
+                | WifiManager.WIFI_FEATURE_LINK_LAYER_STATS);
+        assertEquals(expected, mWifiVendorHal.wifiFeatureMaskFromStaCapabilities(caps));
     }
 
     /**
