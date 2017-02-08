@@ -42,6 +42,10 @@ public class PnoSettingsTest {
     private static final int TEST_MIN_2G_RSSI = -60;
     private static final int TEST_MIN_5G_RSSI = -65;
 
+    /**
+     *  PnoSettings object can be serialized and deserialized, while keeping the
+     *  values unchanged.
+     */
     @Test
     public void canSerializeAndDeserialize() throws Exception {
 
