@@ -34,7 +34,6 @@ import java.util.Arrays;
 @SmallTest
 public class SingleScanSettingsTest {
 
-    private static final boolean TEST_IS_FULL_SCAN = true;
     private static final byte[] TEST_SSID_1 =
             new byte[] {'G', 'o', 'o', 'g', 'l', 'e', 'G', 'u', 'e', 's', 't'};
     private static final byte[] TEST_SSID_2 =
@@ -55,7 +54,6 @@ public class SingleScanSettingsTest {
         hiddenNetwork2.ssid = TEST_SSID_2;
 
         SingleScanSettings scanSettings = new SingleScanSettings();
-        scanSettings.isFullScan = TEST_IS_FULL_SCAN;
         scanSettings.channelSettings =
                 new ArrayList(Arrays.asList(channelSettings1, channelSettings2));
         scanSettings.hiddenNetworks = new ArrayList(Arrays.asList(hiddenNetwork1, hiddenNetwork2));
@@ -67,8 +65,6 @@ public class SingleScanSettingsTest {
         SingleScanSettings scanSettingsDeserialized =
                 SingleScanSettings.CREATOR.createFromParcel(parcel);
 
-        assertEquals(scanSettings.isFullScan,
-                     scanSettingsDeserialized.isFullScan);
         assertNotNull(scanSettingsDeserialized.channelSettings);
         assertEquals(scanSettings.channelSettings.size(),
                      scanSettingsDeserialized.channelSettings.size());
