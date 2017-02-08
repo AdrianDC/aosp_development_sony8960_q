@@ -41,6 +41,10 @@ public class SingleScanSettingsTest {
     private static final int TEST_FREQUENCY_1 = 2456;
     private static final int TEST_FREQUENCY_2 = 5215;
 
+    /**
+     *  SingleScanSettings object can be serialized and deserialized, while keeping the
+     *  values unchanged.
+     */
     @Test
     public void canSerializeAndDeserialize() throws Exception {
         ChannelSettings channelSettings1 = new ChannelSettings();
