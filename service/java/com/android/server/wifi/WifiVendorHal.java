@@ -587,24 +587,48 @@ public class WifiVendorHal {
         throw new UnsupportedOperationException();
     }
 
-    private String mDriverDescription;
+    private String mDriverDescription; // Cached value filled by requestChipDebugInfo()
 
     /**
      * Vendor-provided wifi driver version string
      */
     public String getDriverVersion() {
-        kilroy();
-        throw new UnsupportedOperationException();
+        synchronized (sLock) {
+            if (mDriverDescription == null) requestChipDebugInfo();
+            return mDriverDescription;
+        }
     }
 
-    private String mFirmwareDescription;
+    private String mFirmwareDescription; // Cached value filled by requestChipDebugInfo()
 
     /**
      * Vendor-provided wifi firmware version string
      */
     public String getFirmwareVersion() {
-        kilroy();
-        throw new UnsupportedOperationException();
+        synchronized (sLock) {
+            if (mFirmwareDescription == null) requestChipDebugInfo();
+            return mFirmwareDescription;
+        }
+    }
+
+    /**
+     * Refreshes our idea of the driver and firmware versions
+     */
+    private void requestChipDebugInfo() {
+        mDriverDescription = null;
+        mFirmwareDescription = null;
+        try {
+            if (mIWifiChip == null) return;
+            mIWifiChip.requestChipDebugInfo((status, chipDebugInfo) -> {
+                if (status.code != WifiStatusCode.SUCCESS) return;
+                mDriverDescription = chipDebugInfo.driverDescription;
+                mFirmwareDescription = chipDebugInfo.firmwareDescription;
+            });
+        } catch (RemoteException e) {
+            handleRemoteException(e);
+            return;
+        }
+        Log.e(TAG, "Driver: " + mDriverDescription + " Firmware: " + mFirmwareDescription);
     }
 
     /**
