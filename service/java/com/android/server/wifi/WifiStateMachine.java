@@ -59,7 +59,6 @@ import android.net.dhcp.DhcpClient;
 import android.net.ip.IpManager;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
-import android.net.wifi.IWificond;
 import android.net.wifi.RssiPacketCountInfo;
 import android.net.wifi.ScanResult;
 import android.net.wifi.ScanSettings;
@@ -201,7 +200,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private WifiConnectivityManager mWifiConnectivityManager;
     private WifiNetworkSelector mWifiNetworkSelector;
     private INetworkManagementService mNwService;
-    private IWificond mWificond;
     private IClientInterface mClientInterface;
     private ConnectivityManager mCm;
     private BaseWifiDiagnostics mWifiDiagnostics;
@@ -1019,10 +1017,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         setLogRecSize(NUM_LOG_RECS_NORMAL);
         setLogOnlyTransitions(false);
-
-        // wificond will be also restarted when zygote restarts
-        // no need to call tearDowninterfaces to clean up during init
-        mWificond = mWifiInjector.makeWificond();
 
         //start the state machine
         start();
@@ -3255,12 +3249,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         */
         if (killSupplicant) {
             mWifiMonitor.stopAllMonitoring();
-            try {
-                if (!mClientInterface.disableSupplicant()) {
-                    loge("Failed to disable supplicant after connection loss");
-                }
-            } catch (RemoteException e) {
-                // Remote interface has died, there is no cleanup we can do.
+            if (!mWifiNative.disableSupplicant()) {
+                loge("Failed to disable supplicant after connection loss");
             }
         }
         mWifiNative.closeSupplicantConnection();
@@ -3463,52 +3453,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         // Disconnect via supplicant, and let autojoin retry connecting to the network.
         mWifiNative.disconnect();
-    }
-
-    private static IClientInterface setupDriverForClientMode(IWificond wificond) {
-        if (wificond == null) {
-            Log.e(TAG, "Failed to get reference to wificond");
-            return null;
-        }
-
-        IClientInterface clientInterface = null;
-        try {
-            clientInterface = wificond.createClientInterface();
-        } catch (RemoteException e1) { }
-
-        if (clientInterface == null) {
-            Log.e(TAG, "Could not get IClientInterface instance from wificond");
-            return null;
-        } else {
-            Binder.allowBlocking(clientInterface.asBinder());
-        }
-
-        return clientInterface;
-    }
-
-    private IApInterface setupDriverForSoftAp() {
-        if (mWificond == null) {
-            Log.e(TAG, "Failed to get reference to wificond");
-            return null;
-        }
-
-        IApInterface apInterface = null;
-        try {
-            apInterface = mWificond.createApInterface();
-        } catch (RemoteException e1) { }
-
-        if (apInterface == null) {
-            Log.e(TAG, "Could not get IApInterface instance from wificond");
-            return null;
-        } else {
-            Binder.allowBlocking(apInterface.asBinder());
-        }
-
-        if (!mWifiNative.startHal(false)) {
-            // TODO(b/34859006): Handle failures.
-            Log.e(TAG, "Failed to start HAL for AP mode");
-        }
-        return apInterface;
     }
 
     private byte[] macAddressFromString(String macString) {
@@ -3993,15 +3937,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiMonitor.stopAllMonitoring();
 
             mDeathRecipient.unlinkToDeath();
-            if (mWificond != null) {
-                try {
-                    mWificond.tearDownInterfaces();
-                } catch (RemoteException e) {
-                    // There is very little we can do here
-                    Log.e(TAG, "Failed to tear down interfaces via wificond");
-                }
-                mWificond = null;
-            }
+            mWifiNative.tearDownInterfaces();
+
             mWifiNative.stopHal();
         }
 
@@ -4015,11 +3952,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             logStateAndMessage(message, this);
             switch (message.what) {
                 case CMD_START_SUPPLICANT:
-                    // Refresh our reference to wificond.  This allows us to tolerate restarts.
-                    mWificond = mWifiInjector.makeWificond();
-                    mClientInterface = setupDriverForClientMode(mWificond);
-                    if (mClientInterface == null ||
-                            !mDeathRecipient.linkToDeath(mClientInterface.asBinder())) {
+                    mClientInterface = mWifiNative.setupDriverForClientMode();
+                    if (mClientInterface == null
+                            || !mDeathRecipient.linkToDeath(mClientInterface.asBinder())) {
                         setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                         cleanup();
                         break;
@@ -4046,19 +3981,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         loge("Unable to change interface settings: " + ie);
                     }
 
-                    if (!mWifiNative.startHal(true)) {
-                        // TODO(b/34859006): Handle failures.
-                        Log.e(TAG, "Failed to start HAL for client mode");
-                    }
-
-                    try {
-                        if (!mClientInterface.enableSupplicant()) {
-                            loge("Failed to start supplicant!");
-                            setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
-                            cleanup();
-                            break;
-                        }
-                    } catch (RemoteException e) {
+                    if (!mWifiNative.enableSupplicant()) {
+                        loge("Failed to start supplicant!");
+                        setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                         cleanup();
                         break;
                     }
@@ -4072,8 +3997,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     transitionTo(mSupplicantStartingState);
                     break;
                 case CMD_START_AP:
-                    // Refresh our reference to wificond.  This allows us to tolerate restarts.
-                    mWificond = mWifiInjector.makeWificond();
                     transitionTo(mSoftApState);
                     break;
                 case CMD_SET_OPERATIONAL_MODE:
@@ -4150,11 +4073,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (++mSupplicantRestartCount <= SUPPLICANT_RESTART_TRIES) {
                         loge("Failed to setup control channel, restart supplicant");
                         mWifiMonitor.stopAllMonitoring();
-                        try {
-                            mClientInterface.disableSupplicant();
-                        } catch (RemoteException e) {
-                            // The client interface is dead, there is nothing more we can do.
-                        }
+                        mWifiNative.disableSupplicant();
                         transitionTo(mInitialState);
                         sendMessageDelayed(CMD_START_SUPPLICANT, SUPPLICANT_RESTART_INTERVAL_MSECS);
                     } else {
@@ -6663,7 +6582,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 throw new RuntimeException("Illegal transition to SoftApState: " + message);
             }
 
-            IApInterface apInterface = setupDriverForSoftAp();
+            IApInterface apInterface = mWifiNative.setupDriverForSoftApMode();
             if (apInterface == null) {
                 setWifiApState(WIFI_AP_STATE_FAILED,
                         WifiManager.SAP_START_FAILURE_GENERAL);

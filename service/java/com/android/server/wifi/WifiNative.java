@@ -20,6 +20,8 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
 import android.net.apf.ApfCapabilities;
+import android.net.wifi.IApInterface;
+import android.net.wifi.IClientInterface;
 import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
 import android.net.wifi.ScanResult;
@@ -138,6 +140,7 @@ public class WifiNative {
     private final String mInterfacePrefix;
     private SupplicantStaIfaceHal mSupplicantStaIfaceHal;
     private WifiVendorHal mWifiVendorHal;
+    private WificondControl mWificondControl;
 
     private Context mContext = null;
     public void initContext(Context context) {
@@ -153,6 +156,15 @@ public class WifiNative {
      */
     public void setSupplicantStaIfaceHal(SupplicantStaIfaceHal wifiSupplicantHal) {
         mSupplicantStaIfaceHal = wifiSupplicantHal;
+    }
+
+    /**
+     * Explicitly sets the WificondControl instance
+     * TODO(b/34722734): move this into the constructor of WifiNative when I clean up the awful
+     * double singleton pattern
+     */
+    public void setWificondControl(WificondControl wificondControl) {
+        mWificondControl = wificondControl;
     }
 
     /**
@@ -215,7 +227,58 @@ public class WifiNative {
         if (sLocalLog != null) sLocalLog.log(mInterfaceName + ": " + s);
     }
 
+   /**
+    * Setup driver for client mode via wificond.
+    * @return An IClientInterface as wificond client interface binder handler.
+    * Returns null on failure.
+    */
+    public IClientInterface setupDriverForClientMode() {
+        IClientInterface clientInterface = mWificondControl.setupDriverForClientMode();
+        if (!startHal(true)) {
+            // TODO(b/34859006): Handle failures.
+            Log.e(TAG, "Failed to start HAL for client mode");
+        }
+        return clientInterface;
+    }
 
+    /**
+    * Setup driver for softAp mode via wificond.
+    * @return An IApInterface as wificond Ap interface binder handler.
+    * Returns null on failure.
+    */
+    public IApInterface setupDriverForSoftApMode() {
+        IApInterface apInterface = mWificondControl.setupDriverForSoftApMode();
+
+        if (!startHal(false)) {
+            // TODO(b/34859006): Handle failures.
+            Log.e(TAG, "Failed to start HAL for AP mode");
+        }
+        return apInterface;
+    }
+
+    /**
+    * Teardown all interfaces configured in wificond.
+    * @return Returns true on success.
+    */
+    public boolean tearDownInterfaces() {
+        return mWificondControl.tearDownInterfaces();
+    }
+
+    /**
+    * Disable wpa_supplicant via wificond.
+    * @return Returns true on success.
+    */
+    public boolean disableSupplicant() {
+        return mWificondControl.disableSupplicant();
+    }
+
+    /**
+    * Enable wpa_supplicant via wificond.
+    * @return Returns true on success.
+    */
+    public boolean enableSupplicant() {
+        return mWificondControl.enableSupplicant();
+    }
 
     /*
      * Supplicant management
