@@ -279,6 +279,43 @@ public class WifiAwareStateManagerTest {
     }
 
     /**
+     * Validates that a HAL failure on enable and configure results in failed callback.
+     */
+    @Test
+    public void testHalFailureEnableAndConfigure() throws Exception {
+        final int clientId = 12341;
+        final int uid = 1000;
+        final int pid = 2000;
+        final String callingPackage = "com.google.somePackage";
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+
+        IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        InOrder inOrder = inOrder(mMockContext, mMockNative, mockCallback);
+
+        when(mMockNative.enableAndConfigure(anyShort(), any(ConfigRequest.class), anyBoolean(),
+                anyBoolean())).thenReturn(false);
+
+        // (1) check initial state
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        validateCorrectAwareStatusChangeBroadcast(inOrder, true);
+        inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
+        mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
+        mMockLooper.dispatchAll();
+
+        // (2) connect with HAL failure
+        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
+                eq(false), eq(true));
+        inOrder.verify(mockCallback).onConnectFail(NanStatusType.INTERNAL_FAILURE);
+
+        validateInternalClientInfoCleanedUp(clientId);
+        verifyNoMoreInteractions(mMockNative, mockCallback);
+    }
+
+    /**
      * Validates that all events are delivered with correct arguments. Validates
      * that IdentityChanged not delivered if configuration disables delivery.
      */
@@ -426,8 +463,8 @@ public class WifiAwareStateManagerTest {
     }
 
     /**
-     * Validates publish flow: (1) initial publish (2) fail. Expected: get a
-     * failure callback.
+     * Validates publish flow: (1) initial publish (2) fail informed by notification, (3) fail due
+     * to immediate HAL failure. Expected: get a failure callback.
      */
     @Test
     public void testPublishFail() throws Exception {
@@ -466,9 +503,19 @@ public class WifiAwareStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
 
-        // (2) publish failure
+        // (2) publish failure callback (i.e. firmware tried and failed)
         mDut.onSessionConfigFailResponse(transactionId.getValue(), true, reasonFail);
         mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onSessionConfigFail(reasonFail);
+        validateInternalNoSessions(clientId);
+
+        // (3) publish and get immediate failure (i.e. HAL failed)
+        when(mMockNative.publish(anyShort(), anyInt(), any(PublishConfig.class))).thenReturn(false);
+
+        mDut.publish(clientId, publishConfig, mockSessionCallback);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+
         inOrder.verify(mockSessionCallback).onSessionConfigFail(reasonFail);
         validateInternalNoSessions(clientId);
 
@@ -550,9 +597,10 @@ public class WifiAwareStateManagerTest {
     }
 
     /**
-     * Validate the publish flow: (1) initial publish + (2) success + (3) update
-     * + (4) update fails + (5) update + (6). Expected: session is still alive
-     * after update failure so second update succeeds (no callbacks).
+     * Validate the publish flow: (1) initial publish + (2) success + (3) update + (4) update
+     * fails (callback from firmware) + (5) update + (6). Expected: session is still alive after
+     * update failure so second update succeeds (no callbacks) + (7) update + immediate failure from
+     * HAL.
      */
     @Test
     public void testPublishUpdateFail() throws Exception {
@@ -620,6 +668,15 @@ public class WifiAwareStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionConfigSuccess();
 
+        // (7) another update + immediate failure
+        when(mMockNative.publish(anyShort(), anyInt(), any(PublishConfig.class))).thenReturn(false);
+
+        mDut.updatePublish(clientId, sessionId.getValue(), publishConfig);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(publishId),
+                eq(publishConfig));
+        inOrder.verify(mockSessionCallback).onSessionConfigFail(reasonFail);
+
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
     }
 
@@ -684,8 +741,8 @@ public class WifiAwareStateManagerTest {
     }
 
     /**
-     * Validates subscribe flow: (1) initial subscribe (2) fail. Expected: get a
-     * failure callback.
+     * Validates subscribe flow: (1) initial subscribe (2) fail (callback from firmware), (3) fail
+     * due to immeidate HAL failure. Expected: get a failure callback.
      */
     @Test
     public void testSubscribeFail() throws Exception {
@@ -727,6 +784,17 @@ public class WifiAwareStateManagerTest {
         // (2) subscribe failure
         mDut.onSessionConfigFailResponse(transactionId.getValue(), false, reasonFail);
         mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onSessionConfigFail(reasonFail);
+        validateInternalNoSessions(clientId);
+
+        // (3) subscribe and get immediate failure (i.e. HAL failed)
+        when(mMockNative.subscribe(anyShort(), anyInt(), any(SubscribeConfig.class)))
+                .thenReturn(false);
+
+        mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+
         inOrder.verify(mockSessionCallback).onSessionConfigFail(reasonFail);
         validateInternalNoSessions(clientId);
 
@@ -807,9 +875,10 @@ public class WifiAwareStateManagerTest {
     }
 
     /**
-     * Validate the subscribe flow: (1) initial subscribe + (2) success + (3)
-     * update + (4) update fails + (5) update + (6). Expected: session is still
-     * alive after update failure so second update succeeds (no callbacks).
+     * Validate the subscribe flow: (1) initial subscribe + (2) success + (3) update + (4) update
+     * fails (callback from firmware) + (5) update + (6). Expected: session is still alive after
+     * update failure so second update succeeds (no callbacks). + (7) update + immediate failure
+     * from HAL.
      */
     @Test
     public void testSubscribeUpdateFail() throws Exception {
@@ -876,6 +945,16 @@ public class WifiAwareStateManagerTest {
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionConfigSuccess();
+
+        // (7) another update + immediate failure
+        when(mMockNative.subscribe(anyShort(), anyInt(), any(SubscribeConfig.class)))
+                .thenReturn(false);
+
+        mDut.updateSubscribe(clientId, sessionId.getValue(), subscribeConfig);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(subscribeId),
+                eq(subscribeConfig));
+        inOrder.verify(mockSessionCallback).onSessionConfigFail(reasonFail);
 
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
     }
