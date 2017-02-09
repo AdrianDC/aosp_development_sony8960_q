@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -25,11 +26,17 @@ import static org.mockito.Mockito.when;
 
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
+import android.net.wifi.IWifiScannerImpl;
 import android.net.wifi.IWificond;
 import android.test.suitebuilder.annotation.SmallTest;
 
+import com.android.server.wifi.wificond.NativeScanResult;
+
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.BitSet;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WificondControl}.
@@ -38,6 +45,36 @@ import org.junit.Test;
 public class WificondControlTest {
     private WifiInjector mWifiInjector;
     private WificondControl mWificondControl;
+    private static final byte[] TEST_SSID =
+            new byte[] {'G', 'o', 'o', 'g', 'l', 'e', 'G', 'u', 'e', 's', 't'};
+    private static final byte[] TEST_BSSID =
+            new byte[] {(byte) 0x12, (byte) 0xef, (byte) 0xa1,
+                        (byte) 0x2c, (byte) 0x97, (byte) 0x8b};
+    // This the IE buffer which is consistent with TEST_SSID.
+    private static final byte[] TEST_INFO_ELEMENT =
+            new byte[] {
+                    // Element ID for SSID.
+                    (byte) 0x00,
+                    // Length of the SSID: 0x0b or 11.
+                    (byte) 0x0b,
+                    // This is string "GoogleGuest"
+                    'G', 'o', 'o', 'g', 'l', 'e', 'G', 'u', 'e', 's', 't'};
+
+    private static final int TEST_FREQUENCY = 2456;
+    private static final int TEST_SIGNAL_MBM = -4500;
+    private static final long TEST_TSF = 34455441;
+    private static final BitSet TEST_CAPABILITY = new BitSet(16) {{ set(2); set(5); }};
+    private static final boolean TEST_ASSOCIATED = true;
+    private static final NativeScanResult MOCK_NATIVE_SCAN_RESULT =
+            new NativeScanResult() {{
+                ssid = TEST_SSID;
+                bssid = TEST_BSSID;
+                infoElement = TEST_INFO_ELEMENT;
+                frequency = TEST_FREQUENCY;
+                signalMbm = TEST_SIGNAL_MBM;
+                capability = TEST_CAPABILITY;
+                associated = TEST_ASSOCIATED;
+            }};
 
     @Before
     public void setUp() throws Exception {
@@ -310,5 +347,62 @@ public class WificondControlTest {
 
         // Signal poll should fail.
         assertEquals(null, mWificondControl.getTxPacketCounters());
+    }
+
+    /**
+     * Verifies that getScanResults() returns null when there is no configured client
+     * interface.
+     */
+    @Test
+    public void testGetScanResultsErrorWhenNoClientInterfaceConfigured() throws Exception {
+        IWificond wificond = mock(IWificond.class);
+        IClientInterface clientInterface = mock(IClientInterface.class);
+
+        when(mWifiInjector.makeWificond()).thenReturn(wificond);
+        when(wificond.createClientInterface()).thenReturn(clientInterface);
+
+        // Configure client interface.
+        IClientInterface returnedClientInterface = mWificondControl.setupDriverForClientMode();
+        assertEquals(clientInterface, returnedClientInterface);
+
+        // Tear down interfaces.
+        assertTrue(mWificondControl.tearDownInterfaces());
+
+        // getScanResults should fail.
+        assertEquals(0, mWificondControl.getScanResults().size());
+    }
+
+    /**
+     * Verifies that getScanResults() can parse NativeScanResult from wificond correctly,
+     */
+    @Test
+    public void testGetScanResults() throws Exception {
+        IWificond wificond = mock(IWificond.class);
+        IClientInterface clientInterface = mock(IClientInterface.class);
+        IWifiScannerImpl scanner = mock(IWifiScannerImpl.class);
+
+        when(mWifiInjector.makeWificond()).thenReturn(wificond);
+        when(wificond.createClientInterface()).thenReturn(clientInterface);
+        when(clientInterface.getWifiScannerImpl()).thenReturn(scanner);
+
+        // Mock the returned array of NativeScanResult.
+        NativeScanResult[] mockScanResults = {MOCK_NATIVE_SCAN_RESULT};
+        when(scanner.getScanResults()).thenReturn(mockScanResults);
+
+        // Configure client interface.
+        IClientInterface returnedClientInterface = mWificondControl.setupDriverForClientMode();
+        assertEquals(clientInterface, returnedClientInterface);
+        ArrayList<ScanDetail> returnedScanResults = mWificondControl.getScanResults();
+        assertEquals(mockScanResults.length, returnedScanResults.size());
+        // Since NativeScanResult is organized differently from ScanResult, this only checks
+        // a few fields.
+        for (int i = 0; i < mockScanResults.length; i++) {
+            assertArrayEquals(mockScanResults[i].ssid,
+                              returnedScanResults.get(i).getScanResult().SSID.getBytes());
+            assertEquals(mockScanResults[i].frequency,
+                         returnedScanResults.get(i).getScanResult().frequency);
+            assertEquals(mockScanResults[i].tsf,
+                         returnedScanResults.get(i).getScanResult().timestamp);
+        }
     }
 }
