@@ -242,7 +242,7 @@ public class WifiAwareDataPathStateManagerTest {
      */
     @Test
     public void testDataPathInitiatorMacTokenSuccess() throws Exception {
-        testDataPathInitiatorUtility(false, true, true, true);
+        testDataPathInitiatorUtility(false, true, true, true, false);
     }
 
     /**
@@ -251,7 +251,7 @@ public class WifiAwareDataPathStateManagerTest {
      */
     @Test(expected = IllegalArgumentException.class)
     public void testDataPathInitiatorMacNoTokenFail() throws Exception {
-        testDataPathInitiatorUtility(false, true, false, true);
+        testDataPathInitiatorUtility(false, true, false, true, false);
     }
 
     /**
@@ -260,7 +260,7 @@ public class WifiAwareDataPathStateManagerTest {
      */
     @Test(expected = IllegalArgumentException.class)
     public void testDataPathInitiatorNoMacFail() throws Exception {
-        testDataPathInitiatorUtility(false, false, true, true);
+        testDataPathInitiatorUtility(false, false, true, true, false);
     }
 
     /**
@@ -269,7 +269,7 @@ public class WifiAwareDataPathStateManagerTest {
      */
     @Test
     public void testDataPathInitiatorDirectMacTokenSuccess() throws Exception {
-        testDataPathInitiatorUtility(true, true, true, true);
+        testDataPathInitiatorUtility(true, true, true, true, false);
     }
 
     /**
@@ -278,7 +278,7 @@ public class WifiAwareDataPathStateManagerTest {
      */
     @Test(expected = IllegalArgumentException.class)
     public void testDataPathInitiatorDirectMacNoTokenFail() throws Exception {
-        testDataPathInitiatorUtility(true, true, false, true);
+        testDataPathInitiatorUtility(true, true, false, true, false);
     }
 
     /**
@@ -287,7 +287,7 @@ public class WifiAwareDataPathStateManagerTest {
      */
     @Test(expected = IllegalArgumentException.class)
     public void testDataPathInitiatorDirectNoMacTokenFail() throws Exception {
-        testDataPathInitiatorUtility(true, false, true, true);
+        testDataPathInitiatorUtility(true, false, true, true, false);
     }
 
     /**
@@ -296,7 +296,7 @@ public class WifiAwareDataPathStateManagerTest {
      */
     @Test(expected = IllegalArgumentException.class)
     public void testDataPathInitiatorDirectNoMacNoTokenFail() throws Exception {
-        testDataPathInitiatorUtility(true, false, false, true);
+        testDataPathInitiatorUtility(true, false, false, true, false);
     }
 
     /**
@@ -305,7 +305,16 @@ public class WifiAwareDataPathStateManagerTest {
      */
     @Test
     public void testDataPathInitiatorNoConfirmationTimeoutFail() throws Exception {
-        testDataPathInitiatorUtility(false, true, true, false);
+        testDataPathInitiatorUtility(false, true, true, false, false);
+    }
+
+    /**
+     * Validate the fail flow of the Initiator: use a session network specifier with a non-null
+     * token, but get an immediate failure
+     */
+    @Test
+    public void testDataPathInitiatorNoConfirmationHalFail() throws Exception {
+        testDataPathInitiatorUtility(false, true, true, true, true);
     }
 
     /**
@@ -459,7 +468,8 @@ public class WifiAwareDataPathStateManagerTest {
     }
 
     private void testDataPathInitiatorUtility(boolean useDirect, boolean provideMac,
-            boolean provideToken, boolean getConfirmation) throws Exception {
+            boolean provideToken, boolean getConfirmation, boolean immediateHalFailure)
+            throws Exception {
         final int clientId = 123;
         final int pubSubId = 11234;
         final PeerHandle peerHandle = new PeerHandle(1341234);
@@ -472,6 +482,12 @@ public class WifiAwareDataPathStateManagerTest {
         ArgumentCaptor<Messenger> messengerCaptor = ArgumentCaptor.forClass(Messenger.class);
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mMockNative, mMockCm, mMockCallback, mMockSessionCallback);
+
+        if (immediateHalFailure) {
+            when(mMockNative.initiateDataPath(anyShort(), anyInt(), anyInt(), anyInt(),
+                    any(byte[].class), anyString(), any(byte[].class))).thenReturn(false);
+
+        }
 
         // (0) initialize
         Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId, peerHandle,
@@ -498,6 +514,12 @@ public class WifiAwareDataPathStateManagerTest {
                 eq(useDirect ? 0 : peerHandle.peerId),
                 eq(REQUEST_CHANNEL_SETUP), eq(2437), eq(peerDiscoveryMac),
                 eq(sAwareInterfacePrefix + "0"), eq(token.getBytes()));
+        if (immediateHalFailure) {
+            // short-circuit the rest of this test
+            verifyNoMoreInteractions(mMockNative, mMockCm);
+            return;
+        }
+
         mDut.onInitiateDataPathResponseSuccess(transactionId.getValue(), ndpId);
         mMockLooper.dispatchAll();
 
