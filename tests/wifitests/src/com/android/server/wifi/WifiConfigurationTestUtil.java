@@ -488,6 +488,8 @@ public class WifiConfigurationTestUtil {
         assertEquals(expected.allowedAuthAlgorithms, actual.allowedAuthAlgorithms);
         assertEquals(expected.allowedGroupCiphers, actual.allowedGroupCiphers);
         assertEquals(expected.allowedPairwiseCiphers, actual.allowedPairwiseCiphers);
+        assertWifiEnterpriseConfigEqualForConfigStore(
+                expected.enterpriseConfig, actual.enterpriseConfig);
     }
 
     /**
