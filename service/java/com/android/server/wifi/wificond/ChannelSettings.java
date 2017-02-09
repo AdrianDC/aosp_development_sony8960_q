@@ -20,6 +20,8 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.Log;
 
+import java.util.Objects;
+
 /**
  * ChannelSettings for wificond
  *
@@ -32,6 +34,26 @@ public class ChannelSettings implements Parcelable {
 
     /** public constructor */
     public ChannelSettings() { }
+
+    /** override comparator */
+    @Override
+    public boolean equals(Object rhs) {
+        if (this == rhs) return true;
+        if (!(rhs instanceof ChannelSettings)) {
+            return false;
+        }
+        ChannelSettings channel = (ChannelSettings) rhs;
+        if (channel == null) {
+            return false;
+        }
+        return frequency == channel.frequency;
+    }
+
+    /** override hash code */
+    @Override
+    public int hashCode() {
+        return Objects.hash(frequency);
+    }
 
     /** implement Parcelable interface */
     @Override

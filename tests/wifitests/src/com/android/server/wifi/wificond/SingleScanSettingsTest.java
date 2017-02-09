@@ -16,7 +16,6 @@
 
 package com.android.server.wifi.wificond;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -69,21 +68,7 @@ public class SingleScanSettingsTest {
         SingleScanSettings scanSettingsDeserialized =
                 SingleScanSettings.CREATOR.createFromParcel(parcel);
 
-        assertNotNull(scanSettingsDeserialized.channelSettings);
-        assertEquals(scanSettings.channelSettings.size(),
-                     scanSettingsDeserialized.channelSettings.size());
-        assertArrayEquals(scanSettings.hiddenNetworks.get(0).ssid,
-                          scanSettingsDeserialized.hiddenNetworks.get(0).ssid);
-        assertArrayEquals(scanSettings.hiddenNetworks.get(1).ssid,
-                          scanSettingsDeserialized.hiddenNetworks.get(1).ssid);
-
-        assertNotNull(scanSettingsDeserialized.hiddenNetworks);
-        assertEquals(scanSettings.hiddenNetworks.size(),
-                     scanSettingsDeserialized.hiddenNetworks.size());
-        assertEquals(scanSettings.channelSettings.get(0).frequency,
-                          scanSettingsDeserialized.channelSettings.get(0).frequency);
-        assertEquals(scanSettings.channelSettings.get(1).frequency,
-                          scanSettingsDeserialized.channelSettings.get(1).frequency);
-
+        assertNotNull(scanSettingsDeserialized);
+        assertEquals(scanSettings, scanSettingsDeserialized);
     }
 }

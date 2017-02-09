@@ -19,6 +19,8 @@ package com.android.server.wifi.wificond;
 import android.os.Parcel;
 import android.os.Parcelable;
 
+import java.util.Objects;
+
 /**
  * PnoNetwork for wificond
  *
@@ -31,6 +33,24 @@ public class PnoNetwork implements Parcelable {
 
     /** public constructor */
     public PnoNetwork() { }
+
+    /** override comparator */
+    @Override
+    public boolean equals(Object rhs) {
+        if (this == rhs) return true;
+        if (!(rhs instanceof PnoNetwork)) {
+            return false;
+        }
+        PnoNetwork network = (PnoNetwork) rhs;
+        return java.util.Arrays.equals(ssid, network.ssid)
+                && isHidden == network.isHidden;
+    }
+
+    /** override hash code */
+    @Override
+    public int hashCode() {
+        return Objects.hash(isHidden, ssid);
+    }
 
     /** implement Parcelable interface */
     @Override

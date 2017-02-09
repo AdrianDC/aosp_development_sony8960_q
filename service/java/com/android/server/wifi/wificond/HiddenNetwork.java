@@ -20,6 +20,8 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.Log;
 
+import java.util.Objects;
+
 /**
  * HiddenNetwork for wificond
  *
@@ -32,6 +34,23 @@ public class HiddenNetwork implements Parcelable {
 
     /** public constructor */
     public HiddenNetwork() { }
+
+    /** override comparator */
+    @Override
+    public boolean equals(Object rhs) {
+        if (this == rhs) return true;
+        if (!(rhs instanceof HiddenNetwork)) {
+            return false;
+        }
+        HiddenNetwork network = (HiddenNetwork) rhs;
+        return java.util.Arrays.equals(ssid, network.ssid);
+    }
+
+    /** override hash code */
+    @Override
+    public int hashCode() {
+        return Objects.hash(ssid);
+    }
 
     /** implement Parcelable interface */
     @Override

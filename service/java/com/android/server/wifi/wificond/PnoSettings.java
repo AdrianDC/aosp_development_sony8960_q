@@ -20,6 +20,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 import java.util.ArrayList;
+import java.util.Objects;
 
 /**
  * PnoSettings for wificond
@@ -34,6 +35,29 @@ public class PnoSettings implements Parcelable {
 
     /** public constructor */
     public PnoSettings() { }
+
+    /** override comparator */
+    @Override
+    public boolean equals(Object rhs) {
+        if (this == rhs) return true;
+        if (!(rhs instanceof PnoSettings)) {
+            return false;
+        }
+        PnoSettings settings = (PnoSettings) rhs;
+        if (settings == null) {
+            return false;
+        }
+        return intervalMs == settings.intervalMs
+                && min2gRssi == settings.min2gRssi
+                && min5gRssi == settings.min5gRssi
+                && pnoNetworks.equals(settings.pnoNetworks);
+    }
+
+    /** override hash code */
+    @Override
+    public int hashCode() {
+        return Objects.hash(intervalMs, min2gRssi, min5gRssi, pnoNetworks);
+    }
 
     /** implement Parcelable interface */
     @Override
