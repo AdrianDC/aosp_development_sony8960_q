@@ -1963,7 +1963,12 @@ public class SupplicantStaNetworkHal {
             }
         }
     }
-    /** See ISupplicantStaNetwork.hal for documentation */
+
+    /**
+     * Trigger a connection to this network.
+     *
+     * @return true if it succeeds, false otherwise.
+     */
     public boolean select() {
         synchronized (mLock) {
             final String methodStr = "select";
@@ -1977,6 +1982,7 @@ public class SupplicantStaNetworkHal {
             }
         }
     }
+
     /**
      * Send GSM auth response.
      *
@@ -2015,6 +2021,7 @@ public class SupplicantStaNetworkHal {
         }
         return sendNetworkEapSimGsmAuthResponse(params);
     }
+
     /** See ISupplicantStaNetwork.hal for documentation */
     private boolean sendNetworkEapSimGsmAuthResponse(
             ArrayList<ISupplicantStaNetwork.NetworkResponseEapSimGsmAuthParams> params) {
