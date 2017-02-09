@@ -19,6 +19,7 @@ package com.android.server.wifi.aware;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -56,7 +57,6 @@ import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
 import android.util.SparseArray;
-import android.util.SparseIntArray;
 
 import libcore.util.HexEncoding;
 
@@ -70,9 +70,12 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.lang.reflect.Field;
-import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Unit test harness for WifiAwareStateManager.
@@ -1377,11 +1380,12 @@ public class WifiAwareStateManagerTest {
     }
 
     /**
-     * Validate that on send message timeout correct callback is dispatched and that a later
-     * firmware notification is ignored.
+     * Validate that on send message errors are handled correctly: immediate send error, queue fail
+     * error (not queue full), and timeout. Behavior: correct callback is dispatched and a later
+     * firmware notification is ignored. Intersperse with one successfull transmission.
      */
     @Test
-    public void testSendMessageTimeout() throws Exception {
+    public void testSendMessageErrorsImmediateQueueTimeout() throws Exception {
         final int clientId = 1005;
         final int uid = 1000;
         final int pid = 2000;
@@ -1450,16 +1454,47 @@ public class WifiAwareStateManagerTest {
         mDut.onMessageSendQueuedSuccessResponse(transactionId2);
         mMockLooper.dispatchAll();
 
-        // (4) message send timeout
+        // (4) send a message and get a queueing failure (not queue full)
+        mDut.sendMessage(clientId, sessionId.getValue(), requestorId, ssi.getBytes(), messageId + 2,
+                0);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(subscribeId),
+                eq(requestorId), eq(peerMac), eq(ssi.getBytes()), eq(messageId + 2));
+        short transactionId3 = transactionId.getValue();
+        mDut.onMessageSendQueuedFailResponse(transactionId3, NanStatusType.INTERNAL_FAILURE);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onMessageSendFail(messageId + 2,
+                NanStatusType.INTERNAL_FAILURE);
+        validateInternalSendMessageQueuesCleanedUp(messageId + 2);
+
+        // (5) send a message and get an immediate failure (configure first)
+        when(mMockNative.sendMessage(anyShort(), anyInt(), anyInt(), any(byte[].class),
+                any(byte[].class), anyInt())).thenReturn(false);
+
+        mDut.sendMessage(clientId, sessionId.getValue(), requestorId, ssi.getBytes(), messageId + 3,
+                0);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).sendMessage(transactionId.capture(), eq(subscribeId),
+                eq(requestorId), eq(peerMac), eq(ssi.getBytes()), eq(messageId + 3));
+        short transactionId4 = transactionId.getValue();
+        inOrder.verify(mockSessionCallback).onMessageSendFail(messageId + 3,
+                NanStatusType.INTERNAL_FAILURE);
+        validateInternalSendMessageQueuesCleanedUp(messageId + 3);
+
+        // (6) message send timeout
         assertTrue(mAlarmManager.dispatch(WifiAwareStateManager.HAL_SEND_MESSAGE_TIMEOUT_TAG));
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onMessageSendFail(messageId,
                 NanStatusType.INTERNAL_FAILURE);
         validateInternalSendMessageQueuesCleanedUp(messageId);
 
-        // (5) firmware response (unlikely - but good to check)
+        // (7) firmware response (unlikely - but good to check)
         mDut.onMessageSendSuccessNotification(transactionId1);
         mDut.onMessageSendSuccessNotification(transactionId2);
+
+        // bogus: these didn't even go to firmware or weren't queued
+        mDut.onMessageSendSuccessNotification(transactionId3);
+        mDut.onMessageSendFailNotification(transactionId4, NanStatusType.INTERNAL_FAILURE);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onMessageSendSuccess(messageId + 1);
 
@@ -1639,6 +1674,230 @@ public class WifiAwareStateManagerTest {
     }
 
     /**
+     * Validate that the host-side message queue functions. Tests the perfect case of queue always
+     * succeeds and all messages are received on first attempt.
+     */
+    @Test
+    public void testSendMessageQueueSequence() throws Exception {
+        final int clientId = 1005;
+        final int uid = 1000;
+        final int pid = 2000;
+        final String callingPackage = "com.google.somePackage";
+        final String serviceName = "some-service-name";
+        final int subscribeId = 15;
+        final int requestorId = 22;
+        final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
+        final int messageIdBase = 6948;
+        final int numberOfMessages = 30;
+        final int queueDepth = 6;
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
+                .build();
+
+        IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
+        IWifiAwareDiscoverySessionCallback mockSessionCallback = mock(
+                IWifiAwareDiscoverySessionCallback.class);
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
+        ArgumentCaptor<Integer> messageIdCaptor = ArgumentCaptor.forClass(Integer.class);
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
+        mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
+        mMockLooper.dispatchAll();
+
+        // (0) connect
+        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
+                eq(configRequest), eq(false), eq(true));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
+
+        // (1) subscribe
+        mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
+
+        // (2) match
+        mDut.onMatchNotification(subscribeId, requestorId, peerMac, null, null);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onMatch(requestorId, null, null);
+
+        // (3) transmit messages
+        SendMessageQueueModelAnswer answerObj = new SendMessageQueueModelAnswer(queueDepth,
+                null, null, null);
+        when(mMockNative.sendMessage(anyShort(), anyInt(), anyInt(), any(byte[].class),
+                any(byte[].class), anyInt())).thenAnswer(answerObj);
+
+        int remainingMessages = numberOfMessages;
+        for (int i = 0; i < numberOfMessages; ++i) {
+            mDut.sendMessage(clientId, sessionId.getValue(), requestorId, null, messageIdBase + i,
+                    0);
+            mMockLooper.dispatchAll();
+            // at 1/2 interval have the system simulate transmitting a queued message over-the-air
+            if (i % 2 == 1) {
+                assertTrue(answerObj.process());
+                remainingMessages--;
+                mMockLooper.dispatchAll();
+            }
+        }
+        for (int i = 0; i < remainingMessages; ++i) {
+            assertTrue(answerObj.process());
+            mMockLooper.dispatchAll();
+        }
+        assertEquals("queue empty", 0, answerObj.queueSize());
+
+        inOrder.verify(mockSessionCallback, times(numberOfMessages)).onMessageSendSuccess(
+                messageIdCaptor.capture());
+        for (int i = 0; i < numberOfMessages; ++i) {
+            assertEquals("message ID: " + i, (long) messageIdBase + i,
+                    (long) messageIdCaptor.getAllValues().get(i));
+        }
+
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback);
+    }
+
+    /**
+     * Validate that the host-side message queue functions. A combination of imperfect conditions:
+     * - Failure to queue: synchronous firmware error
+     * - Failure to queue: asyncronous firmware error
+     * - Failure to transmit: OTA (which will be retried)
+     * - Failure to transmit: other
+     */
+    @Test
+    public void testSendMessageQueueSequenceImperfect() throws Exception {
+        final int clientId = 1005;
+        final int uid = 1000;
+        final int pid = 2000;
+        final String callingPackage = "com.google.somePackage";
+        final String serviceName = "some-service-name";
+        final int subscribeId = 15;
+        final int requestorId = 22;
+        final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
+        final int messageIdBase = 6948;
+        final int numberOfMessages = 300;
+        final int queueDepth = 6;
+        final int retransmitCount = 3; // not the maximum
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
+                .build();
+
+        IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
+        IWifiAwareDiscoverySessionCallback mockSessionCallback = mock(
+                IWifiAwareDiscoverySessionCallback.class);
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
+        ArgumentCaptor<Integer> messageIdCaptor = ArgumentCaptor.forClass(Integer.class);
+        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative);
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
+        mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
+        mMockLooper.dispatchAll();
+
+        // (0) connect
+        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
+                eq(configRequest), eq(false), eq(true));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
+
+        // (1) subscribe
+        mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
+
+        // (2) match
+        mDut.onMatchNotification(subscribeId, requestorId, peerMac, null, null);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onMatch(requestorId, null, null);
+
+        // (3) transmit messages: configure a mix of failures/success
+        Set<Integer> failQueueCommandImmediately = new HashSet<>();
+        Set<Integer> failQueueCommandLater = new HashSet<>();
+        Map<Integer, Integer> numberOfRetries = new HashMap<>();
+
+        int numOfSuccesses = 0;
+        int numOfFailuresInternalFailure = 0;
+        int numOfFailuresNoOta = 0;
+        for (int i = 0; i < numberOfMessages; ++i) {
+            // random results:
+            // - 0-50: success
+            // - 51-60: retransmit value (which will fail for >5)
+            // - 61-70: fail queue later
+            // - 71-80: fail queue immediately
+            // - 81-90: fail retransmit with non-OTA failure
+            int random = mRandomNg.nextInt(90);
+            if (random <= 50) {
+                numberOfRetries.put(messageIdBase + i, 0);
+                numOfSuccesses++;
+            } else if (random <= 60) {
+                numberOfRetries.put(messageIdBase + i, random - 51);
+                if (random - 51 > retransmitCount) {
+                    numOfFailuresNoOta++;
+                } else {
+                    numOfSuccesses++;
+                }
+            } else if (random <= 70) {
+                failQueueCommandLater.add(messageIdBase + i);
+                numOfFailuresInternalFailure++;
+            } else if (random <= 80) {
+                failQueueCommandImmediately.add(messageIdBase + i);
+                numOfFailuresInternalFailure++;
+            } else {
+                numberOfRetries.put(messageIdBase + i, -1);
+                numOfFailuresInternalFailure++;
+            }
+        }
+
+        Log.v("WifiAwareStateManagerTest",
+                "failQueueCommandImmediately=" + failQueueCommandImmediately
+                        + ", failQueueCommandLater=" + failQueueCommandLater + ", numberOfRetries="
+                        + numberOfRetries + ", numOfSuccesses=" + numOfSuccesses
+                        + ", numOfFailuresInternalFailure=" + numOfFailuresInternalFailure
+                        + ", numOfFailuresNoOta=" + numOfFailuresNoOta);
+
+        SendMessageQueueModelAnswer answerObj = new SendMessageQueueModelAnswer(queueDepth,
+                failQueueCommandImmediately, failQueueCommandLater, numberOfRetries);
+        when(mMockNative.sendMessage(anyShort(), anyInt(), anyInt(), any(byte[].class),
+                any(byte[].class), anyInt())).thenAnswer(answerObj);
+
+        for (int i = 0; i < numberOfMessages; ++i) {
+            mDut.sendMessage(clientId, sessionId.getValue(), requestorId, null, messageIdBase + i,
+                    retransmitCount);
+            mMockLooper.dispatchAll();
+        }
+
+        while (answerObj.queueSize() != 0) {
+            assertTrue(answerObj.process());
+            mMockLooper.dispatchAll();
+        }
+
+        verify(mockSessionCallback, times(numOfSuccesses)).onMessageSendSuccess(anyInt());
+        verify(mockSessionCallback, times(numOfFailuresInternalFailure)).onMessageSendFail(anyInt(),
+                eq(NanStatusType.INTERNAL_FAILURE));
+        verify(mockSessionCallback, times(numOfFailuresNoOta)).onMessageSendFail(anyInt(),
+                eq(NanStatusType.NO_OTA_ACK));
+
+        verifyNoMoreInteractions(mockCallback, mockSessionCallback);
+    }
+
+    /**
      * Validate that can send empty message successfully: null, byte[0], ""
      */
     @Test
@@ -1751,198 +2010,97 @@ public class WifiAwareStateManagerTest {
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
     }
 
-    @Test
-    public void testSendMessageQueueAllQueueFail() throws Exception {
-        Capabilities cap = getCapabilities();
-        testSendMessageQueue(SendMessageAnswer.OP_QUEUE_FAIL, cap,
-                cap.maxQueuedTransmitMessages + 5);
-    }
+    private class SendMessageQueueModelAnswer extends MockAnswerUtil.AnswerWithArguments {
+        private final int mMaxQueueDepth;
 
-    @Test
-    public void testSendMessageQueueAllTxSuccess() throws Exception {
-        Capabilities cap = getCapabilities();
-        testSendMessageQueue(SendMessageAnswer.OP_QUEUE_OK_SEND_OK, cap,
-                cap.maxQueuedTransmitMessages + 5);
-    }
+        // keyed by message ID
+        private final Set<Integer> mFailQueueCommandImmediately; // return a false
+        private final Set<Integer> mFailQueueCommandLater; // return an error != TX_QUEUE_FULL
 
-    @Test
-    public void testSendMessageQueueAllTxFailRetxOk() throws Exception {
-        Capabilities cap = getCapabilities();
-        testSendMessageQueue(SendMessageAnswer.OP_QUEUE_OK_SEND_RETX_OK, cap,
-                cap.maxQueuedTransmitMessages + 5);
-    }
+        // # of times to return NO_OTA_ACK before returning SUCCESS. So a 0 means success on first
+        // try, a very large number means - never succeed (since max retry is 5).
+        // a -1 impiles a non-OTA failure: on first attempt
+        private final Map<Integer, Integer> mRetryLimit;
 
-    @Test
-    public void testSendMessageQueueAllTxFail() throws Exception {
-        Capabilities cap = getCapabilities();
-        testSendMessageQueue(SendMessageAnswer.OP_QUEUE_OK_SEND_RETX_FAIL, cap,
-                cap.maxQueuedTransmitMessages + 5);
-    }
+        private final LinkedList<Short> mQueue = new LinkedList<>(); // transaction ID (tid)
+        private final Map<Short, Integer> mMessageIdsByTid = new HashMap<>(); // tid -> message ID
+        private final Map<Integer, Integer> mTriesUsedByMid = new HashMap<>(); // mid -> # of retx
 
-    @Test
-    public void testSendMessageQueueRandomize() throws Exception {
-        Capabilities cap = getCapabilities();
-        testSendMessageQueue(SendMessageAnswer.OP_QUEUE_RANDOMIZE, cap,
-                cap.maxQueuedTransmitMessages * 10);
-    }
+        SendMessageQueueModelAnswer(int maxQueueDepth, Set<Integer> failQueueCommandImmediately,
+                Set<Integer> failQueueCommandLater, Map<Integer, Integer> numberOfRetries) {
+            mMaxQueueDepth = maxQueueDepth;
+            mFailQueueCommandImmediately = failQueueCommandImmediately;
+            mFailQueueCommandLater = failQueueCommandLater;
+            mRetryLimit = numberOfRetries;
 
-    /**
-     * Validate that when sending more messages than can be queued by the firmware (based on
-     * capability information) they are queued. Support all possible test success/failure codes.
-     * @param behavior: SendMessageAnswer.OP_*.
-     */
-    private void testSendMessageQueue(int behavior, Capabilities cap,
-            int numMessages) throws Exception {
-        final int clientId = 1005;
-        final int uid = 1000;
-        final int pid = 2000;
-        final String callingPackage = "com.google.somePackage";
-        final String ssi = "some much longer and more arbitrary data";
-        final int subscribeId = 15;
-        final int requestorId = 22;
-        final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
-        final String peerSsi = "some peer ssi data";
-        final String peerMatchFilter = "filter binary array represented as string";
-        final int messageId = 6948;
-        final int retryCount = 3;
-        final int reason = NanStatusType.INTERNAL_FAILURE;
-
-        ConfigRequest configRequest = new ConfigRequest.Builder().build();
-        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
-
-        IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
-        IWifiAwareDiscoverySessionCallback mockSessionCallback = mock(
-                IWifiAwareDiscoverySessionCallback.class);
-        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
-        ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
-        ArgumentCaptor<Integer> msgId = ArgumentCaptor.forClass(Integer.class);
-
-        // (0) initial conditions
-        mDut.enableUsage();
-        mMockLooper.dispatchAll();
-        verify(mMockNative).getCapabilities(transactionId.capture());
-        mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), cap);
-        mMockLooper.dispatchAll();
-
-        // (1) connect
-        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
-        mMockLooper.dispatchAll();
-        verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
-                eq(false), eq(true));
-        mDut.onConfigSuccessResponse(transactionId.getValue());
-        mMockLooper.dispatchAll();
-        verify(mockCallback).onConnectSuccess(clientId);
-
-        // (2) subscribe & match
-        mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
-        mMockLooper.dispatchAll();
-        verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
-        mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
-        mDut.onMatchNotification(subscribeId, requestorId, peerMac, peerSsi.getBytes(),
-                peerMatchFilter.getBytes());
-        mMockLooper.dispatchAll();
-        verify(mockSessionCallback).onSessionStarted(sessionId.capture());
-        verify(mockSessionCallback).onMatch(requestorId, peerSsi.getBytes(),
-                peerMatchFilter.getBytes());
-
-        // (3) send large number of messages
-        SendMessageAnswer answerObj = new SendMessageAnswer(behavior);
-        when(mMockNative.sendMessage(anyShort(), anyInt(), anyInt(), any(byte[].class),
-                any(byte[].class), anyInt())).thenAnswer(answerObj);
-        for (int i = 0; i < numMessages; ++i) {
-            mDut.sendMessage(clientId, sessionId.getValue(), requestorId, ssi.getBytes(),
-                    messageId + i, retryCount);
-        }
-        mMockLooper.dispatchAll();
-
-        int numSends = answerObj.ops[SendMessageAnswer.OP_QUEUE_FAIL]
-                + answerObj.ops[SendMessageAnswer.OP_QUEUE_OK_SEND_OK]
-                + answerObj.ops[SendMessageAnswer.OP_QUEUE_OK_SEND_RETX_OK] * 2
-                + answerObj.ops[SendMessageAnswer.OP_QUEUE_OK_SEND_RETX_FAIL] * (retryCount + 1);
-        int numOnSendSuccess = answerObj.ops[SendMessageAnswer.OP_QUEUE_OK_SEND_OK]
-                + answerObj.ops[SendMessageAnswer.OP_QUEUE_OK_SEND_RETX_OK];
-        int numOnSendFail = answerObj.ops[SendMessageAnswer.OP_QUEUE_OK_SEND_RETX_FAIL];
-
-        Log.v("WifiAwareStateMgrTest",
-                "testSendMessageQueue: ops=" + Arrays.toString(answerObj.ops) + ", numSends="
-                        + numSends + ", numOnSendSuccess=" + numOnSendSuccess + ", numOnSendFail="
-                        + numOnSendFail);
-
-        verify(mMockNative, times(numSends)).sendMessage(anyShort(), eq(subscribeId),
-                eq(requestorId), eq(peerMac), eq(ssi.getBytes()), anyInt());
-        verify(mockSessionCallback, times(numOnSendSuccess)).onMessageSendSuccess(anyInt());
-        verify(mockSessionCallback, times(numOnSendFail)).onMessageSendFail(anyInt(), anyInt());
-
-        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
-    }
-
-    private class SendMessageAnswer extends MockAnswerUtil.AnswerWithArguments {
-        public static final int OP_QUEUE_FAIL = 0;
-        public static final int OP_QUEUE_OK_SEND_OK = 1;
-        public static final int OP_QUEUE_OK_SEND_RETX_OK = 2;
-        public static final int OP_QUEUE_OK_SEND_RETX_FAIL = 3;
-
-        /* psuedo operation: randomly pick from the above 4 operations */
-        public static final int OP_QUEUE_RANDOMIZE = -1;
-
-        /* the number of operations which can be executed. Doesn't cound RANDOMIZE since it is
-         * resolved to one of the 4 types */
-        private static final int NUM_OPS = 4;
-
-        public int[] ops = new int[NUM_OPS];
-
-        private int mBehavior = 0;
-        private SparseIntArray mPacketBehavior = new SparseIntArray();
-
-        SendMessageAnswer(int behavior) {
-            mBehavior = behavior;
+            if (mRetryLimit != null) {
+                for (int mid : mRetryLimit.keySet()) {
+                    mTriesUsedByMid.put(mid, 0);
+                }
+            }
         }
 
         public boolean answer(short transactionId, int pubSubId, int requestorInstanceId,
                 byte[] dest, byte[] message, int messageId) throws Exception {
-            Log.v("WifiAwareStateMgrTest",
-                    "SendMessageAnswer.answer: mBehavior=" + mBehavior + ", transactionId="
-                            + transactionId + ", messageId=" + messageId
-                            + ", mPacketBehavior[messageId]" + mPacketBehavior.get(messageId, -1));
-
-            int behavior = mBehavior;
-            if (behavior == OP_QUEUE_RANDOMIZE) {
-                behavior = mRandomNg.nextInt(NUM_OPS);
+            if (mFailQueueCommandImmediately != null && mFailQueueCommandImmediately.contains(
+                    messageId)) {
+                return false;
             }
 
-            boolean packetRetx = mPacketBehavior.get(messageId, -1) != -1;
-            if (packetRetx) {
-                behavior = mPacketBehavior.get(messageId);
+            if (mFailQueueCommandLater != null && mFailQueueCommandLater.contains(messageId)) {
+                mDut.onMessageSendQueuedFailResponse(transactionId, NanStatusType.INTERNAL_FAILURE);
             } else {
-                mPacketBehavior.put(messageId, behavior);
+                if (mQueue.size() <= mMaxQueueDepth) {
+                    mQueue.addLast(transactionId);
+                    mMessageIdsByTid.put(transactionId, messageId);
+                    mDut.onMessageSendQueuedSuccessResponse(transactionId);
+                } else {
+                    mDut.onMessageSendQueuedFailResponse(transactionId,
+                            NanStatusType.FOLLOWUP_TX_QUEUE_FULL);
+                }
             }
 
-            if (behavior == OP_QUEUE_FAIL) {
-                ops[OP_QUEUE_FAIL]++;
-                mDut.onMessageSendQueuedFailResponse(transactionId,
-                        NanStatusType.INTERNAL_FAILURE);
-            } else if (behavior == OP_QUEUE_OK_SEND_OK) {
-                ops[OP_QUEUE_OK_SEND_OK]++;
-                mDut.onMessageSendQueuedSuccessResponse(transactionId);
-                mDut.onMessageSendSuccessNotification(transactionId);
-            } else if (behavior == OP_QUEUE_OK_SEND_RETX_OK) {
-                mDut.onMessageSendQueuedSuccessResponse(transactionId);
-                if (!packetRetx) {
-                    mDut.onMessageSendFailNotification(transactionId,
-                            NanStatusType.NO_OTA_ACK);
-                } else {
-                    ops[OP_QUEUE_OK_SEND_RETX_OK]++;
-                    mDut.onMessageSendSuccessNotification(transactionId);
-                }
-            } else if (behavior == OP_QUEUE_OK_SEND_RETX_FAIL) {
-                mDut.onMessageSendQueuedSuccessResponse(transactionId);
-                if (!packetRetx) {
-                    ops[OP_QUEUE_OK_SEND_RETX_FAIL]++;
-                }
-                mDut.onMessageSendFailNotification(transactionId,
-                        NanStatusType.NO_OTA_ACK);
-            }
             return true;
+        }
+
+        /**
+         * Processes the first message in the queue: i.e. responds as if sent over-the-air
+         * (successfully or failed)
+         */
+        boolean process() {
+            if (mQueue.size() == 0) {
+                return false;
+            }
+            short tid = mQueue.poll();
+            int mid = mMessageIdsByTid.get(tid);
+
+            if (mRetryLimit != null && mRetryLimit.containsKey(mid)) {
+                int numRetries = mRetryLimit.get(mid);
+                if (numRetries == -1) {
+                    mDut.onMessageSendFailNotification(tid, NanStatusType.INTERNAL_FAILURE);
+                } else {
+                    int currentRetries = mTriesUsedByMid.get(mid);
+                    if (currentRetries > numRetries) {
+                        return false; // shouldn't be retrying!?
+                    } else if (currentRetries == numRetries) {
+                        mDut.onMessageSendSuccessNotification(tid);
+                    } else {
+                        mDut.onMessageSendFailNotification(tid, NanStatusType.NO_OTA_ACK);
+                    }
+                    mTriesUsedByMid.put(mid, currentRetries + 1);
+                }
+            } else {
+                mDut.onMessageSendSuccessNotification(tid);
+            }
+
+            return true;
+        }
+
+        /**
+         * Returns the number of elements in the queue.
+         */
+        int queueSize() {
+            return mQueue.size();
         }
     }
 
