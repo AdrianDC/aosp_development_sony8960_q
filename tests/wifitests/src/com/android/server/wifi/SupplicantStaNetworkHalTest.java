@@ -21,6 +21,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
+import android.hardware.wifi.supplicant.V1_0.ISupplicantNetwork;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaNetwork;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatusCode;
@@ -132,6 +133,22 @@ public class SupplicantStaNetworkHalTest {
                 WifiConfigurationTestUtil.createTLSWifiEnterpriseConfigWithNonePhase2();
         config.enterpriseConfig.setClientCertificateAlias("test_alias");
         testWifiConfigurationSaveLoad(config);
+    }
+
+    /**
+     * Tests the loading of network ID.
+     */
+    @Test
+    public void testNetworkIdLoad() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createWepHiddenNetwork();
+        assertTrue(mSupplicantNetwork.saveWifiConfiguration(config));
+
+        // Modify the supplicant variable directly.
+        mSupplicantVariables.networkId = 5;
+        WifiConfiguration loadConfig = new WifiConfiguration();
+        Map<String, String> networkExtras = new HashMap<>();
+        assertTrue(mSupplicantNetwork.loadWifiConfiguration(loadConfig, networkExtras));
+        assertEquals(mSupplicantVariables.networkId, loadConfig.networkId);
     }
 
     /**
@@ -574,6 +591,13 @@ public class SupplicantStaNetworkHalTest {
         }).when(mISupplicantStaNetworkMock)
                 .getSsid(any(ISupplicantStaNetwork.getSsidCallback.class));
 
+        /** Network Id */
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantNetwork.getIdCallback cb) throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.networkId);
+            }
+        }).when(mISupplicantStaNetworkMock).getId(any(ISupplicantNetwork.getIdCallback.class));
+
         /** BSSID */
         doAnswer(new AnswerWithArguments() {
             public SupplicantStatus answer(byte[] bssid) throws RemoteException {
@@ -997,6 +1021,7 @@ public class SupplicantStaNetworkHalTest {
     // Private class to to store/inspect values set via the HIDL mock.
     private class SupplicantNetworkVariables {
         public ArrayList<Byte> ssid;
+        public int networkId;
         public byte[/* 6 */] bssid;
         public int keyMgmtMask;
         public int protoMask;

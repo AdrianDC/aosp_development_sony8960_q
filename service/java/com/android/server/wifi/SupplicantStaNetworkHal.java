@@ -129,6 +129,14 @@ public class SupplicantStaNetworkHal {
             Log.e(TAG, "failed to read ssid");
             return false;
         }
+        /** Network Id */
+        config.networkId = -1;
+        if (getId()) {
+            config.networkId = mNetworkId;
+        } else {
+            Log.e(TAG, "getId failed");
+            return false;
+        }
         /** BSSID */
         config.getNetworkSelectionStatus().setNetworkSelectionBSSID(null);
         if (getBssid() && !ArrayUtils.isEmpty(mBssid)) {
@@ -850,7 +858,7 @@ public class SupplicantStaNetworkHal {
     };
 
     /** See ISupplicantNetwork.hal for documentation */
-    public boolean getId() {
+    private boolean getId() {
         synchronized (mLock) {
             final String methodStr = "getId";
             if (DBG) Log.i(TAG, methodStr);

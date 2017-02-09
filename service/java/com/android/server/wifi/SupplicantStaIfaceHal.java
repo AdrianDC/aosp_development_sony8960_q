@@ -265,10 +265,6 @@ public class SupplicantStaIfaceHal {
             loge("Failed to add/save network configuration: " + config.configKey());
             return false;
         }
-        if (!network.getId()) {
-            loge("Failed to get network id for configuration: " + config.configKey());
-            return false;
-        }
         if (!network.select()) {
             loge("Failed to select network configuration: " + config.configKey());
             return false;
