@@ -468,6 +468,29 @@ public class WifiConfigurationTestUtil {
     }
 
     /**
+     * Asserts that the 2 WifiConfigurations are equal. This compares all the elements that are
+     * saved into wpa_supplicant by SupplicantStaNetwork.
+     */
+    public static void assertConfigurationEqualForSupplicant(
+            WifiConfiguration expected, WifiConfiguration actual) {
+        assertNotNull(expected);
+        assertNotNull(actual);
+        assertEquals(expected.SSID, actual.SSID);
+        assertEquals(expected.getNetworkSelectionStatus().getNetworkSelectionBSSID(),
+                actual.getNetworkSelectionStatus().getNetworkSelectionBSSID());
+        assertEquals(expected.preSharedKey, actual.preSharedKey);
+        assertEquals(expected.wepKeys, actual.wepKeys);
+        assertEquals(expected.wepTxKeyIndex, actual.wepTxKeyIndex);
+        assertEquals(expected.hiddenSSID, actual.hiddenSSID);
+        assertEquals(expected.requirePMF, actual.requirePMF);
+        assertEquals(expected.allowedKeyManagement, actual.allowedKeyManagement);
+        assertEquals(expected.allowedProtocols, actual.allowedProtocols);
+        assertEquals(expected.allowedAuthAlgorithms, actual.allowedAuthAlgorithms);
+        assertEquals(expected.allowedGroupCiphers, actual.allowedGroupCiphers);
+        assertEquals(expected.allowedPairwiseCiphers, actual.allowedPairwiseCiphers);
+    }
+
+    /**
      * Asserts that the 2 WifiConfigurations are equal. This is a generic version of the comparator
      * which is used in QNS tests for comparing the network selections.
      * This importantly checks that the networkId's of the 2 configs are equal.
