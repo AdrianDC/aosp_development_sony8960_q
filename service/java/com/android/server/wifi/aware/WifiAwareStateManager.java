@@ -1473,20 +1473,26 @@ public class WifiAwareStateManager {
                     if (VDBG) {
                         Log.v(TAG, "processResponse: ON_MESSAGE_SEND_QUEUED_FAIL - blocking!");
                     }
-                    // TODO: b/29459286 - once there's a unique code for "queue is full" use it!
                     int reason = (Integer) msg.obj;
+                    if (reason == NanStatusType.FOLLOWUP_TX_QUEUE_FULL) {
+                        Message sentMessage = mCurrentCommand.getData().getParcelable(
+                                MESSAGE_BUNDLE_KEY_SENT_MESSAGE);
+                        int arrivalSeq = sentMessage.getData().getInt(
+                                MESSAGE_BUNDLE_KEY_MESSAGE_ARRIVAL_SEQ);
+                        mHostQueuedSendMessages.put(arrivalSeq, sentMessage);
+                        mSendQueueBlocked = true;
 
-                    Message sentMessage = mCurrentCommand.getData().getParcelable(
-                            MESSAGE_BUNDLE_KEY_SENT_MESSAGE);
-                    int arrivalSeq = sentMessage.getData().getInt(
-                            MESSAGE_BUNDLE_KEY_MESSAGE_ARRIVAL_SEQ);
-                    mHostQueuedSendMessages.put(arrivalSeq, sentMessage);
-                    mSendQueueBlocked = true;
-
-                    if (VDBG) {
-                        Log.v(TAG,
-                                "processResponse: ON_MESSAGE_SEND_QUEUED_FAIL - arrivalSeq="
-                                        + arrivalSeq + " -- blocking");
+                        if (VDBG) {
+                            Log.v(TAG, "processResponse: ON_MESSAGE_SEND_QUEUED_FAIL - arrivalSeq="
+                                    + arrivalSeq + " -- blocking");
+                        }
+                    } else {
+                        Message sentMessage = mCurrentCommand.getData().getParcelable(
+                                MESSAGE_BUNDLE_KEY_SENT_MESSAGE);
+                        onMessageSendFailLocal(sentMessage, NanStatusType.INTERNAL_FAILURE);
+                        if (!mSendQueueBlocked) {
+                            transmitNextMessage();
+                        }
                     }
                     break;
                 }
