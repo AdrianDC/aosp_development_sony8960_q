@@ -716,7 +716,6 @@ public class WifiBackupRestoreTest {
                 Integer.toString(configuration.creatorUid));
         String idString = WifiNative.createNetworkExtra(extras);
         if (idString != null) {
-            idString = "\"" + idString + "\"";
             out.write("        " + "id_str=" + idString + "\n");
         }
         out.write("}\n");
