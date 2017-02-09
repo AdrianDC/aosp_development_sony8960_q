@@ -387,7 +387,7 @@ public class WifiAwareNativeApi {
         }
 
         NanTransmitFollowupRequest req = new NanTransmitFollowupRequest();
-        req.discoverySessionId = (short) pubSubId;
+        req.discoverySessionId = (byte) pubSubId;
         req.peerId = requestorInstanceId;
         copyArray(dest, req.addr);
         req.isHighPriority = false;
@@ -429,7 +429,7 @@ public class WifiAwareNativeApi {
         }
 
         try {
-            WifiStatus status = iface.stopPublishRequest(transactionId, (short) pubSubId);
+            WifiStatus status = iface.stopPublishRequest(transactionId, (byte) pubSubId);
             if (status.code == WifiStatusCode.SUCCESS) {
                 return true;
             } else {
@@ -462,7 +462,7 @@ public class WifiAwareNativeApi {
         }
 
         try {
-            WifiStatus status = iface.stopSubscribeRequest(transactionId, (short) pubSubId);
+            WifiStatus status = iface.stopSubscribeRequest(transactionId, (byte) pubSubId);
             if (status.code == WifiStatusCode.SUCCESS) {
                 return true;
             } else {
