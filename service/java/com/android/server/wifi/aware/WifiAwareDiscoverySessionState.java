@@ -196,8 +196,18 @@ public class WifiAwareDiscoverySessionState {
         }
         byte[] peerMac = HexEncoding.decode(peerMacStr.toCharArray(), false);
 
-        return mWifiAwareNativeApi.sendMessage(transactionId, mPubSubId, peerId, peerMac, message,
-                messageId);
+        boolean success = mWifiAwareNativeApi.sendMessage(transactionId, mPubSubId, peerId, peerMac,
+                message, messageId);
+        if (!success) {
+            try {
+                mCallback.onMessageSendFail(messageId, NanStatusType.INTERNAL_FAILURE);
+            } catch (RemoteException e) {
+                Log.e(TAG, "sendMessage: RemoteException=" + e);
+            }
+            return false;
+        }
+
+        return success;
     }
 
     /**
