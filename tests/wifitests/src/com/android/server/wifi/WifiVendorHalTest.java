@@ -37,7 +37,6 @@ import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.RemoteException;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -120,16 +119,6 @@ public class WifiVendorHalTest {
         verify(mHalDeviceManager).registerStatusListener(
                 callbackCaptor.capture(), any(Looper.class));
         mHalDeviceManagerStatusCallbacks = callbackCaptor.getValue();
-    }
-
-    /**
-     * Test that parsing a typical colon-delimited MAC adddress works
-     */
-    @Test
-    public void testTypicalHexParse() throws Exception {
-        byte[] sixBytes = new byte[6];
-        mWifiVendorHal.parseUnquotedMacStrToByteArray("61:52:43:34:25:16", sixBytes);
-        Assert.assertArrayEquals(new byte[]{0x61, 0x52, 0x43, 0x34, 0x25, 0x16}, sixBytes);
     }
 
     /**

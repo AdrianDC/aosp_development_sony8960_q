@@ -3105,6 +3105,24 @@ public class WifiNative {
         return false;
     }
 
+    /**
+     * Reset firmware roaming configuration.
+     */
+    public boolean resetRoamingConfiguration() {
+        Log.d(TAG, "resetRoamingConfiguration ");
+        try {
+            if (mWifiVendorHal != null) {
+                // Pass in an empty RoamingConfig object which translates to zero size
+                // blacklist and whitelist to reset the firmware roaming configuration.
+                RoamingConfig config = new RoamingConfig();
+                return mWifiVendorHal.configureRoaming(config);
+            }
+        } catch (UnsupportedOperationException e) {
+        }
+
+        return false;
+    }
+
 
     StackTraceElement[] mTrace;
     void legacyHalWarning() {
