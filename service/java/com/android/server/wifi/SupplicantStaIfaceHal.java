@@ -25,6 +25,7 @@ import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatusCode;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
+import android.net.wifi.WifiConfiguration;
 import android.os.HandlerThread;
 import android.os.RemoteException;
 import android.util.Log;
@@ -33,6 +34,7 @@ import android.util.MutableBoolean;
 import libcore.util.HexEncoding;
 
 import java.util.ArrayList;
+//import android.net.wifi.WifiEnterpriseConfig;
 /**
  * Hal calls for bring up/shut down of the supplicant daemon and for
  * sending requests to the supplicant daemon
@@ -216,6 +218,83 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Imitation of WifiSupplicantControl.addNetwork()
+     *
+     * Add a network configuration to wpa_supplicant, via HAL
+     * @param config Config corresponding to the network.
+     * @return SupplicantStaNetwork of the added network in wpa_supplicant.
+     */
+    public SupplicantStaNetworkHal addNetwork(WifiConfiguration config) {
+        logi("addSupplicantStaNetwork via HIDL");
+        if (config == null) {
+            loge("Cannot add NULL network!");
+            return null;
+        }
+        SupplicantStaNetworkHal network = addNetwork();
+        if (network == null) {
+            loge("Failed to add a network!");
+            return null;
+        }
+        if (network.saveWifiConfiguration(config)) {
+            return network;
+        } else {
+            loge("Failed to save variables for: " + config.configKey());
+            return null;
+        }
+    }
+
+    /**
+     * Imitation of WifiSupplicantControl.connectToNetwork
+     */
+    public boolean connectToNetwork(WifiConfiguration configuration, boolean shouldDisconnect) {
+        logd("connectToNetwork " + configuration.configKey()
+                + " (shouldDisconnect " + shouldDisconnect + ")");
+        if (shouldDisconnect && !disconnect()) {
+            loge("Failed to trigger disconnect");
+            return false;
+        }
+        if (!removeAllNetworks()) {
+            loge("Failed to remove existing networks");
+            return false;
+        }
+        SupplicantStaNetworkHal network = addNetwork(configuration);
+        if (network == null) {
+            loge("Failed to add/save network configuration: " + configuration.configKey());
+            return false;
+        }
+        if (!network.getId()) {
+            loge("Failed to get network id for configuration: " + configuration.configKey());
+            return false;
+        }
+        if (!network.select()) {
+            loge("Failed to select network configuration: " + configuration.configKey());
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Remove all networks from supplicant
+     * TODO(b/34454675) use ISupplicantIface.removeAllNetworks when it exists
+     */
+    public boolean removeAllNetworks() {
+        synchronized (mLock) {
+            ArrayList<Integer> networks = listNetworks();
+            if (networks == null) {
+                Log.e(TAG, "removeAllNetworks failed, got null networks");
+                return false;
+            }
+            for (int id : networks) {
+                if (!removeNetwork(id)) {
+                    Log.e(TAG, "removeAllNetworks failed to remove network: " + id);
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
      * @return returns the name of Iface or null if the call fails
      */
     private String getName() {
@@ -301,7 +380,7 @@ public class SupplicantStaIfaceHal {
             }
             if (statusSuccess.value) {
                 return new SupplicantStaNetworkHal(ISupplicantStaNetwork.asInterface(
-                        newNetwork.value.asBinder()));
+                        newNetwork.value.asBinder()), mHandlerThread);
             } else {
                 return null;
             }
@@ -353,7 +432,7 @@ public class SupplicantStaIfaceHal {
             }
             if (statusSuccess.value) {
                 return new SupplicantStaNetworkHal(ISupplicantStaNetwork.asInterface(
-                        gotNetwork.value.asBinder()));
+                        gotNetwork.value.asBinder()), mHandlerThread);
             } else {
                 return null;
             }
@@ -769,5 +848,17 @@ public class SupplicantStaIfaceHal {
         Mutable(E value) {
             this.value = value;
         }
+    }
+
+    private void logd(String s) {
+        Log.d(TAG, s);
+    }
+
+    private void logi(String s) {
+        Log.i(TAG, s);
+    }
+
+    private void loge(String s) {
+        Log.e(TAG, s);
     }
 }
