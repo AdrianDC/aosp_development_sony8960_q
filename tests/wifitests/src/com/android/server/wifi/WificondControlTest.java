@@ -235,4 +235,80 @@ public class WificondControlTest {
         assertFalse(mWificondControl.tearDownInterfaces());
     }
 
+    /**
+     * Verifies that signalPoll() calls wificond.
+     */
+    @Test
+    public void testSignalPoll() throws Exception {
+        IWificond wificond = mock(IWificond.class);
+        IClientInterface clientInterface = mock(IClientInterface.class);
+
+        when(mWifiInjector.makeWificond()).thenReturn(wificond);
+        when(wificond.createClientInterface()).thenReturn(clientInterface);
+
+        mWificondControl.setupDriverForClientMode();
+        mWificondControl.signalPoll();
+        verify(clientInterface).signalPoll();
+    }
+
+    /**
+     * Verifies that signalPoll() returns null when there is no configured client interface.
+     */
+    @Test
+    public void testSignalPollErrorWhenNoClientInterfaceConfigured() throws Exception {
+        IWificond wificond = mock(IWificond.class);
+        IClientInterface clientInterface = mock(IClientInterface.class);
+
+        when(mWifiInjector.makeWificond()).thenReturn(wificond);
+        when(wificond.createClientInterface()).thenReturn(clientInterface);
+
+        // Configure client interface.
+        IClientInterface returnedClientInterface = mWificondControl.setupDriverForClientMode();
+        assertEquals(clientInterface, returnedClientInterface);
+
+        // Tear down interfaces.
+        assertTrue(mWificondControl.tearDownInterfaces());
+
+        // Signal poll should fail.
+        assertEquals(null, mWificondControl.signalPoll());
+    }
+
+    /**
+     * Verifies that getTxPacketCounters() calls wificond.
+     */
+    @Test
+    public void testGetTxPacketCounters() throws Exception {
+        IWificond wificond = mock(IWificond.class);
+        IClientInterface clientInterface = mock(IClientInterface.class);
+
+        when(mWifiInjector.makeWificond()).thenReturn(wificond);
+        when(wificond.createClientInterface()).thenReturn(clientInterface);
+
+        mWificondControl.setupDriverForClientMode();
+        mWificondControl.getTxPacketCounters();
+        verify(clientInterface).getPacketCounters();
+    }
+
+    /**
+     * Verifies that getTxPacketCounters() returns null when there is no configured client
+     * interface.
+     */
+    @Test
+    public void testGetTxPacketCountersErrorWhenNoClientInterfaceConfigured() throws Exception {
+        IWificond wificond = mock(IWificond.class);
+        IClientInterface clientInterface = mock(IClientInterface.class);
+
+        when(mWifiInjector.makeWificond()).thenReturn(wificond);
+        when(wificond.createClientInterface()).thenReturn(clientInterface);
+
+        // Configure client interface.
+        IClientInterface returnedClientInterface = mWificondControl.setupDriverForClientMode();
+        assertEquals(clientInterface, returnedClientInterface);
+
+        // Tear down interfaces.
+        assertTrue(mWificondControl.tearDownInterfaces());
+
+        // Signal poll should fail.
+        assertEquals(null, mWificondControl.getTxPacketCounters());
+    }
 }
