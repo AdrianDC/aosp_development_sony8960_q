@@ -159,4 +159,61 @@ public class WificondControl {
         }
         return false;
     }
+
+    /**
+    * Request signal polling to wificond.
+    * Returns an SignalPollResult object.
+    * Returns null on failure.
+    */
+    public WifiNative.SignalPollResult signalPoll() {
+        if (mClientInterface == null) {
+            Log.e(TAG, "No valid wificond client interface handler");
+            return null;
+        }
+
+        int[] resultArray;
+        try {
+            resultArray = mClientInterface.signalPoll();
+            if (resultArray == null || resultArray.length != 3) {
+                Log.e(TAG, "Invalid signal poll result from wificond");
+                return null;
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "Failed to do signal polling  due to remote exception");
+            return null;
+        }
+        WifiNative.SignalPollResult pollResult = new WifiNative.SignalPollResult();
+        pollResult.currentRssi = resultArray[0];
+        pollResult.txBitrate = resultArray[1];
+        pollResult.associationFrequency = resultArray[2];
+        return pollResult;
+    }
+
+    /**
+    * Fetch TX packet counters on current connection from wificond.
+    * Returns an TxPacketCounters object.
+    * Returns null on failure.
+    */
+    public WifiNative.TxPacketCounters getTxPacketCounters() {
+        if (mClientInterface == null) {
+            Log.e(TAG, "No valid wificond client interface handler");
+            return null;
+        }
+
+        int[] resultArray;
+        try {
+            resultArray = mClientInterface.getPacketCounters();
+            if (resultArray == null || resultArray.length != 2) {
+                Log.e(TAG, "Invalid signal poll result from wificond");
+                return null;
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "Failed to do signal polling  due to remote exception");
+            return null;
+        }
+        WifiNative.TxPacketCounters counters = new WifiNative.TxPacketCounters();
+        counters.txSucceeded = resultArray[0];
+        counters.txFailed = resultArray[1];
+        return counters;
+    }
 }

@@ -2841,17 +2841,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         Integer newRssi = null;
         Integer newLinkSpeed = null;
         Integer newFrequency = null;
-        int[] poll_result = null;
-        try {
-            poll_result = mClientInterface.signalPoll();
-            if (poll_result == null || poll_result.length != 3) {
-                return;
-            }
-        } catch (RemoteException e1) { }
+        WifiNative.SignalPollResult pollResult = mWifiNative.signalPoll();
+        if (pollResult == null) {
+            return;
+        }
 
-        newRssi = poll_result[0];
-        newLinkSpeed = poll_result[1];
-        newFrequency = poll_result[2];
+        newRssi = pollResult.currentRssi;
+        newLinkSpeed = pollResult.txBitrate;
+        newFrequency = pollResult.associationFrequency;
 
         if (mVerboseLoggingEnabled) {
             logd("fetchRssiLinkSpeedAndFrequencyNative rssi=" + newRssi +
@@ -2912,21 +2909,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiInfo.txRetriesRate = 0;
         mWifiInfo.rxSuccessRate = 0;
         mWifiScoreReport.reset();
-    }
-
-    /**
-     * Fetch TX packet counters on current connection
-     */
-    private void fetchPktcntNative(RssiPacketCountInfo info) {
-        int[] counters = null;
-        try {
-            counters = mClientInterface.getPacketCounters();
-            if (counters == null || counters.length != 2) {
-                return;
-            }
-        } catch (RemoteException e1) {}
-        info.txgood = counters[0];
-        info.txbad = counters[1];
     }
 
     private void updateLinkProperties(LinkProperties newLp) {
@@ -5652,8 +5634,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     RssiPacketCountInfo info = new RssiPacketCountInfo();
                     fetchRssiLinkSpeedAndFrequencyNative();
                     info.rssi = mWifiInfo.getRssi();
-                    fetchPktcntNative(info);
-                    replyToMessage(message, WifiManager.RSSI_PKTCNT_FETCH_SUCCEEDED, info);
+                    WifiNative.TxPacketCounters counters = mWifiNative.getTxPacketCounters();
+                    if (counters != null) {
+                        info.txgood = counters.txSucceeded;
+                        info.txbad = counters.txFailed;
+                        replyToMessage(message, WifiManager.RSSI_PKTCNT_FETCH_SUCCEEDED, info);
+                    } else {
+                        replyToMessage(message,
+                                WifiManager.RSSI_PKTCNT_FETCH_FAILED, WifiManager.ERROR);
+                    }
                     break;
                 case CMD_DELAYED_NETWORK_DISCONNECT:
                     if (!isLinkDebouncing()) {
