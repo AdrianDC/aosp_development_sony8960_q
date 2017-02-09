@@ -124,8 +124,8 @@ public class WifiAwareNativeApi {
                 req.configParams.disableDiscoveryAddressChangeIndication = !notifyIdentityChange;
                 req.configParams.disableStartedClusterIndication = !notifyIdentityChange;
                 req.configParams.disableJoinedClusterIndication = !notifyIdentityChange;
-                req.configParams.includeServiceIdsInBeacon = true;
-                req.configParams.numberOfServiceIdsInBeacon = 0;
+                req.configParams.includePublishServiceIdsInBeacon = true;
+                req.configParams.numberOfPublishServiceIdsInBeacon = 0;
                 req.configParams.rssiWindowSize = 8;
                 req.configParams.macAddressRandomizationIntervalSec = 1800;
                 req.configParams.acceptRangingRequests = true;
@@ -133,7 +133,7 @@ public class WifiAwareNativeApi {
                 NanBandSpecificConfig config24 = new NanBandSpecificConfig();
                 config24.rssiClose = 60;
                 config24.rssiMiddle = 70;
-                config24.rssiProximity = 60;
+                config24.rssiCloseProximity = 60;
                 config24.dwellTimeMs = (byte) 200;
                 config24.scanPeriodSec = 20;
                 config24.validDiscoveryWindowIntervalVal = false;
@@ -142,15 +142,15 @@ public class WifiAwareNativeApi {
                 NanBandSpecificConfig config5 = new NanBandSpecificConfig();
                 config5.rssiClose = 60;
                 config5.rssiMiddle = 75;
-                config5.rssiProximity = 60;
+                config5.rssiCloseProximity = 60;
                 config5.dwellTimeMs = (byte) 200;
                 config5.scanPeriodSec = 20;
                 config5.validDiscoveryWindowIntervalVal = false;
                 req.configParams.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ] = config5;
 
                 req.debugConfigs.validClusterIdVals = true;
-                req.debugConfigs.clusterIdHighVal = (short) configRequest.mClusterHigh;
-                req.debugConfigs.clusterIdLowVal = (short) configRequest.mClusterLow;
+                req.debugConfigs.clusterIdTopRangeVal = (short) configRequest.mClusterHigh;
+                req.debugConfigs.clusterIdBottomRangeVal = (short) configRequest.mClusterLow;
                 req.debugConfigs.validIntfAddrVal = false;
                 req.debugConfigs.validOuiVal = false;
                 req.debugConfigs.ouiVal = 0;
@@ -175,8 +175,8 @@ public class WifiAwareNativeApi {
                 req.disableDiscoveryAddressChangeIndication = !notifyIdentityChange;
                 req.disableStartedClusterIndication = !notifyIdentityChange;
                 req.disableJoinedClusterIndication = !notifyIdentityChange;
-                req.includeServiceIdsInBeacon = true;
-                req.numberOfServiceIdsInBeacon = 0;
+                req.includePublishServiceIdsInBeacon = true;
+                req.numberOfPublishServiceIdsInBeacon = 0;
                 req.rssiWindowSize = 8;
                 req.macAddressRandomizationIntervalSec = 1800;
                 req.acceptRangingRequests = true;
@@ -184,7 +184,7 @@ public class WifiAwareNativeApi {
                 NanBandSpecificConfig config24 = new NanBandSpecificConfig();
                 config24.rssiClose = 60;
                 config24.rssiMiddle = 70;
-                config24.rssiProximity = 60;
+                config24.rssiCloseProximity = 60;
                 config24.dwellTimeMs = (byte) 200;
                 config24.scanPeriodSec = 20;
                 config24.validDiscoveryWindowIntervalVal = false;
@@ -193,7 +193,7 @@ public class WifiAwareNativeApi {
                 NanBandSpecificConfig config5 = new NanBandSpecificConfig();
                 config5.rssiClose = 60;
                 config5.rssiMiddle = 75;
-                config5.rssiProximity = 60;
+                config5.rssiCloseProximity = 60;
                 config5.dwellTimeMs = (byte) 200;
                 config5.scanPeriodSec = 20;
                 config5.validDiscoveryWindowIntervalVal = false;
@@ -392,7 +392,7 @@ public class WifiAwareNativeApi {
         copyArray(dest, req.addr);
         req.isHighPriority = false;
         req.shouldUseDiscoveryWindow = true;
-        convertLcByteToUcByteArray(message, req.message);
+        convertLcByteToUcByteArray(message, req.serviceSpecificInfo);
         req.disableFollowupResultIndication = false;
 
         try {

@@ -329,7 +329,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
         }
 
         mWifiAwareStateManager.onMessageReceivedNotification(event.discoverySessionId, event.peerId,
-                event.addr, convertUcByteToLcByteArray(event.message));
+                event.addr, convertUcByteToLcByteArray(event.serviceSpecificInfo));
     }
 
     @Override
