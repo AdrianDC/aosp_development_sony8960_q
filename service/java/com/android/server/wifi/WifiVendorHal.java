@@ -43,6 +43,8 @@ import android.util.MutableInt;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.connectivity.KeepalivePacketData;
 
+import java.util.ArrayList;
+
 /**
  * Vendor HAL via HIDL
  */
@@ -497,21 +499,58 @@ public class WifiVendorHal {
      * Get the APF (Android Packet Filter) capabilities of the device
      */
     public ApfCapabilities getApfCapabilities() {
-        kilroy();
-        throw new UnsupportedOperationException();
+        class AnswerBox {
+            public ApfCapabilities value = sNoApfCapabilities;
+        }
+        synchronized (sLock) {
+            try {
+                if (mIWifiStaIface == null) return sNoApfCapabilities;
+                AnswerBox box = new AnswerBox();
+                mIWifiStaIface.getApfPacketFilterCapabilities((status, capabilities) -> {
+                    if (status.code != WifiStatusCode.SUCCESS) return;
+                    box.value = new ApfCapabilities(
+                        /* apfVersionSupported */   capabilities.version,
+                        /* maximumApfProgramSize */ capabilities.maxLength,
+                        /* apfPacketFormat */       android.system.OsConstants.ARPHRD_ETHER);
+                });
+                return box.value;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return sNoApfCapabilities;
+            }
+        }
     }
 
     private static final ApfCapabilities sNoApfCapabilities = new ApfCapabilities(0, 0, 0);
 
     /**
-     * Installs an APF program on this iface, replacing an existing
-     * program if present.
+     * Installs an APF program on this iface, replacing any existing program.
+     *
+     * @param filter is the android packet filter program
+     * @return true for success
      */
     public boolean installPacketFilter(byte[] filter) {
         kilroy();
-        throw new UnsupportedOperationException();
+        int cmdId = 0; //TODO(b/34901818) We only aspire to support one program at a time
+        if (filter == null) return false;
+        // Copy the program before taking the lock.
+        ArrayList<Byte> program = new ArrayList<>(filter.length);
+        for (byte b : filter) {
+            program.add(b);
+        }
+        synchronized (sLock) {
+            try {
+                if (mIWifiStaIface == null) return false;
+                WifiStatus status = mIWifiStaIface.installApfPacketFilter(cmdId, program);
+                if (status.code != WifiStatusCode.SUCCESS) return false;
+                kilroy();
+                return true;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return false;
+            }
+        }
     }
-
 
     /**
      * to be implemented
