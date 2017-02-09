@@ -1370,8 +1370,9 @@ public class WifiAwareStateManager {
                     String interfaceName = data.getString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME);
                     byte[] token = data.getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE);
 
-                    waitForResponse = initiateDataPathSetupLocal(mCurrentTransactionId, peerId,
-                            channelRequestType, channel, peer, interfaceName, token);
+                    waitForResponse = initiateDataPathSetupLocal(mCurrentTransactionId,
+                            networkSpecifier, peerId, channelRequestType, channel, peer,
+                            interfaceName, token);
 
                     if (waitForResponse) {
                         WakeupMessage timeout = new WakeupMessage(mContext, getHandler(),
@@ -1798,8 +1799,17 @@ public class WifiAwareStateManager {
         boolean notificationRequired =
                 doesAnyClientNeedIdentityChangeNotifications() || notifyIdentityChange;
 
-        return mWifiAwareNativeApi.enableAndConfigure(transactionId, merged, notificationRequired,
-                mCurrentAwareConfiguration == null);
+        boolean success = mWifiAwareNativeApi.enableAndConfigure(transactionId, merged,
+                notificationRequired, mCurrentAwareConfiguration == null);
+        if (!success) {
+            try {
+                callback.onConnectFail(NanStatusType.INTERNAL_FAILURE);
+            } catch (RemoteException e) {
+                Log.w(TAG, "connectLocal onConnectFail(): RemoteException (FYI):  " + e);
+            }
+        }
+
+        return success;
     }
 
     private boolean disconnectLocal(short transactionId, int clientId) {
@@ -1861,7 +1871,16 @@ public class WifiAwareStateManager {
             return false;
         }
 
-        return mWifiAwareNativeApi.publish(transactionId, 0, publishConfig);
+        boolean success = mWifiAwareNativeApi.publish(transactionId, 0, publishConfig);
+        if (!success) {
+            try {
+                callback.onSessionConfigFail(NanStatusType.INTERNAL_FAILURE);
+            } catch (RemoteException e) {
+                Log.w(TAG, "publishLocal onSessionConfigFail(): RemoteException (FYI): " + e);
+            }
+        }
+
+        return success;
     }
 
     private boolean updatePublishLocal(short transactionId, int clientId, int sessionId,
@@ -1900,7 +1919,16 @@ public class WifiAwareStateManager {
             return false;
         }
 
-        return mWifiAwareNativeApi.subscribe(transactionId, 0, subscribeConfig);
+        boolean success = mWifiAwareNativeApi.subscribe(transactionId, 0, subscribeConfig);
+        if (!success) {
+            try {
+                callback.onSessionConfigFail(NanStatusType.INTERNAL_FAILURE);
+            } catch (RemoteException e) {
+                Log.w(TAG, "subscribeLocal onSessionConfigFail(): RemoteException (FYI): " + e);
+            }
+        }
+
+        return success;
     }
 
     private boolean updateSubscribeLocal(short transactionId, int clientId, int sessionId,
@@ -2022,18 +2050,25 @@ public class WifiAwareStateManager {
         mRtt.startRanging(rangingId, client, params);
     }
 
-    private boolean initiateDataPathSetupLocal(short transactionId, int peerId,
-            int channelRequestType, int channel, byte[] peer, String interfaceName, byte[] token) {
+    private boolean initiateDataPathSetupLocal(short transactionId, String networkSpecifier,
+            int peerId, int channelRequestType, int channel, byte[] peer, String interfaceName,
+            byte[] token) {
         if (VDBG) {
             Log.v(TAG,
-                    "initiateDataPathSetupLocal(): transactionId=" + transactionId + ", peerId="
-                            + peerId + ", channelRequestType=" + channelRequestType + ", channel="
-                            + channel + ", peer=" + String.valueOf(HexEncoding.encode(peer))
+                    "initiateDataPathSetupLocal(): transactionId=" + transactionId
+                            + ", networkSpecifier=" + networkSpecifier + ", peerId=" + peerId
+                            + ", channelRequestType=" + channelRequestType + ", channel=" + channel
+                            + ", peer=" + String.valueOf(HexEncoding.encode(peer))
                             + ", interfaceName=" + interfaceName + ", token=" + token);
         }
 
-        return mWifiAwareNativeApi.initiateDataPath(transactionId, peerId,
+        boolean success = mWifiAwareNativeApi.initiateDataPath(transactionId, peerId,
                 channelRequestType, channel, peer, interfaceName, token);
+        if (!success) {
+            mDataPathMgr.onDataPathInitiateFail(networkSpecifier, NanStatusType.INTERNAL_FAILURE);
+        }
+
+        return success;
     }
 
     private boolean respondToDataPathRequestLocal(short transactionId, boolean accept,
