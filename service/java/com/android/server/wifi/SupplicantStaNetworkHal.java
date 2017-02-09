@@ -73,6 +73,7 @@ public class SupplicantStaNetworkHal {
     private ArrayList<Byte> mWepKey;
     private int mWepTxKeyIdx;
     private boolean mRequirePmf;
+    private String mIdStr;
     private int mEapMethod;
     private int mEapPhase2Method;
     private ArrayList<Byte> mEapIdentity;
@@ -87,7 +88,6 @@ public class SupplicantStaNetworkHal {
     private boolean mEapEngine;
     private String mEapEngineID;
     private String mEapDomainSuffixMatch;
-    private String mIdStr;
 
     SupplicantStaNetworkHal(ISupplicantStaNetwork iSupplicantStaNetwork,
                             HandlerThread handlerThread) {
@@ -110,7 +110,7 @@ public class SupplicantStaNetworkHal {
         if (getSsid() && !ArrayUtils.isEmpty(mSsid)) {
             config.SSID = decodeSsid(mSsid);
         } else {
-            Log.e(TAG, "Failed to read ssid");
+            Log.e(TAG, "failed to read ssid");
             return false;
         }
         /** BSSID */
@@ -192,7 +192,7 @@ public class SupplicantStaNetworkHal {
         /** SSID */
         if (config.SSID != null) {
             if (!setSsid(encodeSsid(config.SSID))) {
-                Log.e(TAG, "Failed to set SSID: " + config.SSID);
+                Log.e(TAG, "failed to set SSID: " + config.SSID);
                 return false;
             }
         }
@@ -201,7 +201,7 @@ public class SupplicantStaNetworkHal {
         if (bssidStr != null) {
             byte[] bssid = macAddressToByteArray(bssidStr);
             if (!setBssid(bssid)) {
-                Log.e(TAG, "Failed to set BSSID: " + bssidStr);
+                Log.e(TAG, "failed to set BSSID: " + bssidStr);
                 return false;
             }
         }
@@ -246,34 +246,34 @@ public class SupplicantStaNetworkHal {
         if (config.allowedKeyManagement.cardinality() != 0
                 && !setKeyMgmt(wifiConfigurationToSupplicantKeyMgmtMask(
                 config.allowedKeyManagement))) {
-            Log.e(TAG, "Failed to set Key Management");
+            Log.e(TAG, "failed to set Key Management");
             return false;
         }
         /** Security Protocol */
         if (config.allowedProtocols.cardinality() != 0
                 && !setProto(wifiConfigurationToSupplicantProtoMask(config.allowedProtocols))) {
-            Log.e(TAG, "Failed to set Security Protocol");
+            Log.e(TAG, "failed to set Security Protocol");
             return false;
         }
         /** Auth Algorithm */
         if (config.allowedAuthAlgorithms.cardinality() != 0
                 && !setAuthAlg(wifiConfigurationToSupplicantAuthAlgMask(
                 config.allowedAuthAlgorithms))) {
-            Log.e(TAG, "Failed to set AuthAlgorithm");
+            Log.e(TAG, "failed to set AuthAlgorithm");
             return false;
         }
         /** Group Cipher */
         if (config.allowedGroupCiphers.cardinality() != 0
                 && !setGroupCipher(wifiConfigurationToSupplicantGroupCipherMask(
                 config.allowedGroupCiphers))) {
-            Log.e(TAG, "Failed to set Group Cipher");
+            Log.e(TAG, "failed to set Group Cipher");
             return false;
         }
         /** Pairwise Cipher*/
         if (config.allowedPairwiseCiphers.cardinality() != 0
                 && !setPairwiseCipher(wifiConfigurationToSupplicantPairwiseCipherMask(
                         config.allowedPairwiseCiphers))) {
-            Log.e(TAG, "Failed to set PairwiseCipher");
+            Log.e(TAG, "failed to set PairwiseCipher");
             return false;
         }
         /** metadata: FQDN + ConfigKey + CreatorUid */
@@ -284,13 +284,13 @@ public class SupplicantStaNetworkHal {
         metadata.put(ID_STRING_KEY_CONFIG_KEY, config.configKey());
         metadata.put(ID_STRING_KEY_CREATOR_UID, Integer.toString(config.creatorUid));
         if (!setIdStr(WifiNative.createNetworkExtra(metadata))) {
-            Log.e(TAG, "Failed to set id string");
+            Log.e(TAG, "failed to set id string");
             return false;
         }
         /** UpdateIdentifier */
         if (config.updateIdentifier != null
                 && !setUpdateIdentifier(Integer.parseInt(config.updateIdentifier))) {
-            Log.e(TAG, "Failed to set update identifier");
+            Log.e(TAG, "failed to set update identifier");
             return false;
         }
         // Finish here if no EAP config to set
@@ -310,7 +310,81 @@ public class SupplicantStaNetworkHal {
      * @return true if succeeds, false otherwise.
      */
     private boolean loadWifiEnterpriseConfig(String ssid, WifiEnterpriseConfig eapConfig) {
-        // TBD
+        if (eapConfig == null) return false;
+        /** EAP method */
+        if (getEapMethod()) {
+            eapConfig.setEapMethod(supplicantToWifiConfigurationEapMethod(mEapMethod));
+        } else {
+            // Invalid eap method could be because it's not an enterprise config.
+            Log.e(TAG, "failed to get eap method. Assumimg not an enterprise network");
+            return true;
+        }
+        /** EAP Phase 2 method */
+        if (getEapPhase2Method()) {
+            eapConfig.setPhase2Method(
+                    supplicantToWifiConfigurationEapPhase2Method(mEapPhase2Method));
+        } else {
+            // We cannot have an invalid eap phase 2 method. Return failure.
+            Log.e(TAG, "failed to get eap phase2 method");
+            return false;
+        }
+        /** EAP Identity */
+        if (getEapIdentity() && !ArrayUtils.isEmpty(mEapIdentity)) {
+            eapConfig.setFieldValue(
+                    WifiEnterpriseConfig.IDENTITY_KEY, stringFromByteArrayList(mEapIdentity));
+        }
+        /** EAP Anonymous Identity */
+        if (getEapAnonymousIdentity() && !ArrayUtils.isEmpty(mEapAnonymousIdentity)) {
+            eapConfig.setFieldValue(
+                    WifiEnterpriseConfig.ANON_IDENTITY_KEY,
+                    stringFromByteArrayList(mEapAnonymousIdentity));
+        }
+        /** EAP Password */
+        if (getEapPassword() && !ArrayUtils.isEmpty(mEapPassword)) {
+            eapConfig.setFieldValue(
+                    WifiEnterpriseConfig.PASSWORD_KEY, stringFromByteArrayList(mEapPassword));
+        }
+        /** EAP Client Cert */
+        if (getEapClientCert() && !TextUtils.isEmpty(mEapClientCert)) {
+            eapConfig.setFieldValue(WifiEnterpriseConfig.CLIENT_CERT_KEY, mEapClientCert);
+        }
+        /** EAP CA Cert */
+        if (getEapCACert() && !TextUtils.isEmpty(mEapCACert)) {
+            eapConfig.setFieldValue(WifiEnterpriseConfig.CA_CERT_KEY, mEapCACert);
+        }
+        /** EAP Subject Match */
+        if (getEapSubjectMatch() && !TextUtils.isEmpty(mEapSubjectMatch)) {
+            eapConfig.setFieldValue(WifiEnterpriseConfig.SUBJECT_MATCH_KEY, mEapSubjectMatch);
+        }
+        /** EAP Engine ID */
+        if (getEapEngineID() && !TextUtils.isEmpty(mEapEngineID)) {
+            eapConfig.setFieldValue(WifiEnterpriseConfig.ENGINE_ID_KEY, mEapEngineID);
+        }
+        /** EAP Engine. Set this only if the engine id is non null. */
+        if (getEapEngine() && !TextUtils.isEmpty(mEapEngineID)) {
+            eapConfig.setFieldValue(
+                    WifiEnterpriseConfig.ENGINE_KEY,
+                    mEapEngine
+                            ? WifiEnterpriseConfig.ENGINE_ENABLE
+                            : WifiEnterpriseConfig.ENGINE_DISABLE);
+        }
+        /** EAP Private Key */
+        if (getEapPrivateKey() && !TextUtils.isEmpty(mEapPrivateKey)) {
+            eapConfig.setFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY, mEapPrivateKey);
+        }
+        /** EAP Alt Subject Match */
+        if (getEapAltSubjectMatch() && !TextUtils.isEmpty(mEapAltSubjectMatch)) {
+            eapConfig.setFieldValue(WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY, mEapAltSubjectMatch);
+        }
+        /** EAP Domain Suffix Match */
+        if (getEapDomainSuffixMatch() && !TextUtils.isEmpty(mEapDomainSuffixMatch)) {
+            eapConfig.setFieldValue(
+                    WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY, mEapDomainSuffixMatch);
+        }
+        /** EAP CA Path*/
+        if (getEapCAPath() && !TextUtils.isEmpty(mEapCAPath)) {
+            eapConfig.setFieldValue(WifiEnterpriseConfig.CA_PATH_KEY, mEapCAPath);
+        }
         return true;
     }
 
@@ -322,7 +396,101 @@ public class SupplicantStaNetworkHal {
      * @return true if succeeds, false otherwise.
      */
     private boolean saveWifiEnterpriseConfig(String ssid, WifiEnterpriseConfig eapConfig) {
-        // TBD
+        if (eapConfig == null) return false;
+        /** EAP method */
+        if (!setEapMethod(wifiConfigurationToSupplicantEapMethod(eapConfig.getEapMethod()))) {
+            Log.e(TAG, ssid + ": failed to set eap method: " + eapConfig.getEapMethod());
+            return false;
+        }
+        /** EAP Phase 2 method */
+        if (!setEapPhase2Method(wifiConfigurationToSupplicantEapPhase2Method(
+                eapConfig.getPhase2Method()))) {
+            Log.e(TAG, ssid + ": failed to set eap phase 2 method: " + eapConfig.getPhase2Method());
+            return false;
+        }
+        String eapParam = null;
+        /** EAP Identity */
+        eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.IDENTITY_KEY);
+        if (!TextUtils.isEmpty(eapParam) && !setEapIdentity(stringToByteArrayList(eapParam))) {
+            Log.e(TAG, ssid + ": failed to set eap identity: " + eapParam);
+            return false;
+        }
+        /** EAP Anonymous Identity */
+        eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.ANON_IDENTITY_KEY);
+        if (!TextUtils.isEmpty(eapParam)
+                && !setEapAnonymousIdentity(stringToByteArrayList(eapParam))) {
+            Log.e(TAG, ssid + ": failed to set eap anonymous identity: " + eapParam);
+            return false;
+        }
+        /** EAP Password */
+        eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.PASSWORD_KEY);
+        if (!TextUtils.isEmpty(eapParam) && !setEapPassword(stringToByteArrayList(eapParam))) {
+            Log.e(TAG, ssid + ": failed to set eap password");
+            return false;
+        }
+        /** EAP Client Cert */
+        eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.CLIENT_CERT_KEY);
+        if (!TextUtils.isEmpty(eapParam) && !setEapClientCert(eapParam)) {
+            Log.e(TAG, ssid + ": failed to set eap client cert: " + eapParam);
+            return false;
+        }
+        /** EAP CA Cert */
+        eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.CA_CERT_KEY);
+        if (!TextUtils.isEmpty(eapParam) && !setEapCACert(eapParam)) {
+            Log.e(TAG, ssid + ": failed to set eap ca cert: " + eapParam);
+            return false;
+        }
+        /** EAP Subject Match */
+        eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.SUBJECT_MATCH_KEY);
+        if (!TextUtils.isEmpty(eapParam) && !setEapSubjectMatch(eapParam)) {
+            Log.e(TAG, ssid + ": failed to set eap subject match: " + eapParam);
+            return false;
+        }
+        /** EAP Engine ID */
+        eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.ENGINE_ID_KEY);
+        if (!TextUtils.isEmpty(eapParam) && !setEapEngineID(eapParam)) {
+            Log.e(TAG, ssid + ": failed to set eap engine id: " + eapParam);
+            return false;
+        }
+        /** EAP Engine */
+        eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.ENGINE_KEY);
+        if (!TextUtils.isEmpty(eapParam) && !setEapEngine(
+                eapParam.equals(WifiEnterpriseConfig.ENGINE_ENABLE) ? true : false)) {
+            Log.e(TAG, ssid + ": failed to set eap engine: " + eapParam);
+            return false;
+        }
+        /** EAP Private Key */
+        eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY);
+        if (!TextUtils.isEmpty(eapParam) && !setEapPrivateKey(eapParam)) {
+            Log.e(TAG, ssid + ": failed to set eap private key: " + eapParam);
+            return false;
+        }
+        /** EAP Alt Subject Match */
+        eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY);
+        if (!TextUtils.isEmpty(eapParam) && !setEapAltSubjectMatch(eapParam)) {
+            Log.e(TAG, ssid + ": failed to set eap alt subject match: " + eapParam);
+            return false;
+        }
+        /** EAP Domain Suffix Match */
+        eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY);
+        if (!TextUtils.isEmpty(eapParam) && !setEapDomainSuffixMatch(eapParam)) {
+            Log.e(TAG, ssid + ": failed to set eap domain suffix match: " + eapParam);
+            return false;
+        }
+        /** EAP CA Path*/
+        eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.CA_PATH_KEY);
+        if (!TextUtils.isEmpty(eapParam) && !setEapCAPath(eapParam)) {
+            Log.e(TAG, ssid + ": failed to set eap ca path: " + eapParam);
+            return false;
+        }
+
+        /** EAP Proactive Key Caching */
+        eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.OPP_KEY_CACHING);
+        if (!TextUtils.isEmpty(eapParam)
+                && !setEapProactiveKeyCaching(eapParam.equals("1") ? true : false)) {
+            Log.e(TAG, ssid + ": failed to set proactive key caching: " + eapParam);
+            return false;
+        }
         return true;
     }
 
@@ -1096,6 +1264,20 @@ public class SupplicantStaNetworkHal {
             if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status =  mISupplicantStaNetwork.setEapDomainSuffixMatch(match);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                handleRemoteException(e, methodStr);
+                return false;
+            }
+        }
+    }
+    /** See ISupplicantStaNetwork.hal for documentation */
+    private boolean setEapProactiveKeyCaching(boolean enable) {
+        synchronized (mLock) {
+            final String methodStr = "setEapProactiveKeyCaching";
+            if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status =  mISupplicantStaNetwork.setProactiveKeyCaching(enable);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
