@@ -117,6 +117,18 @@ public class WifiNativeTest {
             new FateMapping(WifiLoggerHal.RX_PKT_FATE_DRV_DROP_OTHER, "driver dropped (other)"),
             new FateMapping((byte) 42, "42")
     };
+    private static final WifiNative.SignalPollResult SIGNAL_POLL_RESULT =
+            new WifiNative.SignalPollResult() {{
+                currentRssi = -60;
+                txBitrate = 12;
+                associationFrequency = 5240;
+            }};
+    private static final WifiNative.TxPacketCounters PACKET_COUNTERS_RESULT =
+            new WifiNative.TxPacketCounters() {{
+                txSucceeded = 2000;
+                txFailed = 120;
+            }};
+
 
     private WifiNative mWifiNative;
 
@@ -556,4 +568,33 @@ public class WifiNativeTest {
         assertTrue(mWifiNative.tearDownInterfaces());
         verify(wificondControl).tearDownInterfaces();
     }
+
+    /**
+     * Verifies that signalPoll() calls underlying WificondControl.
+     */
+    @Test
+    public void testSignalPoll() throws Exception {
+        WificondControl wificondControl = mock(WificondControl.class);
+
+        when(wificondControl.signalPoll()).thenReturn(SIGNAL_POLL_RESULT);
+        mWifiNative.setWificondControl(wificondControl);
+
+        assertEquals(SIGNAL_POLL_RESULT, mWifiNative.signalPoll());
+        verify(wificondControl).signalPoll();
+    }
+
+    /**
+     * Verifies that getTxPacketCounters() calls underlying WificondControl.
+     */
+    @Test
+    public void testGetTxPacketCounters() throws Exception {
+        WificondControl wificondControl = mock(WificondControl.class);
+
+        when(wificondControl.getTxPacketCounters()).thenReturn(PACKET_COUNTERS_RESULT);
+        mWifiNative.setWificondControl(wificondControl);
+
+        assertEquals(PACKET_COUNTERS_RESULT, mWifiNative.getTxPacketCounters());
+        verify(wificondControl).getTxPacketCounters();
+    }
+
 }

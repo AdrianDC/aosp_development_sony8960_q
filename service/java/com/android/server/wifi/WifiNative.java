@@ -280,6 +280,24 @@ public class WifiNative {
         return mWificondControl.enableSupplicant();
     }
 
+    /**
+    * Request signal polling to wificond.
+    * Returns an SignalPollResult object.
+    * Returns null on failure.
+    */
+    public SignalPollResult signalPoll() {
+        return mWificondControl.signalPoll();
+    }
+
+    /**
+     * Fetch TX packet counters on current connection from wificond.
+    * Returns an TxPacketCounters object.
+    * Returns null on failure.
+    */
+    public TxPacketCounters getTxPacketCounters() {
+        return mWificondControl.getTxPacketCounters();
+    }
+
     /*
      * Supplicant management
      */
@@ -1809,6 +1827,28 @@ public class WifiNative {
         int mCenterFrequency1;
         int mChannelWidth;
         // TODO: add preamble once available in HAL.
+    }
+
+    /**
+     * Result of a signal poll.
+     */
+    public static class SignalPollResult {
+        // RSSI value in dBM.
+        public int currentRssi;
+        //Transmission bit rate in Mbps.
+        public int txBitrate;
+        // Association frequency in MHz.
+        public int associationFrequency;
+    }
+
+    /**
+     * WiFi interface transimission counters.
+     */
+    public static class TxPacketCounters {
+        // Number of successfully transmitted packets.
+        public int txSucceeded;
+        // Number of tramsmission failures.
+        public int txFailed;
     }
 
     public static interface ScanEventHandler {
