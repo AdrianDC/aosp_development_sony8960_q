@@ -18,10 +18,19 @@ package com.android.server.wifi;
 
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
+import android.net.wifi.IWifiScannerImpl;
 import android.net.wifi.IWificond;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiSsid;
 import android.os.Binder;
 import android.os.RemoteException;
 import android.util.Log;
+
+import com.android.server.wifi.hotspot2.NetworkDetail;
+import com.android.server.wifi.util.InformationElementUtil;
+import com.android.server.wifi.wificond.NativeScanResult;
+
+import java.util.ArrayList;
 
 /**
  * This class provides methods for WifiNative to send control commands to wificond.
@@ -30,9 +39,11 @@ import android.util.Log;
 public class WificondControl {
 
     private static final String TAG = "WificondControl";
+    private static final int MAC_ADDR_LEN = 6;
     private IWificond mWificond;
     private IClientInterface mClientInterface;
     private IApInterface mApInterface;
+    private IWifiScannerImpl mWificondScanner;
     private WifiInjector mWifiInjector;
 
     WificondControl(WifiInjector wifiInjector) {
@@ -67,6 +78,11 @@ public class WificondControl {
 
         // Refresh Handlers
         mClientInterface = clientInterface;
+        try {
+            mWificondScanner = mClientInterface.getWifiScannerImpl();
+        } catch (RemoteException e) {
+            Log.e(TAG, "Failed to refresh wificond scanner due to remote exception");
+        }
 
         return clientInterface;
     }
@@ -99,6 +115,7 @@ public class WificondControl {
 
         // Refresh Handlers
         mApInterface = apInterface;
+        mWificondScanner = null;
 
         return apInterface;
     }
@@ -215,5 +232,53 @@ public class WificondControl {
         counters.txSucceeded = resultArray[0];
         counters.txFailed = resultArray[1];
         return counters;
+    }
+
+    private static String parseMacToString(byte[] mac) {
+        if (mac == null || mac.length != MAC_ADDR_LEN) {
+            Log.e(TAG, "Invalid MAC adddress size");
+            return "";
+        }
+        return String.format("%02x:%02x:%02x:%02x:%02x:%02x",
+                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    }
+
+    /**
+    * Fetch the latest scan result from kernel via wificond.
+    * @return Returns an ArrayList of ScanDetail.
+    * Returns an empty ArrayList on failure.
+    */
+    public ArrayList<ScanDetail> getScanResults() {
+        ArrayList<ScanDetail> results = new ArrayList<>();
+        if (mWificondScanner == null) {
+            Log.e(TAG, "No valid wificond scanner interface handler");
+            return results;
+        }
+        try {
+            NativeScanResult[] nativeResults = mWificondScanner.getScanResults();
+            for (NativeScanResult result : nativeResults) {
+                WifiSsid wifiSsid = WifiSsid.createFromAsciiEncoded(new String(result.ssid));
+                String bssid = parseMacToString(result.bssid);
+                ScanResult.InformationElement[] ies =
+                        InformationElementUtil.parseInformationElements(result.infoElement);
+                InformationElementUtil.Capabilities capabilities =
+                        new InformationElementUtil.Capabilities();
+                capabilities.from(ies, result.capability);
+                String flags = capabilities.generateCapabilitiesString();
+                NetworkDetail networkDetail =
+                        new NetworkDetail(bssid, ies, null, result.frequency);
+
+                if (!wifiSsid.toString().equals(networkDetail.getTrimmedSSID())) {
+                    Log.e(TAG, "Inconsistent SSID on BSSID: " + bssid);
+                    continue;
+                }
+                ScanDetail scanDetail = new ScanDetail(networkDetail, wifiSsid, bssid, flags,
+                        result.signalMbm / 100, result.frequency, result.tsf, ies, null);
+                results.add(scanDetail);
+            }
+        } catch (RemoteException e1) {
+            Log.e(TAG, "Failed to create ScanDetail ArrayList");
+        }
+        return results;
     }
 }
