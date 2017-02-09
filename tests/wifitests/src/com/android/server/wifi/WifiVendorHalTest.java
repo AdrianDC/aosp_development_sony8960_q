@@ -22,8 +22,10 @@ import android.hardware.wifi.V1_0.IWifiChip;
 import android.hardware.wifi.V1_0.IWifiIface;
 import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
+import android.hardware.wifi.V1_0.StaApfPacketFilterCapabilities;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
+import android.net.apf.ApfCapabilities;
 import android.net.wifi.WifiManager;
 
 
@@ -40,6 +42,8 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+
+import java.util.ArrayList;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiVendorHal}.
@@ -405,5 +409,61 @@ public class WifiVendorHalTest {
 
         assertEquals(firmwareVersion, mWifiVendorHal.getFirmwareVersion());
         assertEquals(driverVersion, mWifiVendorHal.getDriverVersion());
+    }
+
+    /**
+     * Test that getApfCapabilities is hooked up to the HAL correctly
+     *
+     * A call before the vendor HAL is started should return a non-null result with version 0
+     *
+     * A call after the HAL is started should return the mocked values.
+     */
+    @Test
+    public void testApfCapabilities() throws Exception {
+        int myVersion = 33;
+        int myMaxSize = 1234;
+
+        StaApfPacketFilterCapabilities capabilities = new StaApfPacketFilterCapabilities();
+        capabilities.version = myVersion;
+        capabilities.maxLength = myMaxSize;
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiStaIface.getApfPacketFilterCapabilitiesCallback cb)
+                    throws RemoteException {
+                cb.onValues(mWifiStatusSuccess, capabilities);
+            }
+        }).when(mIWifiStaIface).getApfPacketFilterCapabilities(any(
+                IWifiStaIface.getApfPacketFilterCapabilitiesCallback.class));
+
+
+        assertEquals(0, mWifiVendorHal.getApfCapabilities().apfVersionSupported);
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+
+        ApfCapabilities actual = mWifiVendorHal.getApfCapabilities();
+
+        assertEquals(myVersion, actual.apfVersionSupported);
+        assertEquals(myMaxSize, actual.maximumApfProgramSize);
+        assertEquals(android.system.OsConstants.ARPHRD_ETHER, actual.apfPacketFormat);
+        assertNotEquals(0, actual.apfPacketFormat);
+    }
+
+    /**
+     * Test that an APF program can be installed/
+     */
+    @Test
+    public void testInstallApf() throws Exception {
+        byte[] filter = new byte[] {19, 53, 10};
+
+        ArrayList<Byte> expected = new ArrayList<>(3);
+        for (byte b : filter) expected.add(b);
+
+        when(mIWifiStaIface.installApfPacketFilter(anyInt(), any(ArrayList.class)))
+                .thenReturn(mWifiStatusSuccess);
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertTrue(mWifiVendorHal.installPacketFilter(filter));
+
+        verify(mIWifiStaIface).installApfPacketFilter(eq(0), eq(expected));
     }
 }
