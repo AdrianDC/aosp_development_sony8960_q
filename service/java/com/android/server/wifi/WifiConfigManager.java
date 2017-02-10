@@ -291,6 +291,11 @@ public class WifiConfigManager {
     private long mLastSelectedTimeStamp =
             WifiConfiguration.NetworkSelectionStatus.INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP;
 
+    // Store data for network list and deleted ephemeral SSID list.  Used for serializing
+    // parsing data to/from the config store.
+    private final NetworkListStoreData mNetworkListStoreData;
+    private final DeletedEphemeralSsidsStoreData mDeletedEphemeralSsidsStoreData;
+
     /**
      * Create new instance of WifiConfigManager.
      */
@@ -298,7 +303,9 @@ public class WifiConfigManager {
             Context context, FrameworkFacade facade, Clock clock, UserManager userManager,
             TelephonyManager telephonyManager, WifiKeyStore wifiKeyStore,
             WifiConfigStore wifiConfigStore, WifiConfigStoreLegacy wifiConfigStoreLegacy,
-            WifiPermissionsWrapper wifiPermissionsWrapper) {
+            WifiPermissionsWrapper wifiPermissionsWrapper,
+            NetworkListStoreData networkListStoreData,
+            DeletedEphemeralSsidsStoreData deletedEphemeralSsidsStoreData) {
         mContext = context;
         mFacade = facade;
         mClock = clock;
@@ -313,6 +320,12 @@ public class WifiConfigManager {
         mConfiguredNetworks = new ConfigurationMap(userManager);
         mScanDetailCaches = new HashMap<>(16, 0.75f);
         mDeletedEphemeralSSIDs = new HashSet<>();
+
+        // Register store data for network list and deleted ephemeral SSIDs.
+        mNetworkListStoreData = networkListStoreData;
+        mDeletedEphemeralSsidsStoreData = deletedEphemeralSsidsStoreData;
+        mWifiConfigStore.registerStoreData(mNetworkListStoreData);
+        mWifiConfigStore.registerStoreData(mDeletedEphemeralSsidsStoreData);
 
         mOnlyLinkSameCredentialConfigurations = mContext.getResources().getBoolean(
                 R.bool.config_wifi_only_link_same_credential_configurations);
@@ -2561,9 +2574,8 @@ public class WifiConfigManager {
             }
             return true;
         }
-        WifiConfigStoreData storeData;
         try {
-            storeData = mWifiConfigStore.read();
+            mWifiConfigStore.read();
         } catch (IOException e) {
             Log.wtf(TAG, "Reading from new store failed. All saved networks are lost!", e);
             return false;
@@ -2571,8 +2583,9 @@ public class WifiConfigManager {
             Log.wtf(TAG, "XML deserialization of store failed. All saved networks are lost!", e);
             return false;
         }
-        loadInternalData(storeData.getSharedConfigurations(), storeData.getUserConfigurations(),
-                storeData.getDeletedEphemeralSSIDs());
+        loadInternalData(mNetworkListStoreData.getSharedConfigurations(),
+                mNetworkListStoreData.getUserConfigurations(),
+                mDeletedEphemeralSsidsStoreData.getSsidList());
         // If the user unlock comes in before we load from store, we defer the handling until
         // the load from store is triggered.
         if (mDeferredUserUnlockRead) {
@@ -2596,10 +2609,8 @@ public class WifiConfigManager {
      * @return true on success, false otherwise.
      */
     public boolean loadFromUserStoreAfterUnlockOrSwitch(int userId) {
-        WifiConfigStoreData storeData;
         try {
-            storeData = mWifiConfigStore.switchUserStoreAndRead(
-                    mWifiConfigStore.createUserFile(userId));
+            mWifiConfigStore.switchUserStoreAndRead(WifiConfigStore.createUserFile(userId));
         } catch (IOException e) {
             Log.wtf(TAG, "Reading from new store failed. All saved private networks are lost!", e);
             return false;
@@ -2608,8 +2619,8 @@ public class WifiConfigManager {
                     "lost!", e);
             return false;
         }
-        loadInternalDataFromUserStore(storeData.getUserConfigurations(),
-                storeData.getDeletedEphemeralSSIDs());
+        loadInternalDataFromUserStore(mNetworkListStoreData.getUserConfigurations(),
+                mDeletedEphemeralSsidsStoreData.getSsidList());
         return true;
     }
 
@@ -2640,12 +2651,14 @@ public class WifiConfigManager {
                 }
             }
         }
-        WifiConfigStoreData storeData =
-                new WifiConfigStoreData(
-                        sharedConfigurations, userConfigurations, mDeletedEphemeralSSIDs);
+
+        // Setup store data for write.
+        mNetworkListStoreData.setSharedConfigurations(sharedConfigurations);
+        mNetworkListStoreData.setUserConfigurations(userConfigurations);
+        mDeletedEphemeralSsidsStoreData.setSsidList(mDeletedEphemeralSSIDs);
 
         try {
-            mWifiConfigStore.write(forceWrite, storeData);
+            mWifiConfigStore.write(forceWrite);
         } catch (IOException e) {
             Log.wtf(TAG, "Writing to store failed. Saved networks maybe lost!", e);
             return false;
