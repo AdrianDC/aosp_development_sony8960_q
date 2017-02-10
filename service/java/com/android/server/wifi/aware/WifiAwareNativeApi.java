@@ -126,6 +126,8 @@ public class WifiAwareNativeApi {
                 req.configParams.disableJoinedClusterIndication = !notifyIdentityChange;
                 req.configParams.includePublishServiceIdsInBeacon = true;
                 req.configParams.numberOfPublishServiceIdsInBeacon = 0;
+                req.configParams.includeSubscribeServiceIdsInBeacon = true;
+                req.configParams.numberOfSubscribeServiceIdsInBeacon = 0;
                 req.configParams.rssiWindowSize = 8;
                 req.configParams.macAddressRandomizationIntervalSec = 1800;
                 req.configParams.acceptRangingRequests = true;
@@ -177,6 +179,8 @@ public class WifiAwareNativeApi {
                 req.disableJoinedClusterIndication = !notifyIdentityChange;
                 req.includePublishServiceIdsInBeacon = true;
                 req.numberOfPublishServiceIdsInBeacon = 0;
+                req.includeSubscribeServiceIdsInBeacon = true;
+                req.numberOfSubscribeServiceIdsInBeacon = 0;
                 req.rssiWindowSize = 8;
                 req.macAddressRandomizationIntervalSec = 1800;
                 req.acceptRangingRequests = true;
