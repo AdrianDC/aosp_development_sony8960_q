@@ -16,6 +16,8 @@
 
 package com.android.server.wifi;
 
+import static junit.framework.Assert.assertEquals;
+
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
@@ -64,7 +66,9 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Unit test harness for HalDeviceManagerTest.
@@ -934,6 +938,56 @@ public class HalDeviceManagerTest {
         verifyNoMoreInteractions(staAvailListener);
     }
 
+    /**
+     * Validate that the getSupportedIfaceTypes API works when requesting for all chips.
+     */
+    @Test
+    public void testGetSupportedIfaceTypesAll() throws Exception {
+        BaselineChip chipMock = new BaselineChip();
+        chipMock.initialize();
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
+                mManagerStatusListenerMock);
+        executeAndValidateInitializationSequence();
+        executeAndValidateStartupSequence();
+
+        // try API
+        Set<Integer> results = mDut.getSupportedIfaceTypes();
+
+        // verify results
+        Set<Integer> correctResults = new HashSet<>();
+        correctResults.add(IfaceType.AP);
+        correctResults.add(IfaceType.STA);
+        correctResults.add(IfaceType.P2P);
+        correctResults.add(IfaceType.NAN);
+
+        assertEquals(correctResults, results);
+    }
+
+    /**
+     * Validate that the getSupportedIfaceTypes API works when requesting for a specific chip.
+     */
+    @Test
+    public void testGetSupportedIfaceTypesOneChip() throws Exception {
+        BaselineChip chipMock = new BaselineChip();
+        chipMock.initialize();
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
+                mManagerStatusListenerMock);
+        executeAndValidateInitializationSequence();
+        executeAndValidateStartupSequence();
+
+        // try API
+        Set<Integer> results = mDut.getSupportedIfaceTypes(chipMock.chip);
+
+        // verify results
+        Set<Integer> correctResults = new HashSet<>();
+        correctResults.add(IfaceType.AP);
+        correctResults.add(IfaceType.STA);
+        correctResults.add(IfaceType.P2P);
+        correctResults.add(IfaceType.NAN);
+
+        assertEquals(correctResults, results);
+    }
+
     // utilities
     private void dumpDut(String prefix) {
         StringWriter sw = new StringWriter();
@@ -1161,6 +1215,18 @@ public class HalDeviceManagerTest {
         }
     }
 
+    private class GetIdAnswer extends MockAnswerUtil.AnswerWithArguments {
+        private ChipMockBase mChipMockBase;
+
+        GetIdAnswer(ChipMockBase chipMockBase) {
+            mChipMockBase = chipMockBase;
+        }
+
+        public void answer(IWifiChip.getIdCallback cb) {
+            cb.onValues(mStatusOk, mChipMockBase.chipId);
+        }
+    }
+
     private class GetAvailableModesAnswer extends MockAnswerUtil.AnswerWithArguments {
         private ChipMockBase mChipMockBase;
 
@@ -1374,6 +1440,7 @@ public class HalDeviceManagerTest {
             when(chip.registerEventCallback(any(IWifiChipEventCallback.class))).thenReturn(
                     mStatusOk);
             when(chip.configureChip(anyInt())).thenAnswer(new ConfigureChipAnswer(this));
+            doAnswer(new GetIdAnswer(this)).when(chip).getId(any(IWifiChip.getIdCallback.class));
             doAnswer(new GetModeAnswer(this)).when(chip).getMode(
                     any(IWifiChip.getModeCallback.class));
             GetXxxIfaceNamesAnswer getXxxIfaceNamesAnswer = new GetXxxIfaceNamesAnswer(this);
