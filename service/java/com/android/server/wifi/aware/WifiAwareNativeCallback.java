@@ -119,7 +119,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
     }
 
     @Override
-    public void notifyStartPublishResponse(short id, WifiNanStatus status, short publishId) {
+    public void notifyStartPublishResponse(short id, WifiNanStatus status, byte publishId) {
         if (VDBG) {
             Log.v(TAG, "notifyStartPublishResponse: id=" + id + ", status=" + statusString(status)
                     + ", publishId=" + publishId);
@@ -147,7 +147,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
     }
 
     @Override
-    public void notifyStartSubscribeResponse(short id, WifiNanStatus status, short subscribeId) {
+    public void notifyStartSubscribeResponse(short id, WifiNanStatus status, byte subscribeId) {
         if (VDBG) {
             Log.v(TAG, "notifyStartSubscribeResponse: id=" + id + ", status=" + statusString(status)
                     + ", subscribeId=" + subscribeId);
@@ -276,7 +276,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
     }
 
     @Override
-    public void eventPublishTerminated(short sessionId, WifiNanStatus status) {
+    public void eventPublishTerminated(byte sessionId, WifiNanStatus status) {
         if (VDBG) {
             Log.v(TAG, "eventPublishTerminated: sessionId=" + sessionId + ", status="
                     + statusString(status));
@@ -286,7 +286,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
     }
 
     @Override
-    public void eventSubscribeTerminated(short sessionId, WifiNanStatus status) {
+    public void eventSubscribeTerminated(byte sessionId, WifiNanStatus status) {
         if (VDBG) {
             Log.v(TAG, "eventSubscribeTerminated: sessionId=" + sessionId + ", status="
                     + statusString(status));
@@ -311,7 +311,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
     }
 
     @Override
-    public void eventMatchExpired(short discoverySessionId, int peerId) {
+    public void eventMatchExpired(byte discoverySessionId, int peerId) {
         if (VDBG) {
             Log.v(TAG, "eventMatchExpired: discoverySessionId=" + discoverySessionId
                     + ", peerId=" + peerId);
