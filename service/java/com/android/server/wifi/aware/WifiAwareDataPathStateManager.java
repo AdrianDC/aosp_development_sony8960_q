@@ -32,7 +32,6 @@ import android.net.wifi.aware.WifiAwareManager;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
 import android.os.Looper;
-import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.text.TextUtils;
 import android.util.ArrayMap;
@@ -420,10 +419,9 @@ public class WifiAwareDataPathStateManager {
             LinkProperties linkProperties = new LinkProperties();
 
             try {
-                // TODO: b/29608448 to track other IPv6 related optimizations and move to IpManager
                 mNwService.setInterfaceUp(nnri.interfaceName);
                 mNwService.enableIpv6(nnri.interfaceName);
-            } catch (RemoteException e) {
+            } catch (Exception e) { // NwService throws runtime exceptions for errors
                 Log.e(TAG, "onDataPathConfirm: ACCEPT nnri=" + nnri + ": can't configure network - "
                         + e);
                 mMgr.endDataPath(ndpId);
@@ -698,9 +696,8 @@ public class WifiAwareDataPathStateManager {
 
         if (nnri.interfaceName != null && !nnri.interfaceName.isEmpty()) {
             try {
-                // TODO: b/29608448 replace with IpManager
                 mNwService.setInterfaceDown(nnri.interfaceName);
-            } catch (RemoteException e) {
+            } catch (Exception e) { // NwService throws runtime exceptions for errors
                 Log.e(TAG,
                         "tearDownInterface: nnri=" + nnri + ": can't bring interface down - " + e);
             }
