@@ -71,18 +71,46 @@ public class LastMileLoggerTest {
     }
 
     @Test
-    public void ctorDoesNotCrashEvenIfReleaseFileIsMissing() throws Exception {
-        mTraceReleaseFile.delete();
-        new LastMileLogger(mWifiInjector, mTraceDataFile.getPath(), mTraceEnableFile.getPath(),
-                mTraceReleaseFile.getPath());
-        verify(mLog).warn(contains("Failed"));
-    }
-
-    @Test
     public void connectionEventStartedEnablesTracing() throws Exception {
         mLastMileLogger.reportConnectionEvent(
                 FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_STARTED);
         assertEquals("1", IoUtils.readFileAsString(mTraceEnableFile.getPath()));
+    }
+
+    @Test
+    public void connectionEventStartedDoesNotCrashIfReleaseFileIsMissing() throws Exception {
+        mTraceReleaseFile.delete();
+        mLastMileLogger.reportConnectionEvent(
+                FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_STARTED);
+        verify(mLog).warn(contains("Failed to open free_buffer"));
+    }
+
+    @Test
+    public void connectionEventStartedDoesNotEnableTracingIfReleaseFileIsMissing()
+            throws Exception {
+        mTraceReleaseFile.delete();
+        mLastMileLogger.reportConnectionEvent(
+                FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_STARTED);
+        assertEquals("0", IoUtils.readFileAsString(mTraceEnableFile.getPath()));
+    }
+
+    @Test
+    public void connectionEventStartedDoesNotAttemptToReopenReleaseFile() throws Exception {
+        mLastMileLogger.reportConnectionEvent(
+                FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_STARTED);
+
+        // This is a rather round-about way of verifying that we don't attempt to re-open
+        // the file. Namely: if we delete the |release| file, and CONNECTION_EVENT_STARTED
+        // _did_ re-open the file, then we'd log an error message. Since the test is deleting the
+        // |release| file, the absence of a warning message means that we didn't try to open the
+        // file again.
+        //
+        // A more direct test would require the use of a factory for the creation of the
+        // FileInputStream.
+        mTraceReleaseFile.delete();
+        mLastMileLogger.reportConnectionEvent(
+                FAKE_CONNECTION_ID, BaseWifiDiagnostics.CONNECTION_EVENT_STARTED);
+        verifyZeroInteractions(mLog);
     }
 
     @Test
