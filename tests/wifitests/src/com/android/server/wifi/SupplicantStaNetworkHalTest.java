@@ -296,6 +296,237 @@ public class SupplicantStaNetworkHalTest {
         assertFalse(mSupplicantNetwork.loadWifiConfiguration(loadConfig, networkExtras));
     }
 
+    /**
+     * Tests the parsing of GSM auth response parameters.
+     */
+    @Test
+    public void testSendNetworkEapSimGsmAuthResponseWith2KcSresPair() throws Exception {
+        final byte[] kc = new byte[]{0x45, 0x45, 0x32, 0x34, 0x45, 0x10, 0x34, 0x12};
+        final byte[] sres = new byte[]{0x12, 0x10, 0x32, 0x23};
+        // Send 2 kc/sres pair for this request.
+        String paramsStr = ":kc:" + SupplicantStaNetworkHal.byteArrayToHexString(kc)
+                + ":sres:" + SupplicantStaNetworkHal.byteArrayToHexString(sres)
+                + ":kc:" + SupplicantStaNetworkHal.byteArrayToHexString(kc)
+                + ":sres:" + SupplicantStaNetworkHal.byteArrayToHexString(sres);
+
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(
+                    ArrayList<ISupplicantStaNetwork.NetworkResponseEapSimGsmAuthParams> params)
+                    throws RemoteException {
+                assertEquals(2, params.size());
+                assertArrayEquals(kc, params.get(0).kc);
+                assertArrayEquals(sres, params.get(0).sres);
+                assertArrayEquals(kc, params.get(1).kc);
+                assertArrayEquals(sres, params.get(1).sres);
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).sendNetworkEapSimGsmAuthResponse(any(ArrayList.class));
+
+        assertTrue(mSupplicantNetwork.sendNetworkEapSimGsmAuthResponse(paramsStr));
+    }
+
+    /**
+     * Tests the parsing of GSM auth response parameters.
+     */
+    @Test
+    public void testSendNetworkEapSimGsmAuthResponseWith3KcSresPair() throws Exception {
+        final byte[] kc1 = new byte[]{0x45, 0x45, 0x32, 0x34, 0x45, 0x10, 0x34, 0x12};
+        final byte[] sres1 = new byte[]{0x12, 0x10, 0x32, 0x23};
+        final byte[] kc2 = new byte[]{0x45, 0x34, 0x12, 0x34, 0x45, 0x10, 0x34, 0x12};
+        final byte[] sres2 = new byte[]{0x12, 0x23, 0x12, 0x23};
+        final byte[] kc3 = new byte[]{0x25, 0x34, 0x12, 0x14, 0x45, 0x10, 0x34, 0x12};
+        final byte[] sres3 = new byte[]{0x42, 0x23, 0x22, 0x23};
+        // Send 3 kc/sres pair for this request.
+        String paramsStr = ":kc:" + SupplicantStaNetworkHal.byteArrayToHexString(kc1)
+                + ":sres:" + SupplicantStaNetworkHal.byteArrayToHexString(sres1)
+                + ":kc:" + SupplicantStaNetworkHal.byteArrayToHexString(kc2)
+                + ":sres:" + SupplicantStaNetworkHal.byteArrayToHexString(sres2)
+                + ":kc:" + SupplicantStaNetworkHal.byteArrayToHexString(kc3)
+                + ":sres:" + SupplicantStaNetworkHal.byteArrayToHexString(sres3);
+
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(
+                    ArrayList<ISupplicantStaNetwork.NetworkResponseEapSimGsmAuthParams> params)
+                    throws RemoteException {
+                assertEquals(3, params.size());
+                assertArrayEquals(kc1, params.get(0).kc);
+                assertArrayEquals(sres1, params.get(0).sres);
+                assertArrayEquals(kc2, params.get(1).kc);
+                assertArrayEquals(sres2, params.get(1).sres);
+                assertArrayEquals(kc3, params.get(2).kc);
+                assertArrayEquals(sres3, params.get(2).sres);
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).sendNetworkEapSimGsmAuthResponse(any(ArrayList.class));
+
+        assertTrue(mSupplicantNetwork.sendNetworkEapSimGsmAuthResponse(paramsStr));
+    }
+
+    /**
+     * Tests the parsing of invalid GSM auth response parameters (invalid kc & sres lengths).
+     */
+    @Test
+    public void testSendInvalidKcSresLenNetworkEapSimGsmAuthResponse() throws Exception {
+        final byte[] kc1 = new byte[]{0x45, 0x45, 0x32, 0x34, 0x45, 0x10, 0x34};
+        final byte[] sres1 = new byte[]{0x12, 0x10, 0x23};
+        final byte[] kc2 = new byte[]{0x45, 0x34, 0x12, 0x34, 0x45, 0x10, 0x34, 0x12};
+        final byte[] sres2 = new byte[]{0x12, 0x23, 0x12, 0x23};
+        // Send 2 kc/sres pair for this request.
+        String paramsStr = ":kc:" + SupplicantStaNetworkHal.byteArrayToHexString(kc1)
+                + ":sres:" + SupplicantStaNetworkHal.byteArrayToHexString(sres1)
+                + ":kc:" + SupplicantStaNetworkHal.byteArrayToHexString(kc2)
+                + ":sres:" + SupplicantStaNetworkHal.byteArrayToHexString(sres2);
+
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(
+                    ArrayList<ISupplicantStaNetwork.NetworkResponseEapSimGsmAuthParams> params)
+                    throws RemoteException {
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).sendNetworkEapSimGsmAuthResponse(any(ArrayList.class));
+
+        assertFalse(mSupplicantNetwork.sendNetworkEapSimGsmAuthResponse(paramsStr));
+    }
+
+    /**
+     * Tests the parsing of invalid GSM auth response parameters (invalid number of kc/sres pairs).
+     */
+    @Test
+    public void testSendInvalidKcSresPairNumNetworkEapSimGsmAuthResponse() throws Exception {
+        final byte[] kc = new byte[]{0x45, 0x34, 0x12, 0x34, 0x45, 0x10, 0x34, 0x12};
+        final byte[] sres = new byte[]{0x12, 0x23, 0x12, 0x23};
+        // Send 1 kc/sres pair for this request.
+        String paramsStr = ":kc:" + SupplicantStaNetworkHal.byteArrayToHexString(kc)
+                + ":sres:" + SupplicantStaNetworkHal.byteArrayToHexString(sres);
+
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(
+                    ArrayList<ISupplicantStaNetwork.NetworkResponseEapSimGsmAuthParams> params)
+                    throws RemoteException {
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).sendNetworkEapSimGsmAuthResponse(any(ArrayList.class));
+
+        assertFalse(mSupplicantNetwork.sendNetworkEapSimGsmAuthResponse(paramsStr));
+    }
+
+    /**
+     * Tests the parsing of UMTS auth response parameters.
+     */
+    @Test
+    public void testSendNetworkEapSimUmtsAuthResponse() throws Exception {
+        final byte[] ik = new byte[]{0x45, 0x45, 0x32, 0x34, 0x45, 0x10, 0x34, 0x12, 0x23, 0x34,
+                0x33, 0x23, 0x34, 0x10, 0x40, 0x34};
+        final byte[] ck = new byte[]{0x12, 0x10, 0x32, 0x23, 0x45, 0x10, 0x34, 0x12, 0x23, 0x34,
+                0x33, 0x23, 0x34, 0x10, 0x40, 0x34};
+        final byte[] res = new byte[]{0x12, 0x10, 0x32, 0x23, 0x45, 0x10, 0x34, 0x12, 0x23, 0x34};
+        String paramsStr = ":ik:" + SupplicantStaNetworkHal.byteArrayToHexString(ik)
+                + ":ck:" + SupplicantStaNetworkHal.byteArrayToHexString(ck)
+                + ":res:" + SupplicantStaNetworkHal.byteArrayToHexString(res);
+
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(
+                    ISupplicantStaNetwork.NetworkResponseEapSimUmtsAuthParams params)
+                    throws RemoteException {
+                assertArrayEquals(ik, params.ik);
+                assertArrayEquals(ck, params.ck);
+                // Convert to arraylist before comparison.
+                ArrayList<Byte> resList = new ArrayList<>();
+                for (byte b : res) {
+                    resList.add(b);
+                }
+                assertEquals(resList, params.res);
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).sendNetworkEapSimUmtsAuthResponse(
+                any(ISupplicantStaNetwork.NetworkResponseEapSimUmtsAuthParams.class));
+
+        assertTrue(mSupplicantNetwork.sendNetworkEapSimUmtsAuthResponse(paramsStr));
+    }
+
+    /**
+     * Tests the parsing of invalid UMTS auth response parameters (invalid ik, ck lengths).
+     */
+    @Test
+    public void testSendInvalidNetworkEapSimUmtsAuthResponse() throws Exception {
+        final byte[] ik = new byte[]{0x45, 0x45, 0x32, 0x34, 0x45, 0x10, 0x34, 0x12};
+        final byte[] ck = new byte[]{0x12, 0x10, 0x32, 0x23, 0x45, 0x10, 0x34, 0x12, 0x23, 0x34,
+                0x33, 0x23, 0x34, 0x10, 0x40};
+        final byte[] res = new byte[]{0x12, 0x10, 0x32, 0x23, 0x45, 0x10, 0x34, 0x12, 0x23, 0x34};
+        String paramsStr = ":ik:" + SupplicantStaNetworkHal.byteArrayToHexString(ik)
+                + ":ck:" + SupplicantStaNetworkHal.byteArrayToHexString(ck)
+                + ":res:" + SupplicantStaNetworkHal.byteArrayToHexString(res);
+
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(
+                    ISupplicantStaNetwork.NetworkResponseEapSimUmtsAuthParams params)
+                    throws RemoteException {
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).sendNetworkEapSimUmtsAuthResponse(
+                any(ISupplicantStaNetwork.NetworkResponseEapSimUmtsAuthParams.class));
+
+        assertFalse(mSupplicantNetwork.sendNetworkEapSimUmtsAuthResponse(paramsStr));
+    }
+
+    /**
+     * Tests the parsing of UMTS auts response parameters.
+     */
+    @Test
+    public void testSendNetworkEapSimUmtsAutsResponse() throws Exception {
+        final byte[] auts = new byte[]{0x45, 0x45, 0x32, 0x34, 0x45, 0x10, 0x34, 0x12, 0x23, 0x34,
+                0x33, 0x23, 0x34, 0x10};
+        String paramsStr = ":" + SupplicantStaNetworkHal.byteArrayToHexString(auts);
+
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(byte[] params)
+                    throws RemoteException {
+                assertArrayEquals(auts, params);
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).sendNetworkEapSimUmtsAutsResponse(any(byte[].class));
+
+        assertTrue(mSupplicantNetwork.sendNetworkEapSimUmtsAutsResponse(paramsStr));
+    }
+
+    /**
+     * Tests the parsing of invalid UMTS auts response parameters (invalid auts length).
+     */
+    @Test
+    public void testSendInvalidNetworkEapSimUmtsAutsResponse() throws Exception {
+        final byte[] auts = new byte[]{0x45, 0x45, 0x32, 0x34, 0x45, 0x10, 0x34, 0x12, 0x23};
+        String paramsStr = ":" + SupplicantStaNetworkHal.byteArrayToHexString(auts);
+
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(byte[] params)
+                    throws RemoteException {
+                assertArrayEquals(auts, params);
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).sendNetworkEapSimUmtsAutsResponse(any(byte[].class));
+
+        assertFalse(mSupplicantNetwork.sendNetworkEapSimUmtsAutsResponse(paramsStr));
+    }
+
+    /**
+     * Tests the parsing of identity string.
+     */
+    @Test
+    public void testSendNetworkEapIdentityResponse() throws Exception {
+        final String identityStr = "test@test.com";
+
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(ArrayList<Byte> identity)
+                    throws RemoteException {
+                assertEquals(identityStr,
+                        SupplicantStaNetworkHal.stringFromByteArrayList(identity));
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).sendNetworkEapIdentityResponse(any(ArrayList.class));
+
+        assertTrue(mSupplicantNetwork.sendNetworkEapIdentityResponse(identityStr));
+    }
+
     private void testWifiConfigurationSaveLoad(WifiConfiguration config) {
         assertTrue(mSupplicantNetwork.saveWifiConfiguration(config));
         WifiConfiguration loadConfig = new WifiConfiguration();

@@ -37,6 +37,9 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * Wrapper class for ISupplicantStaNetwork HAL calls. Gets and sets supplicant sta network variables
  * and interacts with networks.
@@ -55,6 +58,24 @@ public class SupplicantStaNetworkHal {
     public static final String ID_STRING_KEY_CREATOR_UID = "creatorUid";
     @VisibleForTesting
     public static final String ID_STRING_KEY_CONFIG_KEY = "configKey";
+
+    /**
+     * Regex pattern for extracting the GSM sim authentication response params from a string.
+     * Matches a strings like the following: "[:kc:<kc_value>:sres:<sres_value>]";
+     */
+    private static final Pattern GSM_AUTH_RESPONSE_PARAMS_PATTERN =
+            Pattern.compile(":kc:([0-9a-f]+):sres:([0-9a-f]+)");
+    /**
+     * Regex pattern for extracting the UMTS sim authentication response params from a string.
+     * Matches a strings like the following: ":ik:<ik_value>:ck:<ck_value>:res:<res_value>";
+     */
+    private static final Pattern UMTS_AUTH_RESPONSE_PARAMS_PATTERN =
+            Pattern.compile(":ik:([0-9a-f]+):ck:([0-9a-f]+):res:([0-9a-f]+)");
+    /**
+     * Regex pattern for extracting the UMTS sim auts response params from a string.
+     * Matches a strings like the following: ":<auts_value>";
+     */
+    private static final Pattern UMTS_AUTS_RESPONSE_PARAMS_PATTERN = Pattern.compile("([0-9a-f]+)");
 
     private final Object mLock = new Object();
     private ISupplicantStaNetwork mISupplicantStaNetwork = null;
@@ -1957,6 +1978,44 @@ public class SupplicantStaNetworkHal {
             }
         }
     }
+    /**
+     * Send GSM auth response.
+     *
+     * @param paramsStr Response params as a string.
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendNetworkEapSimGsmAuthResponse(String paramsStr) {
+        Matcher match = GSM_AUTH_RESPONSE_PARAMS_PATTERN.matcher(paramsStr);
+        ArrayList<ISupplicantStaNetwork.NetworkResponseEapSimGsmAuthParams> params =
+                new ArrayList<>();
+        while (match.find()) {
+            if (match.groupCount() != 2) {
+                Log.e(TAG, "Malformed gsm auth response params: " + paramsStr);
+                return false;
+            }
+            ISupplicantStaNetwork.NetworkResponseEapSimGsmAuthParams param =
+                    new ISupplicantStaNetwork.NetworkResponseEapSimGsmAuthParams();
+            byte[] kc = hexStringToByteArray(match.group(1));
+            if (kc == null || kc.length != param.kc.length) {
+                Log.e(TAG, "Invalid kc value: " + match.group(1));
+                return false;
+            }
+            byte[] sres = hexStringToByteArray(match.group(2));
+            if (sres == null || sres.length != param.sres.length) {
+                Log.e(TAG, "Invalid sres value: " + match.group(2));
+                return false;
+            }
+            System.arraycopy(kc, 0, param.kc, 0, param.kc.length);
+            System.arraycopy(sres, 0, param.sres, 0, param.sres.length);
+            params.add(param);
+        }
+        // The number of kc/sres pairs can either be 2 or 3 depending on the request.
+        if (params.size() > 3 || params.size() < 2) {
+            Log.e(TAG, "Malformed gsm auth response params: " + paramsStr);
+            return false;
+        }
+        return sendNetworkEapSimGsmAuthResponse(params);
+    }
     /** See ISupplicantStaNetwork.hal for documentation */
     private boolean sendNetworkEapSimGsmAuthResponse(
             ArrayList<ISupplicantStaNetwork.NetworkResponseEapSimGsmAuthParams> params) {
@@ -1974,7 +2033,7 @@ public class SupplicantStaNetworkHal {
         }
     }
     /** See ISupplicantStaNetwork.hal for documentation */
-    private boolean sendNetworkEapSimGsmAuthFailure() {
+    public boolean sendNetworkEapSimGsmAuthFailure() {
         synchronized (mLock) {
             final String methodStr = "sendNetworkEapSimGsmAuthFailure";
             if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return false;
@@ -1986,6 +2045,42 @@ public class SupplicantStaNetworkHal {
                 return false;
             }
         }
+    }
+    /**
+     * Send UMTS auth response.
+     *
+     * @param paramsStr Response params as a string.
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendNetworkEapSimUmtsAuthResponse(String paramsStr) {
+        Matcher match = UMTS_AUTH_RESPONSE_PARAMS_PATTERN.matcher(paramsStr);
+        if (!match.find() || match.groupCount() != 3) {
+            Log.e(TAG, "Malformed umts auth response params: " + paramsStr);
+            return false;
+        }
+        ISupplicantStaNetwork.NetworkResponseEapSimUmtsAuthParams params =
+                new ISupplicantStaNetwork.NetworkResponseEapSimUmtsAuthParams();
+        byte[] ik = hexStringToByteArray(match.group(1));
+        if (ik == null || ik.length != params.ik.length) {
+            Log.e(TAG, "Invalid ik value: " + match.group(1));
+            return false;
+        }
+        byte[] ck = hexStringToByteArray(match.group(2));
+        if (ck == null || ck.length != params.ck.length) {
+            Log.e(TAG, "Invalid ck value: " + match.group(2));
+            return false;
+        }
+        byte[] res = hexStringToByteArray(match.group(3));
+        if (res == null || res.length == 0) {
+            Log.e(TAG, "Invalid res value: " + match.group(3));
+            return false;
+        }
+        System.arraycopy(ik, 0, params.ik, 0, params.ik.length);
+        System.arraycopy(ck, 0, params.ck, 0, params.ck.length);
+        for (byte b : res) {
+            params.res.add(b);
+        }
+        return sendNetworkEapSimUmtsAuthResponse(params);
     }
     /** See ISupplicantStaNetwork.hal for documentation */
     private boolean sendNetworkEapSimUmtsAuthResponse(
@@ -2003,6 +2098,25 @@ public class SupplicantStaNetworkHal {
             }
         }
     }
+    /**
+     * Send UMTS auts response.
+     *
+     * @param paramsStr Response params as a string.
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendNetworkEapSimUmtsAutsResponse(String paramsStr) {
+        Matcher match = UMTS_AUTS_RESPONSE_PARAMS_PATTERN.matcher(paramsStr);
+        if (!match.find() || match.groupCount() != 1) {
+            Log.e(TAG, "Malformed umts auts response params: " + paramsStr);
+            return false;
+        }
+        byte[] auts = hexStringToByteArray(match.group(1));
+        if (auts == null || auts.length != 14) {
+            Log.e(TAG, "Invalid auts value: " + match.group(1));
+            return false;
+        }
+        return sendNetworkEapSimUmtsAutsResponse(auts);
+    }
     /** See ISupplicantStaNetwork.hal for documentation */
     private boolean sendNetworkEapSimUmtsAutsResponse(byte[/* 14 */] auts) {
         synchronized (mLock) {
@@ -2019,7 +2133,7 @@ public class SupplicantStaNetworkHal {
         }
     }
     /** See ISupplicantStaNetwork.hal for documentation */
-    private boolean sendNetworkEapSimUmtsAuthFailure() {
+    public boolean sendNetworkEapSimUmtsAuthFailure() {
         synchronized (mLock) {
             final String methodStr = "sendNetworkEapSimUmtsAuthFailure";
             if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return false;
@@ -2031,6 +2145,16 @@ public class SupplicantStaNetworkHal {
                 return false;
             }
         }
+    }
+    /**
+     * Send eap identity response.
+     *
+     * @param identityStr Identity as a string.
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendNetworkEapIdentityResponse(String identityStr) {
+        ArrayList<Byte> identity = stringToByteArrayList(identityStr);
+        return sendNetworkEapIdentityResponse(identity);
     }
     /** See ISupplicantStaNetwork.hal for documentation */
     private boolean sendNetworkEapIdentityResponse(ArrayList<Byte> identity) {
@@ -2098,7 +2222,8 @@ public class SupplicantStaNetworkHal {
      * @return the string decoded from UTF_8 byte values in byteArrayList
      *         returns null for null input
      */
-    private static String stringFromByteArrayList(ArrayList<Byte> byteArrayList) {
+    @VisibleForTesting
+    public static String stringFromByteArrayList(ArrayList<Byte> byteArrayList) {
         if (byteArrayList == null) return null;
         byte[] byteArray = new byte[byteArrayList.size()];
         int i = 0;
@@ -2174,5 +2299,37 @@ public class SupplicantStaNetworkHal {
             i++;
         }
         return "\"" + (new String(ssidArray, StandardCharsets.UTF_8)) + "\"";
+    }
+
+    /**
+     * Converts a hex string to byte array.
+     */
+    private static byte[] hexStringToByteArray(String hex) {
+        if (hex == null) {
+            return new byte[0];
+        }
+        if (hex.length() % 2 != 0) {
+            throw new IllegalArgumentException(hex + " is not a valid hex string");
+        }
+        byte[] result = new byte[(hex.length()) / 2];
+        for (int i = 0, j = 0; i < hex.length(); i += 2, j++) {
+            int val = Character.digit(hex.charAt(i), 16) * 16
+                    + Character.digit(hex.charAt(i + 1), 16);
+            byte b = (byte) (val & 0xFF);
+            result[j] = b;
+        }
+        return result;
+    }
+
+    /**
+     * Converts a byte array to hex string.
+     */
+    @VisibleForTesting
+    public static String byteArrayToHexString(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 }
