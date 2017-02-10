@@ -25,6 +25,9 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.test.MockAnswerUtil;
@@ -53,6 +56,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -66,6 +70,9 @@ public class SupplicantStaIfaceHalTest {
             put(2, "ssid2");
             put(3, "ssid3");
         }};
+    private static final int EXISTING_SUPPLICANT_NETWORK_ID = 2;
+    private static final int ROAM_NETWORK_ID = 4;
+    private static final String ROAM_BSSID = "fa:45:23:23:12:12";
     @Mock IServiceManager mServiceManagerMock;
     @Mock ISupplicant mISupplicantMock;
     @Mock ISupplicantIface mISupplicantIfaceMock;
@@ -362,6 +369,134 @@ public class SupplicantStaIfaceHalTest {
     }
 
     /**
+     * Tests connection to a specified network without triggering disconnect.
+     */
+    @Test
+    public void testConnectWithNoDisconnectAndEmptyExistingNetworks() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateConnectSequence(0, false, false);
+    }
+
+    /**
+     * Tests connection to a specified network without triggering disconnect.
+     */
+    @Test
+    public void testConnectWithNoDisconnectAndSingleExistingNetwork() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateConnectSequence(0, true, false);
+    }
+
+    /**
+     * Tests connection to a specified network, with a triggered disconnect.
+     */
+    @Test
+    public void testConnectWithDisconnectAndSingleExistingNetwork() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateConnectSequence(0, false, true);
+    }
+
+    /**
+     * Tests connection to a specified network failure due to network add.
+     */
+    @Test
+    public void testConnectFailureDueToNetworkAddFailure() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false);
+        setupMocksForConnectSequence(false);
+        doAnswer(new MockAnswerUtil.AnswerWithArguments() {
+            public void answer(ISupplicantStaIface.addNetworkCallback cb) throws RemoteException {
+                cb.onValues(mStatusFailure, mock(ISupplicantStaNetwork.class));
+                return;
+            }
+        }).when(mISupplicantStaIfaceMock).addNetwork(
+                any(ISupplicantStaIface.addNetworkCallback.class));
+
+        assertFalse(mDut.connectToNetwork(new WifiConfiguration(), false));
+    }
+
+    /**
+     * Tests connection to a specified network failure due to network save.
+     */
+    @Test
+    public void testConnectFailureDueToNetworkSaveFailure() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false);
+        setupMocksForConnectSequence(false);
+
+        when(mSupplicantStaNetworkMock.saveWifiConfiguration(any(WifiConfiguration.class)))
+                .thenReturn(false);
+
+        assertFalse(mDut.connectToNetwork(new WifiConfiguration(), false));
+    }
+
+    /**
+     * Tests connection to a specified network failure due to network select.
+     */
+    @Test
+    public void testConnectFailureDueToNetworkSelectFailure() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false);
+        setupMocksForConnectSequence(false);
+
+        when(mSupplicantStaNetworkMock.select()).thenReturn(false);
+
+        assertFalse(mDut.connectToNetwork(new WifiConfiguration(), false));
+    }
+
+    /**
+     * Tests roaming to the same network as the currently connected one.
+     */
+    @Test
+    public void testRoamToSameNetwork() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateRoamSequence(true);
+    }
+
+    /**
+     * Tests roaming to a different network.
+     */
+    @Test
+    public void testRoamToDifferentNetwork() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateRoamSequence(false);
+    }
+
+    /**
+     * Tests roaming failure because of unable to set bssid.
+     */
+    @Test
+    public void testRoamFailureDueToBssidSet() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false);
+        int connectedNetworkId = 5;
+        executeAndValidateConnectSequence(connectedNetworkId, false, false);
+        when(mSupplicantStaNetworkMock.setBssid(anyString())).thenReturn(false);
+
+        WifiConfiguration roamingConfig = new WifiConfiguration();
+        roamingConfig.networkId = connectedNetworkId;
+        roamingConfig.getNetworkSelectionStatus().setNetworkSelectionBSSID("45:34:23:23:ab:ed");
+        assertFalse(mDut.roamToNetwork(roamingConfig));
+    }
+
+    /**
+     * Tests roaming failure because of unable to reassociate.
+     */
+    @Test
+    public void testRoamFailureDueToReassociate() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false);
+        int connectedNetworkId = 5;
+        executeAndValidateConnectSequence(connectedNetworkId, false, false);
+
+        doAnswer(new MockAnswerUtil.AnswerWithArguments() {
+            public SupplicantStatus answer() throws RemoteException {
+                return mStatusFailure;
+            }
+        }).when(mISupplicantStaIfaceMock).reassociate();
+        when(mSupplicantStaNetworkMock.setBssid(anyString())).thenReturn(true);
+
+        WifiConfiguration roamingConfig = new WifiConfiguration();
+        roamingConfig.networkId = connectedNetworkId;
+        roamingConfig.getNetworkSelectionStatus().setNetworkSelectionBSSID("45:34:23:23:ab:ed");
+        assertFalse(mDut.roamToNetwork(roamingConfig));
+    }
+
+    /**
      * Calls.initialize(), mocking various call back answers and verifying flow, asserting for the
      * expected result. Verifies if ISupplicantStaIface manager is initialized or reset.
      * Each of the arguments will cause a different failure mode when set true.
@@ -453,6 +588,123 @@ public class SupplicantStaIfaceHalTest {
             } else {
                 cb.onValues(mStatusSuccess, mISupplicantIfaceMock);
             }
+        }
+    }
+
+    /**
+     * Setup mocks for connect sequence.
+     */
+    private void setupMocksForConnectSequence(final boolean haveExistingNetwork) throws Exception {
+        final int existingNetworkId = EXISTING_SUPPLICANT_NETWORK_ID;
+        doAnswer(new MockAnswerUtil.AnswerWithArguments() {
+            public SupplicantStatus answer() throws RemoteException {
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaIfaceMock).disconnect();
+        doAnswer(new MockAnswerUtil.AnswerWithArguments() {
+            public void answer(ISupplicantStaIface.listNetworksCallback cb) throws RemoteException {
+                if (haveExistingNetwork) {
+                    cb.onValues(mStatusSuccess, new ArrayList<>(Arrays.asList(existingNetworkId)));
+                } else {
+                    cb.onValues(mStatusSuccess, new ArrayList<>());
+                }
+            }
+        }).when(mISupplicantStaIfaceMock)
+                .listNetworks(any(ISupplicantStaIface.listNetworksCallback.class));
+        doAnswer(new MockAnswerUtil.AnswerWithArguments() {
+            public SupplicantStatus answer(int id) throws RemoteException {
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaIfaceMock).removeNetwork(eq(existingNetworkId));
+        doAnswer(new MockAnswerUtil.AnswerWithArguments() {
+            public void answer(ISupplicantStaIface.addNetworkCallback cb) throws RemoteException {
+                cb.onValues(mStatusSuccess, mock(ISupplicantStaNetwork.class));
+                return;
+            }
+        }).when(mISupplicantStaIfaceMock).addNetwork(
+                any(ISupplicantStaIface.addNetworkCallback.class));
+        when(mSupplicantStaNetworkMock.saveWifiConfiguration(any(WifiConfiguration.class)))
+                .thenReturn(true);
+        when(mSupplicantStaNetworkMock.select()).thenReturn(true);
+    }
+
+    /**
+     * Helper function to validate the connect sequence.
+     */
+    private void validateConnectSequence(
+            final boolean haveExistingNetwork, boolean shouldDisconnect, int numNetworkAdditions)
+            throws Exception {
+        if (shouldDisconnect) {
+            verify(mISupplicantStaIfaceMock).disconnect();
+        }
+        if (haveExistingNetwork) {
+            verify(mISupplicantStaIfaceMock).removeNetwork(anyInt());
+        }
+        verify(mISupplicantStaIfaceMock, times(numNetworkAdditions))
+                .addNetwork(any(ISupplicantStaIface.addNetworkCallback.class));
+        verify(mSupplicantStaNetworkMock, times(numNetworkAdditions))
+                .saveWifiConfiguration(any(WifiConfiguration.class));
+        verify(mSupplicantStaNetworkMock, times(numNetworkAdditions)).select();
+    }
+
+    /**
+     * Helper function to execute all the actions to perform connection to the network.
+     *
+     * @param newFrameworkNetworkId Framework Network Id of the new network to connect.
+     * @param haveExistingNetwork Removes the existing network.
+     * @param shouldDisconnect Should trigger disconnect before connecting.
+     */
+    private void executeAndValidateConnectSequence(
+            final int newFrameworkNetworkId, final boolean haveExistingNetwork,
+            boolean shouldDisconnect) throws Exception {
+        setupMocksForConnectSequence(haveExistingNetwork);
+        WifiConfiguration config = new WifiConfiguration();
+        config.networkId = newFrameworkNetworkId;
+        assertTrue(mDut.connectToNetwork(config, shouldDisconnect));
+        validateConnectSequence(haveExistingNetwork, shouldDisconnect, 1);
+    }
+
+    /**
+     * Setup mocks for roam sequence.
+     */
+    private void setupMocksForRoamSequence(String roamBssid) throws Exception {
+        doAnswer(new MockAnswerUtil.AnswerWithArguments() {
+            public SupplicantStatus answer() throws RemoteException {
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaIfaceMock).reassociate();
+        when(mSupplicantStaNetworkMock.setBssid(eq(roamBssid))).thenReturn(true);
+    }
+
+    /**
+     * Helper function to execute all the actions to perform roaming to the network.
+     *
+     * @param sameNetwork Roam to the same network or not.
+     */
+    private void executeAndValidateRoamSequence(boolean sameNetwork) throws Exception {
+        int connectedNetworkId = ROAM_NETWORK_ID;
+        String roamBssid = ROAM_BSSID;
+        int roamNetworkId;
+        if (sameNetwork) {
+            roamNetworkId = connectedNetworkId;
+        } else {
+            roamNetworkId = connectedNetworkId + 1;
+        }
+        executeAndValidateConnectSequence(connectedNetworkId, false, true);
+        setupMocksForRoamSequence(roamBssid);
+
+        WifiConfiguration roamingConfig = new WifiConfiguration();
+        roamingConfig.networkId = roamNetworkId;
+        roamingConfig.getNetworkSelectionStatus().setNetworkSelectionBSSID(roamBssid);
+        assertTrue(mDut.roamToNetwork(roamingConfig));
+
+        if (!sameNetwork) {
+            validateConnectSequence(false, false, 2);
+            verify(mSupplicantStaNetworkMock, never()).setBssid(anyString());
+            verify(mISupplicantStaIfaceMock, never()).reassociate();
+        } else {
+            verify(mSupplicantStaNetworkMock).setBssid(eq(roamBssid));
+            verify(mISupplicantStaIfaceMock).reassociate();
         }
     }
 }

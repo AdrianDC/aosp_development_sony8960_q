@@ -45,8 +45,6 @@ import java.util.Map;
  * sending requests to the supplicant daemon
  */
 public class SupplicantStaIfaceHal {
-    /** Invalid Supplicant Iface type */
-    public static final int INVALID_IFACE_TYPE = -1;
     private static final boolean DBG = false;
     private static final String TAG = "SupplicantStaIfaceHal";
     private static final String SERVICE_MANAGER_NAME = "manager";
@@ -54,8 +52,13 @@ public class SupplicantStaIfaceHal {
     // Supplicant HAL interface objects
     private ISupplicant mISupplicant;
     private ISupplicantStaIface mISupplicantStaIface;
+    // Currently configured network in wpa_supplicant
+    private SupplicantStaNetworkHal mCurrentNetwork;
+    // Currently configured network's framework network Id.
+    private int mFrameworkNetworkId;
     private final Object mLock = new Object();
     private final HandlerThread mHandlerThread;
+
     public SupplicantStaIfaceHal(HandlerThread handlerThread) {
         mHandlerThread = handlerThread;
     }
@@ -223,7 +226,7 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
-     * Add a network configuration to wpa_supplicant, via HAL
+     * Add a network configuration to wpa_supplicant.
      *
      * @param config Config corresponding to the network.
      * @return SupplicantStaNetwork of the added network in wpa_supplicant.
@@ -248,13 +251,21 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
-     * Initiate connection to the provided network.
+     * Add the provided network configuration to wpa_supplicant and initiate connection to it.
+     * This method does the following:
+     * 1. Triggers disconnect command to wpa_supplicant (if |shouldDisconnect| is true).
+     * 2. Remove any existing network in wpa_supplicant.
+     * 3. Add a new network to wpa_supplicant.
+     * 4. Save the provided configuration to wpa_supplicant.
+     * 5. Select the new network in wpa_supplicant.
      *
-     * @param config Config corresponding to the network.
-     * @param shouldDisconnect Whether to trigger a disconnect first.
-     * @return true if request is sent successfully, false otherwise.
+     * @param config WifiConfiguration parameters for the provided network.
+     * @param shouldDisconnect whether to trigger a disconnection or not.
+     * @return {@code true} if it succeeds, {@code false} otherwise
      */
     public boolean connectToNetwork(WifiConfiguration config, boolean shouldDisconnect) {
+        mFrameworkNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
+        mCurrentNetwork = null;
         logd("connectToNetwork " + config.configKey()
                 + " (shouldDisconnect " + shouldDisconnect + ")");
         if (shouldDisconnect && !disconnect()) {
@@ -265,13 +276,45 @@ public class SupplicantStaIfaceHal {
             loge("Failed to remove existing networks");
             return false;
         }
-        SupplicantStaNetworkHal network = addNetwork(config);
-        if (network == null) {
+        mCurrentNetwork = addNetwork(config);
+        if (mCurrentNetwork == null) {
             loge("Failed to add/save network configuration: " + config.configKey());
             return false;
         }
-        if (!network.select()) {
+        if (!mCurrentNetwork.select()) {
             loge("Failed to select network configuration: " + config.configKey());
+            return false;
+        }
+        mFrameworkNetworkId = config.networkId;
+        return true;
+    }
+
+    /**
+     * Initiates roaming to the already configured network in wpa_supplicant. If the network
+     * configuration provided does not match the already configured network, then this triggers
+     * a new connection attempt (instead of roam).
+     * 1. First check if we're attempting to connect to the same network as we currently have
+     * configured.
+     * 2. Set the new bssid for the network in wpa_supplicant.
+     * 3. Trigger reassociate command to wpa_supplicant.
+     *
+     * @param config WifiConfiguration parameters for the provided network.
+     * @return {@code true} if it succeeds, {@code false} otherwise
+     */
+    public boolean roamToNetwork(WifiConfiguration config) {
+        if (mFrameworkNetworkId != config.networkId || mCurrentNetwork == null) {
+            Log.w(TAG, "Cannot roam to a different network, initiate new connection. "
+                    + "Current network ID: " + mFrameworkNetworkId);
+            return connectToNetwork(config, false);
+        }
+        String bssid = config.getNetworkSelectionStatus().getNetworkSelectionBSSID();
+        logd("roamToNetwork" + config.configKey() + " (bssid " + bssid + ")");
+        if (!mCurrentNetwork.setBssid(bssid)) {
+            loge("Failed to set new bssid on network: " + config.configKey());
+            return false;
+        }
+        if (!reassociate()) {
+            loge("Failed to trigger reassociate");
             return false;
         }
         return true;
