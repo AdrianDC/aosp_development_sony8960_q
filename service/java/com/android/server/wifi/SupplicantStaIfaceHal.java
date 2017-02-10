@@ -25,15 +25,20 @@ import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatusCode;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
+import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.os.HandlerThread;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.MutableBoolean;
+import android.util.SparseArray;
 
 import com.android.server.wifi.util.NativeUtil;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Hal calls for bring up/shut down of the supplicant daemon and for
@@ -273,8 +278,51 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Load all the configured networks from wpa_supplicant.
+     *
+     * @param configs       Map of configuration key to configuration objects corresponding to all
+     *                      the networks.
+     * @param networkExtras Map of extra configuration parameters stored in wpa_supplicant.conf
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean loadNetworks(Map<String, WifiConfiguration> configs,
+                                SparseArray<Map<String, String>> networkExtras) {
+        List<Integer> networkIds = listNetworks();
+        if (networkIds == null) {
+            Log.e(TAG, "Failed to list networks");
+            return false;
+        }
+        for (Integer networkId : networkIds) {
+            SupplicantStaNetworkHal network = getNetwork(networkId);
+            if (network == null) {
+                Log.e(TAG, "Failed to get network with ID: " + networkId);
+                return false;
+            }
+            WifiConfiguration config = new WifiConfiguration();
+            Map<String, String> networkExtra = new HashMap<>();
+            if (!network.loadWifiConfiguration(config, networkExtra)) {
+                Log.e(TAG, "Failed to load wifi configuration for network with ID: " + networkId);
+                return false;
+            }
+            // Set the default IP assignments.
+            config.setIpAssignment(IpConfiguration.IpAssignment.DHCP);
+            config.setProxySettings(IpConfiguration.ProxySettings.NONE);
+
+            networkExtras.put(networkId, networkExtra);
+            String configKey = networkExtra.get(SupplicantStaNetworkHal.ID_STRING_KEY_CONFIG_KEY);
+            final WifiConfiguration duplicateConfig = configs.put(configKey, config);
+            if (duplicateConfig != null) {
+                // The network is already known. Overwrite the duplicate entry.
+                Log.i(TAG, "Replacing duplicate network: " + duplicateConfig.networkId);
+                removeNetwork(duplicateConfig.networkId);
+                networkExtras.remove(duplicateConfig.networkId);
+            }
+        }
+        return true;
+    }
+
+    /**
      * Remove all networks from supplicant
-     * TODO(b/34454675) use ISupplicantIface.removeAllNetworks when it exists
      */
     public boolean removeAllNetworks() {
         synchronized (mLock) {
@@ -353,7 +401,7 @@ public class SupplicantStaIfaceHal {
                 supplicantServiceDiedHandler();
             }
             if (statusSuccess.value) {
-                return new SupplicantStaNetworkHal(ISupplicantStaNetwork.asInterface(
+                return getStaNetworkMockable(ISupplicantStaNetwork.asInterface(
                         newNetwork.value.asBinder()), mHandlerThread);
             } else {
                 return null;
@@ -383,6 +431,19 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Use this to mock the creation of SupplicantStaNetworkHal instance.
+     *
+     * @param iSupplicantStaNetwork ISupplicantStaNetwork instance retrieved from HIDL.
+     * @param handlerThread Handler thread to send notifications to.
+     * @return The ISupplicantNetwork object for the given SupplicantNetworkId int, returns null if
+     * the call fails
+     */
+    protected SupplicantStaNetworkHal getStaNetworkMockable(
+            ISupplicantStaNetwork iSupplicantStaNetwork, HandlerThread handlerThread) {
+        return new SupplicantStaNetworkHal(iSupplicantStaNetwork, handlerThread);
+    }
+
+    /**
      * @return The ISupplicantNetwork object for the given SupplicantNetworkId int, returns null if
      * the call fails
      */
@@ -408,7 +469,7 @@ public class SupplicantStaIfaceHal {
                 supplicantServiceDiedHandler();
             }
             if (statusSuccess.value) {
-                return new SupplicantStaNetworkHal(ISupplicantStaNetwork.asInterface(
+                return getStaNetworkMockable(ISupplicantStaNetwork.asInterface(
                         gotNetwork.value.asBinder()), mHandlerThread);
             } else {
                 return null;
