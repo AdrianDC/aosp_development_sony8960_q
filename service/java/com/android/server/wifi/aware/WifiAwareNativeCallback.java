@@ -17,7 +17,6 @@
 package com.android.server.wifi.aware;
 
 import android.hardware.wifi.V1_0.IWifiNanIfaceEventCallback;
-import android.hardware.wifi.V1_0.NanBeaconSdfPayloadInd;
 import android.hardware.wifi.V1_0.NanCapabilities;
 import android.hardware.wifi.V1_0.NanClusterEventInd;
 import android.hardware.wifi.V1_0.NanClusterEventType;
@@ -250,16 +249,6 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
     }
 
     @Override
-    public void notifyBeaconSdfPayloadResponse(short id, WifiNanStatus status) {
-        if (VDBG) {
-            Log.v(TAG, "notifyBeaconSdfPayloadResponse: id=" + id + ", status="
-                    + statusString(status));
-        }
-
-        // NOP
-    }
-
-    @Override
     public void eventClusterEvent(NanClusterEventInd event) {
         if (VDBG) {
             Log.v(TAG, "eventClusterEvent: eventType=" + event.eventType + ", addr="
@@ -387,14 +376,6 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
         if (VDBG) Log.v(TAG, "eventDataPathTerminated: ndpInstanceId=" + ndpInstanceId);
 
         mWifiAwareStateManager.onDataPathEndNotification(ndpInstanceId);
-    }
-
-    @Override
-    public void eventBeaconSdfPayload(NanBeaconSdfPayloadInd event) {
-        if (VDBG) Log.v(TAG, "eventBeaconSdfPayload");
-
-        // NOP
-        Log.e(TAG, "eventBeaconSdfPayload: not configured - should not happen!");
     }
 
     // utilities
