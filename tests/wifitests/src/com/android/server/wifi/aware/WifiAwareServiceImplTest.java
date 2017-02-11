@@ -658,7 +658,7 @@ public class WifiAwareServiceImplTest {
         cap.maxMatchFilterLen = MAX_LENGTH;
         cap.maxTotalMatchFilterLen = 255;
         cap.maxServiceSpecificInfoLen = MAX_LENGTH;
-        cap.maxVsaDataLen = 255;
+        cap.maxExtendedServiceSpecificInfoLen = MAX_LENGTH;
         cap.maxNdiInterfaces = 1;
         cap.maxNdpSessions = 1;
         cap.maxAppInfoLen = 255;
