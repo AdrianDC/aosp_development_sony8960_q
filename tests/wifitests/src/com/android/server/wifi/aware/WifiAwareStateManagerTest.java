@@ -2784,7 +2784,7 @@ public class WifiAwareStateManagerTest {
         cap.maxMatchFilterLen = 255;
         cap.maxTotalMatchFilterLen = 255;
         cap.maxServiceSpecificInfoLen = 255;
-        cap.maxVsaDataLen = 255;
+        cap.maxExtendedServiceSpecificInfoLen = 255;
         cap.maxNdiInterfaces = 1;
         cap.maxNdpSessions = 1;
         cap.maxAppInfoLen = 255;
