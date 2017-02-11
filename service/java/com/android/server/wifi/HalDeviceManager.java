@@ -147,6 +147,24 @@ public class HalDeviceManager {
         void onStatusChanged();
     }
 
+    /**
+     * Return the set of supported interface types across all Wi-Fi chips on the device.
+     *
+     * @return A set of IfaceTypes constants. Or null on error.
+     */
+    Set<Integer> getSupportedIfaceTypes() {
+        return getSupportedIfaceTypesInternal(null);
+    }
+
+    /**
+     * Return the set of supported interface types for the specified Wi-Fi chip.
+     *
+     * @return A set of IfaceTypes constants. Or null on error.
+     */
+    Set<Integer> getSupportedIfaceTypes(IWifiChip chip) {
+        return getSupportedIfaceTypesInternal(chip);
+    }
+
     // interface-specific behavior
 
     /**
@@ -715,6 +733,11 @@ public class HalDeviceManager {
         if (DBG) Log.d(TAG, "getAllChipInfo");
 
         synchronized (mLock) {
+            if (mWifi == null) {
+                Log.e(TAG, "getAllChipInfo: called but mWifi is null!?");
+                return null;
+            }
+
             try {
                 MutableBoolean statusOk = new MutableBoolean(false);
                 Mutable<ArrayList<Integer>> chipIdsResp = new Mutable<>();
@@ -1101,6 +1124,56 @@ public class HalDeviceManager {
         protected void action() {
             mListener.onStatusChanged();
         }
+    }
+
+    Set<Integer> getSupportedIfaceTypesInternal(IWifiChip chip) {
+        WifiChipInfo[] chipInfos = getAllChipInfo();
+        if (chipInfos == null) {
+            Log.e(TAG, "getSupportedIfaceTypesInternal: no chip info found");
+            return null;
+        }
+
+        MutableInt chipIdIfProvided = new MutableInt(0); // NOT using 0 as a magic value
+        if (chip != null) {
+            MutableBoolean statusOk = new MutableBoolean(false);
+            try {
+                chip.getId((WifiStatus status, int id) -> {
+                    if (status.code == WifiStatusCode.SUCCESS) {
+                        chipIdIfProvided.value = id;
+                        statusOk.value = true;
+                    } else {
+                        Log.e(TAG, "getSupportedIfaceTypesInternal: IWifiChip.getId() error: "
+                                + statusString(status));
+                        statusOk.value = false;
+                    }
+                });
+            } catch (RemoteException e) {
+                Log.e(TAG, "getSupportedIfaceTypesInternal IWifiChip.getId() exception: " + e);
+                return null;
+            }
+            if (!statusOk.value) {
+                return null;
+            }
+        }
+
+        Set<Integer> results = new HashSet<>();
+        for (WifiChipInfo wci: chipInfos) {
+            if (chip != null && wci.chipId != chipIdIfProvided.value) {
+                continue;
+            }
+
+            for (IWifiChip.ChipMode cm: wci.availableModes) {
+                for (IWifiChip.ChipIfaceCombination cic: cm.availableCombinations) {
+                    for (IWifiChip.ChipIfaceCombinationLimit cicl: cic.limits) {
+                        for (int type: cicl.types) {
+                            results.add(type);
+                        }
+                    }
+                }
+            }
+        }
+
+        return results;
     }
 
     private IWifiIface createIface(int ifaceType, InterfaceDestroyedListener destroyedListener,
