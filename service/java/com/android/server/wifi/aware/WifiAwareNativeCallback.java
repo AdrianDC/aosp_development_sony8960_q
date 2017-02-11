@@ -65,7 +65,8 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
             frameworkCapabilities.maxTotalMatchFilterLen = capabilities.maxTotalMatchFilterLen;
             frameworkCapabilities.maxServiceSpecificInfoLen =
                     capabilities.maxServiceSpecificInfoLen;
-            frameworkCapabilities.maxVsaDataLen = capabilities.maxVsaDataLen;
+            frameworkCapabilities.maxExtendedServiceSpecificInfoLen =
+                    capabilities.maxExtendedServiceSpecificInfoLen;
             frameworkCapabilities.maxNdiInterfaces = capabilities.maxNdiInterfaces;
             frameworkCapabilities.maxNdpSessions = capabilities.maxNdpSessions;
             frameworkCapabilities.maxAppInfoLen = capabilities.maxAppInfoLen;
