@@ -419,6 +419,7 @@ public class WifiConfigurationTestUtil {
     public static void assertConfigurationEqualForConfigStore(
             WifiConfiguration expected, WifiConfiguration actual) {
         assertCommonConfigurationElementsEqual(expected, actual);
+        assertEquals(expected.status, actual.status);
         assertEquals(expected.FQDN, actual.FQDN);
         assertEquals(expected.providerFriendlyName, actual.providerFriendlyName);
         assertEquals(expected.linkedConfigurations, actual.linkedConfigurations);
