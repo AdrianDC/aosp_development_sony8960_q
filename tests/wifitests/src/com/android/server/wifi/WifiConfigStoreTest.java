@@ -82,6 +82,7 @@ public class WifiConfigStoreTest {
                     + "<byte-array name=\"AllowedGroupCiphers\" num=\"0\"></byte-array>\n"
                     + "<byte-array name=\"AllowedPairwiseCiphers\" num=\"0\"></byte-array>\n"
                     + "<boolean name=\"Shared\" value=\"%s\" />\n"
+                    + "<int name=\"Status\" value=\"2\" />\n"
                     + "<null name=\"FQDN\" />\n"
                     + "<null name=\"ProviderFriendlyName\" />\n"
                     + "<null name=\"LinkedNetworksList\" />\n"
