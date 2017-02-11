@@ -28,6 +28,7 @@ import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.WifiManager;
 
+import com.android.server.wifi.util.NativeUtil;
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
@@ -409,6 +410,27 @@ public class WifiVendorHalTest {
 
         assertEquals(firmwareVersion, mWifiVendorHal.getFirmwareVersion());
         assertEquals(driverVersion, mWifiVendorHal.getDriverVersion());
+    }
+
+    /**
+     * Test that setScanningMacOui is hooked up to the HAL correctly
+     */
+    @Test
+    public void testSetScanningMacOui() throws Exception {
+        byte[] oui = NativeUtil.macAddressOuiToByteArray("DA:A1:19");
+        byte[] zzz = NativeUtil.macAddressOuiToByteArray("00:00:00");
+
+        when(mIWifiStaIface.setScanningMacOui(any())).thenReturn(mWifiStatusSuccess);
+
+        assertFalse(mWifiVendorHal.setScanningMacOui(oui)); // expect fail - STA not started
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertFalse(mWifiVendorHal.setScanningMacOui(null));  // expect fail - null
+        assertFalse(mWifiVendorHal.setScanningMacOui(new byte[]{(byte) 1})); // expect fail - len
+        assertTrue(mWifiVendorHal.setScanningMacOui(oui));
+        assertTrue(mWifiVendorHal.setScanningMacOui(zzz));
+
+        verify(mIWifiStaIface).setScanningMacOui(eq(oui));
+        verify(mIWifiStaIface).setScanningMacOui(eq(zzz));
     }
 
     /**
