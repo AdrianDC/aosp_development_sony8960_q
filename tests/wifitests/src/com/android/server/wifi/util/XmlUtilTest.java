@@ -191,6 +191,7 @@ public class XmlUtilTest {
         configuration.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP40);
         configuration.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP);
         configuration.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.TKIP);
+        configuration.status = WifiConfiguration.Status.DISABLED;
         configuration.linkedConfigurations = new HashMap<>();
         configuration.linkedConfigurations.put(TEST_DUMMY_CONFIG_KEY, Integer.valueOf(1));
         configuration.defaultGwMacAddress = TEST_STATIC_IP_GATEWAY_ADDRESS;
