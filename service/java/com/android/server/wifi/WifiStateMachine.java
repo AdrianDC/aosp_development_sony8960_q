@@ -3674,9 +3674,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_PING_SUPPLICANT:
                 case CMD_ENABLE_NETWORK:
                 case CMD_ADD_OR_UPDATE_NETWORK:
-                case CMD_REMOVE_NETWORK:
                 case CMD_SAVE_CONFIG:
                     replyToMessage(message, message.what, FAILURE);
+                    break;
+                case CMD_REMOVE_NETWORK:
+                    deleteNetworkConfigAndSendReply(message, false);
                     break;
                 case CMD_GET_CONFIGURED_NETWORKS:
                     replyToMessage(message, message.what, mWifiConfigManager.getSavedNetworks());
@@ -3776,8 +3778,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             WifiManager.BUSY);
                     break;
                 case WifiManager.FORGET_NETWORK:
-                    replyToMessage(message, WifiManager.FORGET_NETWORK_FAILED,
-                            WifiManager.BUSY);
+                    deleteNetworkConfigAndSendReply(message, true);
                     break;
                 case WifiManager.SAVE_NETWORK:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;

@@ -17,7 +17,6 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -612,17 +611,18 @@ public class WifiStateMachineTest {
     }
 
     /**
-     * Verifies that configs are not attempted to be removed when not in client mode.
+     * Verifies that configs can be removed when not in client mode.
      */
     @Test
-    public void cannotRemoveNetworkConfigWhenWifiDisabed() {
+    public void canRemoveNetworkConfigWhenWifiDisabed() {
         boolean result;
+        when(mWifiConfigManager.removeNetwork(eq(0), anyInt())).thenReturn(true);
         mLooper.startAutoDispatch();
         result = mWsm.syncRemoveNetwork(mWsmAsyncChannel, 0);
         mLooper.stopAutoDispatch();
 
-        assertFalse(result);
-        verify(mWifiConfigManager, never()).removeNetwork(anyInt(), anyInt());
+        assertTrue(result);
+        verify(mWifiConfigManager).removeNetwork(anyInt(), anyInt());
     }
 
     /**
@@ -634,16 +634,18 @@ public class WifiStateMachineTest {
         addNetworkAndVerifySuccess();
         mWsm.sendMessage(WifiManager.FORGET_NETWORK, 0, MANAGED_PROFILE_UID);
         mLooper.dispatchAll();
+        verify(mWifiConfigManager).removeNetwork(anyInt(), anyInt());
     }
 
     /**
-     * Verifies that configs are not attempted to be removed when not in client mode.
+     * Verifies that configs can be removed when not in client mode.
      */
     @Test
-    public void cannotForgetNetworkConfigWhenWifiDisabled() throws Exception {
+    public void canForgetNetworkConfigWhenWifiDisabled() throws Exception {
+        when(mWifiConfigManager.removeNetwork(eq(0), anyInt())).thenReturn(true);
         mWsm.sendMessage(WifiManager.FORGET_NETWORK, 0, MANAGED_PROFILE_UID);
         mLooper.dispatchAll();
-        verify(mWifiConfigManager, never()).removeNetwork(anyInt(), anyInt());
+        verify(mWifiConfigManager).removeNetwork(anyInt(), anyInt());
     }
 
     private void addNetworkAndVerifySuccess() throws Exception {
