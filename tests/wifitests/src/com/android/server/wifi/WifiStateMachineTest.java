@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -594,6 +595,55 @@ public class WifiStateMachineTest {
         mLooper.dispatchAll();
 
         assertEquals("ScanModeState", getCurrentState().getName());
+    }
+
+    /**
+     * Verifies that configs can be removed when in client mode.
+     */
+    @Test
+    public void canRemoveNetworkConfigInClientMode() throws Exception {
+        boolean result;
+        when(mWifiConfigManager.removeNetwork(eq(0), anyInt())).thenReturn(true);
+        addNetworkAndVerifySuccess();
+        mLooper.startAutoDispatch();
+        result = mWsm.syncRemoveNetwork(mWsmAsyncChannel, 0);
+        mLooper.stopAutoDispatch();
+        assertTrue(result);
+    }
+
+    /**
+     * Verifies that configs are not attempted to be removed when not in client mode.
+     */
+    @Test
+    public void cannotRemoveNetworkConfigWhenWifiDisabed() {
+        boolean result;
+        mLooper.startAutoDispatch();
+        result = mWsm.syncRemoveNetwork(mWsmAsyncChannel, 0);
+        mLooper.stopAutoDispatch();
+
+        assertFalse(result);
+        verify(mWifiConfigManager, never()).removeNetwork(anyInt(), anyInt());
+    }
+
+    /**
+     * Verifies that configs can be forgotten when in client mode.
+     */
+    @Test
+    public void canForgetNetworkConfigInClientMode() throws Exception {
+        when(mWifiConfigManager.removeNetwork(eq(0), anyInt())).thenReturn(true);
+        addNetworkAndVerifySuccess();
+        mWsm.sendMessage(WifiManager.FORGET_NETWORK, 0, MANAGED_PROFILE_UID);
+        mLooper.dispatchAll();
+    }
+
+    /**
+     * Verifies that configs are not attempted to be removed when not in client mode.
+     */
+    @Test
+    public void cannotForgetNetworkConfigWhenWifiDisabled() throws Exception {
+        mWsm.sendMessage(WifiManager.FORGET_NETWORK, 0, MANAGED_PROFILE_UID);
+        mLooper.dispatchAll();
+        verify(mWifiConfigManager, never()).removeNetwork(anyInt(), anyInt());
     }
 
     private void addNetworkAndVerifySuccess() throws Exception {
