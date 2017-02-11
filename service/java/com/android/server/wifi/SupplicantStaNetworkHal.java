@@ -29,10 +29,8 @@ import android.util.MutableBoolean;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.ArrayUtils;
+import com.android.server.wifi.util.NativeUtil;
 
-import libcore.util.HexEncoding;
-
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
@@ -49,9 +47,6 @@ import java.util.regex.Pattern;
 public class SupplicantStaNetworkHal {
     private static final String TAG = "SupplicantStaNetworkHal";
     private static final boolean DBG = false;
-    private static final String ANY_BSSID_STR = "any";
-    private static final byte[] ANY_BSSID_BYTES = {0, 0, 0, 0, 0, 0};
-    private static final int BSSID_LENGTH = 6;
     @VisibleForTesting
     public static final String ID_STRING_KEY_FQDN = "fqdn";
     @VisibleForTesting
@@ -129,16 +124,24 @@ public class SupplicantStaNetworkHal {
         /** SSID */
         config.SSID = null;
         if (getSsid() && !ArrayUtils.isEmpty(mSsid)) {
-            config.SSID = decodeSsid(mSsid);
+            config.SSID = NativeUtil.encodeSsid(mSsid);
         } else {
             Log.e(TAG, "failed to read ssid");
+            return false;
+        }
+        /** Network Id */
+        config.networkId = -1;
+        if (getId()) {
+            config.networkId = mNetworkId;
+        } else {
+            Log.e(TAG, "getId failed");
             return false;
         }
         /** BSSID */
         config.getNetworkSelectionStatus().setNetworkSelectionBSSID(null);
         if (getBssid() && !ArrayUtils.isEmpty(mBssid)) {
             config.getNetworkSelectionStatus().setNetworkSelectionBSSID(
-                    macAddressFromByteArray(mBssid));
+                    NativeUtil.macAddressFromByteArray(mBssid));
         }
         /** Scan SSID (Is Hidden Network?) */
         config.hiddenSSID = false;
@@ -158,7 +161,7 @@ public class SupplicantStaNetworkHal {
         for (int i = 0; i < 4; i++) {
             config.wepKeys[i] = null;
             if (getWepKey(i) && !ArrayUtils.isEmpty(mWepKey)) {
-                config.wepKeys[i] = stringFromByteArrayList(mWepKey);
+                config.wepKeys[i] = NativeUtil.stringFromByteArrayList(mWepKey);
             }
         }
         /** PSK pass phrase */
@@ -212,7 +215,7 @@ public class SupplicantStaNetworkHal {
         if (config == null) return false;
         /** SSID */
         if (config.SSID != null) {
-            if (!setSsid(encodeSsid(config.SSID))) {
+            if (!setSsid(NativeUtil.decodeSsid(config.SSID))) {
                 Log.e(TAG, "failed to set SSID: " + config.SSID);
                 return false;
             }
@@ -220,7 +223,7 @@ public class SupplicantStaNetworkHal {
         /** BSSID */
         String bssidStr = config.getNetworkSelectionStatus().getNetworkSelectionBSSID();
         if (bssidStr != null) {
-            byte[] bssid = macAddressToByteArray(bssidStr);
+            byte[] bssid = NativeUtil.macAddressToByteArray(bssidStr);
             if (!setBssid(bssid)) {
                 Log.e(TAG, "failed to set BSSID: " + bssidStr);
                 return false;
@@ -238,7 +241,7 @@ public class SupplicantStaNetworkHal {
                 // Prevent client screw-up by passing in a WifiConfiguration we gave it
                 // by preventing "*" as a key.
                 if (config.wepKeys[i] != null && !config.wepKeys[i].equals("*")) {
-                    if (!setWepKey(i, stringToByteArrayList(config.wepKeys[i]))) {
+                    if (!setWepKey(i, NativeUtil.stringToByteArrayList(config.wepKeys[i]))) {
                         Log.e(TAG, "failed to set wep_key " + i);
                         return false;
                     }
@@ -352,18 +355,20 @@ public class SupplicantStaNetworkHal {
         /** EAP Identity */
         if (getEapIdentity() && !ArrayUtils.isEmpty(mEapIdentity)) {
             eapConfig.setFieldValue(
-                    WifiEnterpriseConfig.IDENTITY_KEY, stringFromByteArrayList(mEapIdentity));
+                    WifiEnterpriseConfig.IDENTITY_KEY,
+                    NativeUtil.stringFromByteArrayList(mEapIdentity));
         }
         /** EAP Anonymous Identity */
         if (getEapAnonymousIdentity() && !ArrayUtils.isEmpty(mEapAnonymousIdentity)) {
             eapConfig.setFieldValue(
                     WifiEnterpriseConfig.ANON_IDENTITY_KEY,
-                    stringFromByteArrayList(mEapAnonymousIdentity));
+                    NativeUtil.stringFromByteArrayList(mEapAnonymousIdentity));
         }
         /** EAP Password */
         if (getEapPassword() && !ArrayUtils.isEmpty(mEapPassword)) {
             eapConfig.setFieldValue(
-                    WifiEnterpriseConfig.PASSWORD_KEY, stringFromByteArrayList(mEapPassword));
+                    WifiEnterpriseConfig.PASSWORD_KEY,
+                    NativeUtil.stringFromByteArrayList(mEapPassword));
         }
         /** EAP Client Cert */
         if (getEapClientCert() && !TextUtils.isEmpty(mEapClientCert)) {
@@ -432,20 +437,22 @@ public class SupplicantStaNetworkHal {
         String eapParam = null;
         /** EAP Identity */
         eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.IDENTITY_KEY);
-        if (!TextUtils.isEmpty(eapParam) && !setEapIdentity(stringToByteArrayList(eapParam))) {
+        if (!TextUtils.isEmpty(eapParam)
+                && !setEapIdentity(NativeUtil.stringToByteArrayList(eapParam))) {
             Log.e(TAG, ssid + ": failed to set eap identity: " + eapParam);
             return false;
         }
         /** EAP Anonymous Identity */
         eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.ANON_IDENTITY_KEY);
         if (!TextUtils.isEmpty(eapParam)
-                && !setEapAnonymousIdentity(stringToByteArrayList(eapParam))) {
+                && !setEapAnonymousIdentity(NativeUtil.stringToByteArrayList(eapParam))) {
             Log.e(TAG, ssid + ": failed to set eap anonymous identity: " + eapParam);
             return false;
         }
         /** EAP Password */
         eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.PASSWORD_KEY);
-        if (!TextUtils.isEmpty(eapParam) && !setEapPassword(stringToByteArrayList(eapParam))) {
+        if (!TextUtils.isEmpty(eapParam)
+                && !setEapPassword(NativeUtil.stringToByteArrayList(eapParam))) {
             Log.e(TAG, ssid + ": failed to set eap password");
             return false;
         }
@@ -851,7 +858,7 @@ public class SupplicantStaNetworkHal {
     };
 
     /** See ISupplicantNetwork.hal for documentation */
-    public boolean getId() {
+    private boolean getId() {
         synchronized (mLock) {
             final String methodStr = "getId";
             if (DBG) Log.i(TAG, methodStr);
@@ -1964,7 +1971,12 @@ public class SupplicantStaNetworkHal {
             }
         }
     }
-    /** See ISupplicantStaNetwork.hal for documentation */
+
+    /**
+     * Trigger a connection to this network.
+     *
+     * @return true if it succeeds, false otherwise.
+     */
     public boolean select() {
         synchronized (mLock) {
             final String methodStr = "select";
@@ -1978,6 +1990,7 @@ public class SupplicantStaNetworkHal {
             }
         }
     }
+
     /**
      * Send GSM auth response.
      *
@@ -1995,12 +2008,12 @@ public class SupplicantStaNetworkHal {
             }
             ISupplicantStaNetwork.NetworkResponseEapSimGsmAuthParams param =
                     new ISupplicantStaNetwork.NetworkResponseEapSimGsmAuthParams();
-            byte[] kc = hexStringToByteArray(match.group(1));
+            byte[] kc = NativeUtil.hexStringToByteArray(match.group(1));
             if (kc == null || kc.length != param.kc.length) {
                 Log.e(TAG, "Invalid kc value: " + match.group(1));
                 return false;
             }
-            byte[] sres = hexStringToByteArray(match.group(2));
+            byte[] sres = NativeUtil.hexStringToByteArray(match.group(2));
             if (sres == null || sres.length != param.sres.length) {
                 Log.e(TAG, "Invalid sres value: " + match.group(2));
                 return false;
@@ -2016,6 +2029,7 @@ public class SupplicantStaNetworkHal {
         }
         return sendNetworkEapSimGsmAuthResponse(params);
     }
+
     /** See ISupplicantStaNetwork.hal for documentation */
     private boolean sendNetworkEapSimGsmAuthResponse(
             ArrayList<ISupplicantStaNetwork.NetworkResponseEapSimGsmAuthParams> params) {
@@ -2060,17 +2074,17 @@ public class SupplicantStaNetworkHal {
         }
         ISupplicantStaNetwork.NetworkResponseEapSimUmtsAuthParams params =
                 new ISupplicantStaNetwork.NetworkResponseEapSimUmtsAuthParams();
-        byte[] ik = hexStringToByteArray(match.group(1));
+        byte[] ik = NativeUtil.hexStringToByteArray(match.group(1));
         if (ik == null || ik.length != params.ik.length) {
             Log.e(TAG, "Invalid ik value: " + match.group(1));
             return false;
         }
-        byte[] ck = hexStringToByteArray(match.group(2));
+        byte[] ck = NativeUtil.hexStringToByteArray(match.group(2));
         if (ck == null || ck.length != params.ck.length) {
             Log.e(TAG, "Invalid ck value: " + match.group(2));
             return false;
         }
-        byte[] res = hexStringToByteArray(match.group(3));
+        byte[] res = NativeUtil.hexStringToByteArray(match.group(3));
         if (res == null || res.length == 0) {
             Log.e(TAG, "Invalid res value: " + match.group(3));
             return false;
@@ -2110,7 +2124,7 @@ public class SupplicantStaNetworkHal {
             Log.e(TAG, "Malformed umts auts response params: " + paramsStr);
             return false;
         }
-        byte[] auts = hexStringToByteArray(match.group(1));
+        byte[] auts = NativeUtil.hexStringToByteArray(match.group(1));
         if (auts == null || auts.length != 14) {
             Log.e(TAG, "Invalid auts value: " + match.group(1));
             return false;
@@ -2153,7 +2167,7 @@ public class SupplicantStaNetworkHal {
      * @return true if succeeds, false otherwise.
      */
     public boolean sendNetworkEapIdentityResponse(String identityStr) {
-        ArrayList<Byte> identity = stringToByteArrayList(identityStr);
+        ArrayList<Byte> identity = NativeUtil.stringToByteArrayList(identityStr);
         return sendNetworkEapIdentityResponse(identity);
     }
     /** See ISupplicantStaNetwork.hal for documentation */
@@ -2205,131 +2219,5 @@ public class SupplicantStaNetworkHal {
 
     private void logFailureStatus(SupplicantStatus status, String methodStr) {
         Log.e(TAG, methodStr + " failed: " + status.debugMessage);
-    }
-
-    /**
-     * @return the UTF_8 char byte values of str, as an ArrayList
-     */
-    private static ArrayList<Byte> stringToByteArrayList(String str) {
-        ArrayList<Byte> byteArrayList = new ArrayList<Byte>();
-        for (byte b : str.getBytes(StandardCharsets.UTF_8)) {
-            byteArrayList.add(new Byte(b));
-        }
-        return byteArrayList;
-    }
-
-    /**
-     * @return the string decoded from UTF_8 byte values in byteArrayList
-     *         returns null for null input
-     */
-    @VisibleForTesting
-    public static String stringFromByteArrayList(ArrayList<Byte> byteArrayList) {
-        if (byteArrayList == null) return null;
-        byte[] byteArray = new byte[byteArrayList.size()];
-        int i = 0;
-        for (Byte b : byteArrayList) {
-            byteArray[i] = b;
-            i++;
-        }
-        return new String(byteArray, StandardCharsets.UTF_8);
-    }
-
-    /**
-     * Converts a mac address string to an array of Byes
-     * @param bssidStr string of format: "XX:XX:XX:XX:XX:XX", where X is any hexadecimal digit.
-     *        Passing "any" is the same as 00:00:00:00:00:00
-     * @throws IllegalArgumentException for various malformed inputs
-     */
-    private static byte[] macAddressToByteArray(String bssidStr) {
-        if (bssidStr == null) {
-            throw new IllegalArgumentException("null bssid String");
-        }
-        if (ANY_BSSID_STR.equals(bssidStr)) return ANY_BSSID_BYTES;
-        String cleanBssid = bssidStr.replace(":", "");
-        if (cleanBssid.length() != 12) {
-            throw new IllegalArgumentException("invalid bssid String length: " + cleanBssid);
-        }
-        return HexEncoding.decode(cleanBssid.toCharArray(), false);
-    }
-
-    /**
-     * Converts an array of 6 bytes to a HexEncoded String with format: "XX:XX:XX:XX:XX:XX", where X
-     * is any hexadecimal digit.
-     * @param macArray byte array of bssid values, must have length 6
-     * @throws IllegalArgumentException for malformed inputs
-     */
-    private static String macAddressFromByteArray(byte[] macArray) {
-        if (macArray == null) {
-            throw new IllegalArgumentException("null macArray");
-        }
-        if (macArray.length != 6) {
-            throw new IllegalArgumentException("invalid macArray length: " + macArray.length);
-        }
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < macArray.length; i++) {
-            sb.append(new String(HexEncoding.encode(macArray, i, 1))).append(":");
-        }
-        String mac = sb.toString();
-        return mac.substring(0, mac.length() - 1); //remove trailing ':'
-    }
-
-    /**
-     * Converts an ssid string to an arraylist of UTF_8 byte values.
-     * Removes encapsulating quotation marks if they exist
-     */
-    private static ArrayList<Byte> encodeSsid(String ssid) {
-        int length = ssid.length();
-        if ((length > 1) && (ssid.charAt(0) == '"') && (ssid.charAt(length - 1) == '"')) {
-            ssid = ssid.substring(1, ssid.length() - 1);
-        }
-        return stringToByteArrayList(ssid);
-    }
-
-    /**
-     * Converts an ArrayList<Byte> of UTF_8 byte values to an SSID String, encapsulated in quotes
-     * Will return null given null ssidBytes
-     */
-    private static String decodeSsid(ArrayList<Byte> ssidBytes) {
-        if (ssidBytes == null) return null;
-        if (ssidBytes.size() == 0) return "\"\"";
-        byte[] ssidArray = new byte[ssidBytes.size()];
-        int i = 0;
-        for (Byte b : ssidBytes) {
-            ssidArray[i] = b;
-            i++;
-        }
-        return "\"" + (new String(ssidArray, StandardCharsets.UTF_8)) + "\"";
-    }
-
-    /**
-     * Converts a hex string to byte array.
-     */
-    private static byte[] hexStringToByteArray(String hex) {
-        if (hex == null) {
-            return new byte[0];
-        }
-        if (hex.length() % 2 != 0) {
-            throw new IllegalArgumentException(hex + " is not a valid hex string");
-        }
-        byte[] result = new byte[(hex.length()) / 2];
-        for (int i = 0, j = 0; i < hex.length(); i += 2, j++) {
-            int val = Character.digit(hex.charAt(i), 16) * 16
-                    + Character.digit(hex.charAt(i + 1), 16);
-            byte b = (byte) (val & 0xFF);
-            result[j] = b;
-        }
-        return result;
-    }
-
-    /**
-     * Converts a byte array to hex string.
-     */
-    @VisibleForTesting
-    public static String byteArrayToHexString(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b));
-        }
-        return sb.toString();
     }
 }
