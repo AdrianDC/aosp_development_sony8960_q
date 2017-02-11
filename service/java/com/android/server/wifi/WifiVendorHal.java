@@ -21,6 +21,7 @@ import android.hardware.wifi.V1_0.IWifiChip;
 import android.hardware.wifi.V1_0.IWifiIface;
 import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
+import android.hardware.wifi.V1_0.IfaceType;
 import android.hardware.wifi.V1_0.StaRoamingConfig;
 import android.hardware.wifi.V1_0.StaRoamingState;
 import android.hardware.wifi.V1_0.WifiDebugHostWakeReasonStats;
@@ -44,6 +45,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.connectivity.KeepalivePacketData;
 
 import java.util.ArrayList;
+import java.util.Set;
 
 /**
  * Vendor HAL via HIDL
@@ -369,7 +371,7 @@ public class WifiVendorHal {
      */
     @VisibleForTesting
     int wifiFeatureMaskFromStaCapabilities(int capabilities) {
-        int features = WifiManager.WIFI_FEATURE_INFRA; // Always set this if we have a STA interface
+        int features = 0;
         for (int i = 0; i < sFeatureCapabilityTranslation.length; i++) {
             if ((capabilities & sFeatureCapabilityTranslation[i][1]) != 0) {
                 features |= sFeatureCapabilityTranslation[i][0];
@@ -387,6 +389,7 @@ public class WifiVendorHal {
      * @return bitmask defined by WifiManager.WIFI_FEATURE_*
      */
     public int getSupportedFeatureSet() {
+        int featureSet = 0;
         try {
             final MutableInt feat = new MutableInt(0);
             synchronized (sLock) {
@@ -397,11 +400,27 @@ public class WifiVendorHal {
                     });
                 }
             }
-            return feat.value;
+            featureSet = feat.value;
         } catch (RemoteException e) {
             handleRemoteException(e);
             return 0;
         }
+
+        Set<Integer> supportedIfaceTypes = mHalDeviceManager.getSupportedIfaceTypes();
+        if (supportedIfaceTypes.contains(IfaceType.STA)) {
+            featureSet |= WifiManager.WIFI_FEATURE_INFRA;
+        }
+        if (supportedIfaceTypes.contains(IfaceType.AP)) {
+            featureSet |= WifiManager.WIFI_FEATURE_MOBILE_HOTSPOT;
+        }
+        if (supportedIfaceTypes.contains(IfaceType.P2P)) {
+            featureSet |= WifiManager.WIFI_FEATURE_P2P;
+        }
+        if (supportedIfaceTypes.contains(IfaceType.NAN)) {
+            featureSet |= WifiManager.WIFI_FEATURE_AWARE;
+        }
+
+        return featureSet;
     }
 
     /* RTT related commands/events */
