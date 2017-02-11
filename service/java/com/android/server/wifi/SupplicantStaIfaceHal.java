@@ -31,10 +31,10 @@ import android.os.RemoteException;
 import android.util.Log;
 import android.util.MutableBoolean;
 
-import libcore.util.HexEncoding;
+import com.android.server.wifi.util.NativeUtil;
 
 import java.util.ArrayList;
-//import android.net.wifi.WifiEnterpriseConfig;
+
 /**
  * Hal calls for bring up/shut down of the supplicant daemon and for
  * sending requests to the supplicant daemon
@@ -218,13 +218,12 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
-     * Imitation of WifiSupplicantControl.addNetwork()
-     *
      * Add a network configuration to wpa_supplicant, via HAL
+     *
      * @param config Config corresponding to the network.
      * @return SupplicantStaNetwork of the added network in wpa_supplicant.
      */
-    public SupplicantStaNetworkHal addNetwork(WifiConfiguration config) {
+    private SupplicantStaNetworkHal addNetwork(WifiConfiguration config) {
         logi("addSupplicantStaNetwork via HIDL");
         if (config == null) {
             loge("Cannot add NULL network!");
@@ -244,10 +243,14 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
-     * Imitation of WifiSupplicantControl.connectToNetwork
+     * Initiate connection to the provided network.
+     *
+     * @param config Config corresponding to the network.
+     * @param shouldDisconnect Whether to trigger a disconnect first.
+     * @return true if request is sent successfully, false otherwise.
      */
-    public boolean connectToNetwork(WifiConfiguration configuration, boolean shouldDisconnect) {
-        logd("connectToNetwork " + configuration.configKey()
+    public boolean connectToNetwork(WifiConfiguration config, boolean shouldDisconnect) {
+        logd("connectToNetwork " + config.configKey()
                 + " (shouldDisconnect " + shouldDisconnect + ")");
         if (shouldDisconnect && !disconnect()) {
             loge("Failed to trigger disconnect");
@@ -257,17 +260,13 @@ public class SupplicantStaIfaceHal {
             loge("Failed to remove existing networks");
             return false;
         }
-        SupplicantStaNetworkHal network = addNetwork(configuration);
+        SupplicantStaNetworkHal network = addNetwork(config);
         if (network == null) {
-            loge("Failed to add/save network configuration: " + configuration.configKey());
-            return false;
-        }
-        if (!network.getId()) {
-            loge("Failed to get network id for configuration: " + configuration.configKey());
+            loge("Failed to add/save network configuration: " + config.configKey());
             return false;
         }
         if (!network.select()) {
-            loge("Failed to select network configuration: " + configuration.configKey());
+            loge("Failed to select network configuration: " + config.configKey());
             return false;
         }
         return true;
@@ -295,6 +294,8 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Gets the interface name.
+     *
      * @return returns the name of Iface or null if the call fails
      */
     private String getName() {
@@ -324,37 +325,10 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
+
     /**
-     * @return the IfaceType value for this interface, or INVALID_IFACE_TYPE if call fails
-     */
-    private int getType() {
-        synchronized (mLock) {
-            MutableBoolean statusSuccess = new MutableBoolean(false);
-            Mutable<Integer> gotType = new Mutable<>();
-            final String methodStr = "getType";
-            if (DBG) Log.i(TAG, methodStr);
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return INVALID_IFACE_TYPE;
-            try {
-                mISupplicantStaIface.getType((SupplicantStatus status, int type) -> {
-                    statusSuccess.value = status.code == SupplicantStatusCode.SUCCESS;
-                    if (!statusSuccess.value) {
-                        Log.e(TAG, methodStr + " failed: " + status.debugMessage);
-                    } else {
-                        gotType.value = type;
-                    }
-                });
-            } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception: " + e);
-                supplicantServiceDiedHandler();
-            }
-            if (statusSuccess.value) {
-                return gotType.value;
-            } else {
-                return INVALID_IFACE_TYPE;
-            }
-        }
-    }
-    /**
+     * Adds a new network.
+     *
      * @return The ISupplicantNetwork object for the new network, or null if the call fails
      */
     private SupplicantStaNetworkHal addNetwork() {
@@ -386,9 +360,11 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
+
     /**
      * Remove network from supplicant with network Id
-     * @return true on success of the command
+     *
+     * @return true if request is sent successfully, false otherwise.
      */
     private boolean removeNetwork(int id) {
         synchronized (mLock) {
@@ -405,6 +381,7 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
+
     /**
      * @return The ISupplicantNetwork object for the given SupplicantNetworkId int, returns null if
      * the call fails
@@ -471,8 +448,13 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
-    /** See ISupplicantStaIface.hal for documentation */
-    private boolean reassociate() {
+
+    /**
+     * Trigger a reassociation even if the iface is currently connected.
+     *
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean reassociate() {
         synchronized (mLock) {
             final String methodStr = "reassociate";
             if (DBG) Log.i(TAG, methodStr);
@@ -487,8 +469,13 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
-    /** See ISupplicantStaIface.hal for documentation */
-    private boolean reconnect() {
+
+    /**
+     * Trigger a reconnection if the iface is disconnected.
+     *
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean reconnect() {
         synchronized (mLock) {
             final String methodStr = "reconnect";
             if (DBG) Log.i(TAG, methodStr);
@@ -503,8 +490,13 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
-    /** See ISupplicantStaIface.hal for documentation */
-    private boolean disconnect() {
+
+    /**
+     * Trigger a disconnection from the currently connected network.
+     *
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean disconnect() {
         synchronized (mLock) {
             final String methodStr = "disconnect";
             if (DBG) Log.i(TAG, methodStr);
@@ -519,8 +511,14 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
-    /** See ISupplicantStaIface.hal for documentation */
-    private boolean setPowerSave(boolean enable) {
+
+    /**
+     * Enable or disable power save mode.
+     *
+     * @param enable true to enable, false to disable.
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean setPowerSave(boolean enable) {
         synchronized (mLock) {
             final String methodStr = "setPowerSave";
             if (DBG) Log.i(TAG, methodStr);
@@ -534,6 +532,16 @@ public class SupplicantStaIfaceHal {
                 return false;
             }
         }
+    }
+
+    /**
+     * Initiate TDLS discover with the specified AP.
+     *
+     * @param macAddress MAC Address of the AP.
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean initiateTdlsDiscover(String macAddress) {
+        return initiateTdlsDiscover(NativeUtil.macAddressToByteArray(macAddress));
     }
     /** See ISupplicantStaIface.hal for documentation */
     private boolean initiateTdlsDiscover(byte[/* 6 */] macAddress) {
@@ -551,6 +559,16 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
+
+    /**
+     * Initiate TDLS setup with the specified AP.
+     *
+     * @param macAddress MAC Address of the AP.
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean initiateTdlsSetup(String macAddress) {
+        return initiateTdlsSetup(NativeUtil.macAddressToByteArray(macAddress));
+    }
     /** See ISupplicantStaIface.hal for documentation */
     private boolean initiateTdlsSetup(byte[/* 6 */] macAddress) {
         synchronized (mLock) {
@@ -567,6 +585,16 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
+
+    /**
+     * Initiate TDLS teardown with the specified AP.
+     * @param macAddress MAC Address of the AP.
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean initiateTdlsTeardown(String macAddress) {
+        return initiateTdlsTeardown(NativeUtil.macAddressToByteArray(macAddress));
+    }
+
     /** See ISupplicantStaIface.hal for documentation */
     private boolean initiateTdlsTeardown(byte[/* 6 */] macAddress) {
         synchronized (mLock) {
@@ -583,6 +611,21 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
+
+    /**
+     * Request the specified ANQP elements |elements| from the specified AP |bssid|.
+     *
+     * @param bssid BSSID of the AP
+     * @param infoElements ANQP elements to be queried. Refer to ISupplicantStaIface.AnqpInfoId.
+     * @param hs20SubTypes HS subtypes to be queried. Refer to ISupplicantStaIface.Hs20AnqpSubTypes.
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean initiateAnqpQuery(String bssid, ArrayList<Short> infoElements,
+                                     ArrayList<Integer> hs20SubTypes) {
+        return initiateAnqpQuery(
+                NativeUtil.macAddressToByteArray(bssid), infoElements, hs20SubTypes);
+    }
+
     /** See ISupplicantStaIface.hal for documentation */
     private boolean initiateAnqpQuery(byte[/* 6 */] macAddress,
             java.util.ArrayList<Short> infoElements, java.util.ArrayList<Integer> subTypes) {
@@ -601,6 +644,18 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
+
+    /**
+     * Request the specified ANQP ICON from the specified AP |bssid|.
+     *
+     * @param bssid BSSID of the AP
+     * @param fileName Name of the file to request.
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean initiateHs20IconQuery(String bssid, String fileName) {
+        return initiateHs20IconQuery(NativeUtil.macAddressToByteArray(bssid), fileName);
+    }
+
     /** See ISupplicantStaIface.hal for documentation */
     private boolean initiateHs20IconQuery(byte[/* 6 */] macAddress, String fileName) {
         synchronized (mLock) {
@@ -618,11 +673,13 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
+
     /**
      * Makes a callback to HIDL to getMacAddress from supplicant
+     *
      * @return string containing the MAC address, or null on a failed call
      */
-    private String getMacAddress() {
+    public String getMacAddress() {
         synchronized (mLock) {
             MutableBoolean statusSuccess = new MutableBoolean(false);
             final String methodStr = "getMacAddress";
@@ -636,7 +693,7 @@ public class SupplicantStaIfaceHal {
                     if (!statusSuccess.value) {
                         Log.e(TAG, methodStr + " failed: " + status.debugMessage);
                     } else {
-                        gotMac.value = String.valueOf(HexEncoding.encode(macAddr));
+                        gotMac.value = NativeUtil.macAddressFromByteArray(macAddr);
                     }
                 });
             } catch (RemoteException e) {
@@ -650,8 +707,13 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
-    /** See ISupplicantStaIface.hal for documentation */
-    private boolean startRxFilter() {
+
+    /**
+     * Start using the added RX filters.
+     *
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean startRxFilter() {
         synchronized (mLock) {
             final String methodStr = "startRxFilter";
             if (DBG) Log.i(TAG, methodStr);
@@ -666,8 +728,13 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
-    /** See ISupplicantStaIface.hal for documentation */
-    private boolean stopRxFilter() {
+
+    /**
+     * Stop using the added RX filters.
+     *
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean stopRxFilter() {
         synchronized (mLock) {
             final String methodStr = "stopRxFilter";
             if (DBG) Log.i(TAG, methodStr);
@@ -682,7 +749,18 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
-    /** See ISupplicantStaIface.hal for documentation */
+
+    public static final byte RX_FILTER_TYPE_V4_MULTICAST =
+            ISupplicantStaIface.RxFilterType.V6_MULTICAST;
+    public static final byte RX_FILTER_TYPE_V6_MULTICAST =
+            ISupplicantStaIface.RxFilterType.V6_MULTICAST;
+    /**
+     * Add an RX filter.
+     *
+     * @param type one of {@link #RX_FILTER_TYPE_V4_MULTICAST} or
+     *        {@link #RX_FILTER_TYPE_V6_MULTICAST} values.
+     * @return true if request is sent successfully, false otherwise.
+     */
     private boolean addRxFilter(byte type) {
         synchronized (mLock) {
             final String methodStr = "addRxFilter";
@@ -698,7 +776,14 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
-    /** See ISupplicantStaIface.hal for documentation */
+
+    /**
+     * Remove an RX filter.
+     *
+     * @param type one of {@link #RX_FILTER_TYPE_V4_MULTICAST} or
+     *        {@link #RX_FILTER_TYPE_V6_MULTICAST} values.
+     * @return true if request is sent successfully, false otherwise.
+     */
     private boolean removeRxFilter(byte type) {
         synchronized (mLock) {
             final String methodStr = "removeRxFilter";
@@ -714,8 +799,18 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
-    /** See ISupplicantStaIface.hal for documentation */
-    private boolean setBtCoexistenceMode(byte mode) {
+
+    public static final byte BT_COEX_MODE_ENABLED = ISupplicantStaIface.BtCoexistenceMode.ENABLED;
+    public static final byte BT_COEX_MODE_DISABLED = ISupplicantStaIface.BtCoexistenceMode.DISABLED;
+    public static final byte BT_COEX_MODE_SENSE = ISupplicantStaIface.BtCoexistenceMode.SENSE;
+    /**
+     * Set Bt co existense mode.
+     *
+     * @param mode one of the above {@link #BT_COEX_MODE_ENABLED}, {@link #BT_COEX_MODE_DISABLED}
+     *             or {@link #BT_COEX_MODE_SENSE} values.
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean setBtCoexistenceMode(byte mode) {
         synchronized (mLock) {
             final String methodStr = "setBtCoexistenceMode";
             if (DBG) Log.i(TAG, methodStr);
@@ -730,8 +825,13 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
-    /** See ISupplicantStaIface.hal for documentation */
-    private boolean setBtCoexistenceScanModeEnabled(boolean enable) {
+
+    /** Enable or disable BT coexistence mode.
+     *
+     * @param enable true to enable, false to disable.
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean setBtCoexistenceScanModeEnabled(boolean enable) {
         synchronized (mLock) {
             final String methodStr = "setBtCoexistenceScanModeEnabled";
             if (DBG) Log.i(TAG, methodStr);
@@ -747,8 +847,13 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
-    /** See ISupplicantStaIface.hal for documentation */
-    private boolean setSuspendModeEnabled(boolean enable) {
+
+    /**
+     * Enable or disable suspend mode optimizations.
+     *
+     * @param enable true to enable, false otherwise.
+     */
+    public boolean setSuspendModeEnabled(boolean enable) {
         synchronized (mLock) {
             final String methodStr = "setSuspendModeEnabled";
             if (DBG) Log.i(TAG, methodStr);
@@ -763,6 +868,17 @@ public class SupplicantStaIfaceHal {
             }
         }
     }
+
+    /**
+     * Set country code.
+     *
+     * @param codeStr 2 byte ASCII string. For ex: US, CA.
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean setCountryCode(String codeStr) {
+        return setCountryCode(NativeUtil.stringToByteArray(codeStr));
+    }
+
     /** See ISupplicantStaIface.hal for documentation */
     private boolean setCountryCode(byte[/* 2 */] code) {
         synchronized (mLock) {
