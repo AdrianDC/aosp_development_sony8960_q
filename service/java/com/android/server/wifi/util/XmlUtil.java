@@ -319,6 +319,7 @@ public class XmlUtil {
         public static final String XML_TAG_ALLOWED_GROUP_CIPHERS = "AllowedGroupCiphers";
         public static final String XML_TAG_ALLOWED_PAIRWISE_CIPHERS = "AllowedPairwiseCiphers";
         public static final String XML_TAG_SHARED = "Shared";
+        public static final String XML_TAG_STATUS = "Status";
         public static final String XML_TAG_FQDN = "FQDN";
         public static final String XML_TAG_PROVIDER_FRIENDLY_NAME = "ProviderFriendlyName";
         public static final String XML_TAG_LINKED_NETWORKS_LIST = "LinkedNetworksList";
@@ -423,6 +424,7 @@ public class XmlUtil {
                 XmlSerializer out, WifiConfiguration configuration)
                 throws XmlPullParserException, IOException {
             writeCommonElementsToXml(out, configuration);
+            XmlUtil.writeNextValue(out, XML_TAG_STATUS, configuration.status);
             XmlUtil.writeNextValue(out, XML_TAG_FQDN, configuration.FQDN);
             XmlUtil.writeNextValue(
                     out, XML_TAG_PROVIDER_FRIENDLY_NAME, configuration.providerFriendlyName);
@@ -544,6 +546,9 @@ public class XmlUtil {
                         break;
                     case XML_TAG_SHARED:
                         configuration.shared = (boolean) value;
+                        break;
+                    case XML_TAG_STATUS:
+                        configuration.status = (int) value;
                         break;
                     case XML_TAG_FQDN:
                         configuration.FQDN = (String) value;
