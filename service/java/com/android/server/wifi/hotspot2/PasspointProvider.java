@@ -24,6 +24,7 @@ import android.net.wifi.hotspot2.pps.Credential;
 import android.net.wifi.hotspot2.pps.Credential.SimCredential;
 import android.net.wifi.hotspot2.pps.Credential.UserCredential;
 import android.security.Credentials;
+import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
 
@@ -47,6 +48,7 @@ import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Abstraction for Passpoint service provider.  This class contains the both static
@@ -78,6 +80,7 @@ public class PasspointProvider {
      * WifiEnterpriseConfig will append the appropriate prefix to that alias based on the type.
      */
     private final String mKeyStoreAliasSuffix;
+    private final long mProviderId;
 
     private final IMSIParameter mImsiParameter;
     private final List<String> mMatchingSIMImsiList;
@@ -87,10 +90,20 @@ public class PasspointProvider {
 
     public PasspointProvider(PasspointConfiguration config, WifiKeyStore keyStore,
             SIMAccessor simAccessor, long providerId) {
+        this(config, keyStore, simAccessor, providerId, null, null, null);
+    }
+
+    public PasspointProvider(PasspointConfiguration config, WifiKeyStore keyStore,
+            SIMAccessor simAccessor, long providerId, String caCertificateAlias,
+            String clientCertificateAlias, String clientPrivateKeyAlias) {
         // Maintain a copy of the configuration to avoid it being updated by others.
         mConfig = new PasspointConfiguration(config);
         mKeyStore = keyStore;
         mKeyStoreAliasSuffix = ALIAS_HS_TYPE + providerId;
+        mProviderId = providerId;
+        mCaCertificateAlias = caCertificateAlias;
+        mClientCertificateAlias = clientCertificateAlias;
+        mClientPrivateKeyAlias = clientPrivateKeyAlias;
 
         // Setup EAP method and authentication parameter based on the credential.
         if (mConfig.getCredential().getUserCredential() != null) {
@@ -128,6 +141,10 @@ public class PasspointProvider {
 
     public String getClientCertificateAlias() {
         return mClientCertificateAlias;
+    }
+
+    public long getProviderId() {
+        return mProviderId;
     }
 
     /**
@@ -275,6 +292,28 @@ public class PasspointProvider {
         }
         wifiConfig.enterpriseConfig = enterpriseConfig;
         return wifiConfig;
+    }
+
+    @Override
+    public boolean equals(Object thatObject) {
+        if (this == thatObject) {
+            return true;
+        }
+        if (!(thatObject instanceof PasspointProvider)) {
+            return false;
+        }
+        PasspointProvider that = (PasspointProvider) thatObject;
+        return mProviderId == that.mProviderId
+                && TextUtils.equals(mCaCertificateAlias, that.mCaCertificateAlias)
+                && TextUtils.equals(mClientCertificateAlias, that.mClientCertificateAlias)
+                && TextUtils.equals(mClientPrivateKeyAlias, that.mClientPrivateKeyAlias)
+                && (mConfig == null ? that.mConfig == null : mConfig.equals(that.mConfig));
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(mProviderId, mCaCertificateAlias, mClientCertificateAlias,
+                mClientPrivateKeyAlias, mConfig);
     }
 
     /**
