@@ -686,10 +686,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /* used to indicate that the foreground user was switched */
     static final int CMD_USER_STOP                                      = BASE + 207;
 
-    /**
-     * Signals that IClientInterface instance underpinning our state is dead.
-     */
-    private static final int CMD_CLIENT_INTERFACE_BINDER_DEATH = BASE + 250;
+    /* Signals that IClientInterface instance underpinning our state is dead. */
+    private static final int CMD_CLIENT_INTERFACE_BINDER_DEATH          = BASE + 250;
+
+    /* Indicates that diagnostics should time out a connection start event. */
+    private static final int CMD_DIAGS_CONNECT_TIMEOUT                  = BASE + 251;
 
     // For message logging.
     private static final Class[] sMessageClasses = {
@@ -3299,13 +3300,19 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 WifiNative.BLUETOOTH_COEXISTENCE_MODE_SENSE);
     }
 
+    private static final long DIAGS_CONNECT_TIMEOUT_MILLIS = 60 * 1000;
+    private long mDiagsConnectionStartMillis = -1;
     /**
      * Inform other components that a new connection attempt is starting.
      */
     private void reportConnectionAttemptStart(
             WifiConfiguration config, String targetBSSID, int roamType) {
         mWifiMetrics.startConnectionEvent(config, targetBSSID, roamType);
-        mWifiDiagnostics.reportConnectionEvent(WifiDiagnostics.CONNECTION_EVENT_STARTED);
+        mDiagsConnectionStartMillis = mClock.getElapsedSinceBootMillis();
+        mWifiDiagnostics.reportConnectionEvent(
+                mDiagsConnectionStartMillis, WifiDiagnostics.CONNECTION_EVENT_STARTED);
+        sendMessageDelayed(CMD_DIAGS_CONNECT_TIMEOUT,
+                mDiagsConnectionStartMillis, DIAGS_CONNECT_TIMEOUT_MILLIS);
     }
 
     /**
@@ -3325,7 +3332,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 //   complete.
                 //
                 // TODO(b/34181219): Fix the above.
-                mWifiDiagnostics.reportConnectionEvent(WifiDiagnostics.CONNECTION_EVENT_SUCCEEDED);
+                mWifiDiagnostics.reportConnectionEvent(
+                        mDiagsConnectionStartMillis, WifiDiagnostics.CONNECTION_EVENT_SUCCEEDED);
                 break;
             case WifiMetrics.ConnectionEvent.FAILURE_REDUNDANT_CONNECTION_ATTEMPT:
             case WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED:
@@ -3333,8 +3341,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 // where we failed to initiate a connection attempt with supplicant.
                 break;
             default:
-                mWifiDiagnostics.reportConnectionEvent(WifiDiagnostics.CONNECTION_EVENT_FAILED);
+                mWifiDiagnostics.reportConnectionEvent(
+                        mDiagsConnectionStartMillis, WifiDiagnostics.CONNECTION_EVENT_FAILED);
         }
+        mDiagsConnectionStartMillis = -1;
     }
 
     private void handleIPv4Success(DhcpResults dhcpResults) {
@@ -3903,6 +3913,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // trust that the driver is up or that the interface is ready.  We are fit
                     // for no WiFi related work.
                     transitionTo(mInitialState);
+                    break;
+                case CMD_DIAGS_CONNECT_TIMEOUT:
+                    mWifiDiagnostics.reportConnectionEvent(
+                            (Long) message.obj, BaseWifiDiagnostics.CONNECTION_EVENT_FAILED);
                     break;
                 default:
                     loge("Error! unhandled message" + message);
