@@ -329,8 +329,7 @@ public class WifiVendorHalTest {
                 | IWifiStaIface.StaIfaceCapabilityMask.LINK_LAYER_STATS
             );
         int expected = (
-                WifiManager.WIFI_FEATURE_INFRA
-                | WifiManager.WIFI_FEATURE_SCANNER
+                WifiManager.WIFI_FEATURE_SCANNER
                 | WifiManager.WIFI_FEATURE_LINK_LAYER_STATS);
         assertEquals(expected, mWifiVendorHal.wifiFeatureMaskFromStaCapabilities(caps));
     }
