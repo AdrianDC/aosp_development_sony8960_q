@@ -28,6 +28,7 @@ import android.util.Log;
 
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.util.InformationElementUtil;
+import com.android.server.wifi.util.NativeUtil;
 import com.android.server.wifi.wificond.NativeScanResult;
 
 import java.util.ArrayList;
@@ -234,15 +235,6 @@ public class WificondControl {
         return counters;
     }
 
-    private static String parseMacToString(byte[] mac) {
-        if (mac == null || mac.length != MAC_ADDR_LEN) {
-            Log.e(TAG, "Invalid MAC adddress size");
-            return "";
-        }
-        return String.format("%02x:%02x:%02x:%02x:%02x:%02x",
-                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    }
-
     /**
     * Fetch the latest scan result from kernel via wificond.
     * @return Returns an ArrayList of ScanDetail.
@@ -258,7 +250,7 @@ public class WificondControl {
             NativeScanResult[] nativeResults = mWificondScanner.getScanResults();
             for (NativeScanResult result : nativeResults) {
                 WifiSsid wifiSsid = WifiSsid.createFromAsciiEncoded(new String(result.ssid));
-                String bssid = parseMacToString(result.bssid);
+                String bssid = NativeUtil.macAddressFromByteArray(result.bssid);
                 ScanResult.InformationElement[] ies =
                         InformationElementUtil.parseInformationElements(result.infoElement);
                 InformationElementUtil.Capabilities capabilities =
