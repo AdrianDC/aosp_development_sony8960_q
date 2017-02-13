@@ -472,11 +472,32 @@ public class WifiVendorHal {
     }
 
     /**
-     * not supported
+     * Set the MAC OUI during scanning.
+     *
+     * An OUI {Organizationally Unique Identifier} is a 24-bit number that
+     * uniquely identifies a vendor or manufacturer.
+     *
+     * @param oui
+     * @return true for success
      */
     public boolean setScanningMacOui(byte[] oui) {
         kilroy();
-        throw new UnsupportedOperationException();
+        if (oui == null) return false;
+        kilroy();
+        if (oui.length != 3) return false;
+        kilroy();
+        synchronized (sLock) {
+            try {
+                if (mIWifiStaIface == null) return false;
+                WifiStatus status = mIWifiStaIface.setScanningMacOui(oui);
+                if (status.code != WifiStatusCode.SUCCESS) return false;
+                kilroy();
+                return true;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return false;
+            }
+        }
     }
 
     /**
