@@ -712,6 +712,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         } else {
                             loge("Full connection failure, error = " + message.arg1);
                             mWifiChannel = null;
+                            transitionTo(mP2pDisabledState);
                         }
                         break;
 
@@ -722,6 +723,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             loge("Client connection lost with reason: " + message.arg1);
                         }
                         mWifiChannel = null;
+                        transitionTo(mP2pDisabledState);
                         break;
 
                     case AsyncChannel.CMD_CHANNEL_FULL_CONNECTION:
@@ -881,7 +883,11 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         break;
                     case WifiStateMachine.CMD_DISABLE_P2P_REQ:
                         // If we end up handling in default, p2p is not enabled
-                        mWifiChannel.sendMessage(WifiStateMachine.CMD_DISABLE_P2P_RSP);
+                        if (mWifiChannel !=  null) {
+                            mWifiChannel.sendMessage(WifiStateMachine.CMD_DISABLE_P2P_RSP);
+                        } else {
+                            loge("Unexpected disable request when WifiChannel is null");
+                        }
                         break;
                     case WifiMonitor.P2P_GROUP_STARTED_EVENT:
                         // unexpected group created, remove
@@ -1031,7 +1037,11 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
 
             @Override
             public void exit() {
-                mWifiChannel.sendMessage(WifiStateMachine.CMD_DISABLE_P2P_RSP);
+                if (mWifiChannel != null) {
+                    mWifiChannel.sendMessage(WifiStateMachine.CMD_DISABLE_P2P_RSP);
+                } else {
+                    loge("P2pDisablingState exit(): WifiChannel is null");
+                }
             }
         }
 
@@ -1957,7 +1967,11 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         break;
                     case DROP_WIFI_USER_ACCEPT:
                         // User accepted dropping wifi in favour of p2p
-                        mWifiChannel.sendMessage(WifiP2pServiceImpl.DISCONNECT_WIFI_REQUEST, 1);
+                        if (mWifiChannel != null) {
+                            mWifiChannel.sendMessage(WifiP2pServiceImpl.DISCONNECT_WIFI_REQUEST, 1);
+                        } else {
+                            loge("DROP_WIFI_USER_ACCEPT message received when WifiChannel is null");
+                        }
                         mTemporarilyDisconnectedWifi = true;
                         break;
                     case DISCONNECT_WIFI_RESPONSE:
@@ -2350,8 +2364,12 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             intent.putExtra(WifiP2pManager.EXTRA_NETWORK_INFO, new NetworkInfo(mNetworkInfo));
             intent.putExtra(WifiP2pManager.EXTRA_WIFI_P2P_GROUP, new WifiP2pGroup(mGroup));
             mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
-            mWifiChannel.sendMessage(WifiP2pServiceImpl.P2P_CONNECTION_CHANGED,
-                    new NetworkInfo(mNetworkInfo));
+            if (mWifiChannel != null) {
+                mWifiChannel.sendMessage(WifiP2pServiceImpl.P2P_CONNECTION_CHANGED,
+                        new NetworkInfo(mNetworkInfo));
+            } else {
+                loge("sendP2pConnectionChangedBroadcast(): WifiChannel is null");
+            }
         }
 
         private void sendP2pPersistentGroupsChangedBroadcast() {
@@ -2961,7 +2979,11 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             mServiceDiscReqId = null;
 
             if (mTemporarilyDisconnectedWifi) {
-                mWifiChannel.sendMessage(WifiP2pServiceImpl.DISCONNECT_WIFI_REQUEST, 0);
+                if (mWifiChannel != null) {
+                    mWifiChannel.sendMessage(WifiP2pServiceImpl.DISCONNECT_WIFI_REQUEST, 0);
+                } else {
+                    loge("handleGroupRemoved(): WifiChannel is null");
+                }
                 mTemporarilyDisconnectedWifi = false;
             }
         }
