@@ -370,9 +370,11 @@ public class NetworkDetail {
     }
 
     public String getTrimmedSSID() {
-        for (int n = 0; n < mSSID.length(); n++) {
-            if (mSSID.charAt(n) != 0) {
-                return mSSID;
+        if (mSSID != null) {
+            for (int n = 0; n < mSSID.length(); n++) {
+                if (mSSID.charAt(n) != 0) {
+                    return mSSID;
+                }
             }
         }
         return "";
