@@ -16,7 +16,6 @@
 
 package com.android.server.wifi.wificond;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -72,24 +71,7 @@ public class PnoSettingsTest {
         PnoSettings pnoSettingsDeserialized =
                 pnoSettings.CREATOR.createFromParcel(parcel);
 
-        assertEquals(pnoSettings.intervalMs,
-                     pnoSettingsDeserialized.intervalMs);
-        assertEquals(pnoSettings.min2gRssi,
-                     pnoSettingsDeserialized.min2gRssi);
-        assertEquals(pnoSettings.min5gRssi,
-                     pnoSettingsDeserialized.min5gRssi);
-
-        assertNotNull(pnoSettingsDeserialized.pnoNetworks);
-        assertEquals(pnoSettings.pnoNetworks.size(),
-                     pnoSettingsDeserialized.pnoNetworks.size());
-        assertArrayEquals(pnoSettings.pnoNetworks.get(0).ssid,
-                          pnoSettingsDeserialized.pnoNetworks.get(0).ssid);
-        assertArrayEquals(pnoSettings.pnoNetworks.get(1).ssid,
-                          pnoSettingsDeserialized.pnoNetworks.get(1).ssid);
-        assertEquals(pnoSettings.pnoNetworks.get(0).isHidden,
-                          pnoSettingsDeserialized.pnoNetworks.get(0).isHidden);
-        assertEquals(pnoSettings.pnoNetworks.get(1).isHidden,
-                          pnoSettingsDeserialized.pnoNetworks.get(1).isHidden);
-
+        assertNotNull(pnoSettingsDeserialized);
+        assertEquals(pnoSettings, pnoSettingsDeserialized);
     }
 }

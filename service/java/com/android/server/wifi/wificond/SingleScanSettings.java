@@ -21,6 +21,7 @@ import android.os.Parcelable;
 import android.util.Log;
 
 import java.util.ArrayList;
+import java.util.Objects;
 
 /**
  * SingleScanSettings for wificond
@@ -35,6 +36,28 @@ public class SingleScanSettings implements Parcelable {
 
     /** public constructor */
     public SingleScanSettings() { }
+
+    /** override comparator */
+    @Override
+    public boolean equals(Object rhs) {
+        if (this == rhs) return true;
+        if (!(rhs instanceof SingleScanSettings)) {
+            return false;
+        }
+        SingleScanSettings settings = (SingleScanSettings) rhs;
+        if (settings == null) {
+            return false;
+        }
+        return channelSettings.equals(settings.channelSettings)
+                && hiddenNetworks.equals(settings.hiddenNetworks);
+    }
+
+    /** override hash code */
+    @Override
+    public int hashCode() {
+        return Objects.hash(channelSettings, hiddenNetworks);
+    }
+
 
     /** implement Parcelable interface */
     @Override
