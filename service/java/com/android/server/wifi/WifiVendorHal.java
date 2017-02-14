@@ -25,6 +25,8 @@ import android.hardware.wifi.V1_0.IfaceType;
 import android.hardware.wifi.V1_0.StaRoamingConfig;
 import android.hardware.wifi.V1_0.StaRoamingState;
 import android.hardware.wifi.V1_0.WifiDebugHostWakeReasonStats;
+import android.hardware.wifi.V1_0.WifiDebugRingBufferFlags;
+import android.hardware.wifi.V1_0.WifiDebugRingBufferStatus;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.apf.ApfCapabilities;
@@ -43,6 +45,7 @@ import android.util.MutableInt;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.connectivity.KeepalivePacketData;
+import com.android.server.wifi.util.BitMask;
 import com.android.server.wifi.util.NativeUtil;
 
 import java.util.ArrayList;
@@ -671,7 +674,24 @@ public class WifiVendorHal {
     public boolean startLoggingRingBuffer(int verboseLevel, int flags, int maxIntervalInSec,
                                           int minDataSizeInBytes, String ringName) {
         kilroy();
-        throw new UnsupportedOperationException();
+        synchronized (sLock) {
+            try {
+                if (mIWifiChip == null) return false;
+                kilroy();
+                // note - flags are not used
+                WifiStatus status = mIWifiChip.startLoggingToDebugRingBuffer(
+                        ringName,
+                        verboseLevel,
+                        maxIntervalInSec,
+                        minDataSizeInBytes
+                );
+                return status.code == WifiStatusCode.SUCCESS;
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return false;
+            }
+        }
     }
 
     /**
@@ -736,11 +756,81 @@ public class WifiVendorHal {
     }
 
     /**
+     * Creates RingBufferStatus from the Hal version
+     */
+    private static WifiNative.RingBufferStatus ringBufferStatus(WifiDebugRingBufferStatus h) {
+        WifiNative.RingBufferStatus ans = new WifiNative.RingBufferStatus();
+        ans.name = h.ringName;
+        ans.flag = frameworkRingBufferFlagsFromHal(h.flags);
+        ans.ringBufferId = h.ringId;
+        ans.ringBufferByteSize = h.sizeInBytes;
+        ans.verboseLevel = h.verboseLevel;
+        // Remaining fields are unavailable
+        //  writtenBytes;
+        //  readBytes;
+        //  writtenRecords;
+        return ans;
+    }
+
+    /**
+     * Translates a hal wifiDebugRingBufferFlag to the WifiNative version
+     */
+    private static int frameworkRingBufferFlagsFromHal(int wifiDebugRingBufferFlag) {
+        BitMask checkoff = new BitMask(wifiDebugRingBufferFlag);
+        int flags = 0;
+        if (checkoff.testAndClear(WifiDebugRingBufferFlags.HAS_BINARY_ENTRIES)) {
+            flags |= WifiNative.RingBufferStatus.HAS_BINARY_ENTRIES;
+        }
+        if (checkoff.testAndClear(WifiDebugRingBufferFlags.HAS_ASCII_ENTRIES)) {
+            flags |= WifiNative.RingBufferStatus.HAS_ASCII_ENTRIES;
+        }
+        if (checkoff.testAndClear(WifiDebugRingBufferFlags.HAS_PER_PACKET_ENTRIES)) {
+            flags |= WifiNative.RingBufferStatus.HAS_PER_PACKET_ENTRIES;
+        }
+        if (checkoff.value != 0) {
+            throw new IllegalArgumentException("Unknown WifiDebugRingBufferFlag " + checkoff.value);
+        }
+        return flags;
+    }
+
+    /**
+     * Creates array of RingBufferStatus from the Hal version
+     */
+    private static WifiNative.RingBufferStatus[] makeRingBufferStatusArray(
+            ArrayList<WifiDebugRingBufferStatus> ringBuffers) {
+        WifiNative.RingBufferStatus[] ans = new WifiNative.RingBufferStatus[ringBuffers.size()];
+        int i = 0;
+        for (WifiDebugRingBufferStatus b : ringBuffers) {
+            ans[i++] = ringBufferStatus(b);
+        }
+        return ans;
+    }
+
+    /**
      * API to get the status of all ring buffers supported by driver
      */
     public WifiNative.RingBufferStatus[] getRingBufferStatus() {
         kilroy();
-        throw new UnsupportedOperationException();
+        class AnswerBox {
+            public WifiNative.RingBufferStatus[] value = null;
+        }
+        AnswerBox ans = new AnswerBox();
+        synchronized (sLock) {
+            if (mIWifiChip == null) return null;
+            try {
+                kilroy();
+                mIWifiChip.getDebugRingBuffersStatus((status, ringBuffers) -> {
+                    kilroy();
+                    if (status.code != WifiStatusCode.SUCCESS) return;
+                    ans.value = makeRingBufferStatusArray(ringBuffers);
+                });
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return null;
+            }
+        }
+        return ans.value;
     }
 
     /**
@@ -749,7 +839,17 @@ public class WifiVendorHal {
      */
     public boolean getRingBufferData(String ringName) {
         kilroy();
-        throw new UnsupportedOperationException();
+        synchronized (sLock) {
+            try {
+                if (mIWifiChip == null) return false;
+                kilroy();
+                WifiStatus status = mIWifiChip.forceDumpToDebugRingBuffer(ringName);
+                return status.code == WifiStatusCode.SUCCESS;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return false;
+            }
+        }
     }
 
     /**
