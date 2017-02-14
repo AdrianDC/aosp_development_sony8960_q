@@ -15,18 +15,19 @@
  */
 package com.android.server.wifi;
 
+import android.content.Context;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaNetwork;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaNetworkCallback;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatusCode;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
-import android.os.HandlerThread;
 import android.os.RemoteException;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.MutableBoolean;
 
+import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.ArrayUtils;
 import com.android.server.wifi.util.NativeUtil;
@@ -37,6 +38,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 
 /**
  * Wrapper class for ISupplicantStaNetwork HAL calls. Gets and sets supplicant sta network variables
@@ -74,7 +76,11 @@ public class SupplicantStaNetworkHal {
 
     private final Object mLock = new Object();
     private ISupplicantStaNetwork mISupplicantStaNetwork = null;
-    private final HandlerThread mHandlerThread;
+    private final WifiMonitor mWifiMonitor;
+    // Indicates whether the system is capable of 802.11r fast BSS transition.
+    private boolean mSystemSupportsFastBssTransition = false;
+
+    // Network variables read from wpa_supplicant.
     private int mNetworkId;
     private String mIfaceName;
     private ArrayList<Byte> mSsid;
@@ -106,9 +112,11 @@ public class SupplicantStaNetworkHal {
     private String mEapDomainSuffixMatch;
 
     SupplicantStaNetworkHal(ISupplicantStaNetwork iSupplicantStaNetwork,
-                            HandlerThread handlerThread) {
+                            Context context, WifiMonitor monitor) {
         mISupplicantStaNetwork = iSupplicantStaNetwork;
-        mHandlerThread = handlerThread;
+        mWifiMonitor = monitor;
+        mSystemSupportsFastBssTransition =
+                context.getResources().getBoolean(R.bool.config_wifi_fast_bss_transition_enabled);
     }
 
     /**
@@ -171,8 +179,8 @@ public class SupplicantStaNetworkHal {
         }
         /** allowedKeyManagement */
         if (getKeyMgmt()) {
-            config.allowedKeyManagement =
-                    supplicantToWifiConfigurationKeyMgmtMask(mKeyMgmtMask);
+            BitSet keyMgmtMask = supplicantToWifiConfigurationKeyMgmtMask(mKeyMgmtMask);
+            config.allowedKeyManagement = removeFastTransitionFlags(keyMgmtMask);
         }
         /** allowedProtocols */
         if (getProto()) {
@@ -267,11 +275,13 @@ public class SupplicantStaNetworkHal {
             return false;
         }
         /** Key Management Scheme */
-        if (config.allowedKeyManagement.cardinality() != 0
-                && !setKeyMgmt(wifiConfigurationToSupplicantKeyMgmtMask(
-                config.allowedKeyManagement))) {
-            Log.e(TAG, "failed to set Key Management");
-            return false;
+        if (config.allowedKeyManagement.cardinality() != 0) {
+            // Add FT flags if supported.
+            BitSet keyMgmtMask = addFastTransitionFlags(config.allowedKeyManagement);
+            if (!setKeyMgmt(wifiConfigurationToSupplicantKeyMgmtMask(keyMgmtMask))) {
+                Log.e(TAG, "failed to set Key Management");
+                return false;
+            }
         }
         /** Security Protocol */
         if (config.allowedProtocols.cardinality() != 0
@@ -2221,6 +2231,33 @@ public class SupplicantStaNetworkHal {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Adds FT flags for networks if the device supports it.
+     */
+    private BitSet addFastTransitionFlags(BitSet keyManagementFlags) {
+        if (!mSystemSupportsFastBssTransition) {
+            return keyManagementFlags;
+        }
+        BitSet modifiedFlags = (BitSet) keyManagementFlags.clone();
+        if (keyManagementFlags.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
+            modifiedFlags.set(WifiConfiguration.KeyMgmt.FT_PSK);
+        }
+        if (keyManagementFlags.get(WifiConfiguration.KeyMgmt.WPA_EAP)) {
+            modifiedFlags.set(WifiConfiguration.KeyMgmt.FT_EAP);
+        }
+        return modifiedFlags;
+    }
+
+    /**
+     * Removes FT flags for networks if the device supports it.
+     */
+    private BitSet removeFastTransitionFlags(BitSet keyManagementFlags) {
+        BitSet modifiedFlags = (BitSet) keyManagementFlags.clone();
+        modifiedFlags.clear(WifiConfiguration.KeyMgmt.FT_PSK);
+        modifiedFlags.clear(WifiConfiguration.KeyMgmt.FT_EAP);
+        return modifiedFlags;
     }
 
     private void handleRemoteException(RemoteException e, String methodStr) {

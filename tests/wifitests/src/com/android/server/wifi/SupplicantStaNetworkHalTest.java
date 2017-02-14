@@ -21,17 +21,17 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
+import android.content.Context;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantNetwork;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaNetwork;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatusCode;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
-import android.os.HandlerThread;
 import android.os.RemoteException;
-import android.os.test.TestLooper;
 import android.text.TextUtils;
 
+import com.android.internal.R;
 import com.android.server.wifi.util.NativeUtil;
 
 import org.junit.Before;
@@ -53,22 +53,22 @@ public class SupplicantStaNetworkHalTest {
     private SupplicantStatus mStatusSuccess;
     private SupplicantStatus mStatusFailure;
     @Mock private ISupplicantStaNetwork mISupplicantStaNetworkMock;
-    @Mock private HandlerThread mHandlerThread;
-    private TestLooper mTestLooper;
+    @Mock private Context mContext;
+    @Mock private WifiMonitor mWifiMonitor;
     private SupplicantNetworkVariables mSupplicantVariables;
+    private MockResources mResources;
 
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        mTestLooper = new TestLooper();
         mStatusSuccess = createSupplicantStatus(SupplicantStatusCode.SUCCESS);
         mStatusFailure = createSupplicantStatus(SupplicantStatusCode.FAILURE_UNKNOWN);
-        when(mHandlerThread.getLooper()).thenReturn(mTestLooper.getLooper());
         mSupplicantVariables = new SupplicantNetworkVariables();
         setupISupplicantNetworkMock();
 
-        mSupplicantNetwork =
-                new SupplicantStaNetworkHal(mISupplicantStaNetworkMock, mHandlerThread);
+        mResources = new MockResources();
+        when(mContext.getResources()).thenReturn(mResources);
+        createSupplicantStaNetwork();
     }
 
     /**
@@ -545,6 +545,50 @@ public class SupplicantStaNetworkHalTest {
         assertTrue(mSupplicantNetwork.sendNetworkEapIdentityResponse(identityStr));
     }
 
+    /**
+     * Tests the addition of FT flags when the device supports it.
+     */
+    @Test
+    public void testAddFtPskFlags() throws Exception {
+        mResources.setBoolean(R.bool.config_wifi_fast_bss_transition_enabled, true);
+        createSupplicantStaNetwork();
+
+        WifiConfiguration config = WifiConfigurationTestUtil.createPskNetwork();
+        assertTrue(mSupplicantNetwork.saveWifiConfiguration(config));
+
+        // Check the supplicant variables to ensure that we have added the FT flags.
+        assertTrue((mSupplicantVariables.keyMgmtMask & ISupplicantStaNetwork.KeyMgmtMask.FT_PSK)
+                == ISupplicantStaNetwork.KeyMgmtMask.FT_PSK);
+
+        WifiConfiguration loadConfig = new WifiConfiguration();
+        Map<String, String> networkExtras = new HashMap<>();
+        assertTrue(mSupplicantNetwork.loadWifiConfiguration(loadConfig, networkExtras));
+        // The FT flags should be stripped out when reading it back.
+        WifiConfigurationTestUtil.assertConfigurationEqualForSupplicant(config, loadConfig);
+    }
+
+    /**
+     * Tests the addition of FT flags when the device supports it.
+     */
+    @Test
+    public void testAddFtEapFlags() throws Exception {
+        mResources.setBoolean(R.bool.config_wifi_fast_bss_transition_enabled, true);
+        createSupplicantStaNetwork();
+
+        WifiConfiguration config = WifiConfigurationTestUtil.createEapNetwork();
+        assertTrue(mSupplicantNetwork.saveWifiConfiguration(config));
+
+        // Check the supplicant variables to ensure that we have added the FT flags.
+        assertTrue((mSupplicantVariables.keyMgmtMask & ISupplicantStaNetwork.KeyMgmtMask.FT_EAP)
+                == ISupplicantStaNetwork.KeyMgmtMask.FT_EAP);
+
+        WifiConfiguration loadConfig = new WifiConfiguration();
+        Map<String, String> networkExtras = new HashMap<>();
+        assertTrue(mSupplicantNetwork.loadWifiConfiguration(loadConfig, networkExtras));
+        // The FT flags should be stripped out when reading it back.
+        WifiConfigurationTestUtil.assertConfigurationEqualForSupplicant(config, loadConfig);
+    }
+
     private void testWifiConfigurationSaveLoad(WifiConfiguration config) {
         assertTrue(mSupplicantNetwork.saveWifiConfiguration(config));
         WifiConfiguration loadConfig = new WifiConfiguration();
@@ -1016,6 +1060,14 @@ public class SupplicantStaNetworkHalTest {
         SupplicantStatus status = new SupplicantStatus();
         status.code = code;
         return status;
+    }
+
+    /**
+     * Need this for tests which wants to manipulate context before creating the instance.
+     */
+    private void createSupplicantStaNetwork() {
+        mSupplicantNetwork =
+                new SupplicantStaNetworkHal(mISupplicantStaNetworkMock, mContext, mWifiMonitor);
     }
 
     // Private class to to store/inspect values set via the HIDL mock.
