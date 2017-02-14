@@ -31,6 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.test.MockAnswerUtil;
+import android.content.Context;
 import android.hardware.wifi.supplicant.V1_0.ISupplicant;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantIface;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIface;
@@ -42,10 +43,8 @@ import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
-import android.os.HandlerThread;
 import android.os.IHwBinder;
 import android.os.RemoteException;
-import android.os.test.TestLooper;
 import android.util.SparseArray;
 
 import org.junit.Before;
@@ -77,7 +76,8 @@ public class SupplicantStaIfaceHalTest {
     @Mock ISupplicant mISupplicantMock;
     @Mock ISupplicantIface mISupplicantIfaceMock;
     @Mock ISupplicantStaIface mISupplicantStaIfaceMock;
-    @Mock HandlerThread mHandlerThread;
+    @Mock Context mContext;
+    @Mock WifiMonitor mWifiMonitor;
     @Mock SupplicantStaNetworkHal mSupplicantStaNetworkMock;
     SupplicantStatus mStatusSuccess;
     SupplicantStatus mStatusFailure;
@@ -89,12 +89,11 @@ public class SupplicantStaIfaceHalTest {
             ArgumentCaptor.forClass(IHwBinder.DeathRecipient.class);
     private ArgumentCaptor<IServiceNotification.Stub> mServiceNotificationCaptor =
             ArgumentCaptor.forClass(IServiceNotification.Stub.class);
-    private TestLooper mTestLooper;
     private InOrder mInOrder;
 
     private class SupplicantStaIfaceHalSpy extends SupplicantStaIfaceHal {
-        SupplicantStaIfaceHalSpy(HandlerThread handlerThread) {
-            super(handlerThread);
+        SupplicantStaIfaceHalSpy(Context context, WifiMonitor monitor) {
+            super(context, monitor);
         }
 
         @Override
@@ -114,7 +113,7 @@ public class SupplicantStaIfaceHalTest {
 
         @Override
         protected SupplicantStaNetworkHal getStaNetworkMockable(
-                ISupplicantStaNetwork iSupplicantStaNetwork, HandlerThread handlerThread) {
+                ISupplicantStaNetwork iSupplicantStaNetwork) {
             return mSupplicantStaNetworkMock;
         }
     }
@@ -122,7 +121,6 @@ public class SupplicantStaIfaceHalTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        mTestLooper = new TestLooper();
         mStatusSuccess = createSupplicantStatus(SupplicantStatusCode.SUCCESS);
         mStatusFailure = createSupplicantStatus(SupplicantStatusCode.FAILURE_UNKNOWN);
         mStaIface = createIfaceInfo(IfaceType.STA, "wlan0");
@@ -136,8 +134,7 @@ public class SupplicantStaIfaceHalTest {
                 anyLong())).thenReturn(true);
         when(mServiceManagerMock.registerForNotifications(anyString(), anyString(),
                 any(IServiceNotification.Stub.class))).thenReturn(true);
-        when(mHandlerThread.getLooper()).thenReturn(mTestLooper.getLooper());
-        mDut = new SupplicantStaIfaceHalSpy(mHandlerThread);
+        mDut = new SupplicantStaIfaceHalSpy(mContext, mWifiMonitor);
     }
 
     /**
