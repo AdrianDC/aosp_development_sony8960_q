@@ -934,6 +934,17 @@ public class SupplicantStaNetworkHal {
             }
         }
     }
+
+    /**
+     * Set the BSSID for this network.
+     *
+     * @param bssidStr MAC address in "XX:XX:XX:XX:XX:XX" form or "any" to reset the mac address.
+     * @return true if it succeeds, false otherwise.
+     */
+    public boolean setBssid(String bssidStr) {
+        return setBssid(NativeUtil.macAddressToByteArray(bssidStr));
+    }
+
     /** See ISupplicantStaNetwork.hal for documentation */
     private boolean setBssid(byte[/* 6 */] bssid) {
         synchronized (mLock) {
