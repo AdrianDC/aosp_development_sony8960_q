@@ -112,6 +112,7 @@ import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.hotspot2.WnmData;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
+import com.android.server.wifi.util.NativeUtil;
 import com.android.server.wifi.util.TelephonyUtil;
 import com.android.server.wifi.util.TelephonyUtil.SimAuthRequestData;
 import com.android.server.wifi.util.TelephonyUtil.SimAuthResponseData;
@@ -3447,19 +3448,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiNative.disconnect();
     }
 
-    private byte[] macAddressFromString(String macString) {
-        String[] macBytes = macString.split(":");
-        if (macBytes.length != 6) {
-            throw new IllegalArgumentException("MAC address should be 6 bytes long!");
-        }
-        byte[] mac = new byte[6];
-        for (int i = 0; i < macBytes.length; i++) {
-            Integer hexVal = Integer.parseInt(macBytes[i], 16);
-            mac[i] = hexVal.byteValue();
-        }
-        return mac;
-    }
-
     /*
      * Read a MAC address in /proc/arp/table, used by WifistateMachine
      * so as to record MAC address of default gateway.
@@ -6210,26 +6198,26 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case CMD_START_IP_PACKET_OFFLOAD: {
-                        int slot = message.arg1;
-                        int intervalSeconds = message.arg2;
-                        KeepalivePacketData pkt = (KeepalivePacketData) message.obj;
-                        byte[] dstMac;
-                        try {
-                            InetAddress gateway = RouteInfo.selectBestRoute(
-                                    mLinkProperties.getRoutes(), pkt.dstAddress).getGateway();
-                            String dstMacStr = macAddressFromRoute(gateway.getHostAddress());
-                            dstMac = macAddressFromString(dstMacStr);
-                        } catch (NullPointerException|IllegalArgumentException e) {
-                            loge("Can't find MAC address for next hop to " + pkt.dstAddress);
-                            mNetworkAgent.onPacketKeepaliveEvent(slot,
-                                    ConnectivityManager.PacketKeepalive.ERROR_INVALID_IP_ADDRESS);
-                            break;
-                        }
-                        pkt.dstMac = dstMac;
-                        int result = startWifiIPPacketOffload(slot, pkt, intervalSeconds);
-                        mNetworkAgent.onPacketKeepaliveEvent(slot, result);
+                    int slot = message.arg1;
+                    int intervalSeconds = message.arg2;
+                    KeepalivePacketData pkt = (KeepalivePacketData) message.obj;
+                    byte[] dstMac;
+                    try {
+                        InetAddress gateway = RouteInfo.selectBestRoute(
+                                mLinkProperties.getRoutes(), pkt.dstAddress).getGateway();
+                        String dstMacStr = macAddressFromRoute(gateway.getHostAddress());
+                        dstMac = NativeUtil.macAddressToByteArray(dstMacStr);
+                    } catch (NullPointerException | IllegalArgumentException e) {
+                        loge("Can't find MAC address for next hop to " + pkt.dstAddress);
+                        mNetworkAgent.onPacketKeepaliveEvent(slot,
+                                ConnectivityManager.PacketKeepalive.ERROR_INVALID_IP_ADDRESS);
                         break;
                     }
+                    pkt.dstMac = dstMac;
+                    int result = startWifiIPPacketOffload(slot, pkt, intervalSeconds);
+                    mNetworkAgent.onPacketKeepaliveEvent(slot, result);
+                    break;
+                }
                 default:
                     return NOT_HANDLED;
             }
