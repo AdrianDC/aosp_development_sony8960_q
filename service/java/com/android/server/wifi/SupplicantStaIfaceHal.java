@@ -15,6 +15,7 @@
  */
 package com.android.server.wifi;
 
+import android.content.Context;
 import android.hardware.wifi.supplicant.V1_0.ISupplicant;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantIface;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantNetwork;
@@ -27,7 +28,6 @@ import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
-import android.os.HandlerThread;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.MutableBoolean;
@@ -57,10 +57,12 @@ public class SupplicantStaIfaceHal {
     // Currently configured network's framework network Id.
     private int mFrameworkNetworkId;
     private final Object mLock = new Object();
-    private final HandlerThread mHandlerThread;
+    private final Context mContext;
+    private final WifiMonitor mWifiMonitor;
 
-    public SupplicantStaIfaceHal(HandlerThread handlerThread) {
-        mHandlerThread = handlerThread;
+    public SupplicantStaIfaceHal(Context context, WifiMonitor monitor) {
+        mContext = context;
+        mWifiMonitor = monitor;
     }
 
     /**
@@ -444,8 +446,8 @@ public class SupplicantStaIfaceHal {
                 supplicantServiceDiedHandler();
             }
             if (statusSuccess.value) {
-                return getStaNetworkMockable(ISupplicantStaNetwork.asInterface(
-                        newNetwork.value.asBinder()), mHandlerThread);
+                return getStaNetworkMockable(
+                        ISupplicantStaNetwork.asInterface(newNetwork.value.asBinder()));
             } else {
                 return null;
             }
@@ -477,13 +479,12 @@ public class SupplicantStaIfaceHal {
      * Use this to mock the creation of SupplicantStaNetworkHal instance.
      *
      * @param iSupplicantStaNetwork ISupplicantStaNetwork instance retrieved from HIDL.
-     * @param handlerThread Handler thread to send notifications to.
      * @return The ISupplicantNetwork object for the given SupplicantNetworkId int, returns null if
      * the call fails
      */
     protected SupplicantStaNetworkHal getStaNetworkMockable(
-            ISupplicantStaNetwork iSupplicantStaNetwork, HandlerThread handlerThread) {
-        return new SupplicantStaNetworkHal(iSupplicantStaNetwork, handlerThread);
+            ISupplicantStaNetwork iSupplicantStaNetwork) {
+        return new SupplicantStaNetworkHal(iSupplicantStaNetwork, mContext, mWifiMonitor);
     }
 
     /**
@@ -512,8 +513,8 @@ public class SupplicantStaIfaceHal {
                 supplicantServiceDiedHandler();
             }
             if (statusSuccess.value) {
-                return getStaNetworkMockable(ISupplicantStaNetwork.asInterface(
-                        gotNetwork.value.asBinder()), mHandlerThread);
+                return getStaNetworkMockable(
+                        ISupplicantStaNetwork.asInterface(gotNetwork.value.asBinder()));
             } else {
                 return null;
             }
