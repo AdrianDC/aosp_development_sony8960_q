@@ -487,4 +487,25 @@ public class WifiVendorHalTest {
 
         verify(mIWifiStaIface).installApfPacketFilter(eq(0), eq(expected));
     }
+
+    /**
+     * Test that the country code is set in AP mode (when it should be).
+     */
+    @Test
+    public void testSetCountryCodeHal() throws Exception {
+        byte[] expected = new byte[]{(byte) 'C', (byte) 'A'};
+
+        when(mIWifiApIface.setCountryCode(any()))
+                .thenReturn(mWifiStatusSuccess);
+
+        assertTrue(mWifiVendorHal.startVendorHalAp());
+
+        assertFalse(mWifiVendorHal.setCountryCodeHal(null));
+        assertFalse(mWifiVendorHal.setCountryCodeHal(""));
+        assertFalse(mWifiVendorHal.setCountryCodeHal("A"));
+        assertTrue(mWifiVendorHal.setCountryCodeHal("CA")); // Only one expected to succeed
+        assertFalse(mWifiVendorHal.setCountryCodeHal("ZZZ"));
+
+        verify(mIWifiApIface).setCountryCode(eq(expected));
+    }
 }
