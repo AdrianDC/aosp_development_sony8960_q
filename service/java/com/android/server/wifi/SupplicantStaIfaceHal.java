@@ -386,6 +386,27 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Set the currently configured network's bssid.
+     *
+     * @param bssidStr Bssid to set in the form of "XX:XX:XX:XX:XX:XX"
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean setCurrentNetworkBssid(String bssidStr) {
+        if (mCurrentNetwork == null) return false;
+        return mCurrentNetwork.setBssid(bssidStr);
+    }
+
+    /**
+     * Get the currently configured network's WPS NFC token.
+     *
+     * @return Hex string corresponding to the WPS NFC token.
+     */
+    public String getCurrentNetworkWpsNfcConfigurationToken() {
+        if (mCurrentNetwork == null) return null;
+        return mCurrentNetwork.getWpsNfcConfigurationToken();
+    }
+
+    /**
      * Gets the interface name.
      *
      * @return returns the name of Iface or null if the call fails

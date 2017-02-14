@@ -472,6 +472,29 @@ public class SupplicantStaIfaceHalTest {
     }
 
     /**
+     * Tests removal of all configured networks from wpa_supplicant.
+     */
+    @Test
+    public void testRemoveAllNetworks() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false);
+        doAnswer(new MockAnswerUtil.AnswerWithArguments() {
+            public void answer(ISupplicantStaIface.listNetworksCallback cb) {
+                cb.onValues(mStatusSuccess, new ArrayList<>(NETWORK_ID_TO_SSID.keySet()));
+            }
+        }).when(mISupplicantStaIfaceMock)
+                .listNetworks(any(ISupplicantStaIface.listNetworksCallback.class));
+        doAnswer(new MockAnswerUtil.AnswerWithArguments() {
+            public SupplicantStatus answer(int id) {
+                assertTrue(NETWORK_ID_TO_SSID.containsKey(id));
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaIfaceMock).removeNetwork(anyInt());
+
+        assertTrue(mDut.removeAllNetworks());
+        verify(mISupplicantStaIfaceMock, times(NETWORK_ID_TO_SSID.size())).removeNetwork(anyInt());
+    }
+
+    /**
      * Tests roaming failure because of unable to reassociate.
      */
     @Test
@@ -491,6 +514,42 @@ public class SupplicantStaIfaceHalTest {
         roamingConfig.networkId = connectedNetworkId;
         roamingConfig.getNetworkSelectionStatus().setNetworkSelectionBSSID("45:34:23:23:ab:ed");
         assertFalse(mDut.roamToNetwork(roamingConfig));
+    }
+
+    /**
+     * Tests the retrieval of WPS NFC token.
+     */
+    @Test
+    public void testGetCurrentNetworkWpsNfcConfigurationToken() throws Exception {
+        String token = "45adbc1";
+        when(mSupplicantStaNetworkMock.getWpsNfcConfigurationToken()).thenReturn(token);
+
+        executeAndValidateInitializationSequence(false, false, false);
+
+        // Return null when not connected to the network.
+        assertTrue(mDut.getCurrentNetworkWpsNfcConfigurationToken() == null);
+
+        executeAndValidateConnectSequence(4, false, false);
+
+        assertEquals(token, mDut.getCurrentNetworkWpsNfcConfigurationToken());
+    }
+
+    /**
+     * Tests the retrieval of WPS NFC token.
+     */
+    @Test
+    public void testSetCurrentNetworkBssid() throws Exception {
+        String bssidStr = "34:34:12:12:12:90";
+        when(mSupplicantStaNetworkMock.setBssid(eq(bssidStr))).thenReturn(true);
+
+        executeAndValidateInitializationSequence(false, false, false);
+
+        // Fail when not connected to a network.
+        assertFalse(mDut.setCurrentNetworkBssid(bssidStr));
+
+        executeAndValidateConnectSequence(4, false, false);
+
+        assertTrue(mDut.setCurrentNetworkBssid(bssidStr));
     }
 
     /**
