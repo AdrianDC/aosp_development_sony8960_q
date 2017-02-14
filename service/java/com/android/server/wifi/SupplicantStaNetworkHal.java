@@ -61,18 +61,19 @@ public class SupplicantStaNetworkHal {
      * Matches a strings like the following: "[:kc:<kc_value>:sres:<sres_value>]";
      */
     private static final Pattern GSM_AUTH_RESPONSE_PARAMS_PATTERN =
-            Pattern.compile(":kc:([0-9a-f]+):sres:([0-9a-f]+)");
+            Pattern.compile(":kc:([0-9a-fA-F]+):sres:([0-9a-fA-F]+)");
     /**
      * Regex pattern for extracting the UMTS sim authentication response params from a string.
      * Matches a strings like the following: ":ik:<ik_value>:ck:<ck_value>:res:<res_value>";
      */
     private static final Pattern UMTS_AUTH_RESPONSE_PARAMS_PATTERN =
-            Pattern.compile(":ik:([0-9a-f]+):ck:([0-9a-f]+):res:([0-9a-f]+)");
+            Pattern.compile("^:ik:([0-9a-fA-F]+):ck:([0-9a-fA-F]+):res:([0-9a-fA-F]+)$");
     /**
      * Regex pattern for extracting the UMTS sim auts response params from a string.
      * Matches a strings like the following: ":<auts_value>";
      */
-    private static final Pattern UMTS_AUTS_RESPONSE_PARAMS_PATTERN = Pattern.compile("([0-9a-f]+)");
+    private static final Pattern UMTS_AUTS_RESPONSE_PARAMS_PATTERN =
+            Pattern.compile("^:([0-9a-fA-F]+)$");
 
     private final Object mLock = new Object();
     private ISupplicantStaNetwork mISupplicantStaNetwork = null;
