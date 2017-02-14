@@ -962,9 +962,7 @@ public class WifiVendorHal {
                 if (config.blacklistBssids != null) {
                     kilroy();
                     for (String bssid : config.blacklistBssids) {
-                        String unquotedMacStr = WifiInfo.removeDoubleQuotes(bssid);
-                        byte[] mac = new byte[6];
-                        parseUnquotedMacStrToByteArray(unquotedMacStr, mac);
+                        byte[] mac = NativeUtil.macAddressToByteArray(bssid);
                         roamingConfig.bssidBlacklist.add(mac);
                     }
                 }
@@ -1002,21 +1000,6 @@ public class WifiVendorHal {
             }
             kilroy();
             return true;
-        }
-    }
-
-    /**
-     * Helper function that parses unquoted MAC address string to a byte array
-     *
-     * @param macWithColons mac address string without double quotes
-     * @param mac an array of 6 bytes to receive the parsed mac address
-     */
-    @VisibleForTesting
-    void parseUnquotedMacStrToByteArray(String macWithColons, byte[] mac) {
-        String[] macAddrStr = macWithColons.split(":");
-        for (int i = 0; i < 6; i++) {
-            Integer hexVal = Integer.parseInt(macAddrStr[i], 16);
-            mac[i] = hexVal.byteValue();
         }
     }
 
