@@ -43,6 +43,7 @@ import android.util.MutableInt;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.connectivity.KeepalivePacketData;
+import com.android.server.wifi.util.NativeUtil;
 
 import java.util.ArrayList;
 import java.util.Set;
@@ -593,11 +594,35 @@ public class WifiVendorHal {
     }
 
     /**
-     * to be implemented
+     * Set country code for this AP iface.
+     *
+     * @param countryCode - two-letter country code (as ISO 3166)
+     * @return true for success
      */
     public boolean setCountryCodeHal(String countryCode) {
         kilroy();
-        throw new UnsupportedOperationException();
+        if (countryCode == null) return false;
+        if (countryCode.length() != 2) return false;
+        byte[] code;
+        try {
+            code = NativeUtil.stringToByteArray(countryCode);
+        } catch (IllegalArgumentException e) {
+            kilroy();
+            return false;
+        }
+        synchronized (sLock) {
+            try {
+                if (mIWifiApIface == null) return false;
+                kilroy();
+                WifiStatus status = mIWifiApIface.setCountryCode(code);
+                if (status.code != WifiStatusCode.SUCCESS) return false;
+                kilroy();
+                return true;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return false;
+            }
+        }
     }
 
     /**
