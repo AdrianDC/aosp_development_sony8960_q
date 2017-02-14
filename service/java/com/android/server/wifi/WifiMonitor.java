@@ -34,6 +34,7 @@ import android.util.LocalLog;
 import android.util.Log;
 import android.util.SparseArray;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.hotspot2.IconEvent;
@@ -581,7 +582,14 @@ public class WifiMonitor {
         }
     }
 
-    private void setMonitoring(String iface, boolean enabled) {
+    /**
+     * Enable/Disable monitoring for the provided iface.
+     *
+     * @param iface Name of the iface.
+     * @param enabled true to enable, false to disable.
+     */
+    @VisibleForTesting
+    public void setMonitoring(String iface, boolean enabled) {
         mMonitoringMap.put(iface, enabled);
     }
 
@@ -1117,42 +1125,19 @@ public class WifiMonitor {
     private void handleWpsFailEvent(String dataString, String iface) {
         final Pattern p = Pattern.compile(WPS_FAIL_PATTERN);
         Matcher match = p.matcher(dataString);
-        int reason = 0;
+        int vendorErrorCodeInt = 0;
+        int cfgErrInt = 0;
         if (match.find()) {
             String cfgErrStr = match.group(1);
-            String reasonStr = match.group(2);
-
-            if (reasonStr != null) {
-                int reasonInt = Integer.parseInt(reasonStr);
-                switch(reasonInt) {
-                    case REASON_TKIP_ONLY_PROHIBITED:
-                        sendMessage(iface, WPS_FAIL_EVENT, WifiManager.WPS_TKIP_ONLY_PROHIBITED);
-                        return;
-                    case REASON_WEP_PROHIBITED:
-                        sendMessage(iface, WPS_FAIL_EVENT, WifiManager.WPS_WEP_PROHIBITED);
-                        return;
-                    default:
-                        reason = reasonInt;
-                        break;
-                }
+            String vendorErrorCodeStr = match.group(2);
+            if (vendorErrorCodeStr != null) {
+                vendorErrorCodeInt = Integer.parseInt(vendorErrorCodeStr);
             }
             if (cfgErrStr != null) {
-                int cfgErrInt = Integer.parseInt(cfgErrStr);
-                switch(cfgErrInt) {
-                    case CONFIG_AUTH_FAILURE:
-                        sendMessage(iface, WPS_FAIL_EVENT, WifiManager.WPS_AUTH_FAILURE);
-                        return;
-                    case CONFIG_MULTIPLE_PBC_DETECTED:
-                        sendMessage(iface, WPS_FAIL_EVENT, WifiManager.WPS_OVERLAP_ERROR);
-                        return;
-                    default:
-                        if (reason == 0) reason = cfgErrInt;
-                        break;
-                }
+                cfgErrInt = Integer.parseInt(cfgErrStr);
             }
         }
-        //For all other errors, return a generic internal error
-        sendMessage(iface, WPS_FAIL_EVENT, WifiManager.ERROR, reason);
+        broadcastWpsFailEvent(iface, cfgErrInt, vendorErrorCodeInt);
     }
 
     /* <event> status=<err> and the special case of <event> reason=FREQ_CONFLICT */
@@ -1475,5 +1460,42 @@ public class WifiMonitor {
             }
             sendMessage(iface, NETWORK_DISCONNECTION_EVENT, local, reason, BSSID);
         }
+    }
+
+    /**
+     * Broadcast the WPS fail event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param cfgError Configuration error code.
+     * @param vendorErrorCode Vendor specific error indication code.
+     */
+    public void broadcastWpsFailEvent(String iface, int cfgError, int vendorErrorCode) {
+        int reason = 0;
+        switch(vendorErrorCode) {
+            case REASON_TKIP_ONLY_PROHIBITED:
+                sendMessage(iface, WPS_FAIL_EVENT, WifiManager.WPS_TKIP_ONLY_PROHIBITED);
+                return;
+            case REASON_WEP_PROHIBITED:
+                sendMessage(iface, WPS_FAIL_EVENT, WifiManager.WPS_WEP_PROHIBITED);
+                return;
+            default:
+                reason = vendorErrorCode;
+                break;
+        }
+        switch(cfgError) {
+            case CONFIG_AUTH_FAILURE:
+                sendMessage(iface, WPS_FAIL_EVENT, WifiManager.WPS_AUTH_FAILURE);
+                return;
+            case CONFIG_MULTIPLE_PBC_DETECTED:
+                sendMessage(iface, WPS_FAIL_EVENT, WifiManager.WPS_OVERLAP_ERROR);
+                return;
+            default:
+                if (reason == 0) {
+                    reason = cfgError;
+                }
+                break;
+        }
+        //For all other errors, return a generic internal error
+        sendMessage(iface, WPS_FAIL_EVENT, WifiManager.ERROR, reason);
     }
 }
