@@ -150,7 +150,7 @@ public class HalDeviceManager {
     /**
      * Return the set of supported interface types across all Wi-Fi chips on the device.
      *
-     * @return A set of IfaceTypes constants. Or null on error.
+     * @return A set of IfaceTypes constants (possibly empty, e.g. on error).
      */
     Set<Integer> getSupportedIfaceTypes() {
         return getSupportedIfaceTypesInternal(null);
@@ -159,7 +159,7 @@ public class HalDeviceManager {
     /**
      * Return the set of supported interface types for the specified Wi-Fi chip.
      *
-     * @return A set of IfaceTypes constants. Or null on error.
+     * @return A set of IfaceTypes constants  (possibly empty, e.g. on error).
      */
     Set<Integer> getSupportedIfaceTypes(IWifiChip chip) {
         return getSupportedIfaceTypesInternal(chip);
@@ -1127,10 +1127,12 @@ public class HalDeviceManager {
     }
 
     Set<Integer> getSupportedIfaceTypesInternal(IWifiChip chip) {
+        Set<Integer> results = new HashSet<>();
+
         WifiChipInfo[] chipInfos = getAllChipInfo();
         if (chipInfos == null) {
             Log.e(TAG, "getSupportedIfaceTypesInternal: no chip info found");
-            return null;
+            return results;
         }
 
         MutableInt chipIdIfProvided = new MutableInt(0); // NOT using 0 as a magic value
@@ -1149,14 +1151,13 @@ public class HalDeviceManager {
                 });
             } catch (RemoteException e) {
                 Log.e(TAG, "getSupportedIfaceTypesInternal IWifiChip.getId() exception: " + e);
-                return null;
+                return results;
             }
             if (!statusOk.value) {
-                return null;
+                return results;
             }
         }
 
-        Set<Integer> results = new HashSet<>();
         for (WifiChipInfo wci: chipInfos) {
             if (chip != null && wci.chipId != chipIdIfProvided.value) {
                 continue;
