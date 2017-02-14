@@ -988,6 +988,18 @@ public class HalDeviceManagerTest {
         assertEquals(correctResults, results);
     }
 
+    /**
+     * Validate that when no chip info is found an empty list is returned.
+     */
+    @Test
+    public void testGetSupportedIfaceTypesError() throws Exception {
+        // try API
+        Set<Integer> results = mDut.getSupportedIfaceTypes();
+
+        // verify results
+        assertEquals(0, results.size());
+    }
+
     // utilities
     private void dumpDut(String prefix) {
         StringWriter sw = new StringWriter();
