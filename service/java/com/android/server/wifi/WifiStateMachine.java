@@ -3313,6 +3313,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mDiagsConnectionStartMillis = mClock.getElapsedSinceBootMillis();
         mWifiDiagnostics.reportConnectionEvent(
                 mDiagsConnectionStartMillis, WifiDiagnostics.CONNECTION_EVENT_STARTED);
+        // TODO(b/35329124): Remove CMD_DIAGS_CONNECT_TIMEOUT, once WifiStateMachine
+        // grows a proper CONNECTING state.
         sendMessageDelayed(CMD_DIAGS_CONNECT_TIMEOUT,
                 mDiagsConnectionStartMillis, DIAGS_CONNECT_TIMEOUT_MILLIS);
     }
