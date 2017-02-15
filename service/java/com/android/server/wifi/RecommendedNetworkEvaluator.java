@@ -33,6 +33,7 @@ import android.os.Looper;
 import android.os.Process;
 import android.provider.Settings;
 import android.text.TextUtils;
+import android.util.ArraySet;
 import android.util.LocalLog;
 import android.util.Pair;
 import android.util.Slog;
@@ -42,6 +43,7 @@ import com.android.server.wifi.util.ScanResultUtil;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * {@link WifiNetworkSelector.NetworkEvaluator} implementation that uses
@@ -126,7 +128,7 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
             return mExternalScoreEvaluator.evaluateNetworks(scanDetails, currentNetwork,
                     currentBssid, connected, untrustedNetworkAllowed, connectableNetworks);
         }
-        List<WifiConfiguration> availableConfiguredNetworks = new ArrayList<>();
+        Set<WifiConfiguration> availableConfiguredNetworks = new ArraySet<>();
         List<ScanResult> scanResults = new ArrayList<>();
         for (int i = 0; i < scanDetails.size(); i++) {
             ScanDetail scanDetail = scanDetails.get(i);
@@ -147,6 +149,9 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
             }
 
             if (configuredNetwork != null) {
+                if (!configuredNetwork.getNetworkSelectionStatus().isNetworkEnabled()) {
+                    continue;
+                }
                 availableConfiguredNetworks.add(configuredNetwork);
             }
             scanResults.add(scanResult);
