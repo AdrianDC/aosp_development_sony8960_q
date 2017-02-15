@@ -20,10 +20,12 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Xml;
 
 import com.android.internal.util.FastXmlSerializer;
+import com.android.server.wifi.util.XmlUtilTest;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -412,5 +414,30 @@ public class NetworkListStoreDataTest {
                 openNetwork.SSID.replaceAll("\"", "&quot;"),
                 openNetwork.shared, openNetwork.creatorUid).getBytes(StandardCharsets.UTF_8);
         deserializeData(xmlData, true);
+    }
+
+    /**
+     * Tests that an invalid data in one of the WifiConfiguration object parsing would be skipped
+     * gracefully. The other networks in the XML should still be parsed out correctly.
+     */
+    @Test
+    public void parseNetworkListWithOneNetworkIllegalArgException() throws Exception {
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        WifiConfiguration eapNetwork = WifiConfigurationTestUtil.createEapNetwork();
+        String xmlString = new String(getTestNetworksXmlBytes(openNetwork, eapNetwork));
+        // Manipulate the XML data to set the EAP method to None, this should raise an Illegal
+        // argument exception in WifiEnterpriseConfig.setEapMethod().
+        xmlString = xmlString.replaceAll(
+                String.format(XmlUtilTest.XML_STRING_EAP_METHOD_REPLACE_FORMAT,
+                        eapNetwork.enterpriseConfig.getEapMethod()),
+                String.format(XmlUtilTest.XML_STRING_EAP_METHOD_REPLACE_FORMAT,
+                        WifiEnterpriseConfig.Eap.NONE));
+        List<WifiConfiguration> retrievedNetworkList =
+                deserializeData(xmlString.getBytes(StandardCharsets.UTF_8), true /* shared */);
+        // Retrieved network should not contain the eap network.
+        assertEquals(1, retrievedNetworkList.size());
+        for (WifiConfiguration network : retrievedNetworkList) {
+            assertNotEquals(eapNetwork.SSID, network.SSID);
+        }
     }
 }
