@@ -828,13 +828,13 @@ public class WifiMonitor {
 
         if (!eventStr.startsWith(EVENT_PREFIX_STR)) {
             if (eventStr.startsWith(WPS_SUCCESS_STR)) {
-                sendMessage(iface, WPS_SUCCESS_EVENT);
+                broadcastWpsSuccessEvent(iface);
             } else if (eventStr.startsWith(WPS_FAIL_STR)) {
                 handleWpsFailEvent(eventStr, iface);
             } else if (eventStr.startsWith(WPS_OVERLAP_STR)) {
-                sendMessage(iface, WPS_OVERLAP_EVENT);
+                broadcastWpsOverlapEvent(iface);
             } else if (eventStr.startsWith(WPS_TIMEOUT_STR)) {
-                sendMessage(iface, WPS_TIMEOUT_EVENT);
+                broadcastWpsTimeoutEvent(iface);
             } else if (eventStr.startsWith(P2P_EVENT_PREFIX_STR)) {
                 handleP2pEvents(eventStr, iface);
             } else if (eventStr.startsWith(HOST_AP_EVENT_PREFIX_STR)) {
@@ -1497,5 +1497,32 @@ public class WifiMonitor {
         }
         //For all other errors, return a generic internal error
         sendMessage(iface, WPS_FAIL_EVENT, WifiManager.ERROR, reason);
+    }
+
+   /**
+    * Broadcast the WPS succes event to all the handlers registered for this event.
+    *
+    * @param iface Name of iface on which this occurred.
+    */
+    public void broadcastWpsSuccessEvent(String iface) {
+        sendMessage(iface, WPS_SUCCESS_EVENT);
+    }
+
+    /**
+     * Broadcast the WPS overlap event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     */
+    public void broadcastWpsOverlapEvent(String iface) {
+        sendMessage(iface, WPS_OVERLAP_EVENT);
+    }
+
+    /**
+     * Broadcast the WPS timeout event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     */
+    public void broadcastWpsTimeoutEvent(String iface) {
+        sendMessage(iface, WPS_TIMEOUT_EVENT);
     }
 }
