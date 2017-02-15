@@ -104,6 +104,7 @@ public class WifiVendorHal {
 
     /**
      * Initialize the Hal device manager and register for status callbacks.
+     *
      * @return
      */
     public boolean initialize() {
@@ -115,20 +116,21 @@ public class WifiVendorHal {
 
     /**
      * Bring up the HIDL Vendor HAL and configure for AP (Access Point) mode
+     *
      * @return true for success
      */
     public boolean startVendorHalAp() {
         return startVendorHal(AP_MODE);
     }
 
-     /**
+    /**
      * Bring up the HIDL Vendor HAL and configure for STA (Station) mode
+     *
      * @return true for success
      */
     public boolean startVendorHalSta() {
         return startVendorHal(STA_MODE);
     }
-
 
     public static final boolean STA_MODE = true;
     public static final boolean AP_MODE = false;
@@ -1185,6 +1187,17 @@ public class WifiVendorHal {
     }
 
     /**
+     * A fixed cmdId for our RssiMonitoring (we only do one at a time)
+     */
+    @VisibleForTesting
+    static final int sRssiMonCmdId = 7551;
+
+    /**
+     * Our client's handler
+     */
+    private WifiNative.WifiRssiEventHandler mWifiRssiEventHandler;
+
+    /**
      * Start RSSI monitoring on the currently connected access point.
      *
      * @param maxRssi          Maximum RSSI threshold.
@@ -1195,7 +1208,23 @@ public class WifiVendorHal {
     public int startRssiMonitoring(byte maxRssi, byte minRssi,
                                    WifiNative.WifiRssiEventHandler rssiEventHandler) {
         kilroy();
-        throw new UnsupportedOperationException();
+        if (maxRssi <= minRssi) return -1;
+        if (rssiEventHandler == null) return -1;
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return -1;
+            try {
+                mIWifiStaIface.stopRssiMonitoring(sRssiMonCmdId);
+                WifiStatus status;
+                status = mIWifiStaIface.startRssiMonitoring(sRssiMonCmdId, maxRssi, minRssi);
+                if (status.code != WifiStatusCode.SUCCESS) return -1;
+                mWifiRssiEventHandler = rssiEventHandler;
+                kilroy();
+                return 0;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return -1;
+            }
+        }
     }
 
     /**
@@ -1205,7 +1234,20 @@ public class WifiVendorHal {
      */
     public int stopRssiMonitoring() {
         kilroy();
-        throw new UnsupportedOperationException();
+        synchronized (sLock) {
+            mWifiRssiEventHandler = null;
+            if (mIWifiStaIface == null) return -1;
+            try {
+                mIWifiStaIface.stopRssiMonitoring(sRssiMonCmdId);
+                WifiStatus status = mIWifiStaIface.stopRssiMonitoring(sRssiMonCmdId);
+                if (status.code != WifiStatusCode.SUCCESS) return -1;
+                kilroy();
+                return 0;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return -1;
+            }
+        }
     }
 
     //TODO - belongs in NativeUtil
@@ -1481,8 +1523,15 @@ public class WifiVendorHal {
 
         @Override
         public void onRssiThresholdBreached(int cmdId, byte[/* 6 */] currBssid, int currRssi) {
-            kilroy();
             Log.d(TAG, "onRssiThresholdBreached " + cmdId + "currRssi " + currRssi);
+            WifiNative.WifiRssiEventHandler handler;
+            synchronized (sLock) {
+                handler = mWifiRssiEventHandler;
+                if (mWifiRssiEventHandler == null) return;
+                if (cmdId != sRssiMonCmdId) return;
+                kilroy();
+            }
+            handler.onRssiThresholdBreached((byte) currRssi);
         }
     }
 
@@ -1539,7 +1588,7 @@ public class WifiVendorHal {
             Log.i(TAG, "Device Manager onStatusChanged. isReady(): " + isReady
                     + ", isStarted(): " + isStarted);
             // Reset all our cached handles.
-            if (!isReady || !isStarted)  {
+            if (!isReady || !isStarted) {
                 kilroy();
                 mIWifiChip = null;
                 mIWifiStaIface = null;
