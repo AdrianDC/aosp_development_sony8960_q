@@ -480,36 +480,13 @@ public class WifiNative {
     }
 
     /**
-     * Start a scan using wpa_supplicant for the given frequencies.
+     * Start a scan using wificond for the given parameters.
      * @param freqs list of frequencies to scan for, if null scan all supported channels.
      * @param hiddenNetworkSSIDs List of hidden networks to be scanned for.
+     * @return Returns true on success.
      */
     public boolean scan(Set<Integer> freqs, Set<String> hiddenNetworkSSIDs) {
-        String freqList = null;
-        String hiddenNetworkSSIDList = null;
-        if (freqs != null && freqs.size() != 0) {
-            freqList = TextUtils.join(",", freqs);
-        }
-        if (hiddenNetworkSSIDs != null && hiddenNetworkSSIDs.size() != 0) {
-            StringBuilder ssidList = new StringBuilder();
-            for (String ssid : hiddenNetworkSSIDs) {
-                ssidList.append(encodeSSID(ssid)).append(" ");
-            }
-            hiddenNetworkSSIDList = ssidList.toString();
-        }
-        return scanWithParams(freqList, hiddenNetworkSSIDList);
-    }
-
-    private boolean scanWithParams(String freqList, String hiddenNetworkSSIDList) {
-        StringBuilder scanCommand = new StringBuilder();
-        scanCommand.append("SCAN TYPE=ONLY");
-        if (freqList != null) {
-            scanCommand.append(" freq=" + freqList);
-        }
-        if (hiddenNetworkSSIDList != null) {
-            scanCommand.append(" ssid " + hiddenNetworkSSIDList);
-        }
-        return doBooleanCommand(scanCommand.toString());
+        return mWificondControl.scan(freqs, hiddenNetworkSSIDs);
     }
 
     /* Does a graceful shutdown of supplicant. Is a common stop function for both p2p and sta.
