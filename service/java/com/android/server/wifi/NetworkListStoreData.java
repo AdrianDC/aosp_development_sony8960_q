@@ -20,6 +20,7 @@ import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.util.Log;
 import android.util.Pair;
 
 import com.android.server.wifi.util.XmlUtil;
@@ -41,6 +42,8 @@ import java.util.List;
  * network configurations (XML block data inside <NetworkList> tag).
  */
 public class NetworkListStoreData implements WifiConfigStore.StoreData {
+    private static final String TAG = "NetworkListStoreData";
+
     private static final String XML_TAG_SECTION_HEADER_NETWORK_LIST = "NetworkList";
     private static final String XML_TAG_SECTION_HEADER_NETWORK = "Network";
     private static final String XML_TAG_SECTION_HEADER_WIFI_CONFIGURATION = "WifiConfiguration";
@@ -146,7 +149,7 @@ public class NetworkListStoreData implements WifiConfigStore.StoreData {
             return;
         }
         for (WifiConfiguration network : networkList) {
-            serializeWifiConfig(out, network);
+            serializeNetwork(out, network);
         }
     }
 
@@ -157,7 +160,7 @@ public class NetworkListStoreData implements WifiConfigStore.StoreData {
      * @throws XmlPullParserException
      * @throws IOException
      */
-    private void serializeWifiConfig(XmlSerializer out, WifiConfiguration config)
+    private void serializeNetwork(XmlSerializer out, WifiConfiguration config)
             throws XmlPullParserException, IOException {
         XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_NETWORK);
 
@@ -202,8 +205,15 @@ public class NetworkListStoreData implements WifiConfigStore.StoreData {
         List<WifiConfiguration> networkList = new ArrayList<>();
         while (XmlUtil.gotoNextSectionWithNameOrEnd(in, XML_TAG_SECTION_HEADER_NETWORK,
                 outerTagDepth)) {
-            WifiConfiguration config = parseWifiConfiguration(in, outerTagDepth + 1);
-            networkList.add(config);
+            // Try/catch only runtime exceptions (like illegal args), any XML/IO exceptions are
+            // fatal and should abort the entire loading process.
+            try {
+                WifiConfiguration config = parseNetwork(in, outerTagDepth + 1);
+                networkList.add(config);
+            } catch (RuntimeException e) {
+                // Failed to parse this network, skip it.
+                Log.e(TAG, "Failed to parse network config. Skipping...", e);
+            }
         }
         return networkList;
     }
@@ -217,7 +227,7 @@ public class NetworkListStoreData implements WifiConfigStore.StoreData {
      * @throws XmlPullParserException
      * @throws IOException
      */
-    private WifiConfiguration parseWifiConfiguration(XmlPullParser in, int outerTagDepth)
+    private WifiConfiguration parseNetwork(XmlPullParser in, int outerTagDepth)
             throws XmlPullParserException, IOException {
         Pair<String, WifiConfiguration> parsedConfig = null;
         NetworkSelectionStatus status = null;

@@ -50,6 +50,8 @@ import java.util.HashMap;
  */
 @SmallTest
 public class XmlUtilTest {
+    public static final String XML_STRING_EAP_METHOD_REPLACE_FORMAT =
+            "<int name=\"EapMethod\" value=\"%d\" />";
 
     private static final String TEST_PACKAGE_NAME = "XmlUtilPackage";
     private static final String TEST_STATIC_IP_GATEWAY_ADDRESS = "192.168.48.1";
@@ -361,6 +363,39 @@ public class XmlUtilTest {
         serializeDeserializeWifiEnterpriseConfig(config);
     }
 
+    /**
+     * Verify that an illegal argument exception is thrown when trying to parse out a corrupted
+     * WifiEnterpriseConfig.
+     *
+     * @throws Exception
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testWifiEnterpriseConfigSerializeDeserializeThrowsIllegalArgException()
+            throws Exception {
+        WifiEnterpriseConfig config = new WifiEnterpriseConfig();
+        config.setFieldValue(WifiEnterpriseConfig.IDENTITY_KEY, TEST_IDENTITY);
+        config.setFieldValue(WifiEnterpriseConfig.ANON_IDENTITY_KEY, TEST_ANON_IDENTITY);
+        config.setFieldValue(WifiEnterpriseConfig.PASSWORD_KEY, TEST_PASSWORD);
+        config.setFieldValue(WifiEnterpriseConfig.CLIENT_CERT_KEY, TEST_CLIENT_CERT);
+        config.setFieldValue(WifiEnterpriseConfig.CA_CERT_KEY, TEST_CA_CERT);
+        config.setFieldValue(WifiEnterpriseConfig.SUBJECT_MATCH_KEY, TEST_SUBJECT_MATCH);
+        config.setFieldValue(WifiEnterpriseConfig.ENGINE_KEY, TEST_ENGINE);
+        config.setFieldValue(WifiEnterpriseConfig.ENGINE_ID_KEY, TEST_ENGINE_ID);
+        config.setFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY, TEST_PRIVATE_KEY_ID);
+        config.setFieldValue(WifiEnterpriseConfig.ALTSUBJECT_MATCH_KEY, TEST_ALTSUBJECT_MATCH);
+        config.setFieldValue(WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY, TEST_DOM_SUFFIX_MATCH);
+        config.setFieldValue(WifiEnterpriseConfig.CA_PATH_KEY, TEST_CA_PATH);
+        config.setEapMethod(TEST_EAP_METHOD);
+        config.setPhase2Method(TEST_PHASE2_METHOD);
+        String xmlString = new String(serializeWifiEnterpriseConfig(config));
+        // Manipulate the XML data to set the EAP method to None, this should raise an Illegal
+        // argument exception in WifiEnterpriseConfig.setEapMethod().
+        xmlString = xmlString.replaceAll(
+                String.format(XML_STRING_EAP_METHOD_REPLACE_FORMAT, TEST_EAP_METHOD),
+                String.format(XML_STRING_EAP_METHOD_REPLACE_FORMAT, WifiEnterpriseConfig.Eap.NONE));
+        deserializeWifiEnterpriseConfig(xmlString.getBytes(StandardCharsets.UTF_8));
+    }
+
     private byte[] serializeWifiConfigurationForBackup(WifiConfiguration configuration)
             throws IOException, XmlPullParserException {
         final XmlSerializer out = new FastXmlSerializer();
@@ -493,23 +528,30 @@ public class XmlUtilTest {
                 status, retrievedStatus);
     }
 
-    private void serializeDeserializeWifiEnterpriseConfig(WifiEnterpriseConfig config)
+    private byte[] serializeWifiEnterpriseConfig(WifiEnterpriseConfig config)
             throws IOException, XmlPullParserException {
-        // Serialize the configuration object.
         final XmlSerializer out = new FastXmlSerializer();
         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         out.setOutput(outputStream, StandardCharsets.UTF_8.name());
         XmlUtil.writeDocumentStart(out, mXmlDocHeader);
         WifiEnterpriseConfigXmlUtil.writeToXml(out, config);
         XmlUtil.writeDocumentEnd(out, mXmlDocHeader);
+        return outputStream.toByteArray();
+    }
 
-        // Deserialize the configuration object.
+    private WifiEnterpriseConfig deserializeWifiEnterpriseConfig(byte[] data)
+            throws IOException, XmlPullParserException {
         final XmlPullParser in = Xml.newPullParser();
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
         in.setInput(inputStream, StandardCharsets.UTF_8.name());
         XmlUtil.gotoDocumentStart(in, mXmlDocHeader);
+        return WifiEnterpriseConfigXmlUtil.parseFromXml(in, in.getDepth());
+    }
+
+    private void serializeDeserializeWifiEnterpriseConfig(WifiEnterpriseConfig config)
+            throws IOException, XmlPullParserException {
         WifiEnterpriseConfig retrievedConfig =
-                WifiEnterpriseConfigXmlUtil.parseFromXml(in, in.getDepth());
+                deserializeWifiEnterpriseConfig(serializeWifiEnterpriseConfig(config));
         WifiConfigurationTestUtil.assertWifiEnterpriseConfigEqualForConfigStore(
                 config, retrievedConfig);
     }
