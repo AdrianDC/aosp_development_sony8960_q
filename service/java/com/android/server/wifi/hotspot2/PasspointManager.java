@@ -330,8 +330,8 @@ public class PasspointManager {
      * TODO(zqiu): currently the notification is done through WifiMonitor,
      * will no longer be the case once we switch over to use wificond.
      */
-    public void notifyANQPDone(long bssid, boolean success) {
-        mHandler.notifyANQPDone(bssid, success);
+    public void notifyANQPDone(AnqpEvent anqpEvent) {
+        mHandler.notifyANQPDone(anqpEvent);
     }
 
     /**

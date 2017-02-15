@@ -21,16 +21,9 @@ import android.util.Log;
 
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
-import com.android.server.wifi.hotspot2.anqp.ANQPParser;
 import com.android.server.wifi.hotspot2.anqp.Constants;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.StringReader;
-import java.net.ProtocolException;
-import java.nio.BufferUnderflowException;
-import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -44,21 +37,6 @@ public class PasspointEventHandler {
     private final Callbacks mCallbacks;
 
     private static final int ICON_CHUNK_SIZE = 1400;  // 2K*3/4 - overhead
-    private static final Map<String, Constants.ANQPElementType> sWpsNames = new HashMap<>();
-
-    static {
-        sWpsNames.put("anqp_venue_name", Constants.ANQPElementType.ANQPVenueName);
-        sWpsNames.put("anqp_roaming_consortium", Constants.ANQPElementType.ANQPRoamingConsortium);
-        sWpsNames.put("anqp_ip_addr_type_availability",
-                Constants.ANQPElementType.ANQPIPAddrAvailability);
-        sWpsNames.put("anqp_nai_realm", Constants.ANQPElementType.ANQPNAIRealm);
-        sWpsNames.put("anqp_3gpp", Constants.ANQPElementType.ANQP3GPPNetwork);
-        sWpsNames.put("anqp_domain_name", Constants.ANQPElementType.ANQPDomName);
-        sWpsNames.put("hs20_operator_friendly_name", Constants.ANQPElementType.HSFriendlyName);
-        sWpsNames.put("hs20_wan_metrics", Constants.ANQPElementType.HSWANMetrics);
-        sWpsNames.put("hs20_connection_capability", Constants.ANQPElementType.HSConnCapability);
-        sWpsNames.put("hs20_osu_providers_list", Constants.ANQPElementType.HSOSUProviders);
-    }
 
     /**
      * Interface to be implemented by the client to receive callbacks for passpoint
@@ -92,42 +70,6 @@ public class PasspointEventHandler {
     public PasspointEventHandler(WifiNative supplicantHook, Callbacks callbacks) {
         mSupplicantHook = supplicantHook;
         mCallbacks = callbacks;
-    }
-
-    /**
-     * Determine the given |line| string is an ANQP element.
-     * TODO(zqiu): move this to different/new class (e.g. AnqpParser).
-     * @param line input text
-     * @return true if it is an ANQP element, false otherwise
-     */
-    public static boolean isAnqpAttribute(String line) {
-        int split = line.indexOf('=');
-        return split >= 0 && sWpsNames.containsKey(line.substring(0, split));
-    }
-
-    /**
-     * Parse ANQP elements.
-     * TODO(zqiu): move this to different/new class (e.g. AnqpParser).
-     * @param lines input text
-     * @return a map of ANQP elements
-     */
-    public static Map<Constants.ANQPElementType, ANQPElement> parseANQPLines(List<String> lines) {
-        if (lines == null) {
-            return null;
-        }
-        Map<Constants.ANQPElementType, ANQPElement> elements = new HashMap<>(lines.size());
-        for (String line : lines) {
-            try {
-                ANQPElement element = buildElement(line);
-                if (element != null) {
-                    elements.put(element.getID(), element);
-                }
-            } catch (ProtocolException | BufferUnderflowException e) {
-                Log.e(Utils.hs2LogTag(PasspointEventHandler.class),
-                        "Failed to parse ANQP: " + e);
-            }
-        }
-        return elements;
     }
 
     /**
@@ -170,25 +112,12 @@ public class PasspointEventHandler {
      * Invoked when ANQP query is completed.
      * TODO(zqiu): currently ANQP completion notification is through WifiMonitor,
      * this shouldn't be needed once we switch over to wificond for ANQP requests.
-     * @param bssid BSSID of the AP
-     * @param success true if query is completed successfully, false otherwise
+     * @param anqpEvent ANQP result data retrieved. ANQP elements could be empty in the event to
+     *                  indicate any failures.
      */
-    public void notifyANQPDone(long bssid, boolean success) {
-        Map<Constants.ANQPElementType, ANQPElement> elements = null;
-        if (success) {
-            String bssData =
-                    mSupplicantHook.scanResult(Utils.macToString(bssid));
-            try {
-                elements = parseWPSData(bssData);
-                Log.d(Utils.hs2LogTag(getClass()),
-                      String.format("Successful ANQP response for %012x: %s",
-                                    bssid, elements));
-            } catch (IOException | BufferUnderflowException e) {
-                Log.e(Utils.hs2LogTag(getClass()), "Failed to parse ANQP: " +
-                        e.toString() + ": " + bssData);
-            }
-        }
-        mCallbacks.onANQPResponse(bssid, elements);
+    public void notifyANQPDone(AnqpEvent anqpEvent) {
+        if (anqpEvent == null) return;
+        mCallbacks.onANQPResponse(anqpEvent.getBssid(), anqpEvent.getElements());
     }
 
     /**
@@ -266,52 +195,6 @@ public class PasspointEventHandler {
         }
 
         return sb.toString();
-    }
-
-    private static Map<Constants.ANQPElementType, ANQPElement> parseWPSData(String bssInfo)
-            throws IOException {
-        Map<Constants.ANQPElementType, ANQPElement> elements = new HashMap<>();
-        if (bssInfo == null) {
-            return elements;
-        }
-        BufferedReader lineReader = new BufferedReader(new StringReader(bssInfo));
-        String line;
-        while ((line=lineReader.readLine()) != null) {
-            ANQPElement element = buildElement(line);
-            if (element != null) {
-                elements.put(element.getID(), element);
-            }
-        }
-        return elements;
-    }
-
-    private static ANQPElement buildElement(String text) throws ProtocolException {
-        int separator = text.indexOf('=');
-        if (separator < 0 || separator + 1 == text.length()) {
-            return null;
-        }
-
-        String elementName = text.substring(0, separator);
-        Constants.ANQPElementType elementType = sWpsNames.get(elementName);
-        if (elementType == null) {
-            return null;
-        }
-
-        byte[] payload;
-        try {
-            payload = Utils.hexToBytes(text.substring(separator + 1));
-        }
-        catch (NumberFormatException nfe) {
-            Log.e(Utils.hs2LogTag(PasspointEventHandler.class),
-                  "Failed to parse hex string");
-            return null;
-        }
-        // Wrap the payload inside a ByteBuffer.
-        ByteBuffer buffer = ByteBuffer.wrap(payload);
-
-        return Constants.getANQPElementID(elementType) != null ?
-                ANQPParser.parseElement(elementType, buffer) :
-                ANQPParser.parseHS20Element(elementType, buffer);
     }
 
     private byte[] retrieveIcon(IconEvent iconEvent) throws IOException {
