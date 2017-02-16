@@ -145,4 +145,49 @@ public class WifiMonitorTest {
         assertEquals(WifiManager.ERROR, messageCaptor.getValue().arg1);
         assertEquals(WpsConfigError.MSG_TIMEOUT, messageCaptor.getValue().arg2);
     }
+
+    /**
+     * Broadcast WPS success event test.
+     */
+    @Test
+    public void testBroadcastWpsEventSuccess() {
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.WPS_SUCCESS_EVENT, mHandlerSpy);
+        mWifiMonitor.broadcastWpsSuccessEvent(WLAN_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mHandlerSpy).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.WPS_SUCCESS_EVENT, messageCaptor.getValue().what);
+    }
+
+    /**
+     * Broadcast WPS overlap event test.
+     */
+    @Test
+    public void testBroadcastWpsEventOverlap() {
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.WPS_OVERLAP_EVENT, mHandlerSpy);
+        mWifiMonitor.broadcastWpsOverlapEvent(WLAN_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mHandlerSpy).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.WPS_OVERLAP_EVENT, messageCaptor.getValue().what);
+    }
+
+    /**
+     * Broadcast WPS timeout event test.
+     */
+    @Test
+    public void testBroadcastWpsEventTimeout() {
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.WPS_TIMEOUT_EVENT, mHandlerSpy);
+        mWifiMonitor.broadcastWpsTimeoutEvent(WLAN_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mHandlerSpy).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.WPS_TIMEOUT_EVENT, messageCaptor.getValue().what);
+    }
 }
