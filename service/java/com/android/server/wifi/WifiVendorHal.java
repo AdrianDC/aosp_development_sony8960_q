@@ -834,11 +834,31 @@ public class WifiVendorHal {
     }
 
     /**
-     * to be implemented via mIWifiChip.requestFirmwareDebugDump
+     * Request vendor debug info from the firmware
      */
     public byte[] getFwMemoryDump() {
         kilroy();
-        throw new UnsupportedOperationException();
+        class AnswerBox {
+            public byte[] value;
+        }
+        AnswerBox ans = new AnswerBox();
+        synchronized (sLock) {
+            if (mIWifiChip == null) return (null);
+            try {
+                kilroy();
+                mIWifiChip.requestFirmwareDebugDump((status, blob) -> {
+                    kilroy();
+                    if (status.code != WifiStatusCode.SUCCESS) return;
+                    kilroy();
+                    ans.value = NativeUtil.byteArrayFromArrayList(blob);
+                });
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return null;
+            }
+        }
+        return ans.value;
     }
 
     /**
@@ -846,7 +866,27 @@ public class WifiVendorHal {
      */
     public byte[] getDriverStateDump() {
         kilroy();
-        throw new UnsupportedOperationException();
+        class AnswerBox {
+            public byte[] value;
+        }
+        AnswerBox ans = new AnswerBox();
+        synchronized (sLock) {
+            if (mIWifiChip == null) return (null);
+            try {
+                kilroy();
+                mIWifiChip.requestDriverDebugDump((status, blob) -> {
+                    kilroy();
+                    if (status.code != WifiStatusCode.SUCCESS) return;
+                    kilroy();
+                    ans.value = NativeUtil.byteArrayFromArrayList(blob);
+                });
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return null;
+            }
+        }
+        return ans.value;
     }
 
     /**
