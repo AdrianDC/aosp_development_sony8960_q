@@ -16,14 +16,12 @@
 
 package com.android.server.wifi.hotspot2;
 
-import android.util.Base64;
 import android.util.Log;
 
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.Constants;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -35,8 +33,6 @@ import java.util.Map;
 public class PasspointEventHandler {
     private final WifiNative mSupplicantHook;
     private final Callbacks mCallbacks;
-
-    private static final int ICON_CHUNK_SIZE = 1400;  // 2K*3/4 - overhead
 
     /**
      * Interface to be implemented by the client to receive callbacks for passpoint
@@ -124,22 +120,12 @@ public class PasspointEventHandler {
      * Invoked when icon query is completed.
      * TODO(zqiu): currently icon completion notification is through WifiMonitor,
      * this shouldn't be needed once we switch over to wificond for icon requests.
-     * @param bssid BSSID of the AP
      * @param iconEvent icon event data
      */
-    public void notifyIconDone(long bssid, IconEvent iconEvent) {
-        String filename = null;
-        byte[] data = null;
-        if (iconEvent != null) {
-            try {
-                data = retrieveIcon(iconEvent);
-                filename = iconEvent.getFileName();
-            } catch (IOException ioe) {
-                Log.e(Utils.hs2LogTag(getClass()), "Failed to retrieve icon: " +
-                        ioe.toString() + ": " + iconEvent.getFileName());
-            }
-        }
-        mCallbacks.onIconResponse(bssid, filename, data);
+    public void notifyIconDone(IconEvent iconEvent) {
+        if (iconEvent == null) return;
+        mCallbacks.onIconResponse(
+                iconEvent.getBSSID(), iconEvent.getFileName(), iconEvent.getData());
     }
 
     /**
@@ -197,50 +183,4 @@ public class PasspointEventHandler {
         return sb.toString();
     }
 
-    private byte[] retrieveIcon(IconEvent iconEvent) throws IOException {
-        byte[] iconData = new byte[iconEvent.getSize()];
-        try {
-            int offset = 0;
-            while (offset < iconEvent.getSize()) {
-                int size = Math.min(iconEvent.getSize() - offset, ICON_CHUNK_SIZE);
-
-                String command = String.format("GET_HS20_ICON %s %s %d %d",
-                        Utils.macToString(iconEvent.getBSSID()), iconEvent.getFileName(),
-                        offset, size);
-                Log.d(Utils.hs2LogTag(getClass()), "Issuing '" + command + "'");
-                String response = mSupplicantHook.doCustomSupplicantCommand(command);
-                if (response == null) {
-                    throw new IOException("No icon data returned");
-                }
-
-                try {
-                    byte[] fragment = Base64.decode(response, Base64.DEFAULT);
-                    if (fragment.length == 0) {
-                        throw new IOException("Null data for '" + command + "': " + response);
-                    }
-                    if (fragment.length + offset > iconData.length) {
-                        throw new IOException("Icon chunk exceeds image size");
-                    }
-                    System.arraycopy(fragment, 0, iconData, offset, fragment.length);
-                    offset += fragment.length;
-                } catch (IllegalArgumentException iae) {
-                    throw new IOException("Failed to parse response to '" + command
-                            + "': " + response);
-                }
-            }
-            if (offset != iconEvent.getSize()) {
-                Log.w(Utils.hs2LogTag(getClass()), "Partial icon data: " + offset +
-                        ", expected " + iconEvent.getSize());
-            }
-        }
-        finally {
-            // Delete the icon file in supplicant.
-            Log.d(Utils.hs2LogTag(getClass()), "Deleting icon for " + iconEvent);
-            String result = mSupplicantHook.doCustomSupplicantCommand("DEL_HS20_ICON " +
-                    Utils.macToString(iconEvent.getBSSID()) + " " + iconEvent.getFileName());
-            Log.d(Utils.hs2LogTag(getClass()), "Result: " + result);
-        }
-
-        return iconData;
-    }
 }

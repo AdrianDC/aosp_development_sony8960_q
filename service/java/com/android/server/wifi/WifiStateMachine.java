@@ -4302,8 +4302,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 }
                 case WifiMonitor.RX_HS20_ANQP_ICON_EVENT:
                     // TODO(zqiu): remove this when switch over to wificond for icon requests.
-                    IconEvent event = (IconEvent) message.obj;
-                    mPasspointManager.notifyIconDone(event.getBSSID(), event);
+                    mPasspointManager.notifyIconDone((IconEvent) message.obj);
                     break;
                 case WifiMonitor.HS20_REMEDIATION_EVENT:
                     // TODO(zqiu): remove this when switch over to wificond for WNM frames
