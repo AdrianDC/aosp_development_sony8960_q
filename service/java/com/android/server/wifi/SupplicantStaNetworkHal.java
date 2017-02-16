@@ -61,18 +61,19 @@ public class SupplicantStaNetworkHal {
      * Matches a strings like the following: "[:kc:<kc_value>:sres:<sres_value>]";
      */
     private static final Pattern GSM_AUTH_RESPONSE_PARAMS_PATTERN =
-            Pattern.compile(":kc:([0-9a-f]+):sres:([0-9a-f]+)");
+            Pattern.compile(":kc:([0-9a-fA-F]+):sres:([0-9a-fA-F]+)");
     /**
      * Regex pattern for extracting the UMTS sim authentication response params from a string.
      * Matches a strings like the following: ":ik:<ik_value>:ck:<ck_value>:res:<res_value>";
      */
     private static final Pattern UMTS_AUTH_RESPONSE_PARAMS_PATTERN =
-            Pattern.compile(":ik:([0-9a-f]+):ck:([0-9a-f]+):res:([0-9a-f]+)");
+            Pattern.compile("^:ik:([0-9a-fA-F]+):ck:([0-9a-fA-F]+):res:([0-9a-fA-F]+)$");
     /**
      * Regex pattern for extracting the UMTS sim auts response params from a string.
      * Matches a strings like the following: ":<auts_value>";
      */
-    private static final Pattern UMTS_AUTS_RESPONSE_PARAMS_PATTERN = Pattern.compile("([0-9a-f]+)");
+    private static final Pattern UMTS_AUTS_RESPONSE_PARAMS_PATTERN =
+            Pattern.compile("^:([0-9a-fA-F]+)$");
 
     private final Object mLock = new Object();
     private ISupplicantStaNetwork mISupplicantStaNetwork = null;
@@ -2208,6 +2209,39 @@ public class SupplicantStaNetworkHal {
     }
 
     /**
+     * Retrieve the NFC token for this network.
+     *
+     * @return Hex string corresponding to the NFC token or null for failure.
+     */
+    public String getWpsNfcConfigurationToken() {
+        ArrayList<Byte> token = getWpsNfcConfigurationTokenInternal();
+        if (token == null) {
+            return null;
+        }
+        return NativeUtil.hexStringFromByteArray(NativeUtil.byteArrayFromArrayList(token));
+    }
+
+    /** See ISupplicantStaNetwork.hal for documentation */
+    private ArrayList<Byte> getWpsNfcConfigurationTokenInternal() {
+        synchronized (mLock) {
+            final String methodStr = "getWpsNfcConfigurationToken";
+            if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return null;
+            final Mutable<ArrayList<Byte>> gotToken = new Mutable<>();
+            try {
+                mISupplicantStaNetwork.getWpsNfcConfigurationToken(
+                        (SupplicantStatus status, ArrayList<Byte> token) -> {
+                            if (checkStatusAndLogFailure(status, methodStr)) {
+                                gotToken.value = token;
+                            }
+                        });
+            } catch (RemoteException e) {
+                handleRemoteException(e, methodStr);
+            }
+            return gotToken.value;
+        }
+    }
+
+    /**
      * Returns true if provided status code is SUCCESS, logs debug message and returns false
      * otherwise
      */
@@ -2267,5 +2301,17 @@ public class SupplicantStaNetworkHal {
 
     private void logFailureStatus(SupplicantStatus status, String methodStr) {
         Log.e(TAG, methodStr + " failed: " + status.debugMessage);
+    }
+
+    private static class Mutable<E> {
+        public E value;
+
+        Mutable() {
+            value = null;
+        }
+
+        Mutable(E value) {
+            this.value = value;
+        }
     }
 }

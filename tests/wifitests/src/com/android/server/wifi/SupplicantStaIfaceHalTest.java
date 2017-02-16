@@ -19,6 +19,7 @@ import static org.junit.Assert.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyShort;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -39,6 +40,7 @@ import android.hardware.wifi.supplicant.V1_0.ISupplicantStaNetwork;
 import android.hardware.wifi.supplicant.V1_0.IfaceType;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatusCode;
+import android.hardware.wifi.supplicant.V1_0.WpsConfigMethods;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.net.IpConfiguration;
@@ -472,6 +474,29 @@ public class SupplicantStaIfaceHalTest {
     }
 
     /**
+     * Tests removal of all configured networks from wpa_supplicant.
+     */
+    @Test
+    public void testRemoveAllNetworks() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false);
+        doAnswer(new MockAnswerUtil.AnswerWithArguments() {
+            public void answer(ISupplicantStaIface.listNetworksCallback cb) {
+                cb.onValues(mStatusSuccess, new ArrayList<>(NETWORK_ID_TO_SSID.keySet()));
+            }
+        }).when(mISupplicantStaIfaceMock)
+                .listNetworks(any(ISupplicantStaIface.listNetworksCallback.class));
+        doAnswer(new MockAnswerUtil.AnswerWithArguments() {
+            public SupplicantStatus answer(int id) {
+                assertTrue(NETWORK_ID_TO_SSID.containsKey(id));
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaIfaceMock).removeNetwork(anyInt());
+
+        assertTrue(mDut.removeAllNetworks());
+        verify(mISupplicantStaIfaceMock, times(NETWORK_ID_TO_SSID.size())).removeNetwork(anyInt());
+    }
+
+    /**
      * Tests roaming failure because of unable to reassociate.
      */
     @Test
@@ -491,6 +516,92 @@ public class SupplicantStaIfaceHalTest {
         roamingConfig.networkId = connectedNetworkId;
         roamingConfig.getNetworkSelectionStatus().setNetworkSelectionBSSID("45:34:23:23:ab:ed");
         assertFalse(mDut.roamToNetwork(roamingConfig));
+    }
+
+    /**
+     * Tests the retrieval of WPS NFC token.
+     */
+    @Test
+    public void testGetCurrentNetworkWpsNfcConfigurationToken() throws Exception {
+        String token = "45adbc1";
+        when(mSupplicantStaNetworkMock.getWpsNfcConfigurationToken()).thenReturn(token);
+
+        executeAndValidateInitializationSequence(false, false, false);
+
+        // Return null when not connected to the network.
+        assertTrue(mDut.getCurrentNetworkWpsNfcConfigurationToken() == null);
+
+        executeAndValidateConnectSequence(4, false, false);
+
+        assertEquals(token, mDut.getCurrentNetworkWpsNfcConfigurationToken());
+    }
+
+    /**
+     * Tests the setting of BSSID.
+     */
+    @Test
+    public void testSetCurrentNetworkBssid() throws Exception {
+        String bssidStr = "34:34:12:12:12:90";
+        when(mSupplicantStaNetworkMock.setBssid(eq(bssidStr))).thenReturn(true);
+
+        executeAndValidateInitializationSequence(false, false, false);
+
+        // Fail when not connected to a network.
+        assertFalse(mDut.setCurrentNetworkBssid(bssidStr));
+
+        executeAndValidateConnectSequence(4, false, false);
+
+        assertTrue(mDut.setCurrentNetworkBssid(bssidStr));
+    }
+
+    /**
+     * Tests the setting of WPS device type.
+     */
+    @Test
+    public void testSetWpsDeviceType() throws Exception {
+        String validDeviceTypeStr = "10-0050F204-5";
+        byte[] expectedDeviceType = { 0x0, 0xa, 0x0, 0x50, (byte) 0xf2, 0x04, 0x0, 0x05};
+        String invalidDeviceType1Str = "10-02050F204-5";
+        String invalidDeviceType2Str = "10-0050F204-534";
+        when(mISupplicantStaIfaceMock.setWpsDeviceType(any(byte[].class)))
+                .thenReturn(mStatusSuccess);
+
+        executeAndValidateInitializationSequence(false, false, false);
+
+        // This should work.
+        assertTrue(mDut.setWpsDeviceType(validDeviceTypeStr));
+        verify(mISupplicantStaIfaceMock).setWpsDeviceType(eq(expectedDeviceType));
+
+        // This should not work
+        assertFalse(mDut.setWpsDeviceType(invalidDeviceType1Str));
+        // This should not work
+        assertFalse(mDut.setWpsDeviceType(invalidDeviceType2Str));
+    }
+
+    /**
+     * Tests the setting of WPS config methods.
+     */
+    @Test
+    public void testSetWpsConfigMethods() throws Exception {
+        String validConfigMethodsStr = "physical_display virtual_push_button";
+        Short expectedConfigMethods =
+                WpsConfigMethods.PHY_DISPLAY | WpsConfigMethods.VIRT_PUSHBUTTON;
+        String invalidConfigMethodsStr = "physical_display virtual_push_button test";
+        when(mISupplicantStaIfaceMock.setWpsConfigMethods(anyShort())).thenReturn(mStatusSuccess);
+
+        executeAndValidateInitializationSequence(false, false, false);
+
+        // This should work.
+        assertTrue(mDut.setWpsConfigMethods(validConfigMethodsStr));
+        verify(mISupplicantStaIfaceMock).setWpsConfigMethods(eq(expectedConfigMethods));
+
+        // This should throw an illegal argument exception.
+        try {
+            assertFalse(mDut.setWpsConfigMethods(invalidConfigMethodsStr));
+        } catch (IllegalArgumentException e) {
+            return;
+        }
+        assertTrue(false);
     }
 
     /**
