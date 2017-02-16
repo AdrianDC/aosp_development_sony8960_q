@@ -30,6 +30,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.text.TextUtils;
 import android.util.ArraySet;
+import android.util.Base64;
 import android.util.LocalLog;
 import android.util.Log;
 import android.util.SparseArray;
@@ -531,6 +532,11 @@ public class WifiMonitor {
     public static final int AUTHENTICATION_FAILURE_REASON_TIMEOUT = 1;
     public static final int AUTHENTICATION_FAILURE_REASON_WRONG_PSWD = 2;
     public static final int AUTHENTICATION_FAILURE_REASON_EAP_FAILURE = 3;
+
+    /**
+     * Used for icon retrieval.
+     */
+    private static final int ICON_CHUNK_SIZE = 1400;  // 2K*3/4 - overhead
 
     // Singleton instance
     private static WifiMonitor sWifiMonitor = new WifiMonitor();
@@ -1297,12 +1303,64 @@ public class WifiMonitor {
             String bssid = segments[1];
             String fileName = segments[2];
             int size = Integer.parseInt(segments[3]);
-            sendMessage(iface, RX_HS20_ANQP_ICON_EVENT,
-                    new IconEvent(Utils.parseMac(bssid), fileName, size));
+            byte[] iconData = null;
+            if (!TextUtils.isEmpty(bssid) && !TextUtils.isEmpty(fileName) && size > 0) {
+                try {
+                    iconData = retrieveIcon(Utils.parseMac(bssid), fileName, size);
+                } catch (IOException ioe) {
+                    Log.e(TAG, "Failed to retrieve icon: " + ioe.toString() + ": " + fileName);
+                }
+            }
+            broadcastIconDoneEvent(
+                    iface, new IconEvent(Utils.parseMac(bssid), fileName, size, iconData));
         }
         catch (NumberFormatException nfe) {
             throw new IllegalArgumentException("Bad numeral");
         }
+    }
+
+    // Retrieve the icon data from wpa_supplicant.
+    private byte[] retrieveIcon(long bssid, String fileName, int fileSize) throws IOException {
+        byte[] iconData = new byte[fileSize];
+        try {
+            int offset = 0;
+            while (offset < fileSize) {
+                int size = Math.min(fileSize - offset, ICON_CHUNK_SIZE);
+
+                String command = String.format("GET_HS20_ICON %s %s %d %d",
+                        Utils.macToString(bssid), fileName, offset, size);
+                Log.d(TAG, "Issuing '" + command + "'");
+                String response = mWifiNative.doCustomSupplicantCommand(command);
+                if (response == null) {
+                    throw new IOException("No icon data returned");
+                }
+
+                try {
+                    byte[] fragment = Base64.decode(response, Base64.DEFAULT);
+                    if (fragment.length == 0) {
+                        throw new IOException("Null data for '" + command + "': " + response);
+                    }
+                    if (fragment.length + offset > iconData.length) {
+                        throw new IOException("Icon chunk exceeds image size");
+                    }
+                    System.arraycopy(fragment, 0, iconData, offset, fragment.length);
+                    offset += fragment.length;
+                } catch (IllegalArgumentException iae) {
+                    throw new IOException("Failed to parse response to '" + command
+                            + "': " + response);
+                }
+            }
+            if (offset != fileSize) {
+                Log.w(TAG, "Partial icon data: " + offset + ", expected " + fileSize);
+            }
+        } finally {
+            // Delete the icon file in supplicant.
+            Log.d(TAG, "Deleting icon for " + fileName);
+            String result = mWifiNative.doCustomSupplicantCommand("DEL_HS20_ICON "
+                    + Utils.macToString(bssid) + " " + fileName);
+            Log.d(TAG, "Result: " + result);
+        }
+        return iconData;
     }
 
     private void handleWnmFrame(String eventStr, String iface) {
@@ -1546,5 +1604,15 @@ public class WifiMonitor {
      */
     public void broadcastAnqpDoneEvent(String iface, AnqpEvent anqpEvent) {
         sendMessage(iface, ANQP_DONE_EVENT, anqpEvent);
+    }
+
+    /**
+     * Broadcast the Icon done event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param iconEvent Instance of IconEvent containing the icon data retrieved.
+     */
+    public void broadcastIconDoneEvent(String iface, IconEvent iconEvent) {
+        sendMessage(iface, RX_HS20_ANQP_ICON_EVENT, iconEvent);
     }
 }
