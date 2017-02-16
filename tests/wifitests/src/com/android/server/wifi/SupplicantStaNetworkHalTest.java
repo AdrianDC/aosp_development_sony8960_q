@@ -617,6 +617,27 @@ public class SupplicantStaNetworkHalTest {
     }
 
     /**
+     * Tests the retrieval of WPS NFC token.
+     */
+    @Test
+    public void testGetWpsNfcConfigurationToken() throws Exception {
+        final ArrayList<Byte> token = new ArrayList<>();
+        token.add(Byte.valueOf((byte) 0x45));
+        token.add(Byte.valueOf((byte) 0x34));
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getWpsNfcConfigurationTokenCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, token);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getWpsNfcConfigurationToken(
+                        any(ISupplicantStaNetwork.getWpsNfcConfigurationTokenCallback.class));
+
+        assertEquals("4534", mSupplicantNetwork.getWpsNfcConfigurationToken());
+    }
+
+    /**
      * Sets up the HIDL interface mock with all the setters/getter values.
      * Note: This only sets up the mock to return success on all methods.
      */
