@@ -4111,9 +4111,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (mOperationalMode == SCAN_ONLY_MODE ||
                     mOperationalMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
                 mWifiNative.disconnect();
-                if (mOperationalMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
-                    setWifiState(WIFI_STATE_DISABLED);
-                }
+                setWifiState(WIFI_STATE_DISABLED);
                 transitionTo(mScanModeState);
             } else if (mOperationalMode == CONNECT_MODE) {
 
@@ -4425,13 +4423,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             switch(message.what) {
                 case CMD_SET_OPERATIONAL_MODE:
                     if (message.arg1 == CONNECT_MODE) {
-                        if (mLastOperationMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
-                            setWifiState(WIFI_STATE_ENABLED);
-                            // Load and re-enable networks when going back to enabled state
-                            // This is essential for networks to show up after restore
-                            mWifiConfigManager.loadFromStore();
-                            p2pSendMessage(CMD_ENABLE_P2P);
-                        }
                         mOperationalMode = CONNECT_MODE;
                         transitionTo(mDisconnectedState);
                     } else if (message.arg1 == DISABLED_MODE) {
@@ -6337,11 +6328,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mOperationalMode = message.arg1;
                         if (mOperationalMode == DISABLED_MODE) {
                             transitionTo(mSupplicantStoppingState);
-                        } else if (mOperationalMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
+                        } else if (mOperationalMode == SCAN_ONLY_MODE
+                                || mOperationalMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
                             p2pSendMessage(CMD_DISABLE_P2P_REQ);
                             setWifiState(WIFI_STATE_DISABLED);
-                            transitionTo(mScanModeState);
-                        } else if (mOperationalMode == SCAN_ONLY_MODE) {
                             transitionTo(mScanModeState);
                         }
                     }
