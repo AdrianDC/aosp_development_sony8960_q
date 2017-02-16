@@ -30,7 +30,6 @@ import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.os.RemoteException;
 import android.util.Log;
-import android.util.MutableBoolean;
 import android.util.SparseArray;
 
 import com.android.server.wifi.util.NativeUtil;
@@ -393,29 +392,22 @@ public class SupplicantStaIfaceHal {
      */
     private String getName() {
         synchronized (mLock) {
-            MutableBoolean statusSuccess = new MutableBoolean(false);
             final String methodStr = "getName";
             if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
-            final StringBuilder builder = new StringBuilder();
+            final Mutable<String> gotName = new Mutable<>();
             try {
                 mISupplicantStaIface.getName((SupplicantStatus status, String name) -> {
-                    statusSuccess.value = status.code == SupplicantStatusCode.SUCCESS;
-                    if (!statusSuccess.value) {
-                        Log.e(TAG, methodStr + " failed: " + status.debugMessage);
-                    } else {
-                        builder.append(name);
+                    if (checkStatusAndLogFailure(status, methodStr)) {
+                        gotName.value = name;
+
                     }
                 });
             } catch (RemoteException e) {
                 Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception: " + e);
                 supplicantServiceDiedHandler();
             }
-            if (statusSuccess.value) {
-                return builder.toString();
-            } else {
-                return null;
-            }
+            return gotName.value;
         }
     }
 
@@ -426,18 +418,14 @@ public class SupplicantStaIfaceHal {
      */
     private SupplicantStaNetworkHal addNetwork() {
         synchronized (mLock) {
-            MutableBoolean statusSuccess = new MutableBoolean(false);
-            Mutable<ISupplicantNetwork> newNetwork = new Mutable<>();
             final String methodStr = "addNetwork";
             if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
+            Mutable<ISupplicantNetwork> newNetwork = new Mutable<>();
             try {
                 mISupplicantStaIface.addNetwork((SupplicantStatus status,
                         ISupplicantNetwork network) -> {
-                    statusSuccess.value = status.code == SupplicantStatusCode.SUCCESS;
-                    if (!statusSuccess.value) {
-                        Log.e(TAG, methodStr + " failed: " + status.debugMessage);
-                    } else {
+                    if (checkStatusAndLogFailure(status, methodStr)) {
                         newNetwork.value = network;
                     }
                 });
@@ -445,7 +433,7 @@ public class SupplicantStaIfaceHal {
                 Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception: " + e);
                 supplicantServiceDiedHandler();
             }
-            if (statusSuccess.value) {
+            if (newNetwork.value != null) {
                 return getStaNetworkMockable(
                         ISupplicantStaNetwork.asInterface(newNetwork.value.asBinder()));
             } else {
@@ -493,18 +481,14 @@ public class SupplicantStaIfaceHal {
      */
     private SupplicantStaNetworkHal getNetwork(int id) {
         synchronized (mLock) {
-            MutableBoolean statusSuccess = new MutableBoolean(false);
-            Mutable<ISupplicantNetwork> gotNetwork = new Mutable<>();
             final String methodStr = "getNetwork";
             if (DBG) Log.i(TAG, methodStr);
+            Mutable<ISupplicantNetwork> gotNetwork = new Mutable<>();
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
             try {
                 mISupplicantStaIface.getNetwork(id, (SupplicantStatus status,
                         ISupplicantNetwork network) -> {
-                    statusSuccess.value = status.code == SupplicantStatusCode.SUCCESS;
-                    if (!statusSuccess.value) {
-                        Log.e(TAG, methodStr + " failed: " + status.debugMessage);
-                    } else {
+                    if (checkStatusAndLogFailure(status, methodStr)) {
                         gotNetwork.value = network;
                     }
                 });
@@ -512,7 +496,7 @@ public class SupplicantStaIfaceHal {
                 Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception: " + e);
                 supplicantServiceDiedHandler();
             }
-            if (statusSuccess.value) {
+            if (gotNetwork.value != null) {
                 return getStaNetworkMockable(
                         ISupplicantStaNetwork.asInterface(gotNetwork.value.asBinder()));
             } else {
@@ -527,18 +511,14 @@ public class SupplicantStaIfaceHal {
      */
     private java.util.ArrayList<Integer> listNetworks() {
         synchronized (mLock) {
-            MutableBoolean statusSuccess = new MutableBoolean(false);
-            Mutable<ArrayList<Integer>> networkIdList = new Mutable<>();
             final String methodStr = "listNetworks";
             if (DBG) Log.i(TAG, methodStr);
+            Mutable<ArrayList<Integer>> networkIdList = new Mutable<>();
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
             try {
                 mISupplicantStaIface.listNetworks((SupplicantStatus status,
                         java.util.ArrayList<Integer> networkIds) -> {
-                    statusSuccess.value = status.code == SupplicantStatusCode.SUCCESS;
-                    if (!statusSuccess.value) {
-                        Log.e(TAG, methodStr + " failed: " + status.debugMessage);
-                    } else {
+                    if (checkStatusAndLogFailure(status, methodStr)) {
                         networkIdList.value = networkIds;
                     }
                 });
@@ -546,11 +526,7 @@ public class SupplicantStaIfaceHal {
                 Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception: " + e);
                 supplicantServiceDiedHandler();
             }
-            if (statusSuccess.value) {
-                return networkIdList.value;
-            } else {
-                return null;
-            }
+            return networkIdList.value;
         }
     }
 
@@ -905,7 +881,6 @@ public class SupplicantStaIfaceHal {
      */
     public String getMacAddress() {
         synchronized (mLock) {
-            MutableBoolean statusSuccess = new MutableBoolean(false);
             final String methodStr = "getMacAddress";
             if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
@@ -913,10 +888,7 @@ public class SupplicantStaIfaceHal {
             try {
                 mISupplicantStaIface.getMacAddress((SupplicantStatus status,
                         byte[/* 6 */] macAddr) -> {
-                    statusSuccess.value = status.code == SupplicantStatusCode.SUCCESS;
-                    if (!statusSuccess.value) {
-                        Log.e(TAG, methodStr + " failed: " + status.debugMessage);
-                    } else {
+                    if (checkStatusAndLogFailure(status, methodStr)) {
                         gotMac.value = NativeUtil.macAddressFromByteArray(macAddr);
                     }
                 });
@@ -924,11 +896,7 @@ public class SupplicantStaIfaceHal {
                 Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception: " + e);
                 supplicantServiceDiedHandler();
             }
-            if (statusSuccess.value) {
-                return gotMac.value;
-            } else {
-                return null;
-            }
+            return gotMac.value;
         }
     }
 
