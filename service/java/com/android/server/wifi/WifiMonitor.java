@@ -1366,7 +1366,7 @@ public class WifiMonitor {
     private void handleWnmFrame(String eventStr, String iface) {
         try {
             WnmData wnmData = WnmData.buildWnmData(eventStr);
-            sendMessage(iface, HS20_REMEDIATION_EVENT, wnmData);
+            broadcastWnmEvent(iface, wnmData);
         } catch (IOException | NumberFormatException e) {
             Log.w(TAG, "Bad WNM event: '" + eventStr + "'");
         }
@@ -1614,5 +1614,15 @@ public class WifiMonitor {
      */
     public void broadcastIconDoneEvent(String iface, IconEvent iconEvent) {
         sendMessage(iface, RX_HS20_ANQP_ICON_EVENT, iconEvent);
+    }
+
+    /**
+     * Broadcast the WNM event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param wnmData Instance of WnmData containing the event data.
+     */
+    public void broadcastWnmEvent(String iface, WnmData wnmData) {
+        sendMessage(iface, HS20_REMEDIATION_EVENT, wnmData);
     }
 }
