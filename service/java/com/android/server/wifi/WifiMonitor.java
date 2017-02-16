@@ -37,6 +37,7 @@ import android.util.SparseArray;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.StateMachine;
+import com.android.server.wifi.hotspot2.AnqpEvent;
 import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.hotspot2.WnmData;
@@ -1262,16 +1263,27 @@ public class WifiMonitor {
             eoresult = eventStr.length();
         }
 
+        long bssid = 0;
+        int result = 0;
         try {
-            long bssid = Utils.parseMac(eventStr.substring(addrPos + ADDR_STRING.length(), eoaddr));
-            int result = eventStr.substring(
+            bssid = Utils.parseMac(eventStr.substring(addrPos + ADDR_STRING.length(), eoaddr));
+            result = eventStr.substring(
                     resPos + RESULT_STRING.length(), eoresult).equalsIgnoreCase("success") ? 1 : 0;
-
-            sendMessage(iface, ANQP_DONE_EVENT, result, 0, bssid);
         }
         catch (IllegalArgumentException iae) {
             Log.e(TAG, "Bad MAC address in ANQP response: " + iae.getMessage());
+            return;
         }
+        AnqpEvent anqpEvent = null;
+        // If there are no errors fetch the ANQP elements from wpa_supplicant, otherwise return
+        // empty ANQP elements.
+        if (bssid != 0 && result != 0) {
+            String bssData = mWifiNative.scanResult(Utils.macToString(bssid));
+            anqpEvent = AnqpEvent.buildAnqpEvent(bssid, bssData);
+        } else {
+            anqpEvent = AnqpEvent.buildAnqpEvent(bssid, null);
+        }
+        broadcastAnqpDoneEvent(iface, anqpEvent);
     }
 
     private void handleIconResult(String eventStr, String iface) {
@@ -1524,5 +1536,15 @@ public class WifiMonitor {
      */
     public void broadcastWpsTimeoutEvent(String iface) {
         sendMessage(iface, WPS_TIMEOUT_EVENT);
+    }
+
+    /**
+     * Broadcast the ANQP done event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param anqpEvent ANQP result retrieved.
+     */
+    public void broadcastAnqpDoneEvent(String iface, AnqpEvent anqpEvent) {
+        sendMessage(iface, ANQP_DONE_EVENT, anqpEvent);
     }
 }
