@@ -31,6 +31,7 @@ import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
@@ -50,6 +51,8 @@ import com.android.server.wifi.FakeKeys;
 import com.android.server.wifi.IMSIParameter;
 import com.android.server.wifi.SIMAccessor;
 import com.android.server.wifi.ScanDetail;
+import com.android.server.wifi.WifiConfigManager;
+import com.android.server.wifi.WifiConfigStore;
 import com.android.server.wifi.WifiKeyStore;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
@@ -94,6 +97,9 @@ public class PasspointManagerTest {
     @Mock PasspointEventHandler.Callbacks mCallbacks;
     @Mock AnqpCache mAnqpCache;
     @Mock ANQPRequestManager mAnqpRequestManager;
+    @Mock WifiConfigManager mWifiConfigManager;
+    @Mock WifiConfigStore mWifiConfigStore;
+    @Mock PasspointConfigStoreData.DataSource mDataSource;
     PasspointManager mManager;
 
     /** Sets up test. */
@@ -104,12 +110,17 @@ public class PasspointManagerTest {
         when(mObjectFactory.makeANQPRequestManager(any(PasspointEventHandler.class), eq(mClock)))
                 .thenReturn(mAnqpRequestManager);
         mManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
-                mSimAccessor, mObjectFactory);
+                mSimAccessor, mObjectFactory, mWifiConfigManager, mWifiConfigStore);
         ArgumentCaptor<PasspointEventHandler.Callbacks> callbacks =
                 ArgumentCaptor.forClass(PasspointEventHandler.Callbacks.class);
         verify(mObjectFactory).makePasspointEventHandler(any(WifiNative.class),
                                                          callbacks.capture());
+        ArgumentCaptor<PasspointConfigStoreData.DataSource> dataSource =
+                ArgumentCaptor.forClass(PasspointConfigStoreData.DataSource.class);
+        verify(mObjectFactory).makePasspointConfigStoreData(
+                any(WifiKeyStore.class), any(SIMAccessor.class), dataSource.capture());
         mCallbacks = callbacks.getValue();
+        mDataSource = dataSource.getValue();
     }
 
     /**
@@ -361,11 +372,26 @@ public class PasspointManagerTest {
                 eq(mSimAccessor), anyLong())).thenReturn(provider);
         assertTrue(mManager.addOrUpdateProvider(config));
         verifyInstalledConfig(config);
+        verify(mWifiConfigManager).saveToStore(true);
+        reset(mWifiConfigManager);
+
+        // Verify content in the data source.
+        List<PasspointProvider> providers = mDataSource.getProviders();
+        assertEquals(1, providers.size());
+        assertEquals(config, providers.get(0).getConfig());
+        // Provider index start with 0, should be 1 after adding a provider.
+        assertEquals(1, mDataSource.getProviderIndex());
 
         // Remove the provider.
         assertTrue(mManager.removeProvider(TEST_FQDN));
         verify(provider).uninstallCertsAndKeys();
+        verify(mWifiConfigManager).saveToStore(true);
         assertTrue(mManager.getProviderConfigs().isEmpty());
+
+        // Verify content in the data source.
+        assertTrue(mDataSource.getProviders().isEmpty());
+        // Removing a provider should not change the provider index.
+        assertEquals(1, mDataSource.getProviderIndex());
     }
 
     /**
@@ -382,11 +408,26 @@ public class PasspointManagerTest {
                 eq(mSimAccessor), anyLong())).thenReturn(provider);
         assertTrue(mManager.addOrUpdateProvider(config));
         verifyInstalledConfig(config);
+        verify(mWifiConfigManager).saveToStore(true);
+        reset(mWifiConfigManager);
+
+        // Verify content in the data source.
+        List<PasspointProvider> providers = mDataSource.getProviders();
+        assertEquals(1, providers.size());
+        assertEquals(config, providers.get(0).getConfig());
+        // Provider index start with 0, should be 1 after adding a provider.
+        assertEquals(1, mDataSource.getProviderIndex());
 
         // Remove the provider.
         assertTrue(mManager.removeProvider(TEST_FQDN));
         verify(provider).uninstallCertsAndKeys();
+        verify(mWifiConfigManager).saveToStore(true);
         assertTrue(mManager.getProviderConfigs().isEmpty());
+
+        // Verify content in the data source.
+        assertTrue(mDataSource.getProviders().isEmpty());
+        // Removing a provider should not change the provider index.
+        assertEquals(1, mDataSource.getProviderIndex());
     }
 
     /**
@@ -419,6 +460,14 @@ public class PasspointManagerTest {
                 eq(mSimAccessor), anyLong())).thenReturn(origProvider);
         assertTrue(mManager.addOrUpdateProvider(origConfig));
         verifyInstalledConfig(origConfig);
+        verify(mWifiConfigManager).saveToStore(true);
+        reset(mWifiConfigManager);
+
+        // Verify data source content.
+        List<PasspointProvider> origProviders = mDataSource.getProviders();
+        assertEquals(1, origProviders.size());
+        assertEquals(origConfig, origProviders.get(0).getConfig());
+        assertEquals(1, mDataSource.getProviderIndex());
 
         // Add another provider with the same base domain as the existing provider.
         // This should replace the existing provider with the new configuration.
@@ -428,6 +477,13 @@ public class PasspointManagerTest {
                 eq(mSimAccessor), anyLong())).thenReturn(newProvider);
         assertTrue(mManager.addOrUpdateProvider(newConfig));
         verifyInstalledConfig(newConfig);
+        verify(mWifiConfigManager).saveToStore(true);
+
+        // Verify data source content.
+        List<PasspointProvider> newProviders = mDataSource.getProviders();
+        assertEquals(1, newProviders.size());
+        assertEquals(newConfig, newProviders.get(0).getConfig());
+        assertEquals(2, mDataSource.getProviderIndex());
     }
 
     /**
@@ -559,5 +615,49 @@ public class PasspointManagerTest {
     public void sweepCache() throws Exception {
         mManager.sweepCache();
         verify(mAnqpCache).sweep();
+    }
+
+    /**
+     * Verify that the provider list maintained by the PasspointManager after the list is updated
+     * in the data source.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void verifyProvidersAfterDataSourceUpdate() throws Exception {
+        // Update the provider list in the data source.
+        PasspointConfiguration config = createTestConfigWithUserCredential();
+        PasspointProvider provider = createMockProvider(config);
+        List<PasspointProvider> providers = new ArrayList<>();
+        providers.add(provider);
+        mDataSource.setProviders(providers);
+
+        // Verify the providers maintained by PasspointManager.
+        assertEquals(1, mManager.getProviderConfigs().size());
+        assertEquals(config, mManager.getProviderConfigs().get(0));
+    }
+
+    /**
+     * Verify that the provider index used by PasspointManager is updated after it is updated in
+     * the data source.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void verifyProviderIndexAfterDataSourceUpdate() throws Exception {
+        long providerIndex = 9;
+        mDataSource.setProviderIndex(providerIndex);
+        assertEquals(providerIndex, mDataSource.getProviderIndex());
+
+        // Add a provider.
+        PasspointConfiguration config = createTestConfigWithUserCredential();
+        PasspointProvider provider = createMockProvider(config);
+        // Verify the provider ID used to create the new provider.
+        when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
+                eq(mSimAccessor), eq(providerIndex))).thenReturn(provider);
+        assertTrue(mManager.addOrUpdateProvider(config));
+        verifyInstalledConfig(config);
+        verify(mWifiConfigManager).saveToStore(true);
+        reset(mWifiConfigManager);
     }
 }

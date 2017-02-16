@@ -199,7 +199,7 @@ public class WifiInjector {
                 localLog, externalScoreEvaluator);
         mSimAccessor = new SIMAccessor(mContext);
         mPasspointManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
-                mSimAccessor, new PasspointObjectFactory());
+                mSimAccessor, new PasspointObjectFactory(), mWifiConfigManager, mWifiConfigStore);
         mPasspointNetworkEvaluator = new PasspointNetworkEvaluator(
                 mPasspointManager, mWifiConfigManager, localLog);
         mWifiStateMachine = new WifiStateMachine(mContext, mFrameworkFacade,
