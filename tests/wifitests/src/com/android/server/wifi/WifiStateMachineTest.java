@@ -596,6 +596,58 @@ public class WifiStateMachineTest {
         assertEquals("ScanModeState", getCurrentState().getName());
     }
 
+    /**
+     * Verifies that configs can be removed when in client mode.
+     */
+    @Test
+    public void canRemoveNetworkConfigInClientMode() throws Exception {
+        boolean result;
+        when(mWifiConfigManager.removeNetwork(eq(0), anyInt())).thenReturn(true);
+        addNetworkAndVerifySuccess();
+        mLooper.startAutoDispatch();
+        result = mWsm.syncRemoveNetwork(mWsmAsyncChannel, 0);
+        mLooper.stopAutoDispatch();
+        assertTrue(result);
+    }
+
+    /**
+     * Verifies that configs can be removed when not in client mode.
+     */
+    @Test
+    public void canRemoveNetworkConfigWhenWifiDisabed() {
+        boolean result;
+        when(mWifiConfigManager.removeNetwork(eq(0), anyInt())).thenReturn(true);
+        mLooper.startAutoDispatch();
+        result = mWsm.syncRemoveNetwork(mWsmAsyncChannel, 0);
+        mLooper.stopAutoDispatch();
+
+        assertTrue(result);
+        verify(mWifiConfigManager).removeNetwork(anyInt(), anyInt());
+    }
+
+    /**
+     * Verifies that configs can be forgotten when in client mode.
+     */
+    @Test
+    public void canForgetNetworkConfigInClientMode() throws Exception {
+        when(mWifiConfigManager.removeNetwork(eq(0), anyInt())).thenReturn(true);
+        addNetworkAndVerifySuccess();
+        mWsm.sendMessage(WifiManager.FORGET_NETWORK, 0, MANAGED_PROFILE_UID);
+        mLooper.dispatchAll();
+        verify(mWifiConfigManager).removeNetwork(anyInt(), anyInt());
+    }
+
+    /**
+     * Verifies that configs can be removed when not in client mode.
+     */
+    @Test
+    public void canForgetNetworkConfigWhenWifiDisabled() throws Exception {
+        when(mWifiConfigManager.removeNetwork(eq(0), anyInt())).thenReturn(true);
+        mWsm.sendMessage(WifiManager.FORGET_NETWORK, 0, MANAGED_PROFILE_UID);
+        mLooper.dispatchAll();
+        verify(mWifiConfigManager).removeNetwork(anyInt(), anyInt());
+    }
+
     private void addNetworkAndVerifySuccess() throws Exception {
         addNetworkAndVerifySuccess(false);
     }
