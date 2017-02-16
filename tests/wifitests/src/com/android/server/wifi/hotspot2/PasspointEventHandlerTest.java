@@ -18,15 +18,15 @@ package com.android.server.wifi.hotspot2;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
 import android.test.suitebuilder.annotation.SmallTest;
+
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.Constants;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
@@ -143,8 +143,7 @@ public class PasspointEventHandlerTest {
      */
     @Test
     public void anqpRequestCompletedWithError() {
-        mHandler.notifyANQPDone(BSSID, false);
-        verify(mWifiNative, never()).scanResult(anyString());
+        mHandler.notifyANQPDone(new AnqpEvent(BSSID, null));
         verify(mCallbacks).onANQPResponse(BSSID, null);
     }
 }

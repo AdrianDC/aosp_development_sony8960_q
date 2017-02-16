@@ -255,7 +255,7 @@ public class NetworkDetail {
         mAnqpOICount = roamingConsortium.anqpOICount;
         mRoamingConsortiums = roamingConsortium.roamingConsortiums;
         mExtendedCapabilities = extendedCapabilities;
-        mANQPElements = PasspointEventHandler.parseANQPLines(anqpLines);
+        mANQPElements = null;
         //set up channel info
         mPrimaryFreq = freq;
 
