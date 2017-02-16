@@ -47,7 +47,7 @@ import java.util.Map;
  * Unit tests for SupplicantStaNetworkHal
  */
 public class SupplicantStaNetworkHalTest {
-    private static final String TAG = "SupplicantStaNetworkHalTest";
+    private static final String IFACE_NAME = "wlan0";
 
     private SupplicantStaNetworkHal mSupplicantNetwork;
     private SupplicantStatus mStatusSuccess;
@@ -1099,7 +1099,8 @@ public class SupplicantStaNetworkHalTest {
      */
     private void createSupplicantStaNetwork() {
         mSupplicantNetwork =
-                new SupplicantStaNetworkHal(mISupplicantStaNetworkMock, mContext, mWifiMonitor);
+                new SupplicantStaNetworkHal(
+                        mISupplicantStaNetworkMock, IFACE_NAME, mContext, mWifiMonitor);
     }
 
     // Private class to to store/inspect values set via the HIDL mock.
