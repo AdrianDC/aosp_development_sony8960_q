@@ -2207,8 +2207,21 @@ public class SupplicantStaNetworkHal {
         }
     }
 
+    /**
+     * Retrieve the NFC token for this network.
+     *
+     * @return Hex string corresponding to the NFC token or null for failure.
+     */
+    public String getWpsNfcConfigurationToken() {
+        ArrayList<Byte> token = getWpsNfcConfigurationTokenInternal();
+        if (token == null) {
+            return null;
+        }
+        return NativeUtil.hexStringFromByteArray(NativeUtil.byteArrayFromArrayList(token));
+    }
+
     /** See ISupplicantStaNetwork.hal for documentation */
-    private ArrayList<Byte> getWpsNfcConfigurationToken() {
+    private ArrayList<Byte> getWpsNfcConfigurationTokenInternal() {
         synchronized (mLock) {
             final String methodStr = "getWpsNfcConfigurationToken";
             if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return null;
