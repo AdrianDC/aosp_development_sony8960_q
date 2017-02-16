@@ -548,7 +548,7 @@ public class WifiConfigManager {
      */
     private WifiConfiguration getInternalConfiguredNetwork(int networkId) {
         if (networkId == WifiConfiguration.INVALID_NETWORK_ID) {
-            Log.e(TAG, "Looking up network with invalid networkId -1");
+            Log.w(TAG, "Looking up network with invalid networkId -1");
             return null;
         }
         WifiConfiguration internalConfig = mConfiguredNetworks.getForCurrentUser(networkId);
