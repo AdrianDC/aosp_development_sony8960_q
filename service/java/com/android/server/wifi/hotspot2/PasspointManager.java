@@ -38,6 +38,8 @@ import com.android.server.wifi.Clock;
 import com.android.server.wifi.IMSIParameter;
 import com.android.server.wifi.SIMAccessor;
 import com.android.server.wifi.ScanDetail;
+import com.android.server.wifi.WifiConfigManager;
+import com.android.server.wifi.WifiConfigStore;
 import com.android.server.wifi.WifiKeyStore;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
@@ -74,9 +76,10 @@ public class PasspointManager {
     private final Map<String, PasspointProvider> mProviders;
     private final AnqpCache mAnqpCache;
     private final ANQPRequestManager mAnqpRequestManager;
+    private final WifiConfigManager mWifiConfigManager;
 
-    // Counter used for assigning unique identifier to a provider.
-    private long mProviderID;
+    // Counter used for assigning unique identifier to each provider.
+    private long mProviderIndex;
 
     private class CallbackHandler implements PasspointEventHandler.Callbacks {
         private final Context mContext;
@@ -142,8 +145,41 @@ public class PasspointManager {
         }
     }
 
+    /**
+     * Data provider for the Passpoint configuration store data {@link PasspointConfigStoreData}.
+     */
+    private class DataSourceHandler implements PasspointConfigStoreData.DataSource {
+        @Override
+        public List<PasspointProvider> getProviders() {
+            List<PasspointProvider> providers = new ArrayList<>();
+            for (Map.Entry<String, PasspointProvider> entry : mProviders.entrySet()) {
+                providers.add(entry.getValue());
+            }
+            return providers;
+        }
+
+        @Override
+        public void setProviders(List<PasspointProvider> providers) {
+            mProviders.clear();
+            for (PasspointProvider provider : providers) {
+                mProviders.put(provider.getConfig().getHomeSp().getFqdn(), provider);
+            }
+        }
+
+        @Override
+        public long getProviderIndex() {
+            return mProviderIndex;
+        }
+
+        @Override
+        public void setProviderIndex(long providerIndex) {
+            mProviderIndex = providerIndex;
+        }
+    }
+
     public PasspointManager(Context context, WifiNative wifiNative, WifiKeyStore keyStore,
-            Clock clock, SIMAccessor simAccessor, PasspointObjectFactory objectFactory) {
+            Clock clock, SIMAccessor simAccessor, PasspointObjectFactory objectFactory,
+            WifiConfigManager wifiConfigManager, WifiConfigStore wifiConfigStore) {
         mHandler = objectFactory.makePasspointEventHandler(wifiNative,
                 new CallbackHandler(context));
         mKeyStore = keyStore;
@@ -152,8 +188,10 @@ public class PasspointManager {
         mProviders = new HashMap<>();
         mAnqpCache = objectFactory.makeAnqpCache(clock);
         mAnqpRequestManager = objectFactory.makeANQPRequestManager(mHandler, clock);
-        mProviderID = 0;
-        // TODO(zqiu): load providers from the persistent storage.
+        mWifiConfigManager = wifiConfigManager;
+        mProviderIndex = 0;
+        wifiConfigStore.registerStoreData(objectFactory.makePasspointConfigStoreData(
+                mKeyStore, mSimAccessor, new DataSourceHandler()));
     }
 
     /**
@@ -187,7 +225,7 @@ public class PasspointManager {
 
         // Create a provider and install the necessary certificates and keys.
         PasspointProvider newProvider = mObjectFactory.makePasspointProvider(
-                config, mKeyStore, mSimAccessor, mProviderID++);
+                config, mKeyStore, mSimAccessor, mProviderIndex++);
 
         if (!newProvider.installCertsAndKeys()) {
             Log.e(TAG, "Failed to install certificates and keys to keystore");
@@ -197,13 +235,12 @@ public class PasspointManager {
         // Remove existing provider with the same FQDN.
         if (mProviders.containsKey(config.getHomeSp().getFqdn())) {
             Log.d(TAG, "Replacing configuration for " + config.getHomeSp().getFqdn());
-            removeProvider(config.getHomeSp().getFqdn());
+            mProviders.get(config.getHomeSp().getFqdn()).uninstallCertsAndKeys();
+            mProviders.remove(config.getHomeSp().getFqdn());
         }
 
         mProviders.put(config.getHomeSp().getFqdn(), newProvider);
-
-        // TODO(b/31065385): Persist updated providers configuration to the persistent storage.
-
+        mWifiConfigManager.saveToStore(true /* forceWrite */);
         return true;
     }
 
@@ -221,6 +258,7 @@ public class PasspointManager {
 
         mProviders.get(fqdn).uninstallCertsAndKeys();
         mProviders.remove(fqdn);
+        mWifiConfigManager.saveToStore(true /* forceWrite */);
         return true;
     }
 
