@@ -2207,6 +2207,26 @@ public class SupplicantStaNetworkHal {
         }
     }
 
+    /** See ISupplicantStaNetwork.hal for documentation */
+    private ArrayList<Byte> getWpsNfcConfigurationToken() {
+        synchronized (mLock) {
+            final String methodStr = "getWpsNfcConfigurationToken";
+            if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return null;
+            final Mutable<ArrayList<Byte>> gotToken = new Mutable<>();
+            try {
+                mISupplicantStaNetwork.getWpsNfcConfigurationToken(
+                        (SupplicantStatus status, ArrayList<Byte> token) -> {
+                            if (checkStatusAndLogFailure(status, methodStr)) {
+                                gotToken.value = token;
+                            }
+                        });
+            } catch (RemoteException e) {
+                handleRemoteException(e, methodStr);
+            }
+            return gotToken.value;
+        }
+    }
+
     /**
      * Returns true if provided status code is SUCCESS, logs debug message and returns false
      * otherwise
@@ -2267,5 +2287,17 @@ public class SupplicantStaNetworkHal {
 
     private void logFailureStatus(SupplicantStatus status, String methodStr) {
         Log.e(TAG, methodStr + " failed: " + status.debugMessage);
+    }
+
+    private static class Mutable<E> {
+        public E value;
+
+        Mutable() {
+            value = null;
+        }
+
+        Mutable(E value) {
+            this.value = value;
+        }
     }
 }

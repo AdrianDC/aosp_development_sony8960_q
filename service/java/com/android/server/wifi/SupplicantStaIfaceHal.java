@@ -554,6 +554,125 @@ public class SupplicantStaIfaceHal {
         }
     }
 
+    /** See ISupplicantIface.hal for documentation */
+    private boolean setWpsDeviceName(String name) {
+        synchronized (mLock) {
+            final String methodStr = "setWpsDeviceName";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicantStaIface.setWpsDeviceName(name);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
+    /** See ISupplicantIface.hal for documentation */
+    private boolean setWpsDeviceType(byte[/* 8 */] type) {
+        synchronized (mLock) {
+            final String methodStr = "setWpsDeviceType";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicantStaIface.setWpsDeviceType(type);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
+    /** See ISupplicantIface.hal for documentation */
+    private boolean setWpsManufacturer(String manufacturer) {
+        synchronized (mLock) {
+            final String methodStr = "setWpsManufacturer";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicantStaIface.setWpsManufacturer(manufacturer);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
+    /** See ISupplicantIface.hal for documentation */
+    private boolean setWpsModelName(String modelName) {
+        synchronized (mLock) {
+            final String methodStr = "setWpsModelName";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicantStaIface.setWpsModelName(modelName);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
+    /** See ISupplicantIface.hal for documentation */
+    private boolean setWpsModelNumber(String modelNumber) {
+        synchronized (mLock) {
+            final String methodStr = "setWpsModelNumber";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicantStaIface.setWpsModelNumber(modelNumber);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
+    /** See ISupplicantIface.hal for documentation */
+    private boolean setWpsSerialNumber(String serialNumber) {
+        synchronized (mLock) {
+            final String methodStr = "setWpsSerialNumber";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicantStaIface.setWpsSerialNumber(serialNumber);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
+    /** See ISupplicantIface.hal for documentation */
+    private boolean setWpsConfigMethods(short configMethods) {
+        synchronized (mLock) {
+            final String methodStr = "setWpsConfigMethods";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicantStaIface.setWpsConfigMethods(configMethods);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
     /**
      * Trigger a reassociation even if the iface is currently connected.
      *
@@ -992,6 +1111,113 @@ public class SupplicantStaIfaceHal {
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.setCountryCode(code);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
+    /** See ISupplicantStaIface.hal for documentation */
+    private boolean startWpsRegistrar(byte[/* 6 */] bssid, String pin) {
+        synchronized (mLock) {
+            final String methodStr = "startWpsRegistrar";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicantStaIface.startWpsRegistrar(bssid, pin);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
+    /** See ISupplicantStaIface.hal for documentation */
+    private boolean startWpsPbc(byte[/* 6 */] bssid) {
+        synchronized (mLock) {
+            final String methodStr = "startWpsPbc";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicantStaIface.startWpsPbc(bssid);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
+    /** See ISupplicantStaIface.hal for documentation */
+    private boolean startWpsPinKeypad(String pin) {
+        synchronized (mLock) {
+            final String methodStr = "startWpsPinKeypad";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicantStaIface.startWpsPinKeypad(pin);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
+    /** See ISupplicantStaIface.hal for documentation */
+    private String startWpsPinDisplay(byte[/* 6 */] bssid) {
+        synchronized (mLock) {
+            final String methodStr = "startWpsPinDisplay";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
+            final Mutable<String> gotPin = new Mutable<>();
+            try {
+                mISupplicantStaIface.startWpsPinDisplay(bssid,
+                        (SupplicantStatus status, String pin) -> {
+                            if (checkStatusAndLogFailure(status, methodStr)) {
+                                gotPin.value = pin;
+                            }
+                        });
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+            }
+            return gotPin.value;
+        }
+    }
+
+    /** See ISupplicantStaIface.hal for documentation */
+    private boolean cancelWps() {
+        synchronized (mLock) {
+            final String methodStr = "cancelWps";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicantStaIface.cancelWps();
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
+    /** See ISupplicantStaIface.hal for documentation */
+    private boolean setExternalSim(boolean useExternalSim) {
+        synchronized (mLock) {
+            final String methodStr = "setExternalSim";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicantStaIface.setExternalSim(useExternalSim);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
