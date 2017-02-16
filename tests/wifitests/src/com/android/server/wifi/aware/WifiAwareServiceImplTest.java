@@ -121,28 +121,6 @@ public class WifiAwareServiceImplTest {
     }
 
     /**
-     * Validate enableUsage() function
-     */
-    @Test
-    public void testEnableUsage() {
-        mDut.enableUsage();
-
-        verify(mAwareStateManagerMock).enableUsage();
-    }
-
-    /**
-     * Validate disableUsage() function
-     */
-    @Test
-    public void testDisableUsage() throws Exception {
-        mDut.enableUsage();
-        doConnect();
-        mDut.disableUsage();
-
-        verify(mAwareStateManagerMock).disableUsage();
-    }
-
-    /**
      * Validate isUsageEnabled() function
      */
     @Test
