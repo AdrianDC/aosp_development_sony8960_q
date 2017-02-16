@@ -703,6 +703,12 @@ public class SupplicantStaNetworkHal {
                 return WifiEnterpriseConfig.Phase2.MSCHAPV2;
             case ISupplicantStaNetwork.EapPhase2Method.GTC:
                 return WifiEnterpriseConfig.Phase2.GTC;
+            case ISupplicantStaNetwork.EapPhase2Method.SIM:
+                return WifiEnterpriseConfig.Phase2.SIM;
+            case ISupplicantStaNetwork.EapPhase2Method.AKA:
+                return WifiEnterpriseConfig.Phase2.AKA;
+            case ISupplicantStaNetwork.EapPhase2Method.AKA_PRIME:
+                return WifiEnterpriseConfig.Phase2.AKA_PRIME;
             default:
                 Log.e(TAG, "invalid eap phase2 method value from supplicant: " + value);
                 return -1;
@@ -862,6 +868,12 @@ public class SupplicantStaNetworkHal {
                 return ISupplicantStaNetwork.EapPhase2Method.MSPAPV2;
             case WifiEnterpriseConfig.Phase2.GTC:
                 return ISupplicantStaNetwork.EapPhase2Method.GTC;
+            case WifiEnterpriseConfig.Phase2.SIM:
+                return ISupplicantStaNetwork.EapPhase2Method.SIM;
+            case WifiEnterpriseConfig.Phase2.AKA:
+                return ISupplicantStaNetwork.EapPhase2Method.AKA;
+            case WifiEnterpriseConfig.Phase2.AKA_PRIME:
+                return ISupplicantStaNetwork.EapPhase2Method.AKA_PRIME;
             default:
                 Log.e(TAG, "invalid eap phase2 method value from WifiConfiguration: " + value);
                 return -1;

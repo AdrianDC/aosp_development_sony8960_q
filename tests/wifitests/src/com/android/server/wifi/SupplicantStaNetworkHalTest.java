@@ -136,6 +136,17 @@ public class SupplicantStaNetworkHalTest {
     }
 
     /**
+     * Tests the saving of WifiConfiguration to wpa_supplicant.
+     */
+    @Test
+    public void testEapTlsAkaNetworkWifiConfigurationSaveLoad() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createEapNetwork();
+        config.enterpriseConfig =
+                WifiConfigurationTestUtil.createTLSWifiEnterpriseConfigWithAkaPhase2();
+        testWifiConfigurationSaveLoad(config);
+    }
+
+    /**
      * Tests the loading of network ID.
      */
     @Test
