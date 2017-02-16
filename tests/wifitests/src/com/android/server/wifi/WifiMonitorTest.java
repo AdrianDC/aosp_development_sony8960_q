@@ -30,6 +30,7 @@ import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.server.wifi.hotspot2.AnqpEvent;
+import com.android.server.wifi.hotspot2.IconEvent;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -210,5 +211,28 @@ public class WifiMonitorTest {
         assertEquals(WifiMonitor.ANQP_DONE_EVENT, messageCaptor.getValue().what);
         assertEquals(bssid, ((AnqpEvent) messageCaptor.getValue().obj).getBssid());
         assertNull(((AnqpEvent) messageCaptor.getValue().obj).getElements());
+    }
+
+    /**
+     * Broadcast Icon event test.
+     */
+    @Test
+    public void testBroadcastIconDoneEvent() {
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.RX_HS20_ANQP_ICON_EVENT, mHandlerSpy);
+        long bssid = 5;
+        String fileName = "test";
+        int fileSize = 0;
+        mWifiMonitor.broadcastIconDoneEvent(
+                WLAN_IFACE_NAME, new IconEvent(bssid, fileName, fileSize, null));
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mHandlerSpy).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.RX_HS20_ANQP_ICON_EVENT, messageCaptor.getValue().what);
+        assertEquals(bssid, ((IconEvent) messageCaptor.getValue().obj).getBSSID());
+        assertEquals(fileName, ((IconEvent) messageCaptor.getValue().obj).getFileName());
+        assertEquals(fileSize, ((IconEvent) messageCaptor.getValue().obj).getSize());
+        assertNull(((IconEvent) messageCaptor.getValue().obj).getData());
     }
 }

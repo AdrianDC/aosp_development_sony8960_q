@@ -339,8 +339,8 @@ public class PasspointManager {
      * TODO(zqiu): currently the notification is done through WifiMonitor,
      * will no longer be the case once we switch over to use wificond.
      */
-    public void notifyIconDone(long bssid, IconEvent iconEvent) {
-        mHandler.notifyIconDone(bssid, iconEvent);
+    public void notifyIconDone(IconEvent iconEvent) {
+        mHandler.notifyIconDone(iconEvent);
     }
 
     /**
