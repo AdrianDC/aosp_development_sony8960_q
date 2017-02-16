@@ -178,9 +178,10 @@ public class WifiInjector {
         mWifiNetworkHistory = new WifiNetworkHistory(mContext, mWifiNative.getLocalLog(), writer);
         mWifiSupplicantControl = new WifiSupplicantControl(
                 TelephonyManager.from(mContext), mWifiNative, mWifiNative.getLocalLog());
+        mWifiNative.setWifiSupplicantControl(mWifiSupplicantControl);
         mIpConfigStore = new IpConfigStore(writer);
         mWifiConfigStoreLegacy = new WifiConfigStoreLegacy(
-                mWifiNetworkHistory, mWifiSupplicantControl, mIpConfigStore);
+                mWifiNetworkHistory, mWifiNative, mIpConfigStore);
         // Config Manager
         mWifiConfigManager = new WifiConfigManager(mContext, mFrameworkFacade, mClock,
                 UserManager.get(mContext), TelephonyManager.from(mContext),
@@ -310,10 +311,6 @@ public class WifiInjector {
 
     public WifiMulticastLockManager getWifiMulticastLockManager() {
         return mWifiMulticastLockManager;
-    }
-
-    public WifiSupplicantControl getWifiSupplicantControl() {
-        return mWifiSupplicantControl;
     }
 
     public WifiConfigManager getWifiConfigManager() {

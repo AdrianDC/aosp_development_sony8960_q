@@ -48,7 +48,7 @@ public class WifiConfigStoreLegacyTest {
     private static final String MASKED_FIELD_VALUE = "*";
 
     // Test mocks
-    @Mock private WifiSupplicantControl mWifiSupplicantControl;
+    @Mock private WifiNative mWifiNative;
     @Mock private WifiNetworkHistory mWifiNetworkHistory;
     @Mock private IpConfigStore mIpconfigStore;
 
@@ -67,7 +67,7 @@ public class WifiConfigStoreLegacyTest {
 
         mWifiConfigStore =
                 new WifiConfigStoreLegacy(
-                        mWifiNetworkHistory, mWifiSupplicantControl, mIpconfigStore);
+                        mWifiNetworkHistory, mWifiNative, mIpconfigStore);
     }
 
     /**
@@ -104,7 +104,7 @@ public class WifiConfigStoreLegacyTest {
                 }
                 return 0;
             }
-        }).when(mWifiSupplicantControl).loadNetworks(any(Map.class), any(SparseArray.class));
+        }).when(mWifiNative).migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class));
 
         // Return the unmasked values during file parsing.
         doAnswer(new AnswerWithArguments() {
@@ -124,7 +124,7 @@ public class WifiConfigStoreLegacyTest {
                 }
                 return new HashMap<>();
             }
-        }).when(mWifiSupplicantControl).readNetworkVariablesFromSupplicantFile(anyString());
+        }).when(mWifiNative).readNetworkVariablesFromSupplicantFile(anyString());
 
         WifiConfigStoreLegacy.WifiConfigStoreDataLegacy storeData = mWifiConfigStore.read();
 

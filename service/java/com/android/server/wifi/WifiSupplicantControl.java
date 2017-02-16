@@ -22,8 +22,6 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiSsid;
-import android.net.wifi.WpsInfo;
-import android.net.wifi.WpsResult;
 import android.os.FileObserver;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
@@ -690,19 +688,6 @@ public class WifiSupplicantControl {
     }
 
     /**
-     * Remove all the networks.
-     *
-     * @return {@code true} if it succeeds, {@code false} otherwise
-     */
-    public boolean removeAllNetworks() {
-        if (!mWifiNative.removeAllNetworks()) {
-            loge("Remove all networks in wpa_supplicant failed");
-            return false;
-        }
-        return true;
-    }
-
-    /**
      * Set the BSSID for the currently configured network in wpa_supplicant.
      *
      * @return true if successful, false otherwise.
@@ -714,13 +699,6 @@ public class WifiSupplicantControl {
             return false;
         }
         return true;
-    }
-
-    /**
-     * Save the current configuration to wpa_supplicant.conf.
-     */
-    public boolean saveConfig() {
-        return mWifiNative.saveConfig();
     }
 
     /**
@@ -805,60 +783,6 @@ public class WifiSupplicantControl {
         }
         return result;
     }
-
-    /**
-     * Start WPS pin method configuration with pin obtained
-     * from the access point
-     *
-     * @param config WPS configuration
-     * @return Wps result containing status and pin
-     */
-    public WpsResult startWpsWithPinFromAccessPoint(WpsInfo config) {
-        WpsResult result = new WpsResult();
-        if (mWifiNative.startWpsRegistrar(config.BSSID, config.pin)) {
-            result.status = WpsResult.Status.SUCCESS;
-        } else {
-            loge("Failed to start WPS pin method configuration");
-            result.status = WpsResult.Status.FAILURE;
-        }
-        return result;
-    }
-
-    /**
-     * Start WPS pin method configuration with obtained
-     * from the device
-     *
-     * @return WpsResult indicating status and pin
-     */
-    public WpsResult startWpsWithPinFromDevice(WpsInfo config) {
-        WpsResult result = new WpsResult();
-        result.pin = mWifiNative.startWpsPinDisplay(config.BSSID);
-        if (!TextUtils.isEmpty(result.pin)) {
-            result.status = WpsResult.Status.SUCCESS;
-        } else {
-            loge("Failed to start WPS pin method configuration");
-            result.status = WpsResult.Status.FAILURE;
-        }
-        return result;
-    }
-
-    /**
-     * Start WPS push button configuration
-     *
-     * @param config WPS configuration
-     * @return WpsResult indicating status and pin
-     */
-    public WpsResult startWpsPbc(WpsInfo config) {
-        WpsResult result = new WpsResult();
-        if (mWifiNative.startWpsPbc(config.BSSID)) {
-            result.status = WpsResult.Status.SUCCESS;
-        } else {
-            loge("Failed to start WPS push button configuration");
-            result.status = WpsResult.Status.FAILURE;
-        }
-        return result;
-    }
-
     private void logd(String s) {
         Log.d(TAG, s);
     }
