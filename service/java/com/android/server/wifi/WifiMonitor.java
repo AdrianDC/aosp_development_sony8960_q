@@ -1377,7 +1377,7 @@ public class WifiMonitor {
      */
     private void handleRequests(String dataString, String iface) {
         String SSID = null;
-        int reason = -2;
+        int  networkId = -2;
         String requestName = dataString.substring(REQUEST_PREFIX_LEN_STR);
         if (TextUtils.isEmpty(requestName)) {
             return;
@@ -1387,32 +1387,25 @@ public class WifiMonitor {
             if (match.find()) {
                 SSID = match.group(2);
                 try {
-                    reason = Integer.parseInt(match.group(1));
+                    networkId = Integer.parseInt(match.group(1));
                 } catch (NumberFormatException e) {
-                    reason = -1;
+                    networkId = -1;
                 }
             } else {
                 Log.e(TAG, "didn't find SSID " + requestName);
             }
-            sendMessage(iface, SUP_REQUEST_IDENTITY, eventLogCounter, reason, SSID);
+            broadcastNetworkIdentityRequestEvent(iface, networkId, SSID);
         } else if (requestName.startsWith(SIM_STR)) {
             Matcher matchGsm = mRequestGsmAuthPattern.matcher(requestName);
             Matcher matchUmts = mRequestUmtsAuthPattern.matcher(requestName);
-            SimAuthRequestData data = new SimAuthRequestData();
             if (matchGsm.find()) {
-                data.networkId = Integer.parseInt(matchGsm.group(1));
-                data.protocol = WifiEnterpriseConfig.Eap.SIM;
-                data.ssid = matchGsm.group(4);
-                data.data = matchGsm.group(2).split(":");
-                sendMessage(iface, SUP_REQUEST_SIM_AUTH, data);
+                String[] data = matchGsm.group(2).split(":");
+                broadcastNetworkGsmAuthRequestEvent(iface, Integer.parseInt(matchGsm.group(1)),
+                        matchGsm.group(4), data);
             } else if (matchUmts.find()) {
-                data.networkId = Integer.parseInt(matchUmts.group(1));
-                data.protocol = WifiEnterpriseConfig.Eap.AKA;
-                data.ssid = matchUmts.group(4);
-                data.data = new String[2];
-                data.data[0] = matchUmts.group(2);
-                data.data[1] = matchUmts.group(3);
-                sendMessage(iface, SUP_REQUEST_SIM_AUTH, data);
+                String[] data = {matchUmts.group(2), matchUmts.group(3)};
+                broadcastNetworkUmtsAuthRequestEvent(iface, Integer.parseInt(matchUmts.group(1)),
+                        matchUmts.group(4), data);
             } else {
                 Log.e(TAG, "couldn't parse SIM auth request - " + requestName);
             }
@@ -1624,5 +1617,46 @@ public class WifiMonitor {
      */
     public void broadcastWnmEvent(String iface, WnmData wnmData) {
         sendMessage(iface, HS20_REMEDIATION_EVENT, wnmData);
+    }
+
+    /**
+     * Broadcast the Network identity request event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param networkId ID of the network in wpa_supplicant.
+     * @param ssid SSID of the network.
+     */
+    public void broadcastNetworkIdentityRequestEvent(String iface, int networkId, String ssid) {
+        sendMessage(iface, SUP_REQUEST_IDENTITY, 0, networkId, ssid);
+    }
+
+    /**
+     * Broadcast the Network Gsm Sim auth request event to all the handlers registered for this
+     * event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param networkId ID of the network in wpa_supplicant.
+     * @param ssid SSID of the network.
+     * @param data Accompanying event data.
+     */
+    public void broadcastNetworkGsmAuthRequestEvent(String iface, int networkId, String ssid,
+                                                    String[] data) {
+        sendMessage(iface, SUP_REQUEST_SIM_AUTH,
+                new SimAuthRequestData(networkId, WifiEnterpriseConfig.Eap.SIM, ssid, data));
+    }
+
+    /**
+     * Broadcast the Network Umts Sim auth request event to all the handlers registered for this
+     * event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param networkId ID of the network in wpa_supplicant.
+     * @param ssid SSID of the network.
+     * @param data Accompanying event data.
+     */
+    public void broadcastNetworkUmtsAuthRequestEvent(String iface, int networkId, String ssid,
+                                                     String[] data) {
+        sendMessage(iface, SUP_REQUEST_SIM_AUTH,
+                new SimAuthRequestData(networkId, WifiEnterpriseConfig.Eap.AKA, ssid, data));
     }
 }
