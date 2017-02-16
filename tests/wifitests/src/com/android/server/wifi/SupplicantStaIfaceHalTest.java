@@ -19,6 +19,7 @@ import static org.junit.Assert.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyShort;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -39,6 +40,7 @@ import android.hardware.wifi.supplicant.V1_0.ISupplicantStaNetwork;
 import android.hardware.wifi.supplicant.V1_0.IfaceType;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatusCode;
+import android.hardware.wifi.supplicant.V1_0.WpsConfigMethods;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.net.IpConfiguration;
@@ -535,7 +537,7 @@ public class SupplicantStaIfaceHalTest {
     }
 
     /**
-     * Tests the retrieval of WPS NFC token.
+     * Tests the setting of BSSID.
      */
     @Test
     public void testSetCurrentNetworkBssid() throws Exception {
@@ -550,6 +552,56 @@ public class SupplicantStaIfaceHalTest {
         executeAndValidateConnectSequence(4, false, false);
 
         assertTrue(mDut.setCurrentNetworkBssid(bssidStr));
+    }
+
+    /**
+     * Tests the setting of WPS device type.
+     */
+    @Test
+    public void testSetWpsDeviceType() throws Exception {
+        String validDeviceTypeStr = "10-0050F204-5";
+        byte[] expectedDeviceType = { 0x0, 0xa, 0x0, 0x50, (byte) 0xf2, 0x04, 0x0, 0x05};
+        String invalidDeviceType1Str = "10-02050F204-5";
+        String invalidDeviceType2Str = "10-0050F204-534";
+        when(mISupplicantStaIfaceMock.setWpsDeviceType(any(byte[].class)))
+                .thenReturn(mStatusSuccess);
+
+        executeAndValidateInitializationSequence(false, false, false);
+
+        // This should work.
+        assertTrue(mDut.setWpsDeviceType(validDeviceTypeStr));
+        verify(mISupplicantStaIfaceMock).setWpsDeviceType(eq(expectedDeviceType));
+
+        // This should not work
+        assertFalse(mDut.setWpsDeviceType(invalidDeviceType1Str));
+        // This should not work
+        assertFalse(mDut.setWpsDeviceType(invalidDeviceType2Str));
+    }
+
+    /**
+     * Tests the setting of WPS config methods.
+     */
+    @Test
+    public void testSetWpsConfigMethods() throws Exception {
+        String validConfigMethodsStr = "physical_display virtual_push_button";
+        Short expectedConfigMethods =
+                WpsConfigMethods.PHY_DISPLAY | WpsConfigMethods.VIRT_PUSHBUTTON;
+        String invalidConfigMethodsStr = "physical_display virtual_push_button test";
+        when(mISupplicantStaIfaceMock.setWpsConfigMethods(anyShort())).thenReturn(mStatusSuccess);
+
+        executeAndValidateInitializationSequence(false, false, false);
+
+        // This should work.
+        assertTrue(mDut.setWpsConfigMethods(validConfigMethodsStr));
+        verify(mISupplicantStaIfaceMock).setWpsConfigMethods(eq(expectedConfigMethods));
+
+        // This should throw an illegal argument exception.
+        try {
+            assertFalse(mDut.setWpsConfigMethods(invalidConfigMethodsStr));
+        } catch (IllegalArgumentException e) {
+            return;
+        }
+        assertTrue(false);
     }
 
     /**
