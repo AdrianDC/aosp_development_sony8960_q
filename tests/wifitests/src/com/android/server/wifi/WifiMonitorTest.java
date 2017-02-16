@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
@@ -27,6 +28,8 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
+
+import com.android.server.wifi.hotspot2.AnqpEvent;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -189,5 +192,23 @@ public class WifiMonitorTest {
         ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
         verify(mHandlerSpy).handleMessage(messageCaptor.capture());
         assertEquals(WifiMonitor.WPS_TIMEOUT_EVENT, messageCaptor.getValue().what);
+    }
+
+    /**
+     * Broadcast ANQP done event test.
+     */
+    @Test
+    public void testBroadcastAnqpDoneEvent() {
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.ANQP_DONE_EVENT, mHandlerSpy);
+        long bssid = 5;
+        mWifiMonitor.broadcastAnqpDoneEvent(WLAN_IFACE_NAME, new AnqpEvent(bssid, null));
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mHandlerSpy).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.ANQP_DONE_EVENT, messageCaptor.getValue().what);
+        assertEquals(bssid, ((AnqpEvent) messageCaptor.getValue().obj).getBssid());
+        assertNull(((AnqpEvent) messageCaptor.getValue().obj).getElements());
     }
 }

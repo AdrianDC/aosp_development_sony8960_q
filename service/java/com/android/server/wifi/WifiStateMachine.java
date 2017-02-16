@@ -106,6 +106,7 @@ import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.connectivity.KeepalivePacketData;
+import com.android.server.wifi.hotspot2.AnqpEvent;
 import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.PasspointManager;
@@ -4289,7 +4290,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case WifiMonitor.ANQP_DONE_EVENT:
                     // TODO(zqiu): remove this when switch over to wificond for ANQP requests.
-                    mPasspointManager.notifyANQPDone((long) message.obj, message.arg1 != 0);
+                    mPasspointManager.notifyANQPDone((AnqpEvent) message.obj);
                     break;
                 case CMD_STOP_IP_PACKET_OFFLOAD: {
                     int slot = message.arg1;
