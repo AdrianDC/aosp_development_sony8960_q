@@ -54,6 +54,19 @@ public class PasspointObjectFactory{
     }
 
     /**
+     * Create a {@link PasspointConfigStoreData} instance.
+     *
+     * @param keyStore Instance of {@link WifiKeyStore}
+     * @param simAccessor Instance of {@link SIMAccessor}
+     * @param dataSource Passpoint configuration data source
+     * @return {@link PasspointConfigStoreData}
+     */
+    public PasspointConfigStoreData makePasspointConfigStoreData(WifiKeyStore keyStore,
+            SIMAccessor simAccessor, PasspointConfigStoreData.DataSource dataSource) {
+        return new PasspointConfigStoreData(keyStore, simAccessor, dataSource);
+    }
+
+    /**
      * Create a AnqpCache instance.
      *
      * @param clock Instance of {@link Clock}
