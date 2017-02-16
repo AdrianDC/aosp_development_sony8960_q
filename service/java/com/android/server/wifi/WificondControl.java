@@ -18,6 +18,7 @@ package com.android.server.wifi;
 
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
+import android.net.wifi.IScanEvent;
 import android.net.wifi.IWifiScannerImpl;
 import android.net.wifi.IWificond;
 import android.net.wifi.ScanResult;
@@ -45,15 +46,36 @@ public class WificondControl {
     private boolean mVerboseLoggingEnabled = false;
 
     private static final String TAG = "WificondControl";
-    private static final int MAC_ADDR_LEN = 6;
+    private WifiInjector mWifiInjector;
+    private WifiMonitor mWifiMonitor;
+
+    // Cached wificond binder handlers.
     private IWificond mWificond;
     private IClientInterface mClientInterface;
     private IApInterface mApInterface;
     private IWifiScannerImpl mWificondScanner;
-    private WifiInjector mWifiInjector;
+    private IScanEvent mScanEventHandler;
 
-    WificondControl(WifiInjector wifiInjector) {
+    private String mClientInterfaceName;
+
+
+    private class ScanEventHandler extends IScanEvent.Stub {
+        @Override
+        public void OnScanResultReady() {
+            Log.d(TAG, "Scan result ready event");
+            mWifiMonitor.broadcastScanResultEvent(mClientInterfaceName);
+        }
+
+        @Override
+        public void OnScanFailed() {
+            Log.d(TAG, "Scan failed event");
+            mWifiMonitor.broadcastScanFailedEvent(mClientInterfaceName);
+        }
+    }
+
+    WificondControl(WifiInjector wifiInjector, WifiMonitor wifiMonitor) {
         mWifiInjector = wifiInjector;
+        mWifiMonitor = wifiMonitor;
     }
 
     /** Enable or disable verbose logging of WificondControl.
@@ -93,7 +115,10 @@ public class WificondControl {
         // Refresh Handlers
         mClientInterface = clientInterface;
         try {
+            mClientInterfaceName = clientInterface.getInterfaceName();
             mWificondScanner = mClientInterface.getWifiScannerImpl();
+            mScanEventHandler = new ScanEventHandler();
+            mWificondScanner.subscribeScanEvents(mScanEventHandler);
         } catch (RemoteException e) {
             Log.e(TAG, "Failed to refresh wificond scanner due to remote exception");
         }
@@ -130,7 +155,6 @@ public class WificondControl {
 
         // Refresh Handlers
         mApInterface = apInterface;
-        mWificondScanner = null;
 
         return apInterface;
     }
@@ -150,11 +174,22 @@ public class WificondControl {
         }
 
         try {
+            if (mWificondScanner != null) {
+                mWificondScanner.unsubscribeScanEvents();
+            }
             mWificond.tearDownInterfaces();
+
+            // Refresh handlers
+            mClientInterface = null;
+            mWificondScanner = null;
+            mScanEventHandler = null;
+            mApInterface = null;
+
             return true;
         } catch (RemoteException e) {
             Log.e(TAG, "Failed to tear down interfaces due to remote exception");
         }
+
         return false;
     }
 
