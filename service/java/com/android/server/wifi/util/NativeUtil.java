@@ -208,7 +208,7 @@ public class NativeUtil {
     /**
      * Convert from an array of primitive bytes to an array list of Byte.
      */
-    private static ArrayList<Byte> byteArrayToArrayList(byte[] bytes) {
+    public static ArrayList<Byte> byteArrayToArrayList(byte[] bytes) {
         ArrayList<Byte> byteList = new ArrayList<>();
         for (Byte b : bytes) {
             byteList.add(b);
@@ -219,7 +219,7 @@ public class NativeUtil {
     /**
      * Convert from an array list of Byte to an array of primitive bytes.
      */
-    private static byte[] byteArrayFromArrayList(ArrayList<Byte> bytes) {
+    public static byte[] byteArrayFromArrayList(ArrayList<Byte> bytes) {
         byte[] byteArray = new byte[bytes.size()];
         int i = 0;
         for (Byte b : bytes) {
