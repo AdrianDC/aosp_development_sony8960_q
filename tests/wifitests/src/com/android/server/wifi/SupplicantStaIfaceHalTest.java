@@ -17,6 +17,7 @@ package com.android.server.wifi;
 
 import static org.junit.Assert.*;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyShort;
@@ -602,6 +603,44 @@ public class SupplicantStaIfaceHalTest {
             return;
         }
         assertTrue(false);
+    }
+
+    /**
+     * Tests the setting of log level.
+     */
+    @Test
+    public void testSetLogLevel() throws Exception {
+        when(mISupplicantMock.setDebugParams(anyInt(), anyBoolean(), anyBoolean()))
+                .thenReturn(mStatusSuccess);
+
+        // Fail before initialization is performed.
+        assertFalse(mDut.setLogLevel(SupplicantStaIfaceHal.LOG_LEVEL_DEBUG));
+
+        executeAndValidateInitializationSequence(false, false, false);
+
+        // This should work.
+        assertTrue(mDut.setLogLevel(SupplicantStaIfaceHal.LOG_LEVEL_DEBUG));
+        verify(mISupplicantMock)
+                .setDebugParams(eq(ISupplicant.DebugLevel.DEBUG), eq(false), eq(false));
+    }
+
+    /**
+     * Tests the setting of concurrency priority.
+     */
+    @Test
+    public void testConcurrencyPriority() throws Exception {
+        when(mISupplicantMock.setConcurrencyPriority(anyInt())).thenReturn(mStatusSuccess);
+
+        // Fail before initialization is performed.
+        assertFalse(mDut.setConcurrencyPriority(false));
+
+        executeAndValidateInitializationSequence(false, false, false);
+
+        // This should work.
+        assertTrue(mDut.setConcurrencyPriority(false));
+        verify(mISupplicantMock).setConcurrencyPriority(eq(IfaceType.P2P));
+        assertTrue(mDut.setConcurrencyPriority(true));
+        verify(mISupplicantMock).setConcurrencyPriority(eq(IfaceType.STA));
     }
 
     /**
