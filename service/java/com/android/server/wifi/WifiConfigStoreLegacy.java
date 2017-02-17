@@ -76,13 +76,13 @@ public class WifiConfigStoreLegacy {
      * List of external dependencies for WifiConfigManager.
      */
     private final WifiNetworkHistory mWifiNetworkHistory;
-    private final WifiSupplicantControl mWifiSupplicantControl;
+    private final WifiNative mWifiNative;
     private final IpConfigStore mIpconfigStore;
 
     WifiConfigStoreLegacy(WifiNetworkHistory wifiNetworkHistory,
-            WifiSupplicantControl wifiSupplicantControl, IpConfigStore ipConfigStore) {
+            WifiNative wifiNative, IpConfigStore ipConfigStore) {
         mWifiNetworkHistory = wifiNetworkHistory;
-        mWifiSupplicantControl = wifiSupplicantControl;
+        mWifiNative = wifiNative;
         mIpconfigStore = ipConfigStore;
     }
 
@@ -163,7 +163,7 @@ public class WifiConfigStoreLegacy {
             Map<String, WifiConfiguration> configurationMap,
             MaskedWpaSupplicantFieldSetter setter) {
         Map<String, String> configKeyToValueMap =
-                mWifiSupplicantControl.readNetworkVariablesFromSupplicantFile(fieldName);
+                mWifiNative.readNetworkVariablesFromSupplicantFile(fieldName);
         if (configKeyToValueMap == null || configKeyToValueMap.isEmpty()) {
             Log.w(TAG, "Cannot retrieve field: " + fieldName + " values");
             return;
@@ -225,7 +225,7 @@ public class WifiConfigStoreLegacy {
     private void loadFromWpaSupplicant(
             Map<String, WifiConfiguration> configurationMap,
             SparseArray<Map<String, String>> networkExtras) {
-        mWifiSupplicantControl.loadNetworks(configurationMap, networkExtras);
+        mWifiNative.migrateNetworksFromSupplicant(configurationMap, networkExtras);
         if (configurationMap.isEmpty()) {
             Log.w(TAG, "No wifi configurations found in wpa_supplicant");
             return;
@@ -236,7 +236,7 @@ public class WifiConfigStoreLegacy {
 
     /**
      * Helper function to load from the different legacy stores:
-     * 1. Read the network configurations from wpa_supplicant using {@link WifiSupplicantControl}.
+     * 1. Read the network configurations from wpa_supplicant using {@link WifiNative}.
      * 2. Read the network configurations from networkHistory.txt using {@link WifiNetworkHistory}.
      * 3. Read the Ip configurations from ipconfig.txt using {@link IpConfigStore}.
      * 4. Read all the passpoint info from PerProviderSubscription.conf using
@@ -283,11 +283,11 @@ public class WifiConfigStoreLegacy {
     public boolean removeStores() {
         // TODO(b/29352330): Delete wpa_supplicant.conf file instead.
         // First remove all networks from wpa_supplicant and save configuration.
-        if (!mWifiSupplicantControl.removeAllNetworks()) {
+        if (!mWifiNative.removeAllNetworks()) {
             Log.e(TAG, "Removing networks from wpa_supplicant failed");
             return false;
         }
-        mWifiSupplicantControl.saveConfig();
+        mWifiNative.saveConfig();
 
         // Now remove the ipconfig.txt file.
         if (!IP_CONFIG_FILE.delete()) {
