@@ -76,14 +76,15 @@ public class SupplicantStaNetworkHal {
             Pattern.compile("^:([0-9a-fA-F]+)$");
 
     private final Object mLock = new Object();
-    private ISupplicantStaNetwork mISupplicantStaNetwork = null;
+    private final String mIfaceName;
     private final WifiMonitor mWifiMonitor;
+    private ISupplicantStaNetwork mISupplicantStaNetwork;
+
     // Indicates whether the system is capable of 802.11r fast BSS transition.
     private boolean mSystemSupportsFastBssTransition = false;
 
     // Network variables read from wpa_supplicant.
     private int mNetworkId;
-    private String mIfaceName;
     private ArrayList<Byte> mSsid;
     private byte[/* 6 */] mBssid;
     private boolean mScanSsid;
@@ -112,9 +113,10 @@ public class SupplicantStaNetworkHal {
     private String mEapEngineID;
     private String mEapDomainSuffixMatch;
 
-    SupplicantStaNetworkHal(ISupplicantStaNetwork iSupplicantStaNetwork,
+    SupplicantStaNetworkHal(ISupplicantStaNetwork iSupplicantStaNetwork, String ifaceName,
                             Context context, WifiMonitor monitor) {
         mISupplicantStaNetwork = iSupplicantStaNetwork;
+        mIfaceName = ifaceName;
         mWifiMonitor = monitor;
         mSystemSupportsFastBssTransition =
                 context.getResources().getBoolean(R.bool.config_wifi_fast_bss_transition_enabled);
@@ -329,12 +331,19 @@ public class SupplicantStaNetworkHal {
             return false;
         }
         // Finish here if no EAP config to set
-        if (config.enterpriseConfig == null
-                || config.enterpriseConfig.getEapMethod() == WifiEnterpriseConfig.Eap.NONE) {
-            return true;
-        } else {
-            return saveWifiEnterpriseConfig(config.SSID, config.enterpriseConfig);
+        if (config.enterpriseConfig != null
+                && config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
+            if (!saveWifiEnterpriseConfig(config.SSID, config.enterpriseConfig)) {
+                return false;
+            }
         }
+
+        // Now that the network is configured fully, start listening for callback events.
+        if (!registerCallback(new SupplicantStaNetworkHalCallback(config.networkId, config.SSID))) {
+            Log.e(TAG, "Failed to register callback");
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -892,30 +901,6 @@ public class SupplicantStaNetworkHal {
                     statusOk.value = status.code == SupplicantStatusCode.SUCCESS;
                     if (statusOk.value) {
                         this.mNetworkId = idValue;
-                    } else {
-                        logFailureStatus(status, methodStr);
-                    }
-                });
-                return statusOk.value;
-            } catch (RemoteException e) {
-                handleRemoteException(e, methodStr);
-                return false;
-            }
-        }
-    }
-
-    /** See ISupplicantNetwork.hal for documentation */
-    private boolean getInterfaceName() {
-        synchronized (mLock) {
-            final String methodStr = "getInterfaceName";
-            if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return false;
-            try {
-                MutableBoolean statusOk = new MutableBoolean(false);
-                mISupplicantStaNetwork.getInterfaceName((SupplicantStatus status,
-                        String nameValue) -> {
-                    statusOk.value = status.code == SupplicantStatusCode.SUCCESS;
-                    if (statusOk.value) {
-                        this.mIfaceName = nameValue;
                     } else {
                         logFailureStatus(status, methodStr);
                     }
@@ -2324,6 +2309,56 @@ public class SupplicantStaNetworkHal {
 
         Mutable(E value) {
             this.value = value;
+        }
+    }
+
+    private class SupplicantStaNetworkHalCallback extends ISupplicantStaNetworkCallback.Stub {
+        /**
+         * Current configured network's framework network id.
+         */
+        private final int mFramewokNetworkId;
+        /**
+         * Current configured network's ssid.
+         */
+        private final String mSsid;
+
+        SupplicantStaNetworkHalCallback(int framewokNetworkId, String ssid) {
+            mFramewokNetworkId = framewokNetworkId;
+            mSsid = ssid;
+        }
+
+        @Override
+        public void onNetworkEapSimGsmAuthRequest(
+                ISupplicantStaNetworkCallback.NetworkRequestEapSimGsmAuthParams params) {
+            synchronized (mLock) {
+                String[] data = new String[params.rands.size()];
+                int i = 0;
+                for (byte[] rand : params.rands) {
+                    data[i++] = NativeUtil.hexStringFromByteArray(rand);
+                }
+                mWifiMonitor.broadcastNetworkGsmAuthRequestEvent(
+                        mIfaceName, mFramewokNetworkId, mSsid, data);
+            }
+        }
+
+        @Override
+        public void onNetworkEapSimUmtsAuthRequest(
+                ISupplicantStaNetworkCallback.NetworkRequestEapSimUmtsAuthParams params) {
+            synchronized (mLock) {
+                String autnHex = NativeUtil.hexStringFromByteArray(params.autn);
+                String randHex = NativeUtil.hexStringFromByteArray(params.rand);
+                String[] data = {autnHex, randHex};
+                mWifiMonitor.broadcastNetworkUmtsAuthRequestEvent(
+                        mIfaceName, mFramewokNetworkId, mSsid, data);
+            }
+        }
+
+        @Override
+        public void onNetworkEapIdentityRequest() {
+            synchronized (mLock) {
+                mWifiMonitor.broadcastNetworkIdentityRequestEvent(
+                        mIfaceName, mFramewokNetworkId, mSsid);
+            }
         }
     }
 }
