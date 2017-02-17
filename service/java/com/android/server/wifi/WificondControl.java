@@ -38,6 +38,7 @@ import java.util.ArrayList;
  * NOTE: This class should only be used from WifiNative.
  */
 public class WificondControl {
+    private boolean mVerboseLoggingEnabled = false;
 
     private static final String TAG = "WificondControl";
     private static final int MAC_ADDR_LEN = 6;
@@ -49,6 +50,13 @@ public class WificondControl {
 
     WificondControl(WifiInjector wifiInjector) {
         mWifiInjector = wifiInjector;
+    }
+
+    /** Enable or disable verbose logging of WificondControl.
+     *  @param enable True to enable verbose logging. False to disable verbose logging.
+     */
+    public void enableVerboseLogging(boolean enable) {
+        mVerboseLoggingEnabled = enable;
     }
 
     /**
@@ -197,7 +205,7 @@ public class WificondControl {
                 return null;
             }
         } catch (RemoteException e) {
-            Log.e(TAG, "Failed to do signal polling  due to remote exception");
+            Log.e(TAG, "Failed to do signal polling due to remote exception");
             return null;
         }
         WifiNative.SignalPollResult pollResult = new WifiNative.SignalPollResult();
@@ -226,7 +234,7 @@ public class WificondControl {
                 return null;
             }
         } catch (RemoteException e) {
-            Log.e(TAG, "Failed to do signal polling  due to remote exception");
+            Log.e(TAG, "Failed to do signal polling due to remote exception");
             return null;
         }
         WifiNative.TxPacketCounters counters = new WifiNative.TxPacketCounters();
@@ -271,6 +279,10 @@ public class WificondControl {
         } catch (RemoteException e1) {
             Log.e(TAG, "Failed to create ScanDetail ArrayList");
         }
+        if (mVerboseLoggingEnabled) {
+            Log.d(TAG, "get " + results.size() + " scan results from wificond");
+        }
+
         return results;
     }
 }
