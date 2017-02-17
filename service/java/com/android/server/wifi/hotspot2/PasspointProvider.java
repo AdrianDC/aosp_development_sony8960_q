@@ -67,19 +67,16 @@ public class PasspointProvider {
     private final PasspointConfiguration mConfig;
     private final WifiKeyStore mKeyStore;
 
-    // Aliases for the private keys and certificates installed in the keystore.
+    /**
+     * Aliases for the private keys and certificates installed in the keystore.  Each alias
+     * is a suffix of the actual certificate or key name installed in the keystore.  The
+     * certificate or key name in the keystore is consist of |Type|_|alias|.
+     * This will be consistent with the usage of the term "alias" in {@link WifiEnterpriseConfig}.
+     */
     private String mCaCertificateAlias;
     private String mClientPrivateKeyAlias;
     private String mClientCertificateAlias;
 
-    /**
-     * The suffix of the alias using for storing certificates and keys.  Each alias is prefix
-     * with the key or certificate type.  In key/certificate installation, the full alias is
-     * used.  However, the setCaCertificateAlias and setClientCertificateAlias function
-     * in WifiEnterpriseConfig, the alias that it is referring to is actually the suffix, since
-     * WifiEnterpriseConfig will append the appropriate prefix to that alias based on the type.
-     */
-    private final String mKeyStoreAliasSuffix;
     private final long mProviderId;
 
     private final IMSIParameter mImsiParameter;
@@ -99,7 +96,6 @@ public class PasspointProvider {
         // Maintain a copy of the configuration to avoid it being updated by others.
         mConfig = new PasspointConfiguration(config);
         mKeyStore = keyStore;
-        mKeyStoreAliasSuffix = ALIAS_HS_TYPE + providerId;
         mProviderId = providerId;
         mCaCertificateAlias = caCertificateAlias;
         mClientCertificateAlias = clientCertificateAlias;
@@ -157,25 +153,26 @@ public class PasspointProvider {
     public boolean installCertsAndKeys() {
         // Install CA certificate.
         if (mConfig.getCredential().getCaCertificate() != null) {
-            String alias = Credentials.CA_CERTIFICATE + mKeyStoreAliasSuffix;
-            if (!mKeyStore.putCertInKeyStore(alias, mConfig.getCredential().getCaCertificate())) {
+            String certName = Credentials.CA_CERTIFICATE + ALIAS_HS_TYPE + mProviderId;
+            if (!mKeyStore.putCertInKeyStore(certName,
+                    mConfig.getCredential().getCaCertificate())) {
                 Log.e(TAG, "Failed to install CA Certificate");
                 uninstallCertsAndKeys();
                 return false;
             }
-            mCaCertificateAlias = alias;
+            mCaCertificateAlias = ALIAS_HS_TYPE + mProviderId;
         }
 
         // Install the client private key.
         if (mConfig.getCredential().getClientPrivateKey() != null) {
-            String alias = Credentials.USER_PRIVATE_KEY + mKeyStoreAliasSuffix;
-            if (!mKeyStore.putKeyInKeyStore(alias,
+            String keyName = Credentials.USER_PRIVATE_KEY + ALIAS_HS_TYPE + mProviderId;
+            if (!mKeyStore.putKeyInKeyStore(keyName,
                     mConfig.getCredential().getClientPrivateKey())) {
                 Log.e(TAG, "Failed to install client private key");
                 uninstallCertsAndKeys();
                 return false;
             }
-            mClientPrivateKeyAlias = alias;
+            mClientPrivateKeyAlias = ALIAS_HS_TYPE + mProviderId;
         }
 
         // Install the client certificate.
@@ -188,13 +185,13 @@ public class PasspointProvider {
                 uninstallCertsAndKeys();
                 return false;
             }
-            String alias = Credentials.USER_CERTIFICATE + mKeyStoreAliasSuffix;
-            if (!mKeyStore.putCertInKeyStore(alias, clientCert)) {
+            String certName = Credentials.USER_CERTIFICATE + ALIAS_HS_TYPE + mProviderId;
+            if (!mKeyStore.putCertInKeyStore(certName, clientCert)) {
                 Log.e(TAG, "Failed to install client certificate");
                 uninstallCertsAndKeys();
                 return false;
             }
-            mClientCertificateAlias = alias;
+            mClientCertificateAlias = ALIAS_HS_TYPE + mProviderId;
         }
 
         // Clear the keys and certificates in the configuration.
@@ -209,19 +206,22 @@ public class PasspointProvider {
      */
     public void uninstallCertsAndKeys() {
         if (mCaCertificateAlias != null) {
-            if (!mKeyStore.removeEntryFromKeyStore(mCaCertificateAlias)) {
+            if (!mKeyStore.removeEntryFromKeyStore(
+                    Credentials.CA_CERTIFICATE + mCaCertificateAlias)) {
                 Log.e(TAG, "Failed to remove entry: " + mCaCertificateAlias);
             }
             mCaCertificateAlias = null;
         }
         if (mClientPrivateKeyAlias != null) {
-            if (!mKeyStore.removeEntryFromKeyStore(mClientPrivateKeyAlias)) {
+            if (!mKeyStore.removeEntryFromKeyStore(
+                    Credentials.USER_PRIVATE_KEY + mClientPrivateKeyAlias)) {
                 Log.e(TAG, "Failed to remove entry: " + mClientPrivateKeyAlias);
             }
             mClientPrivateKeyAlias = null;
         }
         if (mClientCertificateAlias != null) {
-            if (!mKeyStore.removeEntryFromKeyStore(mClientCertificateAlias)) {
+            if (!mKeyStore.removeEntryFromKeyStore(
+                    Credentials.USER_CERTIFICATE + mClientCertificateAlias)) {
                 Log.e(TAG, "Failed to remove entry: " + mClientCertificateAlias);
             }
             mClientCertificateAlias = null;
@@ -388,7 +388,7 @@ public class PasspointProvider {
         config.setEapMethod(WifiEnterpriseConfig.Eap.TTLS);
         config.setIdentity(credential.getUsername());
         config.setPassword(decodedPassword);
-        config.setCaCertificateAlias(mKeyStoreAliasSuffix);
+        config.setCaCertificateAlias(mCaCertificateAlias);
         int phase2Method = WifiEnterpriseConfig.Phase2.NONE;
         switch (credential.getNonEapInnerMethod()) {
             case "PAP":
@@ -416,8 +416,8 @@ public class PasspointProvider {
      */
     private void buildEnterpriseConfigForCertCredential(WifiEnterpriseConfig config) {
         config.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
-        config.setClientCertificateAlias(mKeyStoreAliasSuffix);
-        config.setCaCertificateAlias(mKeyStoreAliasSuffix);
+        config.setClientCertificateAlias(mClientCertificateAlias);
+        config.setCaCertificateAlias(mCaCertificateAlias);
     }
 
     /**
