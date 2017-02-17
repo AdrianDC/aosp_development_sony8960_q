@@ -379,6 +379,13 @@ public class WifiConfigurationTestUtil {
         return config;
     }
 
+    public static WifiEnterpriseConfig createTLSWifiEnterpriseConfigWithAkaPhase2() {
+        WifiEnterpriseConfig config = new WifiEnterpriseConfig();
+        config.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
+        config.setPhase2Method(WifiEnterpriseConfig.Phase2.AKA);
+        return config;
+    }
+
     /**
      * Asserts that the 2 WifiConfigurations are equal in the elements saved for both backup/restore
      * and config store.
