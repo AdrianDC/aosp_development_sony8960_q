@@ -244,6 +244,9 @@ public class WifiNative {
         } else {
             DBG = false;
         }
+        if (mWificondControl != null) {
+            mWificondControl.enableVerboseLogging(verbose > 0 ? true : false);
+        }
     }
 
     private void localLog(String s) {
