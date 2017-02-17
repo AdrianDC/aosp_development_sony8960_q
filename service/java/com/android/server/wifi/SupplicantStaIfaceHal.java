@@ -285,12 +285,14 @@ public class SupplicantStaIfaceHal {
             loge("Failed to add a network!");
             return null;
         }
-        if (network.saveWifiConfiguration(config)) {
-            return network;
-        } else {
+        if (!network.saveWifiConfiguration(config)) {
             loge("Failed to save variables for: " + config.configKey());
+            if (!removeAllNetworks()) {
+                loge("Failed to remove all networks on failure.");
+            }
             return null;
         }
+        return network;
     }
 
     /**
@@ -1068,7 +1070,7 @@ public class SupplicantStaIfaceHal {
      *        {@link #RX_FILTER_TYPE_V6_MULTICAST} values.
      * @return true if request is sent successfully, false otherwise.
      */
-    private boolean addRxFilter(byte type) {
+    public boolean addRxFilter(byte type) {
         synchronized (mLock) {
             final String methodStr = "addRxFilter";
             if (DBG) Log.i(TAG, methodStr);
@@ -1091,7 +1093,7 @@ public class SupplicantStaIfaceHal {
      *        {@link #RX_FILTER_TYPE_V6_MULTICAST} values.
      * @return true if request is sent successfully, false otherwise.
      */
-    private boolean removeRxFilter(byte type) {
+    public boolean removeRxFilter(byte type) {
         synchronized (mLock) {
             final String methodStr = "removeRxFilter";
             if (DBG) Log.i(TAG, methodStr);
