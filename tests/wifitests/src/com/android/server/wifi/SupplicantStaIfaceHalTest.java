@@ -559,13 +559,12 @@ public class SupplicantStaIfaceHalTest {
         when(mSupplicantStaNetworkMock.getWpsNfcConfigurationToken()).thenReturn(token);
 
         executeAndValidateInitializationSequence();
-
         // Return null when not connected to the network.
         assertTrue(mDut.getCurrentNetworkWpsNfcConfigurationToken() == null);
-
+        verify(mSupplicantStaNetworkMock, never()).getWpsNfcConfigurationToken();
         executeAndValidateConnectSequence(4, false, false);
-
         assertEquals(token, mDut.getCurrentNetworkWpsNfcConfigurationToken());
+        verify(mSupplicantStaNetworkMock).getWpsNfcConfigurationToken();
     }
 
     /**
@@ -577,13 +576,84 @@ public class SupplicantStaIfaceHalTest {
         when(mSupplicantStaNetworkMock.setBssid(eq(bssidStr))).thenReturn(true);
 
         executeAndValidateInitializationSequence();
-
         // Fail when not connected to a network.
         assertFalse(mDut.setCurrentNetworkBssid(bssidStr));
-
+        verify(mSupplicantStaNetworkMock, never()).setBssid(eq(bssidStr));
         executeAndValidateConnectSequence(4, false, false);
-
         assertTrue(mDut.setCurrentNetworkBssid(bssidStr));
+        verify(mSupplicantStaNetworkMock).setBssid(eq(bssidStr));
+    }
+
+    /**
+     * Tests the sending identity response for the current network.
+     */
+    @Test
+    public void testSetCurrentNetworkEapIdentityResponse() throws Exception {
+        String identity = "blah@blah.com";
+        when(mSupplicantStaNetworkMock.sendNetworkEapIdentityResponse(eq(identity)))
+                .thenReturn(true);
+
+        executeAndValidateInitializationSequence();
+        // Fail when not connected to a network.
+        assertFalse(mDut.sendCurrentNetworkEapIdentityResponse(identity));
+        verify(mSupplicantStaNetworkMock, never()).sendNetworkEapIdentityResponse(eq(identity));
+        executeAndValidateConnectSequence(4, false, false);
+        assertTrue(mDut.sendCurrentNetworkEapIdentityResponse(identity));
+        verify(mSupplicantStaNetworkMock).sendNetworkEapIdentityResponse(eq(identity));
+    }
+
+    /**
+     * Tests the sending gsm auth response for the current network.
+     */
+    @Test
+    public void testSetCurrentNetworkEapSimGsmAuthResponse() throws Exception {
+        String params = "test";
+        when(mSupplicantStaNetworkMock.sendNetworkEapSimGsmAuthResponse(eq(params)))
+                .thenReturn(true);
+
+        executeAndValidateInitializationSequence();
+        // Fail when not connected to a network.
+        assertFalse(mDut.sendCurrentNetworkEapSimGsmAuthResponse(params));
+        verify(mSupplicantStaNetworkMock, never()).sendNetworkEapSimGsmAuthResponse(eq(params));
+        executeAndValidateConnectSequence(4, false, false);
+        assertTrue(mDut.sendCurrentNetworkEapSimGsmAuthResponse(params));
+        verify(mSupplicantStaNetworkMock).sendNetworkEapSimGsmAuthResponse(eq(params));
+    }
+
+    /**
+     * Tests the sending umts auth response for the current network.
+     */
+    @Test
+    public void testSetCurrentNetworkEapSimUmtsAuthResponse() throws Exception {
+        String params = "test";
+        when(mSupplicantStaNetworkMock.sendNetworkEapSimUmtsAuthResponse(eq(params)))
+                .thenReturn(true);
+
+        executeAndValidateInitializationSequence();
+        // Fail when not connected to a network.
+        assertFalse(mDut.sendCurrentNetworkEapSimUmtsAuthResponse(params));
+        verify(mSupplicantStaNetworkMock, never()).sendNetworkEapSimUmtsAuthResponse(eq(params));
+        executeAndValidateConnectSequence(4, false, false);
+        assertTrue(mDut.sendCurrentNetworkEapSimUmtsAuthResponse(params));
+        verify(mSupplicantStaNetworkMock).sendNetworkEapSimUmtsAuthResponse(eq(params));
+    }
+
+    /**
+     * Tests the sending umts auts response for the current network.
+     */
+    @Test
+    public void testSetCurrentNetworkEapSimUmtsAutsResponse() throws Exception {
+        String params = "test";
+        when(mSupplicantStaNetworkMock.sendNetworkEapSimUmtsAutsResponse(eq(params)))
+                .thenReturn(true);
+
+        executeAndValidateInitializationSequence();
+        // Fail when not connected to a network.
+        assertFalse(mDut.sendCurrentNetworkEapSimUmtsAutsResponse(params));
+        verify(mSupplicantStaNetworkMock, never()).sendNetworkEapSimUmtsAutsResponse(eq(params));
+        executeAndValidateConnectSequence(4, false, false);
+        assertTrue(mDut.sendCurrentNetworkEapSimUmtsAutsResponse(params));
+        verify(mSupplicantStaNetworkMock).sendNetworkEapSimUmtsAutsResponse(eq(params));
     }
 
     /**

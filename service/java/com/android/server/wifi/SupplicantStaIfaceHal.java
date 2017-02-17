@@ -451,6 +451,70 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Send the eap identity response for the currently configured network.
+     *
+     * @param identityStr String to send.
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendCurrentNetworkEapIdentityResponse(String identityStr) {
+        if (mCurrentNetwork == null) return false;
+        return mCurrentNetwork.sendNetworkEapIdentityResponse(identityStr);
+    }
+
+    /**
+     * Send the eap sim gsm auth response for the currently configured network.
+     *
+     * @param paramsStr String to send.
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendCurrentNetworkEapSimGsmAuthResponse(String paramsStr) {
+        if (mCurrentNetwork == null) return false;
+        return mCurrentNetwork.sendNetworkEapSimGsmAuthResponse(paramsStr);
+    }
+
+    /**
+     * Send the eap sim gsm auth failure for the currently configured network.
+     *
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendCurrentNetworkEapSimGsmAuthFailure() {
+        if (mCurrentNetwork == null) return false;
+        return mCurrentNetwork.sendNetworkEapSimGsmAuthFailure();
+    }
+
+    /**
+     * Send the eap sim umts auth response for the currently configured network.
+     *
+     * @param paramsStr String to send.
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendCurrentNetworkEapSimUmtsAuthResponse(String paramsStr) {
+        if (mCurrentNetwork == null) return false;
+        return mCurrentNetwork.sendNetworkEapSimUmtsAuthResponse(paramsStr);
+    }
+
+    /**
+     * Send the eap sim umts auts response for the currently configured network.
+     *
+     * @param paramsStr String to send.
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendCurrentNetworkEapSimUmtsAutsResponse(String paramsStr) {
+        if (mCurrentNetwork == null) return false;
+        return mCurrentNetwork.sendNetworkEapSimUmtsAutsResponse(paramsStr);
+    }
+
+    /**
+     * Send the eap sim umts auth failure for the currently configured network.
+     *
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendCurrentNetworkEapSimUmtsAuthFailure() {
+        if (mCurrentNetwork == null) return false;
+        return mCurrentNetwork.sendNetworkEapSimUmtsAuthFailure();
+    }
+
+    /**
      * Adds a new network.
      *
      * @return The ISupplicantNetwork object for the new network, or null if the call fails
