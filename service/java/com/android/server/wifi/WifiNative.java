@@ -1523,6 +1523,79 @@ public class WifiNative {
         mWifiSupplicantControl.setSystemSupportsFastBssTransition(supported);
     }
 
+    /**
+     * Initiate ANQP query.
+     *
+     * @param bssid BSSID of the AP to be queried
+     * @param anqpIds Set of anqp IDs.
+     * @param hs20Subtypes Set of HS20 subtypes.
+     * @return true on success, false otherwise.
+     */
+    public boolean requestAnqp(String bssid, Set<Integer> anqpIds, Set<Integer> hs20Subtypes) {
+        if (bssid == null || ((anqpIds == null || anqpIds.isEmpty())
+                && (hs20Subtypes == null || hs20Subtypes.isEmpty()))) {
+            return false;
+        }
+        String command = buildAnqpQueryCommand(bssid, anqpIds, hs20Subtypes);
+        String result = doStringCommand(command);
+        return result != null && result.startsWith("OK");
+    }
+
+    /**
+     * Build a wpa_supplicant ANQP query command
+     *
+     * @param bssid BSSID of the AP to be queried
+     * @param anqpIds Set of anqp IDs.
+     * @param hs20Subtypes Set of HS20 subtypes.
+     * @return A command string.
+     */
+    @VisibleForTesting
+    public static String buildAnqpQueryCommand(String bssid, Set<Integer> anqpIds,
+                                               Set<Integer> hs20Subtypes) {
+
+        boolean baseANQPElements = !anqpIds.isEmpty();
+        StringBuilder sb = new StringBuilder();
+        if (baseANQPElements) {
+            sb.append("ANQP_GET ");
+        } else {
+            // ANQP_GET does not work for a sole hs20:8 (OSU) query
+            sb.append("HS20_ANQP_GET ");
+        }
+        sb.append(bssid).append(' ');
+        boolean first = true;
+        for (Integer id : anqpIds) {
+            if (first) {
+                first = false;
+            } else {
+                sb.append(',');
+            }
+            sb.append(id);
+        }
+        for (Integer subType : hs20Subtypes) {
+            if (first) {
+                first = false;
+            } else {
+                sb.append(',');
+            }
+            if (baseANQPElements) {
+                sb.append("hs20:");
+            }
+            sb.append(subType);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Request a passpoint icon file |filename| from the specified AP |bssid|.
+     * @param bssid BSSID of the AP
+     * @param fileName name of the icon file
+     * @return true if request is sent successfully, false otherwise
+     */
+    public boolean requestIcon(String  bssid, String fileName) {
+        String result = doStringCommand("REQ_HS20_ICON " + bssid + " " + fileName);
+        return result != null && result.startsWith("OK");
+    }
+
     /* kernel logging support */
     private static native byte[] readKernelLogNative();
 

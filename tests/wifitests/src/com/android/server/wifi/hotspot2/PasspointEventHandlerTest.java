@@ -18,6 +18,7 @@ package com.android.server.wifi.hotspot2;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
@@ -32,6 +33,7 @@ import org.junit.Test;
 import org.mockito.Mock;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -65,16 +67,19 @@ public class PasspointEventHandlerTest {
     public void requestR1AnqpElement() {
         List<Constants.ANQPElementType> elementToRequest =
                 Arrays.asList(Constants.ANQPElementType.ANQPRoamingConsortium);
-        String expectedCommand = "ANQP_GET " + BSSID_STR + " " +
-                Constants.getANQPElementID(
-                        Constants.ANQPElementType.ANQPRoamingConsortium);
+        HashSet<Integer> expAnqpIds =
+                new HashSet<>(Arrays.asList(Constants.getANQPElementID(
+                        Constants.ANQPElementType.ANQPRoamingConsortium)));
+        HashSet<Integer> expHs20Subtypes = new HashSet<>();
 
         // wpa_supplicant succeeded the request.
-        when(mWifiNative.doCustomSupplicantCommand(expectedCommand)).thenReturn("OK");
+        when(mWifiNative.requestAnqp(eq(BSSID_STR), eq(expAnqpIds), eq(expHs20Subtypes)))
+                .thenReturn(true);
         assertTrue(mHandler.requestANQP(BSSID, elementToRequest));
 
         // wpa_supplicant failed the request.
-        when(mWifiNative.doCustomSupplicantCommand(expectedCommand)).thenReturn("FAILED");
+        when(mWifiNative.requestAnqp(eq(BSSID_STR), eq(expAnqpIds), eq(expHs20Subtypes)))
+                .thenReturn(false);
         assertFalse(mHandler.requestANQP(BSSID, elementToRequest));
     }
 
@@ -85,15 +90,19 @@ public class PasspointEventHandlerTest {
     public void requestR2AnqpElement() {
         List<Constants.ANQPElementType> elementToRequest =
                 Arrays.asList(Constants.ANQPElementType.HSFriendlyName);
-        String expectedCommand = "HS20_ANQP_GET " + BSSID_STR + " " +
-                Constants.getHS20ElementID(Constants.ANQPElementType.HSFriendlyName);
+        HashSet<Integer> expAnqpIds = new HashSet<>();
+        HashSet<Integer> expHs20Subtypes =
+                new HashSet<>(Arrays.asList(Constants.getHS20ElementID(
+                        Constants.ANQPElementType.HSFriendlyName)));
 
         // wpa_supplicant succeeded the request.
-        when(mWifiNative.doCustomSupplicantCommand(expectedCommand)).thenReturn("OK");
+        when(mWifiNative.requestAnqp(eq(BSSID_STR), eq(expAnqpIds), eq(expHs20Subtypes)))
+                .thenReturn(true);
         assertTrue(mHandler.requestANQP(BSSID, elementToRequest));
 
         // wpa_supplicant failed the request.
-        when(mWifiNative.doCustomSupplicantCommand(expectedCommand)).thenReturn("FAILED");
+        when(mWifiNative.requestAnqp(eq(BSSID_STR), eq(expAnqpIds), eq(expHs20Subtypes)))
+                .thenReturn(false);
         assertFalse(mHandler.requestANQP(BSSID, elementToRequest));
     }
 
@@ -105,20 +114,21 @@ public class PasspointEventHandlerTest {
         List<Constants.ANQPElementType> elementToRequest =
                 Arrays.asList(Constants.ANQPElementType.ANQPRoamingConsortium,
                               Constants.ANQPElementType.HSFriendlyName);
-
-        // ANQP_GET command is used when both R1 and R2 elements are present.
-        // |hs20:| prefix for R2 elements are needed when using ANQP_GET command
-        String expectedCommand = "ANQP_GET " + BSSID_STR + " " +
-                Constants.getANQPElementID(
-                        Constants.ANQPElementType.ANQPRoamingConsortium) + ",hs20:" +
-                Constants.getHS20ElementID(Constants.ANQPElementType.HSFriendlyName);
+        HashSet<Integer> expAnqpIds =
+                new HashSet<>(Arrays.asList(Constants.getANQPElementID(
+                        Constants.ANQPElementType.ANQPRoamingConsortium)));
+        HashSet<Integer> expHs20Subtypes =
+                new HashSet<>(Arrays.asList(Constants.getHS20ElementID(
+                        Constants.ANQPElementType.HSFriendlyName)));
 
         // wpa_supplicant succeeded the request.
-        when(mWifiNative.doCustomSupplicantCommand(expectedCommand)).thenReturn("OK");
+        when(mWifiNative.requestAnqp(eq(BSSID_STR), eq(expAnqpIds), eq(expHs20Subtypes)))
+                .thenReturn(true);
         assertTrue(mHandler.requestANQP(BSSID, elementToRequest));
 
         // wpa_supplicant failed the request.
-        when(mWifiNative.doCustomSupplicantCommand(expectedCommand)).thenReturn("FAILED");
+        when(mWifiNative.requestAnqp(eq(BSSID_STR), eq(expAnqpIds), eq(expHs20Subtypes)))
+                .thenReturn(false);
         assertFalse(mHandler.requestANQP(BSSID, elementToRequest));
     }
 
@@ -127,14 +137,12 @@ public class PasspointEventHandlerTest {
      */
     @Test
     public void requestIconFile() {
-        String expectedCommand = "REQ_HS20_ICON " + BSSID_STR + " " + ICON_FILENAME;
-
         // wpa_supplicant succeeded the request.
-        when(mWifiNative.doCustomSupplicantCommand(expectedCommand)).thenReturn("OK");
+        when(mWifiNative.requestIcon(eq(BSSID_STR), eq(ICON_FILENAME))).thenReturn(true);
         assertTrue(mHandler.requestIcon(BSSID, ICON_FILENAME));
 
         // wpa_supplicant failed the request.
-        when(mWifiNative.doCustomSupplicantCommand(expectedCommand)).thenReturn("FAILED");
+        when(mWifiNative.requestIcon(eq(BSSID_STR), eq(ICON_FILENAME))).thenReturn(false);
         assertFalse(mHandler.requestIcon(BSSID, ICON_FILENAME));
     }
 
