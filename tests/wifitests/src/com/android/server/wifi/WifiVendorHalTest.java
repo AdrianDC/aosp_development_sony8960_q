@@ -23,19 +23,21 @@ import android.hardware.wifi.V1_0.IWifiIface;
 import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
 import android.hardware.wifi.V1_0.StaApfPacketFilterCapabilities;
+import android.hardware.wifi.V1_0.WifiDebugRingBufferFlags;
+import android.hardware.wifi.V1_0.WifiDebugRingBufferStatus;
+import android.hardware.wifi.V1_0.WifiDebugRingBufferVerboseLevel;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.WifiManager;
+import android.os.HandlerThread;
+import android.os.Looper;
+import android.os.RemoteException;
 
 import com.android.server.wifi.util.NativeUtil;
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
-
-import android.os.HandlerThread;
-import android.os.Looper;
-import android.os.RemoteException;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -497,4 +499,108 @@ public class WifiVendorHalTest {
 
         verify(mIWifiApIface).setCountryCode(eq(expected));
     }
+
+    /**
+     * Test that startLoggingToDebugRingBuffer is plumbed to chip
+     *
+     * A call before the vendor hal is started should just return false.
+     * After starting in STA mode, the call should succeed, and pass ther right things down.
+     */
+    @Test
+    public void testStartLoggingRingBuffer() throws Exception {
+        when(mIWifiChip.startLoggingToDebugRingBuffer(
+                any(String.class), anyInt(), anyInt(), anyInt()
+        )).thenReturn(mWifiStatusSuccess);
+
+        assertFalse(mWifiVendorHal.startLoggingRingBuffer(1, 0x42, 0, 0, "One"));
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertTrue(mWifiVendorHal.startLoggingRingBuffer(1, 0x42, 11, 3000, "One"));
+
+        verify(mIWifiChip).startLoggingToDebugRingBuffer("One", 1, 11, 3000);
+    }
+
+    /**
+     * Same test as testStartLoggingRingBuffer, but in AP mode rather than STA.
+     */
+    @Test
+    public void testStartLoggingRingBufferOnAp() throws Exception {
+        when(mIWifiChip.startLoggingToDebugRingBuffer(
+                any(String.class), anyInt(), anyInt(), anyInt()
+        )).thenReturn(mWifiStatusSuccess);
+
+        assertFalse(mWifiVendorHal.startLoggingRingBuffer(1, 0x42, 0, 0, "One"));
+        assertTrue(mWifiVendorHal.startVendorHalAp());
+        assertTrue(mWifiVendorHal.startLoggingRingBuffer(1, 0x42, 11, 3000, "One"));
+
+        verify(mIWifiChip).startLoggingToDebugRingBuffer("One", 1, 11, 3000);
+    }
+
+    /**
+     * Test that getRingBufferStatus gets and translates its stuff correctly
+     */
+    @Test
+    public void testRingBufferStatus() throws Exception {
+        WifiDebugRingBufferStatus one = new WifiDebugRingBufferStatus();
+        one.ringName = "One";
+        one.flags = WifiDebugRingBufferFlags.HAS_BINARY_ENTRIES;
+        one.ringId = 5607371;
+        one.sizeInBytes = 54321;
+        one.freeSizeInBytes = 42;
+        one.verboseLevel = WifiDebugRingBufferVerboseLevel.VERBOSE;
+        String oneExpect = "name: One flag: 1 ringBufferId: 5607371 ringBufferByteSize: 54321"
+                + " verboseLevel: 2 writtenBytes: 0 readBytes: 0 writtenRecords: 0";
+
+        WifiDebugRingBufferStatus two = new WifiDebugRingBufferStatus();
+        two.ringName = "Two";
+        two.flags = WifiDebugRingBufferFlags.HAS_ASCII_ENTRIES
+                | WifiDebugRingBufferFlags.HAS_PER_PACKET_ENTRIES;
+        two.ringId = 4512470;
+        two.sizeInBytes = 300;
+        two.freeSizeInBytes = 42;
+        two.verboseLevel = WifiDebugRingBufferVerboseLevel.DEFAULT;
+
+        ArrayList<WifiDebugRingBufferStatus> halBufferStatus = new ArrayList<>(2);
+        halBufferStatus.add(one);
+        halBufferStatus.add(two);
+
+        WifiNative.RingBufferStatus[] actual;
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiChip.getDebugRingBuffersStatusCallback cb)
+                    throws RemoteException {
+                cb.onValues(mWifiStatusSuccess, halBufferStatus);
+            }
+        }).when(mIWifiChip).getDebugRingBuffersStatus(any(
+                IWifiChip.getDebugRingBuffersStatusCallback.class));
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        actual = mWifiVendorHal.getRingBufferStatus();
+
+        assertEquals(halBufferStatus.size(), actual.length);
+        assertEquals(oneExpect, actual[0].toString());
+        assertEquals(two.ringId, actual[1].ringBufferId);
+
+    }
+
+    /**
+     * Test that getRingBufferData calls forceDumpToDebugRingBuffer
+     *
+     * Try once before hal start, and twice after (one success, one failure).
+     */
+    @Test
+    public void testForceRingBufferDump() throws Exception {
+        when(mIWifiChip.forceDumpToDebugRingBuffer(eq("Gunk"))).thenReturn(mWifiStatusSuccess);
+        when(mIWifiChip.forceDumpToDebugRingBuffer(eq("Glop"))).thenReturn(mWifiStatusFailure);
+
+        assertFalse(mWifiVendorHal.getRingBufferData("Gunk")); // hal not started
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+
+        assertTrue(mWifiVendorHal.getRingBufferData("Gunk")); // mocked call succeeds
+        assertFalse(mWifiVendorHal.getRingBufferData("Glop")); // mocked call fails
+
+        verify(mIWifiChip).forceDumpToDebugRingBuffer("Gunk");
+        verify(mIWifiChip).forceDumpToDebugRingBuffer("Glop");
+    }
+
 }
