@@ -2678,6 +2678,11 @@ public class WifiNative {
         int readBytes;
         int writtenRecords;
 
+        // Bit masks for interpreting |flag|
+        public static final int HAS_BINARY_ENTRIES = (1 << 0);
+        public static final int HAS_ASCII_ENTRIES = (1 << 1);
+        public static final int HAS_PER_PACKET_ENTRIES = (1 << 2);
+
         @Override
         public String toString() {
             return "name: " + name + " flag: " + flag + " ringBufferId: " + ringBufferId +
