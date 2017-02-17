@@ -17,13 +17,16 @@
 package com.android.server.wifi.hotspot2;
 
 import android.util.Log;
+import android.util.Pair;
 
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.Constants;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * This class handles passpoint specific interactions with the AP, such as ANQP
@@ -75,21 +78,15 @@ public class PasspointEventHandler {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean requestANQP(long bssid, List<Constants.ANQPElementType> elements) {
-        String anqpGet = buildWPSQueryRequest(bssid, elements);
-        if (anqpGet == null) {
+        Pair<Set<Integer>, Set<Integer>> querySets = buildAnqpIdSet(elements);
+        if (bssid == 0 || querySets == null) return false;
+        if (!mSupplicantHook.requestAnqp(
+                Utils.macToString(bssid), querySets.first, querySets.second)) {
+            Log.d(Utils.hs2LogTag(getClass()), "ANQP failed on " + Utils.macToString(bssid));
             return false;
         }
-        String result = mSupplicantHook.doCustomSupplicantCommand(anqpGet);
-        if (result != null && result.startsWith("OK")) {
-            Log.d(Utils.hs2LogTag(getClass()), "ANQP initiated on "
-                    + Utils.macToString(bssid) + " (" + anqpGet + ")");
-            return true;
-        }
-        else {
-            Log.d(Utils.hs2LogTag(getClass()), "ANQP failed on " +
-                    Utils.macToString(bssid) + ": " + result);
-            return false;
-        }
+        Log.d(Utils.hs2LogTag(getClass()), "ANQP initiated on " + Utils.macToString(bssid));
+        return true;
     }
 
     /**
@@ -99,9 +96,8 @@ public class PasspointEventHandler {
      * @return true if request is sent successfully, false otherwise
      */
     public boolean requestIcon(long bssid, String fileName) {
-        String result = mSupplicantHook.doCustomSupplicantCommand("REQ_HS20_ICON " +
-                Utils.macToString(bssid) + " " + fileName);
-        return result != null && result.startsWith("OK");
+        if (bssid == 0 || fileName == null) return false;
+        return mSupplicantHook.requestIcon(Utils.macToString(bssid), fileName);
     }
 
     /**
@@ -139,48 +135,25 @@ public class PasspointEventHandler {
     }
 
     /**
-     * Build a wpa_supplicant ANQP query command
-     * @param bssid BSSID of the AP to be queried
+     * Create the set of ANQP ID's to query.
+     *
      * @param querySet elements to query
-     * @return A command string.
+     * @return Pair of <set of ANQP ID's, set of HS20 subtypes>
      */
-    private static String buildWPSQueryRequest(long bssid,
-                                               List<Constants.ANQPElementType> querySet) {
-
-        boolean baseANQPElements = Constants.hasBaseANQPElements(querySet);
-        StringBuilder sb = new StringBuilder();
-        if (baseANQPElements) {
-            sb.append("ANQP_GET ");
-        }
-        else {
-            // ANQP_GET does not work for a sole hs20:8 (OSU) query
-            sb.append("HS20_ANQP_GET ");
-        }
-        sb.append(Utils.macToString(bssid)).append(' ');
-
-        boolean first = true;
+    private static Pair<Set<Integer>, Set<Integer>> buildAnqpIdSet(
+            List<Constants.ANQPElementType> querySet) {
+        Set<Integer> anqpIds = new HashSet<>();
+        Set<Integer> hs20Subtypes = new HashSet<>();
         for (Constants.ANQPElementType elementType : querySet) {
-            if (first) {
-                first = false;
-            }
-            else {
-                sb.append(',');
-            }
-
             Integer id = Constants.getANQPElementID(elementType);
             if (id != null) {
-                sb.append(id);
-            }
-            else {
+                anqpIds.add(id);
+            } else {
                 id = Constants.getHS20ElementID(elementType);
-                if (baseANQPElements) {
-                    sb.append("hs20:");
-                }
-                sb.append(id);
+                hs20Subtypes.add(id);
             }
         }
-
-        return sb.toString();
+        return Pair.create(anqpIds, hs20Subtypes);
     }
 
 }
