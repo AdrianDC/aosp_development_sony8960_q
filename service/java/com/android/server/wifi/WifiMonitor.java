@@ -876,12 +876,11 @@ public class WifiMonitor {
                 handleAssociatedBSSIDEvent(eventStr, iface);
             } else if (eventStr.startsWith(AUTH_EVENT_PREFIX_STR)
                     && eventStr.endsWith(AUTH_TIMEOUT_STR)) {
-                sendMessage(iface, AUTHENTICATION_FAILURE_EVENT, eventLogCounter,
-                        AUTHENTICATION_FAILURE_REASON_TIMEOUT);
+                broadcastAuthenticationFailureEvent(iface, AUTHENTICATION_FAILURE_REASON_TIMEOUT);
             } else if (eventStr.startsWith(WPA_EVENT_PREFIX_STR)
                     && eventStr.endsWith(PASSWORD_MAY_BE_INCORRECT_STR)) {
-                sendMessage(iface, AUTHENTICATION_FAILURE_EVENT, eventLogCounter,
-                        AUTHENTICATION_FAILURE_REASON_WRONG_PSWD);
+                broadcastAuthenticationFailureEvent(
+                        iface, AUTHENTICATION_FAILURE_REASON_WRONG_PSWD);
             } else {
                 if (mVerboseLoggingEnabled) {
                     Log.w(TAG, "couldn't identify event type - " + eventStr);
@@ -1023,8 +1022,8 @@ public class WifiMonitor {
             return true;
         } else if (event == EAP_FAILURE) {
             if (eventData.startsWith(EAP_AUTH_FAILURE_STR)) {
-                sendMessage(iface, AUTHENTICATION_FAILURE_EVENT, eventLogCounter,
-                        AUTHENTICATION_FAILURE_REASON_EAP_FAILURE);
+                broadcastAuthenticationFailureEvent(
+                        iface, AUTHENTICATION_FAILURE_REASON_EAP_FAILURE);
             }
         } else if (event == ASSOC_REJECT) {
             Matcher match = mAssocRejectEventPattern.matcher(eventData);
@@ -1051,7 +1050,7 @@ public class WifiMonitor {
                     status = -1;
                 }
             }
-            sendMessage(iface, ASSOCIATION_REJECTION_EVENT, eventLogCounter, status, BSSID);
+            broadcastAssociationRejectionEvent(iface, status, BSSID);
         } else if (event == BSS_ADDED && !DBG) {
             // Ignore that event - it is not handled, and dont log it as it is too verbose
         } else if (event == BSS_REMOVED && !DBG) {
@@ -1125,7 +1124,7 @@ public class WifiMonitor {
         if (match.find()) {
             BSSID = match.group(1);
         }
-        sendMessage(iface, WifiStateMachine.CMD_ASSOCIATED_BSSID, eventLogCounter, 0, BSSID);
+        broadcastAssociationSuccesfulEvent(iface, BSSID);
     }
 
 
@@ -1471,8 +1470,7 @@ public class WifiMonitor {
         if (newSupplicantState == SupplicantState.INVALID) {
             Log.w(TAG, "Invalid supplicant state: " + newState);
         }
-        sendMessage(iface, SUPPLICANT_STATE_CHANGE_EVENT, eventLogCounter, 0,
-                new StateChangeResult(networkId, wifiSsid, BSSID, newSupplicantState));
+        broadcastSupplicantStateChangeEvent(iface, networkId, wifiSsid, BSSID, newSupplicantState);
     }
 
     private void handleNetworkStateChange(NetworkInfo.DetailedState newState, String data,
@@ -1497,7 +1495,7 @@ public class WifiMonitor {
                     networkId = -1;
                 }
             }
-            sendMessage(iface, NETWORK_CONNECTION_EVENT, networkId, reason, BSSID);
+            broadcastNetworkConnectionEvent(iface, networkId, BSSID);
         } else if (newState == NetworkInfo.DetailedState.DISCONNECTED) {
             match = mDisconnectedEventPattern.matcher(data);
             if (!match.find()) {
@@ -1521,7 +1519,7 @@ public class WifiMonitor {
                 Log.d(TAG, "WifiMonitor notify network disconnect: " + BSSID
                         + " reason=" + Integer.toString(reason));
             }
-            sendMessage(iface, NETWORK_DISCONNECTION_EVENT, local, reason, BSSID);
+            broadcastNetworkDisConnectionEvent(iface, local, reason, BSSID);
         }
     }
 
@@ -1658,5 +1656,76 @@ public class WifiMonitor {
                                                      String[] data) {
         sendMessage(iface, SUP_REQUEST_SIM_AUTH,
                 new SimAuthRequestData(networkId, WifiEnterpriseConfig.Eap.AKA, ssid, data));
+    }
+
+    /**
+     * Broadcast the authentication failure event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param reason Reason for authentication failure. This has to be one of the
+     *               |AUTHENTICATION_FAILURE_REASON_*| reason codes.
+     */
+    public void broadcastAuthenticationFailureEvent(String iface, int reason) {
+        sendMessage(iface, AUTHENTICATION_FAILURE_EVENT, 0, reason);
+    }
+
+    /**
+     * Broadcast the association rejection event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param status Status code for association rejection.
+     * @param bssid BSSID of the access point from which we received the reject.
+     */
+    public void broadcastAssociationRejectionEvent(String iface, int status, String bssid) {
+        sendMessage(iface, ASSOCIATION_REJECTION_EVENT, 0, status, bssid);
+    }
+
+    /**
+     * Broadcast the association success event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param bssid BSSID of the access point from which we received the reject.
+     */
+    public void broadcastAssociationSuccesfulEvent(String iface, String bssid) {
+        sendMessage(iface, WifiStateMachine.CMD_ASSOCIATED_BSSID, 0, 0, bssid);
+    }
+
+    /**
+     * Broadcast the network connection event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param networkId ID of the network in wpa_supplicant.
+     * @param bssid BSSID of the access point.
+     */
+    public void broadcastNetworkConnectionEvent(String iface, int networkId, String bssid) {
+        sendMessage(iface, NETWORK_CONNECTION_EVENT, networkId, 0, bssid);
+    }
+
+    /**
+     * Broadcast the network disconnection event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param local Whether the disconnect was locally triggered.
+     * @param reason Disconnect reason code.
+     * @param bssid BSSID of the access point.
+     */
+    public void broadcastNetworkDisConnectionEvent(String iface, int local, int reason,
+                                                   String bssid) {
+        sendMessage(iface, NETWORK_DISCONNECTION_EVENT, local, reason, bssid);
+    }
+
+    /**
+     * Broadcast the supplicant state change event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param networkId ID of the network in wpa_supplicant.
+     * @param bssid BSSID of the access point.
+     * @param newSupplicantState New supplicant state.
+     */
+    public void broadcastSupplicantStateChangeEvent(String iface, int networkId, WifiSsid wifiSsid,
+                                                    String bssid,
+                                                    SupplicantState newSupplicantState) {
+        sendMessage(iface, SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
+                new StateChangeResult(networkId, wifiSsid, bssid, newSupplicantState));
     }
 }
