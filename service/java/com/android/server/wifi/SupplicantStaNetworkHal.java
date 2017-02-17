@@ -331,12 +331,19 @@ public class SupplicantStaNetworkHal {
             return false;
         }
         // Finish here if no EAP config to set
-        if (config.enterpriseConfig == null
-                || config.enterpriseConfig.getEapMethod() == WifiEnterpriseConfig.Eap.NONE) {
-            return true;
-        } else {
-            return saveWifiEnterpriseConfig(config.SSID, config.enterpriseConfig);
+        if (config.enterpriseConfig != null
+                && config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
+            if (!saveWifiEnterpriseConfig(config.SSID, config.enterpriseConfig)) {
+                return false;
+            }
         }
+
+        // Now that the network is configured fully, start listening for callback events.
+        if (!registerCallback(new SupplicantStaNetworkHalCallback(config.networkId, config.SSID))) {
+            Log.e(TAG, "Failed to register callback");
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -2302,6 +2309,56 @@ public class SupplicantStaNetworkHal {
 
         Mutable(E value) {
             this.value = value;
+        }
+    }
+
+    private class SupplicantStaNetworkHalCallback extends ISupplicantStaNetworkCallback.Stub {
+        /**
+         * Current configured network's framework network id.
+         */
+        private final int mFramewokNetworkId;
+        /**
+         * Current configured network's ssid.
+         */
+        private final String mSsid;
+
+        SupplicantStaNetworkHalCallback(int framewokNetworkId, String ssid) {
+            mFramewokNetworkId = framewokNetworkId;
+            mSsid = ssid;
+        }
+
+        @Override
+        public void onNetworkEapSimGsmAuthRequest(
+                ISupplicantStaNetworkCallback.NetworkRequestEapSimGsmAuthParams params) {
+            synchronized (mLock) {
+                String[] data = new String[params.rands.size()];
+                int i = 0;
+                for (byte[] rand : params.rands) {
+                    data[i++] = NativeUtil.hexStringFromByteArray(rand);
+                }
+                mWifiMonitor.broadcastNetworkGsmAuthRequestEvent(
+                        mIfaceName, mFramewokNetworkId, mSsid, data);
+            }
+        }
+
+        @Override
+        public void onNetworkEapSimUmtsAuthRequest(
+                ISupplicantStaNetworkCallback.NetworkRequestEapSimUmtsAuthParams params) {
+            synchronized (mLock) {
+                String autnHex = NativeUtil.hexStringFromByteArray(params.autn);
+                String randHex = NativeUtil.hexStringFromByteArray(params.rand);
+                String[] data = {autnHex, randHex};
+                mWifiMonitor.broadcastNetworkUmtsAuthRequestEvent(
+                        mIfaceName, mFramewokNetworkId, mSsid, data);
+            }
+        }
+
+        @Override
+        public void onNetworkEapIdentityRequest() {
+            synchronized (mLock) {
+                mWifiMonitor.broadcastNetworkIdentityRequestEvent(
+                        mIfaceName, mFramewokNetworkId, mSsid);
+            }
         }
     }
 }
