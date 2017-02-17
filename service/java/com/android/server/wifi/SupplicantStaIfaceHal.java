@@ -20,6 +20,7 @@ import android.hardware.wifi.supplicant.V1_0.ISupplicant;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantIface;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantNetwork;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIface;
+import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIfaceCallback;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaNetwork;
 import android.hardware.wifi.supplicant.V1_0.IfaceType;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
@@ -208,6 +209,9 @@ public class SupplicantStaIfaceHal {
             }
             mISupplicantStaIface = getStaIfaceMockable(supplicantIface.value);
             mIfaceName = ifaceName.value;
+            if (!registerCallback(new SupplicantStaIfaceHalCallback())) {
+                return false;
+            }
             return true;
         }
     }
@@ -513,6 +517,21 @@ public class SupplicantStaIfaceHal {
                         ISupplicantStaNetwork.asInterface(gotNetwork.value.asBinder()));
             } else {
                 return null;
+            }
+        }
+    }
+
+    /** See ISupplicantStaNetwork.hal for documentation */
+    private boolean registerCallback(ISupplicantStaIfaceCallback callback) {
+        synchronized (mLock) {
+            final String methodStr = "registerCallback";
+            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status =  mISupplicantStaIface.registerCallback(callback);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                supplicantServiceDiedHandler();
+                return false;
             }
         }
     }
@@ -1499,6 +1518,76 @@ public class SupplicantStaIfaceHal {
 
         Mutable(E value) {
             this.value = value;
+        }
+    }
+
+    private class SupplicantStaIfaceHalCallback extends ISupplicantStaIfaceCallback.Stub {
+        @Override
+        public void onNetworkAdded(int id) {
+        }
+
+        @Override
+        public void onNetworkRemoved(int id) {
+        }
+
+        @Override
+        public void onStateChanged(int newState, byte[/* 6 */] bssid, int id,
+                                   ArrayList<Byte> ssid) {
+        }
+
+        @Override
+        public void onAnqpQueryDone(byte[/* 6 */] macAddress,
+                                    ISupplicantStaIfaceCallback.AnqpData data,
+                                    ISupplicantStaIfaceCallback.Hs20AnqpData hs20Data) {
+        }
+
+        @Override
+        public void onHs20IconQueryDone(byte[/* 6 */] macAddress, String fileName,
+                                        ArrayList<Byte> data) {
+        }
+
+        @Override
+        public void onHs20SubscriptionRemediation(byte osuMethod, String url) {
+        }
+
+        @Override
+        public void onHs20DeauthImminentNotice(int reasonCode, int reAuthDelayInSec, String url) {
+        }
+
+        @Override
+        public void onDisconnected(byte[/* 6 */] bssid, boolean locallyGenerated, int reasonCode) {
+        }
+
+        @Override
+        public void onAssociationRejected(byte[/* 6 */] bssid, int statusCode) {
+        }
+
+        @Override
+        public void onAuthenticationTimeout(byte[/* 6 */] bssid) {
+        }
+
+        @Override
+        public void onEapFailure() {
+        }
+
+        @Override
+        public void onWpsEventSuccess() {
+        }
+
+        @Override
+        public void onWpsEventFail(byte[/* 6 */] bssid, short configError, short errorInd) {
+        }
+
+        @Override
+        public void onWpsEventPbcOverlap() {
+        }
+
+        @Override
+        public void onExtRadioWorkStart(int id) {
+        }
+
+        @Override
+        public void onExtRadioWorkTimeout(int id) {
         }
     }
 
