@@ -96,13 +96,13 @@ public class WifiConfigStoreLegacyTest {
 
         // Return the config data with passwords masked from wpa_supplicant control interface.
         doAnswer(new AnswerWithArguments() {
-            public int answer(Map<String, WifiConfiguration> configs,
+            public boolean answer(Map<String, WifiConfiguration> configs,
                     SparseArray<Map<String, String>> networkExtras) {
                 for (Map.Entry<String, WifiConfiguration> entry:
                         createWpaSupplicantLoadData(networks).entrySet()) {
                     configs.put(entry.getKey(), entry.getValue());
                 }
-                return 0;
+                return true;
             }
         }).when(mWifiNative).migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class));
 

@@ -432,16 +432,17 @@ public class WifiNative {
         return doStringCommand(command);
     }
 
+
     /*
      * Wrappers for supplicant commands
      */
-    public boolean ping() {
-        String pong = doStringCommand("PING");
-        return (pong != null && pong.equals("PONG"));
-    }
-
-    public void setSupplicantLogLevel(String level) {
-        doStringCommand("LOG_LEVEL " + level);
+    /**
+     * Set supplicant log level
+     *
+     * @param turnOnVerbose Whether to turn on verbose logging or not.
+     */
+    public void setSupplicantLogLevel(boolean turnOnVerbose) {
+        doStringCommand("LOG_LEVEL " + (turnOnVerbose ? "DEBUG" : "INFO"));
     }
 
     /*
@@ -607,36 +608,6 @@ public class WifiNative {
                 + Thread.currentThread().getStackTrace()[5].getMethodName()+" - "
                 + Thread.currentThread().getStackTrace()[6].getMethodName());
 
-    }
-
-    /**
-     * Enables a network in wpa_supplicant.
-     * @param netId - Network ID of the network to be enabled.
-     * @return true if command succeeded, false otherwise.
-     */
-    public boolean enableNetwork(int netId) {
-        if (DBG) logDbg("enableNetwork nid=" + Integer.toString(netId));
-        return doBooleanCommand("ENABLE_NETWORK " + netId);
-    }
-
-    /**
-     * Enable a network in wpa_supplicant, do not connect.
-     * @param netId - Network ID of the network to be enabled.
-     * @return true if command succeeded, false otherwise.
-     */
-    public boolean enableNetworkWithoutConnect(int netId) {
-        if (DBG) logDbg("enableNetworkWithoutConnect nid=" + Integer.toString(netId));
-        return doBooleanCommand("ENABLE_NETWORK " + netId + " " + "no-connect");
-    }
-
-    /**
-     * Disables a network in wpa_supplicant.
-     * @param netId - Network ID of the network to be disabled.
-     * @return true if command succeeded, false otherwise.
-     */
-    public boolean disableNetwork(int netId) {
-        if (DBG) logDbg("disableNetwork nid=" + Integer.toString(netId));
-        return doBooleanCommand("DISABLE_NETWORK " + netId);
     }
 
     /**
@@ -819,19 +790,6 @@ public class WifiNative {
         }
     }
 
-    public void enableSaveConfig() {
-        doBooleanCommand("SET update_config 1");
-    }
-
-    public boolean addToBlacklist(String bssid) {
-        if (TextUtils.isEmpty(bssid)) return false;
-        return doBooleanCommand("BLACKLIST " + bssid);
-    }
-
-    public boolean clearBlacklist() {
-        return doBooleanCommand("BLACKLIST clear");
-    }
-
     public boolean setSuspendOptimizations(boolean enabled) {
         if (enabled) {
             return doBooleanCommand("DRIVER SETSUSPENDMODE 1");
@@ -854,26 +812,6 @@ public class WifiNative {
     public boolean setPnoScan(boolean enable) {
         String cmd = enable ? "SET pno 1" : "SET pno 0";
         return doBooleanCommand(cmd);
-    }
-
-    public void enableAutoConnect(boolean enable) {
-        if (enable) {
-            doBooleanCommand("STA_AUTOCONNECT 1");
-        } else {
-            doBooleanCommand("STA_AUTOCONNECT 0");
-        }
-    }
-
-    public void setScanInterval(int scanInterval) {
-        doBooleanCommand("SCAN_INTERVAL " + scanInterval);
-    }
-
-    public void setHs20(boolean hs20) {
-        if (hs20) {
-            doBooleanCommand("SET HS20 1");
-        } else {
-            doBooleanCommand("SET HS20 0");
-        }
     }
 
     public void startTdls(String macAddr, boolean enable) {
@@ -1423,9 +1361,10 @@ public class WifiNative {
      * @param networkExtras Map of extra configuration parameters stored in wpa_supplicant.conf
      * @return Max priority of all the configs.
      */
-    public int migrateNetworksFromSupplicant(Map<String, WifiConfiguration> configs,
-                                             SparseArray<Map<String, String>> networkExtras) {
-        return mWifiSupplicantControl.loadNetworks(configs, networkExtras);
+    public boolean migrateNetworksFromSupplicant(Map<String, WifiConfiguration> configs,
+                                                 SparseArray<Map<String, String>> networkExtras) {
+        mWifiSupplicantControl.loadNetworks(configs, networkExtras);
+        return true;
     }
 
     /**
