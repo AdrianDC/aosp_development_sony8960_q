@@ -43,6 +43,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 
+import java.io.ByteArrayInputStream;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -60,6 +61,8 @@ public class WifiDiagnosticsTest {
     @Mock WifiInjector mWifiInjector;
     @Spy FakeWifiLog mLog;
     @Mock LastMileLogger mLastMileLogger;
+    @Mock Runtime mJavaRuntime;
+    @Mock Process mExternalProcess;
     WifiDiagnostics mWifiDiagnostics;
 
     private static final String FAKE_RING_BUFFER_NAME = "fake-ring-buffer";
@@ -99,6 +102,9 @@ public class WifiDiagnosticsTest {
         when(mBuildProperties.isEngBuild()).thenReturn(false);
         when(mBuildProperties.isUserdebugBuild()).thenReturn(false);
         when(mBuildProperties.isUserBuild()).thenReturn(true);
+        when(mExternalProcess.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(mExternalProcess.getErrorStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(mJavaRuntime.exec(anyString())).thenReturn(mExternalProcess);
 
         MockResources resources = new MockResources();
         resources.setInteger(R.integer.config_wifi_logger_ring_buffer_default_size_limit_kb,
@@ -107,6 +113,7 @@ public class WifiDiagnosticsTest {
                 LARGE_RING_BUFFER_SIZE_KB);
         when(mContext.getResources()).thenReturn(resources);
         when(mWifiInjector.makeLog(anyString())).thenReturn(mLog);
+        when(mWifiInjector.getJavaRuntime()).thenReturn(mJavaRuntime);
 
         mWifiDiagnostics = new WifiDiagnostics(
                 mContext, mWifiInjector, mWsm, mWifiNative, mBuildProperties, mLastMileLogger);
