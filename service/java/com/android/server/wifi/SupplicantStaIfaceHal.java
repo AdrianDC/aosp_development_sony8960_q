@@ -40,7 +40,9 @@ import android.hardware.wifi.supplicant.V1_0.WpsConfigMethods;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.net.IpConfiguration;
+import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiSsid;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.SparseArray;
@@ -1528,6 +1530,36 @@ public class SupplicantStaIfaceHal {
         }
     }
 
+    /**
+     * Converts the supplicant state received from HIDL to the equivalent framework state.
+     */
+    private static SupplicantState supplicantHidlStateToFrameworkState(int state) {
+        switch (state) {
+            case ISupplicantStaIfaceCallback.State.DISCONNECTED:
+                return SupplicantState.DISCONNECTED;
+            case ISupplicantStaIfaceCallback.State.IFACE_DISABLED:
+                return SupplicantState.INTERFACE_DISABLED;
+            case ISupplicantStaIfaceCallback.State.INACTIVE:
+                return SupplicantState.INACTIVE;
+            case ISupplicantStaIfaceCallback.State.SCANNING:
+                return SupplicantState.SCANNING;
+            case ISupplicantStaIfaceCallback.State.AUTHENTICATING:
+                return SupplicantState.AUTHENTICATING;
+            case ISupplicantStaIfaceCallback.State.ASSOCIATING:
+                return SupplicantState.ASSOCIATING;
+            case ISupplicantStaIfaceCallback.State.ASSOCIATED:
+                return SupplicantState.ASSOCIATED;
+            case ISupplicantStaIfaceCallback.State.FOURWAY_HANDSHAKE:
+                return SupplicantState.FOUR_WAY_HANDSHAKE;
+            case ISupplicantStaIfaceCallback.State.GROUP_HANDSHAKE:
+                return SupplicantState.GROUP_HANDSHAKE;
+            case ISupplicantStaIfaceCallback.State.COMPLETED:
+                return SupplicantState.COMPLETED;
+            default:
+                throw new IllegalArgumentException("Invalid state: " + state);
+        }
+    }
+
     private static class Mutable<E> {
         public E value;
 
@@ -1602,6 +1634,18 @@ public class SupplicantStaIfaceHal {
         @Override
         public void onStateChanged(int newState, byte[/* 6 */] bssid, int id,
                                    ArrayList<Byte> ssid) {
+            SupplicantState newSupplicantState = supplicantHidlStateToFrameworkState(newState);
+            WifiSsid wifiSsid =
+                    WifiSsid.createFromByteArray(NativeUtil.byteArrayFromArrayList(ssid));
+            String bssidStr = NativeUtil.macAddressFromByteArray(bssid);
+            mWifiMonitor.broadcastSupplicantStateChangeEvent(
+                    mIfaceName, mFrameworkNetworkId, wifiSsid, bssidStr, newSupplicantState);
+            if (newSupplicantState == SupplicantState.ASSOCIATED) {
+                mWifiMonitor.broadcastAssociationSuccesfulEvent(mIfaceName, bssidStr);
+            } else if (newSupplicantState == SupplicantState.COMPLETED) {
+                mWifiMonitor.broadcastNetworkConnectionEvent(
+                        mIfaceName, mFrameworkNetworkId, bssidStr);
+            }
         }
 
         @Override

@@ -46,7 +46,9 @@ import android.hardware.wifi.supplicant.V1_0.WpsConfigMethods;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.net.IpConfiguration;
+import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiSsid;
 import android.os.IHwBinder;
 import android.os.RemoteException;
 import android.util.SparseArray;
@@ -77,11 +79,12 @@ import java.util.Random;
 public class SupplicantStaIfaceHalTest {
     private static final String TAG = "SupplicantStaIfaceHalTest";
     private static final Map<Integer, String> NETWORK_ID_TO_SSID = new HashMap<Integer, String>() {{
-            put(1, "ssid1");
-            put(2, "ssid2");
-            put(3, "ssid3");
+            put(1, "\"ssid1\"");
+            put(2, "\"ssid2\"");
+            put(3, "\"ssid3\"");
         }};
-    private static final int EXISTING_SUPPLICANT_NETWORK_ID = 2;
+    private static final int SUPPLICANT_NETWORK_ID = 2;
+    private static final String SUPPLICANT_SSID = NETWORK_ID_TO_SSID.get(SUPPLICANT_NETWORK_ID);
     private static final int ROAM_NETWORK_ID = 4;
     private static final String BSSID = "fa:45:23:23:12:12";
     private static final String WLAN_IFACE_NAME = "wlan0";
@@ -717,6 +720,69 @@ public class SupplicantStaIfaceHalTest {
 
     }
 
+    /**
+     * Tests the handling of state change notification without any configured network.
+     */
+    @Test
+    public void testStateChangeCallbackWithNoConfiguredNetwork() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onStateChanged(
+                ISupplicantStaIfaceCallback.State.INACTIVE,
+                NativeUtil.macAddressToByteArray(BSSID), SUPPLICANT_NETWORK_ID,
+                NativeUtil.decodeSsid(SUPPLICANT_SSID));
+
+        // Can't compare WifiSsid instances because they lack an equals.
+        verify(mWifiMonitor).broadcastSupplicantStateChangeEvent(
+                eq(WLAN_IFACE_NAME), eq(WifiConfiguration.INVALID_NETWORK_ID),
+                any(WifiSsid.class), eq(BSSID), eq(SupplicantState.INACTIVE));
+    }
+
+    /**
+     * Tests the handling of state change notification to associated after configuring a network.
+     */
+    @Test
+    public void testStateChangeToAssociatedCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        int frameworkNetworkId = 6;
+        executeAndValidateConnectSequence(frameworkNetworkId, false, false);
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onStateChanged(
+                ISupplicantStaIfaceCallback.State.ASSOCIATED,
+                NativeUtil.macAddressToByteArray(BSSID), SUPPLICANT_NETWORK_ID,
+                NativeUtil.decodeSsid(SUPPLICANT_SSID));
+
+        verify(mWifiMonitor).broadcastSupplicantStateChangeEvent(
+                eq(WLAN_IFACE_NAME), eq(frameworkNetworkId),
+                any(WifiSsid.class), eq(BSSID), eq(SupplicantState.ASSOCIATED));
+        verify(mWifiMonitor).broadcastAssociationSuccesfulEvent(
+                eq(WLAN_IFACE_NAME), eq(BSSID));
+    }
+
+    /**
+     * Tests the handling of state change notification to completed after configuring a network.
+     */
+    @Test
+    public void testStateChangeToCompletedCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        int frameworkNetworkId = 6;
+        executeAndValidateConnectSequence(frameworkNetworkId, false, false);
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onStateChanged(
+                ISupplicantStaIfaceCallback.State.COMPLETED,
+                NativeUtil.macAddressToByteArray(BSSID), SUPPLICANT_NETWORK_ID,
+                NativeUtil.decodeSsid(SUPPLICANT_SSID));
+
+        verify(mWifiMonitor).broadcastSupplicantStateChangeEvent(
+                eq(WLAN_IFACE_NAME), eq(frameworkNetworkId),
+                any(WifiSsid.class), eq(BSSID), eq(SupplicantState.COMPLETED));
+        verify(mWifiMonitor).broadcastNetworkConnectionEvent(
+                eq(WLAN_IFACE_NAME), eq(frameworkNetworkId), eq(BSSID));
+    }
+
     private void executeAndValidateHs20DeauthImminentCallback(boolean isEss) throws Exception {
         executeAndValidateInitializationSequence();
         assertNotNull(mISupplicantStaIfaceCallback);
@@ -905,7 +971,7 @@ public class SupplicantStaIfaceHalTest {
      * Setup mocks for connect sequence.
      */
     private void setupMocksForConnectSequence(final boolean haveExistingNetwork) throws Exception {
-        final int existingNetworkId = EXISTING_SUPPLICANT_NETWORK_ID;
+        final int existingNetworkId = SUPPLICANT_NETWORK_ID;
         doAnswer(new MockAnswerUtil.AnswerWithArguments() {
             public SupplicantStatus answer() throws RemoteException {
                 return mStatusSuccess;
