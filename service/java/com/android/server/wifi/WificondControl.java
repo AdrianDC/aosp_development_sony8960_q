@@ -18,10 +18,12 @@ package com.android.server.wifi;
 
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
+import android.net.wifi.IPnoScanEvent;
 import android.net.wifi.IScanEvent;
 import android.net.wifi.IWifiScannerImpl;
 import android.net.wifi.IWificond;
 import android.net.wifi.ScanResult;
+import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.os.Binder;
 import android.os.RemoteException;
@@ -33,6 +35,8 @@ import com.android.server.wifi.util.NativeUtil;
 import com.android.server.wifi.wificond.ChannelSettings;
 import com.android.server.wifi.wificond.HiddenNetwork;
 import com.android.server.wifi.wificond.NativeScanResult;
+import com.android.server.wifi.wificond.PnoNetwork;
+import com.android.server.wifi.wificond.PnoSettings;
 import com.android.server.wifi.wificond.SingleScanSettings;
 
 import java.util.ArrayList;
@@ -55,6 +59,7 @@ public class WificondControl {
     private IApInterface mApInterface;
     private IWifiScannerImpl mWificondScanner;
     private IScanEvent mScanEventHandler;
+    private IPnoScanEvent mPnoScanEventHandler;
 
     private String mClientInterfaceName;
 
@@ -76,6 +81,20 @@ public class WificondControl {
     WificondControl(WifiInjector wifiInjector, WifiMonitor wifiMonitor) {
         mWifiInjector = wifiInjector;
         mWifiMonitor = wifiMonitor;
+    }
+
+    private class PnoScanEventHandler extends IPnoScanEvent.Stub {
+        @Override
+        public void OnPnoNetworkFound() {
+            Log.d(TAG, "Pno scan result event");
+            mWifiMonitor.broadcastScanResultEvent(mClientInterfaceName);
+        }
+
+        @Override
+        public void OnPnoScanFailed() {
+            Log.d(TAG, "Pno Scan failed event");
+            // Nothing to do for now.
+        }
     }
 
     /** Enable or disable verbose logging of WificondControl.
@@ -124,6 +143,8 @@ public class WificondControl {
             Binder.allowBlocking(mWificondScanner.asBinder());
             mScanEventHandler = new ScanEventHandler();
             mWificondScanner.subscribeScanEvents(mScanEventHandler);
+            mPnoScanEventHandler = new PnoScanEventHandler();
+            mWificondScanner.subscribePnoScanEvents(mPnoScanEventHandler);
         } catch (RemoteException e) {
             Log.e(TAG, "Failed to refresh wificond scanner due to remote exception");
         }
@@ -181,12 +202,14 @@ public class WificondControl {
         try {
             if (mWificondScanner != null) {
                 mWificondScanner.unsubscribeScanEvents();
+                mWificondScanner.unsubscribePnoScanEvents();
             }
             mWificond.tearDownInterfaces();
 
             // Refresh handlers
             mClientInterface = null;
             mWificondScanner = null;
+            mPnoScanEventHandler = null;
             mScanEventHandler = null;
             mApInterface = null;
 
@@ -367,6 +390,57 @@ public class WificondControl {
             return mWificondScanner.scan(settings);
         } catch (RemoteException e1) {
             Log.e(TAG, "Failed to request scan due to remote exception");
+        }
+        return false;
+    }
+
+    /**
+     * Start PNO scan.
+     * @param pnoSettings Pno scan configuration.
+     * @return true on success.
+     */
+    public boolean startPnoScan(WifiNative.PnoSettings pnoSettings) {
+        if (mWificondScanner == null) {
+            Log.e(TAG, "No valid wificond scanner interface handler");
+            return false;
+        }
+        PnoSettings settings = new PnoSettings();
+        settings.pnoNetworks  = new ArrayList<>();
+        settings.intervalMs = pnoSettings.periodInMs;
+        settings.min2gRssi = pnoSettings.min24GHzRssi;
+        settings.min5gRssi = pnoSettings.min5GHzRssi;
+        if (pnoSettings.networkList != null) {
+            for (WifiNative.PnoNetwork network : pnoSettings.networkList) {
+                PnoNetwork condNetwork = new PnoNetwork();
+                condNetwork.isHidden = (network.flags
+                        & WifiScanner.PnoSettings.PnoNetwork.FLAG_DIRECTED_SCAN) != 0;
+                condNetwork.ssid =
+                        NativeUtil.byteArrayFromArrayList(NativeUtil.decodeSsid(network.ssid));
+                settings.pnoNetworks.add(condNetwork);
+            }
+        }
+
+        try {
+            return mWificondScanner.startPnoScan(settings);
+        } catch (RemoteException e1) {
+            Log.e(TAG, "Failed to stop pno scan due to remote exception");
+        }
+        return false;
+    }
+
+    /**
+     * Stop PNO scan.
+     * @return true on success.
+     */
+    public boolean stopPnoScan() {
+        if (mWificondScanner == null) {
+            Log.e(TAG, "No valid wificond scanner interface handler");
+            return false;
+        }
+        try {
+            return mWificondScanner.stopPnoScan();
+        } catch (RemoteException e1) {
+            Log.e(TAG, "Failed to stop pno scan due to remote exception");
         }
         return false;
     }
