@@ -37,8 +37,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Constructor;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 /**
@@ -597,4 +600,31 @@ public class WifiNativeTest {
         verify(wificondControl).getTxPacketCounters();
     }
 
+    /**
+     * Verifies that the ANQP query command is correctly created.
+     */
+    @Test
+    public void testbuildAnqpQueryCommandWithOnlyHsSubtypes() {
+        String bssid = "34:12:ac:45:21:12";
+        Set<Integer> anqpIds = new TreeSet<>();
+        Set<Integer> hs20Subtypes = new TreeSet<>(Arrays.asList(3, 7));
+
+        String expectedCommand = "HS20_ANQP_GET " + bssid + " 3,7";
+        assertEquals(expectedCommand,
+                WifiNative.buildAnqpQueryCommand(bssid, anqpIds, hs20Subtypes));
+    }
+
+    /**
+     * Verifies that the ANQP query command is correctly created.
+     */
+    @Test
+    public void testbuildAnqpQueryCommandWithMixedTypes() {
+        String bssid = "34:12:ac:45:21:12";
+        Set<Integer> anqpIds = new TreeSet<>(Arrays.asList(1, 2, 5));
+        Set<Integer> hs20Subtypes = new TreeSet<>(Arrays.asList(3, 7));
+
+        String expectedCommand = "ANQP_GET " + bssid + " 1,2,5,hs20:3,hs20:7";
+        assertEquals(expectedCommand,
+                WifiNative.buildAnqpQueryCommand(bssid, anqpIds, hs20Subtypes));
+    }
 }
