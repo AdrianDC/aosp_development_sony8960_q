@@ -241,6 +241,7 @@ public class SupplicantStaIfaceHal {
         synchronized (mLock) {
             mISupplicant = null;
             mISupplicantStaIface = null;
+            mWifiMonitor.broadcastSupplicantDisconnectionEvent(mIfaceName);
         }
     }
 
