@@ -912,31 +912,6 @@ public class SupplicantStaIfaceHalTest {
         verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN_IFACE_NAME));
     }
 
-    private void executeAndValidateHs20DeauthImminentCallback(boolean isEss) throws Exception {
-        executeAndValidateInitializationSequence();
-        assertNotNull(mISupplicantStaIfaceCallback);
-
-        byte[] bssid = NativeUtil.macAddressToByteArray(BSSID);
-        int reasonCode = isEss ? WnmData.ESS : WnmData.ESS + 1;
-        int reauthDelay = 5;
-        mISupplicantStaIfaceCallback.onHs20DeauthImminentNotice(
-                bssid, reasonCode, reauthDelay, HS20_URL);
-
-        ArgumentCaptor<WnmData> wnmDataCaptor = ArgumentCaptor.forClass(WnmData.class);
-        verify(mWifiMonitor).broadcastWnmEvent(eq(WLAN_IFACE_NAME), wnmDataCaptor.capture());
-        assertEquals(
-                ByteBufferReader.readInteger(
-                        ByteBuffer.wrap(bssid), ByteOrder.BIG_ENDIAN, bssid.length),
-                wnmDataCaptor.getValue().getBssid());
-        assertEquals(isEss, wnmDataCaptor.getValue().isEss());
-        assertEquals(reauthDelay, wnmDataCaptor.getValue().getDelay());
-        assertEquals(HS20_URL, wnmDataCaptor.getValue().getUrl());
-    }
-
-    private void executeAndValidateInitializationSequence() throws  Exception {
-        executeAndValidateInitializationSequence(false, false, false, false);
-    }
-
     /**
      * Tests the setting of log level.
      */
@@ -973,6 +948,31 @@ public class SupplicantStaIfaceHalTest {
         verify(mISupplicantMock).setConcurrencyPriority(eq(IfaceType.P2P));
         assertTrue(mDut.setConcurrencyPriority(true));
         verify(mISupplicantMock).setConcurrencyPriority(eq(IfaceType.STA));
+    }
+
+    private void executeAndValidateHs20DeauthImminentCallback(boolean isEss) throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        byte[] bssid = NativeUtil.macAddressToByteArray(BSSID);
+        int reasonCode = isEss ? WnmData.ESS : WnmData.ESS + 1;
+        int reauthDelay = 5;
+        mISupplicantStaIfaceCallback.onHs20DeauthImminentNotice(
+                bssid, reasonCode, reauthDelay, HS20_URL);
+
+        ArgumentCaptor<WnmData> wnmDataCaptor = ArgumentCaptor.forClass(WnmData.class);
+        verify(mWifiMonitor).broadcastWnmEvent(eq(WLAN_IFACE_NAME), wnmDataCaptor.capture());
+        assertEquals(
+                ByteBufferReader.readInteger(
+                        ByteBuffer.wrap(bssid), ByteOrder.BIG_ENDIAN, bssid.length),
+                wnmDataCaptor.getValue().getBssid());
+        assertEquals(isEss, wnmDataCaptor.getValue().isEss());
+        assertEquals(reauthDelay, wnmDataCaptor.getValue().getDelay());
+        assertEquals(HS20_URL, wnmDataCaptor.getValue().getUrl());
+    }
+
+    private void executeAndValidateInitializationSequence() throws  Exception {
+        executeAndValidateInitializationSequence(false, false, false, false);
     }
 
     /**
