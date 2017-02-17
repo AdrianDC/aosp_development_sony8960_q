@@ -376,7 +376,7 @@ public class WifiMonitorTest {
         int local = 1;
         int reason  = 5;
         String bssid = BSSID;
-        mWifiMonitor.broadcastNetworkDisConnectionEvent(WLAN_IFACE_NAME, local, reason, bssid);
+        mWifiMonitor.broadcastNetworkDisconnectionEvent(WLAN_IFACE_NAME, local, reason, bssid);
         mLooper.dispatchAll();
 
         ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);

@@ -783,6 +783,124 @@ public class SupplicantStaIfaceHalTest {
                 eq(WLAN_IFACE_NAME), eq(frameworkNetworkId), eq(BSSID));
     }
 
+    /**
+     * Tests the handling of network disconnected notification.
+     */
+    @Test
+    public void testDisconnectedCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        int reasonCode = 5;
+        mISupplicantStaIfaceCallback.onDisconnected(
+                NativeUtil.macAddressToByteArray(BSSID), true, reasonCode);
+        verify(mWifiMonitor).broadcastNetworkDisconnectionEvent(
+                eq(WLAN_IFACE_NAME), eq(1), eq(reasonCode), eq(BSSID));
+
+        mISupplicantStaIfaceCallback.onDisconnected(
+                NativeUtil.macAddressToByteArray(BSSID), false, reasonCode);
+        verify(mWifiMonitor).broadcastNetworkDisconnectionEvent(
+                eq(WLAN_IFACE_NAME), eq(0), eq(reasonCode), eq(BSSID));
+    }
+
+    /**
+     * Tests the handling of association rejection notification.
+     */
+    @Test
+    public void testAssociationRejectionCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        int statusCode = 7;
+        mISupplicantStaIfaceCallback.onAssociationRejected(
+                NativeUtil.macAddressToByteArray(BSSID), statusCode);
+        verify(mWifiMonitor).broadcastAssociationRejectionEvent(
+                eq(WLAN_IFACE_NAME), eq(statusCode), eq(BSSID));
+    }
+
+    /**
+     * Tests the handling of authentification timeout notification.
+     */
+    @Test
+    public void testAuthenticationTimeoutCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onAuthenticationTimeout(
+                NativeUtil.macAddressToByteArray(BSSID));
+        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN_IFACE_NAME),
+                eq(WifiMonitor.AUTHENTICATION_FAILURE_REASON_TIMEOUT));
+    }
+
+    /**
+     * Tests the handling of EAP failure notification.
+     */
+    @Test
+    public void testEapFailureCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onEapFailure();
+        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN_IFACE_NAME),
+                eq(WifiMonitor.AUTHENTICATION_FAILURE_REASON_EAP_FAILURE));
+    }
+
+    /**
+     * Tests the handling of Wps success notification.
+     */
+    @Test
+    public void testWpsSuccessCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onWpsEventSuccess();
+        verify(mWifiMonitor).broadcastWpsSuccessEvent(eq(WLAN_IFACE_NAME));
+    }
+
+    /**
+     * Tests the handling of Wps fail notification.
+     */
+    @Test
+    public void testWpsFailureCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        short cfgError = ISupplicantStaIfaceCallback.WpsConfigError.MULTIPLE_PBC_DETECTED;
+        short errorInd = ISupplicantStaIfaceCallback.WpsErrorIndication.SECURITY_WEP_PROHIBITED;
+        mISupplicantStaIfaceCallback.onWpsEventFail(
+                NativeUtil.macAddressToByteArray(BSSID), cfgError, errorInd);
+        verify(mWifiMonitor).broadcastWpsFailEvent(eq(WLAN_IFACE_NAME),
+                eq((int) cfgError), eq((int) errorInd));
+    }
+
+    /**
+     * Tests the handling of Wps fail notification.
+     */
+    @Test
+    public void testWpsTimeoutCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        short cfgError = ISupplicantStaIfaceCallback.WpsConfigError.MSG_TIMEOUT;
+        short errorInd = ISupplicantStaIfaceCallback.WpsErrorIndication.NO_ERROR;
+        mISupplicantStaIfaceCallback.onWpsEventFail(
+                NativeUtil.macAddressToByteArray(BSSID), cfgError, errorInd);
+        verify(mWifiMonitor).broadcastWpsTimeoutEvent(eq(WLAN_IFACE_NAME));
+    }
+
+    /**
+     * Tests the handling of Wps pbc overlap notification.
+     */
+    @Test
+    public void testWpsPbcOverlapCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onWpsEventPbcOverlap();
+        verify(mWifiMonitor).broadcastWpsOverlapEvent(eq(WLAN_IFACE_NAME));
+    }
+
+
     private void executeAndValidateHs20DeauthImminentCallback(boolean isEss) throws Exception {
         executeAndValidateInitializationSequence();
         assertNotNull(mISupplicantStaIfaceCallback);

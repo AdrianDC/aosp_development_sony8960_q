@@ -1519,7 +1519,7 @@ public class WifiMonitor {
                 Log.d(TAG, "WifiMonitor notify network disconnect: " + BSSID
                         + " reason=" + Integer.toString(reason));
             }
-            broadcastNetworkDisConnectionEvent(iface, local, reason, BSSID);
+            broadcastNetworkDisconnectionEvent(iface, local, reason, BSSID);
         }
     }
 
@@ -1709,7 +1709,7 @@ public class WifiMonitor {
      * @param reason Disconnect reason code.
      * @param bssid BSSID of the access point.
      */
-    public void broadcastNetworkDisConnectionEvent(String iface, int local, int reason,
+    public void broadcastNetworkDisconnectionEvent(String iface, int local, int reason,
                                                    String bssid) {
         sendMessage(iface, NETWORK_DISCONNECTION_EVENT, local, reason, bssid);
     }

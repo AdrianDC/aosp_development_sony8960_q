@@ -1693,30 +1693,49 @@ public class SupplicantStaIfaceHal {
 
         @Override
         public void onDisconnected(byte[/* 6 */] bssid, boolean locallyGenerated, int reasonCode) {
+            mWifiMonitor.broadcastNetworkDisconnectionEvent(
+                    mIfaceName, locallyGenerated ? 1 : 0, reasonCode,
+                    NativeUtil.macAddressFromByteArray(bssid));
         }
 
         @Override
         public void onAssociationRejected(byte[/* 6 */] bssid, int statusCode) {
+            // TODO(b/35464954): Need to figure out when to trigger
+            // |WifiMonitor.AUTHENTICATION_FAILURE_REASON_WRONG_PSWD|
+            mWifiMonitor.broadcastAssociationRejectionEvent(mIfaceName, statusCode,
+                    NativeUtil.macAddressFromByteArray(bssid));
         }
 
         @Override
         public void onAuthenticationTimeout(byte[/* 6 */] bssid) {
+            mWifiMonitor.broadcastAuthenticationFailureEvent(
+                    mIfaceName, WifiMonitor.AUTHENTICATION_FAILURE_REASON_TIMEOUT);
         }
 
         @Override
         public void onEapFailure() {
+            mWifiMonitor.broadcastAuthenticationFailureEvent(
+                    mIfaceName, WifiMonitor.AUTHENTICATION_FAILURE_REASON_EAP_FAILURE);
         }
 
         @Override
         public void onWpsEventSuccess() {
+            mWifiMonitor.broadcastWpsSuccessEvent(mIfaceName);
         }
 
         @Override
         public void onWpsEventFail(byte[/* 6 */] bssid, short configError, short errorInd) {
+            if (configError == WpsConfigError.MSG_TIMEOUT
+                    && errorInd == WpsErrorIndication.NO_ERROR) {
+                mWifiMonitor.broadcastWpsTimeoutEvent(mIfaceName);
+            } else {
+                mWifiMonitor.broadcastWpsFailEvent(mIfaceName, configError, errorInd);
+            }
         }
 
         @Override
         public void onWpsEventPbcOverlap() {
+            mWifiMonitor.broadcastWpsOverlapEvent(mIfaceName);
         }
 
         @Override
