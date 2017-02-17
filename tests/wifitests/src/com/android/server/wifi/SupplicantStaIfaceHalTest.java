@@ -37,6 +37,7 @@ import android.content.Context;
 import android.hardware.wifi.supplicant.V1_0.ISupplicant;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantIface;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIface;
+import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIfaceCallback;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaNetwork;
 import android.hardware.wifi.supplicant.V1_0.IfaceType;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
@@ -87,6 +88,7 @@ public class SupplicantStaIfaceHalTest {
     ISupplicant.IfaceInfo mStaIface;
     ISupplicant.IfaceInfo mP2pIface;
     ArrayList<ISupplicant.IfaceInfo> mIfaceInfoList;
+    ISupplicantStaIfaceCallback mISupplicantStaIfaceCallback;
     private SupplicantStaIfaceHal mDut;
     private ArgumentCaptor<IHwBinder.DeathRecipient> mDeathRecipientCaptor =
             ArgumentCaptor.forClass(IHwBinder.DeathRecipient.class);
@@ -146,7 +148,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testInitialize_success() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence(false, false, false, false);
     }
 
     /**
@@ -155,7 +157,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testInitialize_remoteExceptionFailure() throws Exception {
-        executeAndValidateInitializationSequence(true, false, false);
+        executeAndValidateInitializationSequence(true, false, false, false);
     }
 
     /**
@@ -164,7 +166,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testInitialize_zeroInterfacesFailure() throws Exception {
-        executeAndValidateInitializationSequence(false, true, false);
+        executeAndValidateInitializationSequence(false, true, false, false);
     }
 
     /**
@@ -173,7 +175,16 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testInitialize_nullInterfaceFailure() throws Exception {
-        executeAndValidateInitializationSequence(false, false, true);
+        executeAndValidateInitializationSequence(false, false, true, false);
+    }
+
+    /**
+     * Tests the initialization flow, with a callback registration failure.
+     * Ensures initialization fails.
+     */
+    @Test
+    public void testInitialize_callbackRegistrationFailure() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false, true);
     }
 
     /**
@@ -182,7 +193,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testLoadNetworks() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         doAnswer(new MockAnswerUtil.AnswerWithArguments() {
             public void answer(ISupplicantStaIface.listNetworksCallback cb) {
                 cb.onValues(mStatusSuccess, new ArrayList<>(NETWORK_ID_TO_SSID.keySet()));
@@ -235,7 +246,7 @@ public class SupplicantStaIfaceHalTest {
         // Network ID which will have the same config key as the previous one.
         final int duplicateNetworkId = 2;
         final int toRemoveNetworkId = duplicateNetworkId - 1;
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         doAnswer(new MockAnswerUtil.AnswerWithArguments() {
             public void answer(ISupplicantStaIface.listNetworksCallback cb) {
                 cb.onValues(mStatusSuccess, new ArrayList<>(NETWORK_ID_TO_SSID.keySet()));
@@ -306,7 +317,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testLoadNetworksFailedDueToListNetworks() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         doAnswer(new MockAnswerUtil.AnswerWithArguments() {
             public void answer(ISupplicantStaIface.listNetworksCallback cb) {
                 cb.onValues(mStatusFailure, null);
@@ -324,7 +335,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testLoadNetworksFailedDueToGetNetwork() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         doAnswer(new MockAnswerUtil.AnswerWithArguments() {
             public void answer(ISupplicantStaIface.listNetworksCallback cb) {
                 cb.onValues(mStatusSuccess, new ArrayList<>(NETWORK_ID_TO_SSID.keySet()));
@@ -349,7 +360,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testLoadNetworksFailedDueToLoadWifiConfiguration() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         doAnswer(new MockAnswerUtil.AnswerWithArguments() {
             public void answer(ISupplicantStaIface.listNetworksCallback cb) {
                 cb.onValues(mStatusSuccess, new ArrayList<>(NETWORK_ID_TO_SSID.keySet()));
@@ -373,7 +384,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testConnectWithNoDisconnectAndEmptyExistingNetworks() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         executeAndValidateConnectSequence(0, false, false);
     }
 
@@ -382,7 +393,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testConnectWithNoDisconnectAndSingleExistingNetwork() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         executeAndValidateConnectSequence(0, true, false);
     }
 
@@ -391,7 +402,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testConnectWithDisconnectAndSingleExistingNetwork() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         executeAndValidateConnectSequence(0, false, true);
     }
 
@@ -400,7 +411,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testConnectFailureDueToNetworkAddFailure() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         setupMocksForConnectSequence(false);
         doAnswer(new MockAnswerUtil.AnswerWithArguments() {
             public void answer(ISupplicantStaIface.addNetworkCallback cb) throws RemoteException {
@@ -418,7 +429,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testConnectFailureDueToNetworkSaveFailure() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         setupMocksForConnectSequence(false);
 
         when(mSupplicantStaNetworkMock.saveWifiConfiguration(any(WifiConfiguration.class)))
@@ -432,7 +443,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testConnectFailureDueToNetworkSelectFailure() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         setupMocksForConnectSequence(false);
 
         when(mSupplicantStaNetworkMock.select()).thenReturn(false);
@@ -445,7 +456,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testRoamToSameNetwork() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         executeAndValidateRoamSequence(true);
     }
 
@@ -454,7 +465,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testRoamToDifferentNetwork() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         executeAndValidateRoamSequence(false);
     }
 
@@ -463,7 +474,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testRoamFailureDueToBssidSet() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         int connectedNetworkId = 5;
         executeAndValidateConnectSequence(connectedNetworkId, false, false);
         when(mSupplicantStaNetworkMock.setBssid(anyString())).thenReturn(false);
@@ -479,7 +490,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testRemoveAllNetworks() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         doAnswer(new MockAnswerUtil.AnswerWithArguments() {
             public void answer(ISupplicantStaIface.listNetworksCallback cb) {
                 cb.onValues(mStatusSuccess, new ArrayList<>(NETWORK_ID_TO_SSID.keySet()));
@@ -502,7 +513,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testRoamFailureDueToReassociate() throws Exception {
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
         int connectedNetworkId = 5;
         executeAndValidateConnectSequence(connectedNetworkId, false, false);
 
@@ -527,7 +538,7 @@ public class SupplicantStaIfaceHalTest {
         String token = "45adbc1";
         when(mSupplicantStaNetworkMock.getWpsNfcConfigurationToken()).thenReturn(token);
 
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
 
         // Return null when not connected to the network.
         assertTrue(mDut.getCurrentNetworkWpsNfcConfigurationToken() == null);
@@ -545,7 +556,7 @@ public class SupplicantStaIfaceHalTest {
         String bssidStr = "34:34:12:12:12:90";
         when(mSupplicantStaNetworkMock.setBssid(eq(bssidStr))).thenReturn(true);
 
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
 
         // Fail when not connected to a network.
         assertFalse(mDut.setCurrentNetworkBssid(bssidStr));
@@ -567,7 +578,7 @@ public class SupplicantStaIfaceHalTest {
         when(mISupplicantStaIfaceMock.setWpsDeviceType(any(byte[].class)))
                 .thenReturn(mStatusSuccess);
 
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
 
         // This should work.
         assertTrue(mDut.setWpsDeviceType(validDeviceTypeStr));
@@ -590,7 +601,7 @@ public class SupplicantStaIfaceHalTest {
         String invalidConfigMethodsStr = "physical_display virtual_push_button test";
         when(mISupplicantStaIfaceMock.setWpsConfigMethods(anyShort())).thenReturn(mStatusSuccess);
 
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
 
         // This should work.
         assertTrue(mDut.setWpsConfigMethods(validConfigMethodsStr));
@@ -605,6 +616,10 @@ public class SupplicantStaIfaceHalTest {
         assertTrue(false);
     }
 
+    private void executeAndValidateInitializationSequence() throws  Exception {
+        executeAndValidateInitializationSequence(false, false, false, false);
+    }
+
     /**
      * Tests the setting of log level.
      */
@@ -616,7 +631,7 @@ public class SupplicantStaIfaceHalTest {
         // Fail before initialization is performed.
         assertFalse(mDut.setLogLevel(SupplicantStaIfaceHal.LOG_LEVEL_DEBUG));
 
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
 
         // This should work.
         assertTrue(mDut.setLogLevel(SupplicantStaIfaceHal.LOG_LEVEL_DEBUG));
@@ -634,7 +649,7 @@ public class SupplicantStaIfaceHalTest {
         // Fail before initialization is performed.
         assertFalse(mDut.setConcurrencyPriority(false));
 
-        executeAndValidateInitializationSequence(false, false, false);
+        executeAndValidateInitializationSequence();
 
         // This should work.
         assertTrue(mDut.setConcurrencyPriority(false));
@@ -650,9 +665,12 @@ public class SupplicantStaIfaceHalTest {
      */
     private void executeAndValidateInitializationSequence(boolean causeRemoteException,
                                                           boolean getZeroInterfaces,
-                                                          boolean getNullInterface)
+                                                          boolean getNullInterface,
+                                                          boolean causeCallbackRegFailure)
             throws Exception {
-        boolean shouldSucceed = !causeRemoteException && !getZeroInterfaces && !getNullInterface;
+        boolean shouldSucceed =
+                !causeRemoteException && !getZeroInterfaces && !getNullInterface
+                        && !causeCallbackRegFailure;
         // Setup callback mock answers
         ArrayList<ISupplicant.IfaceInfo> interfaces;
         if (getZeroInterfaces) {
@@ -671,8 +689,27 @@ public class SupplicantStaIfaceHalTest {
                     .when(mISupplicantMock).getInterface(any(ISupplicant.IfaceInfo.class),
                     any(ISupplicant.getInterfaceCallback.class));
         }
+        /** Callback registeration */
+        if (causeCallbackRegFailure) {
+            doAnswer(new MockAnswerUtil.AnswerWithArguments() {
+                public SupplicantStatus answer(ISupplicantStaIfaceCallback cb)
+                        throws RemoteException {
+                    return mStatusFailure;
+                }
+            }).when(mISupplicantStaIfaceMock)
+                    .registerCallback(any(ISupplicantStaIfaceCallback.class));
+        } else {
+            doAnswer(new MockAnswerUtil.AnswerWithArguments() {
+                public SupplicantStatus answer(ISupplicantStaIfaceCallback cb)
+                        throws RemoteException {
+                    mISupplicantStaIfaceCallback = cb;
+                    return mStatusSuccess;
+                }
+            }).when(mISupplicantStaIfaceMock)
+                    .registerCallback(any(ISupplicantStaIfaceCallback.class));
+        }
 
-        mInOrder = inOrder(mServiceManagerMock, mISupplicantMock);
+        mInOrder = inOrder(mServiceManagerMock, mISupplicantMock, mISupplicantStaIfaceMock);
         // Initialize SupplicantStaIfaceHal, should call serviceManager.registerForNotifications
         assertTrue(mDut.initialize());
         // verify: service manager initialization sequence
@@ -691,6 +728,10 @@ public class SupplicantStaIfaceHalTest {
             mInOrder.verify(mISupplicantMock)
                     .getInterface(any(ISupplicant.IfaceInfo.class),
                             any(ISupplicant.getInterfaceCallback.class));
+        }
+        if (!causeRemoteException && !getZeroInterfaces && !getNullInterface) {
+            mInOrder.verify(mISupplicantStaIfaceMock)
+                    .registerCallback(any(ISupplicantStaIfaceCallback.class));
         }
     }
 
