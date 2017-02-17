@@ -1336,6 +1336,83 @@ public class SupplicantStaIfaceHal {
         }
     }
 
+    public static final int LOG_LEVEL_EXCESSIVE = ISupplicant.DebugLevel.EXCESSIVE;
+    public static final int LOG_LEVEL_MSGDUMP = ISupplicant.DebugLevel.MSGDUMP;
+    public static final int LOG_LEVEL_DEBUG = ISupplicant.DebugLevel.DEBUG;
+    public static final int LOG_LEVEL_INFO = ISupplicant.DebugLevel.INFO;
+    public static final int LOG_LEVEL_WARNING = ISupplicant.DebugLevel.WARNING;
+    public static final int LOG_LEVEL_ERROR = ISupplicant.DebugLevel.ERROR;
+    /**
+     * Set the debug log level for wpa_supplicant
+     * @param level One of the above {@link #LOG_LEVEL_EXCESSIVE} - {@link #LOG_LEVEL_ERROR} value.
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean setLogLevel(int level) {
+        return setDebugParams(level, false, false);
+    }
+
+    /** See ISupplicant.hal for documentation */
+    private boolean setDebugParams(int level, boolean showTimestamp, boolean showKeys) {
+        synchronized (mLock) {
+            final String methodStr = "setDebugParams";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status =
+                        mISupplicant.setDebugParams(level, showTimestamp, showKeys);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicant." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Set concurrency priority between P2P & STA operations.
+     *
+     * @param isStaHigherPriority Set to true to prefer STA over P2P during concurrency operations,
+     *                            false otherwise.
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean setConcurrencyPriority(boolean isStaHigherPriority) {
+        if (isStaHigherPriority) {
+            return setConcurrencyPriority(IfaceType.STA);
+        } else {
+            return setConcurrencyPriority(IfaceType.P2P);
+        }
+    }
+
+    /** See ISupplicant.hal for documentation */
+    private boolean setConcurrencyPriority(int type) {
+        synchronized (mLock) {
+            final String methodStr = "setConcurrencyPriority";
+            if (DBG) Log.i(TAG, methodStr);
+            if (!checkSupplicantAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicant.setConcurrencyPriority(type);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicant." + methodStr + ": exception:" + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Returns false if Supplicant is null, and logs failure to call methodStr
+     */
+    private boolean checkSupplicantAndLogFailure(final String methodStr) {
+        if (DBG) Log.i(TAG, methodStr);
+        if (mISupplicant == null) {
+            Log.e(TAG, "Can't call " + methodStr + ", ISupplicant is null");
+            return false;
+        }
+        return true;
+    }
+
     /**
      * Returns false if SupplicantStaIface is null, and logs failure to call methodStr
      */
