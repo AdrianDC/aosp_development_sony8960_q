@@ -303,7 +303,6 @@ public class WifiStateMachineTest {
     TestIpManager mTestIpManager;
     TestLooper mLooper;
 
-    @Mock WifiNative mWifiNative;
     @Mock WifiScanner mWifiScanner;
     @Mock SupplicantStateTracker mSupplicantStateTracker;
     @Mock WifiMetrics mWifiMetrics;
@@ -321,7 +320,7 @@ public class WifiStateMachineTest {
     @Mock IBinder mApInterfaceBinder;
     @Mock IBinder mClientInterfaceBinder;
     @Mock WifiConfigManager mWifiConfigManager;
-    @Mock WifiSupplicantControl mWifiSupplicantControl;
+    @Mock WifiNative mWifiNative;
     @Mock WifiConnectivityManager mWifiConnectivityManager;
     @Mock SoftApManager mSoftApManager;
 
@@ -352,7 +351,6 @@ public class WifiStateMachineTest {
                 mock(BaseWifiDiagnostics.class));
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
         when(mWifiInjector.getWifiConfigManager()).thenReturn(mWifiConfigManager);
-        when(mWifiInjector.getWifiSupplicantControl()).thenReturn(mWifiSupplicantControl);
         when(mWifiInjector.getWifiScanner()).thenReturn(mWifiScanner);
         when(mWifiInjector.getWifiNetworkSelector()).thenReturn(mock(WifiNetworkSelector.class));
         when(mWifiInjector.makeWifiConnectivityManager(any(WifiInfo.class), anyBoolean()))
@@ -367,7 +365,7 @@ public class WifiStateMachineTest {
         when(mWifiNative.getInterfaceName()).thenReturn("mockWlan");
         when(mWifiNative.enableSupplicant()).thenReturn(true);
         when(mWifiNative.disableSupplicant()).thenReturn(true);
-        when(mWifiSupplicantControl.getFrameworkNetworkId(anyInt())).thenReturn(0);
+        when(mWifiNative.getFrameworkNetworkId(anyInt())).thenReturn(0);
 
 
         FrameworkFacade factory = getFrameworkFacade();
