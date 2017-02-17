@@ -69,6 +69,8 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -2192,27 +2194,41 @@ public class WifiAwareStateManagerTest {
     @Test
     public void testConfigs() throws Exception {
         final int clientId1 = 9999;
+        final int clientId2 = 1001;
+        final int clientId3 = 1005;
         final int uid = 1000;
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
-        final int clusterLow1 = 5;
-        final int clusterHigh1 = 100;
         final int masterPref1 = 111;
-        final int clientId2 = 1001;
-        final boolean support5g2 = true;
-        final int clusterLow2 = 7;
-        final int clusterHigh2 = 155;
-        final int masterPref2 = 0;
+        final int masterPref3 = 115;
+        final int dwInterval1Band24 = 2;
+        final int dwInterval3Band24 = 1;
+        final int dwInterval3Band5 = 0;
 
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         ArgumentCaptor<ConfigRequest> crCapture = ArgumentCaptor.forClass(ConfigRequest.class);
 
-        ConfigRequest configRequest1 = new ConfigRequest.Builder().setClusterLow(clusterLow1)
-                .setClusterHigh(clusterHigh1).setMasterPreference(masterPref1).build();
+        ConfigRequest configRequest1 = new ConfigRequest.Builder()
+                .setClusterLow(5).setClusterHigh(100)
+                .setMasterPreference(masterPref1)
+                .setDiscoveryWindowInterval(ConfigRequest.NAN_BAND_24GHZ, dwInterval1Band24)
+                .build();
 
-        ConfigRequest configRequest2 = new ConfigRequest.Builder().setSupport5gBand(support5g2)
-                .setClusterLow(clusterLow2).setClusterHigh(clusterHigh2)
-                .setMasterPreference(masterPref2).build();
+        ConfigRequest configRequest2 = new ConfigRequest.Builder()
+                .setSupport5gBand(true) // compatible
+                .setClusterLow(7).setClusterHigh(155) // incompatible!
+                .setMasterPreference(0) // compatible
+                .build();
+
+        ConfigRequest configRequest3  = new ConfigRequest.Builder()
+                .setSupport5gBand(true) // compatible (will use true)
+                .setClusterLow(5).setClusterHigh(100) // identical (hence compatible)
+                .setMasterPreference(masterPref3) // compatible (will use max)
+                // compatible: will use min
+                .setDiscoveryWindowInterval(ConfigRequest.NAN_BAND_24GHZ, dwInterval3Band24)
+                // compatible: will use interval3 since interval1 not init
+                .setDiscoveryWindowInterval(ConfigRequest.NAN_BAND_5GHZ, dwInterval3Band5)
+                .build();
 
         IWifiAwareEventCallback mockCallback1 = mock(IWifiAwareEventCallback.class);
         IWifiAwareEventCallback mockCallback2 = mock(IWifiAwareEventCallback.class);
@@ -2241,6 +2257,38 @@ public class WifiAwareStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback2).onConnectFail(NanStatusType.INTERNAL_FAILURE);
         validateInternalClientInfoCleanedUp(clientId2);
+
+        // (3) config3 (compatible with config1)
+        mDut.connect(clientId3, uid, pid, callingPackage, mockCallback3, configRequest3, true);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
+                crCapture.capture(), eq(true), eq(false));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback3).onConnectSuccess(clientId3);
+
+        collector.checkThat("support 5g: or", true, equalTo(crCapture.getValue().mSupport5gBand));
+        collector.checkThat("master preference: max", Math.max(masterPref1, masterPref3),
+                equalTo(crCapture.getValue().mMasterPreference));
+        collector.checkThat("dw interval on 2.4: ~min",
+                Math.min(dwInterval1Band24, dwInterval3Band24),
+                equalTo(crCapture.getValue().mDiscoveryWindowInterval[ConfigRequest
+                        .NAN_BAND_24GHZ]));
+        collector.checkThat("dw interval on 5: ~min", dwInterval3Band5,
+                equalTo(crCapture.getValue().mDiscoveryWindowInterval[ConfigRequest
+                        .NAN_BAND_5GHZ]));
+
+        // (4) disconnect config3: downgrade to config1
+        mDut.disconnect(clientId3);
+        mMockLooper.dispatchAll();
+        validateInternalClientInfoCleanedUp(clientId3);
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
+                crCapture.capture(), eq(false), eq(false));
+
+        collector.checkThat("configRequest1", configRequest1, equalTo(crCapture.getValue()));
+
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
 
         // (5) disconnect config1: disable
         mDut.disconnect(clientId1);
@@ -2706,6 +2754,11 @@ public class WifiAwareStateManagerTest {
     /*
      * Utilities
      */
+    private void dumpDut(String prefix) {
+        StringWriter sw = new StringWriter();
+        mDut.dump(null, new PrintWriter(sw), null);
+        Log.e("WifiAwareStateManagerTest", prefix + sw.toString());
+    }
 
     private static void installMocksInStateManager(WifiAwareStateManager awareStateManager,
             WifiAwareRttStateManager mockRtt, WifiAwareDataPathStateManager mockDpMgr)

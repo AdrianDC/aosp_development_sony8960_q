@@ -1773,22 +1773,25 @@ public class WifiAwareStateManager {
             Log.e(TAG, "connectLocal: entry already exists for clientId=" + clientId);
         }
 
-        if (mCurrentAwareConfiguration != null
-                && !mCurrentAwareConfiguration.equals(configRequest)) {
-            try {
-                callback.onConnectFail(NanStatusType.INTERNAL_FAILURE);
-            } catch (RemoteException e) {
-                Log.w(TAG, "connectLocal onConnectFail(): RemoteException (FYI): " + e);
-            }
-            return false;
-        }
-
         if (VDBG) {
             Log.v(TAG, "mCurrentAwareConfiguration=" + mCurrentAwareConfiguration
                     + ", mCurrentIdentityNotification=" + mCurrentIdentityNotification);
         }
 
         ConfigRequest merged = mergeConfigRequests(configRequest);
+        if (merged == null) {
+            Log.e(TAG, "connectLocal: requested configRequest=" + configRequest
+                    + ", incompatible with current configurations");
+            try {
+                callback.onConnectFail(NanStatusType.INTERNAL_FAILURE);
+            } catch (RemoteException e) {
+                Log.w(TAG, "connectLocal onConnectFail(): RemoteException (FYI): " + e);
+            }
+            return false;
+        } else if (VDBG) {
+            Log.v(TAG, "connectLocal: merged=" + merged);
+        }
+
         if (mCurrentAwareConfiguration != null && mCurrentAwareConfiguration.equals(merged)
                 && mCurrentIdentityNotification == notifyIdentityChange) {
             try {
@@ -1839,6 +1842,10 @@ public class WifiAwareStateManager {
         }
 
         ConfigRequest merged = mergeConfigRequests(null);
+        if (merged == null) {
+            Log.wtf(TAG, "disconnectLocal: got an incompatible merge on remaining configs!?");
+            return false;
+        }
         boolean notificationReqs = doesAnyClientNeedIdentityChangeNotifications();
         if (merged.equals(mCurrentAwareConfiguration)
                 && mCurrentIdentityNotification == notificationReqs) {
@@ -2143,6 +2150,9 @@ public class WifiAwareStateManager {
         }
 
         mCurrentAwareConfiguration = mergeConfigRequests(null);
+        if (mCurrentAwareConfiguration == null) {
+            Log.wtf(TAG, "onConfigCompletedLocal: got a null merged configuration after config!?");
+        }
         mCurrentIdentityNotification = doesAnyClientNeedIdentityChangeNotifications();
     }
 
@@ -2545,6 +2555,10 @@ public class WifiAwareStateManager {
         return null;
     }
 
+    /**
+     * Merge all the existing client configurations with the (optional) input configuration request.
+     * If the configurations are "incompatible" (rules in comment below) return a null.
+     */
     private ConfigRequest mergeConfigRequests(ConfigRequest configRequest) {
         if (VDBG) {
             Log.v(TAG, "mergeConfigRequests(): mClients=[" + mClients + "], configRequest="
@@ -2559,44 +2573,71 @@ public class WifiAwareStateManager {
         // TODO: continue working on merge algorithm:
         // - if any request 5g: enable
         // - maximal master preference
-        // - cluster range covering all requests: assume that [0,max] is a
-        // non-request
+        // - cluster range: must be identical
         // - if any request identity change: enable
+        // - discovery window: minimum value if specified, 0 (disable) is considered an infinity
         boolean support5gBand = false;
         int masterPreference = 0;
         boolean clusterIdValid = false;
         int clusterLow = 0;
         int clusterHigh = ConfigRequest.CLUSTER_ID_MAX;
+        int[] discoveryWindowInterval =
+                {ConfigRequest.DW_INTERVAL_NOT_INIT, ConfigRequest.DW_INTERVAL_NOT_INIT};
         if (configRequest != null) {
             support5gBand = configRequest.mSupport5gBand;
             masterPreference = configRequest.mMasterPreference;
             clusterIdValid = true;
             clusterLow = configRequest.mClusterLow;
             clusterHigh = configRequest.mClusterHigh;
+            discoveryWindowInterval = configRequest.mDiscoveryWindowInterval;
         }
         for (int i = 0; i < mClients.size(); ++i) {
             ConfigRequest cr = mClients.valueAt(i).getConfigRequest();
 
+            // any request turns on 5G
             if (cr.mSupport5gBand) {
                 support5gBand = true;
             }
 
+            // maximal master preference
             masterPreference = Math.max(masterPreference, cr.mMasterPreference);
 
-            if (cr.mClusterLow != 0 || cr.mClusterHigh != ConfigRequest.CLUSTER_ID_MAX) {
-                if (!clusterIdValid) {
-                    clusterLow = cr.mClusterLow;
-                    clusterHigh = cr.mClusterHigh;
-                } else {
-                    clusterLow = Math.min(clusterLow, cr.mClusterLow);
-                    clusterHigh = Math.max(clusterHigh, cr.mClusterHigh);
-                }
+            // cluster range must be the same across all config requests
+            if (!clusterIdValid) {
                 clusterIdValid = true;
+                clusterLow = cr.mClusterLow;
+                clusterHigh = cr.mClusterHigh;
+            } else {
+                if (clusterLow != cr.mClusterLow) return null;
+                if (clusterHigh != cr.mClusterHigh) return null;
+            }
+
+            for (int band = ConfigRequest.NAN_BAND_24GHZ; band <= ConfigRequest.NAN_BAND_5GHZ;
+                    ++band) {
+                if (discoveryWindowInterval[band] == ConfigRequest.DW_INTERVAL_NOT_INIT) {
+                    discoveryWindowInterval[band] = cr.mDiscoveryWindowInterval[band];
+                } else if (cr.mDiscoveryWindowInterval[band]
+                        == ConfigRequest.DW_INTERVAL_NOT_INIT) {
+                    // do nothing: keep my values
+                } else if (discoveryWindowInterval[band] == ConfigRequest.DW_DISABLE) {
+                    discoveryWindowInterval[band] = cr.mDiscoveryWindowInterval[band];
+                } else if (cr.mDiscoveryWindowInterval[band] == ConfigRequest.DW_DISABLE) {
+                    // do nothing: keep my values
+                } else {
+                    discoveryWindowInterval[band] = Math.min(discoveryWindowInterval[band],
+                            cr.mDiscoveryWindowInterval[band]);
+                }
             }
         }
-        return new ConfigRequest.Builder().setSupport5gBand(support5gBand)
+        ConfigRequest.Builder builder = new ConfigRequest.Builder().setSupport5gBand(support5gBand)
                 .setMasterPreference(masterPreference).setClusterLow(clusterLow)
-                .setClusterHigh(clusterHigh).build();
+                .setClusterHigh(clusterHigh);
+        for (int band = ConfigRequest.NAN_BAND_24GHZ; band <= ConfigRequest.NAN_BAND_5GHZ; ++band) {
+            if (discoveryWindowInterval[band] != ConfigRequest.DW_INTERVAL_NOT_INIT) {
+                builder.setDiscoveryWindowInterval(band, discoveryWindowInterval[band]);
+            }
+        }
+        return builder.build();
     }
 
     private boolean doesAnyClientNeedIdentityChangeNotifications() {
@@ -2642,6 +2683,7 @@ public class WifiAwareStateManager {
         pw.println("  mUsageEnabled: " + mUsageEnabled);
         pw.println("  mCapabilities: [" + mCapabilities + "]");
         pw.println("  mCurrentAwareConfiguration: " + mCurrentAwareConfiguration);
+        pw.println("  mCurrentIdentityNotification: " + mCurrentIdentityNotification);
         for (int i = 0; i < mClients.size(); ++i) {
             mClients.valueAt(i).dump(fd, pw, args);
         }
