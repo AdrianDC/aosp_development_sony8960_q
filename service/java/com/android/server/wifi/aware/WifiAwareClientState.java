@@ -305,6 +305,7 @@ public class WifiAwareClientState {
         pw.println("AwareClientState:");
         pw.println("  mClientId: " + mClientId);
         pw.println("  mConfigRequest: " + mConfigRequest);
+        pw.println("  mNotifyIdentityChange: " + mNotifyIdentityChange);
         pw.println("  mCallback: " + mCallback);
         pw.println("  mSessions: [" + mSessions + "]");
         for (int i = 0; i < mSessions.size(); ++i) {
