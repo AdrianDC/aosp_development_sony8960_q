@@ -3970,9 +3970,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         cleanup();
                         break;
                     }
-                    if (!mWifiNative.initializeSupplicantHal()) {
-                        Log.e(TAG, "Failed to start supplicant Hal");
-                    }
                     setSupplicantLogLevel();
                     setWifiState(WIFI_STATE_ENABLING);
                     if (mVerboseLoggingEnabled) log("Supplicant start successful");

@@ -617,7 +617,9 @@ public class WifiMonitor {
         while (true) {
             if (mWifiNative.connectToSupplicant()) {
                 mConnected = true;
-                new MonitorThread(mWifiNative.getLocalLog()).start();
+                if (!WifiNative.HIDL_SUP_ENABLE) {
+                    new MonitorThread(mWifiNative.getLocalLog()).start();
+                }
                 return true;
             }
             if (connectTries++ < 5) {

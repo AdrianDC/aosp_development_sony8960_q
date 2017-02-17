@@ -134,6 +134,7 @@ public class WifiNative {
 
     // TODO(b/34884202): Set this to true to enable HIDL once we're fully ready.
     private static final boolean HIDL_ENABLE = false;
+    public static final boolean HIDL_SUP_ENABLE = false;
     private final String mTAG;
     private final String mInterfaceName;
     private final String mInterfacePrefix;
@@ -214,23 +215,6 @@ public class WifiNative {
             return true;
         }
         return mWifiVendorHal.initialize();
-    }
-
-    /**
-     * Registers a service notification for the ISupplicant service, which gets the service,
-     * ISupplicantStaIface and ISupplicantP2pIface.
-     * @return true if the service notification was successfully registered
-     */
-    public boolean initializeSupplicantHal() {
-        if (!HIDL_ENABLE) {
-            return true;
-        }
-
-        if (!mSupplicantP2pIfaceHal.initialize()) {
-            return false;
-        }
-
-        return mSupplicantStaIfaceHal.initialize();
     }
 
     public String getInterfaceName() {
@@ -328,18 +312,42 @@ public class WifiNative {
      * Supplicant management
      */
     private native static boolean connectToSupplicantNative();
+    /**
+     * This method is called repeatedly until the connection to wpa_supplicant is established.
+     *
+     * @return true if connection is established, false otherwise.
+     */
     public boolean connectToSupplicant() {
-        synchronized (sLock) {
-            localLog(mInterfacePrefix + "connectToSupplicant");
-            return connectToSupplicantNative();
+        if (HIDL_SUP_ENABLE) {
+            // Start initialization if not already started.
+            if (!mSupplicantP2pIfaceHal.isInitializationStarted()
+                    && !mSupplicantP2pIfaceHal.initialize()) {
+                return false;
+            }
+            if (!mSupplicantStaIfaceHal.isInitializationStarted()
+                    && !mSupplicantStaIfaceHal.initialize()) {
+                return false;
+            }
+            // Check if the initialization is complete.
+            return (mSupplicantP2pIfaceHal.isInitializationComplete()
+                    && mSupplicantStaIfaceHal.isInitializationComplete());
+        } else {
+            synchronized (sLock) {
+                localLog(mInterfacePrefix + "connectToSupplicant");
+                return connectToSupplicantNative();
+            }
         }
     }
 
     private native static void closeSupplicantConnectionNative();
     public void closeSupplicantConnection() {
-        synchronized (sLock) {
-            localLog(mInterfacePrefix + "closeSupplicantConnection");
-            closeSupplicantConnectionNative();
+        if (HIDL_SUP_ENABLE) {
+            // Nothing to do for HIDL.
+        } else {
+            synchronized (sLock) {
+                localLog(mInterfacePrefix + "closeSupplicantConnection");
+                closeSupplicantConnectionNative();
+            }
         }
     }
 
