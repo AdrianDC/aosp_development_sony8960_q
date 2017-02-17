@@ -51,6 +51,11 @@ import android.os.IHwBinder;
 import android.os.RemoteException;
 import android.util.SparseArray;
 
+import com.android.server.wifi.hotspot2.AnqpEvent;
+import com.android.server.wifi.hotspot2.IconEvent;
+import com.android.server.wifi.hotspot2.WnmData;
+import com.android.server.wifi.util.NativeUtil;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -58,10 +63,13 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 
 /**
  * Unit tests for SupplicantStaIfaceHal
@@ -75,7 +83,13 @@ public class SupplicantStaIfaceHalTest {
         }};
     private static final int EXISTING_SUPPLICANT_NETWORK_ID = 2;
     private static final int ROAM_NETWORK_ID = 4;
-    private static final String ROAM_BSSID = "fa:45:23:23:12:12";
+    private static final String BSSID = "fa:45:23:23:12:12";
+    private static final String WLAN_IFACE_NAME = "wlan0";
+    private static final String P2P_IFACE_NAME = "p2p0";
+    private static final String ICON_FILE_NAME  = "blahblah";
+    private static final int ICON_FILE_SIZE = 72;
+    private static final String HS20_URL = "http://blahblah";
+
     @Mock IServiceManager mServiceManagerMock;
     @Mock ISupplicant mISupplicantMock;
     @Mock ISupplicantIface mISupplicantIfaceMock;
@@ -128,8 +142,8 @@ public class SupplicantStaIfaceHalTest {
         MockitoAnnotations.initMocks(this);
         mStatusSuccess = createSupplicantStatus(SupplicantStatusCode.SUCCESS);
         mStatusFailure = createSupplicantStatus(SupplicantStatusCode.FAILURE_UNKNOWN);
-        mStaIface = createIfaceInfo(IfaceType.STA, "wlan0");
-        mP2pIface = createIfaceInfo(IfaceType.P2P, "p2p0");
+        mStaIface = createIfaceInfo(IfaceType.STA, WLAN_IFACE_NAME);
+        mP2pIface = createIfaceInfo(IfaceType.P2P, P2P_IFACE_NAME);
 
         mIfaceInfoList = new ArrayList<>();
         mIfaceInfoList.add(mStaIface);
@@ -616,6 +630,114 @@ public class SupplicantStaIfaceHalTest {
         assertTrue(false);
     }
 
+    /**
+     * Tests the handling of ANQP done callback.
+     * Note: Since the ANQP element parsing methods are static, this can only test the negative test
+     * where all the parsing fails because the data is empty. It'll be non-trivial and unnecessary
+     * to test out the parsing logic here.
+     */
+    @Test
+    public void testAnqpDoneCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+        byte[] bssid = NativeUtil.macAddressToByteArray(BSSID);
+        mISupplicantStaIfaceCallback.onAnqpQueryDone(
+                bssid, new ISupplicantStaIfaceCallback.AnqpData(),
+                new ISupplicantStaIfaceCallback.Hs20AnqpData());
+
+        ArgumentCaptor<AnqpEvent> anqpEventCaptor = ArgumentCaptor.forClass(AnqpEvent.class);
+        verify(mWifiMonitor).broadcastAnqpDoneEvent(eq(WLAN_IFACE_NAME), anqpEventCaptor.capture());
+        assertEquals(
+                ByteBufferReader.readInteger(
+                        ByteBuffer.wrap(bssid), ByteOrder.BIG_ENDIAN, bssid.length),
+                anqpEventCaptor.getValue().getBssid());
+    }
+
+    /**
+     * Tests the handling of Icon done callback.
+     */
+    @Test
+    public void testIconDoneCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        byte[] bssid = NativeUtil.macAddressToByteArray(BSSID);
+        byte[] iconData = new byte[ICON_FILE_SIZE];
+        new Random().nextBytes(iconData);
+        mISupplicantStaIfaceCallback.onHs20IconQueryDone(
+                bssid, ICON_FILE_NAME, NativeUtil.byteArrayToArrayList(iconData));
+
+        ArgumentCaptor<IconEvent> iconEventCaptor = ArgumentCaptor.forClass(IconEvent.class);
+        verify(mWifiMonitor).broadcastIconDoneEvent(eq(WLAN_IFACE_NAME), iconEventCaptor.capture());
+        assertEquals(
+                ByteBufferReader.readInteger(
+                        ByteBuffer.wrap(bssid), ByteOrder.BIG_ENDIAN, bssid.length),
+                iconEventCaptor.getValue().getBSSID());
+        assertEquals(ICON_FILE_NAME, iconEventCaptor.getValue().getFileName());
+        assertArrayEquals(iconData, iconEventCaptor.getValue().getData());
+    }
+
+    /**
+     * Tests the handling of HS20 subscription remediation callback.
+     */
+    @Test
+    public void testHs20SubscriptionRemediationCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        byte[] bssid = NativeUtil.macAddressToByteArray(BSSID);
+        byte osuMethod = ISupplicantStaIfaceCallback.OsuMethod.OMA_DM;
+        mISupplicantStaIfaceCallback.onHs20SubscriptionRemediation(
+                bssid, osuMethod, HS20_URL);
+
+        ArgumentCaptor<WnmData> wnmDataCaptor = ArgumentCaptor.forClass(WnmData.class);
+        verify(mWifiMonitor).broadcastWnmEvent(eq(WLAN_IFACE_NAME), wnmDataCaptor.capture());
+        assertEquals(
+                ByteBufferReader.readInteger(
+                        ByteBuffer.wrap(bssid), ByteOrder.BIG_ENDIAN, bssid.length),
+                wnmDataCaptor.getValue().getBssid());
+        assertEquals(osuMethod, wnmDataCaptor.getValue().getMethod());
+        assertEquals(HS20_URL, wnmDataCaptor.getValue().getUrl());
+    }
+
+    /**
+     * Tests the handling of HS20 deauth imminent callback.
+     */
+    @Test
+    public void testHs20DeauthImminentCallbackWithEssReasonCode() throws Exception {
+        executeAndValidateHs20DeauthImminentCallback(true);
+    }
+
+    /**
+     * Tests the handling of HS20 deauth imminent callback.
+     */
+    @Test
+    public void testHs20DeauthImminentCallbackWithNonEssReasonCode() throws Exception {
+        executeAndValidateHs20DeauthImminentCallback(false);
+
+    }
+
+    private void executeAndValidateHs20DeauthImminentCallback(boolean isEss) throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        byte[] bssid = NativeUtil.macAddressToByteArray(BSSID);
+        int reasonCode = isEss ? WnmData.ESS : WnmData.ESS + 1;
+        int reauthDelay = 5;
+        mISupplicantStaIfaceCallback.onHs20DeauthImminentNotice(
+                bssid, reasonCode, reauthDelay, HS20_URL);
+
+        ArgumentCaptor<WnmData> wnmDataCaptor = ArgumentCaptor.forClass(WnmData.class);
+        verify(mWifiMonitor).broadcastWnmEvent(eq(WLAN_IFACE_NAME), wnmDataCaptor.capture());
+        assertEquals(
+                ByteBufferReader.readInteger(
+                        ByteBuffer.wrap(bssid), ByteOrder.BIG_ENDIAN, bssid.length),
+                wnmDataCaptor.getValue().getBssid());
+        assertEquals(isEss, wnmDataCaptor.getValue().isEss());
+        assertEquals(reauthDelay, wnmDataCaptor.getValue().getDelay());
+        assertEquals(HS20_URL, wnmDataCaptor.getValue().getUrl());
+    }
+
     private void executeAndValidateInitializationSequence() throws  Exception {
         executeAndValidateInitializationSequence(false, false, false, false);
     }
@@ -871,7 +993,7 @@ public class SupplicantStaIfaceHalTest {
      */
     private void executeAndValidateRoamSequence(boolean sameNetwork) throws Exception {
         int connectedNetworkId = ROAM_NETWORK_ID;
-        String roamBssid = ROAM_BSSID;
+        String roamBssid = BSSID;
         int roamNetworkId;
         if (sameNetwork) {
             roamNetworkId = connectedNetworkId;
