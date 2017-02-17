@@ -40,6 +40,7 @@ import android.os.SystemProperties;
 import android.text.TextUtils;
 import android.util.LocalLog;
 import android.util.Log;
+import android.util.SparseArray;
 
 import com.android.internal.annotations.Immutable;
 import com.android.internal.annotations.VisibleForTesting;
@@ -140,6 +141,7 @@ public class WifiNative {
     private SupplicantP2pIfaceHal mSupplicantP2pIfaceHal;
     private WifiVendorHal mWifiVendorHal;
     private WificondControl mWificondControl;
+    private WifiSupplicantControl mWifiSupplicantControl;
 
     private Context mContext = null;
     public void initContext(Context context) {
@@ -174,6 +176,14 @@ public class WifiNative {
         mSupplicantP2pIfaceHal = wifiSupplicantHal;
     }
 
+
+    /** Explicitly sets the WifiSupplicantControl instance
+     * TODO(b/34722734): move this into the constructor of WifiNative when I clean up the awful
+     * double singleton pattern
+     */
+    public void setWifiSupplicantControl(WifiSupplicantControl wifiSupplicantControl) {
+        mWifiSupplicantControl = wifiSupplicantControl;
+    }
 
     /**
      * Explicitly sets the WifiVendorHal instance
@@ -584,13 +594,6 @@ public class WifiNative {
         return doBooleanCommand("REMOVE_NETWORK " + netId);
     }
 
-    /**
-     * Remove all saved networks from wpa_supplicant.
-     */
-    public boolean removeAllNetworks() {
-        return doBooleanCommand("REMOVE_NETWORK all");
-    }
-
     private void logDbg(String debug) {
         long now = SystemClock.elapsedRealtimeNanos();
         String ts = String.format("[%,d us] ", now/1000);
@@ -815,10 +818,6 @@ public class WifiNative {
 
     public void enableSaveConfig() {
         doBooleanCommand("SET update_config 1");
-    }
-
-    public boolean saveConfig() {
-        return doBooleanCommand("SAVE_CONFIG");
     }
 
     public boolean addToBlacklist(String bssid) {
@@ -1412,6 +1411,117 @@ public class WifiNative {
         return doBooleanCommand("NFC_REPORT_HANDOVER RESP P2P " + requestMessage + " 00");
     }
 
+    /** WifiSupplicantControl methods. TODO: These should use HIDL soon. */
+    /**
+     * Migrate all the configured networks from wpa_supplicant.
+     *
+     * @param configs       Map of configuration key to configuration objects corresponding to all
+     *                      the networks.
+     * @param networkExtras Map of extra configuration parameters stored in wpa_supplicant.conf
+     * @return Max priority of all the configs.
+     */
+    public int migrateNetworksFromSupplicant(Map<String, WifiConfiguration> configs,
+                                             SparseArray<Map<String, String>> networkExtras) {
+        return mWifiSupplicantControl.loadNetworks(configs, networkExtras);
+    }
+
+    /**
+     * Add the provided network configuration to wpa_supplicant and initiate connection to it.
+     * This method does the following:
+     * 1. Triggers disconnect command to wpa_supplicant (if |shouldDisconnect| is true).
+     * 2. Remove any existing network in wpa_supplicant.
+     * 3. Add a new network to wpa_supplicant.
+     * 4. Save the provided configuration to wpa_supplicant.
+     * 5. Select the new network in wpa_supplicant.
+     * 6. Triggers reconnect command to wpa_supplicant.
+     *
+     * @param configuration WifiConfiguration parameters for the provided network.
+     * @param shouldDisconnect whether to trigger a disconnection or not.
+     * @return {@code true} if it succeeds, {@code false} otherwise
+     */
+    public boolean connectToNetwork(WifiConfiguration configuration, boolean shouldDisconnect) {
+        return mWifiSupplicantControl.connectToNetwork(configuration, shouldDisconnect);
+    }
+
+    /**
+     * Initiates roaming to the already configured network in wpa_supplicant. If the network
+     * configuration provided does not match the already configured network, then this triggers
+     * a new connection attempt (instead of roam).
+     * 1. First check if we're attempting to connect to the same network as we currently have
+     * configured.
+     * 2. Set the new bssid for the network in wpa_supplicant.
+     * 3. Triggers reassociate command to wpa_supplicant.
+     *
+     * @param configuration WifiConfiguration parameters for the provided network.
+     * @return {@code true} if it succeeds, {@code false} otherwise
+     */
+    public boolean roamToNetwork(WifiConfiguration configuration) {
+        return mWifiSupplicantControl.roamToNetwork(configuration);
+    }
+
+    /**
+     * Get the framework network ID corresponding to the provided supplicant network ID for the
+     * network configured in wpa_supplicant.
+     *
+     * @param supplicantNetworkId network ID in wpa_supplicant for the network.
+     * @return Corresponding framework network ID if found, -1 if network not found.
+     */
+    public int getFrameworkNetworkId(int supplicantNetworkId) {
+        return mWifiSupplicantControl.getFrameworkNetworkId(supplicantNetworkId);
+    }
+
+    /**
+     * Remove all the networks.
+     *
+     * @return {@code true} if it succeeds, {@code false} otherwise
+     */
+    public boolean removeAllNetworks() {
+        if (!doBooleanCommand("REMOVE_NETWORK all")) {
+            Log.e(TAG, "Remove all networks in wpa_supplicant failed");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Set the BSSID for the currently configured network in wpa_supplicant.
+     *
+     * @return true if successful, false otherwise.
+     */
+    public boolean setConfiguredNetworkBSSID(String bssid) {
+        return mWifiSupplicantControl.setConfiguredNetworkBSSID(bssid);
+    }
+
+    /**
+     * Save the current configuration to wpa_supplicant.conf.
+     */
+    public boolean saveConfig() {
+        return doBooleanCommand("SAVE_CONFIG");
+    }
+
+    /**
+     * Read network variables from wpa_supplicant.conf.
+     *
+     * @param key The parameter to be parsed.
+     * @return Map of corresponding configKey to the value of the param requested.
+     */
+    public Map<String, String> readNetworkVariablesFromSupplicantFile(String key) {
+        return mWifiSupplicantControl.readNetworkVariablesFromSupplicantFile(key);
+    }
+
+    /**
+     * Get Fast BSS Transition capability.
+     */
+    public boolean getSystemSupportsFastBssTransition() {
+        return mWifiSupplicantControl.getSystemSupportsFastBssTransition();
+    }
+
+    /**
+     * Set Fast BSS Transition capability.
+     */
+    public void setSystemSupportsFastBssTransition(boolean supported) {
+        mWifiSupplicantControl.setSystemSupportsFastBssTransition(supported);
+    }
 
     /* kernel logging support */
     private static native byte[] readKernelLogNative();
@@ -3132,5 +3242,4 @@ public class WifiNative {
         Log.e(TAG, "LEGACY HAL th " + cur.getId()
                 + " line " + s.getLineNumber() + " " + s.getMethodName());
     }
-
 }
