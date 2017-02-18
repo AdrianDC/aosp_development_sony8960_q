@@ -71,7 +71,6 @@ import java.util.regex.Pattern;
  * sending requests to the supplicant daemon
  */
 public class SupplicantStaIfaceHal {
-    private static final boolean DBG = false;
     private static final String TAG = "SupplicantStaIfaceHal";
     private static final String SERVICE_MANAGER_NAME = "manager";
     /**
@@ -81,6 +80,7 @@ public class SupplicantStaIfaceHal {
     private static final Pattern WPS_DEVICE_TYPE_PATTERN =
             Pattern.compile("^(\\d{1,2})-([0-9a-fA-F]{8})-(\\d{1,2})$");
 
+    private boolean mVerboseLoggingEnabled = false;
     private IServiceManager mIServiceManager = null;
     // Supplicant HAL interface objects
     private ISupplicant mISupplicant;
@@ -100,12 +100,21 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Enable/Disable verbose logging.
+     *
+     * @param enable true to enable, false to disable.
+     */
+    void enableVerboseLogging(boolean enable) {
+        mVerboseLoggingEnabled = enable;
+    }
+
+    /**
      * Registers a service notification for the ISupplicant service, which triggers intialization of
      * the ISupplicantStaIface
      * @return true if the service notification was successfully registered
      */
     public boolean initialize() {
-        if (DBG) Log.i(TAG, "Registering ISupplicant service ready callback.");
+        if (mVerboseLoggingEnabled) Log.i(TAG, "Registering ISupplicant service ready callback.");
         synchronized (mLock) {
             mISupplicant = null;
             mISupplicantStaIface = null;
@@ -135,7 +144,7 @@ public class SupplicantStaIfaceHal {
                 IServiceNotification serviceNotificationCb = new IServiceNotification.Stub() {
                     public void onRegistration(String fqName, String name, boolean preexisting) {
                         synchronized (mLock) {
-                            if (DBG) {
+                            if (mVerboseLoggingEnabled) {
                                 Log.i(TAG, "IServiceNotification.onRegistration for: " + fqName
                                         + ", " + name + " preexisting=" + preexisting);
                             }
@@ -571,8 +580,13 @@ public class SupplicantStaIfaceHal {
      */
     protected SupplicantStaNetworkHal getStaNetworkMockable(
             ISupplicantStaNetwork iSupplicantStaNetwork) {
-        return new SupplicantStaNetworkHal(
-                iSupplicantStaNetwork, mIfaceName, mContext, mWifiMonitor);
+        SupplicantStaNetworkHal network =
+                new SupplicantStaNetworkHal(iSupplicantStaNetwork, mIfaceName, mContext,
+                        mWifiMonitor);
+        if (network != null) {
+            network.enableVerboseLogging(mVerboseLoggingEnabled);
+        }
+        return network;
     }
 
     /**
@@ -1439,14 +1453,16 @@ public class SupplicantStaIfaceHal {
      * Returns true if provided status code is SUCCESS, logs debug message and returns false
      * otherwise
      */
-    private static boolean checkStatusAndLogFailure(SupplicantStatus status,
+    private boolean checkStatusAndLogFailure(SupplicantStatus status,
             final String methodStr) {
         if (status.code != SupplicantStatusCode.SUCCESS) {
             Log.e(TAG, "ISupplicantStaIface." + methodStr + " failed: "
                     + supplicantStatusCodeToString(status.code) + ", " + status.debugMessage);
             return false;
         } else {
-            if (DBG) Log.i(TAG, "ISupplicantStaIface." + methodStr + " succeeded");
+            if (mVerboseLoggingEnabled) {
+                Log.i(TAG, "ISupplicantStaIface." + methodStr + " succeeded");
+            }
             return true;
         }
     }

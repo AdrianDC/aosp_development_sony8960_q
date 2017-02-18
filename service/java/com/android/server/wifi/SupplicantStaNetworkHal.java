@@ -48,7 +48,6 @@ import java.util.regex.Pattern;
  */
 public class SupplicantStaNetworkHal {
     private static final String TAG = "SupplicantStaNetworkHal";
-    private static final boolean DBG = false;
     @VisibleForTesting
     public static final String ID_STRING_KEY_FQDN = "fqdn";
     @VisibleForTesting
@@ -80,6 +79,7 @@ public class SupplicantStaNetworkHal {
     private final WifiMonitor mWifiMonitor;
     private ISupplicantStaNetwork mISupplicantStaNetwork;
 
+    private boolean mVerboseLoggingEnabled = false;
     // Indicates whether the system is capable of 802.11r fast BSS transition.
     private boolean mSystemSupportsFastBssTransition = false;
 
@@ -120,6 +120,15 @@ public class SupplicantStaNetworkHal {
         mWifiMonitor = monitor;
         mSystemSupportsFastBssTransition =
                 context.getResources().getBoolean(R.bool.config_wifi_fast_bss_transition_enabled);
+    }
+
+    /**
+     * Enable/Disable verbose logging.
+     *
+     * @param enable true to enable, false to disable.
+     */
+    void enableVerboseLogging(boolean enable) {
+        mVerboseLoggingEnabled = enable;
     }
 
     /**
@@ -2248,7 +2257,9 @@ public class SupplicantStaNetworkHal {
                     + status.debugMessage);
             return false;
         } else {
-            if (DBG) Log.i(TAG, "ISupplicantStaNetwork." + methodStr + " succeeded");
+            if (mVerboseLoggingEnabled) {
+                Log.i(TAG, "ISupplicantStaNetwork." + methodStr + " succeeded");
+            }
             return true;
         }
     }
