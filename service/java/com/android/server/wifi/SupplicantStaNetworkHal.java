@@ -893,7 +893,6 @@ public class SupplicantStaNetworkHal {
     private boolean getId() {
         synchronized (mLock) {
             final String methodStr = "getId";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return false;
             try {
                 MutableBoolean statusOk = new MutableBoolean(false);
@@ -902,7 +901,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mNetworkId = idValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1359,7 +1358,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mSsid = ssidValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1382,7 +1381,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mBssid = bssidValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1405,7 +1404,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mScanSsid = enabledValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1428,7 +1427,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mKeyMgmtMask = keyMgmtMaskValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1450,7 +1449,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mProtoMask = protoMaskValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1473,7 +1472,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mAuthAlgMask = authAlgMaskValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1496,7 +1495,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mGroupCipherMask = groupCipherMaskValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1519,7 +1518,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mPairwiseCipherMask = pairwiseCipherMaskValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1542,7 +1541,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mPskPassphrase = pskValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1588,7 +1587,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mWepTxKeyIdx = keyIdxValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1611,7 +1610,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mRequirePmf = enabledValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1634,7 +1633,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapMethod = methodValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1657,7 +1656,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapPhase2Method = methodValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1680,7 +1679,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapIdentity = identityValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1703,7 +1702,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapAnonymousIdentity = identityValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1726,7 +1725,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapPassword = passwordValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1748,7 +1747,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapCACert = pathValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1770,7 +1769,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapCAPath = pathValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1793,7 +1792,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapClientCert = pathValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1816,7 +1815,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapPrivateKey = pathValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1839,7 +1838,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapSubjectMatch = matchValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1862,7 +1861,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapAltSubjectMatch = matchValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1885,7 +1884,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapEngine = enabledValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1907,7 +1906,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapEngineID = idValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1930,7 +1929,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mEapDomainSuffixMatch = matchValue;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -1952,7 +1951,7 @@ public class SupplicantStaNetworkHal {
                     if (statusOk.value) {
                         this.mIdStr = idString;
                     } else {
-                        logFailureStatus(status, methodStr);
+                        checkStatusAndLogFailure(status, methodStr);
                     }
                 });
                 return statusOk.value;
@@ -2243,14 +2242,15 @@ public class SupplicantStaNetworkHal {
      * otherwise
      */
     private boolean checkStatusAndLogFailure(SupplicantStatus status, final String methodStr) {
-        if (DBG) Log.i(TAG, methodStr);
         if (status.code != SupplicantStatusCode.SUCCESS) {
-            Log.e(TAG, methodStr + " failed: "
+            Log.e(TAG, "ISupplicantStaNetwork." + methodStr + " failed: "
                     + SupplicantStaIfaceHal.supplicantStatusCodeToString(status.code) + ", "
                     + status.debugMessage);
             return false;
+        } else {
+            if (DBG) Log.i(TAG, "ISupplicantStaNetwork." + methodStr + " succeeded");
+            return true;
         }
-        return true;
     }
 
     /**
@@ -2262,6 +2262,11 @@ public class SupplicantStaNetworkHal {
             return false;
         }
         return true;
+    }
+
+    private void handleRemoteException(RemoteException e, String methodStr) {
+        mISupplicantStaNetwork = null;
+        Log.e(TAG, "ISupplicantStaNetwork." + methodStr + " failed with exception", e);
     }
 
     /**
@@ -2289,15 +2294,6 @@ public class SupplicantStaNetworkHal {
         modifiedFlags.clear(WifiConfiguration.KeyMgmt.FT_PSK);
         modifiedFlags.clear(WifiConfiguration.KeyMgmt.FT_EAP);
         return modifiedFlags;
-    }
-
-    private void handleRemoteException(RemoteException e, String methodStr) {
-        mISupplicantStaNetwork = null;
-        Log.e(TAG, "ISupplicantStaNetwork." + methodStr + ":exception: " + e);
-    }
-
-    private void logFailureStatus(SupplicantStatus status, String methodStr) {
-        Log.e(TAG, methodStr + " failed: " + status.debugMessage);
     }
 
     private static class Mutable<E> {
