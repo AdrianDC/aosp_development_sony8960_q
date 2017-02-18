@@ -1,0 +1,97 @@
+# This file follows the Chromium OWNERS syntax described at
+# https://chromium.googlesource.com/chromium/src/+/master/docs/code_reviews.md
+#
+# However, this file is only informational. The 'rules' here are not enforced.
+
+etancohen
+kuh
+lorenzo
+mett
+mplass
+nywang
+pstew
+quiche
+rpius
+silberst
+sohanirao
+zpan
+zqiu
+
+per-file aware/*=etancohen
+
+# configuration
+per-file WifiBackupRestore*=rpius
+per-file WifiConfigManager*=rpius
+per-file WifiConfigStore*=rpius
+per-file WifiSupplicantControl*=rpius
+
+# diagnostics
+per-file util/ByteArrayRingBuffer*=quiche
+per-file util/FrameParser*=quiche
+per-file util/StringUtil*=quiche
+per-file BaseWifiDiagnostics*=quiche
+per-file LastMileLogger*=quiche
+per-file WifiDiagnostics*=quiche
+per-file WifiLoggerHal*=quiche
+
+# HAL support
+per-file HalDeviceManager*=etancohen
+per-file SupplicantStaNetworkHal*=kuh
+per-file SupplicantStaNetworkHal*=rpius
+per-file SupplicantStaIfaceHal*=kuh
+per-file SupplicantStaIfaceHal*=rpius
+per-file WifiVendorHal*=mplass
+
+# logging
+per-file DummyLogMessage*=quiche
+per-file FakeWifiLog*=quiche
+per-file LogcatLog*=quiche
+per-file WifiLog*=quiche
+
+# mode management
+per-file ActiveModeManager*=silberst
+per-file ClientModeManager*=silberst
+per-file ScanOnlyModeManager*=silberst
+per-file WifiController*=silberst
+per-file WifiService*=silberst
+per-file WifiServiceImpl*=silberst
+per-file WifiStateMachine*=silberst
+
+# network selection
+per-file SavedNetworkEvaluator*=zpan
+per-file WifiConnectivityManager*=zpan
+per-file WifiNetworkSelector*=zpan
+
+# random bits
+per-file hotspot2/*=zqiu
+per-file util/WifiPermissionsUtil*=sohanirao
+per-file util/WifiPermissionsWrapper*=sohanirao
+per-file ByteBufferReader*=zqiu
+per-file IMSIParameter*=zqiu
+per-file SIMAccessor*=zqiu
+per-file WifiCountryCode*=nywang
+per-file WifiLastResortWatchdog*=kuh
+per-file WifiLastResortWatchdog*=silberst
+per-file WifiMetrics*=kuh
+per-file WifiScoreReport*=mplass
+
+# soft-ap/tethering
+per-file SoftApManager*=silberst
+per-file WifiApConfigStore*=silberst
+
+# tracing (app/framework interaction)
+per-file util/WifiAsyncChannel*=sohanirao
+per-file util/WifiHandler*=sohanirao
+
+# test-support
+per-file Clock*=quiche
+per-file FrameworkFacade*=kuh
+per-file FrameworkFacade*=rpius
+per-file FrameworkFacade*=silberst
+per-file WifiInjector*=kuh
+per-file WifiInjector*=rpius
+per-file WifiInjector*=silberst
+
+# wificond
+per-file wificond/*=nywang
+per-file WificondControl*=nywang
