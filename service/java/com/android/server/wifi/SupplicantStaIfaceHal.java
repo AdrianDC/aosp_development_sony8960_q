@@ -15,6 +15,17 @@
  */
 package com.android.server.wifi;
 
+import static com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType.ANQP3GPPNetwork;
+import static com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType.ANQPDomName;
+import static com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType.ANQPIPAddrAvailability;
+import static com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType.ANQPNAIRealm;
+import static com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType.ANQPRoamingConsortium;
+import static com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType.ANQPVenueName;
+import static com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType.HSConnCapability;
+import static com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType.HSFriendlyName;
+import static com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType.HSOSUProviders;
+import static com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType.HSWANMetrics;
+
 import android.content.Context;
 import android.hardware.wifi.supplicant.V1_0.ISupplicant;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantIface;
@@ -34,8 +45,16 @@ import android.os.RemoteException;
 import android.util.Log;
 import android.util.SparseArray;
 
+import com.android.server.wifi.hotspot2.AnqpEvent;
+import com.android.server.wifi.hotspot2.IconEvent;
+import com.android.server.wifi.hotspot2.WnmData;
+import com.android.server.wifi.hotspot2.anqp.ANQPElement;
+import com.android.server.wifi.hotspot2.anqp.ANQPParser;
+import com.android.server.wifi.hotspot2.anqp.Constants;
 import com.android.server.wifi.util.NativeUtil;
 
+import java.io.IOException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -68,7 +87,7 @@ public class SupplicantStaIfaceHal {
     // Currently configured network in wpa_supplicant
     private SupplicantStaNetworkHal mCurrentNetwork;
     // Currently configured network's framework network Id.
-    private int mFrameworkNetworkId;
+    private int mFrameworkNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
     private final Object mLock = new Object();
     private final Context mContext;
     private final WifiMonitor mWifiMonitor;
@@ -1522,6 +1541,56 @@ public class SupplicantStaIfaceHal {
     }
 
     private class SupplicantStaIfaceHalCallback extends ISupplicantStaIfaceCallback.Stub {
+        /**
+         * Parses the provided payload into an ANQP element.
+         *
+         * @param infoID  Element type.
+         * @param payload Raw payload bytes.
+         * @return AnqpElement instance on success, null on failure.
+         */
+        private ANQPElement parseAnqpElement(Constants.ANQPElementType infoID,
+                                             ArrayList<Byte> payload) {
+            try {
+                return Constants.getANQPElementID(infoID) != null
+                        ? ANQPParser.parseElement(
+                        infoID, ByteBuffer.wrap(NativeUtil.byteArrayFromArrayList(payload)))
+                        : ANQPParser.parseHS20Element(
+                        infoID, ByteBuffer.wrap(NativeUtil.byteArrayFromArrayList(payload)));
+            } catch (IOException | BufferUnderflowException e) {
+                Log.e(TAG, "Failed parsing ANQP element payload: " + infoID, e);
+                return null;
+            }
+        }
+
+        /**
+         * Parse the ANQP element data and add to the provided elements map if successful.
+         *
+         * @param elementsMap Map to add the parsed out element to.
+         * @param infoID  Element type.
+         * @param payload Raw payload bytes.
+         */
+        private void addAnqpElementToMap(Map<Constants.ANQPElementType, ANQPElement> elementsMap,
+                                         Constants.ANQPElementType infoID,
+                                         ArrayList<Byte> payload) {
+            if (payload == null || payload.isEmpty()) return;
+            ANQPElement element = parseAnqpElement(infoID, payload);
+            if (element != null) {
+                elementsMap.put(infoID, element);
+            }
+        }
+
+        /**
+         * Helper utility to convert the bssid bytes to long.
+         */
+        private Long toLongBssid(byte[] bssidBytes) {
+            try {
+                return ByteBufferReader.readInteger(
+                        ByteBuffer.wrap(bssidBytes), ByteOrder.BIG_ENDIAN, bssidBytes.length);
+            } catch (BufferUnderflowException | IllegalArgumentException e) {
+                return 0L;
+            }
+        }
+
         @Override
         public void onNetworkAdded(int id) {
         }
@@ -1536,22 +1605,46 @@ public class SupplicantStaIfaceHal {
         }
 
         @Override
-        public void onAnqpQueryDone(byte[/* 6 */] macAddress,
+        public void onAnqpQueryDone(byte[/* 6 */] bssid,
                                     ISupplicantStaIfaceCallback.AnqpData data,
                                     ISupplicantStaIfaceCallback.Hs20AnqpData hs20Data) {
+            Map<Constants.ANQPElementType, ANQPElement> elementsMap = new HashMap<>();
+            addAnqpElementToMap(elementsMap, ANQPVenueName, data.venueName);
+            addAnqpElementToMap(elementsMap, ANQPRoamingConsortium, data.roamingConsortium);
+            addAnqpElementToMap(elementsMap, ANQPIPAddrAvailability, data.ipAddrTypeAvailability);
+            addAnqpElementToMap(elementsMap, ANQPNAIRealm, data.naiRealm);
+            addAnqpElementToMap(elementsMap, ANQP3GPPNetwork, data.anqp3gppCellularNetwork);
+            addAnqpElementToMap(elementsMap, ANQPDomName, data.domainName);
+            addAnqpElementToMap(elementsMap, HSFriendlyName, hs20Data.operatorFriendlyName);
+            addAnqpElementToMap(elementsMap, HSWANMetrics, hs20Data.wanMetrics);
+            addAnqpElementToMap(elementsMap, HSConnCapability, hs20Data.connectionCapability);
+            addAnqpElementToMap(elementsMap, HSOSUProviders, hs20Data.osuProvidersList);
+            mWifiMonitor.broadcastAnqpDoneEvent(
+                    mIfaceName, new AnqpEvent(toLongBssid(bssid), elementsMap));
         }
 
         @Override
-        public void onHs20IconQueryDone(byte[/* 6 */] macAddress, String fileName,
+        public void onHs20IconQueryDone(byte[/* 6 */] bssid, String fileName,
                                         ArrayList<Byte> data) {
+            mWifiMonitor.broadcastIconDoneEvent(
+                    mIfaceName,
+                    new IconEvent(toLongBssid(bssid), fileName, data.size(),
+                            NativeUtil.byteArrayFromArrayList(data)));
         }
 
         @Override
-        public void onHs20SubscriptionRemediation(byte osuMethod, String url) {
+        public void onHs20SubscriptionRemediation(byte[/* 6 */] bssid, byte osuMethod, String url) {
+            mWifiMonitor.broadcastWnmEvent(
+                    mIfaceName, new WnmData(toLongBssid(bssid), url, osuMethod));
         }
 
         @Override
-        public void onHs20DeauthImminentNotice(int reasonCode, int reAuthDelayInSec, String url) {
+        public void onHs20DeauthImminentNotice(byte[/* 6 */] bssid, int reasonCode,
+                                               int reAuthDelayInSec, String url) {
+            mWifiMonitor.broadcastWnmEvent(
+                    mIfaceName,
+                    new WnmData(toLongBssid(bssid), url, reasonCode == WnmData.ESS,
+                            reAuthDelayInSec));
         }
 
         @Override

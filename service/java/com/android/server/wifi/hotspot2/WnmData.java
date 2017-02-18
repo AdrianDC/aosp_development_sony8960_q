@@ -25,7 +25,7 @@ import java.io.IOException;
  * described in the Hotspot 2.0 spec, section 3.2.
  */
 public class WnmData {
-    private static final int ESS = 1;   // HS2.0 spec section 3.2.1.2, table 4
+    public static final int ESS = 1;   // HS2.0 spec section 3.2.1.2, table 4
 
     private final long mBssid;
     private final String mUrl;
@@ -70,7 +70,7 @@ public class WnmData {
         }
     }
 
-    private WnmData(long bssid, String url, int method) {
+    public WnmData(long bssid, String url, int method) {
         mBssid = bssid;
         mUrl = url;
         mMethod = method;
@@ -79,7 +79,7 @@ public class WnmData {
         mDeauthEvent = false;
     }
 
-    private WnmData(long bssid, String url, boolean ess, int delay) {
+    public WnmData(long bssid, String url, boolean ess, int delay) {
         mBssid = bssid;
         mUrl = url;
         mEss = ess;
