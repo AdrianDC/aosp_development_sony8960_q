@@ -25,6 +25,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiNetworkScoreCache;
 import android.net.wifi.WifiScanner;
+import android.os.BatteryStats;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
@@ -38,6 +39,7 @@ import android.telephony.TelephonyManager;
 import android.util.LocalLog;
 
 import com.android.internal.R;
+import com.android.internal.app.IBatteryStats;
 import com.android.server.am.BatteryStatsService;
 import com.android.server.net.DelayedDiskWrite;
 import com.android.server.net.IpConfigStore;
@@ -108,6 +110,8 @@ public class WifiInjector {
     private final SIMAccessor mSimAccessor;
     private HandlerThread mWifiAwareHandlerThread;
     private HalDeviceManager mHalDeviceManager;
+    private final IBatteryStats mBatteryStats;
+    private final WifiStateTracker mWifiStateTracker;
 
     private final boolean mUseRealLogger;
 
@@ -132,7 +136,9 @@ public class WifiInjector {
         mNetworkScoreManager = mContext.getSystemService(NetworkScoreManager.class);
         mWifiPermissionsUtil = new WifiPermissionsUtil(mWifiPermissionsWrapper, mContext,
                 mSettingsStore, UserManager.get(mContext), mNetworkScoreManager, this);
-
+        mBatteryStats = IBatteryStats.Stub.asInterface(mFrameworkFacade.getService(
+                BatteryStats.SERVICE_NAME));
+        mWifiStateTracker = new WifiStateTracker(mBatteryStats);
         // Now create and start handler threads
         mWifiServiceHandlerThread = new HandlerThread("WifiService");
         mWifiServiceHandlerThread.start();
@@ -324,6 +330,10 @@ public class WifiInjector {
     public TelephonyManager makeTelephonyManager() {
         // may not be available when WiFi starts
         return (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
+    }
+
+    public WifiStateTracker getWifiStateTracker() {
+        return mWifiStateTracker;
     }
 
     public IWificond makeWificond() {
