@@ -40,7 +40,9 @@ import android.hardware.wifi.supplicant.V1_0.WpsConfigMethods;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.net.IpConfiguration;
+import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiSsid;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.SparseArray;
@@ -69,7 +71,6 @@ import java.util.regex.Pattern;
  * sending requests to the supplicant daemon
  */
 public class SupplicantStaIfaceHal {
-    private static final boolean DBG = false;
     private static final String TAG = "SupplicantStaIfaceHal";
     private static final String SERVICE_MANAGER_NAME = "manager";
     /**
@@ -79,6 +80,7 @@ public class SupplicantStaIfaceHal {
     private static final Pattern WPS_DEVICE_TYPE_PATTERN =
             Pattern.compile("^(\\d{1,2})-([0-9a-fA-F]{8})-(\\d{1,2})$");
 
+    private boolean mVerboseLoggingEnabled = false;
     private IServiceManager mIServiceManager = null;
     // Supplicant HAL interface objects
     private ISupplicant mISupplicant;
@@ -98,12 +100,21 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Enable/Disable verbose logging.
+     *
+     * @param enable true to enable, false to disable.
+     */
+    void enableVerboseLogging(boolean enable) {
+        mVerboseLoggingEnabled = enable;
+    }
+
+    /**
      * Registers a service notification for the ISupplicant service, which triggers intialization of
      * the ISupplicantStaIface
      * @return true if the service notification was successfully registered
      */
     public boolean initialize() {
-        if (DBG) Log.i(TAG, "Registering ISupplicant service ready callback.");
+        if (mVerboseLoggingEnabled) Log.i(TAG, "Registering ISupplicant service ready callback.");
         synchronized (mLock) {
             mISupplicant = null;
             mISupplicantStaIface = null;
@@ -133,7 +144,7 @@ public class SupplicantStaIfaceHal {
                 IServiceNotification serviceNotificationCb = new IServiceNotification.Stub() {
                     public void onRegistration(String fqName, String name, boolean preexisting) {
                         synchronized (mLock) {
-                            if (DBG) {
+                            if (mVerboseLoggingEnabled) {
                                 Log.i(TAG, "IServiceNotification.onRegistration for: " + fqName
                                         + ", " + name + " preexisting=" + preexisting);
                             }
@@ -239,6 +250,7 @@ public class SupplicantStaIfaceHal {
         synchronized (mLock) {
             mISupplicant = null;
             mISupplicantStaIface = null;
+            mWifiMonitor.broadcastSupplicantDisconnectionEvent(mIfaceName);
         }
     }
 
@@ -282,12 +294,14 @@ public class SupplicantStaIfaceHal {
             loge("Failed to add a network!");
             return null;
         }
-        if (network.saveWifiConfiguration(config)) {
-            return network;
-        } else {
+        if (!network.saveWifiConfiguration(config)) {
             loge("Failed to save variables for: " + config.configKey());
+            if (!removeAllNetworks()) {
+                loge("Failed to remove all networks on failure.");
+            }
             return null;
         }
+        return network;
     }
 
     /**
@@ -446,6 +460,70 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Send the eap identity response for the currently configured network.
+     *
+     * @param identityStr String to send.
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendCurrentNetworkEapIdentityResponse(String identityStr) {
+        if (mCurrentNetwork == null) return false;
+        return mCurrentNetwork.sendNetworkEapIdentityResponse(identityStr);
+    }
+
+    /**
+     * Send the eap sim gsm auth response for the currently configured network.
+     *
+     * @param paramsStr String to send.
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendCurrentNetworkEapSimGsmAuthResponse(String paramsStr) {
+        if (mCurrentNetwork == null) return false;
+        return mCurrentNetwork.sendNetworkEapSimGsmAuthResponse(paramsStr);
+    }
+
+    /**
+     * Send the eap sim gsm auth failure for the currently configured network.
+     *
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendCurrentNetworkEapSimGsmAuthFailure() {
+        if (mCurrentNetwork == null) return false;
+        return mCurrentNetwork.sendNetworkEapSimGsmAuthFailure();
+    }
+
+    /**
+     * Send the eap sim umts auth response for the currently configured network.
+     *
+     * @param paramsStr String to send.
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendCurrentNetworkEapSimUmtsAuthResponse(String paramsStr) {
+        if (mCurrentNetwork == null) return false;
+        return mCurrentNetwork.sendNetworkEapSimUmtsAuthResponse(paramsStr);
+    }
+
+    /**
+     * Send the eap sim umts auts response for the currently configured network.
+     *
+     * @param paramsStr String to send.
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendCurrentNetworkEapSimUmtsAutsResponse(String paramsStr) {
+        if (mCurrentNetwork == null) return false;
+        return mCurrentNetwork.sendNetworkEapSimUmtsAutsResponse(paramsStr);
+    }
+
+    /**
+     * Send the eap sim umts auth failure for the currently configured network.
+     *
+     * @return true if succeeds, false otherwise.
+     */
+    public boolean sendCurrentNetworkEapSimUmtsAuthFailure() {
+        if (mCurrentNetwork == null) return false;
+        return mCurrentNetwork.sendNetworkEapSimUmtsAuthFailure();
+    }
+
+    /**
      * Adds a new network.
      *
      * @return The ISupplicantNetwork object for the new network, or null if the call fails
@@ -453,7 +531,6 @@ public class SupplicantStaIfaceHal {
     private SupplicantStaNetworkHal addNetwork() {
         synchronized (mLock) {
             final String methodStr = "addNetwork";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
             Mutable<ISupplicantNetwork> newNetwork = new Mutable<>();
             try {
@@ -464,8 +541,7 @@ public class SupplicantStaIfaceHal {
                     }
                 });
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception: " + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
             }
             if (newNetwork.value != null) {
                 return getStaNetworkMockable(
@@ -484,14 +560,12 @@ public class SupplicantStaIfaceHal {
     private boolean removeNetwork(int id) {
         synchronized (mLock) {
             final String methodStr = "removeNetwork";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.removeNetwork(id);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -506,8 +580,13 @@ public class SupplicantStaIfaceHal {
      */
     protected SupplicantStaNetworkHal getStaNetworkMockable(
             ISupplicantStaNetwork iSupplicantStaNetwork) {
-        return new SupplicantStaNetworkHal(
-                iSupplicantStaNetwork, mIfaceName, mContext, mWifiMonitor);
+        SupplicantStaNetworkHal network =
+                new SupplicantStaNetworkHal(iSupplicantStaNetwork, mIfaceName, mContext,
+                        mWifiMonitor);
+        if (network != null) {
+            network.enableVerboseLogging(mVerboseLoggingEnabled);
+        }
+        return network;
     }
 
     /**
@@ -517,7 +596,6 @@ public class SupplicantStaIfaceHal {
     private SupplicantStaNetworkHal getNetwork(int id) {
         synchronized (mLock) {
             final String methodStr = "getNetwork";
-            if (DBG) Log.i(TAG, methodStr);
             Mutable<ISupplicantNetwork> gotNetwork = new Mutable<>();
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
             try {
@@ -528,8 +606,7 @@ public class SupplicantStaIfaceHal {
                     }
                 });
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception: " + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
             }
             if (gotNetwork.value != null) {
                 return getStaNetworkMockable(
@@ -549,7 +626,7 @@ public class SupplicantStaIfaceHal {
                 SupplicantStatus status =  mISupplicantStaIface.registerCallback(callback);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -562,7 +639,6 @@ public class SupplicantStaIfaceHal {
     private java.util.ArrayList<Integer> listNetworks() {
         synchronized (mLock) {
             final String methodStr = "listNetworks";
-            if (DBG) Log.i(TAG, methodStr);
             Mutable<ArrayList<Integer>> networkIdList = new Mutable<>();
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
             try {
@@ -573,8 +649,7 @@ public class SupplicantStaIfaceHal {
                     }
                 });
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception: " + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
             }
             return networkIdList.value;
         }
@@ -589,14 +664,12 @@ public class SupplicantStaIfaceHal {
     public boolean setWpsDeviceName(String name) {
         synchronized (mLock) {
             final String methodStr = "setWpsDeviceName";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.setWpsDeviceName(name);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -629,14 +702,12 @@ public class SupplicantStaIfaceHal {
     private boolean setWpsDeviceType(byte[/* 8 */] type) {
         synchronized (mLock) {
             final String methodStr = "setWpsDeviceType";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.setWpsDeviceType(type);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -651,14 +722,12 @@ public class SupplicantStaIfaceHal {
     public boolean setWpsManufacturer(String manufacturer) {
         synchronized (mLock) {
             final String methodStr = "setWpsManufacturer";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.setWpsManufacturer(manufacturer);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -673,14 +742,12 @@ public class SupplicantStaIfaceHal {
     public boolean setWpsModelName(String modelName) {
         synchronized (mLock) {
             final String methodStr = "setWpsModelName";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.setWpsModelName(modelName);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -695,14 +762,12 @@ public class SupplicantStaIfaceHal {
     public boolean setWpsModelNumber(String modelNumber) {
         synchronized (mLock) {
             final String methodStr = "setWpsModelNumber";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.setWpsModelNumber(modelNumber);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -717,14 +782,12 @@ public class SupplicantStaIfaceHal {
     public boolean setWpsSerialNumber(String serialNumber) {
         synchronized (mLock) {
             final String methodStr = "setWpsSerialNumber";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.setWpsSerialNumber(serialNumber);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -748,14 +811,12 @@ public class SupplicantStaIfaceHal {
     private boolean setWpsConfigMethods(short configMethods) {
         synchronized (mLock) {
             final String methodStr = "setWpsConfigMethods";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.setWpsConfigMethods(configMethods);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -769,14 +830,12 @@ public class SupplicantStaIfaceHal {
     public boolean reassociate() {
         synchronized (mLock) {
             final String methodStr = "reassociate";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.reassociate();
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -790,14 +849,12 @@ public class SupplicantStaIfaceHal {
     public boolean reconnect() {
         synchronized (mLock) {
             final String methodStr = "reconnect";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.reconnect();
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -811,14 +868,12 @@ public class SupplicantStaIfaceHal {
     public boolean disconnect() {
         synchronized (mLock) {
             final String methodStr = "disconnect";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.disconnect();
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -833,14 +888,12 @@ public class SupplicantStaIfaceHal {
     public boolean setPowerSave(boolean enable) {
         synchronized (mLock) {
             final String methodStr = "setPowerSave";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.setPowerSave(enable);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -859,14 +912,12 @@ public class SupplicantStaIfaceHal {
     private boolean initiateTdlsDiscover(byte[/* 6 */] macAddress) {
         synchronized (mLock) {
             final String methodStr = "initiateTdlsDiscover";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.initiateTdlsDiscover(macAddress);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -885,14 +936,12 @@ public class SupplicantStaIfaceHal {
     private boolean initiateTdlsSetup(byte[/* 6 */] macAddress) {
         synchronized (mLock) {
             final String methodStr = "initiateTdlsSetup";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.initiateTdlsSetup(macAddress);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -911,14 +960,12 @@ public class SupplicantStaIfaceHal {
     private boolean initiateTdlsTeardown(byte[/* 6 */] macAddress) {
         synchronized (mLock) {
             final String methodStr = "initiateTdlsTeardown";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.initiateTdlsTeardown(macAddress);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -943,15 +990,13 @@ public class SupplicantStaIfaceHal {
             java.util.ArrayList<Short> infoElements, java.util.ArrayList<Integer> subTypes) {
         synchronized (mLock) {
             final String methodStr = "initiateAnqpQuery";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.initiateAnqpQuery(macAddress,
                         infoElements, subTypes);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -972,15 +1017,13 @@ public class SupplicantStaIfaceHal {
     private boolean initiateHs20IconQuery(byte[/* 6 */] macAddress, String fileName) {
         synchronized (mLock) {
             final String methodStr = "initiateHs20IconQuery";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.initiateHs20IconQuery(macAddress,
                         fileName);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -994,7 +1037,6 @@ public class SupplicantStaIfaceHal {
     public String getMacAddress() {
         synchronized (mLock) {
             final String methodStr = "getMacAddress";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
             Mutable<String> gotMac = new Mutable<>();
             try {
@@ -1005,8 +1047,7 @@ public class SupplicantStaIfaceHal {
                     }
                 });
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception: " + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
             }
             return gotMac.value;
         }
@@ -1020,14 +1061,12 @@ public class SupplicantStaIfaceHal {
     public boolean startRxFilter() {
         synchronized (mLock) {
             final String methodStr = "startRxFilter";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.startRxFilter();
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1041,14 +1080,12 @@ public class SupplicantStaIfaceHal {
     public boolean stopRxFilter() {
         synchronized (mLock) {
             final String methodStr = "stopRxFilter";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.stopRxFilter();
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1065,17 +1102,15 @@ public class SupplicantStaIfaceHal {
      *        {@link #RX_FILTER_TYPE_V6_MULTICAST} values.
      * @return true if request is sent successfully, false otherwise.
      */
-    private boolean addRxFilter(byte type) {
+    public boolean addRxFilter(byte type) {
         synchronized (mLock) {
             final String methodStr = "addRxFilter";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.addRxFilter(type);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1088,17 +1123,15 @@ public class SupplicantStaIfaceHal {
      *        {@link #RX_FILTER_TYPE_V6_MULTICAST} values.
      * @return true if request is sent successfully, false otherwise.
      */
-    private boolean removeRxFilter(byte type) {
+    public boolean removeRxFilter(byte type) {
         synchronized (mLock) {
             final String methodStr = "removeRxFilter";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.removeRxFilter(type);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1117,14 +1150,12 @@ public class SupplicantStaIfaceHal {
     public boolean setBtCoexistenceMode(byte mode) {
         synchronized (mLock) {
             final String methodStr = "setBtCoexistenceMode";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.setBtCoexistenceMode(mode);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1138,15 +1169,13 @@ public class SupplicantStaIfaceHal {
     public boolean setBtCoexistenceScanModeEnabled(boolean enable) {
         synchronized (mLock) {
             final String methodStr = "setBtCoexistenceScanModeEnabled";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status =
                         mISupplicantStaIface.setBtCoexistenceScanModeEnabled(enable);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1161,14 +1190,12 @@ public class SupplicantStaIfaceHal {
     public boolean setSuspendModeEnabled(boolean enable) {
         synchronized (mLock) {
             final String methodStr = "setSuspendModeEnabled";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.setSuspendModeEnabled(enable);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1188,14 +1215,12 @@ public class SupplicantStaIfaceHal {
     private boolean setCountryCode(byte[/* 2 */] code) {
         synchronized (mLock) {
             final String methodStr = "setCountryCode";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.setCountryCode(code);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1216,14 +1241,12 @@ public class SupplicantStaIfaceHal {
     private boolean startWpsRegistrar(byte[/* 6 */] bssid, String pin) {
         synchronized (mLock) {
             final String methodStr = "startWpsRegistrar";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.startWpsRegistrar(bssid, pin);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1243,14 +1266,12 @@ public class SupplicantStaIfaceHal {
     private boolean startWpsPbc(byte[/* 6 */] bssid) {
         synchronized (mLock) {
             final String methodStr = "startWpsPbc";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.startWpsPbc(bssid);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1265,14 +1286,12 @@ public class SupplicantStaIfaceHal {
     public boolean startWpsPinKeypad(String pin) {
         synchronized (mLock) {
             final String methodStr = "startWpsPinKeypad";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.startWpsPinKeypad(pin);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1292,7 +1311,6 @@ public class SupplicantStaIfaceHal {
     private String startWpsPinDisplay(byte[/* 6 */] bssid) {
         synchronized (mLock) {
             final String methodStr = "startWpsPinDisplay";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
             final Mutable<String> gotPin = new Mutable<>();
             try {
@@ -1303,8 +1321,7 @@ public class SupplicantStaIfaceHal {
                             }
                         });
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
             }
             return gotPin.value;
         }
@@ -1318,14 +1335,12 @@ public class SupplicantStaIfaceHal {
     public boolean cancelWps() {
         synchronized (mLock) {
             final String methodStr = "cancelWps";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.cancelWps();
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1340,14 +1355,12 @@ public class SupplicantStaIfaceHal {
     public boolean setExternalSim(boolean useExternalSim) {
         synchronized (mLock) {
             final String methodStr = "setExternalSim";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicantStaIface.setExternalSim(useExternalSim);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1372,15 +1385,13 @@ public class SupplicantStaIfaceHal {
     private boolean setDebugParams(int level, boolean showTimestamp, boolean showKeys) {
         synchronized (mLock) {
             final String methodStr = "setDebugParams";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status =
                         mISupplicant.setDebugParams(level, showTimestamp, showKeys);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicant." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1405,14 +1416,12 @@ public class SupplicantStaIfaceHal {
     private boolean setConcurrencyPriority(int type) {
         synchronized (mLock) {
             final String methodStr = "setConcurrencyPriority";
-            if (DBG) Log.i(TAG, methodStr);
             if (!checkSupplicantAndLogFailure(methodStr)) return false;
             try {
                 SupplicantStatus status = mISupplicant.setConcurrencyPriority(type);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicant." + methodStr + ": exception:" + e);
-                supplicantServiceDiedHandler();
+                handleRemoteException(e, methodStr);
                 return false;
             }
         }
@@ -1422,7 +1431,6 @@ public class SupplicantStaIfaceHal {
      * Returns false if Supplicant is null, and logs failure to call methodStr
      */
     private boolean checkSupplicantAndLogFailure(final String methodStr) {
-        if (DBG) Log.i(TAG, methodStr);
         if (mISupplicant == null) {
             Log.e(TAG, "Can't call " + methodStr + ", ISupplicant is null");
             return false;
@@ -1434,7 +1442,6 @@ public class SupplicantStaIfaceHal {
      * Returns false if SupplicantStaIface is null, and logs failure to call methodStr
      */
     private boolean checkSupplicantStaIfaceAndLogFailure(final String methodStr) {
-        if (DBG) Log.i(TAG, methodStr);
         if (mISupplicantStaIface == null) {
             Log.e(TAG, "Can't call " + methodStr + ", ISupplicantStaIface is null");
             return false;
@@ -1446,15 +1453,23 @@ public class SupplicantStaIfaceHal {
      * Returns true if provided status code is SUCCESS, logs debug message and returns false
      * otherwise
      */
-    private static boolean checkStatusAndLogFailure(SupplicantStatus status,
+    private boolean checkStatusAndLogFailure(SupplicantStatus status,
             final String methodStr) {
-        if (DBG) Log.i(TAG, methodStr);
         if (status.code != SupplicantStatusCode.SUCCESS) {
-            Log.e(TAG, methodStr + " failed: " + supplicantStatusCodeToString(status.code) + ", "
-                    + status.debugMessage);
+            Log.e(TAG, "ISupplicantStaIface." + methodStr + " failed: "
+                    + supplicantStatusCodeToString(status.code) + ", " + status.debugMessage);
             return false;
+        } else {
+            if (mVerboseLoggingEnabled) {
+                Log.i(TAG, "ISupplicantStaIface." + methodStr + " succeeded");
+            }
+            return true;
         }
-        return true;
+    }
+
+    private void handleRemoteException(RemoteException e, String methodStr) {
+        supplicantServiceDiedHandler();
+        Log.e(TAG, "ISupplicantStaIface." + methodStr + " failed with exception", e);
     }
 
     /**
@@ -1525,6 +1540,36 @@ public class SupplicantStaIfaceHal {
             default:
                 throw new IllegalArgumentException(
                         "Invalid WPS config method: " + configMethod);
+        }
+    }
+
+    /**
+     * Converts the supplicant state received from HIDL to the equivalent framework state.
+     */
+    private static SupplicantState supplicantHidlStateToFrameworkState(int state) {
+        switch (state) {
+            case ISupplicantStaIfaceCallback.State.DISCONNECTED:
+                return SupplicantState.DISCONNECTED;
+            case ISupplicantStaIfaceCallback.State.IFACE_DISABLED:
+                return SupplicantState.INTERFACE_DISABLED;
+            case ISupplicantStaIfaceCallback.State.INACTIVE:
+                return SupplicantState.INACTIVE;
+            case ISupplicantStaIfaceCallback.State.SCANNING:
+                return SupplicantState.SCANNING;
+            case ISupplicantStaIfaceCallback.State.AUTHENTICATING:
+                return SupplicantState.AUTHENTICATING;
+            case ISupplicantStaIfaceCallback.State.ASSOCIATING:
+                return SupplicantState.ASSOCIATING;
+            case ISupplicantStaIfaceCallback.State.ASSOCIATED:
+                return SupplicantState.ASSOCIATED;
+            case ISupplicantStaIfaceCallback.State.FOURWAY_HANDSHAKE:
+                return SupplicantState.FOUR_WAY_HANDSHAKE;
+            case ISupplicantStaIfaceCallback.State.GROUP_HANDSHAKE:
+                return SupplicantState.GROUP_HANDSHAKE;
+            case ISupplicantStaIfaceCallback.State.COMPLETED:
+                return SupplicantState.COMPLETED;
+            default:
+                throw new IllegalArgumentException("Invalid state: " + state);
         }
     }
 
@@ -1602,6 +1647,18 @@ public class SupplicantStaIfaceHal {
         @Override
         public void onStateChanged(int newState, byte[/* 6 */] bssid, int id,
                                    ArrayList<Byte> ssid) {
+            SupplicantState newSupplicantState = supplicantHidlStateToFrameworkState(newState);
+            WifiSsid wifiSsid =
+                    WifiSsid.createFromByteArray(NativeUtil.byteArrayFromArrayList(ssid));
+            String bssidStr = NativeUtil.macAddressFromByteArray(bssid);
+            mWifiMonitor.broadcastSupplicantStateChangeEvent(
+                    mIfaceName, mFrameworkNetworkId, wifiSsid, bssidStr, newSupplicantState);
+            if (newSupplicantState == SupplicantState.ASSOCIATED) {
+                mWifiMonitor.broadcastAssociationSuccesfulEvent(mIfaceName, bssidStr);
+            } else if (newSupplicantState == SupplicantState.COMPLETED) {
+                mWifiMonitor.broadcastNetworkConnectionEvent(
+                        mIfaceName, mFrameworkNetworkId, bssidStr);
+            }
         }
 
         @Override
@@ -1649,30 +1706,49 @@ public class SupplicantStaIfaceHal {
 
         @Override
         public void onDisconnected(byte[/* 6 */] bssid, boolean locallyGenerated, int reasonCode) {
+            mWifiMonitor.broadcastNetworkDisconnectionEvent(
+                    mIfaceName, locallyGenerated ? 1 : 0, reasonCode,
+                    NativeUtil.macAddressFromByteArray(bssid));
         }
 
         @Override
         public void onAssociationRejected(byte[/* 6 */] bssid, int statusCode) {
+            // TODO(b/35464954): Need to figure out when to trigger
+            // |WifiMonitor.AUTHENTICATION_FAILURE_REASON_WRONG_PSWD|
+            mWifiMonitor.broadcastAssociationRejectionEvent(mIfaceName, statusCode,
+                    NativeUtil.macAddressFromByteArray(bssid));
         }
 
         @Override
         public void onAuthenticationTimeout(byte[/* 6 */] bssid) {
+            mWifiMonitor.broadcastAuthenticationFailureEvent(
+                    mIfaceName, WifiMonitor.AUTHENTICATION_FAILURE_REASON_TIMEOUT);
         }
 
         @Override
         public void onEapFailure() {
+            mWifiMonitor.broadcastAuthenticationFailureEvent(
+                    mIfaceName, WifiMonitor.AUTHENTICATION_FAILURE_REASON_EAP_FAILURE);
         }
 
         @Override
         public void onWpsEventSuccess() {
+            mWifiMonitor.broadcastWpsSuccessEvent(mIfaceName);
         }
 
         @Override
         public void onWpsEventFail(byte[/* 6 */] bssid, short configError, short errorInd) {
+            if (configError == WpsConfigError.MSG_TIMEOUT
+                    && errorInd == WpsErrorIndication.NO_ERROR) {
+                mWifiMonitor.broadcastWpsTimeoutEvent(mIfaceName);
+            } else {
+                mWifiMonitor.broadcastWpsFailEvent(mIfaceName, configError, errorInd);
+            }
         }
 
         @Override
         public void onWpsEventPbcOverlap() {
+            mWifiMonitor.broadcastWpsOverlapEvent(mIfaceName);
         }
 
         @Override
