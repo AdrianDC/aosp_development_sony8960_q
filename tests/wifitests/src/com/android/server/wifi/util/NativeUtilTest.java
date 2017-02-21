@@ -117,7 +117,7 @@ public class NativeUtilTest {
     @Test
     public void testNullCharInAsciiSsidEncode() throws Exception {
         assertEquals(
-                "007369645F74657374313233",
+                "007369645f74657374313233",
                 NativeUtil.encodeSsid(new ArrayList<>(
                         Arrays.asList((byte) 0x00, (byte) 's', (byte) 'i', (byte) 'd', (byte) '_',
                                 (byte) 't', (byte) 'e', (byte) 's', (byte) 't', (byte) '1',
@@ -130,7 +130,7 @@ public class NativeUtilTest {
     @Test
     public void testNonAsciiSsidEncode() throws Exception {
         assertEquals(
-                "F5E4AB78AB3432439A",
+                "f5e4ab78ab3432439a",
                 NativeUtil.encodeSsid(new ArrayList<>(
                         Arrays.asList((byte) 0xf5, (byte) 0xe4, (byte) 0xab, (byte) 0x78,
                                 (byte) 0xab, (byte) 0x34, (byte) 0x32, (byte) 0x43, (byte) 0x9a))));
