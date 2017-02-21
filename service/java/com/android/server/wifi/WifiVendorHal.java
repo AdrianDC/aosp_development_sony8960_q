@@ -629,32 +629,7 @@ public class WifiVendorHal {
     }
 
     /**
-     * not to be implemented
-     */
-    public boolean enableDisableTdls(boolean enable, String macAdd,
-                                     WifiNative.TdlsEventHandler tdlsCallBack) {
-        kilroy();
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * not to be implemented
-     */
-    public WifiNative.TdlsStatus getTdlsStatus(String macAdd) {
-        kilroy();
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * not to be implemented
-     */
-    public WifiNative.TdlsCapabilities getTdlsCapabilities() {
-        kilroy();
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * to be implemented
+     * to be implemented TODO(b/34901821)
      */
     public boolean setLoggingEventHandler(WifiNative.WifiLoggerEventHandler handler) {
         kilroy();
@@ -704,7 +679,7 @@ public class WifiVendorHal {
     }
 
     /**
-     * to be implemented
+     * to be implemented TODO(b/34901821)
      */
     public boolean resetLogHandler() {
         kilroy();
