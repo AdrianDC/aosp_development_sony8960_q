@@ -836,6 +836,43 @@ public class WifiStateMachineTest {
         assertEquals("ConnectedState", getCurrentState().getName());
     }
 
+    /**
+     * If caller tries to connect to a network that is already connected, the connection request
+     * should succeed.
+     *
+     * Test: Create and connect to a network, then try to reconnect to the same network. Verify
+     * that connection request returns with CONNECT_NETWORK_SUCCEEDED.
+     */
+    @Test
+    public void reconnectToConnectedNetwork() throws Exception {
+        addNetworkAndVerifySuccess();
+
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+
+        mLooper.startAutoDispatch();
+        mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
+        mLooper.stopAutoDispatch();
+
+        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
+
+        mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, sBSSID);
+        mLooper.dispatchAll();
+
+        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
+                new StateChangeResult(0, sWifiSsid, sBSSID, SupplicantState.COMPLETED));
+        mLooper.dispatchAll();
+
+        assertEquals("ObtainingIpState", getCurrentState().getName());
+
+        // try to reconnect
+        mLooper.startAutoDispatch();
+        Message reply = mWsmAsyncChannel.sendMessageSynchronously(WifiManager.CONNECT_NETWORK, 0);
+        mLooper.stopAutoDispatch();
+
+        assertEquals(WifiManager.CONNECT_NETWORK_SUCCEEDED, reply.what);
+    }
+
     @Test
     public void testDhcpFailure() throws Exception {
         addNetworkAndVerifySuccess();
