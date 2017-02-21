@@ -130,7 +130,6 @@ public class WifiAwareNativeApi {
                 req.configParams.numberOfSubscribeServiceIdsInBeacon = 0;
                 req.configParams.rssiWindowSize = 8;
                 req.configParams.macAddressRandomizationIntervalSec = 1800;
-                req.configParams.acceptRangingRequests = true;
 
                 NanBandSpecificConfig config24 = new NanBandSpecificConfig();
                 config24.rssiClose = 60;
@@ -199,7 +198,6 @@ public class WifiAwareNativeApi {
                 req.numberOfSubscribeServiceIdsInBeacon = 0;
                 req.rssiWindowSize = 8;
                 req.macAddressRandomizationIntervalSec = 1800;
-                req.acceptRangingRequests = true;
 
                 NanBandSpecificConfig config24 = new NanBandSpecificConfig();
                 config24.rssiClose = 60;
@@ -376,6 +374,11 @@ public class WifiAwareNativeApi {
                 !subscribeConfig.mEnableTerminateNotification;
         req.baseConfigs.disableMatchExpirationIndication = true;
         req.baseConfigs.disableFollowupReceivedIndication = false;
+
+        // TODO: configure ranging and security
+        req.baseConfigs.securityEnabledInNdp = false;
+        req.baseConfigs.rangingRequired = false;
+
         req.subscribeType = subscribeConfig.mSubscribeType;
 
         try {
