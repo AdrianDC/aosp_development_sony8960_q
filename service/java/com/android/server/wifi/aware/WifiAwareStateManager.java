@@ -168,6 +168,7 @@ public class WifiAwareStateManager {
     private static final String MESSAGE_BUNDLE_KEY_SENT_MESSAGE = "send_message";
     private static final String MESSAGE_BUNDLE_KEY_MESSAGE_ARRIVAL_SEQ = "message_arrival_seq";
     private static final String MESSAGE_BUNDLE_KEY_NOTIFY_IDENTITY_CHANGE = "notify_identity_chg";
+    private static final String MESSAGE_BUNDLE_KEY_PMK = "pmk";
 
     private WifiAwareNativeApi mWifiAwareNativeApi;
 
@@ -464,7 +465,7 @@ public class WifiAwareStateManager {
      * Command to initiate a data-path (executed by the initiator).
      */
     public void initiateDataPathSetup(String networkSpecifier, int peerId, int channelRequestType,
-            int channel, byte[] peer, String interfaceName, byte[] token) {
+            int channel, byte[] peer, String interfaceName, byte[] pmk) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_INITIATE_DATA_PATH_SETUP;
         msg.obj = networkSpecifier;
@@ -473,7 +474,7 @@ public class WifiAwareStateManager {
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_CHANNEL, channel);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS, peer);
         msg.getData().putString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME, interfaceName);
-        msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE, token);
+        msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_PMK, pmk);
         mSm.sendMessage(msg);
     }
 
@@ -481,13 +482,13 @@ public class WifiAwareStateManager {
      * Command to respond to the data-path request (executed by the responder).
      */
     public void respondToDataPathRequest(boolean accept, int ndpId, String interfaceName,
-            String token) {
+            byte[] pmk) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_RESPOND_TO_DATA_PATH_SETUP_REQUEST;
         msg.arg2 = ndpId;
         msg.obj = accept;
         msg.getData().putString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME, interfaceName);
-        msg.getData().putString(MESSAGE_BUNDLE_KEY_MESSAGE, token);
+        msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_PMK, pmk);
         mSm.sendMessage(msg);
     }
 
@@ -657,7 +658,7 @@ public class WifiAwareStateManager {
     }
 
     /**
-     * Response from firmware to {@link #respondToDataPathRequest(boolean, int, String, String)}.
+     * Response from firmware to {@link #respondToDataPathRequest(boolean, int, String, byte[])}.
      */
     public void onRespondToDataPathSetupRequestResponse(short transactionId, boolean success,
             int reasonOnFailure) {
@@ -789,13 +790,12 @@ public class WifiAwareStateManager {
     /**
      * Place a callback request on the state machine queue: data-path request (from peer) received.
      */
-    public void onDataPathRequestNotification(int pubSubId, byte[] mac, int ndpId, byte[] message) {
+    public void onDataPathRequestNotification(int pubSubId, byte[] mac, int ndpId) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST;
         msg.arg2 = pubSubId;
         msg.obj = ndpId;
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS, mac);
-        msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA, message);
         mSm.sendMessage(msg);
     }
 
@@ -1125,8 +1125,7 @@ public class WifiAwareStateManager {
                 case NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST: {
                     String networkSpecifier = mDataPathMgr.onDataPathRequest(msg.arg2,
                             msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS),
-                            (int) msg.obj,
-                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA));
+                            (int) msg.obj);
 
                     if (networkSpecifier != null) {
                         WakeupMessage timeout = new WakeupMessage(mContext, getHandler(),
@@ -1368,11 +1367,11 @@ public class WifiAwareStateManager {
                     int channel = data.getInt(MESSAGE_BUNDLE_KEY_CHANNEL);
                     byte[] peer = data.getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS);
                     String interfaceName = data.getString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME);
-                    byte[] token = data.getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE);
+                    byte[] pmk = data.getByteArray(MESSAGE_BUNDLE_KEY_PMK);
 
                     waitForResponse = initiateDataPathSetupLocal(mCurrentTransactionId,
                             networkSpecifier, peerId, channelRequestType, channel, peer,
-                            interfaceName, token);
+                            interfaceName, pmk);
 
                     if (waitForResponse) {
                         WakeupMessage timeout = new WakeupMessage(mContext, getHandler(),
@@ -1390,10 +1389,10 @@ public class WifiAwareStateManager {
                     int ndpId = msg.arg2;
                     boolean accept = (boolean) msg.obj;
                     String interfaceName = data.getString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME);
-                    String token = data.getString(MESSAGE_BUNDLE_KEY_MESSAGE);
+                    byte[] pmk = data.getByteArray(MESSAGE_BUNDLE_KEY_PMK);
 
                     waitForResponse = respondToDataPathRequestLocal(mCurrentTransactionId, accept,
-                            ndpId, interfaceName, token);
+                            ndpId, interfaceName, pmk);
 
                     break;
                 }
@@ -2065,18 +2064,18 @@ public class WifiAwareStateManager {
 
     private boolean initiateDataPathSetupLocal(short transactionId, String networkSpecifier,
             int peerId, int channelRequestType, int channel, byte[] peer, String interfaceName,
-            byte[] token) {
+            byte[] pmk) {
         if (VDBG) {
             Log.v(TAG,
                     "initiateDataPathSetupLocal(): transactionId=" + transactionId
                             + ", networkSpecifier=" + networkSpecifier + ", peerId=" + peerId
                             + ", channelRequestType=" + channelRequestType + ", channel=" + channel
                             + ", peer=" + String.valueOf(HexEncoding.encode(peer))
-                            + ", interfaceName=" + interfaceName + ", token=" + token);
+                            + ", interfaceName=" + interfaceName + ", pmk=" + pmk);
         }
 
         boolean success = mWifiAwareNativeApi.initiateDataPath(transactionId, peerId,
-                channelRequestType, channel, peer, interfaceName, token);
+                channelRequestType, channel, peer, interfaceName, pmk, mCapabilities);
         if (!success) {
             mDataPathMgr.onDataPathInitiateFail(networkSpecifier, NanStatusType.INTERNAL_FAILURE);
         }
@@ -2085,18 +2084,16 @@ public class WifiAwareStateManager {
     }
 
     private boolean respondToDataPathRequestLocal(short transactionId, boolean accept,
-            int ndpId, String interfaceName, String token) {
+            int ndpId, String interfaceName, byte[] pmk) {
         if (VDBG) {
             Log.v(TAG,
                     "respondToDataPathRequestLocal(): transactionId=" + transactionId + ", accept="
                             + accept + ", ndpId=" + ndpId + ", interfaceName=" + interfaceName
-                            + ", token=" + token);
+                            + ", pmk=" + pmk);
         }
 
-        byte[] tokenBytes = token.getBytes();
-
         boolean success = mWifiAwareNativeApi.respondToDataPathRequest(transactionId, accept, ndpId,
-                interfaceName, tokenBytes);
+                interfaceName, pmk, mCapabilities);
         if (!success) {
             mDataPathMgr.onRespondToDataPathRequest(ndpId, false);
         }
