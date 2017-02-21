@@ -636,12 +636,12 @@ public class WifiMonitor {
 
         if (ensureConnectedLocked()) {
             setMonitoring(iface, true);
-            sendMessage(iface, SUP_CONNECTION_EVENT);
+            broadcastSupplicantConnectionEvent(iface);
         }
         else {
             boolean originalMonitoring = isMonitoring(iface);
             setMonitoring(iface, true);
-            sendMessage(iface, SUP_DISCONNECTION_EVENT);
+            broadcastSupplicantDisconnectionEvent(iface);
             setMonitoring(iface, originalMonitoring);
             Log.e(TAG, "startMonitoring(" + iface + ") failed!");
         }
@@ -650,7 +650,7 @@ public class WifiMonitor {
     public synchronized void stopMonitoring(String iface) {
         if (mVerboseLoggingEnabled) Log.d(TAG, "stopMonitoring(" + iface + ")");
         setMonitoring(iface, true);
-        sendMessage(iface, SUP_DISCONNECTION_EVENT);
+        broadcastSupplicantDisconnectionEvent(iface);
         setMonitoring(iface, false);
     }
 
@@ -1018,7 +1018,7 @@ public class WifiMonitor {
             }
 
             // Notify and exit
-            sendMessage(null, SUP_DISCONNECTION_EVENT, eventLogCounter);
+            broadcastSupplicantDisconnectionEvent(null);
             return true;
         } else if (event == EAP_FAILURE) {
             if (eventData.startsWith(EAP_AUTH_FAILURE_STR)) {
@@ -1519,7 +1519,7 @@ public class WifiMonitor {
                 Log.d(TAG, "WifiMonitor notify network disconnect: " + BSSID
                         + " reason=" + Integer.toString(reason));
             }
-            broadcastNetworkDisConnectionEvent(iface, local, reason, BSSID);
+            broadcastNetworkDisconnectionEvent(iface, local, reason, BSSID);
         }
     }
 
@@ -1709,7 +1709,7 @@ public class WifiMonitor {
      * @param reason Disconnect reason code.
      * @param bssid BSSID of the access point.
      */
-    public void broadcastNetworkDisConnectionEvent(String iface, int local, int reason,
+    public void broadcastNetworkDisconnectionEvent(String iface, int local, int reason,
                                                    String bssid) {
         sendMessage(iface, NETWORK_DISCONNECTION_EVENT, local, reason, bssid);
     }
@@ -1727,5 +1727,25 @@ public class WifiMonitor {
                                                     SupplicantState newSupplicantState) {
         sendMessage(iface, SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
                 new StateChangeResult(networkId, wifiSsid, bssid, newSupplicantState));
+    }
+
+    /**
+     * Broadcast the connection to wpa_supplicant event to all the handlers registered for
+     * this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     */
+    public void broadcastSupplicantConnectionEvent(String iface) {
+        sendMessage(iface, SUP_CONNECTION_EVENT);
+    }
+
+    /**
+     * Broadcast the loss of connection to wpa_supplicant event to all the handlers registered for
+     * this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     */
+    public void broadcastSupplicantDisconnectionEvent(String iface) {
+        sendMessage(iface, SUP_DISCONNECTION_EVENT);
     }
 }

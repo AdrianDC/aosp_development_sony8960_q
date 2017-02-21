@@ -136,7 +136,7 @@ public class NativeUtil {
             if (i != 0) sb.append(":");
             sb.append(new String(HexEncoding.encode(macArray, i, 1)));
         }
-        return sb.toString();
+        return sb.toString().toLowerCase();
     }
 
     /**
@@ -251,6 +251,6 @@ public class NativeUtil {
         if (bytes == null) {
             throw new IllegalArgumentException("null hex bytes");
         }
-        return new String(HexEncoding.encode(bytes));
+        return new String(HexEncoding.encode(bytes)).toLowerCase();
     }
 }
