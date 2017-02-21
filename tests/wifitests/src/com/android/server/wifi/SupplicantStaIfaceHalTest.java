@@ -46,7 +46,9 @@ import android.hardware.wifi.supplicant.V1_0.WpsConfigMethods;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.net.IpConfiguration;
+import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiSsid;
 import android.os.IHwBinder;
 import android.os.RemoteException;
 import android.util.SparseArray;
@@ -77,11 +79,12 @@ import java.util.Random;
 public class SupplicantStaIfaceHalTest {
     private static final String TAG = "SupplicantStaIfaceHalTest";
     private static final Map<Integer, String> NETWORK_ID_TO_SSID = new HashMap<Integer, String>() {{
-            put(1, "ssid1");
-            put(2, "ssid2");
-            put(3, "ssid3");
+            put(1, "\"ssid1\"");
+            put(2, "\"ssid2\"");
+            put(3, "\"ssid3\"");
         }};
-    private static final int EXISTING_SUPPLICANT_NETWORK_ID = 2;
+    private static final int SUPPLICANT_NETWORK_ID = 2;
+    private static final String SUPPLICANT_SSID = NETWORK_ID_TO_SSID.get(SUPPLICANT_NETWORK_ID);
     private static final int ROAM_NETWORK_ID = 4;
     private static final String BSSID = "fa:45:23:23:12:12";
     private static final String WLAN_IFACE_NAME = "wlan0";
@@ -444,12 +447,15 @@ public class SupplicantStaIfaceHalTest {
     @Test
     public void testConnectFailureDueToNetworkSaveFailure() throws Exception {
         executeAndValidateInitializationSequence();
-        setupMocksForConnectSequence(false);
+        setupMocksForConnectSequence(true);
 
         when(mSupplicantStaNetworkMock.saveWifiConfiguration(any(WifiConfiguration.class)))
                 .thenReturn(false);
 
         assertFalse(mDut.connectToNetwork(new WifiConfiguration(), false));
+        // We should have removed the existing network once before connection and once more
+        // on failure to save network configuration.
+        verify(mISupplicantStaIfaceMock, times(2)).removeNetwork(anyInt());
     }
 
     /**
@@ -553,13 +559,12 @@ public class SupplicantStaIfaceHalTest {
         when(mSupplicantStaNetworkMock.getWpsNfcConfigurationToken()).thenReturn(token);
 
         executeAndValidateInitializationSequence();
-
         // Return null when not connected to the network.
         assertTrue(mDut.getCurrentNetworkWpsNfcConfigurationToken() == null);
-
+        verify(mSupplicantStaNetworkMock, never()).getWpsNfcConfigurationToken();
         executeAndValidateConnectSequence(4, false, false);
-
         assertEquals(token, mDut.getCurrentNetworkWpsNfcConfigurationToken());
+        verify(mSupplicantStaNetworkMock).getWpsNfcConfigurationToken();
     }
 
     /**
@@ -571,13 +576,84 @@ public class SupplicantStaIfaceHalTest {
         when(mSupplicantStaNetworkMock.setBssid(eq(bssidStr))).thenReturn(true);
 
         executeAndValidateInitializationSequence();
-
         // Fail when not connected to a network.
         assertFalse(mDut.setCurrentNetworkBssid(bssidStr));
-
+        verify(mSupplicantStaNetworkMock, never()).setBssid(eq(bssidStr));
         executeAndValidateConnectSequence(4, false, false);
-
         assertTrue(mDut.setCurrentNetworkBssid(bssidStr));
+        verify(mSupplicantStaNetworkMock).setBssid(eq(bssidStr));
+    }
+
+    /**
+     * Tests the sending identity response for the current network.
+     */
+    @Test
+    public void testSetCurrentNetworkEapIdentityResponse() throws Exception {
+        String identity = "blah@blah.com";
+        when(mSupplicantStaNetworkMock.sendNetworkEapIdentityResponse(eq(identity)))
+                .thenReturn(true);
+
+        executeAndValidateInitializationSequence();
+        // Fail when not connected to a network.
+        assertFalse(mDut.sendCurrentNetworkEapIdentityResponse(identity));
+        verify(mSupplicantStaNetworkMock, never()).sendNetworkEapIdentityResponse(eq(identity));
+        executeAndValidateConnectSequence(4, false, false);
+        assertTrue(mDut.sendCurrentNetworkEapIdentityResponse(identity));
+        verify(mSupplicantStaNetworkMock).sendNetworkEapIdentityResponse(eq(identity));
+    }
+
+    /**
+     * Tests the sending gsm auth response for the current network.
+     */
+    @Test
+    public void testSetCurrentNetworkEapSimGsmAuthResponse() throws Exception {
+        String params = "test";
+        when(mSupplicantStaNetworkMock.sendNetworkEapSimGsmAuthResponse(eq(params)))
+                .thenReturn(true);
+
+        executeAndValidateInitializationSequence();
+        // Fail when not connected to a network.
+        assertFalse(mDut.sendCurrentNetworkEapSimGsmAuthResponse(params));
+        verify(mSupplicantStaNetworkMock, never()).sendNetworkEapSimGsmAuthResponse(eq(params));
+        executeAndValidateConnectSequence(4, false, false);
+        assertTrue(mDut.sendCurrentNetworkEapSimGsmAuthResponse(params));
+        verify(mSupplicantStaNetworkMock).sendNetworkEapSimGsmAuthResponse(eq(params));
+    }
+
+    /**
+     * Tests the sending umts auth response for the current network.
+     */
+    @Test
+    public void testSetCurrentNetworkEapSimUmtsAuthResponse() throws Exception {
+        String params = "test";
+        when(mSupplicantStaNetworkMock.sendNetworkEapSimUmtsAuthResponse(eq(params)))
+                .thenReturn(true);
+
+        executeAndValidateInitializationSequence();
+        // Fail when not connected to a network.
+        assertFalse(mDut.sendCurrentNetworkEapSimUmtsAuthResponse(params));
+        verify(mSupplicantStaNetworkMock, never()).sendNetworkEapSimUmtsAuthResponse(eq(params));
+        executeAndValidateConnectSequence(4, false, false);
+        assertTrue(mDut.sendCurrentNetworkEapSimUmtsAuthResponse(params));
+        verify(mSupplicantStaNetworkMock).sendNetworkEapSimUmtsAuthResponse(eq(params));
+    }
+
+    /**
+     * Tests the sending umts auts response for the current network.
+     */
+    @Test
+    public void testSetCurrentNetworkEapSimUmtsAutsResponse() throws Exception {
+        String params = "test";
+        when(mSupplicantStaNetworkMock.sendNetworkEapSimUmtsAutsResponse(eq(params)))
+                .thenReturn(true);
+
+        executeAndValidateInitializationSequence();
+        // Fail when not connected to a network.
+        assertFalse(mDut.sendCurrentNetworkEapSimUmtsAutsResponse(params));
+        verify(mSupplicantStaNetworkMock, never()).sendNetworkEapSimUmtsAutsResponse(eq(params));
+        executeAndValidateConnectSequence(4, false, false);
+        assertTrue(mDut.sendCurrentNetworkEapSimUmtsAutsResponse(params));
+        verify(mSupplicantStaNetworkMock).sendNetworkEapSimUmtsAutsResponse(eq(params));
     }
 
     /**
@@ -717,29 +793,196 @@ public class SupplicantStaIfaceHalTest {
 
     }
 
-    private void executeAndValidateHs20DeauthImminentCallback(boolean isEss) throws Exception {
+    /**
+     * Tests the handling of state change notification without any configured network.
+     */
+    @Test
+    public void testStateChangeCallbackWithNoConfiguredNetwork() throws Exception {
         executeAndValidateInitializationSequence();
         assertNotNull(mISupplicantStaIfaceCallback);
 
-        byte[] bssid = NativeUtil.macAddressToByteArray(BSSID);
-        int reasonCode = isEss ? WnmData.ESS : WnmData.ESS + 1;
-        int reauthDelay = 5;
-        mISupplicantStaIfaceCallback.onHs20DeauthImminentNotice(
-                bssid, reasonCode, reauthDelay, HS20_URL);
+        mISupplicantStaIfaceCallback.onStateChanged(
+                ISupplicantStaIfaceCallback.State.INACTIVE,
+                NativeUtil.macAddressToByteArray(BSSID), SUPPLICANT_NETWORK_ID,
+                NativeUtil.decodeSsid(SUPPLICANT_SSID));
 
-        ArgumentCaptor<WnmData> wnmDataCaptor = ArgumentCaptor.forClass(WnmData.class);
-        verify(mWifiMonitor).broadcastWnmEvent(eq(WLAN_IFACE_NAME), wnmDataCaptor.capture());
-        assertEquals(
-                ByteBufferReader.readInteger(
-                        ByteBuffer.wrap(bssid), ByteOrder.BIG_ENDIAN, bssid.length),
-                wnmDataCaptor.getValue().getBssid());
-        assertEquals(isEss, wnmDataCaptor.getValue().isEss());
-        assertEquals(reauthDelay, wnmDataCaptor.getValue().getDelay());
-        assertEquals(HS20_URL, wnmDataCaptor.getValue().getUrl());
+        // Can't compare WifiSsid instances because they lack an equals.
+        verify(mWifiMonitor).broadcastSupplicantStateChangeEvent(
+                eq(WLAN_IFACE_NAME), eq(WifiConfiguration.INVALID_NETWORK_ID),
+                any(WifiSsid.class), eq(BSSID), eq(SupplicantState.INACTIVE));
     }
 
-    private void executeAndValidateInitializationSequence() throws  Exception {
-        executeAndValidateInitializationSequence(false, false, false, false);
+    /**
+     * Tests the handling of state change notification to associated after configuring a network.
+     */
+    @Test
+    public void testStateChangeToAssociatedCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        int frameworkNetworkId = 6;
+        executeAndValidateConnectSequence(frameworkNetworkId, false, false);
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onStateChanged(
+                ISupplicantStaIfaceCallback.State.ASSOCIATED,
+                NativeUtil.macAddressToByteArray(BSSID), SUPPLICANT_NETWORK_ID,
+                NativeUtil.decodeSsid(SUPPLICANT_SSID));
+
+        verify(mWifiMonitor).broadcastSupplicantStateChangeEvent(
+                eq(WLAN_IFACE_NAME), eq(frameworkNetworkId),
+                any(WifiSsid.class), eq(BSSID), eq(SupplicantState.ASSOCIATED));
+        verify(mWifiMonitor).broadcastAssociationSuccesfulEvent(
+                eq(WLAN_IFACE_NAME), eq(BSSID));
+    }
+
+    /**
+     * Tests the handling of state change notification to completed after configuring a network.
+     */
+    @Test
+    public void testStateChangeToCompletedCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        int frameworkNetworkId = 6;
+        executeAndValidateConnectSequence(frameworkNetworkId, false, false);
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onStateChanged(
+                ISupplicantStaIfaceCallback.State.COMPLETED,
+                NativeUtil.macAddressToByteArray(BSSID), SUPPLICANT_NETWORK_ID,
+                NativeUtil.decodeSsid(SUPPLICANT_SSID));
+
+        verify(mWifiMonitor).broadcastSupplicantStateChangeEvent(
+                eq(WLAN_IFACE_NAME), eq(frameworkNetworkId),
+                any(WifiSsid.class), eq(BSSID), eq(SupplicantState.COMPLETED));
+        verify(mWifiMonitor).broadcastNetworkConnectionEvent(
+                eq(WLAN_IFACE_NAME), eq(frameworkNetworkId), eq(BSSID));
+    }
+
+    /**
+     * Tests the handling of network disconnected notification.
+     */
+    @Test
+    public void testDisconnectedCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        int reasonCode = 5;
+        mISupplicantStaIfaceCallback.onDisconnected(
+                NativeUtil.macAddressToByteArray(BSSID), true, reasonCode);
+        verify(mWifiMonitor).broadcastNetworkDisconnectionEvent(
+                eq(WLAN_IFACE_NAME), eq(1), eq(reasonCode), eq(BSSID));
+
+        mISupplicantStaIfaceCallback.onDisconnected(
+                NativeUtil.macAddressToByteArray(BSSID), false, reasonCode);
+        verify(mWifiMonitor).broadcastNetworkDisconnectionEvent(
+                eq(WLAN_IFACE_NAME), eq(0), eq(reasonCode), eq(BSSID));
+    }
+
+    /**
+     * Tests the handling of association rejection notification.
+     */
+    @Test
+    public void testAssociationRejectionCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        int statusCode = 7;
+        mISupplicantStaIfaceCallback.onAssociationRejected(
+                NativeUtil.macAddressToByteArray(BSSID), statusCode);
+        verify(mWifiMonitor).broadcastAssociationRejectionEvent(
+                eq(WLAN_IFACE_NAME), eq(statusCode), eq(BSSID));
+    }
+
+    /**
+     * Tests the handling of authentification timeout notification.
+     */
+    @Test
+    public void testAuthenticationTimeoutCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onAuthenticationTimeout(
+                NativeUtil.macAddressToByteArray(BSSID));
+        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN_IFACE_NAME),
+                eq(WifiMonitor.AUTHENTICATION_FAILURE_REASON_TIMEOUT));
+    }
+
+    /**
+     * Tests the handling of EAP failure notification.
+     */
+    @Test
+    public void testEapFailureCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onEapFailure();
+        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN_IFACE_NAME),
+                eq(WifiMonitor.AUTHENTICATION_FAILURE_REASON_EAP_FAILURE));
+    }
+
+    /**
+     * Tests the handling of Wps success notification.
+     */
+    @Test
+    public void testWpsSuccessCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onWpsEventSuccess();
+        verify(mWifiMonitor).broadcastWpsSuccessEvent(eq(WLAN_IFACE_NAME));
+    }
+
+    /**
+     * Tests the handling of Wps fail notification.
+     */
+    @Test
+    public void testWpsFailureCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        short cfgError = ISupplicantStaIfaceCallback.WpsConfigError.MULTIPLE_PBC_DETECTED;
+        short errorInd = ISupplicantStaIfaceCallback.WpsErrorIndication.SECURITY_WEP_PROHIBITED;
+        mISupplicantStaIfaceCallback.onWpsEventFail(
+                NativeUtil.macAddressToByteArray(BSSID), cfgError, errorInd);
+        verify(mWifiMonitor).broadcastWpsFailEvent(eq(WLAN_IFACE_NAME),
+                eq((int) cfgError), eq((int) errorInd));
+    }
+
+    /**
+     * Tests the handling of Wps fail notification.
+     */
+    @Test
+    public void testWpsTimeoutCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        short cfgError = ISupplicantStaIfaceCallback.WpsConfigError.MSG_TIMEOUT;
+        short errorInd = ISupplicantStaIfaceCallback.WpsErrorIndication.NO_ERROR;
+        mISupplicantStaIfaceCallback.onWpsEventFail(
+                NativeUtil.macAddressToByteArray(BSSID), cfgError, errorInd);
+        verify(mWifiMonitor).broadcastWpsTimeoutEvent(eq(WLAN_IFACE_NAME));
+    }
+
+    /**
+     * Tests the handling of Wps pbc overlap notification.
+     */
+    @Test
+    public void testWpsPbcOverlapCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onWpsEventPbcOverlap();
+        verify(mWifiMonitor).broadcastWpsOverlapEvent(eq(WLAN_IFACE_NAME));
+    }
+
+    /**
+     * Tests the handling of supplicant death notification.
+     */
+    @Test
+    public void testSupplicantDeathCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mDeathRecipientCaptor.getValue());
+
+        mDeathRecipientCaptor.getValue().serviceDied(5L);
+        verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN_IFACE_NAME));
     }
 
     /**
@@ -778,6 +1021,31 @@ public class SupplicantStaIfaceHalTest {
         verify(mISupplicantMock).setConcurrencyPriority(eq(IfaceType.P2P));
         assertTrue(mDut.setConcurrencyPriority(true));
         verify(mISupplicantMock).setConcurrencyPriority(eq(IfaceType.STA));
+    }
+
+    private void executeAndValidateHs20DeauthImminentCallback(boolean isEss) throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        byte[] bssid = NativeUtil.macAddressToByteArray(BSSID);
+        int reasonCode = isEss ? WnmData.ESS : WnmData.ESS + 1;
+        int reauthDelay = 5;
+        mISupplicantStaIfaceCallback.onHs20DeauthImminentNotice(
+                bssid, reasonCode, reauthDelay, HS20_URL);
+
+        ArgumentCaptor<WnmData> wnmDataCaptor = ArgumentCaptor.forClass(WnmData.class);
+        verify(mWifiMonitor).broadcastWnmEvent(eq(WLAN_IFACE_NAME), wnmDataCaptor.capture());
+        assertEquals(
+                ByteBufferReader.readInteger(
+                        ByteBuffer.wrap(bssid), ByteOrder.BIG_ENDIAN, bssid.length),
+                wnmDataCaptor.getValue().getBssid());
+        assertEquals(isEss, wnmDataCaptor.getValue().isEss());
+        assertEquals(reauthDelay, wnmDataCaptor.getValue().getDelay());
+        assertEquals(HS20_URL, wnmDataCaptor.getValue().getUrl());
+    }
+
+    private void executeAndValidateInitializationSequence() throws  Exception {
+        executeAndValidateInitializationSequence(false, false, false, false);
     }
 
     /**
@@ -831,11 +1099,12 @@ public class SupplicantStaIfaceHalTest {
                     .registerCallback(any(ISupplicantStaIfaceCallback.class));
         }
 
-        mInOrder = inOrder(mServiceManagerMock, mISupplicantMock, mISupplicantStaIfaceMock);
+        mInOrder = inOrder(mServiceManagerMock, mISupplicantMock, mISupplicantStaIfaceMock,
+                mWifiMonitor);
         // Initialize SupplicantStaIfaceHal, should call serviceManager.registerForNotifications
         assertTrue(mDut.initialize());
         // verify: service manager initialization sequence
-        mInOrder.verify(mServiceManagerMock).linkToDeath(any(IHwBinder.DeathRecipient.class),
+        mInOrder.verify(mServiceManagerMock).linkToDeath(mDeathRecipientCaptor.capture(),
                 anyLong());
         mInOrder.verify(mServiceManagerMock).registerForNotifications(
                 eq(ISupplicant.kInterfaceName), eq(""), mServiceNotificationCaptor.capture());
@@ -850,6 +1119,9 @@ public class SupplicantStaIfaceHalTest {
             mInOrder.verify(mISupplicantMock)
                     .getInterface(any(ISupplicant.IfaceInfo.class),
                             any(ISupplicant.getInterfaceCallback.class));
+        }
+        if (causeRemoteException) {
+            mInOrder.verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(null));
         }
         if (!causeRemoteException && !getZeroInterfaces && !getNullInterface) {
             mInOrder.verify(mISupplicantStaIfaceMock)
@@ -905,7 +1177,7 @@ public class SupplicantStaIfaceHalTest {
      * Setup mocks for connect sequence.
      */
     private void setupMocksForConnectSequence(final boolean haveExistingNetwork) throws Exception {
-        final int existingNetworkId = EXISTING_SUPPLICANT_NETWORK_ID;
+        final int existingNetworkId = SUPPLICANT_NETWORK_ID;
         doAnswer(new MockAnswerUtil.AnswerWithArguments() {
             public SupplicantStatus answer() throws RemoteException {
                 return mStatusSuccess;

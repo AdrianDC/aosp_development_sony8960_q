@@ -376,7 +376,7 @@ public class WifiMonitorTest {
         int local = 1;
         int reason  = 5;
         String bssid = BSSID;
-        mWifiMonitor.broadcastNetworkDisConnectionEvent(WLAN_IFACE_NAME, local, reason, bssid);
+        mWifiMonitor.broadcastNetworkDisconnectionEvent(WLAN_IFACE_NAME, local, reason, bssid);
         mLooper.dispatchAll();
 
         ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
@@ -410,5 +410,34 @@ public class WifiMonitorTest {
         assertEquals(wifiSsid, result.wifiSsid);
         assertEquals(bssid, result.BSSID);
         assertEquals(newState, result.state);
+    }
+
+    /**
+     * Broadcast supplicant connection test.
+     */
+    @Test
+    public void testBroadcastSupplicantConnectionEvent() {
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.SUP_CONNECTION_EVENT, mHandlerSpy);
+        mWifiMonitor.broadcastSupplicantConnectionEvent(WLAN_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mHandlerSpy).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.SUP_CONNECTION_EVENT, messageCaptor.getValue().what);
+    }
+    /**
+     * Broadcast supplicant disconnection test.
+     */
+    @Test
+    public void testBroadcastSupplicantDisconnectionEvent() {
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.SUP_DISCONNECTION_EVENT, mHandlerSpy);
+        mWifiMonitor.broadcastSupplicantDisconnectionEvent(WLAN_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mHandlerSpy).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.SUP_DISCONNECTION_EVENT, messageCaptor.getValue().what);
     }
 }
