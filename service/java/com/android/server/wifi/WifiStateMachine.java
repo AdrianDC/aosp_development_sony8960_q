@@ -1144,11 +1144,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * Set wpa_supplicant log level using |mVerboseLoggingLevel| flag.
      */
     void setSupplicantLogLevel() {
-        if (mVerboseLoggingEnabled) {
-            mWifiNative.setSupplicantLogLevel("DEBUG");
-        } else {
-            mWifiNative.setSupplicantLogLevel("INFO");
-        }
+        mWifiNative.setSupplicantLogLevel(mVerboseLoggingEnabled);
     }
 
     /**
@@ -3974,9 +3970,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         cleanup();
                         break;
                     }
-                    if (!mWifiNative.initializeSupplicantHal()) {
-                        Log.e(TAG, "Failed to start supplicant Hal");
-                    }
                     setSupplicantLogLevel();
                     setWifiState(WIFI_STATE_ENABLING);
                     if (mVerboseLoggingEnabled) log("Supplicant start successful");
@@ -4093,21 +4086,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 logd("SupplicantStartedState enter");
             }
 
-            int defaultInterval = mContext.getResources().getInteger(
-                    R.integer.config_wifi_supplicant_scan_interval);
-
-            mSupplicantScanIntervalMs = mFacade.getLongSetting(mContext,
-                    Settings.Global.WIFI_SUPPLICANT_SCAN_INTERVAL_MS,
-                    defaultInterval);
-
-            mWifiNative.setScanInterval((int)mSupplicantScanIntervalMs / 1000);
             mWifiNative.setExternalSim(true);
 
             /* turn on use of DFS channels */
             mWifiNative.setDfsFlag(true);
 
             setRandomMacOui();
-            mWifiNative.enableAutoConnect(false);
             mCountryCode.setReadyForChange(true);
 
             // We can't do this in the constructor because WifiStateMachine is created before the
@@ -4229,8 +4213,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         sendMessage(mBufferedScanMsg.remove());
                     break;
                 case CMD_PING_SUPPLICANT:
-                    boolean ok = mWifiNative.ping();
-                    replyToMessage(message, message.what, ok ? SUCCESS : FAILURE);
+                    // TODO (b/35620640): Remove this command since the API is deprecated.
+                    replyToMessage(message, message.what, FAILURE);
                     break;
                 case CMD_START_AP:
                     /* Cannot start soft AP while in client mode */
@@ -6417,14 +6401,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case WifiP2pServiceImpl.P2P_CONNECTION_CHANGED:
                     NetworkInfo info = (NetworkInfo) message.obj;
                     mP2pConnected.set(info.isConnected());
-                    if (mP2pConnected.get()) {
-                        int defaultInterval = mContext.getResources().getInteger(
-                                R.integer.config_wifi_scan_interval_p2p_connected);
-                        long scanIntervalMs = mFacade.getLongSetting(mContext,
-                                Settings.Global.WIFI_SCAN_INTERVAL_WHEN_P2P_CONNECTED_MS,
-                                defaultInterval);
-                        mWifiNative.setScanInterval((int) scanIntervalMs/1000);
-                    } else if (mWifiConfigManager.getSavedNetworks().size() == 0) {
+                    if (!mP2pConnected.get() && mWifiConfigManager.getSavedNetworks().size() == 0) {
                         if (mVerboseLoggingEnabled) log("Turn on scanning after p2p disconnected");
                         sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
                                     ++mPeriodicScanToken, 0), mNoNetworksPeriodicScan);

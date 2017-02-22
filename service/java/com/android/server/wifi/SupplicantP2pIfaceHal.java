@@ -196,6 +196,21 @@ public class SupplicantP2pIfaceHal {
         }
     }
 
+
+    /**
+     * Signals whether Initialization completed successfully.
+     */
+    public boolean isInitializationStarted() {
+        return mIServiceManager != null;
+    }
+
+    /**
+     * Signals whether Initialization completed successfully.
+     */
+    public boolean isInitializationComplete() {
+        return mISupplicantP2pIface != null;
+    }
+
     /**
      * Wrapper functions to access static HAL methods, created to be mockable in unit tests
      */
