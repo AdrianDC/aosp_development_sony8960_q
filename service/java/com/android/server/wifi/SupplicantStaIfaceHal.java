@@ -85,6 +85,7 @@ public class SupplicantStaIfaceHal {
     // Supplicant HAL interface objects
     private ISupplicant mISupplicant;
     private ISupplicantStaIface mISupplicantStaIface;
+    private ISupplicantStaIfaceCallback mISupplicantStaIfaceCallback;
     private String mIfaceName;
     // Currently configured network in wpa_supplicant
     private SupplicantStaNetworkHal mCurrentNetwork;
@@ -97,6 +98,7 @@ public class SupplicantStaIfaceHal {
     public SupplicantStaIfaceHal(Context context, WifiMonitor monitor) {
         mContext = context;
         mWifiMonitor = monitor;
+        mISupplicantStaIfaceCallback = new SupplicantStaIfaceHalCallback();
     }
 
     /**
@@ -239,7 +241,7 @@ public class SupplicantStaIfaceHal {
             }
             mISupplicantStaIface = getStaIfaceMockable(supplicantIface.value);
             mIfaceName = ifaceName.value;
-            if (!registerCallback(new SupplicantStaIfaceHalCallback())) {
+            if (!registerCallback(mISupplicantStaIfaceCallback)) {
                 return false;
             }
             return true;
@@ -1461,11 +1463,21 @@ public class SupplicantStaIfaceHal {
             return false;
         } else {
             if (mVerboseLoggingEnabled) {
-                Log.i(TAG, "ISupplicantStaIface." + methodStr + " succeeded");
+                Log.d(TAG, "ISupplicantStaIface." + methodStr + " succeeded");
             }
             return true;
         }
     }
+
+    /**
+     * Helper function to log callbacks.
+     */
+    private void logCallback(final String methodStr) {
+        if (mVerboseLoggingEnabled) {
+            Log.d(TAG, "ISupplicantStaIfaceCallback." + methodStr + " received");
+        }
+    }
+
 
     private void handleRemoteException(RemoteException e, String methodStr) {
         supplicantServiceDiedHandler();
@@ -1638,26 +1650,31 @@ public class SupplicantStaIfaceHal {
 
         @Override
         public void onNetworkAdded(int id) {
+            logCallback("onNetworkAdded");
         }
 
         @Override
         public void onNetworkRemoved(int id) {
+            logCallback("onNetworkRemoved");
         }
 
         @Override
         public void onStateChanged(int newState, byte[/* 6 */] bssid, int id,
                                    ArrayList<Byte> ssid) {
-            SupplicantState newSupplicantState = supplicantHidlStateToFrameworkState(newState);
-            WifiSsid wifiSsid =
-                    WifiSsid.createFromByteArray(NativeUtil.byteArrayFromArrayList(ssid));
-            String bssidStr = NativeUtil.macAddressFromByteArray(bssid);
-            mWifiMonitor.broadcastSupplicantStateChangeEvent(
-                    mIfaceName, mFrameworkNetworkId, wifiSsid, bssidStr, newSupplicantState);
-            if (newSupplicantState == SupplicantState.ASSOCIATED) {
-                mWifiMonitor.broadcastAssociationSuccesfulEvent(mIfaceName, bssidStr);
-            } else if (newSupplicantState == SupplicantState.COMPLETED) {
-                mWifiMonitor.broadcastNetworkConnectionEvent(
-                        mIfaceName, mFrameworkNetworkId, bssidStr);
+            logCallback("onStateChanged");
+            synchronized (mLock) {
+                SupplicantState newSupplicantState = supplicantHidlStateToFrameworkState(newState);
+                WifiSsid wifiSsid =
+                        WifiSsid.createFromByteArray(NativeUtil.byteArrayFromArrayList(ssid));
+                String bssidStr = NativeUtil.macAddressFromByteArray(bssid);
+                mWifiMonitor.broadcastSupplicantStateChangeEvent(
+                        mIfaceName, mFrameworkNetworkId, wifiSsid, bssidStr, newSupplicantState);
+                if (newSupplicantState == SupplicantState.ASSOCIATED) {
+                    mWifiMonitor.broadcastAssociationSuccesfulEvent(mIfaceName, bssidStr);
+                } else if (newSupplicantState == SupplicantState.COMPLETED) {
+                    mWifiMonitor.broadcastNetworkConnectionEvent(
+                            mIfaceName, mFrameworkNetworkId, bssidStr);
+                }
             }
         }
 
@@ -1665,98 +1682,134 @@ public class SupplicantStaIfaceHal {
         public void onAnqpQueryDone(byte[/* 6 */] bssid,
                                     ISupplicantStaIfaceCallback.AnqpData data,
                                     ISupplicantStaIfaceCallback.Hs20AnqpData hs20Data) {
-            Map<Constants.ANQPElementType, ANQPElement> elementsMap = new HashMap<>();
-            addAnqpElementToMap(elementsMap, ANQPVenueName, data.venueName);
-            addAnqpElementToMap(elementsMap, ANQPRoamingConsortium, data.roamingConsortium);
-            addAnqpElementToMap(elementsMap, ANQPIPAddrAvailability, data.ipAddrTypeAvailability);
-            addAnqpElementToMap(elementsMap, ANQPNAIRealm, data.naiRealm);
-            addAnqpElementToMap(elementsMap, ANQP3GPPNetwork, data.anqp3gppCellularNetwork);
-            addAnqpElementToMap(elementsMap, ANQPDomName, data.domainName);
-            addAnqpElementToMap(elementsMap, HSFriendlyName, hs20Data.operatorFriendlyName);
-            addAnqpElementToMap(elementsMap, HSWANMetrics, hs20Data.wanMetrics);
-            addAnqpElementToMap(elementsMap, HSConnCapability, hs20Data.connectionCapability);
-            addAnqpElementToMap(elementsMap, HSOSUProviders, hs20Data.osuProvidersList);
-            mWifiMonitor.broadcastAnqpDoneEvent(
-                    mIfaceName, new AnqpEvent(toLongBssid(bssid), elementsMap));
+            logCallback("onAnqpQueryDone");
+            synchronized (mLock) {
+                Map<Constants.ANQPElementType, ANQPElement> elementsMap = new HashMap<>();
+                addAnqpElementToMap(elementsMap, ANQPVenueName, data.venueName);
+                addAnqpElementToMap(elementsMap, ANQPRoamingConsortium, data.roamingConsortium);
+                addAnqpElementToMap(
+                        elementsMap, ANQPIPAddrAvailability, data.ipAddrTypeAvailability);
+                addAnqpElementToMap(elementsMap, ANQPNAIRealm, data.naiRealm);
+                addAnqpElementToMap(elementsMap, ANQP3GPPNetwork, data.anqp3gppCellularNetwork);
+                addAnqpElementToMap(elementsMap, ANQPDomName, data.domainName);
+                addAnqpElementToMap(elementsMap, HSFriendlyName, hs20Data.operatorFriendlyName);
+                addAnqpElementToMap(elementsMap, HSWANMetrics, hs20Data.wanMetrics);
+                addAnqpElementToMap(elementsMap, HSConnCapability, hs20Data.connectionCapability);
+                addAnqpElementToMap(elementsMap, HSOSUProviders, hs20Data.osuProvidersList);
+                mWifiMonitor.broadcastAnqpDoneEvent(
+                        mIfaceName, new AnqpEvent(toLongBssid(bssid), elementsMap));
+            }
         }
 
         @Override
         public void onHs20IconQueryDone(byte[/* 6 */] bssid, String fileName,
                                         ArrayList<Byte> data) {
-            mWifiMonitor.broadcastIconDoneEvent(
-                    mIfaceName,
-                    new IconEvent(toLongBssid(bssid), fileName, data.size(),
-                            NativeUtil.byteArrayFromArrayList(data)));
+            logCallback("onHs20IconQueryDone");
+            synchronized (mLock) {
+                mWifiMonitor.broadcastIconDoneEvent(
+                        mIfaceName,
+                        new IconEvent(toLongBssid(bssid), fileName, data.size(),
+                                NativeUtil.byteArrayFromArrayList(data)));
+            }
         }
 
         @Override
         public void onHs20SubscriptionRemediation(byte[/* 6 */] bssid, byte osuMethod, String url) {
-            mWifiMonitor.broadcastWnmEvent(
-                    mIfaceName, new WnmData(toLongBssid(bssid), url, osuMethod));
+            logCallback("onHs20SubscriptionRemediation");
+            synchronized (mLock) {
+                mWifiMonitor.broadcastWnmEvent(
+                        mIfaceName, new WnmData(toLongBssid(bssid), url, osuMethod));
+            }
         }
 
         @Override
         public void onHs20DeauthImminentNotice(byte[/* 6 */] bssid, int reasonCode,
                                                int reAuthDelayInSec, String url) {
-            mWifiMonitor.broadcastWnmEvent(
-                    mIfaceName,
-                    new WnmData(toLongBssid(bssid), url, reasonCode == WnmData.ESS,
-                            reAuthDelayInSec));
+            logCallback("onHs20DeauthImminentNotice");
+            synchronized (mLock) {
+                mWifiMonitor.broadcastWnmEvent(
+                        mIfaceName,
+                        new WnmData(toLongBssid(bssid), url, reasonCode == WnmData.ESS,
+                                reAuthDelayInSec));
+            }
         }
 
         @Override
         public void onDisconnected(byte[/* 6 */] bssid, boolean locallyGenerated, int reasonCode) {
-            mWifiMonitor.broadcastNetworkDisconnectionEvent(
-                    mIfaceName, locallyGenerated ? 1 : 0, reasonCode,
-                    NativeUtil.macAddressFromByteArray(bssid));
+            logCallback("onDisconnected");
+            synchronized (mLock) {
+                mWifiMonitor.broadcastNetworkDisconnectionEvent(
+                        mIfaceName, locallyGenerated ? 1 : 0, reasonCode,
+                        NativeUtil.macAddressFromByteArray(bssid));
+            }
         }
 
         @Override
         public void onAssociationRejected(byte[/* 6 */] bssid, int statusCode) {
-            // TODO(b/35464954): Need to figure out when to trigger
-            // |WifiMonitor.AUTHENTICATION_FAILURE_REASON_WRONG_PSWD|
-            mWifiMonitor.broadcastAssociationRejectionEvent(mIfaceName, statusCode,
-                    NativeUtil.macAddressFromByteArray(bssid));
+            logCallback("onAssociationRejected");
+            synchronized (mLock) {
+                // TODO(b/35464954): Need to figure out when to trigger
+                // |WifiMonitor.AUTHENTICATION_FAILURE_REASON_WRONG_PSWD|
+                mWifiMonitor.broadcastAssociationRejectionEvent(mIfaceName, statusCode,
+                        NativeUtil.macAddressFromByteArray(bssid));
+            }
         }
 
         @Override
         public void onAuthenticationTimeout(byte[/* 6 */] bssid) {
-            mWifiMonitor.broadcastAuthenticationFailureEvent(
-                    mIfaceName, WifiMonitor.AUTHENTICATION_FAILURE_REASON_TIMEOUT);
+            logCallback("onAuthenticationTimeout");
+            synchronized (mLock) {
+                mWifiMonitor.broadcastAuthenticationFailureEvent(
+                        mIfaceName, WifiMonitor.AUTHENTICATION_FAILURE_REASON_TIMEOUT);
+            }
         }
 
         @Override
         public void onEapFailure() {
-            mWifiMonitor.broadcastAuthenticationFailureEvent(
-                    mIfaceName, WifiMonitor.AUTHENTICATION_FAILURE_REASON_EAP_FAILURE);
+            logCallback("onEapFailure");
+            synchronized (mLock) {
+                mWifiMonitor.broadcastAuthenticationFailureEvent(
+                        mIfaceName, WifiMonitor.AUTHENTICATION_FAILURE_REASON_EAP_FAILURE);
+            }
         }
 
         @Override
         public void onWpsEventSuccess() {
-            mWifiMonitor.broadcastWpsSuccessEvent(mIfaceName);
+            logCallback("onWpsEventSuccess");
+            synchronized (mLock) {
+                mWifiMonitor.broadcastWpsSuccessEvent(mIfaceName);
+            }
         }
 
         @Override
         public void onWpsEventFail(byte[/* 6 */] bssid, short configError, short errorInd) {
-            if (configError == WpsConfigError.MSG_TIMEOUT
-                    && errorInd == WpsErrorIndication.NO_ERROR) {
-                mWifiMonitor.broadcastWpsTimeoutEvent(mIfaceName);
-            } else {
-                mWifiMonitor.broadcastWpsFailEvent(mIfaceName, configError, errorInd);
+            logCallback("onWpsEventFail");
+            synchronized (mLock) {
+                if (configError == WpsConfigError.MSG_TIMEOUT
+                        && errorInd == WpsErrorIndication.NO_ERROR) {
+                    mWifiMonitor.broadcastWpsTimeoutEvent(mIfaceName);
+                } else {
+                    mWifiMonitor.broadcastWpsFailEvent(mIfaceName, configError, errorInd);
+                }
             }
         }
 
         @Override
         public void onWpsEventPbcOverlap() {
-            mWifiMonitor.broadcastWpsOverlapEvent(mIfaceName);
+            logCallback("onWpsEventPbcOverlap");
+            synchronized (mLock) {
+                mWifiMonitor.broadcastWpsOverlapEvent(mIfaceName);
+            }
         }
 
         @Override
         public void onExtRadioWorkStart(int id) {
+            logCallback("onExtRadioWorkStart");
         }
 
         @Override
         public void onExtRadioWorkTimeout(int id) {
+            logCallback("onExtRadioWorkTimeout");
         }
     }
 
