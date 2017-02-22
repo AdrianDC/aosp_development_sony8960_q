@@ -205,7 +205,14 @@ public class WifiConfigStoreLegacyTest {
 
     private Map<String, WifiConfiguration> createWpaSupplicantLoadData(
             List<WifiConfiguration> configurations) {
-        List<WifiConfiguration> newConfigurations = createMaskedWifiConfigurations(configurations);
+        List<WifiConfiguration> newConfigurations;
+        // When HIDL is enabled, all the config params are directly read from the HIDL interface,
+        // no need to read masked variables from wpa_supplicant.conf file.
+        if (WifiNative.HIDL_SUP_ENABLE) {
+            newConfigurations = configurations;
+        } else {
+            newConfigurations = createMaskedWifiConfigurations(configurations);
+        }
         Map<String, WifiConfiguration> configurationMap = new HashMap<>();
         for (WifiConfiguration config : newConfigurations) {
             configurationMap.put(config.configKey(true), config);
