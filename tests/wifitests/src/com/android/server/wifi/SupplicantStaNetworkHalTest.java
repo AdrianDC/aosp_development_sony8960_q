@@ -101,6 +101,19 @@ public class SupplicantStaNetworkHalTest {
     }
 
     /**
+     * Tests the saving of WifiConfiguration to wpa_supplicant removes enclosing quotes of psk
+     * passphrase
+     */
+    @Test
+    public void testPskNetworkWifiConfigurationSaveRemovesPskQuotes() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createPskNetwork();
+        config.preSharedKey = "\"quoted_psd\"";
+        assertTrue(mSupplicantNetwork.saveWifiConfiguration(config));
+        assertEquals(mSupplicantVariables.pskPassphrase,
+                NativeUtil.removeEnclosingQuotes(config.preSharedKey));
+    }
+
+    /**
      * Tests the saving/loading of WifiConfiguration to wpa_supplicant.
      */
     @Test

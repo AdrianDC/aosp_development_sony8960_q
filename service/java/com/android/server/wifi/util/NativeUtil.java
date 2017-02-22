@@ -157,6 +157,21 @@ public class NativeUtil {
     }
 
     /**
+     * Remove enclosed quotes of the provided string.
+     *
+     * @param quotedStr String to be unquoted.
+     * @return String without the enclosing quotes.
+     */
+    public static String removeEnclosingQuotes(String quotedStr) {
+        int length = quotedStr.length();
+        if ((length >= 2)
+                && (quotedStr.charAt(0) == '"') && (quotedStr.charAt(length - 1) == '"')) {
+            return quotedStr.substring(1, length - 1);
+        }
+        return quotedStr;
+    }
+
+    /**
      * Converts an ssid string to an arraylist of UTF_8 byte values.
      * These forms are acceptable:
      * a) ASCII String encapsulated in quotes, or
