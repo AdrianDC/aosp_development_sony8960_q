@@ -251,7 +251,8 @@ public class SupplicantStaNetworkHal {
             }
         }
         /** Pre Shared Key */
-        if (config.preSharedKey != null && !setPskPassphrase(config.preSharedKey)) {
+        if (config.preSharedKey != null
+                && !setPskPassphrase(NativeUtil.removeEnclosingQuotes(config.preSharedKey))) {
             Log.e(TAG, "failed to set psk");
             return false;
         }
