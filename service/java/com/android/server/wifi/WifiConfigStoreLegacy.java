@@ -225,7 +225,10 @@ public class WifiConfigStoreLegacy {
     private void loadFromWpaSupplicant(
             Map<String, WifiConfiguration> configurationMap,
             SparseArray<Map<String, String>> networkExtras) {
-        mWifiNative.migrateNetworksFromSupplicant(configurationMap, networkExtras);
+        if (!mWifiNative.migrateNetworksFromSupplicant(configurationMap, networkExtras)) {
+            Log.wtf(TAG, "Failed to load wifi configurations from wpa_supplicant");
+            return;
+        }
         if (configurationMap.isEmpty()) {
             Log.w(TAG, "No wifi configurations found in wpa_supplicant");
             return;

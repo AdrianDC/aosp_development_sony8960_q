@@ -388,7 +388,6 @@ public class SupplicantPnoScannerTest {
             WifiNative.PnoEventHandler pnoEventHandler) {
         reset(mWifiNative);
         when(mWifiNative.setNetworkVariable(anyInt(), anyString(), anyString())).thenReturn(true);
-        when(mWifiNative.enableNetworkWithoutConnect(anyInt())).thenReturn(true);
         // Scans succeed
         when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(true);
         when(mWifiNative.setPnoScan(anyBoolean())).thenReturn(true);

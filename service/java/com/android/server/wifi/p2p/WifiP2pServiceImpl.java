@@ -2887,7 +2887,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
         }
 
         private void initializeP2pSettings() {
-            mWifiNative.initializeSupplicantHal();
             mWifiNative.setPersistentReconnect(true);
             mThisDevice.deviceName = getPersistedDeviceName();
             mWifiNative.setDeviceName(mThisDevice.deviceName);
