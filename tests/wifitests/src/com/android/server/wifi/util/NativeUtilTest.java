@@ -144,4 +144,13 @@ public class NativeUtilTest {
         String ssid = "\"ssid_test123\"";
         assertEquals(ssid, NativeUtil.encodeSsid(NativeUtil.decodeSsid(ssid)));
     }
+
+    /**
+     * Test that the enclosing quotes are removed properly.
+     */
+    @Test
+    public void testRemoveEnclosingQuotes() throws Exception {
+        assertEquals("abcdefgh", NativeUtil.removeEnclosingQuotes("\"abcdefgh\""));
+        assertEquals("abcdefgh", NativeUtil.removeEnclosingQuotes("abcdefgh"));
+    }
 }
