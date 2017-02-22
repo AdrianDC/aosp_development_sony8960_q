@@ -41,22 +41,6 @@ public class LastMileLogger {
         mEventBufferPath = bufferPath;
         mEventEnablePath = enablePath;
         mEventReleasePath = releasePath;
-        try {
-            // This file provides fail-safe behavior for Last-Mile logging. Given that we:
-            // 1. Set the disable_on_free option in the trace_options pseudo-file
-            //    (see wifi-events.rc), and
-            // 2. Hold the WIFI_EVENT_RELEASE_PATH open,
-            //
-            // Then, when this process dies, the kernel will automatically disable any
-            // tracing in the wifi trace instance.
-            //
-            // Note that, despite Studio's suggestion that |mLastMileTraceHandle| could be demoted
-            // to a local variable, we need to stick with a field. Otherwise, the handle could be
-            // garbage collected.
-            mLastMileTraceHandle = new FileInputStream(mEventReleasePath);
-        } catch (IOException e) {
-            mLog.warn("Failed to open free_buffer pseudo-file: %").r(e.getMessage()).flush();
-        }
     }
 
     /**
@@ -124,6 +108,11 @@ public class LastMileLogger {
     private long mPendingConnectionId = -1;
 
     private void enableTracing() {
+        if (!ensureFailSafeIsArmed()) {
+            mLog.wC("Failed to arm fail-safe.");
+            return;
+        }
+
         try {
             FileUtils.stringToFile(mEventEnablePath, "1");
         } catch (IOException e) {
@@ -145,6 +134,31 @@ public class LastMileLogger {
         } catch (IOException e) {
             mLog.warn("Failed to read event trace: %").r(e.getMessage()).flush();
             return new byte[0];
+        }
+    }
+
+    private boolean ensureFailSafeIsArmed() {
+        if (mLastMileTraceHandle != null) {
+            return true;
+        }
+
+        try {
+            // This file provides fail-safe behavior for Last-Mile logging. Given that we:
+            // 1. Set the disable_on_free option in the trace_options pseudo-file
+            //    (see wifi-events.rc), and
+            // 2. Hold the WIFI_EVENT_RELEASE_PATH open,
+            //
+            // Then, when this process dies, the kernel will automatically disable any
+            // tracing in the wifi trace instance.
+            //
+            // Note that, despite Studio's suggestion that |mLastMileTraceHandle| could be demoted
+            // to a local variable, we need to stick with a field. Otherwise, the handle could be
+            // garbage collected.
+            mLastMileTraceHandle = new FileInputStream(mEventReleasePath);
+            return true;
+        } catch (IOException e) {
+            mLog.warn("Failed to open free_buffer pseudo-file: %").r(e.getMessage()).flush();
+            return false;
         }
     }
 
