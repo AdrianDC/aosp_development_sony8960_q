@@ -78,6 +78,7 @@ public class SupplicantStaNetworkHal {
     private final String mIfaceName;
     private final WifiMonitor mWifiMonitor;
     private ISupplicantStaNetwork mISupplicantStaNetwork;
+    private ISupplicantStaNetworkCallback mISupplicantStaNetworkCallback;
 
     private boolean mVerboseLoggingEnabled = false;
     // Indicates whether the system is capable of 802.11r fast BSS transition.
@@ -348,7 +349,9 @@ public class SupplicantStaNetworkHal {
         }
 
         // Now that the network is configured fully, start listening for callback events.
-        if (!registerCallback(new SupplicantStaNetworkHalCallback(config.networkId, config.SSID))) {
+        mISupplicantStaNetworkCallback =
+                new SupplicantStaNetworkHalCallback(config.networkId, config.SSID);
+        if (!registerCallback(mISupplicantStaNetworkCallback)) {
             Log.e(TAG, "Failed to register callback");
             return false;
         }
@@ -2258,9 +2261,18 @@ public class SupplicantStaNetworkHal {
             return false;
         } else {
             if (mVerboseLoggingEnabled) {
-                Log.i(TAG, "ISupplicantStaNetwork." + methodStr + " succeeded");
+                Log.d(TAG, "ISupplicantStaNetwork." + methodStr + " succeeded");
             }
             return true;
+        }
+    }
+
+    /**
+     * Helper function to log callbacks.
+     */
+    private void logCallback(final String methodStr) {
+        if (mVerboseLoggingEnabled) {
+            Log.d(TAG, "ISupplicantStaNetworkCallback." + methodStr + " received");
         }
     }
 
@@ -2337,6 +2349,7 @@ public class SupplicantStaNetworkHal {
         @Override
         public void onNetworkEapSimGsmAuthRequest(
                 ISupplicantStaNetworkCallback.NetworkRequestEapSimGsmAuthParams params) {
+            logCallback("onNetworkEapSimGsmAuthRequest");
             synchronized (mLock) {
                 String[] data = new String[params.rands.size()];
                 int i = 0;
@@ -2351,6 +2364,7 @@ public class SupplicantStaNetworkHal {
         @Override
         public void onNetworkEapSimUmtsAuthRequest(
                 ISupplicantStaNetworkCallback.NetworkRequestEapSimUmtsAuthParams params) {
+            logCallback("onNetworkEapSimUmtsAuthRequest");
             synchronized (mLock) {
                 String autnHex = NativeUtil.hexStringFromByteArray(params.autn);
                 String randHex = NativeUtil.hexStringFromByteArray(params.rand);
@@ -2362,6 +2376,7 @@ public class SupplicantStaNetworkHal {
 
         @Override
         public void onNetworkEapIdentityRequest() {
+            logCallback("onNetworkEapIdentityRequest");
             synchronized (mLock) {
                 mWifiMonitor.broadcastNetworkIdentityRequestEvent(
                         mIfaceName, mFramewokNetworkId, mSsid);
