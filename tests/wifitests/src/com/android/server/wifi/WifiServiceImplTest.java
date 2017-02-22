@@ -18,8 +18,11 @@ package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
@@ -40,6 +43,10 @@ import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
+
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 /**
  * Unit tests for {@link WifiServiceImpl}.
@@ -67,6 +74,7 @@ public class WifiServiceImplTest {
     @Mock WifiMulticastLockManager mWifiMulticastLockManager;
     @Mock WifiLastResortWatchdog mWifiLastResortWatchdog;
     @Mock WifiBackupRestore mWifiBackupRestore;
+    @Mock WifiMetrics mWifiMetrics;
     @Spy FakeWifiLog mLog;
 
     private class WifiAsyncChannelTester {
@@ -126,6 +134,7 @@ public class WifiServiceImplTest {
         MockitoAnnotations.initMocks(this);
         mLooper = new TestLooper();
 
+        when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
         when(mWifiInjector.getWifiStateMachine()).thenReturn(mWifiStateMachine);
         when(mWifiInjector.getWifiServiceHandlerThread()).thenReturn(mHandlerThread);
         when(mHandlerThread.getLooper()).thenReturn(mLooper.getLooper());
@@ -162,5 +171,19 @@ public class WifiServiceImplTest {
         assertEquals("AsyncChannel must be half connected",
                 WifiAsyncChannelTester.CHANNEL_STATE_HALF_CONNECTED,
                 channelTester.getChannelState());
+    }
+
+    /**
+     * Ensure WifiMetrics.dump() is the only dump called when 'dumpsys wifi WifiMetricsProto' is
+     * called. This is required to support simple metrics collection via dumpsys
+     */
+    @Test
+    public void testWifiMetricsDump() {
+        mWifiServiceImpl.dump(new FileDescriptor(), new PrintWriter(new StringWriter()),
+                new String[]{mWifiMetrics.PROTO_DUMP_ARG});
+        verify(mWifiMetrics)
+                .dump(any(FileDescriptor.class), any(PrintWriter.class), any(String[].class));
+        verify(mWifiStateMachine, never())
+                .dump(any(FileDescriptor.class), any(PrintWriter.class), any(String[].class));
     }
 }

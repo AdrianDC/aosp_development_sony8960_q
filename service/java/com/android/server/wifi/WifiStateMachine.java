@@ -2061,13 +2061,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     @Override
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        if (args.length > 1 && WifiMetrics.PROTO_DUMP_ARG.equals(args[0])
-                && WifiMetrics.CLEAN_DUMP_ARG.equals(args[1])) {
-            // Dump only wifi metrics serialized proto bytes (base64)
-            updateWifiMetrics();
-            mWifiMetrics.dump(fd, pw, args);
-            return;
-        }
         super.dump(fd, pw, args);
         mSupplicantStateTracker.dump(fd, pw, args);
         pw.println("mLinkProperties " + mLinkProperties);
@@ -2104,9 +2097,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             pw.println("mUntrustedNetworkFactory is not initialized");
         }
         pw.println("Wlan Wake Reasons:" + mWifiNative.getWlanWakeReasonCount());
-        pw.println();
-        updateWifiMetrics();
-        mWifiMetrics.dump(fd, pw, args);
         pw.println();
 
         mWifiConfigManager.dump(fd, pw, args);
@@ -6761,43 +6751,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /**
      * Update WifiMetrics before dumping
      */
-    void updateWifiMetrics() {
-        int numSavedNetworks = mWifiConfigManager.getConfiguredNetworks().size();
-        int numOpenNetworks = 0;
-        int numPersonalNetworks = 0;
-        int numEnterpriseNetworks = 0;
-        int numNetworksAddedByUser = 0;
-        int numNetworksAddedByApps = 0;
-        int numHiddenNetworks = 0;
-        int numPasspoint = 0;
-        for (WifiConfiguration config : mWifiConfigManager.getSavedNetworks()) {
-            if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)) {
-                numOpenNetworks++;
-            } else if (config.isEnterprise()) {
-                numEnterpriseNetworks++;
-            } else {
-                numPersonalNetworks++;
-            }
-            if (config.selfAdded) {
-                numNetworksAddedByUser++;
-            } else {
-                numNetworksAddedByApps++;
-            }
-            if (config.hiddenSSID) {
-                numHiddenNetworks++;
-            }
-            if (config.isPasspoint()) {
-                numPasspoint++;
-            }
-        }
-        mWifiMetrics.setNumSavedNetworks(numSavedNetworks);
-        mWifiMetrics.setNumOpenNetworks(numOpenNetworks);
-        mWifiMetrics.setNumPersonalNetworks(numPersonalNetworks);
-        mWifiMetrics.setNumEnterpriseNetworks(numEnterpriseNetworks);
-        mWifiMetrics.setNumNetworksAddedByUser(numNetworksAddedByUser);
-        mWifiMetrics.setNumNetworksAddedByApps(numNetworksAddedByApps);
-        mWifiMetrics.setNumHiddenNetworks(numHiddenNetworks);
-        mWifiMetrics.setNumPasspointNetworks(numPasspoint);
+    public void updateWifiMetrics() {
+        mWifiMetrics.updateSavedNetworks(mWifiConfigManager.getSavedNetworks());
     }
 
     /**
