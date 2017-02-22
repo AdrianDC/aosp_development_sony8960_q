@@ -883,13 +883,37 @@ public class WifiVendorHal {
 
     /**
      * Start sending the specified keep alive packets periodically.
-     *
+     * @param slot
+     * @param srcMac
+     * @param keepAlivePacket
+     * @param periodInMs
      * @return 0 for success, -1 for error
      */
     public int startSendingOffloadedPacket(
-            int slot, KeepalivePacketData keepAlivePacket, int periodInMs) {
-        kilroy();
-        throw new UnsupportedOperationException();
+            int slot, byte[] srcMac, KeepalivePacketData keepAlivePacket, int periodInMs) {
+        Log.d(TAG, "startSendingOffloadedPacket slot=" + slot + " periodInMs=" + periodInMs);
+
+        ArrayList<Byte> data = NativeUtil.byteArrayToArrayList(keepAlivePacket.data);
+        short protocol = (short) (keepAlivePacket.protocol);
+
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return -1;
+            try {
+                WifiStatus status = mIWifiStaIface.startSendingKeepAlivePackets(
+                        slot,
+                        data,
+                        protocol,
+                        srcMac,
+                        keepAlivePacket.dstMac,
+                        periodInMs);
+                if (status.code != WifiStatusCode.SUCCESS) return -1;
+                return 0;
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return -1;
+            }
+        }
     }
 
     /**
@@ -899,8 +923,20 @@ public class WifiVendorHal {
      * @return 0 for success, -1 for error
      */
     public int stopSendingOffloadedPacket(int slot) {
-        kilroy();
-        throw new UnsupportedOperationException();
+        Log.d(TAG, "stopSendingOffloadedPacket " + slot);
+
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return -1;
+            try {
+                WifiStatus wifiStatus = mIWifiStaIface.stopSendingKeepAlivePackets(slot);
+                if (wifiStatus.code != WifiStatusCode.SUCCESS) return -1;
+                kilroy();
+                return 0;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return -1;
+            }
+        }
     }
 
     /**
