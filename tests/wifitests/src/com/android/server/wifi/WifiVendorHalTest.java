@@ -34,6 +34,7 @@ import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.RemoteException;
 
+import com.android.server.connectivity.KeepalivePacketData;
 import com.android.server.wifi.util.NativeUtil;
 
 import static org.junit.Assert.*;
@@ -45,6 +46,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.net.InetAddress;
 import java.util.ArrayList;
 
 /**
@@ -423,6 +425,39 @@ public class WifiVendorHalTest {
         verify(mIWifiStaIface).setScanningMacOui(eq(zzz));
     }
 
+    @Test
+    public void testStartSendingOffloadedPacket() throws Exception {
+        byte[] srcMac = NativeUtil.macAddressToByteArray("4007b2088c81");
+        InetAddress src = InetAddress.parseNumericAddress("192.168.13.13");
+        InetAddress dst = InetAddress.parseNumericAddress("93.184.216.34");
+        int slot = 13;
+        int millis = 16000;
+
+        KeepalivePacketData kap = KeepalivePacketData.nattKeepalivePacket(src, 63000, dst, 4500);
+
+        when(mIWifiStaIface.startSendingKeepAlivePackets(
+                anyInt(), any(), anyShort(), any(), any(), anyInt()
+        )).thenReturn(mWifiStatusSuccess);
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertTrue(0 == mWifiVendorHal.startSendingOffloadedPacket(slot, srcMac, kap, millis));
+
+        verify(mIWifiStaIface).startSendingKeepAlivePackets(
+                eq(slot), any(), anyShort(), any(), any(), eq(millis));
+    }
+
+    @Test
+    public void testStopSendingOffloadedPacket() throws Exception {
+        int slot = 13;
+
+        when(mIWifiStaIface.stopSendingKeepAlivePackets(anyInt())).thenReturn(mWifiStatusSuccess);
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertTrue(0 == mWifiVendorHal.stopSendingOffloadedPacket(slot));
+
+        verify(mIWifiStaIface).stopSendingKeepAlivePackets(eq(slot));
+    }
+
     /**
      * Test that getApfCapabilities is hooked up to the HAL correctly
      *
@@ -461,7 +496,7 @@ public class WifiVendorHalTest {
     }
 
     /**
-     * Test that an APF program can be installed/
+     * Test that an APF program can be installed.
      */
     @Test
     public void testInstallApf() throws Exception {
