@@ -257,8 +257,14 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
-     * Signals whether Initialization completed successfully. Only necessary for testing, is not
-     * needed to guard calls etc.
+     * Signals whether Initialization completed successfully.
+     */
+    public boolean isInitializationStarted() {
+        return mIServiceManager != null;
+    }
+
+    /**
+     * Signals whether Initialization completed successfully.
      */
     public boolean isInitializationComplete() {
         return mISupplicantStaIface != null;
