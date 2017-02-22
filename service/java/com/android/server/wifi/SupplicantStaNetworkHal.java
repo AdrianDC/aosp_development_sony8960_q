@@ -107,7 +107,7 @@ public class SupplicantStaNetworkHal {
     private String mEapCACert;
     private String mEapCAPath;
     private String mEapClientCert;
-    private String mEapPrivateKey;
+    private String mEapPrivateKeyId;
     private String mEapSubjectMatch;
     private String mEapAltSubjectMatch;
     private boolean mEapEngine;
@@ -428,8 +428,8 @@ public class SupplicantStaNetworkHal {
                             : WifiEnterpriseConfig.ENGINE_DISABLE);
         }
         /** EAP Private Key */
-        if (getEapPrivateKey() && !TextUtils.isEmpty(mEapPrivateKey)) {
-            eapConfig.setFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY, mEapPrivateKey);
+        if (getEapPrivateKeyId() && !TextUtils.isEmpty(mEapPrivateKeyId)) {
+            eapConfig.setFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY, mEapPrivateKeyId);
         }
         /** EAP Alt Subject Match */
         if (getEapAltSubjectMatch() && !TextUtils.isEmpty(mEapAltSubjectMatch)) {
@@ -522,7 +522,7 @@ public class SupplicantStaNetworkHal {
         }
         /** EAP Private Key */
         eapParam = eapConfig.getFieldValue(WifiEnterpriseConfig.PRIVATE_KEY_ID_KEY);
-        if (!TextUtils.isEmpty(eapParam) && !setEapPrivateKey(eapParam)) {
+        if (!TextUtils.isEmpty(eapParam) && !setEapPrivateKeyId(eapParam)) {
             Log.e(TAG, ssid + ": failed to set eap private key: " + eapParam);
             return false;
         }
@@ -1247,12 +1247,12 @@ public class SupplicantStaNetworkHal {
         }
     }
     /** See ISupplicantStaNetwork.hal for documentation */
-    private boolean setEapPrivateKey(String path) {
+    private boolean setEapPrivateKeyId(String id) {
         synchronized (mLock) {
-            final String methodStr = "setEapPrivateKey";
+            final String methodStr = "setEapPrivateKeyId";
             if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return false;
             try {
-                SupplicantStatus status =  mISupplicantStaNetwork.setEapPrivateKey(path);
+                SupplicantStatus status =  mISupplicantStaNetwork.setEapPrivateKeyId(id);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1816,17 +1816,17 @@ public class SupplicantStaNetworkHal {
         }
     }
     /** See ISupplicantStaNetwork.hal for documentation */
-    private boolean getEapPrivateKey() {
+    private boolean getEapPrivateKeyId() {
         synchronized (mLock) {
-            final String methodStr = "getEapPrivateKey";
+            final String methodStr = "getEapPrivateKeyId";
             if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return false;
             try {
                 MutableBoolean statusOk = new MutableBoolean(false);
-                mISupplicantStaNetwork.getEapPrivateKey((SupplicantStatus status,
-                        String pathValue) -> {
+                mISupplicantStaNetwork.getEapPrivateKeyId((SupplicantStatus status,
+                        String idValue) -> {
                     statusOk.value = status.code == SupplicantStatusCode.SUCCESS;
                     if (statusOk.value) {
-                        this.mEapPrivateKey = pathValue;
+                        this.mEapPrivateKeyId = idValue;
                     } else {
                         checkStatusAndLogFailure(status, methodStr);
                     }
