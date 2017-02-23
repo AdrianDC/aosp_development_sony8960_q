@@ -1127,10 +1127,29 @@ public class WifiVendorHal {
 
     /**
      * Enable/Disable Neighbour discovery offload functionality in the firmware.
+     *
+     * @param enabled true to enable, false to disable.
      */
     public boolean configureNeighborDiscoveryOffload(boolean enabled) {
         kilroy();
-        throw new UnsupportedOperationException();
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return false;
+            kilroy();
+            try {
+                kilroy();
+                WifiStatus wifiStatus = mIWifiStaIface.enableNdOffload(enabled);
+                if (wifiStatus.code != WifiStatusCode.SUCCESS) {
+                    kilroy();
+                    noteHidlError(wifiStatus, "configureNeighborDiscoveryOffload");
+                    return false;
+                }
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return false;
+            }
+        }
+        return true;
     }
 
     // Firmware roaming control.
