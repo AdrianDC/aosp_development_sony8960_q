@@ -25,8 +25,13 @@ import android.hardware.wifi.V1_0.IfaceType;
 import android.hardware.wifi.V1_0.StaRoamingConfig;
 import android.hardware.wifi.V1_0.StaRoamingState;
 import android.hardware.wifi.V1_0.WifiDebugHostWakeReasonStats;
+import android.hardware.wifi.V1_0.WifiDebugPacketFateFrameType;
 import android.hardware.wifi.V1_0.WifiDebugRingBufferFlags;
 import android.hardware.wifi.V1_0.WifiDebugRingBufferStatus;
+import android.hardware.wifi.V1_0.WifiDebugRxPacketFate;
+import android.hardware.wifi.V1_0.WifiDebugRxPacketFateReport;
+import android.hardware.wifi.V1_0.WifiDebugTxPacketFate;
+import android.hardware.wifi.V1_0.WifiDebugTxPacketFateReport;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.apf.ApfCapabilities;
@@ -44,6 +49,7 @@ import android.util.MutableBoolean;
 import android.util.MutableInt;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.util.ArrayUtils;
 import com.android.server.connectivity.KeepalivePacketData;
 import com.android.server.wifi.util.BitMask;
 import com.android.server.wifi.util.NativeUtil;
@@ -845,19 +851,99 @@ public class WifiVendorHal {
 
     /**
      * Start packet fate monitoring
-     * <p>
+     *
      * Once started, monitoring remains active until HAL is unloaded.
      *
      * @return true for success
      */
     public boolean startPktFateMonitoring() {
         kilroy();
-        throw new UnsupportedOperationException();
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return false;
+            try {
+                kilroy();
+                WifiStatus status = mIWifiStaIface.startDebugPacketFateMonitoring();
+                return status.code == WifiStatusCode.SUCCESS;
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return false;
+            }
+        }
+    }
+
+    private byte halToFrameworkPktFateFrameType(int type) {
+        switch (type) {
+            case WifiDebugPacketFateFrameType.UNKNOWN:
+                return WifiLoggerHal.FRAME_TYPE_UNKNOWN;
+            case WifiDebugPacketFateFrameType.ETHERNET_II:
+                return WifiLoggerHal.FRAME_TYPE_ETHERNET_II;
+            case WifiDebugPacketFateFrameType.MGMT_80211:
+                return WifiLoggerHal.FRAME_TYPE_80211_MGMT;
+            default:
+                throw new IllegalArgumentException("bad " + type);
+        }
+    }
+
+    private byte halToFrameworkRxPktFate(int type) {
+        switch (type) {
+            case WifiDebugRxPacketFate.SUCCESS:
+                return WifiLoggerHal.RX_PKT_FATE_SUCCESS;
+            case WifiDebugRxPacketFate.FW_QUEUED:
+                return WifiLoggerHal.RX_PKT_FATE_FW_QUEUED;
+            case WifiDebugRxPacketFate.FW_DROP_FILTER:
+                return WifiLoggerHal.RX_PKT_FATE_FW_DROP_FILTER;
+            case WifiDebugRxPacketFate.FW_DROP_INVALID:
+                return WifiLoggerHal.RX_PKT_FATE_FW_DROP_INVALID;
+            case WifiDebugRxPacketFate.FW_DROP_NOBUFS:
+                return WifiLoggerHal.RX_PKT_FATE_FW_DROP_NOBUFS;
+            case WifiDebugRxPacketFate.FW_DROP_OTHER:
+                return WifiLoggerHal.RX_PKT_FATE_FW_DROP_OTHER;
+            case WifiDebugRxPacketFate.DRV_QUEUED:
+                return WifiLoggerHal.RX_PKT_FATE_DRV_QUEUED;
+            case WifiDebugRxPacketFate.DRV_DROP_FILTER:
+                return WifiLoggerHal.RX_PKT_FATE_DRV_DROP_FILTER;
+            case WifiDebugRxPacketFate.DRV_DROP_INVALID:
+                return WifiLoggerHal.RX_PKT_FATE_DRV_DROP_INVALID;
+            case WifiDebugRxPacketFate.DRV_DROP_NOBUFS:
+                return WifiLoggerHal.RX_PKT_FATE_DRV_DROP_NOBUFS;
+            case WifiDebugRxPacketFate.DRV_DROP_OTHER:
+                return WifiLoggerHal.RX_PKT_FATE_DRV_DROP_OTHER;
+            default:
+                throw new IllegalArgumentException("bad " + type);
+        }
+    }
+
+    private byte halToFrameworkTxPktFate(int type) {
+        switch (type) {
+            case WifiDebugTxPacketFate.ACKED:
+                return WifiLoggerHal.TX_PKT_FATE_ACKED;
+            case WifiDebugTxPacketFate.SENT:
+                return WifiLoggerHal.TX_PKT_FATE_SENT;
+            case WifiDebugTxPacketFate.FW_QUEUED:
+                return WifiLoggerHal.TX_PKT_FATE_FW_QUEUED;
+            case WifiDebugTxPacketFate.FW_DROP_INVALID:
+                return WifiLoggerHal.TX_PKT_FATE_FW_DROP_INVALID;
+            case WifiDebugTxPacketFate.FW_DROP_NOBUFS:
+                return WifiLoggerHal.TX_PKT_FATE_FW_DROP_NOBUFS;
+            case WifiDebugTxPacketFate.FW_DROP_OTHER:
+                return WifiLoggerHal.TX_PKT_FATE_FW_DROP_OTHER;
+            case WifiDebugTxPacketFate.DRV_QUEUED:
+                return WifiLoggerHal.TX_PKT_FATE_DRV_QUEUED;
+            case WifiDebugTxPacketFate.DRV_DROP_INVALID:
+                return WifiLoggerHal.TX_PKT_FATE_DRV_DROP_INVALID;
+            case WifiDebugTxPacketFate.DRV_DROP_NOBUFS:
+                return WifiLoggerHal.TX_PKT_FATE_DRV_DROP_NOBUFS;
+            case WifiDebugTxPacketFate.DRV_DROP_OTHER:
+                return WifiLoggerHal.TX_PKT_FATE_DRV_DROP_OTHER;
+            default:
+                throw new IllegalArgumentException("bad " + type);
+        }
     }
 
     /**
      * Retrieve fates of outbound packets
-     * <p>
+     *
      * Reports the outbound frames for the most recent association (space allowing).
      *
      * @param reportBufs
@@ -865,12 +951,44 @@ public class WifiVendorHal {
      */
     public boolean getTxPktFates(WifiNative.TxFateReport[] reportBufs) {
         kilroy();
-        throw new UnsupportedOperationException();
+        if (ArrayUtils.isEmpty(reportBufs)) return false;
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return false;
+            try {
+                kilroy();
+                MutableBoolean ok = new MutableBoolean(false);
+                mIWifiStaIface.getDebugTxPacketFates((status, fates) -> {
+                            kilroy();
+                            if (status.code != WifiStatusCode.SUCCESS) return;
+                            int i = 0;
+                            for (WifiDebugTxPacketFateReport fate : fates) {
+                                kilroy();
+                                if (i >= reportBufs.length) break;
+                                byte code = halToFrameworkTxPktFate(fate.fate);
+                                long us = fate.frameInfo.driverTimestampUsec;
+                                byte type =
+                                        halToFrameworkPktFateFrameType(fate.frameInfo.frameType);
+                                byte[] frame =
+                                        NativeUtil.byteArrayFromArrayList(
+                                                fate.frameInfo.frameContent);
+                                reportBufs[i++] =
+                                        new WifiNative.TxFateReport(code, us, type, frame);
+                            }
+                            ok.value = true;
+                        }
+                );
+                return ok.value;
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return false;
+            }
+        }
     }
 
     /**
      * Retrieve fates of inbound packets
-     * <p>
+     *
      * Reports the inbound frames for the most recent association (space allowing).
      *
      * @param reportBufs
@@ -878,7 +996,39 @@ public class WifiVendorHal {
      */
     public boolean getRxPktFates(WifiNative.RxFateReport[] reportBufs) {
         kilroy();
-        throw new UnsupportedOperationException();
+        if (ArrayUtils.isEmpty(reportBufs)) return false;
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return false;
+            try {
+                kilroy();
+                MutableBoolean ok = new MutableBoolean(false);
+                mIWifiStaIface.getDebugRxPacketFates((status, fates) -> {
+                            kilroy();
+                            if (status.code != WifiStatusCode.SUCCESS) return;
+                            int i = 0;
+                            for (WifiDebugRxPacketFateReport fate : fates) {
+                                kilroy();
+                                if (i >= reportBufs.length) break;
+                                byte code = halToFrameworkRxPktFate(fate.fate);
+                                long us = fate.frameInfo.driverTimestampUsec;
+                                byte type =
+                                        halToFrameworkPktFateFrameType(fate.frameInfo.frameType);
+                                byte[] frame =
+                                        NativeUtil.byteArrayFromArrayList(
+                                                fate.frameInfo.frameContent);
+                                reportBufs[i++] =
+                                        new WifiNative.RxFateReport(code, us, type, frame);
+                            }
+                            ok.value = true;
+                        }
+                );
+                return ok.value;
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return false;
+            }
+        }
     }
 
     /**
