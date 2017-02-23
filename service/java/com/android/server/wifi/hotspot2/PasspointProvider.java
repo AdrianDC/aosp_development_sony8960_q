@@ -23,6 +23,7 @@ import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.hotspot2.pps.Credential;
 import android.net.wifi.hotspot2.pps.Credential.SimCredential;
 import android.net.wifi.hotspot2.pps.Credential.UserCredential;
+import android.net.wifi.hotspot2.pps.HomeSp;
 import android.security.Credentials;
 import android.text.TextUtils;
 import android.util.Base64;
@@ -294,6 +295,70 @@ public class PasspointProvider {
         return wifiConfig;
     }
 
+    /**
+     * Convert a legacy {@link WifiConfiguration} representation of a Passpoint configuration to
+     * a {@link PasspointConfiguration}.  This is used for migrating legacy Passpoint
+     * configuration (release N and older).
+     *
+     * @param wifiConfig The {@link WifiConfiguration} to convert
+     * @return {@link PasspointConfiguration}
+     */
+    public static PasspointConfiguration convertFromWifiConfig(WifiConfiguration wifiConfig) {
+        PasspointConfiguration passpointConfig = new PasspointConfiguration();
+
+        // Setup HomeSP.
+        HomeSp homeSp = new HomeSp();
+        if (TextUtils.isEmpty(wifiConfig.FQDN)) {
+            Log.e(TAG, "Missing FQDN");
+            return null;
+        }
+        homeSp.setFqdn(wifiConfig.FQDN);
+        homeSp.setFriendlyName(wifiConfig.providerFriendlyName);
+        if (wifiConfig.roamingConsortiumIds != null) {
+            homeSp.setRoamingConsortiumOis(Arrays.copyOf(
+                    wifiConfig.roamingConsortiumIds, wifiConfig.roamingConsortiumIds.length));
+        }
+        passpointConfig.setHomeSp(homeSp);
+
+        // Setup Credential.
+        Credential credential = new Credential();
+        credential.setRealm(wifiConfig.enterpriseConfig.getRealm());
+        switch (wifiConfig.enterpriseConfig.getEapMethod()) {
+            case WifiEnterpriseConfig.Eap.TTLS:
+                credential.setUserCredential(buildUserCredentialFromEnterpriseConfig(
+                        wifiConfig.enterpriseConfig));
+                break;
+            case WifiEnterpriseConfig.Eap.TLS:
+                Credential.CertificateCredential certCred = new Credential.CertificateCredential();
+                certCred.setCertType(Credential.CertificateCredential.CERT_TYPE_X509V3);
+                credential.setCertCredential(certCred);
+                break;
+            case WifiEnterpriseConfig.Eap.SIM:
+                credential.setSimCredential(buildSimCredentialFromEnterpriseConfig(
+                        EAPConstants.EAP_SIM, wifiConfig.enterpriseConfig));
+                break;
+            case WifiEnterpriseConfig.Eap.AKA:
+                credential.setSimCredential(buildSimCredentialFromEnterpriseConfig(
+                        EAPConstants.EAP_AKA, wifiConfig.enterpriseConfig));
+                break;
+            case WifiEnterpriseConfig.Eap.AKA_PRIME:
+                credential.setSimCredential(buildSimCredentialFromEnterpriseConfig(
+                        EAPConstants.EAP_AKA_PRIME, wifiConfig.enterpriseConfig));
+                break;
+            default:
+                Log.e(TAG, "Unsupport EAP method: " + wifiConfig.enterpriseConfig.getEapMethod());
+                return null;
+        }
+        if (credential.getUserCredential() == null && credential.getCertCredential() == null
+                && credential.getSimCredential() == null) {
+            Log.e(TAG, "Missing credential");
+            return null;
+        }
+        passpointConfig.setCredential(credential);
+
+        return passpointConfig;
+    }
+
     @Override
     public boolean equals(Object thatObject) {
         if (this == thatObject) {
@@ -391,13 +456,13 @@ public class PasspointProvider {
         config.setCaCertificateAlias(mCaCertificateAlias);
         int phase2Method = WifiEnterpriseConfig.Phase2.NONE;
         switch (credential.getNonEapInnerMethod()) {
-            case "PAP":
+            case Credential.UserCredential.AUTH_METHOD_PAP:
                 phase2Method = WifiEnterpriseConfig.Phase2.PAP;
                 break;
-            case "MS-CHAP":
+            case Credential.UserCredential.AUTH_METHOD_MSCHAP:
                 phase2Method = WifiEnterpriseConfig.Phase2.MSCHAP;
                 break;
-            case "MS-CHAP-V2":
+            case Credential.UserCredential.AUTH_METHOD_MSCHAPV2:
                 phase2Method = WifiEnterpriseConfig.Phase2.MSCHAPV2;
                 break;
             default:
@@ -467,5 +532,71 @@ public class PasspointProvider {
          * identify the device.
          */
         config.setAnonymousIdentity("anonymous@" + realm);
+    }
+
+    /**
+     * Helper function for creating a
+     * {@link android.net.wifi.hotspot2.pps.Credential.UserCredential} from the given
+     * {@link WifiEnterpriseConfig}
+     *
+     * @param config The enterprise configuration containing the credential
+     * @return {@link android.net.wifi.hotspot2.pps.Credential.UserCredential}
+     */
+    private static Credential.UserCredential buildUserCredentialFromEnterpriseConfig(
+            WifiEnterpriseConfig config) {
+        Credential.UserCredential userCredential = new Credential.UserCredential();
+        userCredential.setEapType(EAPConstants.EAP_TTLS);
+
+        if (TextUtils.isEmpty(config.getIdentity())) {
+            Log.e(TAG, "Missing username for user credential");
+            return null;
+        }
+        userCredential.setUsername(config.getIdentity());
+
+        if (TextUtils.isEmpty(config.getPassword())) {
+            Log.e(TAG, "Missing password for user credential");
+            return null;
+        }
+        String encodedPassword =
+                new String(Base64.encode(config.getPassword().getBytes(StandardCharsets.UTF_8),
+                        Base64.DEFAULT), StandardCharsets.UTF_8);
+        userCredential.setPassword(encodedPassword);
+
+        switch(config.getPhase2Method()) {
+            case WifiEnterpriseConfig.Phase2.PAP:
+                userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_PAP);
+                break;
+            case WifiEnterpriseConfig.Phase2.MSCHAP:
+                userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_MSCHAP);
+                break;
+            case WifiEnterpriseConfig.Phase2.MSCHAPV2:
+                userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_MSCHAPV2);
+                break;
+            default:
+                Log.e(TAG, "Unsupported phase2 method for TTLS: " + config.getPhase2Method());
+                return null;
+        }
+        return userCredential;
+    }
+
+    /**
+     * Helper function for creating a
+     * {@link android.net.wifi.hotspot2.pps.Credential.SimCredential} from the given
+     * {@link WifiEnterpriseConfig}
+     *
+     * @param eapType The EAP type of the SIM credential
+     * @param config The enterprise configuration containing the credential
+     * @return {@link android.net.wifi.hotspot2.pps.Credential.SimCredential}
+     */
+    private static Credential.SimCredential buildSimCredentialFromEnterpriseConfig(
+            int eapType, WifiEnterpriseConfig config) {
+        Credential.SimCredential simCredential = new Credential.SimCredential();
+        if (TextUtils.isEmpty(config.getPlmn())) {
+            Log.e(TAG, "Missing IMSI for SIM credential");
+            return null;
+        }
+        simCredential.setImsi(config.getPlmn());
+        simCredential.setEapType(eapType);
+        return simCredential;
     }
 }

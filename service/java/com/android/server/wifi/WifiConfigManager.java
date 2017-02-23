@@ -34,6 +34,7 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
+import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -48,6 +49,7 @@ import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalServices;
 import com.android.server.wifi.WifiConfigStoreLegacy.WifiConfigStoreDataLegacy;
+import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.util.ScanResultUtil;
 import com.android.server.wifi.util.TelephonyUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
@@ -2660,23 +2662,48 @@ public class WifiConfigManager {
     public boolean saveToStore(boolean forceWrite) {
         ArrayList<WifiConfiguration> sharedConfigurations = new ArrayList<>();
         ArrayList<WifiConfiguration> userConfigurations = new ArrayList<>();
+        // List of network IDs for legacy Passpoint configuration to be removed.
+        List<Integer> legacyPasspointNetId = new ArrayList<>();
         for (WifiConfiguration config : mConfiguredNetworks.valuesForAllUsers()) {
-            // Don't persist ephemeral and passpoint networks to store.
-            if (!config.ephemeral && !config.isPasspoint()) {
-                // We push all shared networks & private networks not belonging to the current
-                // user to the shared store. Ideally, private networks for other users should
-                // not even be in memory,
-                // But, this logic is in place to deal with store migration from N to O
-                // because all networks were previously stored in a central file. We cannot
-                // write these private networks to the user specific store until the corresponding
-                // user logs in.
-                if (config.shared || !WifiConfigurationUtil.doesUidBelongToAnyProfile(
-                        config.creatorUid, mUserManager.getProfiles(mCurrentUserId))) {
-                    sharedConfigurations.add(config);
-                } else {
-                    userConfigurations.add(config);
-                }
+            // Ignore ephemeral and temporary Passpoint networks.  Temporary Passpoint networks
+            // are created by {@link PasspointNetworkEvaluator} using WIFI_UID.
+            if (config.ephemeral || (config.isPasspoint()
+                    && config.creatorUid == Process.WIFI_UID)) {
+                continue;
             }
+
+            // Legacy Passpoint configuration represented by WifiConfiguration is created by an
+            // actual user, so migrate the configurations owned by the current user to
+            // {@link PasspointManager}.
+            if (config.isPasspoint() && WifiConfigurationUtil.doesUidBelongToAnyProfile(
+                        config.creatorUid, mUserManager.getProfiles(mCurrentUserId))) {
+                legacyPasspointNetId.add(config.networkId);
+                // Migrate the legacy Passpoint configuration and add it to PasspointManager.
+                if (!PasspointManager.addLegacyPasspointConfig(config)) {
+                    Log.e(TAG, "Failed to migrate legacy Passpoint config: " + config.FQDN);
+                }
+                // This will prevent adding |config| to the |sharedConfigurations|.
+                continue;
+            }
+
+            // We push all shared networks & private networks not belonging to the current
+            // user to the shared store. Ideally, private networks for other users should
+            // not even be in memory,
+            // But, this logic is in place to deal with store migration from N to O
+            // because all networks were previously stored in a central file. We cannot
+            // write these private networks to the user specific store until the corresponding
+            // user logs in.
+            if (config.shared || !WifiConfigurationUtil.doesUidBelongToAnyProfile(
+                    config.creatorUid, mUserManager.getProfiles(mCurrentUserId))) {
+                sharedConfigurations.add(config);
+            } else {
+                userConfigurations.add(config);
+            }
+        }
+
+        // Remove the configurations for migrated Passpoint configurations.
+        for (int networkId : legacyPasspointNetId) {
+            mConfiguredNetworks.remove(networkId);
         }
 
         // Setup store data for write.

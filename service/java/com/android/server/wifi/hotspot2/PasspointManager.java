@@ -29,8 +29,11 @@ import static android.net.wifi.WifiManager.PASSPOINT_WNM_FRAME_RECEIVED_ACTION;
 
 import android.content.Context;
 import android.content.Intent;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.os.UserHandle;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.Pair;
 
@@ -67,6 +70,16 @@ import java.util.Map;
  */
 public class PasspointManager {
     private static final String TAG = "PasspointManager";
+
+    /**
+     * Handle for the current {@link PasspointManager} instance.  This is needed to avoid
+     * circular dependency with the WifiConfigManger, it will be used for adding the
+     * legacy Passpoint configurations.
+     *
+     * This can be eliminated once we can remove the dependency for WifiConfigManager (for
+     * triggering config store write) from this class.
+     */
+    private static PasspointManager sPasspointManager;
 
     private final PasspointEventHandler mHandler;
     private final SIMAccessor mSimAccessor;
@@ -191,6 +204,7 @@ public class PasspointManager {
         mProviderIndex = 0;
         wifiConfigStore.registerStoreData(objectFactory.makePasspointConfigStoreData(
                 mKeyStore, mSimAccessor, new DataSourceHandler()));
+        sPasspointManager = this;
     }
 
     /**
@@ -309,6 +323,25 @@ public class PasspointManager {
     }
 
     /**
+     * Add a legacy Passpoint configuration represented by a {@link WifiConfiguration} to the
+     * current {@link PasspointManager}.
+     *
+     * This will not trigger a config store write, since this will be invoked as part of the
+     * configuration migration, the caller will be responsible for triggering store write
+     * after the migration is completed.
+     *
+     * @param config {@link WifiConfiguration} representation of the Passpoint configuration
+     * @return true on success
+     */
+    public static boolean addLegacyPasspointConfig(WifiConfiguration config) {
+        if (sPasspointManager == null) {
+            Log.e(TAG, "PasspointManager have not been initialized yet");
+            return false;
+        }
+        return sPasspointManager.addWifiConfig(config);
+    }
+
+    /**
      * Sweep the ANQP cache to remove expired entries.
      */
     public void sweepCache() {
@@ -348,5 +381,53 @@ public class PasspointManager {
      */
     public boolean queryPasspointIcon(long bssid, String fileName) {
         return mHandler.requestIcon(bssid, fileName);
+    }
+
+    /**
+     * Add a legacy Passpoint configuration represented by a {@link WifiConfiguration}.
+     *
+     * @param wifiConfig {@link WifiConfiguration} representation of the Passpoint configuration
+     * @return true on success
+     */
+    private boolean addWifiConfig(WifiConfiguration wifiConfig) {
+        if (wifiConfig == null) {
+            return false;
+        }
+
+        // Convert to PasspointConfiguration
+        PasspointConfiguration passpointConfig =
+                PasspointProvider.convertFromWifiConfig(wifiConfig);
+        if (passpointConfig == null) {
+            return false;
+        }
+
+        // Setup aliases for enterprise certificates and key.
+        WifiEnterpriseConfig enterpriseConfig = wifiConfig.enterpriseConfig;
+        String caCertificateAliasSuffix = enterpriseConfig.getCaCertificateAlias();
+        String clientCertAndKeyAliasSuffix = enterpriseConfig.getClientCertificateAlias();
+        if (passpointConfig.getCredential().getUserCredential() != null
+                && TextUtils.isEmpty(caCertificateAliasSuffix)) {
+            Log.e(TAG, "Missing CA Certificate for user credential");
+            return false;
+        }
+        if (passpointConfig.getCredential().getCertCredential() != null) {
+            if (TextUtils.isEmpty(caCertificateAliasSuffix)) {
+                Log.e(TAG, "Missing CA certificate for Certificate credential");
+                return false;
+            }
+            if (TextUtils.isEmpty(clientCertAndKeyAliasSuffix)) {
+                Log.e(TAG, "Missing client certificate and key for certificate credential");
+                return false;
+            }
+        }
+
+        // Note that for legacy configuration, the alias for client private key is the same as the
+        // alias for the client certificate.
+        PasspointProvider provider = new PasspointProvider(passpointConfig, mKeyStore,
+                mSimAccessor, mProviderIndex++, enterpriseConfig.getCaCertificateAlias(),
+                enterpriseConfig.getClientCertificateAlias(),
+                enterpriseConfig.getClientCertificateAlias());
+        mProviders.put(passpointConfig.getHomeSp().getFqdn(), provider);
+        return true;
     }
 }

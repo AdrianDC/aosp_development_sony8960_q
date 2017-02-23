@@ -351,7 +351,7 @@ public class PasspointProviderTest {
         config.setHomeSp(homeSp);
         Credential credential = new Credential();
         Credential.UserCredential userCredential = new Credential.UserCredential();
-        userCredential.setNonEapInnerMethod("MS-CHAP-V2");
+        userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_MSCHAPV2);
         credential.setUserCredential(userCredential);
         config.setCredential(credential);
         mProvider = createProvider(config);
@@ -383,7 +383,7 @@ public class PasspointProviderTest {
         Credential credential = new Credential();
         credential.setRealm(testRealm);
         Credential.UserCredential userCredential = new Credential.UserCredential();
-        userCredential.setNonEapInnerMethod("MS-CHAP-V2");
+        userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_MSCHAPV2);
         credential.setUserCredential(userCredential);
         config.setCredential(credential);
         mProvider = createProvider(config);
@@ -419,7 +419,7 @@ public class PasspointProviderTest {
         Credential credential = new Credential();
         credential.setRealm(testRealm);
         Credential.UserCredential userCredential = new Credential.UserCredential();
-        userCredential.setNonEapInnerMethod("MS-CHAP-V2");
+        userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_MSCHAPV2);
         credential.setUserCredential(userCredential);
         config.setCredential(credential);
         mProvider = createProvider(config);
@@ -482,7 +482,7 @@ public class PasspointProviderTest {
         config.setHomeSp(homeSp);
         Credential credential = new Credential();
         Credential.UserCredential userCredential = new Credential.UserCredential();
-        userCredential.setNonEapInnerMethod("MS-CHAP-V2");
+        userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_MSCHAPV2);
         credential.setUserCredential(userCredential);
         config.setCredential(credential);
         mProvider = createProvider(config);
@@ -541,7 +541,7 @@ public class PasspointProviderTest {
         Credential credential = new Credential();
         credential.setRealm(testRealm);
         Credential.UserCredential userCredential = new Credential.UserCredential();
-        userCredential.setNonEapInnerMethod("MS-CHAP-V2");
+        userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_MSCHAPV2);
         credential.setUserCredential(userCredential);
         config.setCredential(credential);
         mProvider = createProvider(config);
@@ -628,7 +628,7 @@ public class PasspointProviderTest {
         Credential.UserCredential userCredential = new Credential.UserCredential();
         userCredential.setUsername(username);
         userCredential.setPassword(encodedPasswordStr);
-        userCredential.setNonEapInnerMethod("MS-CHAP-V2");
+        userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_MSCHAPV2);
         credential.setUserCredential(userCredential);
         credential.setCaCertificate(FakeKeys.CA_CERT0);
         config.setCredential(credential);
@@ -762,4 +762,136 @@ public class PasspointProviderTest {
         assertEquals(WifiEnterpriseConfig.Eap.SIM, wifiEnterpriseConfig.getEapMethod());
         assertEquals(imsi, wifiEnterpriseConfig.getPlmn());
     }
+
+    /**
+     * Verify that an expected {@link PasspointConfiguration} will be returned when converting
+     * from a {@link WifiConfiguration} containing an user credential.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void convertFromWifiConfigWithUserCredential() throws Exception {
+        // Test data.
+        String fqdn = "test.com";
+        String friendlyName = "Friendly Name";
+        long[] rcOIs = new long[] {0x1234L, 0x2345L};
+        String realm = "realm.com";
+        String username = "username";
+        String password = "password";
+        byte[] base64EncodedPw =
+                Base64.encode(password.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT);
+        String encodedPasswordStr = new String(base64EncodedPw, StandardCharsets.UTF_8);
+
+        // Setup WifiConfiguration for legacy Passpoint configuraiton.
+        WifiConfiguration wifiConfig = new WifiConfiguration();
+        wifiConfig.FQDN = fqdn;
+        wifiConfig.providerFriendlyName = friendlyName;
+        wifiConfig.roamingConsortiumIds = rcOIs;
+        wifiConfig.enterpriseConfig.setIdentity(username);
+        wifiConfig.enterpriseConfig.setPassword(password);
+        wifiConfig.enterpriseConfig.setRealm(realm);
+        wifiConfig.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TTLS);
+        wifiConfig.enterpriseConfig.setPhase2Method(WifiEnterpriseConfig.Phase2.PAP);
+
+        // Setup expected {@link PasspointConfiguration}
+        PasspointConfiguration passpointConfig = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setFqdn(fqdn);
+        homeSp.setFriendlyName(friendlyName);
+        homeSp.setRoamingConsortiumOis(rcOIs);
+        passpointConfig.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        Credential.UserCredential userCredential = new Credential.UserCredential();
+        userCredential.setUsername(username);
+        userCredential.setPassword(encodedPasswordStr);
+        userCredential.setEapType(EAPConstants.EAP_TTLS);
+        userCredential.setNonEapInnerMethod("PAP");
+        credential.setUserCredential(userCredential);
+        credential.setRealm(realm);
+        passpointConfig.setCredential(credential);
+
+        assertEquals(passpointConfig, PasspointProvider.convertFromWifiConfig(wifiConfig));
+    }
+
+    /**
+     * Verify that an expected {@link PasspointConfiguration} will be returned when converting
+     * from a {@link WifiConfiguration} containing a SIM credential.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void convertFromWifiConfigWithSimCredential() throws Exception {
+        // Test data.
+        String fqdn = "test.com";
+        String friendlyName = "Friendly Name";
+        long[] rcOIs = new long[] {0x1234L, 0x2345L};
+        String realm = "realm.com";
+        String imsi = "1234";
+
+        // Setup WifiConfiguration for legacy Passpoint configuraiton.
+        WifiConfiguration wifiConfig = new WifiConfiguration();
+        wifiConfig.FQDN = fqdn;
+        wifiConfig.providerFriendlyName = friendlyName;
+        wifiConfig.roamingConsortiumIds = rcOIs;
+        wifiConfig.enterpriseConfig.setRealm(realm);
+        wifiConfig.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.SIM);
+        wifiConfig.enterpriseConfig.setPlmn(imsi);
+
+        // Setup expected {@link PasspointConfiguration}
+        PasspointConfiguration passpointConfig = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setFqdn(fqdn);
+        homeSp.setFriendlyName(friendlyName);
+        homeSp.setRoamingConsortiumOis(rcOIs);
+        passpointConfig.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        Credential.SimCredential simCredential = new Credential.SimCredential();
+        simCredential.setEapType(EAPConstants.EAP_SIM);
+        simCredential.setImsi(imsi);
+        credential.setSimCredential(simCredential);
+        credential.setRealm(realm);
+        passpointConfig.setCredential(credential);
+
+        assertEquals(passpointConfig, PasspointProvider.convertFromWifiConfig(wifiConfig));
+    }
+
+    /**
+     * Verify that an expected {@link PasspointConfiguration} will be returned when converting
+     * from a {@link WifiConfiguration} containing a certificate credential.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void convertFromWifiConfigWithCertCredential() throws Exception {
+        // Test data.
+        String fqdn = "test.com";
+        String friendlyName = "Friendly Name";
+        long[] rcOIs = new long[] {0x1234L, 0x2345L};
+        String realm = "realm.com";
+
+        // Setup WifiConfiguration for legacy Passpoint configuraiton.
+        WifiConfiguration wifiConfig = new WifiConfiguration();
+        wifiConfig.FQDN = fqdn;
+        wifiConfig.providerFriendlyName = friendlyName;
+        wifiConfig.roamingConsortiumIds = rcOIs;
+        wifiConfig.enterpriseConfig.setRealm(realm);
+        wifiConfig.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
+
+        // Setup expected {@link PasspointConfiguration}
+        PasspointConfiguration passpointConfig = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setFqdn(fqdn);
+        homeSp.setFriendlyName(friendlyName);
+        homeSp.setRoamingConsortiumOis(rcOIs);
+        passpointConfig.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        Credential.CertificateCredential certCredential = new Credential.CertificateCredential();
+        certCredential.setCertType(Credential.CertificateCredential.CERT_TYPE_X509V3);
+        credential.setCertCredential(certCredential);
+        credential.setRealm(realm);
+        passpointConfig.setCredential(credential);
+
+        assertEquals(passpointConfig, PasspointProvider.convertFromWifiConfig(wifiConfig));
+    }
+
 }
