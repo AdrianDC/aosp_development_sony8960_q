@@ -18,6 +18,7 @@ package com.android.server.wifi;
 import android.annotation.Nullable;
 import android.hardware.wifi.V1_0.IWifiApIface;
 import android.hardware.wifi.V1_0.IWifiChip;
+import android.hardware.wifi.V1_0.IWifiChipEventCallback;
 import android.hardware.wifi.V1_0.IWifiIface;
 import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
@@ -75,17 +76,16 @@ public class WifiVendorHal {
     private final HalDeviceManager mHalDeviceManager;
     private final HalDeviceManagerStatusListener mHalDeviceManagerStatusCallbacks;
     private final HandlerThread mWifiStateMachineHandlerThread;
-    /**
-     * Callback object instance for events on the interface
-     */
     private final IWifiStaIfaceEventCallback mIWifiStaIfaceEventCallback;
+    private final IWifiChipEventCallback mIWifiChipEventCallback;
 
     public WifiVendorHal(HalDeviceManager halDeviceManager,
                          HandlerThread wifiStateMachineHandlerThread) {
         mHalDeviceManager = halDeviceManager;
         mWifiStateMachineHandlerThread = wifiStateMachineHandlerThread;
         mHalDeviceManagerStatusCallbacks = new HalDeviceManagerStatusListener();
-        mIWifiStaIfaceEventCallback = new EventCallback();
+        mIWifiStaIfaceEventCallback = new StaIfaceEventCallback();
+        mIWifiChipEventCallback = new ChipEventCallback();
     }
 
     // TODO(mplass): figure out where we need locking in hidl world. b/33383725
@@ -179,6 +179,11 @@ public class WifiVendorHal {
             stopVendorHal();
             return false;
         }
+        if (!registerChipCallback()) {
+            Log.e(TAG, "Failed to register chip callback");
+            mHalDeviceManager.stop();
+            return false;
+        }
         Log.i(TAG, "Vendor Hal started successfully");
         return true;
     }
@@ -193,6 +198,24 @@ public class WifiVendorHal {
                 kilroy();
                 WifiStatus status =
                         mIWifiStaIface.registerEventCallback(mIWifiStaIfaceEventCallback);
+                return (status.code == WifiStatusCode.SUCCESS);
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Registers the sta iface callback.
+     */
+    private boolean registerChipCallback() {
+        synchronized (sLock) {
+            if (mIWifiChip == null || mIWifiChipEventCallback == null) return false;
+            try {
+                kilroy();
+                WifiStatus status = mIWifiChip.registerEventCallback(mIWifiChipEventCallback);
                 return (status.code == WifiStatusCode.SUCCESS);
             } catch (RemoteException e) {
                 kilroy();
@@ -1437,25 +1460,70 @@ public class WifiVendorHal {
     /**
      * Callback for events on the STA interface.
      */
-    private class EventCallback extends IWifiStaIfaceEventCallback.Stub {
+    private class StaIfaceEventCallback extends IWifiStaIfaceEventCallback.Stub {
+        @Override
         public void onBackgroundScanFailure(int cmdId) {
             kilroy();
-            Log.e(TAG, "onBackgroundScanFailure " + cmdId);
+            Log.d(TAG, "onBackgroundScanFailure " + cmdId);
         }
 
+        @Override
         public void onBackgroundFullScanResult(int cmdId, StaScanResult result) {
             kilroy();
-            Log.e(TAG, "onBackgroundFullScanResult " + cmdId);
+            Log.d(TAG, "onBackgroundFullScanResult " + cmdId);
         }
 
+        @Override
         public void onBackgroundScanResults(int cmdId, ArrayList<StaScanData> scanDatas) {
             kilroy();
-            Log.e(TAG, "onBackgroundScanResults " + cmdId);
+            Log.d(TAG, "onBackgroundScanResults " + cmdId);
         }
 
+        @Override
         public void onRssiThresholdBreached(int cmdId, byte[/* 6 */] currBssid, int currRssi) {
             kilroy();
-            Log.e(TAG, "onRssiThresholdBreached " + cmdId + "currRssi " + currRssi);
+            Log.d(TAG, "onRssiThresholdBreached " + cmdId + "currRssi " + currRssi);
+        }
+    }
+
+    /**
+     * Callback for events on the STA interface.
+     */
+    private class ChipEventCallback extends IWifiChipEventCallback.Stub {
+        @Override
+        public void onChipReconfigured(int modeId) {
+            kilroy();
+            Log.d(TAG, "onChipReconfigured " + modeId);
+        }
+
+        @Override
+        public void onChipReconfigureFailure(WifiStatus status) {
+            kilroy();
+            Log.d(TAG, "onChipReconfigureFailure " + status);
+        }
+
+        public void onIfaceAdded(int type, String name) {
+            kilroy();
+            Log.d(TAG, "onIfaceAdded " + type + ", name: " + name);
+        }
+
+        @Override
+        public void onIfaceRemoved(int type, String name) {
+            kilroy();
+            Log.d(TAG, "onIfaceRemoved " + type + ", name: " + name);
+        }
+
+        @Override
+        public void onDebugRingBufferDataAvailable(
+                WifiDebugRingBufferStatus status, java.util.ArrayList<Byte> data) {
+            kilroy();
+            Log.d(TAG, "onDebugRingBufferDataAvailable " + status);
+        }
+
+        @Override
+        public void onDebugErrorAlert(int errorCode, java.util.ArrayList<Byte> debugData) {
+            kilroy();
+            Log.d(TAG, "onDebugErrorAlert " + errorCode);
         }
     }
 
