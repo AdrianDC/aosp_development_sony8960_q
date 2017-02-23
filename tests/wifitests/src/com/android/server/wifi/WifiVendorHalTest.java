@@ -952,4 +952,46 @@ public class WifiVendorHalTest {
         verify(mIWifiChip).getDebugHostWakeReasonStats(
                 any(IWifiChip.getDebugHostWakeReasonStatsCallback.class));
     }
+
+    /**
+     * Test that getFwMemoryDump is properly plumbed
+     */
+    @Test
+    public void testGetFwMemoryDump() throws Exception {
+        byte [] sample = NativeUtil.hexStringToByteArray("268c7a3fbfa4661c0bdd6a36");
+        ArrayList<Byte> halBlob = NativeUtil.byteArrayToArrayList(sample);
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiChip.requestFirmwareDebugDumpCallback cb)
+                    throws RemoteException {
+                cb.onValues(mWifiStatusSuccess, halBlob);
+            }
+        }).when(mIWifiChip).requestFirmwareDebugDump(any(
+                IWifiChip.requestFirmwareDebugDumpCallback.class));
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertArrayEquals(sample, mWifiVendorHal.getFwMemoryDump());
+    }
+
+    /**
+     * Test that getDriverStateDump is properly plumbed
+     *
+     * Just for variety, use AP mode here.
+     */
+    @Test
+    public void testGetDriverStateDump() throws Exception {
+        byte [] sample = NativeUtil.hexStringToByteArray("e83ff543cf80083e6459d20f");
+        ArrayList<Byte> halBlob = NativeUtil.byteArrayToArrayList(sample);
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiChip.requestDriverDebugDumpCallback cb)
+                    throws RemoteException {
+                cb.onValues(mWifiStatusSuccess, halBlob);
+            }
+        }).when(mIWifiChip).requestDriverDebugDump(any(
+                IWifiChip.requestDriverDebugDumpCallback.class));
+
+        assertTrue(mWifiVendorHal.startVendorHalAp());
+        assertArrayEquals(sample, mWifiVendorHal.getDriverStateDump());
+    }
 }
