@@ -1937,6 +1937,11 @@ public class WifiNative {
             HiddenNetwork other = (HiddenNetwork) otherObj;
             return Objects.equals(ssid, other.ssid);
         }
+
+        @Override
+        public int hashCode() {
+            return (ssid == null ? 0 : ssid.hashCode());
+        }
     }
 
     public static class ScanSettings {
@@ -1968,6 +1973,13 @@ public class WifiNative {
             PnoNetwork other = (PnoNetwork) otherObj;
             return ((Objects.equals(ssid, other.ssid)) && (flags == other.flags)
                     && (auth_bit_field == other.auth_bit_field));
+        }
+
+        @Override
+        public int hashCode() {
+            int result = (ssid == null ? 0 : ssid.hashCode());
+            result ^= ((int) flags * 31) + ((int) auth_bit_field << 8);
+            return result;
         }
     }
 
