@@ -22,6 +22,7 @@ import android.hardware.wifi.V1_0.IWifiChip;
 import android.hardware.wifi.V1_0.IWifiIface;
 import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
+import android.hardware.wifi.V1_0.IWifiStaIfaceEventCallback;
 import android.hardware.wifi.V1_0.StaApfPacketFilterCapabilities;
 import android.hardware.wifi.V1_0.WifiDebugHostWakeReasonStats;
 import android.hardware.wifi.V1_0.WifiDebugPacketFateFrameType;
@@ -80,6 +81,8 @@ public class WifiVendorHalTest {
     private IWifiStaIface mIWifiStaIface;
     @Mock
     private IWifiRttController mIWifiRttController;
+    @Mock
+    private IWifiStaIfaceEventCallback mIWifistaIfaceEventCallback;
 
     /**
      * Sets up for unit test
@@ -121,7 +124,8 @@ public class WifiVendorHalTest {
                 .thenReturn(mIWifiChip);
         when(mHalDeviceManager.createRttController(any(IWifiIface.class)))
                 .thenReturn(mIWifiRttController);
-
+        when(mIWifiStaIface.registerEventCallback(any(IWifiStaIfaceEventCallback.class)))
+                .thenReturn(mWifiStatusSuccess);
         // Create the vendor HAL object under test.
         mWifiVendorHal = new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread);
 
@@ -139,12 +143,13 @@ public class WifiVendorHalTest {
      * {@link WifiVendorHal#startVendorHal(boolean)}.
      */
     @Test
-    public void testStartHalSuccessInStaMode() {
+    public void testStartHalSuccessInStaMode() throws  Exception {
         assertTrue(mWifiVendorHal.startVendorHal(true));
         assertTrue(mWifiVendorHal.isHalStarted());
 
         verify(mHalDeviceManager).start();
         verify(mHalDeviceManager).createStaIface(eq(null), eq(null));
+        verify(mIWifiStaIface).registerEventCallback(any(IWifiStaIfaceEventCallback.class));
         verify(mHalDeviceManager).getChip(eq(mIWifiStaIface));
         verify(mHalDeviceManager).createRttController(eq(mIWifiStaIface));
         verify(mHalDeviceManager).isReady();
@@ -158,7 +163,7 @@ public class WifiVendorHalTest {
      * {@link WifiVendorHal#startVendorHal(boolean)}.
      */
     @Test
-    public void testStartHalSuccessInApMode() {
+    public void testStartHalSuccessInApMode() throws Exception {
         assertTrue(mWifiVendorHal.startVendorHal(false));
         assertTrue(mWifiVendorHal.isHalStarted());
 
@@ -177,11 +182,11 @@ public class WifiVendorHalTest {
      * {@link WifiVendorHal#startVendorHal(boolean)}.
      */
     @Test
-    public void testStartHalFailureInStaMode() {
+    public void testStartHalFailureInStaMode() throws Exception {
         // No callbacks are invoked in this case since the start itself failed. So, override
         // default AnswerWithArguments that we setup.
         doAnswer(new AnswerWithArguments() {
-            public boolean answer() {
+            public boolean answer() throws Exception {
                 return false;
             }
         }).when(mHalDeviceManager).start();
@@ -192,6 +197,8 @@ public class WifiVendorHalTest {
 
         verify(mHalDeviceManager, never()).createStaIface(eq(null), eq(null));
         verify(mHalDeviceManager, never()).createApIface(eq(null), eq(null));
+        verify(mIWifiStaIface, never())
+                .registerEventCallback(any(IWifiStaIfaceEventCallback.class));
         verify(mHalDeviceManager, never()).getChip(any(IWifiIface.class));
         verify(mHalDeviceManager, never()).createRttController(any(IWifiIface.class));
     }
@@ -201,7 +208,7 @@ public class WifiVendorHalTest {
      * {@link WifiVendorHal#startVendorHal(boolean)}.
      */
     @Test
-    public void testStartHalFailureInIfaceCreationInStaMode() {
+    public void testStartHalFailureInIfaceCreationInStaMode() throws Exception {
         when(mHalDeviceManager.createStaIface(eq(null), eq(null))).thenReturn(null);
         assertFalse(mWifiVendorHal.startVendorHal(true));
         assertFalse(mWifiVendorHal.isHalStarted());
@@ -210,6 +217,8 @@ public class WifiVendorHalTest {
         verify(mHalDeviceManager).createStaIface(eq(null), eq(null));
         verify(mHalDeviceManager).stop();
 
+        verify(mIWifiStaIface, never())
+                .registerEventCallback(any(IWifiStaIfaceEventCallback.class));
         verify(mHalDeviceManager, never()).createApIface(eq(null), eq(null));
         verify(mHalDeviceManager, never()).getChip(any(IWifiIface.class));
         verify(mHalDeviceManager, never()).createRttController(any(IWifiIface.class));
@@ -220,13 +229,14 @@ public class WifiVendorHalTest {
      * {@link WifiVendorHal#startVendorHal(boolean)}.
      */
     @Test
-    public void testStartHalFailureInRttControllerCreationInStaMode() {
+    public void testStartHalFailureInRttControllerCreationInStaMode() throws Exception {
         when(mHalDeviceManager.createRttController(any(IWifiIface.class))).thenReturn(null);
         assertFalse(mWifiVendorHal.startVendorHal(true));
         assertFalse(mWifiVendorHal.isHalStarted());
 
         verify(mHalDeviceManager).start();
         verify(mHalDeviceManager).createStaIface(eq(null), eq(null));
+        verify(mIWifiStaIface).registerEventCallback(any(IWifiStaIfaceEventCallback.class));
         verify(mHalDeviceManager).createRttController(eq(mIWifiStaIface));
         verify(mHalDeviceManager).stop();
 
@@ -239,13 +249,14 @@ public class WifiVendorHalTest {
      * {@link WifiVendorHal#startVendorHal(boolean)}.
      */
     @Test
-    public void testStartHalFailureInChipGetInStaMode() {
+    public void testStartHalFailureInChipGetInStaMode() throws Exception {
         when(mHalDeviceManager.getChip(any(IWifiIface.class))).thenReturn(null);
         assertFalse(mWifiVendorHal.startVendorHal(true));
         assertFalse(mWifiVendorHal.isHalStarted());
 
         verify(mHalDeviceManager).start();
         verify(mHalDeviceManager).createStaIface(eq(null), eq(null));
+        verify(mIWifiStaIface).registerEventCallback(any(IWifiStaIfaceEventCallback.class));
         verify(mHalDeviceManager).createRttController(eq(mIWifiStaIface));
         verify(mHalDeviceManager).getChip(any(IWifiIface.class));
         verify(mHalDeviceManager).stop();
@@ -258,7 +269,28 @@ public class WifiVendorHalTest {
      * {@link WifiVendorHal#startVendorHal(boolean)}.
      */
     @Test
-    public void testStartHalFailureInApMode() {
+    public void testStartHalFailureInStaIfaceCallbackRegistration() throws Exception {
+        when(mIWifiStaIface.registerEventCallback(any(IWifiStaIfaceEventCallback.class)))
+                .thenReturn(mWifiStatusFailure);
+        assertFalse(mWifiVendorHal.startVendorHal(true));
+        assertFalse(mWifiVendorHal.isHalStarted());
+
+        verify(mHalDeviceManager).start();
+        verify(mHalDeviceManager).createStaIface(eq(null), eq(null));
+        verify(mIWifiStaIface).registerEventCallback(any(IWifiStaIfaceEventCallback.class));
+        verify(mHalDeviceManager).stop();
+
+        verify(mHalDeviceManager, never()).createRttController(eq(mIWifiStaIface));
+        verify(mHalDeviceManager, never()).getChip(any(IWifiIface.class));
+        verify(mHalDeviceManager, never()).createApIface(eq(null), eq(null));
+    }
+
+    /**
+     * Tests the failure to start HAL in STA mode using
+     * {@link WifiVendorHal#startVendorHal(boolean)}.
+     */
+    @Test
+    public void testStartHalFailureInApMode() throws Exception {
         when(mHalDeviceManager.createApIface(eq(null), eq(null))).thenReturn(null);
         assertFalse(mWifiVendorHal.startVendorHal(false));
         assertFalse(mWifiVendorHal.isHalStarted());
