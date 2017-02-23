@@ -342,7 +342,7 @@ public class WifiStateMachineTest {
 
         mWifiMonitor = new MockWifiMonitor();
         when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
-        when(mWifiInjector.getClock()).thenReturn(mock(Clock.class));
+        when(mWifiInjector.getClock()).thenReturn(new Clock());
         when(mWifiInjector.getWifiLastResortWatchdog()).thenReturn(mWifiLastResortWatchdog);
         when(mWifiInjector.getPropertyService()).thenReturn(mPropertyService);
         when(mWifiInjector.getBuildProperties()).thenReturn(mBuildProperties);
