@@ -23,6 +23,7 @@ import android.hardware.wifi.V1_0.IWifiIface;
 import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
 import android.hardware.wifi.V1_0.StaApfPacketFilterCapabilities;
+import android.hardware.wifi.V1_0.WifiDebugHostWakeReasonStats;
 import android.hardware.wifi.V1_0.WifiDebugPacketFateFrameType;
 import android.hardware.wifi.V1_0.WifiDebugRingBufferFlags;
 import android.hardware.wifi.V1_0.WifiDebugRingBufferStatus;
@@ -35,6 +36,7 @@ import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.RemoteException;
@@ -881,5 +883,73 @@ public class WifiVendorHalTest {
 
         assertFalse(mWifiVendorHal.configureNeighborDiscoveryOffload(true));
         verify(mIWifiStaIface).enableNdOffload(eq(true));
+    }
+
+    /**
+     * Tests the retrieval of wlan wake reason stats.
+     */
+    @Test
+    public void testGetWlanWakeReasonCount() throws Exception {
+        WifiDebugHostWakeReasonStats stats = new WifiDebugHostWakeReasonStats();
+        Random rand = new Random();
+        stats.totalCmdEventWakeCnt = rand.nextInt();
+        stats.totalDriverFwLocalWakeCnt = rand.nextInt();
+        stats.totalRxPacketWakeCnt = rand.nextInt();
+        stats.rxPktWakeDetails.rxUnicastCnt = rand.nextInt();
+        stats.rxPktWakeDetails.rxMulticastCnt = rand.nextInt();
+        stats.rxIcmpPkWakeDetails.icmpPkt = rand.nextInt();
+        stats.rxIcmpPkWakeDetails.icmp6Pkt = rand.nextInt();
+        stats.rxMulticastPkWakeDetails.ipv4RxMulticastAddrCnt = rand.nextInt();
+        stats.rxMulticastPkWakeDetails.ipv6RxMulticastAddrCnt = rand.nextInt();
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiChip.getDebugHostWakeReasonStatsCallback cb) {
+                cb.onValues(mWifiStatusSuccess, stats);
+            }
+        }).when(mIWifiChip).getDebugHostWakeReasonStats(
+                any(IWifiChip.getDebugHostWakeReasonStatsCallback.class));
+
+        assertNull(mWifiVendorHal.getWlanWakeReasonCount());
+        verify(mIWifiChip, never())
+                .getDebugHostWakeReasonStats(
+                        any(IWifiChip.getDebugHostWakeReasonStatsCallback.class));
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+
+        WifiWakeReasonAndCounts retrievedStats = mWifiVendorHal.getWlanWakeReasonCount();
+        verify(mIWifiChip).getDebugHostWakeReasonStats(
+                any(IWifiChip.getDebugHostWakeReasonStatsCallback.class));
+        assertNotNull(retrievedStats);
+        assertEquals(stats.totalCmdEventWakeCnt, retrievedStats.totalCmdEventWake);
+        assertEquals(stats.totalDriverFwLocalWakeCnt, retrievedStats.totalDriverFwLocalWake);
+        assertEquals(stats.totalRxPacketWakeCnt, retrievedStats.totalRxDataWake);
+        assertEquals(stats.rxPktWakeDetails.rxUnicastCnt, retrievedStats.rxUnicast);
+        assertEquals(stats.rxPktWakeDetails.rxMulticastCnt, retrievedStats.rxMulticast);
+        assertEquals(stats.rxIcmpPkWakeDetails.icmpPkt, retrievedStats.icmp);
+        assertEquals(stats.rxIcmpPkWakeDetails.icmp6Pkt, retrievedStats.icmp6);
+        assertEquals(stats.rxMulticastPkWakeDetails.ipv4RxMulticastAddrCnt,
+                retrievedStats.ipv4RxMulticast);
+        assertEquals(stats.rxMulticastPkWakeDetails.ipv6RxMulticastAddrCnt,
+                retrievedStats.ipv6Multicast);
+    }
+
+    /**
+     * Tests the failure in retrieval of wlan wake reason stats.
+     */
+    @Test
+    public void testGetWlanWakeReasonCountFailure() throws Exception {
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiChip.getDebugHostWakeReasonStatsCallback cb) {
+                cb.onValues(mWifiStatusFailure, new WifiDebugHostWakeReasonStats());
+            }
+        }).when(mIWifiChip).getDebugHostWakeReasonStats(
+                any(IWifiChip.getDebugHostWakeReasonStatsCallback.class));
+
+        // This should work in both AP & STA mode.
+        assertTrue(mWifiVendorHal.startVendorHalAp());
+
+        assertNull(mWifiVendorHal.getWlanWakeReasonCount());
+        verify(mIWifiChip).getDebugHostWakeReasonStats(
+                any(IWifiChip.getDebugHostWakeReasonStatsCallback.class));
     }
 }

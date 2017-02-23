@@ -1113,16 +1113,73 @@ public class WifiVendorHal {
         throw new UnsupportedOperationException();
     }
 
-    private WifiDebugHostWakeReasonStats mWifiDebugHostWakeReasonStats;
+    //TODO - belongs in NativeUtil
+    private static int[] intsFromArrayList(ArrayList<Integer> a) {
+        if (a == null) return null;
+        int[] b = new int[a.size()];
+        int i = 0;
+        for (Integer e : a) b[i++] = e;
+        return b;
+    }
+
+    /**
+     * Translates from Hal version of wake reason stats to the framework version of same
+     *
+     * @param h - Hal version of wake reason stats
+     * @return framework version of same
+     */
+    private static WifiWakeReasonAndCounts halToFrameworkWakeReasons(
+            WifiDebugHostWakeReasonStats h) {
+        if (h == null) return null;
+        WifiWakeReasonAndCounts ans = new WifiWakeReasonAndCounts();
+        ans.totalCmdEventWake = h.totalCmdEventWakeCnt;
+        ans.totalDriverFwLocalWake = h.totalDriverFwLocalWakeCnt;
+        ans.totalRxDataWake = h.totalRxPacketWakeCnt;
+        ans.rxUnicast = h.rxPktWakeDetails.rxUnicastCnt;
+        ans.rxMulticast = h.rxPktWakeDetails.rxMulticastCnt;
+        ans.rxBroadcast = h.rxPktWakeDetails.rxBroadcastCnt;
+        ans.icmp = h.rxIcmpPkWakeDetails.icmpPkt;
+        ans.icmp6 = h.rxIcmpPkWakeDetails.icmp6Pkt;
+        ans.icmp6Ra = h.rxIcmpPkWakeDetails.icmp6Ra;
+        ans.icmp6Na = h.rxIcmpPkWakeDetails.icmp6Na;
+        ans.icmp6Ns = h.rxIcmpPkWakeDetails.icmp6Ns;
+        ans.ipv4RxMulticast = h.rxMulticastPkWakeDetails.ipv4RxMulticastAddrCnt;
+        ans.ipv6Multicast = h.rxMulticastPkWakeDetails.ipv6RxMulticastAddrCnt;
+        ans.otherRxMulticast = h.rxMulticastPkWakeDetails.otherRxMulticastAddrCnt;
+        ans.cmdEventWakeCntArray = intsFromArrayList(h.cmdEventWakeCntPerType);
+        ans.driverFWLocalWakeCntArray = intsFromArrayList(h.driverFwLocalWakeCntPerType);
+        return ans;
+    }
 
     /**
      * Fetch the host wakeup reasons stats from wlan driver.
      *
-     * @return the |WifiWakeReasonAndCounts| object retrieved from the wlan driver.
+     * @return the |WifiWakeReasonAndCounts| from the wlan driver, or null on failure.
      */
     public WifiWakeReasonAndCounts getWlanWakeReasonCount() {
         kilroy();
-        throw new UnsupportedOperationException();
+        class AnswerBox {
+            public WifiDebugHostWakeReasonStats value = null;
+        }
+        AnswerBox ans = new AnswerBox();
+        synchronized (sLock) {
+            if (mIWifiChip == null) return null;
+            try {
+                kilroy();
+                mIWifiChip.getDebugHostWakeReasonStats((status, stats) -> {
+                    kilroy();
+                    if (status.code == WifiStatusCode.SUCCESS) {
+                        ans.value = stats;
+                    }
+                });
+                kilroy();
+                return halToFrameworkWakeReasons(ans.value);
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return null;
+            }
+        }
     }
 
     /**
