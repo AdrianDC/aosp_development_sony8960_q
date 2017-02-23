@@ -1126,17 +1126,17 @@ public class SupplicantStaNetworkHalTest {
         /** EAP Private Key */
         doAnswer(new AnswerWithArguments() {
             public SupplicantStatus answer(String key) throws RemoteException {
-                mSupplicantVariables.eapPrivateKey = key;
+                mSupplicantVariables.eapPrivateKeyId = key;
                 return mStatusSuccess;
             }
-        }).when(mISupplicantStaNetworkMock).setEapPrivateKey(any(String.class));
+        }).when(mISupplicantStaNetworkMock).setEapPrivateKeyId(any(String.class));
         doAnswer(new AnswerWithArguments() {
-            public void answer(ISupplicantStaNetwork.getEapPrivateKeyCallback cb)
+            public void answer(ISupplicantStaNetwork.getEapPrivateKeyIdCallback cb)
                     throws RemoteException {
-                cb.onValues(mStatusSuccess, mSupplicantVariables.eapPrivateKey);
+                cb.onValues(mStatusSuccess, mSupplicantVariables.eapPrivateKeyId);
             }
         }).when(mISupplicantStaNetworkMock)
-                .getEapPrivateKey(any(ISupplicantStaNetwork.getEapPrivateKeyCallback.class));
+                .getEapPrivateKeyId(any(ISupplicantStaNetwork.getEapPrivateKeyIdCallback.class));
 
         /** EAP Alt Subject Match */
         doAnswer(new AnswerWithArguments() {
@@ -1244,7 +1244,7 @@ public class SupplicantStaNetworkHalTest {
         public String eapCACert;
         public String eapCAPath;
         public String eapClientCert;
-        public String eapPrivateKey;
+        public String eapPrivateKeyId;
         public String eapSubjectMatch;
         public String eapAltSubjectMatch;
         public boolean eapEngine;
