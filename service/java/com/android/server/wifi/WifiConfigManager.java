@@ -2603,6 +2603,14 @@ public class WifiConfigManager {
             }
             return true;
         }
+        // If the user unlock comes in before we load from store, which means the user store have
+        // not been setup yet for the current user.  Setup the user store before the read so that
+        // configurations for the current user will also being loaded.
+        if (mDeferredUserUnlockRead) {
+            Log.i(TAG, "Handling user unlock before loading from store.");
+            mWifiConfigStore.setUserStore(WifiConfigStore.createUserFile(mCurrentUserId));
+            mDeferredUserUnlockRead = false;
+        }
         try {
             mWifiConfigStore.read();
         } catch (IOException e) {
@@ -2615,13 +2623,6 @@ public class WifiConfigManager {
         loadInternalData(mNetworkListStoreData.getSharedConfigurations(),
                 mNetworkListStoreData.getUserConfigurations(),
                 mDeletedEphemeralSsidsStoreData.getSsidList());
-        // If the user unlock comes in before we load from store, we defer the handling until
-        // the load from store is triggered.
-        if (mDeferredUserUnlockRead) {
-            Log.i(TAG, "Handling user unlock after loading from store.");
-            handleUserUnlockOrSwitch(mCurrentUserId);
-            mDeferredUserUnlockRead = false;
-        }
         return true;
     }
 

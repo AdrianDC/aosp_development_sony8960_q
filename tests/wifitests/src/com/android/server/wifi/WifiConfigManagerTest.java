@@ -2301,10 +2301,9 @@ public class WifiConfigManagerTest {
         setupStoreDataForUserRead(new ArrayList<WifiConfiguration>(), new HashSet<String>());
         // Read from store now.
         assertTrue(mWifiConfigManager.loadFromStore());
-        mContextConfigStoreMockOrder.verify(mWifiConfigStore).read();
         mContextConfigStoreMockOrder.verify(mWifiConfigStore)
-                .switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class));
-        mContextConfigStoreMockOrder.verify(mWifiConfigStore).write(anyBoolean());
+                .setUserStore(any(WifiConfigStore.StoreFile.class));
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore).read();
     }
 
     /**
