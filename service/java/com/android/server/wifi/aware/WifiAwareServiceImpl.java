@@ -344,6 +344,9 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         enforceAccessPermission();
         enforceLocationPermission();
 
+        // TODO: b/35676064 restricts access to this API until decide if will open.
+        enforceConnectivityInternalPermission();
+
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
