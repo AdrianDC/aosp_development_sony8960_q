@@ -27,6 +27,7 @@ import android.util.Xml;
 
 import com.android.internal.util.FastXmlSerializer;
 import com.android.server.net.IpConfigStore;
+import com.android.server.wifi.util.NativeUtil;
 import com.android.server.wifi.util.XmlUtil;
 import com.android.server.wifi.util.XmlUtil.IpConfigurationXmlUtil;
 import com.android.server.wifi.util.XmlUtil.WifiConfigurationXmlUtil;
@@ -683,21 +684,26 @@ public class WifiBackupRestore {
                 if (mParsedIdStrLine != null) {
                     String idString =
                             mParsedIdStrLine.substring(mParsedIdStrLine.indexOf('=') + 1);
-                    Map<String, String> extras = WifiNative.parseNetworkExtra(idString);
-                    String configKey = extras.get(WifiSupplicantControl.ID_STRING_KEY_CONFIG_KEY);
-                    if (!configKey.equals(configuration.configKey())) {
-                        // ConfigKey mismatches are expected for private networks because the
-                        // UID is not preserved across backup/restore.
-                        Log.w(TAG, "Configuration key does not match. Retrieved: " + configKey
-                                + ", Calculated: " + configuration.configKey());
-                    }
-                    // For wpa_supplicant backup data, parse out the creatorUid to ensure that
-                    // these networks were created by system apps.
-                    int creatorUid =
-                            Integer.parseInt(extras.get(
-                                    WifiSupplicantControl.ID_STRING_KEY_CREATOR_UID));
-                    if (creatorUid >= Process.FIRST_APPLICATION_UID) {
-                        return null;
+                    if (idString != null) {
+                        Map<String, String> extras =
+                                WifiNative.parseNetworkExtra(
+                                        NativeUtil.removeEnclosingQuotes(idString));
+                        String configKey = extras.get(
+                                WifiSupplicantControl.ID_STRING_KEY_CONFIG_KEY);
+                        if (!configKey.equals(configuration.configKey())) {
+                            // ConfigKey mismatches are expected for private networks because the
+                            // UID is not preserved across backup/restore.
+                            Log.w(TAG, "Configuration key does not match. Retrieved: " + configKey
+                                    + ", Calculated: " + configuration.configKey());
+                        }
+                        // For wpa_supplicant backup data, parse out the creatorUid to ensure that
+                        // these networks were created by system apps.
+                        int creatorUid =
+                                Integer.parseInt(extras.get(
+                                        WifiSupplicantControl.ID_STRING_KEY_CREATOR_UID));
+                        if (creatorUid >= Process.FIRST_APPLICATION_UID) {
+                            return null;
+                        }
                     }
                 }
                 return configuration;

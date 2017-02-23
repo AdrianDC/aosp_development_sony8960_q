@@ -233,8 +233,10 @@ public class WifiConfigStoreLegacy {
             Log.w(TAG, "No wifi configurations found in wpa_supplicant");
             return;
         }
-        // Now parse wpa_supplicant.conf for the masked fields.
-        populateMaskedFieldsFromWpaSupplicantFile(configurationMap);
+        if (!WifiNative.HIDL_SUP_ENABLE) {
+            // Now parse wpa_supplicant.conf for the masked fields.
+            populateMaskedFieldsFromWpaSupplicantFile(configurationMap);
+        }
     }
 
     /**
