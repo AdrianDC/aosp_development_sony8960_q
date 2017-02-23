@@ -21,9 +21,12 @@ import android.hardware.wifi.V1_0.IWifiChip;
 import android.hardware.wifi.V1_0.IWifiIface;
 import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
+import android.hardware.wifi.V1_0.IWifiStaIfaceEventCallback;
 import android.hardware.wifi.V1_0.IfaceType;
 import android.hardware.wifi.V1_0.StaRoamingConfig;
 import android.hardware.wifi.V1_0.StaRoamingState;
+import android.hardware.wifi.V1_0.StaScanData;
+import android.hardware.wifi.V1_0.StaScanResult;
 import android.hardware.wifi.V1_0.WifiDebugHostWakeReasonStats;
 import android.hardware.wifi.V1_0.WifiDebugPacketFateFrameType;
 import android.hardware.wifi.V1_0.WifiDebugRingBufferFlags;
@@ -72,12 +75,17 @@ public class WifiVendorHal {
     private final HalDeviceManager mHalDeviceManager;
     private final HalDeviceManagerStatusListener mHalDeviceManagerStatusCallbacks;
     private final HandlerThread mWifiStateMachineHandlerThread;
+    /**
+     * Callback object instance for events on the interface
+     */
+    private final IWifiStaIfaceEventCallback mIWifiStaIfaceEventCallback;
 
     public WifiVendorHal(HalDeviceManager halDeviceManager,
                          HandlerThread wifiStateMachineHandlerThread) {
         mHalDeviceManager = halDeviceManager;
         mWifiStateMachineHandlerThread = wifiStateMachineHandlerThread;
         mHalDeviceManagerStatusCallbacks = new HalDeviceManagerStatusListener();
+        mIWifiStaIfaceEventCallback = new EventCallback();
     }
 
     // TODO(mplass): figure out where we need locking in hidl world. b/33383725
@@ -144,6 +152,11 @@ public class WifiVendorHal {
                 return false;
             }
             iface = (IWifiIface) mIWifiStaIface;
+            if (!registerStaIfaceCallback()) {
+                Log.e(TAG, "Failed to register sta iface callback");
+                mHalDeviceManager.stop();
+                return false;
+            }
             mIWifiRttController = mHalDeviceManager.createRttController(iface);
             if (mIWifiRttController == null) {
                 Log.e(TAG, "Failed to create RTT controller. Vendor Hal start failed");
@@ -168,6 +181,25 @@ public class WifiVendorHal {
         }
         Log.i(TAG, "Vendor Hal started successfully");
         return true;
+    }
+
+    /**
+     * Registers the sta iface callback.
+     */
+    private boolean registerStaIfaceCallback() {
+        synchronized (sLock) {
+            if (mIWifiStaIface == null || mIWifiStaIfaceEventCallback == null) return false;
+            try {
+                kilroy();
+                WifiStatus status =
+                        mIWifiStaIface.registerEventCallback(mIWifiStaIfaceEventCallback);
+                return (status.code == WifiStatusCode.SUCCESS);
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return false;
+            }
+        }
     }
 
     /**
@@ -1291,10 +1323,10 @@ public class WifiVendorHal {
     public int enableFirmwareRoaming(int state) {
         kilroy();
         synchronized (sLock) {
+            if (mIWifiStaIface == null) return WifiStatusCode.ERROR_NOT_STARTED;
             kilroy();
             try {
                 kilroy();
-                if (!isHalStarted()) return WifiStatusCode.ERROR_NOT_STARTED;
                 byte val;
                 switch (state) {
                     case WifiNative.DISABLE_FIRMWARE_ROAMING:
@@ -1329,10 +1361,10 @@ public class WifiVendorHal {
     public boolean configureRoaming(WifiNative.RoamingConfig config) {
         kilroy();
         synchronized (sLock) {
+            if (mIWifiStaIface == null) return false;
             kilroy();
             try {
                 kilroy();
-                if (!isHalStarted()) return false;
                 StaRoamingConfig roamingConfig = new StaRoamingConfig();
 
                 // parse the blacklist BSSIDs if any
@@ -1400,6 +1432,31 @@ public class WifiVendorHal {
             }
         }
         Log.e(TAG, "th " + cur.getId() + " line " + s.getLineNumber() + " " + name);
+    }
+
+    /**
+     * Callback for events on the STA interface.
+     */
+    private class EventCallback extends IWifiStaIfaceEventCallback.Stub {
+        public void onBackgroundScanFailure(int cmdId) {
+            kilroy();
+            Log.e(TAG, "onBackgroundScanFailure " + cmdId);
+        }
+
+        public void onBackgroundFullScanResult(int cmdId, StaScanResult result) {
+            kilroy();
+            Log.e(TAG, "onBackgroundFullScanResult " + cmdId);
+        }
+
+        public void onBackgroundScanResults(int cmdId, ArrayList<StaScanData> scanDatas) {
+            kilroy();
+            Log.e(TAG, "onBackgroundScanResults " + cmdId);
+        }
+
+        public void onRssiThresholdBreached(int cmdId, byte[/* 6 */] currBssid, int currRssi) {
+            kilroy();
+            Log.e(TAG, "onRssiThresholdBreached " + cmdId + "currRssi " + currRssi);
+        }
     }
 
     /**
