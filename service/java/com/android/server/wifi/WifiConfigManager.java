@@ -2565,6 +2565,14 @@ public class WifiConfigManager {
         Log.d(TAG, "Reading from legacy store completed");
         loadInternalData(storeData.getConfigurations(), new ArrayList<WifiConfiguration>(),
                 storeData.getDeletedEphemeralSSIDs());
+
+        // Setup user store for the current user in case it have not setup yet, so that data
+        // owned by the current user will be backed to the user store.
+        if (mDeferredUserUnlockRead) {
+            mWifiConfigStore.setUserStore(WifiConfigStore.createUserFile(mCurrentUserId));
+            mDeferredUserUnlockRead = false;
+        }
+
         if (!saveToStore(true)) {
             return false;
         }
