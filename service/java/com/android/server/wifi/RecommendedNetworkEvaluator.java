@@ -91,6 +91,7 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
         } else {
             mExternalScoreEvaluator.update(scanDetails);
         }
+        clearNotRecommendedFlag();
     }
 
     private void updateNetworkScoreCache(List<ScanDetail> scanDetails) {
@@ -116,6 +117,14 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
             NetworkKey[] unscoredNetworkKeys =
                     unscoredNetworks.toArray(new NetworkKey[unscoredNetworks.size()]);
             mNetworkScoreManager.requestScores(unscoredNetworkKeys);
+        }
+    }
+
+    private void clearNotRecommendedFlag() {
+        List<WifiConfiguration> savedNetworks = mWifiConfigManager.getSavedNetworks();
+        for (int i = 0; i < savedNetworks.size(); i++) {
+            mWifiConfigManager.updateNetworkNotRecommended(
+                    savedNetworks.get(i).networkId, false /* notRecommended*/);
         }
     }
 
@@ -178,7 +187,19 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
                 // TODO: pass in currently recommended network
                 .build();
         RecommendationResult result = mNetworkScoreManager.requestRecommendation(request);
-        if (result == null || result.getWifiConfiguration() == null) {
+        if (result == null) {
+            // Recommendation provider could not be reached.
+            return null;
+        }
+
+        if (result.getWifiConfiguration() == null) {
+            // Recommendation provider recommended not connecting to any network.
+            for (int i = 0; i < availableConfigsArray.length; i++) {
+                if (availableConfigsArray[i].getNetworkSelectionStatus().isNetworkEnabled()) {
+                    mWifiConfigManager.updateNetworkNotRecommended(
+                            availableConfigsArray[i].networkId, true /* notRecommended*/);
+                }
+            }
             return null;
         }
 
