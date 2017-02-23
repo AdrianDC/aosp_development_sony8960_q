@@ -65,6 +65,7 @@ public class WificondControl {
     * Returns null on failure.
     */
     public IClientInterface setupDriverForClientMode() {
+        Log.d(TAG, "Setting up driver for client mode");
         mWificond = mWifiInjector.makeWificond();
         if (mWificond == null) {
             Log.e(TAG, "Failed to get reference to wificond");
@@ -102,6 +103,7 @@ public class WificondControl {
     * Returns null on failure.
     */
     public IApInterface setupDriverForSoftApMode() {
+        Log.d(TAG, "Setting up driver for soft ap mode");
         mWificond = mWifiInjector.makeWificond();
         if (mWificond == null) {
             Log.e(TAG, "Failed to get reference to wificond");
@@ -134,6 +136,7 @@ public class WificondControl {
     * @return Returns true on success.
     */
     public boolean tearDownInterfaces() {
+        Log.d(TAG, "tearing down interfaces in wificond");
         // Explicitly refresh the wificodn handler because |tearDownInterfaces()|
         // could be used to cleanup before we setup any interfaces.
         mWificond = mWifiInjector.makeWificond();
