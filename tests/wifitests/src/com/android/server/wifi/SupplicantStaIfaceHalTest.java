@@ -107,7 +107,11 @@ public class SupplicantStaIfaceHalTest {
     ArrayList<ISupplicant.IfaceInfo> mIfaceInfoList;
     ISupplicantStaIfaceCallback mISupplicantStaIfaceCallback;
     private SupplicantStaIfaceHal mDut;
-    private ArgumentCaptor<IHwBinder.DeathRecipient> mDeathRecipientCaptor =
+    private ArgumentCaptor<IHwBinder.DeathRecipient> mServiceManagerDeathCaptor =
+            ArgumentCaptor.forClass(IHwBinder.DeathRecipient.class);
+    private ArgumentCaptor<IHwBinder.DeathRecipient> mSupplicantDeathCaptor =
+            ArgumentCaptor.forClass(IHwBinder.DeathRecipient.class);
+    private ArgumentCaptor<IHwBinder.DeathRecipient> mSupplicantStaIfaceDeathCaptor =
             ArgumentCaptor.forClass(IHwBinder.DeathRecipient.class);
     private ArgumentCaptor<IServiceNotification.Stub> mServiceNotificationCaptor =
             ArgumentCaptor.forClass(IServiceNotification.Stub.class);
@@ -156,6 +160,10 @@ public class SupplicantStaIfaceHalTest {
                 anyLong())).thenReturn(true);
         when(mServiceManagerMock.registerForNotifications(anyString(), anyString(),
                 any(IServiceNotification.Stub.class))).thenReturn(true);
+        when(mISupplicantMock.linkToDeath(any(IHwBinder.DeathRecipient.class),
+                anyLong())).thenReturn(true);
+        when(mISupplicantStaIfaceMock.linkToDeath(any(IHwBinder.DeathRecipient.class),
+                anyLong())).thenReturn(true);
         mDut = new SupplicantStaIfaceHalSpy(mContext, mWifiMonitor);
     }
 
@@ -974,14 +982,47 @@ public class SupplicantStaIfaceHalTest {
     }
 
     /**
+     * Tests the handling of service manager death notification.
+     */
+    @Test
+    public void testServiceManagerDeathCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mServiceManagerDeathCaptor.getValue());
+        assertTrue(mDut.isInitializationComplete());
+
+        mServiceManagerDeathCaptor.getValue().serviceDied(5L);
+
+        assertFalse(mDut.isInitializationComplete());
+        verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN_IFACE_NAME));
+    }
+
+    /**
      * Tests the handling of supplicant death notification.
      */
     @Test
     public void testSupplicantDeathCallback() throws Exception {
         executeAndValidateInitializationSequence();
-        assertNotNull(mDeathRecipientCaptor.getValue());
+        assertNotNull(mSupplicantDeathCaptor.getValue());
+        assertTrue(mDut.isInitializationComplete());
 
-        mDeathRecipientCaptor.getValue().serviceDied(5L);
+        mSupplicantDeathCaptor.getValue().serviceDied(5L);
+
+        assertFalse(mDut.isInitializationComplete());
+        verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN_IFACE_NAME));
+    }
+
+    /**
+     * Tests the handling of supplicant sta iface death notification.
+     */
+    @Test
+    public void testSupplicantStaIfaceDeathCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mSupplicantStaIfaceDeathCaptor.getValue());
+        assertTrue(mDut.isInitializationComplete());
+
+        mSupplicantStaIfaceDeathCaptor.getValue().serviceDied(5L);
+
+        assertFalse(mDut.isInitializationComplete());
         verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN_IFACE_NAME));
     }
 
@@ -1104,7 +1145,7 @@ public class SupplicantStaIfaceHalTest {
         // Initialize SupplicantStaIfaceHal, should call serviceManager.registerForNotifications
         assertTrue(mDut.initialize());
         // verify: service manager initialization sequence
-        mInOrder.verify(mServiceManagerMock).linkToDeath(mDeathRecipientCaptor.capture(),
+        mInOrder.verify(mServiceManagerMock).linkToDeath(mServiceManagerDeathCaptor.capture(),
                 anyLong());
         mInOrder.verify(mServiceManagerMock).registerForNotifications(
                 eq(ISupplicant.kInterfaceName), eq(""), mServiceNotificationCaptor.capture());
@@ -1112,6 +1153,8 @@ public class SupplicantStaIfaceHalTest {
         mServiceNotificationCaptor.getValue().onRegistration(ISupplicant.kInterfaceName, "", true);
 
         assertTrue(mDut.isInitializationComplete() == shouldSucceed);
+        mInOrder.verify(mISupplicantMock).linkToDeath(mSupplicantDeathCaptor.capture(),
+                anyLong());
         // verify: listInterfaces is called
         mInOrder.verify(mISupplicantMock).listInterfaces(
                 any(ISupplicant.listInterfacesCallback.class));
@@ -1124,6 +1167,8 @@ public class SupplicantStaIfaceHalTest {
             mInOrder.verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(null));
         }
         if (!causeRemoteException && !getZeroInterfaces && !getNullInterface) {
+            mInOrder.verify(mISupplicantStaIfaceMock).linkToDeath(
+                    mSupplicantStaIfaceDeathCaptor.capture(), anyLong());
             mInOrder.verify(mISupplicantStaIfaceMock)
                     .registerCallback(any(ISupplicantStaIfaceCallback.class));
         }
