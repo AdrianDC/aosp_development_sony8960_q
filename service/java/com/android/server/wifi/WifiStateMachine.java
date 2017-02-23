@@ -2143,16 +2143,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     /**
-     * helper, prints the milli time since boot wi and w/o suspended time
-     */
-    String printTime() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(" rt=").append(mClock.getUptimeSinceBootMillis());
-        sb.append("/").append(mClock.getElapsedSinceBootMillis());
-        return sb.toString();
-    }
-
-    /**
      * Return the additional string to be logged by LogRec, default
      *
      * @param msg that was processed
@@ -2175,7 +2165,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         if (msg.sendingUid > 0 && msg.sendingUid != Process.WIFI_UID) {
             sb.append(" uid=" + msg.sendingUid);
         }
-        sb.append(" ").append(printTime());
+        sb.append(" rt=").append(mClock.getUptimeSinceBootMillis());
+        sb.append("/").append(mClock.getElapsedSinceBootMillis());
         switch (msg.what) {
             case CMD_START_SCAN:
                 now = mClock.getWallClockMillis();
