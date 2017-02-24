@@ -902,52 +902,43 @@ public class WifiStateMachineTest {
         // TODO(b/31065385): Passpoint config management.
     }
 
+    @Test
+    public void verboseLogRecSizeIsGreaterThanNormalSize() {
+        assertTrue(LOG_REC_LIMIT_IN_VERBOSE_MODE > WifiStateMachine.NUM_LOG_RECS_NORMAL);
+    }
+
     /**
      * Verifies that, by default, we allow only the "normal" number of log records.
      */
     @Test
     public void normalLogRecSizeIsUsedByDefault() {
-        for (int i = 0; i < WifiStateMachine.NUM_LOG_RECS_NORMAL * 2; i++) {
-            mWsm.sendMessage(WifiStateMachine.CMD_DISCONNECT);
-        }
-        mLooper.dispatchAll();
-        assertEquals(WifiStateMachine.NUM_LOG_RECS_NORMAL, mWsm.getLogRecSize());
+        assertEquals(WifiStateMachine.NUM_LOG_RECS_NORMAL, mWsm.getLogRecMaxSize());
     }
 
     /**
      * Verifies that, in verbose mode, we allow a larger number of log records.
      */
     @Test
-    public void enablingVerboseLoggingIncreasesLogRecSize() {
-        assertTrue(LOG_REC_LIMIT_IN_VERBOSE_MODE > WifiStateMachine.NUM_LOG_RECS_NORMAL);
+    public void enablingVerboseLoggingUpdatesLogRecSize() {
         mWsm.enableVerboseLogging(1);
-        for (int i = 0; i < LOG_REC_LIMIT_IN_VERBOSE_MODE * 2; i++) {
-            mWsm.sendMessage(WifiStateMachine.CMD_DISCONNECT);
-        }
-        mLooper.dispatchAll();
-        assertEquals(LOG_REC_LIMIT_IN_VERBOSE_MODE, mWsm.getLogRecSize());
+        assertEquals(LOG_REC_LIMIT_IN_VERBOSE_MODE, mWsm.getLogRecMaxSize());
     }
 
-    /**
-     * Verifies that moving from verbose mode to normal mode resets the buffer, and limits new
-     * records to a small number of entries.
-     */
     @Test
-    public void disablingVerboseLoggingClearsRecordsAndDecreasesLogRecSize() {
-        mWsm.enableVerboseLogging(1);
-        for (int i = 0; i < LOG_REC_LIMIT_IN_VERBOSE_MODE; i++) {
-            mWsm.sendMessage(WifiStateMachine.CMD_DISCONNECT);
-        }
+    public void disablingVerboseLoggingClearsRecords() {
+        mWsm.sendMessage(WifiStateMachine.CMD_DISCONNECT);
         mLooper.dispatchAll();
-        assertEquals(LOG_REC_LIMIT_IN_VERBOSE_MODE, mWsm.getLogRecSize());
+        assertTrue(mWsm.getLogRecSize() >= 1);
 
         mWsm.enableVerboseLogging(0);
         assertEquals(0, mWsm.getLogRecSize());
-        for (int i = 0; i < LOG_REC_LIMIT_IN_VERBOSE_MODE; i++) {
-            mWsm.sendMessage(WifiStateMachine.CMD_DISCONNECT);
-        }
-        mLooper.dispatchAll();
-        assertEquals(WifiStateMachine.NUM_LOG_RECS_NORMAL, mWsm.getLogRecSize());
+    }
+
+    @Test
+    public void disablingVerboseLoggingUpdatesLogRecSize() {
+        mWsm.enableVerboseLogging(1);
+        mWsm.enableVerboseLogging(0);
+        assertEquals(WifiStateMachine.NUM_LOG_RECS_NORMAL, mWsm.getLogRecMaxSize());
     }
 
     /** Verifies that enabling verbose logging sets the hal log property in eng builds. */
