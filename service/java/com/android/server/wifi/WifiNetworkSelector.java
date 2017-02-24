@@ -34,10 +34,8 @@ import com.android.internal.annotations.VisibleForTesting;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 
 /**
  * This class looks at all the connectivity scan results then
@@ -50,24 +48,8 @@ public class WifiNetworkSelector {
     @VisibleForTesting
     public static final int MINIMUM_NETWORK_SELECTION_INTERVAL_MS = 10 * 1000;
 
-    // Constants for BSSID blacklist.
-    public static final int BSSID_BLACKLIST_THRESHOLD = 3;
-    public static final int BSSID_BLACKLIST_EXPIRE_TIME_MS = 5 * 60 * 1000;
-
-    // Association success/failure reason codes
-    @VisibleForTesting
-    public static final int REASON_CODE_AP_UNABLE_TO_HANDLE_NEW_STA = 17;
-
     private WifiConfigManager mWifiConfigManager;
     private Clock mClock;
-    private static class BssidBlacklistStatus {
-        // Number of times this BSSID has been rejected for association.
-        public int counter;
-        public boolean isBlacklisted;
-        public long blacklistedTimeStamp = INVALID_TIME_STAMP;
-    }
-    private Map<String, BssidBlacklistStatus> mBssidBlacklist =
-            new HashMap<>();
 
     private final LocalLog mLocalLog =
             new LocalLog(ActivityManager.isLowRamDeviceStatic() ? 256 : 512);
@@ -258,8 +240,8 @@ public class WifiNetworkSelector {
         return (network.SSID + ":" + network.networkId);
     }
 
-    private List<ScanDetail> filterScanResults(List<ScanDetail> scanDetails, boolean isConnected,
-                    String currentBssid) {
+    private List<ScanDetail> filterScanResults(List<ScanDetail> scanDetails,
+                HashSet<String> bssidBlacklist, boolean isConnected, String currentBssid) {
         ArrayList<NetworkKey> unscoredNetworks = new ArrayList<NetworkKey>();
         List<ScanDetail> validScanDetails = new ArrayList<ScanDetail>();
         StringBuffer noValidSsid = new StringBuffer();
@@ -282,7 +264,7 @@ public class WifiNetworkSelector {
 
             final String scanId = toScanId(scanResult);
 
-            if (isBssidDisabled(scanResult.BSSID)) {
+            if (bssidBlacklist.contains(scanResult.BSSID)) {
                 blacklistedBssid.append(scanId).append(" / ");
                 continue;
             }
@@ -433,75 +415,19 @@ public class WifiNetworkSelector {
     }
 
     /**
-     * Enable/disable a BSSID for Network Selection
-     * When an association rejection event is obtained, Network Selector will disable this
-     * BSSID but supplicant still can try to connect to this bssid. If supplicant connect to it
-     * successfully later, this bssid can be re-enabled.
+     * Select the best network from the ones in range.
      *
-     * @param bssid the bssid to be enabled / disabled
-     * @param enable -- true enable a bssid if it has been disabled
-     *               -- false disable a bssid
-     * @param reasonCode enable/disable reason code
-     */
-    public boolean enableBssidForNetworkSelection(String bssid, boolean enable, int reasonCode) {
-        if (enable) {
-            return (mBssidBlacklist.remove(bssid) != null);
-        } else {
-            if (bssid != null) {
-                BssidBlacklistStatus status = mBssidBlacklist.get(bssid);
-                if (status == null) {
-                    // First time for this BSSID
-                    status = new BssidBlacklistStatus();
-                    mBssidBlacklist.put(bssid, status);
-                }
-
-                if (!status.isBlacklisted) {
-                    status.counter++;
-                    if (status.counter >= BSSID_BLACKLIST_THRESHOLD
-                            || reasonCode == REASON_CODE_AP_UNABLE_TO_HANDLE_NEW_STA) {
-                        status.isBlacklisted = true;
-                        status.blacklistedTimeStamp = mClock.getElapsedSinceBootMillis();
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Update the BSSID blacklist
-     *
-     * Go through the BSSID blacklist and check when a BSSID was blocked. If it
-     * has been blacklisted for BSSID_BLACKLIST_EXPIRE_TIME_MS, then re-enable it.
-     */
-    private void updateBssidBlacklist() {
-        Iterator<BssidBlacklistStatus> iter = mBssidBlacklist.values().iterator();
-        while (iter.hasNext()) {
-            BssidBlacklistStatus status = iter.next();
-            if (status != null && status.isBlacklisted) {
-                if (mClock.getElapsedSinceBootMillis() - status.blacklistedTimeStamp
-                            >= BSSID_BLACKLIST_EXPIRE_TIME_MS) {
-                    iter.remove();
-                }
-            }
-        }
-    }
-
-    /**
-     * Check whether a bssid is disabled
-     * @param bssid -- the bssid to check
-     */
-    private boolean isBssidDisabled(String bssid) {
-        BssidBlacklistStatus status = mBssidBlacklist.get(bssid);
-        return status == null ? false : status.isBlacklisted;
-    }
-
-    /**
-     *
+     * @param scanDetails    List of ScanDetail for all the APs in range
+     * @param bssidBlacklist Blacklisted BSSIDs
+     * @param wifiInfo       Currently connected network
+     * @param connected      True if the device is connected
+     * @param disconnected   True if the device is disconnected
+     * @param untrustedNetworkAllowed True if untrusted networks are allowed for connection
+     * @return Configuration of the selected network, or Null if nothing
      */
     @Nullable
-    public WifiConfiguration selectNetwork(List<ScanDetail> scanDetails, WifiInfo wifiInfo,
+    public WifiConfiguration selectNetwork(List<ScanDetail> scanDetails,
+            HashSet<String> bssidBlacklist, WifiInfo wifiInfo,
             boolean connected, boolean disconnected, boolean untrustedNetworkAllowed) {
         mConnectableNetworks.clear();
         if (scanDetails.size() == 0) {
@@ -528,12 +454,9 @@ public class WifiNetworkSelector {
             }
         }
 
-        // Check if any BSSID can be freed from the blacklist.
-        updateBssidBlacklist();
-
         // Filter out unwanted networks.
-        List<ScanDetail> filteredScanDetails = filterScanResults(scanDetails, connected,
-                currentBssid);
+        List<ScanDetail> filteredScanDetails = filterScanResults(scanDetails, bssidBlacklist,
+                connected, currentBssid);
         if (filteredScanDetails.size() == 0) {
             return null;
         }
