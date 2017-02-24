@@ -55,6 +55,23 @@ public class SupplicantP2pIfaceHal {
     private ISupplicant mISupplicant = null;
     private ISupplicantIface mHidlSupplicantIface = null;
     private ISupplicantP2pIface mISupplicantP2pIface = null;
+    private final IServiceNotification mServiceNotificationCallback =
+            new IServiceNotification.Stub() {
+        public void onRegistration(String fqName, String name, boolean preexisting) {
+            synchronized (mLock) {
+                if (DBG) {
+                    Log.i(TAG, "IServiceNotification.onRegistration for: " + fqName
+                            + ", " + name + " preexisting=" + preexisting);
+                }
+                if (!initSupplicantService() || !initSupplicantP2pIface()) {
+                    Log.e(TAG, "initalizing ISupplicantIfaces failed.");
+                    supplicantServiceDiedHandler();
+                } else {
+                    Log.i(TAG, "Completed initialization of ISupplicant interfaces.");
+                }
+            }
+        }
+    };
     private Object mLock = new Object();
     private boolean mServiceCallbackInstalled = false;
 
@@ -92,26 +109,10 @@ public class SupplicantP2pIfaceHal {
                     mIServiceManager = null; // Will need to register a new ServiceNotification
                     return false;
                 }
-                IServiceNotification serviceNotificationCb = new IServiceNotification.Stub() {
-                    public void onRegistration(String fqName, String name, boolean preexisting) {
-                        synchronized (mLock) {
-                            if (DBG) {
-                                Log.i(TAG, "IServiceNotification.onRegistration for: " + fqName
-                                        + ", " + name + " preexisting=" + preexisting);
-                            }
-                            if (!initSupplicantService() || !initSupplicantP2pIface()) {
-                                Log.e(TAG, "initalizing ISupplicantIfaces failed.");
-                                supplicantServiceDiedHandler();
-                            } else {
-                                Log.i(TAG, "Completed initialization of ISupplicant interfaces.");
-                            }
-                        }
-                    }
-                };
                 /* TODO(b/33639391) : Use the new ISupplicant.registerForNotifications() once it
                    exists */
-                if (!mIServiceManager.registerForNotifications(ISupplicant.kInterfaceName,
-                        "", serviceNotificationCb)) {
+                if (!mIServiceManager.registerForNotifications(
+                        ISupplicant.kInterfaceName, "", mServiceNotificationCallback)) {
                     Log.e(TAG, "Failed to register for notifications to "
                             + ISupplicant.kInterfaceName);
                     mIServiceManager = null; // Will need to register a new ServiceNotification
