@@ -59,6 +59,8 @@ public class SoftApManager implements ActiveModeManager {
     private final INetworkManagementService mNwService;
     private final WifiApConfigStore mWifiApConfigStore;
 
+    private final WifiMetrics mWifiMetrics;
+
     /**
      * Listener for soft AP state changes.
      */
@@ -78,7 +80,8 @@ public class SoftApManager implements ActiveModeManager {
                          IApInterface apInterface,
                          INetworkManagementService nms,
                          WifiApConfigStore wifiApConfigStore,
-                         WifiConfiguration config) {
+                         WifiConfiguration config,
+                         WifiMetrics wifiMetrics) {
         mStateMachine = new SoftApStateMachine(looper);
 
         mWifiNative = wifiNative;
@@ -90,6 +93,7 @@ public class SoftApManager implements ActiveModeManager {
         if (config != null) {
             mWifiApConfigStore.setApConfiguration(config);
         }
+        mWifiMetrics = wifiMetrics;
     }
 
     /**
