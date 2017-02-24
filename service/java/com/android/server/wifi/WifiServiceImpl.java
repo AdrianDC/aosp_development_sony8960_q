@@ -1550,6 +1550,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             pw.println();
             mWifiStateMachine.dump(fd, pw, args);
             pw.println();
+            mWifiStateMachine.updateWifiMetrics();
+            mWifiMetrics.dump(fd, pw, args);
+            pw.println();
             mWifiBackupRestore.dump(fd, pw, args);
             pw.println();
         }

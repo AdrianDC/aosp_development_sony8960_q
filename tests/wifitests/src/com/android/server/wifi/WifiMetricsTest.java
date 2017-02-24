@@ -162,16 +162,18 @@ public class WifiMetricsTest {
         assertDeserializedMetricsCorrect();
     }
 
-    private static final int NUM_SAVED_NETWORKS = 1;
     private static final int NUM_OPEN_NETWORKS = 2;
     private static final int NUM_PERSONAL_NETWORKS = 3;
     private static final int NUM_ENTERPRISE_NETWORKS = 5;
-    private static final int NUM_HIDDEN_NETWORKS = 3;
-    private static final int NUM_PASSPOINT_NETWORKS = 4;
+    private static final int NUM_SAVED_NETWORKS = NUM_OPEN_NETWORKS + NUM_PERSONAL_NETWORKS
+            + NUM_ENTERPRISE_NETWORKS;
+    private static final int NUM_HIDDEN_NETWORKS = NUM_OPEN_NETWORKS;
+    private static final int NUM_PASSPOINT_NETWORKS = NUM_ENTERPRISE_NETWORKS;
+    private static final int NUM_NETWORKS_ADDED_BY_USER = 1;
+    private static final int NUM_NETWORKS_ADDED_BY_APPS = NUM_SAVED_NETWORKS
+            - NUM_NETWORKS_ADDED_BY_USER;
     private static final boolean TEST_VAL_IS_LOCATION_ENABLED = true;
     private static final boolean IS_SCANNING_ALWAYS_ENABLED = true;
-    private static final int NUM_NEWTORKS_ADDED_BY_USER = 13;
-    private static final int NUM_NEWTORKS_ADDED_BY_APPS = 17;
     private static final int NUM_EMPTY_SCAN_RESULTS = 19;
     private static final int NUM_NON_EMPTY_SCAN_RESULTS = 23;
     private static final int NUM_SCAN_UNKNOWN = 1;
@@ -243,18 +245,27 @@ public class WifiMetricsTest {
         return mockScanDetails;
     }
 
+    private List<WifiConfiguration> buildSavedNetworkList() {
+        List<WifiConfiguration> testSavedNetworks = new ArrayList<WifiConfiguration>();
+        for (int i = 0; i < NUM_OPEN_NETWORKS; i++) {
+            testSavedNetworks.add(WifiConfigurationTestUtil.createOpenHiddenNetwork());
+        }
+        for (int i = 0; i < NUM_PERSONAL_NETWORKS; i++) {
+            testSavedNetworks.add(WifiConfigurationTestUtil.createPskNetwork());
+        }
+        for (int i = 0; i < NUM_ENTERPRISE_NETWORKS; i++) {
+            // Passpoint networks are counted in both Passpoint and Enterprise counters
+            testSavedNetworks.add(WifiConfigurationTestUtil.createPasspointNetwork());
+        }
+        testSavedNetworks.get(0).selfAdded = true;
+        return testSavedNetworks;
+    }
+
     /**
      * Set simple metrics, increment others
      */
     public void setAndIncrementMetrics() throws Exception {
-        mWifiMetrics.setNumSavedNetworks(NUM_SAVED_NETWORKS);
-        mWifiMetrics.setNumOpenNetworks(NUM_OPEN_NETWORKS);
-        mWifiMetrics.setNumPersonalNetworks(NUM_PERSONAL_NETWORKS);
-        mWifiMetrics.setNumEnterpriseNetworks(NUM_ENTERPRISE_NETWORKS);
-        mWifiMetrics.setNumHiddenNetworks(NUM_HIDDEN_NETWORKS);
-        mWifiMetrics.setNumPasspointNetworks(NUM_PASSPOINT_NETWORKS);
-        mWifiMetrics.setNumNetworksAddedByUser(NUM_NEWTORKS_ADDED_BY_USER);
-        mWifiMetrics.setNumNetworksAddedByApps(NUM_NEWTORKS_ADDED_BY_APPS);
+        mWifiMetrics.updateSavedNetworks(buildSavedNetworkList());
         mWifiMetrics.setIsLocationEnabled(TEST_VAL_IS_LOCATION_ENABLED);
         mWifiMetrics.setIsScanningAlwaysEnabled(IS_SCANNING_ALWAYS_ENABLED);
 
@@ -380,13 +391,13 @@ public class WifiMetricsTest {
                         + "== NUM_ENTERPRISE_NETWORKS",
                 mDeserializedWifiMetrics.numEnterpriseNetworks, NUM_ENTERPRISE_NETWORKS);
         assertEquals("mDeserializedWifiMetrics.numNetworksAddedByUser "
-                        + "== NUM_NEWTORKS_ADDED_BY_USER",
-                mDeserializedWifiMetrics.numNetworksAddedByUser, NUM_NEWTORKS_ADDED_BY_USER);
+                        + "== NUM_NETWORKS_ADDED_BY_USER",
+                mDeserializedWifiMetrics.numNetworksAddedByUser, NUM_NETWORKS_ADDED_BY_USER);
         assertEquals(NUM_HIDDEN_NETWORKS, mDeserializedWifiMetrics.numHiddenNetworks);
         assertEquals(NUM_PASSPOINT_NETWORKS, mDeserializedWifiMetrics.numPasspointNetworks);
         assertEquals("mDeserializedWifiMetrics.numNetworksAddedByApps "
-                        + "== NUM_NEWTORKS_ADDED_BY_APPS",
-                mDeserializedWifiMetrics.numNetworksAddedByApps, NUM_NEWTORKS_ADDED_BY_APPS);
+                        + "== NUM_NETWORKS_ADDED_BY_APPS",
+                mDeserializedWifiMetrics.numNetworksAddedByApps, NUM_NETWORKS_ADDED_BY_APPS);
         assertEquals("mDeserializedWifiMetrics.isLocationEnabled == TEST_VAL_IS_LOCATION_ENABLED",
                 mDeserializedWifiMetrics.isLocationEnabled, TEST_VAL_IS_LOCATION_ENABLED);
         assertEquals("mDeserializedWifiMetrics.isScanningAlwaysEnabled "
