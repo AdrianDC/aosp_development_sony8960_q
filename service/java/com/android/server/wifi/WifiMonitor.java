@@ -69,7 +69,6 @@ public class WifiMonitor {
     private static final int CONNECTED    = 1;
     private static final int DISCONNECTED = 2;
     private static final int STATE_CHANGE = 3;
-    private static final int SCAN_RESULTS = 4;
     private static final int LINK_SPEED   = 5;
     private static final int TERMINATING  = 6;
     private static final int DRIVER_STATE = 7;
@@ -80,7 +79,6 @@ public class WifiMonitor {
     private static final int BSS_ADDED    = 12;
     private static final int BSS_REMOVED  = 13;
     private static final int UNKNOWN      = 14;
-    private static final int SCAN_FAILED  = 15;
 
     /** All events coming from the supplicant start with this prefix */
     private static final String EVENT_PREFIX_STR = "CTRL-EVENT-";
@@ -163,20 +161,6 @@ public class WifiMonitor {
      * <code>x</code> is the numerical value of the new state.
      */
     private static final String STATE_CHANGE_STR =  "STATE-CHANGE";
-    /**
-     * <pre>
-     * CTRL-EVENT-SCAN-RESULTS ready
-     * </pre>
-     */
-    private static final String SCAN_RESULTS_STR =  "SCAN-RESULTS";
-
-    /**
-     * <pre>
-     * CTRL-EVENT-SCAN-FAILED ret=code[ retry=1]
-     * </pre>
-     */
-    private static final String SCAN_FAILED_STR =  "SCAN-FAILED";
-
     /**
      * <pre>
      * CTRL-EVENT-LINK-SPEED x Mb/s
@@ -931,10 +915,6 @@ public class WifiMonitor {
             event = DISCONNECTED;
         else if (eventName.equals(STATE_CHANGE_STR))
             event = STATE_CHANGE;
-        else if (eventName.equals(SCAN_RESULTS_STR))
-            event = SCAN_RESULTS;
-        else if (eventName.equals(SCAN_FAILED_STR))
-            event = SCAN_FAILED;
         else if (eventName.equals(LINK_SPEED_STR))
             event = LINK_SPEED;
         else if (eventName.equals(TERMINATING_STR))
@@ -1091,14 +1071,6 @@ public class WifiMonitor {
 
             case CONNECTED:
                 handleNetworkStateChange(NetworkInfo.DetailedState.CONNECTED, remainder, iface);
-                break;
-
-            case SCAN_RESULTS:
-                sendMessage(iface, SCAN_RESULTS_EVENT);
-                break;
-
-            case SCAN_FAILED:
-                sendMessage(iface, SCAN_FAILED_EVENT);
                 break;
 
             case UNKNOWN:
@@ -1658,6 +1630,22 @@ public class WifiMonitor {
                                                      String[] data) {
         sendMessage(iface, SUP_REQUEST_SIM_AUTH,
                 new SimAuthRequestData(networkId, WifiEnterpriseConfig.Eap.AKA, ssid, data));
+    }
+
+    /**
+     * Broadcast scan result event to all the handlers registered for this event.
+     * @param iface Name of iface on which this occurred.
+     */
+    public void broadcastScanResultEvent(String iface) {
+        sendMessage(iface, SCAN_RESULTS_EVENT);
+    }
+
+    /**
+     * Broadcast scan failed event to all the handlers registered for this event.
+     * @param iface Name of iface on which this occurred.
+     */
+    public void broadcastScanFailedEvent(String iface) {
+        sendMessage(iface, SCAN_FAILED_EVENT);
     }
 
     /**
