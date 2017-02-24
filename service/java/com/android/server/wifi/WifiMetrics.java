@@ -523,54 +523,6 @@ public class WifiMetrics {
                 scanResult.frequency;
     }
 
-    void setNumSavedNetworks(int num) {
-        synchronized (mLock) {
-            mWifiLogProto.numSavedNetworks = num;
-        }
-    }
-
-    void setNumOpenNetworks(int num) {
-        synchronized (mLock) {
-            mWifiLogProto.numOpenNetworks = num;
-        }
-    }
-
-    void setNumPersonalNetworks(int num) {
-        synchronized (mLock) {
-            mWifiLogProto.numPersonalNetworks = num;
-        }
-    }
-
-    void setNumEnterpriseNetworks(int num) {
-        synchronized (mLock) {
-            mWifiLogProto.numEnterpriseNetworks = num;
-        }
-    }
-
-    void setNumHiddenNetworks(int num) {
-        synchronized (mLock) {
-            mWifiLogProto.numHiddenNetworks = num;
-        }
-    }
-
-    void setNumPasspointNetworks(int num) {
-        synchronized (mLock) {
-            mWifiLogProto.numPasspointNetworks = num;
-        }
-    }
-
-    void setNumNetworksAddedByUser(int num) {
-        synchronized (mLock) {
-            mWifiLogProto.numNetworksAddedByUser = num;
-        }
-    }
-
-    void setNumNetworksAddedByApps(int num) {
-        synchronized (mLock) {
-            mWifiLogProto.numNetworksAddedByApps = num;
-        }
-    }
-
     void setIsLocationEnabled(boolean enabled) {
         synchronized (mLock) {
             mWifiLogProto.isLocationEnabled = enabled;
@@ -1147,6 +1099,44 @@ public class WifiMetrics {
                     pw.print(mWifiScoreCounts.get(i) + " ");
                 }
                 pw.print("\n");
+            }
+        }
+    }
+
+
+    /**
+     * Update various counts of saved network types
+     * @param networks List of WifiConfigurations representing all saved networks, must not be null
+     */
+    public void updateSavedNetworks(List<WifiConfiguration> networks) {
+        synchronized (mLock) {
+            mWifiLogProto.numSavedNetworks = networks.size();
+            mWifiLogProto.numOpenNetworks = 0;
+            mWifiLogProto.numPersonalNetworks = 0;
+            mWifiLogProto.numEnterpriseNetworks = 0;
+            mWifiLogProto.numNetworksAddedByUser = 0;
+            mWifiLogProto.numNetworksAddedByApps = 0;
+            mWifiLogProto.numHiddenNetworks = 0;
+            mWifiLogProto.numPasspointNetworks = 0;
+            for (WifiConfiguration config : networks) {
+                if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)) {
+                    mWifiLogProto.numOpenNetworks++;
+                } else if (config.isEnterprise()) {
+                    mWifiLogProto.numEnterpriseNetworks++;
+                } else {
+                    mWifiLogProto.numPersonalNetworks++;
+                }
+                if (config.selfAdded) {
+                    mWifiLogProto.numNetworksAddedByUser++;
+                } else {
+                    mWifiLogProto.numNetworksAddedByApps++;
+                }
+                if (config.hiddenSSID) {
+                    mWifiLogProto.numHiddenNetworks++;
+                }
+                if (config.isPasspoint()) {
+                    mWifiLogProto.numPasspointNetworks++;
+                }
             }
         }
     }
