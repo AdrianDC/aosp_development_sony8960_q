@@ -30,6 +30,7 @@ import android.text.TextUtils;
 
 import java.net.InetAddress;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -429,6 +430,7 @@ public class WifiConfigurationTestUtil {
         assertEquals(expected.status, actual.status);
         assertEquals(expected.FQDN, actual.FQDN);
         assertEquals(expected.providerFriendlyName, actual.providerFriendlyName);
+        assertTrue(Arrays.equals(expected.roamingConsortiumIds, actual.roamingConsortiumIds));
         assertEquals(expected.linkedConfigurations, actual.linkedConfigurations);
         assertEquals(expected.defaultGwMacAddress, actual.defaultGwMacAddress);
         assertEquals(expected.validatedInternetAccess, actual.validatedInternetAccess);
@@ -566,6 +568,10 @@ public class WifiConfigurationTestUtil {
                 actual.getFieldValue(WifiEnterpriseConfig.DOM_SUFFIX_MATCH_KEY));
         assertEquals(expected.getFieldValue(WifiEnterpriseConfig.CA_PATH_KEY),
                 actual.getFieldValue(WifiEnterpriseConfig.CA_PATH_KEY));
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.REALM_KEY),
+                actual.getFieldValue(WifiEnterpriseConfig.REALM_KEY));
+        assertEquals(expected.getFieldValue(WifiEnterpriseConfig.PLMN_KEY),
+                actual.getFieldValue(WifiEnterpriseConfig.PLMN_KEY));
         assertEquals(expected.getEapMethod(), actual.getEapMethod());
         assertEquals(expected.getPhase2Method(), actual.getPhase2Method());
     }

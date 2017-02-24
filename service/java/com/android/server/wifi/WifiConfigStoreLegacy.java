@@ -24,9 +24,13 @@ import android.util.Log;
 import android.util.SparseArray;
 
 import com.android.server.net.IpConfigStore;
+import com.android.server.wifi.hotspot2.LegacyPasspointConfig;
+import com.android.server.wifi.hotspot2.LegacyPasspointConfigParser;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -79,11 +83,15 @@ public class WifiConfigStoreLegacy {
     private final WifiNative mWifiNative;
     private final IpConfigStore mIpconfigStore;
 
+    private final LegacyPasspointConfigParser mPasspointConfigParser;
+
     WifiConfigStoreLegacy(WifiNetworkHistory wifiNetworkHistory,
-            WifiNative wifiNative, IpConfigStore ipConfigStore) {
+            WifiNative wifiNative, IpConfigStore ipConfigStore,
+            LegacyPasspointConfigParser passpointConfigParser) {
         mWifiNetworkHistory = wifiNetworkHistory;
         mWifiNative = wifiNative;
         mIpconfigStore = ipConfigStore;
+        mPasspointConfigParser = passpointConfigParser;
     }
 
     /**
@@ -240,12 +248,81 @@ public class WifiConfigStoreLegacy {
     }
 
     /**
+     * Helper function to update {@link WifiConfiguration} that represents a Passpoint
+     * configuration.
+     *
+     * This method will manually parse PerProviderSubscription.conf file to retrieve missing
+     * fields: provider friendly name, roaming consortium OIs, realm, IMSI.
+     *
+     * @param configurationMap Map of configKey to WifiConfiguration object.
+     * @param networkExtras    Map of network extras parsed from wpa_supplicant.
+     */
+    private void loadFromPasspointConfigStore(
+            Map<String, WifiConfiguration> configurationMap,
+            SparseArray<Map<String, String>> networkExtras) {
+        Map<String, LegacyPasspointConfig> passpointConfigMap = null;
+        try {
+            passpointConfigMap = mPasspointConfigParser.parseConfig(PPS_FILE.getAbsolutePath());
+        } catch (IOException e) {
+            Log.w(TAG, "Failed to read/parse Passpoint config file: " + e.getMessage());
+        }
+
+        List<String> entriesToBeRemoved = new ArrayList<>();
+        for (Map.Entry<String, WifiConfiguration> entry : configurationMap.entrySet()) {
+            WifiConfiguration wifiConfig = entry.getValue();
+            // Ignore non-Enterprise network since enterprise configuration is required for
+            // Passpoint.
+            if (wifiConfig.enterpriseConfig == null || wifiConfig.enterpriseConfig.getEapMethod()
+                    == WifiEnterpriseConfig.Eap.NONE) {
+                continue;
+            }
+            // Ignore configuration without FQDN.
+            Map<String, String> extras = networkExtras.get(wifiConfig.networkId);
+            if (extras == null || !extras.containsKey(WifiSupplicantControl.ID_STRING_KEY_FQDN)) {
+                continue;
+            }
+            String fqdn = networkExtras.get(wifiConfig.networkId).get(
+                    WifiSupplicantControl.ID_STRING_KEY_FQDN);
+
+            // Remove the configuration if failed to find the matching configuration in the
+            // Passpoint configuration file.
+            if (passpointConfigMap == null || !passpointConfigMap.containsKey(fqdn)) {
+                entriesToBeRemoved.add(entry.getKey());
+                continue;
+            }
+
+            // Update the missing Passpoint configuration fields to this WifiConfiguration.
+            LegacyPasspointConfig passpointConfig = passpointConfigMap.get(fqdn);
+            wifiConfig.FQDN = fqdn;
+            wifiConfig.providerFriendlyName = passpointConfig.mFriendlyName;
+            if (passpointConfig.mRoamingConsortiumOis != null) {
+                wifiConfig.roamingConsortiumIds = Arrays.copyOf(
+                        passpointConfig.mRoamingConsortiumOis,
+                        passpointConfig.mRoamingConsortiumOis.length);
+            }
+            if (passpointConfig.mImsi != null) {
+                wifiConfig.enterpriseConfig.setPlmn(passpointConfig.mImsi);
+            }
+            if (passpointConfig.mRealm != null) {
+                wifiConfig.enterpriseConfig.setRealm(passpointConfig.mRealm);
+            }
+        }
+
+        // Remove any incomplete Passpoint configurations. Should never happen, in case it does
+        // remove them to avoid maintaining any invalid Passpoint configurations.
+        for (String key : entriesToBeRemoved) {
+            Log.w(TAG, "Remove incomplete Passpoint configuration: " + key);
+            configurationMap.remove(key);
+        }
+    }
+
+    /**
      * Helper function to load from the different legacy stores:
      * 1. Read the network configurations from wpa_supplicant using {@link WifiNative}.
      * 2. Read the network configurations from networkHistory.txt using {@link WifiNetworkHistory}.
      * 3. Read the Ip configurations from ipconfig.txt using {@link IpConfigStore}.
      * 4. Read all the passpoint info from PerProviderSubscription.conf using
-     * {@link com.android.hotspot2.osu.OSUManager}.
+     * {@link LegacyPasspointConfigParser}.
      */
     public WifiConfigStoreDataLegacy read() {
         final Map<String, WifiConfiguration> configurationMap = new HashMap<>();
@@ -255,7 +332,7 @@ public class WifiConfigStoreLegacy {
         loadFromWpaSupplicant(configurationMap, networkExtras);
         loadFromNetworkHistory(configurationMap, deletedEphemeralSSIDs);
         loadFromIpConfigStore(configurationMap);
-        // TODO: readPasspointConfig(configurationMap, networkExtras);
+        loadFromPasspointConfigStore(configurationMap, networkExtras);
 
         // Now create config store data instance to be returned.
         return new WifiConfigStoreDataLegacy(
@@ -303,6 +380,11 @@ public class WifiConfigStoreLegacy {
         // Now finally remove network history.txt
         if (!NETWORK_HISTORY_FILE.delete()) {
             Log.e(TAG, "Removing networkHistory.txt failed");
+            return false;
+        }
+
+        if (!PPS_FILE.delete()) {
+            Log.e(TAG, "Removing PerProviderSubscription.conf failed");
             return false;
         }
 
