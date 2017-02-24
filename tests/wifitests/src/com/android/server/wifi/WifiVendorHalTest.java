@@ -1417,6 +1417,128 @@ public class WifiVendorHalTest {
                 data.second, Arrays.asList(mWifiVendorHal.mScan.latestScanResults));
     }
 
+    /**
+     * Test the handling of log handler set.
+     */
+    @Test
+    public void testSetLogHandler() throws Exception {
+        when(mIWifiChip.enableDebugErrorAlerts(anyBoolean())).thenReturn(mWifiStatusSuccess);
+
+        WifiNative.WifiLoggerEventHandler eventHandler =
+                mock(WifiNative.WifiLoggerEventHandler.class);
+
+        assertFalse(mWifiVendorHal.setLoggingEventHandler(eventHandler));
+        verify(mIWifiChip, never()).enableDebugErrorAlerts(anyBoolean());
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+
+        assertTrue(mWifiVendorHal.setLoggingEventHandler(eventHandler));
+        verify(mIWifiChip).enableDebugErrorAlerts(eq(true));
+        reset(mIWifiChip);
+
+        // Second call should fail.
+        assertFalse(mWifiVendorHal.setLoggingEventHandler(eventHandler));
+        verify(mIWifiChip, never()).enableDebugErrorAlerts(anyBoolean());
+    }
+
+    /**
+     * Test the handling of log handler reset.
+     */
+    @Test
+    public void testResetLogHandler() throws Exception {
+        when(mIWifiChip.enableDebugErrorAlerts(anyBoolean())).thenReturn(mWifiStatusSuccess);
+
+        assertFalse(mWifiVendorHal.resetLogHandler());
+        verify(mIWifiChip, never()).enableDebugErrorAlerts(anyBoolean());
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+
+        // Not set, so this should fail.
+        assertFalse(mWifiVendorHal.resetLogHandler());
+        verify(mIWifiChip, never()).enableDebugErrorAlerts(anyBoolean());
+
+        // Now set and then reset.
+        assertTrue(mWifiVendorHal.setLoggingEventHandler(
+                mock(WifiNative.WifiLoggerEventHandler.class)));
+        assertTrue(mWifiVendorHal.resetLogHandler());
+        verify(mIWifiChip).enableDebugErrorAlerts(eq(false));
+        reset(mIWifiChip);
+
+        // Second reset should fail.
+        assertFalse(mWifiVendorHal.resetLogHandler());
+        verify(mIWifiChip, never()).enableDebugErrorAlerts(anyBoolean());
+    }
+
+    /**
+     * Test the handling of alert callback.
+     */
+    @Test
+    public void testAlertCallback() throws Exception {
+        when(mIWifiChip.enableDebugErrorAlerts(anyBoolean())).thenReturn(mWifiStatusSuccess);
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertNotNull(mIWifiChipEventCallback);
+
+        int errorCode = 5;
+        byte[] errorData = new byte[45];
+        new Random().nextBytes(errorData);
+
+        // Randomly raise the HIDL callback before we register for the log callback.
+        // This should be ignored.
+        mIWifiChipEventCallback.onDebugErrorAlert(
+                errorCode, NativeUtil.byteArrayToArrayList(errorData));
+
+        WifiNative.WifiLoggerEventHandler eventHandler =
+                mock(WifiNative.WifiLoggerEventHandler.class);
+        assertTrue(mWifiVendorHal.setLoggingEventHandler(eventHandler));
+        verify(mIWifiChip).enableDebugErrorAlerts(eq(true));
+
+        // Now raise the HIDL callback, this should be properly handled.
+        mIWifiChipEventCallback.onDebugErrorAlert(
+                errorCode, NativeUtil.byteArrayToArrayList(errorData));
+        verify(eventHandler).onWifiAlert(eq(errorCode), eq(errorData));
+
+        // Now stop the logging and invoke the callback. This should be ignored.
+        assertTrue(mWifiVendorHal.resetLogHandler());
+        mIWifiChipEventCallback.onDebugErrorAlert(
+                errorCode, NativeUtil.byteArrayToArrayList(errorData));
+    }
+
+    /**
+     * Test the handling of ring buffer callback.
+     */
+    @Test
+    public void testRingBufferDataCallback() throws Exception {
+        when(mIWifiChip.enableDebugErrorAlerts(anyBoolean())).thenReturn(mWifiStatusSuccess);
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertNotNull(mIWifiChipEventCallback);
+
+        byte[] errorData = new byte[45];
+        new Random().nextBytes(errorData);
+
+        // Randomly raise the HIDL callback before we register for the log callback.
+        // This should be ignored.
+        mIWifiChipEventCallback.onDebugRingBufferDataAvailable(
+                new WifiDebugRingBufferStatus(), NativeUtil.byteArrayToArrayList(errorData));
+
+        WifiNative.WifiLoggerEventHandler eventHandler =
+                mock(WifiNative.WifiLoggerEventHandler.class);
+        assertTrue(mWifiVendorHal.setLoggingEventHandler(eventHandler));
+        verify(mIWifiChip).enableDebugErrorAlerts(eq(true));
+
+        // Now raise the HIDL callback, this should be properly handled.
+        mIWifiChipEventCallback.onDebugRingBufferDataAvailable(
+                new WifiDebugRingBufferStatus(), NativeUtil.byteArrayToArrayList(errorData));
+        verify(eventHandler).onRingBufferData(
+                any(WifiNative.RingBufferStatus.class), eq(errorData));
+
+        // Now stop the logging and invoke the callback. This should be ignored.
+        assertTrue(mWifiVendorHal.resetLogHandler());
+        mIWifiChipEventCallback.onDebugRingBufferDataAvailable(
+                new WifiDebugRingBufferStatus(), NativeUtil.byteArrayToArrayList(errorData));
+    }
+
     private void startBgScan(WifiNative.ScanEventHandler eventHandler) throws Exception {
         when(mIWifiStaIface.startBackgroundScan(
                 anyInt(), any(StaBackgroundScanParameters.class))).thenReturn(mWifiStatusSuccess);
