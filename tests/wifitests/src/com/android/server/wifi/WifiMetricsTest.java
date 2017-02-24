@@ -22,6 +22,7 @@ import static org.mockito.Mockito.*;
 import android.net.NetworkAgent;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiManager;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Base64;
 
@@ -215,6 +216,10 @@ public class WifiMetricsTest {
     private static final int NUM_WIFI_SCORES_TO_INCREMENT = 20;
     private static final int WIFI_SCORE_RANGE_MAX = 60;
     private static final int NUM_OUT_OF_BOUND_ENTRIES = 10;
+    private static final int MAX_NUM_SOFTAP_RETURN_CODES = 3;
+    private static final int NUM_SOFTAP_START_SUCCESS = 3;
+    private static final int NUM_SOFTAP_FAILED_GENERAL_ERROR = 2;
+    private static final int NUM_SOFTAP_FAILED_NO_CHANNEL = 1;
 
     private ScanDetail buildMockScanDetail(boolean hidden, NetworkDetail.HSRelease hSRelease,
             String capabilities) {
@@ -375,6 +380,18 @@ public class WifiMetricsTest {
         for (int i = 1; i < NUM_OUT_OF_BOUND_ENTRIES; i++) {
             mWifiMetrics.incrementWifiScoreCount(WIFI_SCORE_RANGE_MAX + i);
         }
+
+        // increment soft ap start return codes
+        for (int i = 0; i < NUM_SOFTAP_START_SUCCESS; i++) {
+            mWifiMetrics.incrementSoftApStartResult(true, 0);
+        }
+        for (int i = 0; i < NUM_SOFTAP_FAILED_GENERAL_ERROR; i++) {
+            mWifiMetrics.incrementSoftApStartResult(false, WifiManager.SAP_START_FAILURE_GENERAL);
+        }
+        for (int i = 0; i < NUM_SOFTAP_FAILED_NO_CHANNEL; i++) {
+            mWifiMetrics.incrementSoftApStartResult(false,
+                    WifiManager.SAP_START_FAILURE_NO_CHANNEL);
+        }
     }
 
     /**
@@ -499,6 +516,18 @@ public class WifiMetricsTest {
         sb_wifi_limits.append("Wifi Score limit is " +  NetworkAgent.WIFI_BASE_SCORE
                 + ">= " + WIFI_SCORE_RANGE_MAX);
         assertTrue(sb_wifi_limits.toString(), NetworkAgent.WIFI_BASE_SCORE <= WIFI_SCORE_RANGE_MAX);
+        assertEquals(MAX_NUM_SOFTAP_RETURN_CODES, mDeserializedWifiMetrics.softApReturnCode.length);
+        assertEquals(WifiMetricsProto.SoftApReturnCodeCount.SOFT_AP_STARTED_SUCCESSFULLY,
+                     mDeserializedWifiMetrics.softApReturnCode[0].startResult);
+        assertEquals(NUM_SOFTAP_START_SUCCESS, mDeserializedWifiMetrics.softApReturnCode[0].count);
+        assertEquals(WifiMetricsProto.SoftApReturnCodeCount.SOFT_AP_FAILED_GENERAL_ERROR,
+                     mDeserializedWifiMetrics.softApReturnCode[1].startResult);
+        assertEquals(NUM_SOFTAP_FAILED_GENERAL_ERROR,
+                     mDeserializedWifiMetrics.softApReturnCode[1].count);
+        assertEquals(WifiMetricsProto.SoftApReturnCodeCount.SOFT_AP_FAILED_NO_CHANNEL,
+                     mDeserializedWifiMetrics.softApReturnCode[2].startResult);
+        assertEquals(NUM_SOFTAP_FAILED_NO_CHANNEL,
+                     mDeserializedWifiMetrics.softApReturnCode[2].count);
     }
 
     /**

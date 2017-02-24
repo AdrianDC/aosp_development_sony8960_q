@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import android.net.NetworkAgent;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiManager;
 import android.util.Base64;
 import android.util.Log;
 import android.util.SparseIntArray;
@@ -103,6 +104,8 @@ public class WifiMetrics {
     private long mRecordStartTimeSec;
     /** Mapping of Wifi Scores to counts */
     private final SparseIntArray mWifiScoreCounts = new SparseIntArray();
+    /** Mapping of SoftApManager start SoftAp return codes to counts */
+    private final SparseIntArray mSoftApManagerReturnCodeCounts = new SparseIntArray();
     class RouterFingerPrint {
         private WifiMetricsProto.RouterFingerPrint mRouterFingerPrintProto;
         RouterFingerPrint() {
@@ -919,6 +922,41 @@ public class WifiMetrics {
         }
     }
 
+    /**
+     * Increments occurence of the results from attempting to start SoftAp.
+     * Maps the |result| and WifiManager |failureCode| constant to proto defined SoftApStartResult
+     * codes.
+     */
+    public void incrementSoftApStartResult(boolean result, int failureCode) {
+        synchronized (mLock) {
+            if (result) {
+                int count = mSoftApManagerReturnCodeCounts.get(
+                        WifiMetricsProto.SoftApReturnCodeCount.SOFT_AP_STARTED_SUCCESSFULLY);
+                mSoftApManagerReturnCodeCounts.put(
+                        WifiMetricsProto.SoftApReturnCodeCount.SOFT_AP_STARTED_SUCCESSFULLY,
+                        count + 1);
+                return;
+            }
+
+            // now increment failure modes - if not explicitly handled, dump into the general
+            // error bucket.
+            if (failureCode == WifiManager.SAP_START_FAILURE_NO_CHANNEL) {
+                int count = mSoftApManagerReturnCodeCounts.get(
+                        WifiMetricsProto.SoftApReturnCodeCount.SOFT_AP_FAILED_NO_CHANNEL);
+                mSoftApManagerReturnCodeCounts.put(
+                        WifiMetricsProto.SoftApReturnCodeCount.SOFT_AP_FAILED_NO_CHANNEL,
+                        count + 1);
+            } else {
+                // failure mode not tracked at this time...  count as a general error for now.
+                int count = mSoftApManagerReturnCodeCounts.get(
+                        WifiMetricsProto.SoftApReturnCodeCount.SOFT_AP_FAILED_GENERAL_ERROR);
+                mSoftApManagerReturnCodeCounts.put(
+                        WifiMetricsProto.SoftApReturnCodeCount.SOFT_AP_FAILED_GENERAL_ERROR,
+                        count + 1);
+            }
+        }
+    }
+
     public static final String PROTO_DUMP_ARG = "wifiMetricsProto";
     public static final String CLEAN_DUMP_ARG = "clean";
 
@@ -1099,6 +1137,14 @@ public class WifiMetrics {
                 for (int i = 0; i <= MAX_WIFI_SCORE; i++) {
                     pw.print(mWifiScoreCounts.get(i) + " ");
                 }
+                pw.println(); // add a line after wifi scores
+                pw.println("mWifiLogProto.SoftApManagerReturnCodeCounts:");
+                pw.println("  SUCCESS: " + mSoftApManagerReturnCodeCounts.get(
+                        WifiMetricsProto.SoftApReturnCodeCount.SOFT_AP_STARTED_SUCCESSFULLY));
+                pw.println("  FAILED_GENERAL_ERROR: " + mSoftApManagerReturnCodeCounts.get(
+                        WifiMetricsProto.SoftApReturnCodeCount.SOFT_AP_FAILED_GENERAL_ERROR));
+                pw.println("  FAILED_NO_CHANNEL: " + mSoftApManagerReturnCodeCounts.get(
+                        WifiMetricsProto.SoftApReturnCodeCount.SOFT_AP_FAILED_NO_CHANNEL));
                 pw.print("\n");
             }
         }
@@ -1247,6 +1293,21 @@ public class WifiMetrics {
                 scores.add(keyVal);
             }
             mWifiLogProto.wifiScoreCount = scores.toArray(mWifiLogProto.wifiScoreCount);
+
+            /**
+             * Convert the SparseIntArray of SoftAp Return codes and counts to proto's repeated
+             * IntKeyVal array.
+             */
+            int codeCounts = mSoftApManagerReturnCodeCounts.size();
+            mWifiLogProto.softApReturnCode = new WifiMetricsProto.SoftApReturnCodeCount[codeCounts];
+            for (int sapCode = 0; sapCode < codeCounts; sapCode++) {
+                mWifiLogProto.softApReturnCode[sapCode] =
+                        new WifiMetricsProto.SoftApReturnCodeCount();
+                mWifiLogProto.softApReturnCode[sapCode].startResult =
+                        mSoftApManagerReturnCodeCounts.keyAt(sapCode);
+                mWifiLogProto.softApReturnCode[sapCode].count =
+                        mSoftApManagerReturnCodeCounts.valueAt(sapCode);
+            }
         }
     }
 
@@ -1268,6 +1329,7 @@ public class WifiMetrics {
             mWifiScoreCounts.clear();
             mWifiLogProto.clear();
             mScanResultRssiTimestampMillis = -1;
+            mSoftApManagerReturnCodeCounts.clear();
         }
     }
 
