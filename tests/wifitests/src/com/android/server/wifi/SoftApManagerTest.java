@@ -74,6 +74,7 @@ public class SoftApManagerTest {
     @Mock IApInterface mApInterface;
     @Mock INetworkManagementService mNmService;
     @Mock WifiApConfigStore mWifiApConfigStore;
+    @Mock WifiMetrics mWifiMetrics;
     final ArgumentCaptor<DeathRecipient> mDeathListenerCaptor =
             ArgumentCaptor.forClass(DeathRecipient.class);
     final ArgumentCaptor<BaseNetworkObserver> mNetworkObserverCaptor =
@@ -112,7 +113,8 @@ public class SoftApManagerTest {
                                                            mApInterface,
                                                            mNmService,
                                                            mWifiApConfigStore,
-                                                           config);
+                                                           config,
+                                                           mWifiMetrics);
         mLooper.dispatchAll();
         if (config != null) {
             verify(mWifiApConfigStore).setApConfiguration(config);
