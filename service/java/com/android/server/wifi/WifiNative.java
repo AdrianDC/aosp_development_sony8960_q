@@ -136,6 +136,7 @@ public class WifiNative {
     // TODO(b/34884202): Set this to true to enable HIDL once we're fully ready.
     private static final boolean HIDL_ENABLE = false;
     public static final boolean HIDL_SUP_ENABLE = false;
+    private static final boolean HIDL_P2P_ENABLE = false;
     private final String mTAG;
     private final String mInterfaceName;
     private final String mInterfacePrefix;
@@ -909,11 +910,15 @@ public class WifiNative {
     }
 
     public boolean startWpsPbc(String iface, String bssid) {
-        synchronized (sLock) {
-            if (TextUtils.isEmpty(bssid)) {
-                return doBooleanCommandNative("IFNAME=" + iface + " WPS_PBC");
-            } else {
-                return doBooleanCommandNative("IFNAME=" + iface + " WPS_PBC " + bssid);
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.startWpsPbc(iface, bssid);
+        } else {
+            synchronized (sLock) {
+                if (TextUtils.isEmpty(bssid)) {
+                    return doBooleanCommandNative("IFNAME=" + iface + " WPS_PBC");
+                } else {
+                    return doBooleanCommandNative("IFNAME=" + iface + " WPS_PBC " + bssid);
+                }
             }
         }
     }
@@ -929,8 +934,13 @@ public class WifiNative {
 
     public boolean startWpsPinKeypad(String iface, String pin) {
         if (TextUtils.isEmpty(pin)) return false;
-        synchronized (sLock) {
-            return doBooleanCommandNative("IFNAME=" + iface + " WPS_PIN any " + pin);
+
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.startWpsPinKeypad(iface, pin);
+        } else {
+            synchronized (sLock) {
+                return doBooleanCommandNative("IFNAME=" + iface + " WPS_PIN any " + pin);
+            }
         }
     }
 
@@ -948,11 +958,15 @@ public class WifiNative {
     }
 
     public String startWpsPinDisplay(String iface, String bssid) {
-        synchronized (sLock) {
-            if (TextUtils.isEmpty(bssid)) {
-                return doStringCommandNative("IFNAME=" + iface + " WPS_PIN any");
-            } else {
-                return doStringCommandNative("IFNAME=" + iface + " WPS_PIN " + bssid);
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.startWpsPinDisplay(iface, bssid);
+        } else {
+            synchronized (sLock) {
+                if (TextUtils.isEmpty(bssid)) {
+                    return doStringCommandNative("IFNAME=" + iface + " WPS_PIN any");
+                } else {
+                    return doStringCommandNative("IFNAME=" + iface + " WPS_PIN " + bssid);
+                }
             }
         }
     }
@@ -1090,12 +1104,20 @@ public class WifiNative {
     }
 
     public boolean setP2pSsidPostfix(String postfix) {
-        return doBooleanCommand("SET p2p_ssid_postfix " + postfix);
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.setSsidPostfix(postfix);
+        } else {
+            return doBooleanCommand("SET p2p_ssid_postfix " + postfix);
+        }
     }
 
     public boolean setP2pGroupIdle(String iface, int time) {
-        synchronized (sLock) {
-            return doBooleanCommandNative("IFNAME=" + iface + " SET p2p_group_idle " + time);
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.setGroupIdle(iface, time);
+        } else {
+            synchronized (sLock) {
+                return doBooleanCommandNative("IFNAME=" + iface + " SET p2p_group_idle " + time);
+            }
         }
     }
 
@@ -1112,21 +1134,33 @@ public class WifiNative {
     }
 
     public boolean setP2pPowerSave(String iface, boolean enabled) {
-        synchronized (sLock) {
-            if (enabled) {
-                return doBooleanCommandNative("IFNAME=" + iface + " P2P_SET ps 1");
-            } else {
-                return doBooleanCommandNative("IFNAME=" + iface + " P2P_SET ps 0");
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.setPowerSave(iface, enabled);
+        } else {
+            synchronized (sLock) {
+                if (enabled) {
+                    return doBooleanCommandNative("IFNAME=" + iface + " P2P_SET ps 1");
+                } else {
+                    return doBooleanCommandNative("IFNAME=" + iface + " P2P_SET ps 0");
+                }
             }
         }
     }
 
     public boolean setWfdEnable(boolean enable) {
-        return doBooleanCommand("SET wifi_display " + (enable ? "1" : "0"));
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.enableWfd(enable);
+        } else {
+            return doBooleanCommand("SET wifi_display " + (enable ? "1" : "0"));
+        }
     }
 
     public boolean setWfdDeviceInfo(String hex) {
-        return doBooleanCommand("WFD_SUBELEM_SET 0 " + hex);
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.setWfdDeviceInfo(hex);
+        } else {
+            return doBooleanCommand("WFD_SUBELEM_SET 0 " + hex);
+        }
     }
 
     /**
@@ -1138,25 +1172,38 @@ public class WifiNative {
     }
 
     public boolean p2pFind() {
-        return doBooleanCommand("P2P_FIND");
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.find();
+        } else {
+            return doBooleanCommand("P2P_FIND");
+        }
     }
 
     public boolean p2pFind(int timeout) {
         if (timeout <= 0) {
             return p2pFind();
         }
-        return doBooleanCommand("P2P_FIND " + timeout);
+
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.find(timeout);
+        } else {
+            return doBooleanCommand("P2P_FIND " + timeout);
+        }
     }
 
     public boolean p2pStopFind() {
-       return doBooleanCommand("P2P_STOP_FIND");
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.stopFind();
+        } else {
+            return doBooleanCommand("P2P_STOP_FIND");
+        }
     }
 
-    public boolean p2pListen() {
+    private boolean p2pListen() {
         return doBooleanCommand("P2P_LISTEN");
     }
 
-    public boolean p2pListen(int timeout) {
+    private boolean p2pListen(int timeout) {
         if (timeout <= 0) {
             return p2pListen();
         }
@@ -1167,36 +1214,48 @@ public class WifiNative {
         if (enable && interval < period) {
             return false;
         }
-        return doBooleanCommand("P2P_EXT_LISTEN"
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.configureExtListen(enable, period, interval);
+        } else {
+            return doBooleanCommand("P2P_EXT_LISTEN"
                     + (enable ? (" " + period + " " + interval) : ""));
+        }
     }
 
     public boolean p2pSetChannel(int lc, int oc) {
         if (DBG) Log.d(mTAG, "p2pSetChannel: lc="+lc+", oc="+oc);
 
-        synchronized (sLock) {
-            if (lc >=1 && lc <= 11) {
-                if (!doBooleanCommand("P2P_SET listen_channel " + lc)) {
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.setListenChannel(lc, oc);
+        } else {
+            synchronized (sLock) {
+                if (lc >=1 && lc <= 11) {
+                    if (!doBooleanCommand("P2P_SET listen_channel " + lc)) {
+                        return false;
+                    }
+                } else if (lc != 0) {
                     return false;
                 }
-            } else if (lc != 0) {
-                return false;
-            }
 
-            if (oc >= 1 && oc <= 165 ) {
-                int freq = (oc <= 14 ? 2407 : 5000) + oc * 5;
-                return doBooleanCommand("P2P_SET disallow_freq 1000-"
-                        + (freq - 5) + "," + (freq + 5) + "-6000");
-            } else if (oc == 0) {
-                /* oc==0 disables "P2P_SET disallow_freq" (enables all freqs) */
-                return doBooleanCommand("P2P_SET disallow_freq \"\"");
+                if (oc >= 1 && oc <= 165 ) {
+                    int freq = (oc <= 14 ? 2407 : 5000) + oc * 5;
+                    return doBooleanCommand("P2P_SET disallow_freq 1000-"
+                            + (freq - 5) + "," + (freq + 5) + "-6000");
+                } else if (oc == 0) {
+                    /* oc==0 disables "P2P_SET disallow_freq" (enables all freqs) */
+                    return doBooleanCommand("P2P_SET disallow_freq \"\"");
+                }
             }
+            return false;
         }
-        return false;
     }
 
     public boolean p2pFlush() {
-        return doBooleanCommand("P2P_FLUSH");
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.flush();
+        } else {
+            return doBooleanCommand("P2P_FLUSH");
+        }
     }
 
     private static final int DEFAULT_GROUP_OWNER_INTENT     = 6;
@@ -1204,108 +1263,141 @@ public class WifiNative {
         [persistent] [join|auth] [go_intent=<0..15>] [freq=<in MHz>] */
     public String p2pConnect(WifiP2pConfig config, boolean joinExistingGroup) {
         if (config == null) return null;
-        List<String> args = new ArrayList<>();
-        WpsInfo wps = config.wps;
-        args.add(config.deviceAddress);
-
-        switch (wps.setup) {
-            case WpsInfo.PBC:
-                args.add("pbc");
-                break;
-            case WpsInfo.DISPLAY:
-                if (TextUtils.isEmpty(wps.pin)) {
-                    args.add("pin");
-                } else {
-                    args.add(wps.pin);
-                }
-                args.add("display");
-                break;
-            case WpsInfo.KEYPAD:
-                args.add(wps.pin);
-                args.add("keypad");
-                break;
-            case WpsInfo.LABEL:
-                args.add(wps.pin);
-                args.add("label");
-            default:
-                break;
-        }
-
-        if (config.netId == WifiP2pGroup.PERSISTENT_NET_ID) {
-            args.add("persistent");
-        }
-
-        if (joinExistingGroup) {
-            args.add("join");
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.connect(config, joinExistingGroup);
         } else {
-            //TODO: This can be adapted based on device plugged in state and
-            //device battery state
-            int groupOwnerIntent = config.groupOwnerIntent;
-            if (groupOwnerIntent < 0 || groupOwnerIntent > 15) {
-                groupOwnerIntent = DEFAULT_GROUP_OWNER_INTENT;
+            List<String> args = new ArrayList<>();
+            WpsInfo wps = config.wps;
+            args.add(config.deviceAddress);
+
+            switch (wps.setup) {
+                case WpsInfo.PBC:
+                    args.add("pbc");
+                    break;
+                case WpsInfo.DISPLAY:
+                    if (TextUtils.isEmpty(wps.pin)) {
+                        args.add("pin");
+                    } else {
+                        args.add(wps.pin);
+                    }
+                    args.add("display");
+                    break;
+                case WpsInfo.KEYPAD:
+                    args.add(wps.pin);
+                    args.add("keypad");
+                    break;
+                case WpsInfo.LABEL:
+                    args.add(wps.pin);
+                    args.add("label");
+                default:
+                    break;
             }
-            args.add("go_intent=" + groupOwnerIntent);
+
+            if (config.netId == WifiP2pGroup.PERSISTENT_NET_ID) {
+                args.add("persistent");
+            }
+
+            if (joinExistingGroup) {
+                args.add("join");
+            } else {
+                //TODO: This can be adapted based on device plugged in state and
+                //device battery state
+                int groupOwnerIntent = config.groupOwnerIntent;
+                if (groupOwnerIntent < 0 || groupOwnerIntent > 15) {
+                    groupOwnerIntent = DEFAULT_GROUP_OWNER_INTENT;
+                }
+                args.add("go_intent=" + groupOwnerIntent);
+            }
+
+            String command = "P2P_CONNECT ";
+            for (String s : args) command += s + " ";
+
+            return doStringCommand(command);
         }
-
-        String command = "P2P_CONNECT ";
-        for (String s : args) command += s + " ";
-
-        return doStringCommand(command);
     }
 
     public boolean p2pCancelConnect() {
-        return doBooleanCommand("P2P_CANCEL");
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.cancelConnect();
+        } else {
+            return doBooleanCommand("P2P_CANCEL");
+        }
     }
 
     public boolean p2pProvisionDiscovery(WifiP2pConfig config) {
         if (config == null) return false;
 
-        switch (config.wps.setup) {
-            case WpsInfo.PBC:
-                return doBooleanCommand("P2P_PROV_DISC " + config.deviceAddress + " pbc");
-            case WpsInfo.DISPLAY:
-                //We are doing display, so provision discovery is keypad
-                return doBooleanCommand("P2P_PROV_DISC " + config.deviceAddress + " keypad");
-            case WpsInfo.KEYPAD:
-                //We are doing keypad, so provision discovery is display
-                return doBooleanCommand("P2P_PROV_DISC " + config.deviceAddress + " display");
-            default:
-                break;
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.provisionDiscovery(config);
+        } else {
+            switch (config.wps.setup) {
+                case WpsInfo.PBC:
+                    return doBooleanCommand("P2P_PROV_DISC " + config.deviceAddress + " pbc");
+                case WpsInfo.DISPLAY:
+                    //We are doing display, so provision discovery is keypad
+                    return doBooleanCommand("P2P_PROV_DISC " + config.deviceAddress + " keypad");
+                case WpsInfo.KEYPAD:
+                    //We are doing keypad, so provision discovery is display
+                    return doBooleanCommand("P2P_PROV_DISC " + config.deviceAddress + " display");
+                default:
+                    break;
+            }
+            return false;
         }
-        return false;
     }
 
     public boolean p2pGroupAdd(boolean persistent) {
-        if (persistent) {
-            return doBooleanCommand("P2P_GROUP_ADD persistent");
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.groupAdd(persistent);
+        } else {
+            if (persistent) {
+                return doBooleanCommand("P2P_GROUP_ADD persistent");
+            }
+            return doBooleanCommand("P2P_GROUP_ADD");
         }
-        return doBooleanCommand("P2P_GROUP_ADD");
     }
 
     public boolean p2pGroupAdd(int netId) {
-        return doBooleanCommand("P2P_GROUP_ADD persistent=" + netId);
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.groupAdd(netId, true);
+        } else {
+            return doBooleanCommand("P2P_GROUP_ADD persistent=" + netId);
+        }
     }
 
     public boolean p2pGroupRemove(String iface) {
         if (TextUtils.isEmpty(iface)) return false;
-        synchronized (sLock) {
-            return doBooleanCommandNative("IFNAME=" + iface + " P2P_GROUP_REMOVE " + iface);
+
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.groupRemove(iface);
+        } else {
+            synchronized (sLock) {
+                return doBooleanCommandNative("IFNAME=" + iface + " P2P_GROUP_REMOVE " + iface);
+            }
         }
     }
 
     public boolean p2pReject(String deviceAddress) {
-        return doBooleanCommand("P2P_REJECT " + deviceAddress);
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.reject(deviceAddress);
+        } else {
+            return doBooleanCommand("P2P_REJECT " + deviceAddress);
+        }
     }
 
     /* Invite a peer to a group */
     public boolean p2pInvite(WifiP2pGroup group, String deviceAddress) {
         if (TextUtils.isEmpty(deviceAddress)) return false;
 
-        if (group == null) {
-            return doBooleanCommand("P2P_INVITE peer=" + deviceAddress);
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.invite(group, deviceAddress);
         } else {
-            return doBooleanCommand("P2P_INVITE group=" + group.getInterface()
-                    + " peer=" + deviceAddress + " go_dev_addr=" + group.getOwner().deviceAddress);
+            if (group == null) {
+                return doBooleanCommand("P2P_INVITE peer=" + deviceAddress);
+            } else {
+                return doBooleanCommand("P2P_INVITE group=" + group.getInterface()
+                        + " peer=" + deviceAddress + " go_dev_addr=" + group.getOwner().deviceAddress);
+            }
         }
     }
 
@@ -1313,64 +1405,80 @@ public class WifiNative {
     public boolean p2pReinvoke(int netId, String deviceAddress) {
         if (TextUtils.isEmpty(deviceAddress) || netId < 0) return false;
 
-        return doBooleanCommand("P2P_INVITE persistent=" + netId + " peer=" + deviceAddress);
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.reinvoke(netId, deviceAddress);
+        } else {
+            return doBooleanCommand("P2P_INVITE persistent=" + netId + " peer=" + deviceAddress);
+        }
     }
 
     public String p2pGetSsid(String deviceAddress) {
-        return p2pGetParam(deviceAddress, "oper_ssid");
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.getSsid(deviceAddress);
+        } else {
+            return p2pGetParam(deviceAddress, "oper_ssid");
+        }
     }
 
     public String p2pGetDeviceAddress() {
-        Log.d(TAG, "p2pGetDeviceAddress");
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.getDeviceAddress();
+        } else {
+            Log.d(TAG, "p2pGetDeviceAddress");
 
-        String status = null;
+            String status = null;
 
-        /* Explicitly calling the API without IFNAME= prefix to take care of the devices that
-        don't have p2p0 interface. Supplicant seems to be returning the correct address anyway. */
+            /* Explicitly calling the API without IFNAME= prefix to take care of the devices that
+               don't have p2p0 interface. Supplicant seems to be returning the correct address anyway. */
 
-        synchronized (sLock) {
-            status = doStringCommandNative("STATUS");
-        }
+            synchronized (sLock) {
+                status = doStringCommandNative("STATUS");
+            }
 
-        String result = "";
-        if (status != null) {
-            String[] tokens = status.split("\n");
-            for (String token : tokens) {
-                if (token.startsWith("p2p_device_address=")) {
-                    String[] nameValue = token.split("=");
-                    if (nameValue.length != 2)
-                        break;
-                    result = nameValue[1];
+            String result = "";
+            if (status != null) {
+                String[] tokens = status.split("\n");
+                for (String token : tokens) {
+                    if (token.startsWith("p2p_device_address=")) {
+                        String[] nameValue = token.split("=");
+                        if (nameValue.length != 2)
+                            break;
+                        result = nameValue[1];
+                    }
                 }
             }
-        }
 
-        Log.d(TAG, "p2pGetDeviceAddress returning " + result);
-        return result;
+            Log.d(TAG, "p2pGetDeviceAddress returning " + result);
+            return result;
+        }
     }
 
     public int getGroupCapability(String deviceAddress) {
-        int gc = 0;
-        if (TextUtils.isEmpty(deviceAddress)) return gc;
-        String peerInfo = p2pPeer(deviceAddress);
-        if (TextUtils.isEmpty(peerInfo)) return gc;
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.getGroupCapability(deviceAddress);
+        } else {
+            int gc = 0;
+            if (TextUtils.isEmpty(deviceAddress)) return gc;
+            String peerInfo = p2pPeer(deviceAddress);
+            if (TextUtils.isEmpty(peerInfo)) return gc;
 
-        String[] tokens = peerInfo.split("\n");
-        for (String token : tokens) {
-            if (token.startsWith("group_capab=")) {
-                String[] nameValue = token.split("=");
-                if (nameValue.length != 2) break;
-                try {
-                    return Integer.decode(nameValue[1]);
-                } catch(NumberFormatException e) {
-                    return gc;
+            String[] tokens = peerInfo.split("\n");
+            for (String token : tokens) {
+                if (token.startsWith("group_capab=")) {
+                    String[] nameValue = token.split("=");
+                    if (nameValue.length != 2) break;
+                    try {
+                        return Integer.decode(nameValue[1]);
+                    } catch(NumberFormatException e) {
+                        return gc;
+                    }
                 }
             }
+            return gc;
         }
-        return gc;
     }
 
-    public String p2pPeer(String deviceAddress) {
+    private String p2pPeer(String deviceAddress) {
         return doStringCommand("P2P_PEER " + deviceAddress);
     }
 
@@ -1413,16 +1521,20 @@ public class WifiNative {
          * P2P_SERVICE_ADD upnp 10 uuid:6859dede-8574-59ab-9322-123456789012::urn:schemas-upnp
          * -org:service:ContentDirectory:2
          */
-        synchronized (sLock) {
-            for (String s : servInfo.getSupplicantQueryList()) {
-                String command = "P2P_SERVICE_ADD";
-                command += (" " + s);
-                if (!doBooleanCommand(command)) {
-                    return false;
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.serviceAdd(servInfo);
+        } else {
+            synchronized (sLock) {
+                for (String s : servInfo.getSupplicantQueryList()) {
+                    String command = "P2P_SERVICE_ADD";
+                    command += (" " + s);
+                    if (!doBooleanCommand(command)) {
+                        return false;
+                    }
                 }
             }
+            return true;
         }
-        return true;
     }
 
     public boolean p2pServiceDel(WifiP2pServiceInfo servInfo) {
@@ -1430,44 +1542,60 @@ public class WifiNative {
          * P2P_SERVICE_DEL bonjour <query hexdump>
          * P2P_SERVICE_DEL upnp <version hex> <service>
          */
-        synchronized (sLock) {
-            for (String s : servInfo.getSupplicantQueryList()) {
-                String command = "P2P_SERVICE_DEL ";
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.serviceRemove(servInfo);
+        } else {
+            synchronized (sLock) {
+                for (String s : servInfo.getSupplicantQueryList()) {
+                    String command = "P2P_SERVICE_DEL ";
 
-                String[] data = s.split(" ");
-                if (data.length < 2) {
-                    return false;
-                }
-                if ("upnp".equals(data[0])) {
-                    command += s;
-                } else if ("bonjour".equals(data[0])) {
-                    command += data[0];
-                    command += (" " + data[1]);
-                } else {
-                    return false;
-                }
-                if (!doBooleanCommand(command)) {
-                    return false;
+                    String[] data = s.split(" ");
+                    if (data.length < 2) {
+                        return false;
+                    }
+                    if ("upnp".equals(data[0])) {
+                        command += s;
+                    } else if ("bonjour".equals(data[0])) {
+                        command += data[0];
+                        command += (" " + data[1]);
+                    } else {
+                        return false;
+                    }
+                    if (!doBooleanCommand(command)) {
+                        return false;
+                    }
                 }
             }
+            return true;
         }
-        return true;
     }
 
     public boolean p2pServiceFlush() {
-        return doBooleanCommand("P2P_SERVICE_FLUSH");
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.serviceFlush();
+        } else {
+            return doBooleanCommand("P2P_SERVICE_FLUSH");
+        }
     }
 
     public String p2pServDiscReq(String addr, String query) {
-        String command = "P2P_SERV_DISC_REQ";
-        command += (" " + addr);
-        command += (" " + query);
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.requestServiceDiscovery(addr, query);
+        } else {
+            String command = "P2P_SERV_DISC_REQ";
+            command += (" " + addr);
+            command += (" " + query);
 
-        return doStringCommand(command);
+            return doStringCommand(command);
+        }
     }
 
     public boolean p2pServDiscCancelReq(String id) {
-        return doBooleanCommand("P2P_SERV_DISC_CANCEL_REQ " + id);
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.cancelServiceDiscovery(id);
+        } else {
+            return doBooleanCommand("P2P_SERV_DISC_CANCEL_REQ " + id);
+        }
     }
 
     /* Set the current mode of miracast operation.
@@ -1476,8 +1604,12 @@ public class WifiNative {
      *  2 = operating as sink
      */
     public void setMiracastMode(int mode) {
-        // Note: optional feature on the driver. It is ok for this to fail.
-        doBooleanCommand("DRIVER MIRACAST " + mode);
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            mSupplicantP2pIfaceHal.setMiracastMode(mode);
+        } else {
+            // Note: optional feature on the driver. It is ok for this to fail.
+            doBooleanCommand("DRIVER MIRACAST " + mode);
+        }
     }
 
     /*
