@@ -64,10 +64,7 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
 LOCAL_REQUIRED_MODULES := services
 LOCAL_MODULE_TAGS :=
 LOCAL_MODULE := wifi-service
-
-ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
 LOCAL_INIT_RC := wifi-events.rc
-endif
 
 ifeq ($(EMMA_INSTRUMENT_FRAMEWORK),true)
 LOCAL_EMMA_INSTRUMENT := true
