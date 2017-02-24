@@ -29,9 +29,13 @@ import android.util.Log;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.util.InformationElementUtil;
 import com.android.server.wifi.util.NativeUtil;
+import com.android.server.wifi.wificond.ChannelSettings;
+import com.android.server.wifi.wificond.HiddenNetwork;
 import com.android.server.wifi.wificond.NativeScanResult;
+import com.android.server.wifi.wificond.SingleScanSettings;
 
 import java.util.ArrayList;
+import java.util.Set;
 
 /**
  * This class provides methods for WifiNative to send control commands to wificond.
@@ -288,4 +292,43 @@ public class WificondControl {
 
         return results;
     }
+
+    /**
+     * Start a scan using wificond for the given parameters.
+     * @param freqs list of frequencies to scan for, if null scan all supported channels.
+     * @param hiddenNetworkSSIDs List of hidden networks to be scanned for.
+     * @return Returns true on success.
+     */
+    public boolean scan(Set<Integer> freqs, Set<String> hiddenNetworkSSIDs) {
+        if (mWificondScanner == null) {
+            Log.e(TAG, "No valid wificond scanner interface handler");
+            return false;
+        }
+        SingleScanSettings settings = new SingleScanSettings();
+        settings.channelSettings  = new ArrayList<>();
+        settings.hiddenNetworks  = new ArrayList<>();
+
+        if (freqs != null) {
+            for (Integer freq : freqs) {
+                ChannelSettings channel = new ChannelSettings();
+                channel.frequency = freq;
+                settings.channelSettings.add(channel);
+            }
+        }
+        if (hiddenNetworkSSIDs != null) {
+            for (String ssid : hiddenNetworkSSIDs) {
+                HiddenNetwork network = new HiddenNetwork();
+                network.ssid = NativeUtil.byteArrayFromArrayList(NativeUtil.decodeSsid(ssid));
+                settings.hiddenNetworks.add(network);
+            }
+        }
+
+        try {
+            return mWificondScanner.scan(settings);
+        } catch (RemoteException e1) {
+            Log.e(TAG, "Failed to request scan due to remote exception");
+        }
+        return false;
+    }
+
 }
