@@ -776,20 +776,32 @@ public class WifiVendorHal {
             public int[] value = null;
         }
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return null;
             try {
                 AnswerBox box = new AnswerBox();
                 int hb = makeWifiBandFromFrameworkBand(band);
-                mIWifiStaIface.getValidFrequenciesForBand(hb, (status, frequencies) -> {
-                    if (status.code == WifiStatusCode.ERROR_NOT_SUPPORTED) {
+                if (mIWifiStaIface != null) {
+                    mIWifiStaIface.getValidFrequenciesForBand(hb, (status, frequencies) -> {
+                        if (status.code == WifiStatusCode.ERROR_NOT_SUPPORTED) {
+                            kilroy();
+                            mChannelsForBandSupport = false;
+                        }
+                        if (status.code != WifiStatusCode.SUCCESS) return;
+                        mChannelsForBandSupport = true;
                         kilroy();
-                        mChannelsForBandSupport = false;
-                    }
-                    if (status.code != WifiStatusCode.SUCCESS) return;
-                    mChannelsForBandSupport = true;
-                    kilroy();
-                    box.value = intArrayFromArrayList(frequencies);
-                });
+                        box.value = intArrayFromArrayList(frequencies);
+                    });
+                } else if (mIWifiApIface != null) {
+                    mIWifiApIface.getValidFrequenciesForBand(hb, (status, frequencies) -> {
+                        if (status.code == WifiStatusCode.ERROR_NOT_SUPPORTED) {
+                            kilroy();
+                            mChannelsForBandSupport = false;
+                        }
+                        if (status.code != WifiStatusCode.SUCCESS) return;
+                        mChannelsForBandSupport = true;
+                        kilroy();
+                        box.value = intArrayFromArrayList(frequencies);
+                    });
+                }
                 return box.value;
             } catch (RemoteException e) {
                 handleRemoteException(e);
