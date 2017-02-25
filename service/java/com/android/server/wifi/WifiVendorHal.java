@@ -24,10 +24,14 @@ import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
 import android.hardware.wifi.V1_0.IWifiStaIfaceEventCallback;
 import android.hardware.wifi.V1_0.IfaceType;
+import android.hardware.wifi.V1_0.StaBackgroundScanBucketEventReportSchemeMask;
+import android.hardware.wifi.V1_0.StaBackgroundScanBucketParameters;
+import android.hardware.wifi.V1_0.StaBackgroundScanParameters;
 import android.hardware.wifi.V1_0.StaRoamingConfig;
 import android.hardware.wifi.V1_0.StaRoamingState;
 import android.hardware.wifi.V1_0.StaScanData;
 import android.hardware.wifi.V1_0.StaScanResult;
+import android.hardware.wifi.V1_0.WifiBand;
 import android.hardware.wifi.V1_0.WifiDebugHostWakeReasonStats;
 import android.hardware.wifi.V1_0.WifiDebugPacketFateFrameType;
 import android.hardware.wifi.V1_0.WifiDebugRingBufferFlags;
@@ -249,49 +253,239 @@ public class WifiVendorHal {
      * @return true for success. false for failure
      */
     public boolean getScanCapabilities(WifiNative.ScanCapabilities capabilities) {
-        kilroy();
-        throw new UnsupportedOperationException();
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return false;
+            try {
+                MutableBoolean ok = new MutableBoolean(false);
+                WifiNative.ScanCapabilities out = capabilities;
+                mIWifiStaIface.getBackgroundScanCapabilities((status, cap) -> {
+                            kilroy();
+                            if (status.code != WifiStatusCode.SUCCESS) return;
+                            out.max_scan_cache_size = cap.maxCacheSize;
+                            out.max_ap_cache_per_scan = cap.maxApCachePerScan;
+                            out.max_scan_buckets = cap.maxBuckets;
+                            out.max_rssi_sample_size = 0;
+                            out.max_scan_reporting_threshold = cap.maxReportingThreshold;
+                            out.max_hotlist_bssids = 0;
+                            out.max_significant_wifi_change_aps = 0;
+                            out.max_bssid_history_entries = 0;
+                            out.max_number_epno_networks = 0;
+                            out.max_number_epno_networks_by_ssid = 0;
+                            out.max_number_of_white_listed_ssid = 0;
+                            ok.value = true;
+                        }
+                );
+                return ok.value;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return false;
+            }
+        }
     }
 
     /**
-     * to be implemented
+     * Holds the current background scan state, to implement pause and restart
+     */
+    @VisibleForTesting
+    class CurrentBackgroundScan {
+        public int cmdId;
+        public StaBackgroundScanParameters param;
+        public WifiNative.ScanEventHandler eventHandler = null;
+        public boolean paused = false;
+
+        CurrentBackgroundScan(int id, WifiNative.ScanSettings settings) {
+            cmdId = id;
+            param = new StaBackgroundScanParameters();
+            param.basePeriodInMs = settings.base_period_ms;
+            param.maxApPerScan = settings.max_ap_per_scan;
+            param.reportThresholdPercent = settings.report_threshold_percent;
+            param.reportThresholdNumScans = settings.report_threshold_num_scans;
+            for (WifiNative.BucketSettings bs : settings.buckets) {
+                param.buckets.add(makeStaBackgroundScanBucketParametersFromBucketSettings(bs));
+            }
+        }
+    }
+
+    /**
+     * Makes the Hal flavor of WifiNative.BucketSettings
+     * @param bs WifiNative.BucketSettings
+     * @return Hal flavor of bs
+     * @throws IllegalArgumentException if band value is not recognized
+     */
+    private StaBackgroundScanBucketParameters
+            makeStaBackgroundScanBucketParametersFromBucketSettings(WifiNative.BucketSettings bs) {
+        StaBackgroundScanBucketParameters pa = new StaBackgroundScanBucketParameters();
+        pa.band = makeWifiBandFromFrameworkBand(bs.band);
+        if (bs.channels != null) {
+            for (WifiNative.ChannelSettings cs : bs.channels) {
+                pa.frequencies.add(cs.frequency);
+            }
+        }
+        pa.periodInMs = bs.period_ms;
+        pa.eventReportScheme = makeReportSchemeFromBucketSettingsReportEvents(bs.report_events);
+        pa.exponentialMaxPeriodInMs = bs.max_period_ms;
+        // Although HAL API allows configurable base value for the truncated
+        // exponential back off scan. Native API and above support only
+        // truncated binary exponential back off scan.
+        // Hard code value of base to 2 here.
+        pa.exponentialBase = 2;
+        pa.exponentialStepCount = bs.step_count;
+        return pa;
+    }
+
+    /**
+     * Makes the Hal flavor of WifiScanner's band indication
+     * @param frameworkBand one of WifiScanner.WIFI_BAND_*
+     * @return A WifiBand value
+     * @throws IllegalArgumentException if frameworkBand is not recognized
+     */
+    private int makeWifiBandFromFrameworkBand(int frameworkBand) {
+        switch (frameworkBand) {
+            case WifiScanner.WIFI_BAND_UNSPECIFIED:
+                return WifiBand.BAND_UNSPECIFIED;
+            case WifiScanner.WIFI_BAND_24_GHZ:
+                return WifiBand.BAND_24GHZ;
+            case WifiScanner.WIFI_BAND_5_GHZ:
+                return WifiBand.BAND_5GHZ;
+            case WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY:
+                return WifiBand.BAND_5GHZ_DFS;
+            case WifiScanner.WIFI_BAND_5_GHZ_WITH_DFS:
+                return WifiBand.BAND_5GHZ_WITH_DFS;
+            case WifiScanner.WIFI_BAND_BOTH:
+                return WifiBand.BAND_24GHZ_5GHZ;
+            case WifiScanner.WIFI_BAND_BOTH_WITH_DFS:
+                return WifiBand.BAND_24GHZ_5GHZ_WITH_DFS;
+            default:
+                throw new IllegalArgumentException("bad band " + frameworkBand);
+        }
+    }
+
+    /**
+     * Makes the Hal flavor of WifiScanner's report event mask
+     *
+     * @param reportUnderscoreEvents is logical OR of WifiScanner.REPORT_EVENT_* values
+     * @return Corresponding StaBackgroundScanBucketEventReportSchemeMask value
+     * @throws IllegalArgumentException if a mask bit is not recognized
+     */
+    private int makeReportSchemeFromBucketSettingsReportEvents(int reportUnderscoreEvents) {
+        int ans = 0;
+        BitMask in = new BitMask(reportUnderscoreEvents);
+        if (in.testAndClear(WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN)) {
+            ans |= StaBackgroundScanBucketEventReportSchemeMask.EACH_SCAN;
+        }
+        if (in.testAndClear(WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT)) {
+            ans |= StaBackgroundScanBucketEventReportSchemeMask.FULL_RESULTS;
+        }
+        if (in.testAndClear(WifiScanner.REPORT_EVENT_NO_BATCH)) {
+            ans |= StaBackgroundScanBucketEventReportSchemeMask.NO_BATCH;
+        }
+        if (in.value != 0) throw new IllegalArgumentException("bad " + reportUnderscoreEvents);
+        return ans;
+    }
+
+    private int mLastScanCmdId; // For assigning cmdIds to scans
+
+    @VisibleForTesting
+    CurrentBackgroundScan mScan = null;
+
+    /**
+     * Starts a background scan
+     *
+     * Any ongoing scan will be stopped first
+     *
+     * @param settings to control the scan
+     * @param eventHandler to call with the results
+     * @return true for success
      */
     public boolean startScan(WifiNative.ScanSettings settings,
                              WifiNative.ScanEventHandler eventHandler) {
+        WifiStatus status;
         kilroy();
-        throw new UnsupportedOperationException();
+        if (eventHandler == null) return false;
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return false;
+            try {
+                if (mScan != null && !mScan.paused) {
+                    status = mIWifiStaIface.stopBackgroundScan(mScan.cmdId);
+                    if (status.code != WifiStatusCode.SUCCESS) {
+                        kilroy();
+                    }
+                    mScan = null;
+                }
+                mLastScanCmdId = (mLastScanCmdId % 9) + 1; // cycle through non-zero single digits
+                CurrentBackgroundScan scan = new CurrentBackgroundScan(mLastScanCmdId, settings);
+                status = mIWifiStaIface.startBackgroundScan(scan.cmdId, scan.param);
+                if (status.code != WifiStatusCode.SUCCESS) return false;
+                kilroy();
+                scan.eventHandler = eventHandler;
+                mScan = scan;
+                return true;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return false;
+            }
+        }
     }
 
+
     /**
-     * to be implemented
+     * Stops any ongoing backgound scan
      */
     public void stopScan() {
-        kilroy();
-        throw new UnsupportedOperationException();
+        WifiStatus status;
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return;
+            try {
+                if (mScan != null) {
+                    mIWifiStaIface.stopBackgroundScan(mScan.cmdId);
+                    mScan = null;
+                }
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+            }
+        }
     }
 
     /**
-     * to be implemented
+     * Pauses an ongoing backgound scan
      */
     public void pauseScan() {
+        WifiStatus status;
         kilroy();
-        throw new UnsupportedOperationException();
+        synchronized (sLock) {
+            try {
+                if (mIWifiStaIface == null) return;
+                if (mScan != null && !mScan.paused) {
+                    status = mIWifiStaIface.stopBackgroundScan(mScan.cmdId);
+                    if (status.code != WifiStatusCode.SUCCESS) return;
+                    kilroy();
+                    mScan.paused = true;
+                }
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+            }
+        }
     }
 
     /**
-     * to be implemented
+     * Restarts a paused scan
      */
     public void restartScan() {
+        WifiStatus status;
         kilroy();
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * to be implemented
-     */
-    public WifiScanner.ScanData[] getScanResults(boolean flush) {
-        kilroy();
-        throw new UnsupportedOperationException();
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return;
+            try {
+                if (mScan != null && mScan.paused) {
+                    status = mIWifiStaIface.startBackgroundScan(mScan.cmdId, mScan.param);
+                    if (status.code != WifiStatusCode.SUCCESS) return;
+                    kilroy();
+                    mScan.paused = false;
+                }
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+            }
+        }
     }
 
     /**
@@ -568,19 +762,67 @@ public class WifiVendorHal {
     }
 
     /**
-     * not supported
+     * Query the list of valid frequencies for the provided band.
+     *
+     * The result depends on the on the country code that has been set.
+     *
+     * @param band as specified by one of the WifiScanner.WIFI_BAND_* constants.
+     * @return frequencies vector of valid frequencies (MHz), or null for error.
+     * @throws IllegalArgumentException if band is not recognized.
      */
     public int[] getChannelsForBand(int band) {
         kilroy();
-        throw new UnsupportedOperationException();
+        class AnswerBox {
+            public int[] value = null;
+        }
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return null;
+            try {
+                AnswerBox box = new AnswerBox();
+                int hb = makeWifiBandFromFrameworkBand(band);
+                mIWifiStaIface.getValidFrequenciesForBand(hb, (status, frequencies) -> {
+                    if (status.code == WifiStatusCode.ERROR_NOT_SUPPORTED) {
+                        kilroy();
+                        mChannelsForBandSupport = false;
+                    }
+                    if (status.code != WifiStatusCode.SUCCESS) return;
+                    mChannelsForBandSupport = true;
+                    kilroy();
+                    box.value = intArrayFromArrayList(frequencies);
+                });
+                return box.value;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return null;
+            }
+        }
+    }
+
+    private int[] intArrayFromArrayList(ArrayList<Integer> in) {
+        int[] ans = new int[in.size()];
+        int i = 0;
+        for (Integer e : in) ans[i++] = e;
+        return ans;
     }
 
     /**
-     * not supported
+     * This holder is null until we know whether or not there is frequency-for-band support.
+     *
+     * Set as a side-effect of getChannelsForBand.
+     */
+    @VisibleForTesting
+    Boolean mChannelsForBandSupport = null;
+
+    /**
+     * Indicates whether getChannelsForBand is supported.
+     *
+     * @return true if it is.
      */
     public boolean isGetChannelsForBandSupported() {
-        kilroy();
-        throw new UnsupportedOperationException();
+        if (mChannelsForBandSupport != null) return mChannelsForBandSupport;
+        getChannelsForBand(WifiBand.BAND_24GHZ);
+        if (mChannelsForBandSupport != null) return mChannelsForBandSupport;
+        return false;
     }
 
     /**
@@ -590,8 +832,7 @@ public class WifiVendorHal {
      * @return success indication
      */
     public boolean setDfsFlag(boolean dfsOn) {
-        kilroy();
-        throw new UnsupportedOperationException();
+        return dfsOn;
     }
 
     /**
