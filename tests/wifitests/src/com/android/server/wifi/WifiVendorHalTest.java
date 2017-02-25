@@ -54,6 +54,7 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.stubbing.Answer;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -82,8 +83,14 @@ public class WifiVendorHalTest {
     private IWifiStaIface mIWifiStaIface;
     @Mock
     private IWifiRttController mIWifiRttController;
-    @Mock
-    private IWifiStaIfaceEventCallback mIWifistaIfaceEventCallback;
+    private IWifiStaIfaceEventCallback mIWifiStaIfaceEventCallback;
+
+    /**
+     * Identity function to supply a type to its argument, which is a lambda
+     */
+    static Answer<WifiStatus> answerWifiStatus(Answer<WifiStatus> statusLambda) {
+        return (statusLambda);
+    }
 
     /**
      * Sets up for unit test
@@ -127,8 +134,13 @@ public class WifiVendorHalTest {
                 .thenReturn(mIWifiRttController);
         when(mIWifiChip.registerEventCallback(any(IWifiChipEventCallback.class)))
                 .thenReturn(mWifiStatusSuccess);
+        mIWifiStaIfaceEventCallback = null;
         when(mIWifiStaIface.registerEventCallback(any(IWifiStaIfaceEventCallback.class)))
-                .thenReturn(mWifiStatusSuccess);
+                .thenAnswer(answerWifiStatus((invocation) -> {
+                    Object[] args = invocation.getArguments();
+                    mIWifiStaIfaceEventCallback = (IWifiStaIfaceEventCallback) args[0];
+                    return (mWifiStatusSuccess);
+                }));
         // Create the vendor HAL object under test.
         mWifiVendorHal = new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread);
 
@@ -523,6 +535,42 @@ public class WifiVendorHalTest {
         assertTrue(0 == mWifiVendorHal.stopSendingOffloadedPacket(slot));
 
         verify(mIWifiStaIface).stopSendingKeepAlivePackets(eq(slot));
+    }
+
+    /**
+     * Test the setup, invocation, and removal of a RSSI event handler
+     *
+     */
+    @Test
+    public void testRssiMonitoring() throws Exception {
+        when(mIWifiStaIface.startRssiMonitoring(anyInt(), anyInt(), anyInt()))
+                .thenReturn(mWifiStatusSuccess);
+        when(mIWifiStaIface.stopRssiMonitoring(anyInt()))
+                .thenReturn(mWifiStatusSuccess);
+
+        ArrayList<Byte> breach = new ArrayList<>(10);
+        byte hi = -21;
+        byte med = -42;
+        byte lo = -84;
+        Byte lower = -88;
+        WifiNative.WifiRssiEventHandler handler;
+        handler = ((cur) -> {
+            breach.add(cur);
+        });
+        assertEquals(-1, mWifiVendorHal.startRssiMonitoring(hi, lo, handler)); // not started
+        assertEquals(-1, mWifiVendorHal.stopRssiMonitoring()); // not started
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertEquals(0, mWifiVendorHal.startRssiMonitoring(hi, lo, handler));
+        int theCmdId = mWifiVendorHal.sRssiMonCmdId;
+        breach.clear();
+        mIWifiStaIfaceEventCallback.onRssiThresholdBreached(theCmdId, new byte[6], lower);
+        assertEquals(breach.get(0), lower);
+        assertEquals(0, mWifiVendorHal.stopRssiMonitoring());
+        assertEquals(0, mWifiVendorHal.startRssiMonitoring(hi, lo, handler));
+        assertEquals(0, mWifiVendorHal.startRssiMonitoring(med, lo, handler)); // replacing works
+        assertEquals(-1, mWifiVendorHal.startRssiMonitoring(hi, lo, null)); // null handler fails
+        assertEquals(0, mWifiVendorHal.startRssiMonitoring(hi, lo, handler));
+        assertEquals(-1, mWifiVendorHal.startRssiMonitoring(lo, hi, handler)); // empty range
     }
 
     /**
