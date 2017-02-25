@@ -72,7 +72,6 @@ import java.util.regex.Pattern;
  */
 public class SupplicantStaIfaceHal {
     private static final String TAG = "SupplicantStaIfaceHal";
-    private static final String SERVICE_MANAGER_NAME = "manager";
     /**
      * Regex pattern for extracting the wps device type bytes.
      * Matches a strings like the following: "<categ>-<OUI>-<subcateg>";
@@ -334,7 +333,7 @@ public class SupplicantStaIfaceHal {
      * Wrapper functions to access static HAL methods, created to be mockable in unit tests
      */
     protected IServiceManager getServiceManagerMockable() throws RemoteException {
-        return IServiceManager.getService(SERVICE_MANAGER_NAME);
+        return IServiceManager.getService();
     }
 
     protected ISupplicant getSupplicantMockable() throws RemoteException {
