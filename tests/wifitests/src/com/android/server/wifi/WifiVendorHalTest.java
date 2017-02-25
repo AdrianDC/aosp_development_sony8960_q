@@ -25,6 +25,7 @@ import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
 import android.hardware.wifi.V1_0.IWifiStaIfaceEventCallback;
 import android.hardware.wifi.V1_0.StaApfPacketFilterCapabilities;
+import android.hardware.wifi.V1_0.StaBackgroundScanCapabilities;
 import android.hardware.wifi.V1_0.WifiDebugHostWakeReasonStats;
 import android.hardware.wifi.V1_0.WifiDebugPacketFateFrameType;
 import android.hardware.wifi.V1_0.WifiDebugRingBufferFlags;
@@ -386,6 +387,102 @@ public class WifiVendorHalTest {
 
         verify(mHalDeviceManager, never()).createStaIface(eq(null), eq(null));
         verify(mHalDeviceManager, never()).createRttController(any(IWifiIface.class));
+    }
+
+    /**
+     * Test that getApfCapabilities is hooked up to the HAL correctly
+     *
+     * A call before the vendor HAL is started should return a non-null result with version 0
+     *
+     * A call after the HAL is started should return the mocked values.
+     */
+    @Test
+    public void testGetScanCapabilities() throws Exception {
+        StaBackgroundScanCapabilities capabilities = new StaBackgroundScanCapabilities();
+        capabilities.maxCacheSize = 12;
+        capabilities.maxBuckets = 34;
+        capabilities.maxApCachePerScan = 56;
+        capabilities.maxReportingThreshold = 78;
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiStaIface.getBackgroundScanCapabilitiesCallback cb)
+                    throws RemoteException {
+                cb.onValues(mWifiStatusSuccess, capabilities);
+            }
+        }).when(mIWifiStaIface).getBackgroundScanCapabilities(any(
+                IWifiStaIface.getBackgroundScanCapabilitiesCallback.class));
+
+        WifiNative.ScanCapabilities result = new WifiNative.ScanCapabilities();
+
+        assertFalse(mWifiVendorHal.getScanCapabilities(result));  // should fail - not started
+        assertTrue(mWifiVendorHal.startVendorHalSta());           // Start the vendor hal
+        assertTrue(mWifiVendorHal.getScanCapabilities(result));   // should succeed
+
+        assertEquals(12, result.max_scan_cache_size);
+        assertEquals(34, result.max_scan_buckets);
+        assertEquals(56, result.max_ap_cache_per_scan);
+        assertEquals(78, result.max_scan_reporting_threshold);
+    }
+
+    private void setupValidFrequenciesForBand(ArrayList<Integer> frequencies) throws Exception {
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(int band, IWifiStaIface.getValidFrequenciesForBandCallback cb)
+                    throws RemoteException {
+                cb.onValues(mWifiStatusSuccess, frequencies);
+            }
+        }).when(mIWifiStaIface).getValidFrequenciesForBand(anyInt(), any(
+                IWifiStaIface.getValidFrequenciesForBandCallback.class));
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(int band, IWifiApIface.getValidFrequenciesForBandCallback cb)
+                    throws RemoteException {
+                cb.onValues(mWifiStatusSuccess, frequencies);
+            }
+        }).when(mIWifiApIface).getValidFrequenciesForBand(anyInt(), any(
+                IWifiApIface.getValidFrequenciesForBandCallback.class));
+
+    }
+
+    private int[] intArrayFromArrayList(ArrayList<Integer> in) {
+        int[] ans = new int[in.size()];
+        int i = 0;
+        for (Integer e : in) ans[i++] = e;
+        return ans;
+    }
+
+    /**
+     * Test that isGetChannelsForBandSupported works in STA mode
+     */
+    @Test
+    public void testGetChannelsForBandSupportedSta() throws Exception {
+        ArrayList<Integer> freq = new ArrayList<>();
+        freq.add(2405);
+
+        setupValidFrequenciesForBand(freq);
+
+        assertFalse(mWifiVendorHal.isGetChannelsForBandSupported());
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+
+        assertTrue(mWifiVendorHal.isGetChannelsForBandSupported());
+    }
+
+    /**
+     * Test that isGetChannelsForBandSupported works in AP mode
+     */
+    @Test
+    public void testGetChannelsForBandSupportedAp() throws Exception {
+        ArrayList<Integer> freq = new ArrayList<>();
+        freq.add(2405);
+
+        setupValidFrequenciesForBand(freq);
+
+        assertFalse(mWifiVendorHal.isGetChannelsForBandSupported());
+
+        assertTrue(mWifiVendorHal.startVendorHalAp());
+
+        assertTrue(mWifiVendorHal.isGetChannelsForBandSupported());
     }
 
     /**
