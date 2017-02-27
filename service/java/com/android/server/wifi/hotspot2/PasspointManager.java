@@ -35,7 +35,6 @@ import android.util.Log;
 import android.util.Pair;
 
 import com.android.server.wifi.Clock;
-import com.android.server.wifi.IMSIParameter;
 import com.android.server.wifi.SIMAccessor;
 import com.android.server.wifi.ScanDetail;
 import com.android.server.wifi.WifiConfigManager;
@@ -212,15 +211,6 @@ public class PasspointManager {
         if (!config.validate()) {
             Log.e(TAG, "Invalid configuration");
             return false;
-        }
-
-        // Verify IMSI against the IMSI of the installed SIM cards for SIM credential.
-        if (config.getCredential().getSimCredential() != null) {
-            if (mSimAccessor.getMatchingImsis(IMSIParameter.build(
-                    config.getCredential().getSimCredential().getImsi())) == null) {
-                Log.e(TAG, "IMSI does not match any SIM card");
-                return false;
-            }
         }
 
         // Create a provider and install the necessary certificates and keys.

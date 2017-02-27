@@ -402,7 +402,6 @@ public class PasspointManagerTest {
     @Test
     public void addRemoveProviderWithValidSimCredential() throws Exception {
         PasspointConfiguration config = createTestConfigWithSimCredential();
-        when(mSimAccessor.getMatchingImsis(TEST_IMSI_PARAM)).thenReturn(new ArrayList<String>());
         PasspointProvider provider = createMockProvider(config);
         when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
                 eq(mSimAccessor), anyLong())).thenReturn(provider);
@@ -431,19 +430,6 @@ public class PasspointManagerTest {
     }
 
     /**
-     * Verify that adding a provider with an invalid SIM credential (configured IMSI doesn't
-     * match the IMSI of the installed SIM cards) will fail.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void addProviderWithValidSimCredentialWithInvalidIMSI() throws Exception {
-        PasspointConfiguration config = createTestConfigWithSimCredential();
-        when(mSimAccessor.getMatchingImsis(TEST_IMSI_PARAM)).thenReturn(null);
-        assertFalse(mManager.addOrUpdateProvider(config));
-    }
-
-    /**
      * Verify that adding a provider with the same base domain as the existing provider will
      * succeed, and verify that the existing provider is replaced by the new provider with
      * the new configuration.
@@ -454,7 +440,6 @@ public class PasspointManagerTest {
     public void addProviderWithExistingConfig() throws Exception {
         // Add a provider with the original configuration.
         PasspointConfiguration origConfig = createTestConfigWithSimCredential();
-        when(mSimAccessor.getMatchingImsis(TEST_IMSI_PARAM)).thenReturn(new ArrayList<String>());
         PasspointProvider origProvider = createMockProvider(origConfig);
         when(mObjectFactory.makePasspointProvider(eq(origConfig), eq(mWifiKeyStore),
                 eq(mSimAccessor), anyLong())).thenReturn(origProvider);
