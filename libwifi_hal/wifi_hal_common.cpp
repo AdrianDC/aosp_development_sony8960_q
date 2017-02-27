@@ -148,8 +148,9 @@ int wifi_load_driver() {
   }
 
   if (insmod(DRIVER_MODULE_PATH, DRIVER_MODULE_ARG) < 0) return -1;
+#endif
 
-#elif defined WIFI_DRIVER_STATE_CTRL_PARAM
+#ifdef WIFI_DRIVER_STATE_CTRL_PARAM
   if (is_wifi_driver_loaded()) {
     return 0;
   }
