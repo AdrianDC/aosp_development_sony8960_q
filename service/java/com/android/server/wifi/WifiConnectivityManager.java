@@ -30,6 +30,7 @@ import android.net.wifi.WifiScanner.ScanSettings;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.LocalLog;
+import android.util.Log;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
@@ -124,6 +125,9 @@ public class WifiConnectivityManager {
     private static final int SAVED_NETWORK_EVALUATOR_PRIORITY = 1;
     private static final int PASSPOINT_NETWORK_EVALUATOR_PRIORITY = 2;
     private static final int RECOMMENDED_NETWORK_EVALUATOR_PRIORITY = 3;
+
+    // Log tag for this class
+    private static final String TAG = "WifiConnectivityManager";
 
     private final WifiStateMachine mStateMachine;
     private final WifiScanner mScanner;
@@ -1030,7 +1034,16 @@ public class WifiConnectivityManager {
         localLog("setUserConnectChoice: netId=" + netId);
 
         mNetworkSelector.setUserConnectChoice(netId);
+    }
+
+    /**
+     * Handler to prepare for connection to a user or app specified network
+     */
+    public void prepareForForcedConnection(int netId) {
+        localLog("prepareForForcedConnection: netId=" + netId);
+
         clearConnectionAttemptTimeStamps();
+        clearBssidBlacklist();
     }
 
     /**
@@ -1059,7 +1072,7 @@ public class WifiConnectivityManager {
         }
 
         // Update the bssid's blacklist status when it is disabled because of
-        // assocation rejection.
+        // association rejection.
         BssidBlacklistStatus status = mBssidBlacklist.get(bssid);
         if (status == null) {
             // First time for this BSSID
@@ -1096,16 +1109,21 @@ public class WifiConnectivityManager {
             return false;
         }
 
-        boolean updated = updateBssidBlacklist(bssid, enable, reasonCode);
+        if (!updateBssidBlacklist(bssid, enable, reasonCode)) {
+            return false;
+        }
 
-        if (updated && !enable) {
-            // Disabling a BSSID can happen when the AP candidate to connect to has
-            // no capacity for new stations. We start another scan immediately so that
-            // WifiNetworkSelector can give us another candidate to connect to.
+        // Blacklist was updated, so update firmware roaming configuration.
+        updateFirmwareRoamingConfiguration();
+
+        if (!enable) {
+            // Disabling a BSSID can happen when connection to the AP was rejected.
+            // We start another scan immediately so that WifiNetworkSelector can
+            // give us another candidate to connect to.
             startConnectivityScan(SCAN_IMMEDIATELY);
         }
 
-        return updated;
+        return true;
     }
 
     /**
@@ -1132,12 +1150,52 @@ public class WifiConnectivityManager {
     }
 
     /**
+     * Update firmware roaming configuration if the firmware roaming feature is supported.
+     * Compile and write the BSSID blacklist only. TODO(b/36488259): SSID whitelist is always
+     * empty for now.
+     */
+    private void updateFirmwareRoamingConfiguration() {
+        if (!mConnectivityHelper.isFirmwareRoamingSupported()) {
+            return;
+        }
+
+        int maxBlacklistSize = mConnectivityHelper.getMaxNumBlacklistBssid();
+        if (maxBlacklistSize <= 0) {
+            Log.wtf(TAG, "Invalid max BSSID blacklist size:  " + maxBlacklistSize);
+            return;
+        }
+
+        ArrayList<String> blacklistedBssids = new ArrayList<String>(buildBssidBlacklist());
+        int blacklistSize = blacklistedBssids.size();
+
+        if (blacklistSize > maxBlacklistSize) {
+            Log.wtf(TAG, "Attempt to write " + blacklistSize + " blacklisted BSSIDs, max size is "
+                    + maxBlacklistSize);
+
+            blacklistedBssids = new ArrayList<String>(blacklistedBssids.subList(0,
+                    maxBlacklistSize));
+            localLog("Trim down BSSID blacklist size from " + blacklistSize + " to "
+                    + blacklistedBssids.size());
+        }
+
+        if (!mConnectivityHelper.setFirmwareRoamingConfiguration(blacklistedBssids,
+                new ArrayList<String>())) {  // TODO(b/36488259): SSID whitelist management.
+            localLog("Failed to set firmware roaming configuration.");
+        }
+    }
+
+    /**
      * Refresh the BSSID blacklist
      *
      * Go through the BSSID blacklist and check if a BSSID has been blacklisted for
      * BSSID_BLACKLIST_EXPIRE_TIME_MS. If yes, re-enable it.
      */
     private void refreshBssidBlacklist() {
+        if (mBssidBlacklist.isEmpty()) {
+            return;
+        }
+
+        boolean updated = false;
         Iterator<BssidBlacklistStatus> iter = mBssidBlacklist.values().iterator();
         Long currentTimeStamp = mClock.getElapsedSinceBootMillis();
 
@@ -1146,7 +1204,56 @@ public class WifiConnectivityManager {
             if (status.isBlacklisted && ((currentTimeStamp - status.blacklistedTimeStamp)
                     >= BSSID_BLACKLIST_EXPIRE_TIME_MS)) {
                 iter.remove();
+                updated = true;
             }
+        }
+
+        if (updated) {
+            updateFirmwareRoamingConfiguration();
+        }
+    }
+
+    /**
+     * Clear the BSSID blacklist
+     */
+    private void clearBssidBlacklist() {
+        mBssidBlacklist.clear();
+        updateFirmwareRoamingConfiguration();
+    }
+
+    /**
+     * Start WifiConnectivityManager
+     */
+    private void start() {
+        mConnectivityHelper.getFirmwareRoamingInfo();
+        clearBssidBlacklist();
+        startConnectivityScan(SCAN_IMMEDIATELY);
+    }
+
+    /**
+     * Stop and reset WifiConnectivityManager
+     */
+    private void stop() {
+        stopConnectivityScan();
+        clearBssidBlacklist();
+        resetLastPeriodicSingleScanTimeStamp();
+        mLastConnectionAttemptBssid = null;
+        mWaitForFullBandScanResults = false;
+    }
+
+    /**
+     * Update WifiConnectivityManager running state
+     *
+     * Start WifiConnectivityManager only if both Wifi and WifiConnectivityManager
+     * are enabled, otherwise stop it.
+     */
+    private void updateRunningState() {
+        if (mWifiEnabled && mWifiConnectivityManagerEnabled) {
+            localLog("Starting up WifiConnectivityManager");
+            start();
+        } else {
+            localLog("Stopping WifiConnectivityManager");
+            stop();
         }
     }
 
@@ -1157,16 +1264,8 @@ public class WifiConnectivityManager {
         localLog("Set WiFi " + (enable ? "enabled" : "disabled"));
 
         mWifiEnabled = enable;
+        updateRunningState();
 
-        if (!mWifiEnabled) {
-            stopConnectivityScan();
-            resetLastPeriodicSingleScanTimeStamp();
-            mLastConnectionAttemptBssid = null;
-            mWaitForFullBandScanResults = false;
-        } else if (mWifiConnectivityManagerEnabled) {
-            mConnectivityHelper.getFirmwareRoamingInfo();
-            startConnectivityScan(SCAN_IMMEDIATELY);
-        }
     }
 
     /**
@@ -1176,16 +1275,7 @@ public class WifiConnectivityManager {
         localLog("Set WiFiConnectivityManager " + (enable ? "enabled" : "disabled"));
 
         mWifiConnectivityManagerEnabled = enable;
-
-        if (!mWifiConnectivityManagerEnabled) {
-            stopConnectivityScan();
-            resetLastPeriodicSingleScanTimeStamp();
-            mLastConnectionAttemptBssid = null;
-            mWaitForFullBandScanResults = false;
-        } else if (mWifiEnabled) {
-            mConnectivityHelper.getFirmwareRoamingInfo();
-            startConnectivityScan(SCAN_IMMEDIATELY);
-        }
+        updateRunningState();
     }
 
     @VisibleForTesting
