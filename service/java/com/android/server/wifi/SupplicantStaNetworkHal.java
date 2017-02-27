@@ -57,16 +57,16 @@ public class SupplicantStaNetworkHal {
 
     /**
      * Regex pattern for extracting the GSM sim authentication response params from a string.
-     * Matches a strings like the following: "[:kc:<kc_value>:sres:<sres_value>]";
+     * Matches a strings like the following: "[:<kc_value>:<sres_value>]";
      */
     private static final Pattern GSM_AUTH_RESPONSE_PARAMS_PATTERN =
-            Pattern.compile(":kc:([0-9a-fA-F]+):sres:([0-9a-fA-F]+)");
+            Pattern.compile(":([0-9a-fA-F]+):([0-9a-fA-F]+)");
     /**
      * Regex pattern for extracting the UMTS sim authentication response params from a string.
-     * Matches a strings like the following: ":ik:<ik_value>:ck:<ck_value>:res:<res_value>";
+     * Matches a strings like the following: ":<ik_value>:<ck_value>:<res_value>";
      */
     private static final Pattern UMTS_AUTH_RESPONSE_PARAMS_PATTERN =
-            Pattern.compile("^:ik:([0-9a-fA-F]+):ck:([0-9a-fA-F]+):res:([0-9a-fA-F]+)$");
+            Pattern.compile("^:([0-9a-fA-F]+):([0-9a-fA-F]+):([0-9a-fA-F]+)$");
     /**
      * Regex pattern for extracting the UMTS sim auts response params from a string.
      * Matches a strings like the following: ":<auts_value>";
@@ -2367,9 +2367,9 @@ public class SupplicantStaNetworkHal {
                 ISupplicantStaNetworkCallback.NetworkRequestEapSimUmtsAuthParams params) {
             logCallback("onNetworkEapSimUmtsAuthRequest");
             synchronized (mLock) {
-                String autnHex = NativeUtil.hexStringFromByteArray(params.autn);
                 String randHex = NativeUtil.hexStringFromByteArray(params.rand);
-                String[] data = {autnHex, randHex};
+                String autnHex = NativeUtil.hexStringFromByteArray(params.autn);
+                String[] data = {randHex, autnHex};
                 mWifiMonitor.broadcastNetworkUmtsAuthRequestEvent(
                         mIfaceName, mFramewokNetworkId, mSsid, data);
             }

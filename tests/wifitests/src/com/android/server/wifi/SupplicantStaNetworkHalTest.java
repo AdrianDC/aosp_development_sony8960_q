@@ -356,10 +356,10 @@ public class SupplicantStaNetworkHalTest {
         final byte[] kc = new byte[]{0x45, 0x45, 0x32, 0x34, 0x45, 0x10, 0x34, 0x12};
         final byte[] sres = new byte[]{0x12, 0x10, 0x32, 0x23};
         // Send 2 kc/sres pair for this request.
-        String paramsStr = ":kc:" + NativeUtil.hexStringFromByteArray(kc)
-                + ":sres:" + NativeUtil.hexStringFromByteArray(sres)
-                + ":kc:" + NativeUtil.hexStringFromByteArray(kc)
-                + ":sres:" + NativeUtil.hexStringFromByteArray(sres);
+        String paramsStr = ":" + NativeUtil.hexStringFromByteArray(kc)
+                + ":" + NativeUtil.hexStringFromByteArray(sres)
+                + ":" + NativeUtil.hexStringFromByteArray(kc)
+                + ":" + NativeUtil.hexStringFromByteArray(sres);
 
         doAnswer(new AnswerWithArguments() {
             public SupplicantStatus answer(
@@ -389,12 +389,12 @@ public class SupplicantStaNetworkHalTest {
         final byte[] kc3 = new byte[]{0x25, 0x34, 0x12, 0x14, 0x45, 0x10, 0x34, 0x12};
         final byte[] sres3 = new byte[]{0x42, 0x23, 0x22, 0x23};
         // Send 3 kc/sres pair for this request.
-        String paramsStr = ":kc:" + NativeUtil.hexStringFromByteArray(kc1)
-                + ":sres:" + NativeUtil.hexStringFromByteArray(sres1)
-                + ":kc:" + NativeUtil.hexStringFromByteArray(kc2)
-                + ":sres:" + NativeUtil.hexStringFromByteArray(sres2)
-                + ":kc:" + NativeUtil.hexStringFromByteArray(kc3)
-                + ":sres:" + NativeUtil.hexStringFromByteArray(sres3);
+        String paramsStr = ":" + NativeUtil.hexStringFromByteArray(kc1)
+                + ":" + NativeUtil.hexStringFromByteArray(sres1)
+                + ":" + NativeUtil.hexStringFromByteArray(kc2)
+                + ":" + NativeUtil.hexStringFromByteArray(sres2)
+                + ":" + NativeUtil.hexStringFromByteArray(kc3)
+                + ":" + NativeUtil.hexStringFromByteArray(sres3);
 
         doAnswer(new AnswerWithArguments() {
             public SupplicantStatus answer(
@@ -424,10 +424,10 @@ public class SupplicantStaNetworkHalTest {
         final byte[] kc2 = new byte[]{0x45, 0x34, 0x12, 0x34, 0x45, 0x10, 0x34, 0x12};
         final byte[] sres2 = new byte[]{0x12, 0x23, 0x12, 0x23};
         // Send 2 kc/sres pair for this request.
-        String paramsStr = ":kc:" + NativeUtil.hexStringFromByteArray(kc1)
-                + ":sres:" + NativeUtil.hexStringFromByteArray(sres1)
-                + ":kc:" + NativeUtil.hexStringFromByteArray(kc2)
-                + ":sres:" + NativeUtil.hexStringFromByteArray(sres2);
+        String paramsStr = ":" + NativeUtil.hexStringFromByteArray(kc1)
+                + ":" + NativeUtil.hexStringFromByteArray(sres1)
+                + ":" + NativeUtil.hexStringFromByteArray(kc2)
+                + ":" + NativeUtil.hexStringFromByteArray(sres2);
 
         doAnswer(new AnswerWithArguments() {
             public SupplicantStatus answer(
@@ -448,8 +448,8 @@ public class SupplicantStaNetworkHalTest {
         final byte[] kc = new byte[]{0x45, 0x34, 0x12, 0x34, 0x45, 0x10, 0x34, 0x12};
         final byte[] sres = new byte[]{0x12, 0x23, 0x12, 0x23};
         // Send 1 kc/sres pair for this request.
-        String paramsStr = ":kc:" + NativeUtil.hexStringFromByteArray(kc)
-                + ":sres:" + NativeUtil.hexStringFromByteArray(sres);
+        String paramsStr = ":" + NativeUtil.hexStringFromByteArray(kc)
+                + ":" + NativeUtil.hexStringFromByteArray(sres);
 
         doAnswer(new AnswerWithArguments() {
             public SupplicantStatus answer(
@@ -472,9 +472,9 @@ public class SupplicantStaNetworkHalTest {
         final byte[] ck = new byte[]{0x12, 0x10, 0x32, 0x23, 0x45, 0x10, 0x34, 0x12, 0x23, 0x34,
                 0x33, 0x23, 0x34, 0x10, 0x40, 0x34};
         final byte[] res = new byte[]{0x12, 0x10, 0x32, 0x23, 0x45, 0x10, 0x34, 0x12, 0x23, 0x34};
-        String paramsStr = ":ik:" + NativeUtil.hexStringFromByteArray(ik)
-                + ":ck:" + NativeUtil.hexStringFromByteArray(ck)
-                + ":res:" + NativeUtil.hexStringFromByteArray(res);
+        String paramsStr = ":" + NativeUtil.hexStringFromByteArray(ik)
+                + ":" + NativeUtil.hexStringFromByteArray(ck)
+                + ":" + NativeUtil.hexStringFromByteArray(res);
 
         doAnswer(new AnswerWithArguments() {
             public SupplicantStatus answer(
@@ -505,9 +505,9 @@ public class SupplicantStaNetworkHalTest {
         final byte[] ck = new byte[]{0x12, 0x10, 0x32, 0x23, 0x45, 0x10, 0x34, 0x12, 0x23, 0x34,
                 0x33, 0x23, 0x34, 0x10, 0x40};
         final byte[] res = new byte[]{0x12, 0x10, 0x32, 0x23, 0x45, 0x10, 0x34, 0x12, 0x23, 0x34};
-        String paramsStr = ":ik:" + NativeUtil.hexStringFromByteArray(ik)
-                + ":ck:" + NativeUtil.hexStringFromByteArray(ck)
-                + ":res:" + NativeUtil.hexStringFromByteArray(res);
+        String paramsStr = ":" + NativeUtil.hexStringFromByteArray(ik)
+                + ":" + NativeUtil.hexStringFromByteArray(ck)
+                + ":" + NativeUtil.hexStringFromByteArray(res);
 
         doAnswer(new AnswerWithArguments() {
             public SupplicantStatus answer(
@@ -702,8 +702,8 @@ public class SupplicantStaNetworkHalTest {
         random.nextBytes(params.rand);
 
         String[] expectedRands = {
-                NativeUtil.hexStringFromByteArray(params.autn),
-                NativeUtil.hexStringFromByteArray(params.rand)
+                NativeUtil.hexStringFromByteArray(params.rand),
+                NativeUtil.hexStringFromByteArray(params.autn)
         };
 
         mISupplicantStaNetworkCallback.onNetworkEapSimUmtsAuthRequest(params);
