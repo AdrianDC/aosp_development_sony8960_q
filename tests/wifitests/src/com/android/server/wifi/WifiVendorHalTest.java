@@ -24,6 +24,8 @@ import android.hardware.wifi.V1_0.IWifiIface;
 import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiStaIface;
 import android.hardware.wifi.V1_0.IWifiStaIfaceEventCallback;
+import android.hardware.wifi.V1_0.RttCapabilities;
+import android.hardware.wifi.V1_0.RttConfig;
 import android.hardware.wifi.V1_0.StaApfPacketFilterCapabilities;
 import android.hardware.wifi.V1_0.StaBackgroundScanCapabilities;
 import android.hardware.wifi.V1_0.WifiDebugHostWakeReasonStats;
@@ -38,6 +40,7 @@ import android.hardware.wifi.V1_0.WifiDebugTxPacketFateReport;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.apf.ApfCapabilities;
+import android.net.wifi.RttManager;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.HandlerThread;
@@ -579,6 +582,130 @@ public class WifiVendorHalTest {
         assertEquals(firmwareVersion, mWifiVendorHal.getFirmwareVersion());
         assertEquals(driverVersion, mWifiVendorHal.getDriverVersion());
     }
+
+    /**
+     * For checkRoundTripIntTranslation lambdas
+     */
+    interface IntForInt {
+        int translate(int value);
+    }
+
+    /**
+     * Checks that translation from x to y and back again is the identity function
+     *
+     * @param xFromY reverse translator
+     * @param yFromX forward translator
+     * @param xLimit non-inclusive upper bound on x (lower bound is zero)
+     */
+    private void checkRoundTripIntTranslation(
+            IntForInt xFromY, IntForInt yFromX, int xFirst, int xLimit) throws Exception {
+        int ex = 0;
+        for (int i = xFirst; i < xLimit; i++) {
+            assertEquals(i, xFromY.translate(yFromX.translate(i)));
+        }
+        try {
+            yFromX.translate(xLimit);
+            assertTrue("expected an exception here", false);
+        } catch (IllegalArgumentException e) {
+            ex++;
+        }
+        try {
+            xFromY.translate(yFromX.translate(xLimit - 1) + 1);
+            assertTrue("expected an exception here", false);
+        } catch (IllegalArgumentException e) {
+            ex++;
+        }
+        assertEquals(2, ex);
+    }
+
+
+    /**
+     * Test translations of RTT type
+     */
+    @Test
+    public void testRttTypeTranslation() throws Exception {
+        checkRoundTripIntTranslation(
+                (y) -> WifiVendorHal.halRttTypeFromFrameworkRttType(y),
+                (x) -> WifiVendorHal.frameworkRttTypeFromHalRttType(x),
+                1, 3);
+    }
+
+    /**
+     * Test translations of peer type
+     */
+    @Test
+    public void testPeerTranslation() throws Exception {
+        checkRoundTripIntTranslation(
+                (y) -> WifiVendorHal.halPeerFromFrameworkPeer(y),
+                (x) -> WifiVendorHal.frameworkPeerFromHalPeer(x),
+                1, 6);
+    }
+
+    /**
+     * Test translations of channel width
+     */
+    @Test
+    public void testChannelWidth() throws Exception {
+        checkRoundTripIntTranslation(
+                (y) -> WifiVendorHal.halChannelWidthFromFrameworkChannelWidth(y),
+                (x) -> WifiVendorHal.frameworkChannelWidthFromHalChannelWidth(x),
+                0, 5);
+    }
+
+    /**
+     * Test translations of preamble type mask
+     */
+    @Test
+    public void testPreambleTranslation() throws Exception {
+        checkRoundTripIntTranslation(
+                (y) -> WifiVendorHal.halPreambleFromFrameworkPreamble(y),
+                (x) -> WifiVendorHal.frameworkPreambleFromHalPreamble(x),
+                0, 8);
+    }
+
+    /**
+     * Test translations of bandwidth mask
+     */
+    @Test
+    public void testBandwidthTranslations() throws Exception {
+        checkRoundTripIntTranslation(
+                (y) -> WifiVendorHal.halBwFromFrameworkBw(y),
+                (x) -> WifiVendorHal.frameworkBwFromHalBw(x),
+                0, 64);
+    }
+
+    @Test
+    public void testGetRttStuff() throws Exception {
+        RttManager.RttParams params = new RttManager.RttParams();
+        //TODO(b/34901744) populate
+        RttConfig config = WifiVendorHal.halRttConfigFromFrameworkRttParams(params);
+        //TODO(b/34901744) check
+    }
+
+    @Test
+    public void testGetRttCapabilities() throws Exception {
+        RttCapabilities capabilities = new RttCapabilities();
+        //TODO(b/34901744) populate
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiRttController.getCapabilitiesCallback cb)
+                    throws RemoteException {
+                cb.onValues(mWifiStatusSuccess, capabilities);
+            }
+        }).when(mIWifiRttController).getCapabilities(any(
+                IWifiRttController.getCapabilitiesCallback.class));
+
+        assertNull(mWifiVendorHal.getRttCapabilities());
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+
+        RttManager.RttCapabilities actual = mWifiVendorHal.getRttCapabilities();
+        //TODO(b/34901744) check
+
+    }
+
+    //TODO(b/34901744) negative RTT test cases as well.
+    // e.g. invoke RTT without putting the HAL in the correct mode.
 
     /**
      * Test that setScanningMacOui is hooked up to the HAL correctly
