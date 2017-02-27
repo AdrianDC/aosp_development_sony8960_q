@@ -136,8 +136,8 @@ public class WifiNative {
 
 
     // TODO(b/34884202): Set this to true to enable HIDL once we're fully ready.
-    private static final boolean HIDL_VENDOR_ENABLE = false;
-    public static final boolean HIDL_SUP_ENABLE = false;
+    private static final boolean HIDL_VENDOR_ENABLE = true;
+    public static final boolean HIDL_SUP_ENABLE = true;
     private static final boolean HIDL_P2P_ENABLE = false;
     private final String mTAG;
     private final String mInterfaceName;
