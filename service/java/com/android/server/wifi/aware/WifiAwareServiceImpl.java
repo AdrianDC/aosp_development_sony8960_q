@@ -317,6 +317,10 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         enforceAccessPermission();
         enforceChangePermission();
 
+        if (retryCount != 0) {
+            enforceConnectivityInternalPermission();
+        }
+
         if (message != null
                 && message.length > mStateManager.getCharacteristics().getMaxServiceNameLength()) {
             throw new IllegalArgumentException(
