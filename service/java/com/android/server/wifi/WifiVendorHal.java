@@ -771,16 +771,18 @@ public class WifiVendorHal {
         @Override
         public void onResults(int cmdId, java.util.ArrayList<RttResult> results) {
             kilroy();
+            WifiNative.RttEventHandler eventHandler;
             synchronized (sLock) {
                 kilroy();
                 if (cmdId != mRttCmdId || mRttEventHandler == null) return;
-                RttManager.RttResult[] rtt = new RttManager.RttResult[results.size()];
-                for (int i = 0; i < rtt.length; i++) {
-                    kilroy();
-                    rtt[i] = frameworkRttResultFromHalRttResult(results.get(i));
-                }
-                mRttEventHandler.onRttResults(rtt);
+                eventHandler = mRttEventHandler;
             }
+            RttManager.RttResult[] rtt = new RttManager.RttResult[results.size()];
+            for (int i = 0; i < rtt.length; i++) {
+                kilroy();
+                rtt[i] = frameworkRttResultFromHalRttResult(results.get(i));
+            }
+            eventHandler.onRttResults(rtt);
         }
     }
 
@@ -2345,11 +2347,13 @@ public class WifiVendorHal {
         public void onBackgroundScanFailure(int cmdId) {
             kilroy();
             Log.d(TAG, "onBackgroundScanFailure " + cmdId);
+            WifiNative.ScanEventHandler eventHandler;
             synchronized (sLock) {
-                if (mScan != null && cmdId == mScan.cmdId) {
-                    mScan.eventHandler.onScanStatus(WifiNative.WIFI_SCAN_FAILED);
-                }
+                if (mScan == null || cmdId != mScan.cmdId) return;
+                eventHandler = mScan.eventHandler;
+                kilroy();
             }
+            eventHandler.onScanStatus(WifiNative.WIFI_SCAN_FAILED);
         }
 
         @Override
@@ -2357,39 +2361,42 @@ public class WifiVendorHal {
                 int cmdId, StaScanResult result) {
             kilroy();
             Log.d(TAG, "onBackgroundFullScanResult " + cmdId);
+            WifiNative.ScanEventHandler eventHandler;
             synchronized (sLock) {
-                if (mScan != null && cmdId == mScan.cmdId) {
-                    mScan.eventHandler.onFullScanResult(hidlToFrameworkScanResult(result), 0);
-                }
+                if (mScan == null || cmdId != mScan.cmdId) return;
+                eventHandler = mScan.eventHandler;
+                kilroy();
             }
+            eventHandler.onFullScanResult(hidlToFrameworkScanResult(result), 0);
         }
 
         @Override
         public void onBackgroundScanResults(int cmdId, ArrayList<StaScanData> scanDatas) {
             kilroy();
             Log.d(TAG, "onBackgroundScanResults " + cmdId);
+            WifiNative.ScanEventHandler eventHandler;
             // WifiScanner currently uses the results callback to fetch the scan results.
             // So, simulate that by sending out the notification and then caching the results
             // locally. This will then be returned to WifiScanner via getScanResults.
             synchronized (sLock) {
-                if (mScan != null && cmdId == mScan.cmdId) {
-                    mScan.eventHandler.onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
-                    mScan.latestScanResults = hidlToFrameworkScanDatas(cmdId, scanDatas);
-                }
+                if (mScan == null || cmdId != mScan.cmdId) return;
+                eventHandler = mScan.eventHandler;
+                mScan.latestScanResults = hidlToFrameworkScanDatas(cmdId, scanDatas);
+                kilroy();
             }
+            eventHandler.onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
         }
 
         @Override
         public void onRssiThresholdBreached(int cmdId, byte[/* 6 */] currBssid, int currRssi) {
             Log.d(TAG, "onRssiThresholdBreached " + cmdId + "currRssi " + currRssi);
-            WifiNative.WifiRssiEventHandler handler;
+            WifiNative.WifiRssiEventHandler eventHandler;
             synchronized (sLock) {
-                handler = mWifiRssiEventHandler;
-                if (mWifiRssiEventHandler == null) return;
-                if (cmdId != sRssiMonCmdId) return;
+                if (mWifiRssiEventHandler == null || cmdId != sRssiMonCmdId) return;
+                eventHandler = mWifiRssiEventHandler;
                 kilroy();
             }
-            handler.onRssiThresholdBreached((byte) currRssi);
+            eventHandler.onRssiThresholdBreached((byte) currRssi);
         }
     }
 
@@ -2425,24 +2432,26 @@ public class WifiVendorHal {
                 WifiDebugRingBufferStatus status, java.util.ArrayList<Byte> data) {
             kilroy();
             Log.d(TAG, "onDebugRingBufferDataAvailable " + status);
+            WifiNative.WifiLoggerEventHandler eventHandler;
             synchronized (sLock) {
-                if (mLogEventHandler != null && status != null && data != null) {
-                    mLogEventHandler.onRingBufferData(
-                            ringBufferStatus(status), NativeUtil.byteArrayFromArrayList(data));
-                }
+                if (mLogEventHandler == null || status == null || data == null) return;
+                eventHandler = mLogEventHandler;
             }
+            eventHandler.onRingBufferData(
+                    ringBufferStatus(status), NativeUtil.byteArrayFromArrayList(data));
         }
 
         @Override
         public void onDebugErrorAlert(int errorCode, java.util.ArrayList<Byte> debugData) {
             kilroy();
             Log.d(TAG, "onDebugErrorAlert " + errorCode);
+            WifiNative.WifiLoggerEventHandler eventHandler;
             synchronized (sLock) {
-                if (mLogEventHandler != null && debugData != null) {
-                    mLogEventHandler.onWifiAlert(
-                            errorCode, NativeUtil.byteArrayFromArrayList(debugData));
-                }
+                if (mLogEventHandler == null || debugData == null) return;
+                eventHandler = mLogEventHandler;
             }
+            eventHandler.onWifiAlert(
+                    errorCode, NativeUtil.byteArrayFromArrayList(debugData));
         }
     }
 
