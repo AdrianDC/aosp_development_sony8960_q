@@ -280,6 +280,15 @@ public class WifiConfigurationTestUtil {
         return configuration;
     }
 
+    public static WifiConfiguration createEapNetwork(int eapMethod, int phase2Method) {
+        WifiConfiguration configuration =
+                generateWifiConfig(TEST_NETWORK_ID, TEST_UID, createNewSSID(), true, true,
+                        null, null, SECURITY_EAP);
+        configuration.enterpriseConfig.setEapMethod(eapMethod);
+        configuration.enterpriseConfig.setPhase2Method(phase2Method);
+        return configuration;
+    }
+
     public static WifiConfiguration createPasspointNetwork() {
         WifiConfiguration configuration =
                 generateWifiConfig(TEST_NETWORK_ID, TEST_UID, createNewSSID(), true, true,
