@@ -2095,8 +2095,12 @@ public class WifiAwareStateManager {
 
         byte[] tokenBytes = token.getBytes();
 
-        return mWifiAwareNativeApi.respondToDataPathRequest(transactionId, accept, ndpId,
+        boolean success = mWifiAwareNativeApi.respondToDataPathRequest(transactionId, accept, ndpId,
                 interfaceName, tokenBytes);
+        if (!success) {
+            mDataPathMgr.onRespondToDataPathRequest(ndpId, false);
+        }
+        return success;
     }
 
     private boolean endDataPathLocal(short transactionId, int ndpId) {
@@ -2423,7 +2427,7 @@ public class WifiAwareStateManager {
                     + ", success=" + success + ", reasonOnFailure=" + reasonOnFailure);
         }
 
-        // TODO: do something with this
+        mDataPathMgr.onRespondToDataPathRequest(command.arg2, success);
     }
 
     private void onEndPathEndResponseLocal(Message command, boolean success, int reasonOnFailure) {

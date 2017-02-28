@@ -328,7 +328,6 @@ public class WifiAwareDataPathStateManager {
                 Log.d(TAG, "onDataPathRequest: network request cache = " + mNetworkRequestsCache);
             }
             mMgr.respondToDataPathRequest(false, ndpId, "", "");
-            // TODO: validate respond with REJECT (when respond has a meaning)
             return null;
         }
 
@@ -336,18 +335,68 @@ public class WifiAwareDataPathStateManager {
             Log.w(TAG, "onDataPathRequest: request " + networkSpecifier + " is incorrect state="
                     + nnri.state);
             mMgr.respondToDataPathRequest(false, ndpId, "", "");
-            // TODO: validate respond with REJECT (when respond has a meaning)
             mNetworkRequestsCache.remove(networkSpecifier);
             return null;
         }
 
-        nnri.state = AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_CONFIRM;
+        nnri.state = AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_RESPOND_RESPONSE;
         nnri.ndpId = ndpId;
         nnri.interfaceName = selectInterfaceForRequest(nnri);
         mMgr.respondToDataPathRequest(true, ndpId, nnri.interfaceName, "");
 
         return networkSpecifier;
-        // TODO: validate respond with ACCEPT (when respond has a meaning)
+    }
+
+    /**
+     * Called on the RESPONDER when the response to data-path request has been completed.
+     *
+     * @param ndpId The ID of the data-path (NDP)
+     * @param success Whether or not the 'RespondToDataPathRequest' operation was a success.
+     */
+    public void onRespondToDataPathRequest(int ndpId, boolean success) {
+        if (VDBG) {
+            Log.v(TAG, "onRespondToDataPathRequest: ndpId=" + ndpId + ", success=" + success);
+        }
+
+        String networkSpecifier = null;
+        AwareNetworkRequestInformation nnri = null;
+        for (Map.Entry<String, AwareNetworkRequestInformation> entry : mNetworkRequestsCache
+                .entrySet()) {
+            if (entry.getValue().ndpId == ndpId) {
+                networkSpecifier = entry.getKey();
+                nnri = entry.getValue();
+                break;
+            }
+        }
+
+        if (nnri == null) {
+            Log.w(TAG, "onRespondToDataPathRequest: can't find a request with specified ndpId="
+                    + ndpId);
+            if (DBG) {
+                Log.d(TAG, "onRespondToDataPathRequest: network request cache = "
+                        + mNetworkRequestsCache);
+            }
+            return;
+        }
+
+        if (!success) {
+            Log.w(TAG, "onRespondToDataPathRequest: request " + networkSpecifier
+                    + " failed responding");
+            mMgr.endDataPath(ndpId);
+            mNetworkRequestsCache.remove(networkSpecifier);
+            return;
+        }
+
+        if (nnri.state
+                != AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_RESPOND_RESPONSE) {
+            Log.w(TAG, "onRespondToDataPathRequest: request " + networkSpecifier
+                    + " is incorrect state=" + nnri.state);
+            mMgr.endDataPath(ndpId);
+            mNetworkRequestsCache.remove(networkSpecifier);
+            return;
+        }
+
+        nnri.state = AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_CONFIRM;
     }
 
     /**
