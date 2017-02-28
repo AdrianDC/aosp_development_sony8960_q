@@ -1432,13 +1432,55 @@ public class WifiVendorHal {
         }
     }
 
+    private WifiNative.WifiLoggerEventHandler mLogEventHandler = null;
+
     /**
-     * to be implemented TODO(b/34901821)
+     *  Registers the logger callback and enables alerts.
+     *  Ring buffer data collection is only triggered when |startLoggingRingBuffer| is invoked.
      */
     public boolean setLoggingEventHandler(WifiNative.WifiLoggerEventHandler handler) {
         kilroy();
-        throw new UnsupportedOperationException();
+        if (handler == null) return false;
+        synchronized (sLock) {
+            if (mIWifiChip == null) return false;
+            if (mLogEventHandler != null) return false;
+            try {
+                kilroy();
+                WifiStatus status = mIWifiChip.enableDebugErrorAlerts(true);
+                if (status.code != WifiStatusCode.SUCCESS) return false;
+                mLogEventHandler = handler;
+                return true;
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return false;
+            }
+        }
     }
+
+    /**
+     * Stops all logging and resets the logger callback.
+     * This stops both the alerts and ring buffer data collection.
+     */
+    public boolean resetLogHandler() {
+        kilroy();
+        synchronized (sLock) {
+            if (mIWifiChip == null) return false;
+            if (mLogEventHandler == null) return false;
+            try {
+                kilroy();
+                WifiStatus status = mIWifiChip.enableDebugErrorAlerts(false);
+                if (status.code != WifiStatusCode.SUCCESS) return false;
+                mLogEventHandler = null;
+                return true;
+            } catch (RemoteException e) {
+                kilroy();
+                handleRemoteException(e);
+                return false;
+            }
+        }
+    }
+
 
     /**
      * Control debug data collection
@@ -1454,8 +1496,8 @@ public class WifiVendorHal {
                                           int minDataSizeInBytes, String ringName) {
         kilroy();
         synchronized (sLock) {
+            if (mIWifiChip == null) return false;
             try {
-                if (mIWifiChip == null) return false;
                 kilroy();
                 // note - flags are not used
                 WifiStatus status = mIWifiChip.startLoggingToDebugRingBuffer(
@@ -1480,14 +1522,6 @@ public class WifiVendorHal {
      */
     public int getSupportedLoggerFeatureSet() {
         return -1;
-    }
-
-    /**
-     * to be implemented TODO(b/34901821)
-     */
-    public boolean resetLogHandler() {
-        kilroy();
-        throw new UnsupportedOperationException();
     }
 
     private String mDriverDescription; // Cached value filled by requestChipDebugInfo()
@@ -1619,8 +1653,8 @@ public class WifiVendorHal {
     public boolean getRingBufferData(String ringName) {
         kilroy();
         synchronized (sLock) {
+            if (mIWifiChip == null) return false;
             try {
-                if (mIWifiChip == null) return false;
                 kilroy();
                 WifiStatus status = mIWifiChip.forceDumpToDebugRingBuffer(ringName);
                 return status.code == WifiStatusCode.SUCCESS;
@@ -2391,12 +2425,24 @@ public class WifiVendorHal {
                 WifiDebugRingBufferStatus status, java.util.ArrayList<Byte> data) {
             kilroy();
             Log.d(TAG, "onDebugRingBufferDataAvailable " + status);
+            synchronized (sLock) {
+                if (mLogEventHandler != null && status != null && data != null) {
+                    mLogEventHandler.onRingBufferData(
+                            ringBufferStatus(status), NativeUtil.byteArrayFromArrayList(data));
+                }
+            }
         }
 
         @Override
         public void onDebugErrorAlert(int errorCode, java.util.ArrayList<Byte> debugData) {
             kilroy();
             Log.d(TAG, "onDebugErrorAlert " + errorCode);
+            synchronized (sLock) {
+                if (mLogEventHandler != null && debugData != null) {
+                    mLogEventHandler.onWifiAlert(
+                            errorCode, NativeUtil.byteArrayFromArrayList(debugData));
+                }
+            }
         }
     }
 
