@@ -206,6 +206,8 @@ public class WifiInjector {
                 mSimAccessor, new PasspointObjectFactory(), mWifiConfigManager, mWifiConfigStore);
         mPasspointNetworkEvaluator = new PasspointNetworkEvaluator(
                 mPasspointManager, mWifiConfigManager, localLog);
+        // mWifiStateMachine has an implicit dependency on mJavaRuntime due to WifiDiagnostics.
+        mJavaRuntime = Runtime.getRuntime();
         mWifiStateMachine = new WifiStateMachine(mContext, mFrameworkFacade,
                 wifiStateMachineLooper, UserManager.get(mContext),
                 this, mBackupManagerProxy, mCountryCode, mWifiNative);
@@ -216,7 +218,6 @@ public class WifiInjector {
         mWifiLastResortWatchdog = new WifiLastResortWatchdog(mWifiController, mWifiMetrics);
         mWifiMulticastLockManager = new WifiMulticastLockManager(mWifiStateMachine,
                 BatteryStatsService.getService());
-        mJavaRuntime = Runtime.getRuntime();
     }
 
     /**
