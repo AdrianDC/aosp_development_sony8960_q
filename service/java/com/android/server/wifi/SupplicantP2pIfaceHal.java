@@ -75,6 +75,13 @@ public class SupplicantP2pIfaceHal {
     private Object mLock = new Object();
     private boolean mServiceCallbackInstalled = false;
 
+    private final WifiMonitor mMonitor;
+    private SupplicantP2pIfaceCallback mCallback = null;
+
+    public SupplicantP2pIfaceHal(WifiMonitor monitor) {
+        mMonitor = monitor;
+    }
+
     /**
      * Registers a service notification for the ISupplicant service, which triggers intialization of
      * the ISupplicantP2pIface
@@ -118,12 +125,16 @@ public class SupplicantP2pIfaceHal {
                     mIServiceManager = null; // Will need to register a new ServiceNotification
                     return false;
                 }
+
+                // Successful completion by the end of the 'try' block. This will prevent reporting
+                // proper initialization after exception is caught.
+                return true;
             } catch (RemoteException e) {
                 Log.e(TAG, "Exception while trying to register a listener for ISupplicant service: "
                         + e);
                 supplicantServiceDiedHandler();
             }
-            return true;
+            return false;
         }
     }
 
@@ -190,9 +201,20 @@ public class SupplicantP2pIfaceHal {
                 return false;
             }
             mISupplicantP2pIface = getP2pIfaceMockable(supplicantIface.getResult());
-
-            return true;
         }
+
+        if (mISupplicantP2pIface != null && mMonitor != null) {
+            // TODO(ender): Get rid of hard-coded interface name, which is
+            // assumed to be the group interface name in several other classes
+            // ("p2p0" should probably become getName()).
+            mCallback = new SupplicantP2pIfaceCallback("p2p0", mMonitor);
+            if (!registerCallback(mCallback)) {
+                Log.e(TAG, "Callback registration failed. Initialization incomplete.");
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private void supplicantServiceDiedHandler() {
