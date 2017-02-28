@@ -19,31 +19,40 @@ package com.android.server.wifi;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.ContentObserver;
+import android.net.INetworkScoreCache;
 import android.net.NetworkKey;
 import android.net.NetworkScoreManager;
 import android.net.RecommendationRequest;
 import android.net.RecommendationResult;
+import android.net.ScoredNetwork;
 import android.net.WifiKey;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
-import android.net.wifi.WifiNetworkScoreCache;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
+import android.os.RemoteException;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.ArraySet;
 import android.util.LocalLog;
+import android.util.LruCache;
 import android.util.Pair;
 import android.util.Slog;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.util.ScanResultUtil;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+import javax.annotation.concurrent.GuardedBy;
 
 /**
  * {@link WifiNetworkSelector.NetworkEvaluator} implementation that uses
@@ -52,23 +61,22 @@ import java.util.Set;
 public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluator {
     private static final String TAG = "RecNetEvaluator";
     private final NetworkScoreManager mNetworkScoreManager;
-    private final WifiNetworkScoreCache mNetworkScoreCache;
     private final WifiConfigManager mWifiConfigManager;
     private final LocalLog mLocalLog;
-    private final ExternalScoreEvaluator mExternalScoreEvaluator;
     @VisibleForTesting final ContentObserver mContentObserver;
+    private final RequestedScoreCache mRequestedScoreCache;
     private boolean mNetworkRecommendationsEnabled;
 
     RecommendedNetworkEvaluator(final Context context, ContentResolver contentResolver,
             Looper looper, final FrameworkFacade frameworkFacade,
-            WifiNetworkScoreCache networkScoreCache,
             NetworkScoreManager networkScoreManager, WifiConfigManager wifiConfigManager,
-            LocalLog localLog, ExternalScoreEvaluator externalScoreEvaluator) {
-        mNetworkScoreCache = networkScoreCache;
+            LocalLog localLog) {
+        mRequestedScoreCache = new RequestedScoreCache(frameworkFacade.getLongSetting(
+                context, Settings.Global.RECOMMENDED_NETWORK_EVALUATOR_CACHE_EXPIRY_MS,
+                TimeUnit.DAYS.toMillis(1)));
         mNetworkScoreManager = networkScoreManager;
         mWifiConfigManager = wifiConfigManager;
         mLocalLog = localLog;
-        mExternalScoreEvaluator = externalScoreEvaluator; // TODO(b/33694202): Remove
         mContentObserver = new ContentObserver(new Handler(looper)) {
             @Override
             public void onChange(boolean selfChange) {
@@ -80,6 +88,8 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
                 Settings.Global.getUriFor(Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED),
                 false /* notifyForDescendents */, mContentObserver);
         mContentObserver.onChange(false /* unused */);
+        mNetworkScoreManager.registerNetworkScoreCache(NetworkKey.TYPE_WIFI, mRequestedScoreCache,
+                NetworkScoreManager.CACHE_FILTER_NONE);
         mLocalLog.log("RecommendedNetworkEvaluator constructed. mNetworkRecommendationsEnabled: "
                 + mNetworkRecommendationsEnabled);
     }
@@ -88,8 +98,6 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
     public void update(List<ScanDetail> scanDetails) {
         if (mNetworkRecommendationsEnabled) {
             updateNetworkScoreCache(scanDetails);
-        } else {
-            mExternalScoreEvaluator.update(scanDetails);
         }
         clearNotRecommendedFlag();
     }
@@ -99,16 +107,16 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
 
         for (int i = 0; i < scanDetails.size(); i++) {
             ScanResult scanResult = scanDetails.get(i).getScanResult();
-
-            // Is there a score for this network? If not, request a score.
-            if (!mNetworkScoreCache.isScoredNetwork(scanResult)) {
-                try {
-                    WifiKey wifiKey = new WifiKey("\"" + scanResult.SSID + "\"", scanResult.BSSID);
+            try {
+                WifiKey wifiKey = new WifiKey(
+                        ScanResultUtil.createQuotedSSID(scanResult.SSID), scanResult.BSSID);
+                // Have we requested a score for this network? If not, request a score.
+                if (mRequestedScoreCache.shouldRequestScore(wifiKey)) {
                     unscoredNetworks.add(new NetworkKey(wifiKey));
-                } catch (IllegalArgumentException e) {
-                    mLocalLog.log("Invalid SSID=" + scanResult.SSID + " BSSID=" + scanResult.BSSID
-                            + " for network score. Skip.");
                 }
+            } catch (IllegalArgumentException e) {
+                mLocalLog.log("Invalid SSID=" + scanResult.SSID + " BSSID=" + scanResult.BSSID
+                        + " for network score. Skip.");
             }
         }
 
@@ -134,8 +142,8 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
             boolean untrustedNetworkAllowed,
             List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks) {
         if (!mNetworkRecommendationsEnabled) {
-            return mExternalScoreEvaluator.evaluateNetworks(scanDetails, currentNetwork,
-                    currentBssid, connected, untrustedNetworkAllowed, connectableNetworks);
+            mLocalLog.log("Skipping evaluateNetworks; Network recommendations disabled.");
+            return null;
         }
         Set<WifiConfiguration> availableConfiguredNetworks = new ArraySet<>();
         List<ScanResult> scanResults = new ArrayList<>();
@@ -229,7 +237,7 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
         return mWifiConfigManager.getConfiguredNetwork(networkId);
     }
 
-    private ScanDetail findMatchingScanDetail(List<ScanDetail> scanDetails,
+    private static ScanDetail findMatchingScanDetail(List<ScanDetail> scanDetails,
             WifiConfiguration wifiConfiguration) {
         String ssid = WifiInfo.removeDoubleQuotes(wifiConfiguration.SSID);
         String bssid = wifiConfiguration.BSSID;
@@ -264,9 +272,58 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
 
     @Override
     public String getName() {
-        if (mNetworkRecommendationsEnabled) {
-            return TAG;
+        return TAG;
+    }
+
+    /** Cache for scores that have already been requested. */
+    static class RequestedScoreCache extends INetworkScoreCache.Stub {
+        /** Number entries to be stored in the {@link LruCache} of requested {@link WifiKey}s. */
+        private static final int MAX_CACHE_SIZE = 1000;
+
+        private final long mCacheExpiryMillis;
+        @GuardedBy("mCache")
+        private final LruCache<WifiKey, Object> mCache = new LruCache<>(MAX_CACHE_SIZE);
+        @GuardedBy("mCache")
+        private long mCacheCreationTime;
+
+        RequestedScoreCache(long cacheExpiryMillis) {
+            mCacheExpiryMillis = cacheExpiryMillis;
         }
-        return TAG + "-" + mExternalScoreEvaluator.getName();
+
+        /** Returns whether a score should be requested for a given {@code wifiKey}. */
+        public boolean shouldRequestScore(WifiKey wifiKey) {
+            long nowMillis = SystemClock.elapsedRealtime();
+            long oldestUsableCacheTimeMillis = nowMillis - mCacheExpiryMillis;
+            synchronized (mCache) {
+                if (mCacheCreationTime < oldestUsableCacheTimeMillis) {
+                    mCache.evictAll();
+                    mCacheCreationTime = nowMillis;
+                }
+                boolean shouldRequest = mCache.get(wifiKey) == null;
+                mCache.put(wifiKey, this); // Update access time for wifiKey.
+                return shouldRequest;
+            }
+        }
+
+        @Override
+        public void updateScores(List<ScoredNetwork> networks) throws RemoteException {}
+
+        @Override
+        public void clearScores() throws RemoteException {
+            synchronized (mCache) {
+                mCache.evictAll();
+                mCacheCreationTime = 0;
+            }
+        }
+
+        @Override
+        protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
+            writer.println("RequestedScoreCache:");
+            writer.println("mCacheExpiryMillis: " + mCacheExpiryMillis);
+            synchronized (mCache) {
+                writer.println("mCacheCreationTime: " + mCacheCreationTime);
+                writer.println("mCache size: " + mCache.size());
+            }
+        }
     }
 }
