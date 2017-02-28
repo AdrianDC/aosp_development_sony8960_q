@@ -37,6 +37,7 @@ import android.hardware.wifi.V1_0.StaBackgroundScanParameters;
 import android.hardware.wifi.V1_0.StaRoamingConfig;
 import android.hardware.wifi.V1_0.StaRoamingState;
 import android.hardware.wifi.V1_0.StaScanData;
+import android.hardware.wifi.V1_0.StaScanDataFlagMask;
 import android.hardware.wifi.V1_0.StaScanResult;
 import android.hardware.wifi.V1_0.WifiBand;
 import android.hardware.wifi.V1_0.WifiChannelWidthInMhz;
@@ -48,6 +49,7 @@ import android.hardware.wifi.V1_0.WifiDebugRxPacketFate;
 import android.hardware.wifi.V1_0.WifiDebugRxPacketFateReport;
 import android.hardware.wifi.V1_0.WifiDebugTxPacketFate;
 import android.hardware.wifi.V1_0.WifiDebugTxPacketFateReport;
+import android.hardware.wifi.V1_0.WifiInformationElement;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.apf.ApfCapabilities;
@@ -58,6 +60,7 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
+import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.HandlerThread;
 import android.os.RemoteException;
@@ -301,6 +304,7 @@ public class WifiVendorHal {
         public StaBackgroundScanParameters param;
         public WifiNative.ScanEventHandler eventHandler = null;
         public boolean paused = false;
+        public WifiScanner.ScanData[] latestScanResults = null;
 
         CurrentBackgroundScan(int id, WifiNative.ScanSettings settings) {
             cmdId = id;
@@ -309,8 +313,10 @@ public class WifiVendorHal {
             param.maxApPerScan = settings.max_ap_per_scan;
             param.reportThresholdPercent = settings.report_threshold_percent;
             param.reportThresholdNumScans = settings.report_threshold_num_scans;
-            for (WifiNative.BucketSettings bs : settings.buckets) {
-                param.buckets.add(makeStaBackgroundScanBucketParametersFromBucketSettings(bs));
+            if (settings.buckets != null) {
+                for (WifiNative.BucketSettings bs : settings.buckets) {
+                    param.buckets.add(makeStaBackgroundScanBucketParametersFromBucketSettings(bs));
+                }
             }
         }
     }
@@ -494,6 +500,20 @@ public class WifiVendorHal {
             } catch (RemoteException e) {
                 handleRemoteException(e);
             }
+        }
+    }
+
+    /**
+     * Gets the latest scan results received from the HIDL interface callback.
+     * TODO(b/35754840): This hop to fetch scan results after callback is unnecessary. Refactor
+     * WifiScanner to use the scan results from the callback.
+     */
+    public WifiScanner.ScanData[] getScanResults() {
+        kilroy();
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return null;
+            if (mScan == null) return null;
+            return mScan.latestScanResults;
         }
     }
 
@@ -1365,10 +1385,7 @@ public class WifiVendorHal {
         int cmdId = 0; //TODO(b/34901818) We only aspire to support one program at a time
         if (filter == null) return false;
         // Copy the program before taking the lock.
-        ArrayList<Byte> program = new ArrayList<>(filter.length);
-        for (byte b : filter) {
-            program.add(b);
-        }
+        ArrayList<Byte> program = NativeUtil.byteArrayToArrayList(filter);
         synchronized (sLock) {
             try {
                 if (mIWifiStaIface == null) return false;
@@ -2223,6 +2240,69 @@ public class WifiVendorHal {
         Log.e(TAG, "th " + cur.getId() + " line " + s.getLineNumber() + " " + name);
     }
 
+    // This creates a blob of IE elements from the array received.
+    // TODO: This ugly conversion can be removed if we put IE elements in ScanResult.
+    private static byte[] hidlIeArrayToFrameworkIeBlob(ArrayList<WifiInformationElement> ies) {
+        if (ies == null || ies.isEmpty()) return new byte[0];
+        ArrayList<Byte> ieBlob = new ArrayList<>();
+        for (WifiInformationElement ie : ies) {
+            ieBlob.add(ie.id);
+            ieBlob.addAll(ie.data);
+        }
+        return NativeUtil.byteArrayFromArrayList(ieBlob);
+    }
+
+    // This is only filling up the fields of Scan Result used by Gscan clients.
+    private static ScanResult hidlToFrameworkScanResult(StaScanResult scanResult) {
+        if (scanResult == null) return null;
+        ScanResult frameworkScanResult = new ScanResult();
+        frameworkScanResult.SSID = NativeUtil.encodeSsid(scanResult.ssid);
+        frameworkScanResult.wifiSsid =
+                WifiSsid.createFromByteArray(NativeUtil.byteArrayFromArrayList(scanResult.ssid));
+        frameworkScanResult.BSSID = NativeUtil.macAddressFromByteArray(scanResult.bssid);
+        frameworkScanResult.level = scanResult.rssi;
+        frameworkScanResult.frequency = scanResult.frequency;
+        frameworkScanResult.timestamp = scanResult.timeStampInUs;
+        frameworkScanResult.bytes = hidlIeArrayToFrameworkIeBlob(scanResult.informationElements);
+        return frameworkScanResult;
+    }
+
+    private static ScanResult[] hidlToFrameworkScanResults(ArrayList<StaScanResult> scanResults) {
+        if (scanResults == null || scanResults.isEmpty()) return new ScanResult[0];
+        ScanResult[] frameworkScanResults = new ScanResult[scanResults.size()];
+        int i = 0;
+        for (StaScanResult scanResult : scanResults) {
+            frameworkScanResults[i++] = hidlToFrameworkScanResult(scanResult);
+        }
+        return frameworkScanResults;
+    }
+
+    /**
+     * This just returns whether the scan was interrupted or not.
+     */
+    private static int hidlToFrameworkScanDataFlags(int flag) {
+        if (flag == StaScanDataFlagMask.INTERRUPTED) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    private static WifiScanner.ScanData[] hidlToFrameworkScanDatas(
+            int cmdId, ArrayList<StaScanData> scanDatas) {
+        if (scanDatas == null || scanDatas.isEmpty()) return new WifiScanner.ScanData[0];
+        WifiScanner.ScanData[] frameworkScanDatas = new WifiScanner.ScanData[scanDatas.size()];
+        int i = 0;
+        for (StaScanData scanData : scanDatas) {
+            int flags = hidlToFrameworkScanDataFlags(scanData.flags);
+            ScanResult[] frameworkScanResults = hidlToFrameworkScanResults(scanData.results);
+            frameworkScanDatas[i++] =
+                    new WifiScanner.ScanData(cmdId, flags, scanData.bucketsScanned, false,
+                            frameworkScanResults);
+        }
+        return frameworkScanDatas;
+    }
+
     /**
      * Callback for events on the STA interface.
      */
@@ -2231,18 +2311,38 @@ public class WifiVendorHal {
         public void onBackgroundScanFailure(int cmdId) {
             kilroy();
             Log.d(TAG, "onBackgroundScanFailure " + cmdId);
+            synchronized (sLock) {
+                if (mScan != null && cmdId == mScan.cmdId) {
+                    mScan.eventHandler.onScanStatus(WifiNative.WIFI_SCAN_FAILED);
+                }
+            }
         }
 
         @Override
-        public void onBackgroundFullScanResult(int cmdId, StaScanResult result) {
+        public void onBackgroundFullScanResult(
+                int cmdId, StaScanResult result) {
             kilroy();
             Log.d(TAG, "onBackgroundFullScanResult " + cmdId);
+            synchronized (sLock) {
+                if (mScan != null && cmdId == mScan.cmdId) {
+                    mScan.eventHandler.onFullScanResult(hidlToFrameworkScanResult(result), 0);
+                }
+            }
         }
 
         @Override
         public void onBackgroundScanResults(int cmdId, ArrayList<StaScanData> scanDatas) {
             kilroy();
             Log.d(TAG, "onBackgroundScanResults " + cmdId);
+            // WifiScanner currently uses the results callback to fetch the scan results.
+            // So, simulate that by sending out the notification and then caching the results
+            // locally. This will then be returned to WifiScanner via getScanResults.
+            synchronized (sLock) {
+                if (mScan != null && cmdId == mScan.cmdId) {
+                    mScan.eventHandler.onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
+                    mScan.latestScanResults = hidlToFrameworkScanDatas(cmdId, scanDatas);
+                }
+            }
         }
 
         @Override

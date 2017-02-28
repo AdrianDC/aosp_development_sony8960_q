@@ -28,6 +28,10 @@ import android.hardware.wifi.V1_0.RttCapabilities;
 import android.hardware.wifi.V1_0.RttConfig;
 import android.hardware.wifi.V1_0.StaApfPacketFilterCapabilities;
 import android.hardware.wifi.V1_0.StaBackgroundScanCapabilities;
+import android.hardware.wifi.V1_0.StaBackgroundScanParameters;
+import android.hardware.wifi.V1_0.StaScanData;
+import android.hardware.wifi.V1_0.StaScanDataFlagMask;
+import android.hardware.wifi.V1_0.StaScanResult;
 import android.hardware.wifi.V1_0.WifiDebugHostWakeReasonStats;
 import android.hardware.wifi.V1_0.WifiDebugPacketFateFrameType;
 import android.hardware.wifi.V1_0.WifiDebugRingBufferFlags;
@@ -37,15 +41,20 @@ import android.hardware.wifi.V1_0.WifiDebugRxPacketFate;
 import android.hardware.wifi.V1_0.WifiDebugRxPacketFateReport;
 import android.hardware.wifi.V1_0.WifiDebugTxPacketFate;
 import android.hardware.wifi.V1_0.WifiDebugTxPacketFateReport;
+import android.hardware.wifi.V1_0.WifiInformationElement;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
+import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiScanner;
+import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.RemoteException;
+import android.util.Pair;
 
 import com.android.server.connectivity.KeepalivePacketData;
 import com.android.server.wifi.util.NativeUtil;
@@ -63,6 +72,7 @@ import org.mockito.stubbing.Answer;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 
 /**
@@ -88,6 +98,7 @@ public class WifiVendorHalTest {
     @Mock
     private IWifiRttController mIWifiRttController;
     private IWifiStaIfaceEventCallback mIWifiStaIfaceEventCallback;
+    private IWifiChipEventCallback mIWifiChipEventCallback;
 
     /**
      * Identity function to supply a type to its argument, which is a lambda
@@ -145,16 +156,25 @@ public class WifiVendorHalTest {
                     mIWifiStaIfaceEventCallback = (IWifiStaIfaceEventCallback) args[0];
                     return (mWifiStatusSuccess);
                 }));
+        mIWifiChipEventCallback = null;
+        when(mIWifiChip.registerEventCallback(any(IWifiChipEventCallback.class)))
+                .thenAnswer(answerWifiStatus((invocation) -> {
+                    Object[] args = invocation.getArguments();
+                    mIWifiChipEventCallback = (IWifiChipEventCallback) args[0];
+                    return (mWifiStatusSuccess);
+                }));
+
         // Create the vendor HAL object under test.
         mWifiVendorHal = new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread);
 
         // Initialize the vendor HAL to capture the registered callback.
         mWifiVendorHal.initialize();
-        ArgumentCaptor<WifiVendorHal.HalDeviceManagerStatusListener> callbackCaptor =
+        ArgumentCaptor<WifiVendorHal.HalDeviceManagerStatusListener> hdmCallbackCaptor =
                 ArgumentCaptor.forClass(WifiVendorHal.HalDeviceManagerStatusListener.class);
         verify(mHalDeviceManager).registerStatusListener(
-                callbackCaptor.capture(), any(Looper.class));
-        mHalDeviceManagerStatusCallbacks = callbackCaptor.getValue();
+                hdmCallbackCaptor.capture(), any(Looper.class));
+        mHalDeviceManagerStatusCallbacks = hdmCallbackCaptor.getValue();
+
     }
 
     /**
@@ -1323,5 +1343,172 @@ public class WifiVendorHalTest {
 
         assertTrue(mWifiVendorHal.startVendorHalAp());
         assertArrayEquals(sample, mWifiVendorHal.getDriverStateDump());
+    }
+
+    /**
+     * Test that background scan failure is handled correctly.
+     */
+    @Test
+    public void testBgScanFailureCallback() throws Exception {
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertNotNull(mIWifiStaIfaceEventCallback);
+
+        WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
+        startBgScan(eventHandler);
+
+        mIWifiStaIfaceEventCallback.onBackgroundScanFailure(mWifiVendorHal.mScan.cmdId);
+        verify(eventHandler).onScanStatus(WifiNative.WIFI_SCAN_FAILED);
+    }
+
+    /**
+     * Test that background scan failure is handled correctly.
+     */
+    @Test
+    public void testBgScanFailureCallbackWithInvalidCmdId() throws Exception {
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertNotNull(mIWifiStaIfaceEventCallback);
+
+        WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
+        startBgScan(eventHandler);
+
+        mIWifiStaIfaceEventCallback.onBackgroundScanFailure(mWifiVendorHal.mScan.cmdId + 1);
+        verify(eventHandler, never()).onScanStatus(WifiNative.WIFI_SCAN_FAILED);
+    }
+
+    /**
+     * Test that background scan full results are handled correctly.
+     */
+    @Test
+    public void testBgScanFullScanResults() throws Exception {
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertNotNull(mIWifiStaIfaceEventCallback);
+
+        WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
+        startBgScan(eventHandler);
+
+        Pair<StaScanResult, ScanResult> result = createHidlAndFrameworkBgScanResult();
+        mIWifiStaIfaceEventCallback.onBackgroundFullScanResult(
+                mWifiVendorHal.mScan.cmdId, result.first);
+
+        ArgumentCaptor<ScanResult> scanResultCaptor = ArgumentCaptor.forClass(ScanResult.class);
+        verify(eventHandler).onFullScanResult(scanResultCaptor.capture(), eq(0));
+
+        assertScanResultEqual(result.second, scanResultCaptor.getValue());
+    }
+
+    /**
+     * Test that background scan results are handled correctly.
+     */
+    @Test
+    public void testBgScanScanResults() throws Exception {
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertNotNull(mIWifiStaIfaceEventCallback);
+
+        WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
+        startBgScan(eventHandler);
+
+        Pair<ArrayList<StaScanData>, ArrayList<WifiScanner.ScanData>> data =
+                createHidlAndFrameworkBgScanDatas();
+        mIWifiStaIfaceEventCallback.onBackgroundScanResults(
+                mWifiVendorHal.mScan.cmdId, data.first);
+
+        verify(eventHandler).onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
+        assertScanDatasEqual(
+                data.second, Arrays.asList(mWifiVendorHal.mScan.latestScanResults));
+    }
+
+    private void startBgScan(WifiNative.ScanEventHandler eventHandler) throws Exception {
+        when(mIWifiStaIface.startBackgroundScan(
+                anyInt(), any(StaBackgroundScanParameters.class))).thenReturn(mWifiStatusSuccess);
+        assertTrue(mWifiVendorHal.startScan(new WifiNative.ScanSettings(), eventHandler));
+    }
+
+    // Create a pair of HIDL scan result and its corresponding framework scan result for
+    // comparison.
+    private Pair<StaScanResult, ScanResult> createHidlAndFrameworkBgScanResult() {
+        StaScanResult staScanResult = new StaScanResult();
+        Random random = new Random();
+        byte[] ssid = new byte[8];
+        random.nextBytes(ssid);
+        staScanResult.ssid.addAll(NativeUtil.byteArrayToArrayList(ssid));
+        random.nextBytes(staScanResult.bssid);
+        staScanResult.frequency = 2432;
+        staScanResult.rssi = -45;
+        staScanResult.timeStampInUs = 5;
+        WifiInformationElement ie1 = new WifiInformationElement();
+        byte[] ie1_data = new byte[56];
+        random.nextBytes(ie1_data);
+        ie1.id = 1;
+        ie1.data.addAll(NativeUtil.byteArrayToArrayList(ie1_data));
+        staScanResult.informationElements.add(ie1);
+
+        // Now create the corresponding Scan result structure.
+        ScanResult scanResult = new ScanResult();
+        scanResult.SSID = NativeUtil.encodeSsid(staScanResult.ssid);
+        scanResult.BSSID = NativeUtil.macAddressFromByteArray(staScanResult.bssid);
+        scanResult.wifiSsid = WifiSsid.createFromByteArray(ssid);
+        scanResult.frequency = staScanResult.frequency;
+        scanResult.level = staScanResult.rssi;
+        scanResult.timestamp = staScanResult.timeStampInUs;
+        scanResult.bytes = new byte[57];
+        scanResult.bytes[0] = ie1.id;
+        System.arraycopy(ie1_data, 0, scanResult.bytes, 1, ie1_data.length);
+
+        return Pair.create(staScanResult, scanResult);
+    }
+
+    // Create a pair of HIDL scan datas and its corresponding framework scan datas for
+    // comparison.
+    private Pair<ArrayList<StaScanData>, ArrayList<WifiScanner.ScanData>>
+            createHidlAndFrameworkBgScanDatas() {
+        ArrayList<StaScanData> staScanDatas = new ArrayList<>();
+        StaScanData staScanData = new StaScanData();
+
+        Pair<StaScanResult, ScanResult> result = createHidlAndFrameworkBgScanResult();
+        staScanData.results.add(result.first);
+        staScanData.bucketsScanned = 5;
+        staScanData.flags = StaScanDataFlagMask.INTERRUPTED;
+        staScanDatas.add(staScanData);
+
+        ArrayList<WifiScanner.ScanData> scanDatas = new ArrayList<>();
+        ScanResult[] scanResults = new ScanResult[1];
+        scanResults[0] = result.second;
+        WifiScanner.ScanData scanData =
+                new WifiScanner.ScanData(mWifiVendorHal.mScan.cmdId, 1,
+                        staScanData.bucketsScanned, false, scanResults);
+        scanDatas.add(scanData);
+        return Pair.create(staScanDatas, scanDatas);
+    }
+
+    private void assertScanResultEqual(ScanResult expected, ScanResult actual) {
+        assertEquals(expected.SSID, actual.SSID);
+        assertEquals(expected.wifiSsid.getHexString(), actual.wifiSsid.getHexString());
+        assertEquals(expected.BSSID, actual.BSSID);
+        assertEquals(expected.frequency, actual.frequency);
+        assertEquals(expected.level, actual.level);
+        assertEquals(expected.timestamp, actual.timestamp);
+        assertArrayEquals(expected.bytes, actual.bytes);
+    }
+
+    private void assertScanResultsEqual(ScanResult[] expected, ScanResult[] actual) {
+        assertEquals(expected.length, actual.length);
+        for (int i = 0; i < expected.length; i++) {
+            assertScanResultEqual(expected[i], actual[i]);
+        }
+    }
+
+    private void assertScanDataEqual(WifiScanner.ScanData expected, WifiScanner.ScanData actual) {
+        assertEquals(expected.getId(), actual.getId());
+        assertEquals(expected.getFlags(), actual.getFlags());
+        assertEquals(expected.getBucketsScanned(), actual.getBucketsScanned());
+        assertScanResultsEqual(expected.getResults(), actual.getResults());
+    }
+
+    private void assertScanDatasEqual(
+            List<WifiScanner.ScanData> expected, List<WifiScanner.ScanData> actual) {
+        assertEquals(expected.size(), actual.size());
+        for (int i = 0; i < expected.size(); i++) {
+            assertScanDataEqual(expected.get(i), actual.get(i));
+        }
     }
 }
