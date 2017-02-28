@@ -113,6 +113,7 @@ public class WifiInjector {
     private HalDeviceManager mHalDeviceManager;
     private final IBatteryStats mBatteryStats;
     private final WifiStateTracker mWifiStateTracker;
+    private final Runtime mJavaRuntime;
 
     private final boolean mUseRealLogger;
 
@@ -221,6 +222,7 @@ public class WifiInjector {
         mWifiLastResortWatchdog = new WifiLastResortWatchdog(mWifiController, mWifiMetrics);
         mWifiMulticastLockManager = new WifiMulticastLockManager(mWifiStateMachine,
                 BatteryStatsService.getService());
+        mJavaRuntime = Runtime.getRuntime();
     }
 
     /**
@@ -446,5 +448,9 @@ public class WifiInjector {
      */
     public HalDeviceManager getHalDeviceManager() {
         return mHalDeviceManager;
+    }
+
+    public Runtime getJavaRuntime() {
+        return mJavaRuntime;
     }
 }
