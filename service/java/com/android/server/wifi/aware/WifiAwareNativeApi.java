@@ -318,6 +318,7 @@ public class WifiAwareNativeApi {
         // TODO: configure ranging and security
         req.baseConfigs.securityEnabledInNdp = false;
         req.baseConfigs.rangingRequired = false;
+        req.autoAcceptDataPathRequests = false;
 
         req.publishType = publishConfig.mPublishType;
         req.txType = NanTxType.BROADCAST;

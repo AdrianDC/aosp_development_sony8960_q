@@ -335,7 +335,9 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
 
     @Override
     public void eventTransmitFollowup(short id, WifiNanStatus status) {
-        Log.v(TAG, "eventTransmitFollowup: id=" + id + ", status=" + statusString(status));
+        if (VDBG) {
+            Log.v(TAG, "eventTransmitFollowup: id=" + id + ", status=" + statusString(status));
+        }
 
         if (status.status == NanStatusType.SUCCESS) {
             mWifiAwareStateManager.onMessageSendSuccessNotification(id);
