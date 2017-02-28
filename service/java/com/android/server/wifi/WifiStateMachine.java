@@ -4891,24 +4891,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     int supplicantNetworkId = message.arg2;
                     netId = lookupFrameworkNetworkId(supplicantNetworkId);
                     boolean identitySent = false;
-                    int eapMethod = WifiEnterpriseConfig.Eap.NONE;
-                    if (targetWificonfiguration != null
-                            && targetWificonfiguration.enterpriseConfig != null) {
-                        eapMethod = targetWificonfiguration.enterpriseConfig.getEapMethod();
-                    }
                     // For SIM & AKA/AKA' EAP method Only, get identity from ICC
                     if (targetWificonfiguration != null
                             && targetWificonfiguration.networkId == netId
-                            && (targetWificonfiguration.allowedKeyManagement
-                                    .get(WifiConfiguration.KeyMgmt.WPA_EAP)
-                            || targetWificonfiguration.allowedKeyManagement
-                                    .get(WifiConfiguration.KeyMgmt.IEEE8021X))
-                            && TelephonyUtil.isSimEapMethod(eapMethod)) {
+                            && TelephonyUtil.isSimConfig(targetWificonfiguration)) {
                         String identity =
-                                TelephonyUtil.getSimIdentity(getTelephonyManager(), eapMethod);
+                                TelephonyUtil.getSimIdentity(getTelephonyManager(),
+                                        targetWificonfiguration);
                         if (identity != null) {
                             mWifiNative.simIdentityResponse(supplicantNetworkId, identity);
                             identitySent = true;
+                        } else {
+                            Log.e(TAG, "Unable to retrieve identity from Telephony");
                         }
                     }
                     if (!identitySent) {
