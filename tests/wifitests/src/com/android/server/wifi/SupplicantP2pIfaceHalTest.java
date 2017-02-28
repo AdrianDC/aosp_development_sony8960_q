@@ -129,7 +129,9 @@ public class SupplicantP2pIfaceHalTest {
     private InOrder mInOrder;
 
     private class SupplicantP2pIfaceHalSpy extends SupplicantP2pIfaceHal {
-        SupplicantP2pIfaceHalSpy() {}
+        SupplicantP2pIfaceHalSpy() {
+            super(null);
+        }
 
         @Override
         protected IServiceManager getServiceManagerMockable() throws RemoteException {

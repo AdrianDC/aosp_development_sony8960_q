@@ -161,7 +161,7 @@ public class WifiInjector {
         mWifiVendorHal = new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread);
         mSupplicantStaIfaceHal = new SupplicantStaIfaceHal(mContext, WifiMonitor.getInstance());
         mWificondControl = new WificondControl(this, WifiMonitor.getInstance());
-        mSupplicantP2pIfaceHal = new SupplicantP2pIfaceHal();
+        mSupplicantP2pIfaceHal = new SupplicantP2pIfaceHal(WifiMonitor.getInstance());
         mWifiNative = WifiNative.getWlanNativeInterface();
         mWifiNative.setSupplicantStaIfaceHal(mSupplicantStaIfaceHal);
         mWifiNative.setSupplicantP2pIfaceHal(mSupplicantP2pIfaceHal);
