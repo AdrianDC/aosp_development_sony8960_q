@@ -105,6 +105,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     private final BuildProperties mBuildProperties;
     private final WifiLog mLog;
     private final LastMileLogger mLastMileLogger;
+    private final Runtime mJavaRuntime;
     private int mMaxRingBufferSizeBytes;
 
     public WifiDiagnostics(Context context, WifiInjector wifiInjector,
@@ -122,6 +123,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         mMaxRingBufferSizeBytes = RING_BUFFER_BYTE_LIMIT_SMALL;
         mLog = wifiInjector.makeLog(TAG);
         mLastMileLogger = lastMileLogger;
+        mJavaRuntime = wifiInjector.getJavaRuntime();
     }
 
     @Override
@@ -575,7 +577,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     private ArrayList<String> getLogcat(int maxLines) {
         ArrayList<String> lines = new ArrayList<String>(maxLines);
         try {
-            Process process = Runtime.getRuntime().exec(String.format("logcat -t %d", maxLines));
+            Process process = mJavaRuntime.exec(String.format("logcat -t %d", maxLines));
             BufferedReader reader = new BufferedReader(
                     new InputStreamReader(process.getInputStream()));
             String line;
