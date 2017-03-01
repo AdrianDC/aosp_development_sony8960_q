@@ -42,8 +42,10 @@ import android.database.ContentObserver;
 import android.net.ConnectivityManager;
 import android.net.DhcpInfo;
 import android.net.DhcpResults;
+import android.net.IpConfiguration;
 import android.net.Network;
 import android.net.NetworkUtils;
+import android.net.StaticIpConfiguration;
 import android.net.Uri;
 import android.net.ip.IpManager;
 import android.net.wifi.IWifiManager;
@@ -1792,6 +1794,15 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             if ((!config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X))
                     && (!config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK))) {
                 return "not PSK or 8021X";
+            }
+        }
+        if (config.getIpAssignment() == IpConfiguration.IpAssignment.STATIC) {
+            StaticIpConfiguration staticIpConf = config.getStaticIpConfiguration();
+            if (staticIpConf == null) {
+                return "null StaticIpConfiguration";
+            }
+            if (staticIpConf.ipAddress == null) {
+                return "null static ip Address";
             }
         }
         return null;
