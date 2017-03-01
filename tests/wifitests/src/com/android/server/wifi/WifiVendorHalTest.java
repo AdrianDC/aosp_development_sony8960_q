@@ -1388,10 +1388,10 @@ public class WifiVendorHalTest {
 
         Pair<StaScanResult, ScanResult> result = createHidlAndFrameworkBgScanResult();
         mIWifiStaIfaceEventCallback.onBackgroundFullScanResult(
-                mWifiVendorHal.mScan.cmdId, result.first);
+                mWifiVendorHal.mScan.cmdId, 5, result.first);
 
         ArgumentCaptor<ScanResult> scanResultCaptor = ArgumentCaptor.forClass(ScanResult.class);
-        verify(eventHandler).onFullScanResult(scanResultCaptor.capture(), eq(0));
+        verify(eventHandler).onFullScanResult(scanResultCaptor.capture(), eq(5));
 
         assertScanResultEqual(result.second, scanResultCaptor.getValue());
     }
@@ -1447,26 +1447,31 @@ public class WifiVendorHalTest {
     @Test
     public void testResetLogHandler() throws Exception {
         when(mIWifiChip.enableDebugErrorAlerts(anyBoolean())).thenReturn(mWifiStatusSuccess);
+        when(mIWifiChip.stopLoggingToDebugRingBuffer()).thenReturn(mWifiStatusSuccess);
 
         assertFalse(mWifiVendorHal.resetLogHandler());
         verify(mIWifiChip, never()).enableDebugErrorAlerts(anyBoolean());
+        verify(mIWifiChip, never()).stopLoggingToDebugRingBuffer();
 
         assertTrue(mWifiVendorHal.startVendorHalSta());
 
         // Not set, so this should fail.
         assertFalse(mWifiVendorHal.resetLogHandler());
         verify(mIWifiChip, never()).enableDebugErrorAlerts(anyBoolean());
+        verify(mIWifiChip, never()).stopLoggingToDebugRingBuffer();
 
         // Now set and then reset.
         assertTrue(mWifiVendorHal.setLoggingEventHandler(
                 mock(WifiNative.WifiLoggerEventHandler.class)));
         assertTrue(mWifiVendorHal.resetLogHandler());
         verify(mIWifiChip).enableDebugErrorAlerts(eq(false));
+        verify(mIWifiChip).stopLoggingToDebugRingBuffer();
         reset(mIWifiChip);
 
         // Second reset should fail.
         assertFalse(mWifiVendorHal.resetLogHandler());
         verify(mIWifiChip, never()).enableDebugErrorAlerts(anyBoolean());
+        verify(mIWifiChip, never()).stopLoggingToDebugRingBuffer();
     }
 
     /**
@@ -1475,6 +1480,7 @@ public class WifiVendorHalTest {
     @Test
     public void testAlertCallback() throws Exception {
         when(mIWifiChip.enableDebugErrorAlerts(anyBoolean())).thenReturn(mWifiStatusSuccess);
+        when(mIWifiChip.stopLoggingToDebugRingBuffer()).thenReturn(mWifiStatusSuccess);
 
         assertTrue(mWifiVendorHal.startVendorHalSta());
         assertNotNull(mIWifiChipEventCallback);
@@ -1510,6 +1516,7 @@ public class WifiVendorHalTest {
     @Test
     public void testRingBufferDataCallback() throws Exception {
         when(mIWifiChip.enableDebugErrorAlerts(anyBoolean())).thenReturn(mWifiStatusSuccess);
+        when(mIWifiChip.stopLoggingToDebugRingBuffer()).thenReturn(mWifiStatusSuccess);
 
         assertTrue(mWifiVendorHal.startVendorHalSta());
         assertNotNull(mIWifiChipEventCallback);
