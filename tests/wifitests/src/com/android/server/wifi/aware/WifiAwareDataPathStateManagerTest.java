@@ -139,9 +139,10 @@ public class WifiAwareDataPathStateManagerTest {
         when(mMockNative.createAwareNetworkInterface(anyShort(), anyString())).thenReturn(true);
         when(mMockNative.deleteAwareNetworkInterface(anyShort(), anyString())).thenReturn(true);
         when(mMockNative.initiateDataPath(anyShort(), anyInt(), anyInt(), anyInt(),
-                any(byte[].class), anyString(), any(byte[].class))).thenReturn(true);
+                any(byte[].class), anyString(), any(byte[].class),
+                any(Capabilities.class))).thenReturn(true);
         when(mMockNative.respondToDataPathRequest(anyShort(), anyBoolean(), anyInt(), anyString(),
-                any(byte[].class))).thenReturn(true);
+                any(byte[].class), any(Capabilities.class))).thenReturn(true);
         when(mMockNative.endDataPath(anyShort(), anyInt())).thenReturn(true);
 
         when(mMockNetworkInterface.configureAgentProperties(
@@ -246,15 +247,6 @@ public class WifiAwareDataPathStateManagerTest {
     }
 
     /**
-     * Validate the fail flow of the Initiator: using session network specifier with a null
-     * token.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testDataPathInitiatorMacNoTokenFail() throws Exception {
-        testDataPathInitiatorUtility(false, true, false, true, false);
-    }
-
-    /**
      * Validate the fail flow of the Initiator: using session network specifier with a 0
      * peer ID.
      */
@@ -270,15 +262,6 @@ public class WifiAwareDataPathStateManagerTest {
     @Test
     public void testDataPathInitiatorDirectMacTokenSuccess() throws Exception {
         testDataPathInitiatorUtility(true, true, true, true, false);
-    }
-
-    /**
-     * Validate the fail flow of the Initiator: using a direct network specifier with a non-null
-     * peer mac and null token.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testDataPathInitiatorDirectMacNoTokenFail() throws Exception {
-        testDataPathInitiatorUtility(true, true, false, true, false);
     }
 
     /**
@@ -426,7 +409,7 @@ public class WifiAwareDataPathStateManagerTest {
         final int clientId = 123;
         final int pubSubId = 11234;
         final int ndpId = 2;
-        final String token = "some token";
+        final byte[] pmk = "some bytes".getBytes();
         final PeerHandle peerHandle = new PeerHandle(1341234);
         final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
 
@@ -437,7 +420,7 @@ public class WifiAwareDataPathStateManagerTest {
                 peerDiscoveryMac, inOrder, doPublish);
 
         // (1) request network
-        NetworkRequest nr = getSessionNetworkRequest(clientId, res.first, peerHandle, token,
+        NetworkRequest nr = getSessionNetworkRequest(clientId, res.first, peerHandle, pmk,
                 doPublish);
 
         // corrupt the network specifier: reverse the role (so it's mis-matched)
@@ -458,23 +441,23 @@ public class WifiAwareDataPathStateManagerTest {
         //   Initiator (subscribe): doesn't initiate (i.e. no HAL requests)
         if (doPublish) {
             // (2) get request & respond
-            mDut.onDataPathRequestNotification(pubSubId, peerDiscoveryMac, ndpId, token.getBytes());
+            mDut.onDataPathRequestNotification(pubSubId, peerDiscoveryMac, ndpId);
             mMockLooper.dispatchAll();
             inOrder.verify(mMockNative).respondToDataPathRequest(anyShort(), eq(false),
-                    eq(ndpId), eq(""), eq(new byte[0]));
+                    eq(ndpId), eq(""), eq(null), any(Capabilities.class));
         }
 
         verifyNoMoreInteractions(mMockNative, mMockCm);
     }
 
     private void testDataPathInitiatorUtility(boolean useDirect, boolean provideMac,
-            boolean provideToken, boolean getConfirmation, boolean immediateHalFailure)
+            boolean providePmk, boolean getConfirmation, boolean immediateHalFailure)
             throws Exception {
         final int clientId = 123;
         final int pubSubId = 11234;
         final PeerHandle peerHandle = new PeerHandle(1341234);
         final int ndpId = 2;
-        final String token = "some token";
+        final byte[] pmk = "some bytes".getBytes();
         final String peerToken = "let's go!";
         final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
         final byte[] peerDataPathMac = HexEncoding.decode("0A0B0C0D0E0F".toCharArray(), false);
@@ -485,7 +468,8 @@ public class WifiAwareDataPathStateManagerTest {
 
         if (immediateHalFailure) {
             when(mMockNative.initiateDataPath(anyShort(), anyInt(), anyInt(), anyInt(),
-                    any(byte[].class), anyString(), any(byte[].class))).thenReturn(false);
+                    any(byte[].class), anyString(), any(byte[].class),
+                    any(Capabilities.class))).thenReturn(false);
 
         }
 
@@ -498,10 +482,10 @@ public class WifiAwareDataPathStateManagerTest {
         if (useDirect) {
             nr = getDirectNetworkRequest(clientId,
                     WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR,
-                    provideMac ? peerDiscoveryMac : null, provideToken ? token : null);
+                    provideMac ? peerDiscoveryMac : null, providePmk ? pmk : null);
         } else {
             nr = getSessionNetworkRequest(clientId, res.first, provideMac ? peerHandle : null,
-                    provideToken ? token : null, false);
+                    providePmk ? pmk : null, false);
         }
 
         Message reqNetworkMsg = Message.obtain();
@@ -513,7 +497,7 @@ public class WifiAwareDataPathStateManagerTest {
         inOrder.verify(mMockNative).initiateDataPath(transactionId.capture(),
                 eq(useDirect ? 0 : peerHandle.peerId),
                 eq(REQUEST_CHANNEL_SETUP), eq(2437), eq(peerDiscoveryMac),
-                eq(sAwareInterfacePrefix + "0"), eq(token.getBytes()));
+                eq(sAwareInterfacePrefix + "0"), eq(pmk), any(Capabilities.class));
         if (immediateHalFailure) {
             // short-circuit the rest of this test
             verifyNoMoreInteractions(mMockNative, mMockCm);
@@ -562,12 +546,12 @@ public class WifiAwareDataPathStateManagerTest {
     }
 
     private void testDataPathResponderUtility(boolean useDirect, boolean provideMac,
-            boolean provideToken, boolean getConfirmation) throws Exception {
+            boolean providePmk, boolean getConfirmation) throws Exception {
         final int clientId = 123;
         final int pubSubId = 11234;
         final PeerHandle peerHandle = new PeerHandle(1341234);
         final int ndpId = 2;
-        final String token = "some token";
+        final byte[] pmk = "some bytes".getBytes();
         final String peerToken = "let's go!";
         final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
         final byte[] peerDataPathMac = HexEncoding.decode("0A0B0C0D0E0F".toCharArray(), false);
@@ -585,10 +569,10 @@ public class WifiAwareDataPathStateManagerTest {
         if (useDirect) {
             nr = getDirectNetworkRequest(clientId,
                     WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_RESPONDER,
-                    provideMac ? peerDiscoveryMac : null, provideToken ? token : null);
+                    provideMac ? peerDiscoveryMac : null, providePmk ? pmk : null);
         } else {
             nr = getSessionNetworkRequest(clientId, res.first, provideMac ? peerHandle : null,
-                    provideToken ? token : null, true);
+                    providePmk ? pmk : null, true);
         }
 
         Message reqNetworkMsg = Message.obtain();
@@ -599,10 +583,11 @@ public class WifiAwareDataPathStateManagerTest {
         mMockLooper.dispatchAll();
 
         // (2) get request & respond
-        mDut.onDataPathRequestNotification(pubSubId, peerDiscoveryMac, ndpId, token.getBytes());
+        mDut.onDataPathRequestNotification(pubSubId, peerDiscoveryMac, ndpId);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).respondToDataPathRequest(transactionId.capture(), eq(true),
-                eq(ndpId), eq(sAwareInterfacePrefix + "0"), eq(new byte[0]));
+                eq(ndpId), eq(sAwareInterfacePrefix + "0"), eq(providePmk ? pmk : null),
+                any(Capabilities.class));
         mDut.onRespondToDataPathSetupRequestResponse(transactionId.getValue(), true, 0);
         mMockLooper.dispatchAll();
 
@@ -659,7 +644,7 @@ public class WifiAwareDataPathStateManagerTest {
     }
 
     private NetworkRequest getSessionNetworkRequest(int clientId, int sessionId,
-            PeerHandle peerHandle, String token, boolean doPublish)
+            PeerHandle peerHandle, byte[] pmk, boolean doPublish)
             throws Exception {
         final WifiAwareManager mgr = new WifiAwareManager(mMockContext, mMockAwareService);
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -706,8 +691,12 @@ public class WifiAwareDataPathStateManagerTest {
                     (SubscribeDiscoverySession) discoverySession.capture());
         }
 
-        String ns = discoverySession.getValue().createNetworkSpecifier(peerHandle,
-                (token == null) ? null : token.getBytes());
+        String ns;
+        if (pmk == null) {
+            ns = discoverySession.getValue().createNetworkSpecifierOpen(peerHandle);
+        } else {
+            ns = discoverySession.getValue().createNetworkSpecifierPmk(peerHandle, pmk);
+        }
 
         NetworkCapabilities nc = new NetworkCapabilities();
         nc.clearAll();
@@ -723,7 +712,7 @@ public class WifiAwareDataPathStateManagerTest {
     }
 
     private NetworkRequest getDirectNetworkRequest(int clientId, int role, byte[] peer,
-            String token) throws Exception {
+            byte[] pmk) throws Exception {
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
         final WifiAwareManager mgr = new WifiAwareManager(mMockContext, mMockAwareService);
 
@@ -741,8 +730,12 @@ public class WifiAwareDataPathStateManagerTest {
         mMockLooper.dispatchAll();
         verify(mockCallback).onAttached(sessionCaptor.capture());
 
-        String ns = sessionCaptor.getValue().createNetworkSpecifier(role, peer,
-                (token == null) ? null : token.getBytes());
+        String ns;
+        if (pmk == null) {
+            ns = sessionCaptor.getValue().createNetworkSpecifierOpen(role, peer);
+        } else {
+            ns = sessionCaptor.getValue().createNetworkSpecifierPmk(role, peer, pmk);
+        }
         NetworkCapabilities nc = new NetworkCapabilities();
         nc.clearAll();
         nc.addTransportType(NetworkCapabilities.TRANSPORT_WIFI_AWARE);

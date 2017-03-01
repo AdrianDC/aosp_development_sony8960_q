@@ -19,6 +19,7 @@ package com.android.server.wifi.aware;
 import android.hardware.wifi.V1_0.IWifiNanIface;
 import android.hardware.wifi.V1_0.NanBandIndex;
 import android.hardware.wifi.V1_0.NanBandSpecificConfig;
+import android.hardware.wifi.V1_0.NanCipherSuiteType;
 import android.hardware.wifi.V1_0.NanConfigRequest;
 import android.hardware.wifi.V1_0.NanEnableRequest;
 import android.hardware.wifi.V1_0.NanInitiateDataPathRequest;
@@ -595,11 +596,12 @@ public class WifiAwareNativeApi {
      * @param channel            The channel on which to set up the data-path.
      * @param peer               The MAC address of the peer to create a connection with.
      * @param interfaceName      The interface on which to create the data connection.
-     * @param message An arbitrary byte array to forward to the peer as part of the data path
-     *                request.
+     * @param pmk Pairwise master key (PMK, see IEEE 802.11i). Null value means an unsecured (open)
+     *            datapath.
+     * @param capabilities The capabilities of the firmware.
      */
     public boolean initiateDataPath(short transactionId, int peerId, int channelRequestType,
-            int channel, byte[] peer, String interfaceName, byte[] message) {
+            int channel, byte[] peer, String interfaceName, byte[] pmk, Capabilities capabilities) {
         if (VDBG) {
             Log.v(TAG, "initiateDataPath: transactionId=" + transactionId + ", peerId=" + peerId
                     + ", channelRequestType=" + channelRequestType + ", channel=" + channel
@@ -613,14 +615,24 @@ public class WifiAwareNativeApi {
             return false;
         }
 
+        if (capabilities == null) {
+            Log.e(TAG, "initiateDataPath: null capabilities");
+            return false;
+        }
+
         NanInitiateDataPathRequest req = new NanInitiateDataPathRequest();
         req.peerId = peerId;
         copyArray(peer, req.peerDiscMacAddr);
         req.channelRequestType = channelRequestType;
         req.channel = channel;
         req.ifaceName = interfaceName;
-        req.securityRequired = false;
-        convertLcByteToUcByteArray(message, req.appInfo);
+        if (pmk == null || pmk.length == 0) {
+            req.securityRequired = false;
+        } else {
+            req.securityRequired = true;
+            req.cipherType = getStrongestCipherSuiteType(capabilities.supportedCipherSuites);
+            convertLcByteToUcByteArray(pmk, req.pmk);
+        }
 
         try {
             WifiStatus status = iface.initiateDataPathRequest(transactionId, req);
@@ -645,10 +657,12 @@ public class WifiAwareNativeApi {
      * @param ndpId The NDP (Aware data path) ID. Obtained from the request callback.
      * @param interfaceName The interface on which the data path will be setup. Obtained from the
      *                      request callback.
-     * @param message An arbitrary byte array to forward to the peer in the respond message.
+     * @param pmk Pairwise master key (PMK - see IEEE 802.11i) for the data-path. A null indicates
+     *            an unsecure (open) link.
+     * @param capabilities The capabilities of the firmware.
      */
     public boolean respondToDataPathRequest(short transactionId, boolean accept, int ndpId,
-            String interfaceName, byte[] message) {
+            String interfaceName, byte[] pmk, Capabilities capabilities) {
         if (VDBG) {
             Log.v(TAG, "respondToDataPathRequest: transactionId=" + transactionId + ", accept="
                     + accept + ", int ndpId=" + ndpId + ", interfaceName=" + interfaceName);
@@ -660,12 +674,22 @@ public class WifiAwareNativeApi {
             return false;
         }
 
+        if (capabilities == null) {
+            Log.e(TAG, "initiateDataPath: null capabilities");
+            return false;
+        }
+
         NanRespondToDataPathIndicationRequest req = new NanRespondToDataPathIndicationRequest();
         req.acceptRequest = accept;
         req.ndpInstanceId = ndpId;
         req.ifaceName = interfaceName;
-        req.securityRequired = false;
-        convertLcByteToUcByteArray(message, req.appInfo);
+        if (pmk == null || pmk.length == 0) {
+            req.securityRequired = false;
+        } else {
+            req.securityRequired = true;
+            req.cipherType = getStrongestCipherSuiteType(capabilities.supportedCipherSuites);
+            convertLcByteToUcByteArray(pmk, req.pmk);
+        }
 
         try {
             WifiStatus status = iface.respondToDataPathIndicationRequest(transactionId, req);
@@ -717,6 +741,21 @@ public class WifiAwareNativeApi {
     // utilities
 
     /**
+     * Returns the strongest supported cipher suite.
+     *
+     * Baseline is very simple: 256 > 128 > 0.
+     */
+    private int getStrongestCipherSuiteType(int supportedCipherSuites) {
+        if ((supportedCipherSuites & NanCipherSuiteType.SHARED_KEY_256_MASK) != 0) {
+            return NanCipherSuiteType.SHARED_KEY_256_MASK;
+        }
+        if ((supportedCipherSuites & NanCipherSuiteType.SHARED_KEY_128_MASK) != 0) {
+            return NanCipherSuiteType.SHARED_KEY_128_MASK;
+        }
+        return NanCipherSuiteType.NONE;
+    }
+
+    /**
      * Converts a byte[] to an ArrayList<Byte>. Fills in the entries of the 'to' array if
      * provided (non-null), otherwise creates and returns a new ArrayList<>.
      *
@@ -759,7 +798,6 @@ public class WifiAwareNativeApi {
         sb.append(status.code).append(" (").append(status.description).append(")");
         return sb.toString();
     }
-
 
     /**
      * Dump the internal state of the class.
