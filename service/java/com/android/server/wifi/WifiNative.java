@@ -499,6 +499,10 @@ public class WifiNative {
      */
     public boolean p2pListNetworks(WifiP2pGroupList groups) {
         String networks = doStringCommand("LIST_NETWORKS");
+        if (networks == null) {
+            logDbg("Could not fetch list of available networks.");
+            return false;
+        }
         String[] lines = networks.split("\n");
         if (lines == null) return false;
         boolean modified = false;
@@ -517,7 +521,7 @@ public class WifiNative {
             try {
                 netId = Integer.parseInt(result[0]);
             } catch (NumberFormatException e) {
-                e.printStackTrace();
+                Log.e(TAG, "Could not parse network id " + result[0], e);
                 continue;
             }
 
