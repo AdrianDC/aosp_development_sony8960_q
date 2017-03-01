@@ -2560,68 +2560,16 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
          *                and send broadcast message with fresh list
          */
         private void updatePersistentNetworks(boolean reload) {
-            String listStr = mWifiNative.listNetworks();
-            if (listStr == null) return;
-
-            boolean isSaveRequired = false;
-            String[] lines = listStr.split("\n");
-            if (lines == null) return;
-
             if (reload) mGroups.clear();
 
-            // Skip the first line, which is a header
-            for (int i = 1; i < lines.length; i++) {
-                String[] result = lines[i].split("\t");
-                if (result == null || result.length < 4) {
-                    continue;
+            // Save in all cases, including when reload was requested, but
+            // no network has been found.
+            if (mWifiNative.p2pListNetworks(mGroups) || reload) {
+                for (WifiP2pGroup group : mGroups.getGroupList()) {
+                    if (mThisDevice.deviceAddress.equals(group.getOwner().deviceAddress)) {
+                        group.setOwner(mThisDevice);
+                    }
                 }
-                // network-id | ssid | bssid | flags
-                int netId = -1;
-                String ssid = result[1];
-                String bssid = result[2];
-                String flags = result[3];
-                try {
-                    netId = Integer.parseInt(result[0]);
-                } catch (NumberFormatException e) {
-                    e.printStackTrace();
-                    continue;
-                }
-
-                if (flags.indexOf("[CURRENT]") != -1) {
-                    continue;
-                }
-                if (flags.indexOf("[P2P-PERSISTENT]") == -1) {
-                    // The unused profile is sometimes remained when the p2p group formation
-                    // is failed. So, we clean up the p2p group here.
-                    if (DBG) logd("clean up the unused persistent group. netId=" + netId);
-                    mWifiNative.removeNetwork(netId);
-                    isSaveRequired = true;
-                    continue;
-                }
-
-                if (mGroups.contains(netId)) {
-                    continue;
-                }
-
-                WifiP2pGroup group = new WifiP2pGroup();
-                group.setNetworkId(netId);
-                group.setNetworkName(ssid);
-                String mode = mWifiNative.getNetworkVariable(netId, "mode");
-                if (mode != null && mode.equals("3")) {
-                    group.setIsGroupOwner(true);
-                }
-                if (bssid.equalsIgnoreCase(mThisDevice.deviceAddress)) {
-                    group.setOwner(mThisDevice);
-                } else {
-                    WifiP2pDevice device = new WifiP2pDevice();
-                    device.deviceAddress = bssid;
-                    group.setOwner(device);
-                }
-                mGroups.add(group);
-                isSaveRequired = true;
-            }
-
-            if (reload || isSaveRequired) {
                 mWifiNative.saveConfig();
                 sendP2pPersistentGroupsChangedBroadcast();
             }
