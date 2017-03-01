@@ -356,8 +356,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
         }
 
         mWifiAwareStateManager.onDataPathRequestNotification(event.discoverySessionId,
-                event.peerDiscMacAddr, event.ndpInstanceId,
-                convertUcByteToLcByteArray(event.appInfo));
+                event.peerDiscMacAddr, event.ndpInstanceId);
     }
 
     @Override
