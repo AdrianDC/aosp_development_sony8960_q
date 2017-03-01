@@ -105,7 +105,6 @@ public class WifiScanningServiceTest {
         mAlarmManager = new TestAlarmManager();
         when(mContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
-        mWifiMetrics = new WifiMetrics(mClock);
 
         ChannelHelper channelHelper = new PresetKnownBandsChannelHelper(
                 new int[]{2400, 2450},
@@ -113,6 +112,7 @@ public class WifiScanningServiceTest {
                 new int[]{5600, 5650, 5660});
 
         mLooper = new TestLooper();
+        mWifiMetrics = new WifiMetrics(mClock, mLooper.getLooper());
         when(mWifiScannerImplFactory
                 .create(any(), any(), any()))
                 .thenReturn(mWifiScannerImpl);
