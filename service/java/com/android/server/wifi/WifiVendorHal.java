@@ -1473,6 +1473,8 @@ public class WifiVendorHal {
                 kilroy();
                 WifiStatus status = mIWifiChip.enableDebugErrorAlerts(false);
                 if (status.code != WifiStatusCode.SUCCESS) return false;
+                status = mIWifiChip.stopLoggingToDebugRingBuffer();
+                if (status.code != WifiStatusCode.SUCCESS) return false;
                 mLogEventHandler = null;
                 return true;
             } catch (RemoteException e) {
@@ -2358,7 +2360,7 @@ public class WifiVendorHal {
 
         @Override
         public void onBackgroundFullScanResult(
-                int cmdId, StaScanResult result) {
+                int cmdId, int bucketsScanned, StaScanResult result) {
             kilroy();
             Log.d(TAG, "onBackgroundFullScanResult " + cmdId);
             WifiNative.ScanEventHandler eventHandler;
@@ -2367,7 +2369,7 @@ public class WifiVendorHal {
                 eventHandler = mScan.eventHandler;
                 kilroy();
             }
-            eventHandler.onFullScanResult(hidlToFrameworkScanResult(result), 0);
+            eventHandler.onFullScanResult(hidlToFrameworkScanResult(result), bucketsScanned);
         }
 
         @Override
