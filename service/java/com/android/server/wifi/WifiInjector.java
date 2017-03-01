@@ -190,10 +190,11 @@ public class WifiInjector {
                 mWifiNetworkHistory, mWifiNative, mIpConfigStore,
                 new LegacyPasspointConfigParser());
         // Config Manager
-        mWifiConfigManager = new WifiConfigManager(mContext, mFrameworkFacade, mClock,
+        mWifiConfigManager = new WifiConfigManager(mContext, mClock,
                 UserManager.get(mContext), TelephonyManager.from(mContext),
-                mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy, mWifiPermissionsWrapper,
-                new NetworkListStoreData(), new DeletedEphemeralSsidsStoreData());
+                mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy, mWifiPermissionsUtil,
+                mWifiPermissionsWrapper, new NetworkListStoreData(),
+                new DeletedEphemeralSsidsStoreData());
         mWifiNetworkSelector = new WifiNetworkSelector(mContext, mWifiConfigManager, mClock);
         LocalLog localLog = mWifiNetworkSelector.getLocalLog();
         mSavedNetworkEvaluator = new SavedNetworkEvaluator(mContext,

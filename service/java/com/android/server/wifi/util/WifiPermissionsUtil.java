@@ -22,6 +22,7 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.net.NetworkScoreManager;
+import android.os.RemoteException;
 import android.os.UserManager;
 import android.provider.Settings;
 
@@ -55,6 +56,22 @@ public class WifiPermissionsUtil {
         mSettingsStore = settingsStore;
         mLog = wifiInjector.makeLog(TAG);
         mNetworkScoreManager = networkScoreManager;
+    }
+
+    /**
+     * Checks if the app has the permission to override Wi-Fi network configuration or not.
+     *
+     * @param uid uid of the app.
+     * @return true if the app does have the permission, false otherwise.
+     */
+    public boolean checkConfigOverridePermission(int uid) {
+        try {
+            int permission = mWifiPermissionsWrapper.getOverrideWifiConfigPermission(uid);
+            return (permission == PackageManager.PERMISSION_GRANTED);
+        } catch (RemoteException e) {
+            mLog.err("Error checking for permission: %").r(e.getMessage()).flush();
+            return false;
+        }
     }
 
     /**
