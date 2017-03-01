@@ -544,6 +544,7 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
             List<ScanResult> singleScanResults = new ArrayList<>();
             List<ScanResult> backgroundScanResults = new ArrayList<>();
             List<ScanResult> hwPnoScanResults = new ArrayList<>();
+            int numFilteredScanResults = 0;
             for (int i = 0; i < nativeResults.size(); ++i) {
                 ScanResult result = nativeResults.get(i).getScanResult();
                 long timestamp_ms = result.timestamp / 1000; // convert us -> ms
@@ -560,8 +561,11 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
                         hwPnoScanResults.add(result);
                     }
                 } else {
-                    // was a cached result in wpa_supplicant
+                    numFilteredScanResults++;
                 }
+            }
+            if (numFilteredScanResults != 0) {
+                Log.d(TAG, "Filtering out " + numFilteredScanResults + " scan results.");
             }
 
             if (mLastScanSettings.backgroundScanActive) {
