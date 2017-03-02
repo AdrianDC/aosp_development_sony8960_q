@@ -32,12 +32,10 @@ import android.net.wifi.p2p.WifiP2pManager;
 import android.net.wifi.p2p.nsd.WifiP2pServiceInfo;
 import android.os.RemoteException;
 import android.util.Log;
-import android.util.MutableBoolean;
 
 import com.android.server.wifi.util.NativeUtil;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 /**
  * Native calls sending requests to the P2P Hals, and callbacks for receiving P2P events
  *
@@ -46,7 +44,6 @@ import java.util.Arrays;
 public class SupplicantP2pIfaceHal {
     private static final boolean DBG = true;
     private static final String TAG = "SupplicantP2pIfaceHal";
-    private static final String SERVICE_MANAGER_NAME = "manager";
     private static final int RESULT_NOT_VALID = -1;
     private static final int DEFAULT_GROUP_OWNER_INTENT = 6;
 
@@ -244,7 +241,7 @@ public class SupplicantP2pIfaceHal {
      * Wrapper functions to access static HAL methods, created to be mockable in unit tests
      */
     protected IServiceManager getServiceManagerMockable() throws RemoteException {
-        return IServiceManager.getService(SERVICE_MANAGER_NAME);
+        return IServiceManager.getService();
     }
 
     protected ISupplicant getSupplicantMockable() throws RemoteException {
