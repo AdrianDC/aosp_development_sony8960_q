@@ -464,9 +464,16 @@ public class SupplicantStaIfaceHal {
             }
             WifiConfiguration config = new WifiConfiguration();
             Map<String, String> networkExtra = new HashMap<>();
-            if (!network.loadWifiConfiguration(config, networkExtra)) {
-                Log.e(TAG, "Failed to load wifi configuration for network with ID: " + networkId);
-                return false;
+            boolean loadSuccess = false;
+            try {
+                loadSuccess = network.loadWifiConfiguration(config, networkExtra);
+            } catch (IllegalArgumentException e) {
+                Log.wtf(TAG, "Exception while loading config params: " + config, e);
+            }
+            if (!loadSuccess) {
+                Log.e(TAG, "Failed to load wifi configuration for network with ID: " + networkId
+                        + ". Skipping...");
+                continue;
             }
             // Set the default IP assignments.
             config.setIpAssignment(IpConfiguration.IpAssignment.DHCP);
