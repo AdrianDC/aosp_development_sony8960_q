@@ -328,8 +328,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private static final String SUPPLICANT_BSSID_ANY = "any";
 
     private int mSupplicantRestartCount = 0;
-    /* Tracks sequence number on stop failure message */
-    private int mSupplicantStopFailureToken = 0;
 
     /**
      * The link properties of the wifi interface.
@@ -466,8 +464,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     static final int CMD_STATIC_IP_SUCCESS                              = BASE + 15;
     /* Indicates Static IP failed */
     static final int CMD_STATIC_IP_FAILURE                              = BASE + 16;
-    /* Indicates supplicant stop failed */
-    static final int CMD_STOP_SUPPLICANT_FAILED                         = BASE + 17;
     /* A delayed message sent to start driver when it fail to come up */
     static final int CMD_DRIVER_START_TIMED_OUT                         = BASE + 19;
 
@@ -3695,7 +3691,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_START_SUPPLICANT:
                 case CMD_STOP_SUPPLICANT:
-                case CMD_STOP_SUPPLICANT_FAILED:
                 case CMD_DRIVER_START_TIMED_OUT:
                 case CMD_START_AP:
                 case CMD_START_AP_FAILURE:
@@ -4322,47 +4317,19 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             String suppState = System.getProperty("init.svc.wpa_supplicant");
             if (suppState == null) suppState = "unknown";
 
-            logd("SupplicantStoppingState: stopSupplicant "
-                    + " init.svc.wpa_supplicant=" + suppState);
-            mWifiMonitor.stopSupplicant();
-
-            /* Send ourselves a delayed message to indicate failure after a wait time */
-            sendMessageDelayed(obtainMessage(CMD_STOP_SUPPLICANT_FAILED,
-                    ++mSupplicantStopFailureToken, 0), SUPPLICANT_RESTART_INTERVAL_MSECS);
             setWifiState(WIFI_STATE_DISABLING);
             mSupplicantStateTracker.sendMessage(CMD_RESET_SUPPLICANT_STATE);
-        }
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-
-            switch(message.what) {
-                case WifiMonitor.SUP_CONNECTION_EVENT:
-                    loge("Supplicant connection received while stopping");
-                    break;
-                case WifiMonitor.SUP_DISCONNECTION_EVENT:
-                    if (mVerboseLoggingEnabled) log("Supplicant connection lost");
-                    handleSupplicantConnectionLoss(false);
-                    transitionTo(mInitialState);
-                    break;
-                case CMD_STOP_SUPPLICANT_FAILED:
-                    if (message.arg1 == mSupplicantStopFailureToken) {
-                        loge("Timed out on a supplicant stop, kill and proceed");
-                        handleSupplicantConnectionLoss(true);
-                        transitionTo(mInitialState);
-                    }
-                    break;
-                case CMD_START_SUPPLICANT:
-                case CMD_STOP_SUPPLICANT:
-                case CMD_START_AP:
-                case CMD_STOP_AP:
-                case CMD_SET_OPERATIONAL_MODE:
-                    deferMessage(message);
-                    break;
-                default:
-                    return NOT_HANDLED;
+            logd("SupplicantStoppingState: disableSupplicant "
+                    + " init.svc.wpa_supplicant=" + suppState);
+            if (mWifiNative.disableSupplicant()) {
+                mWifiNative.closeSupplicantConnection();
+                sendSupplicantConnectionChangedBroadcast(false);
+                setWifiState(WIFI_STATE_DISABLED);
+            } else {
+                // Failed to disable supplicant
+                handleSupplicantConnectionLoss(true);
             }
-            return HANDLED;
+            transitionTo(mInitialState);
         }
     }
 
