@@ -640,10 +640,6 @@ public class WifiMonitor {
         setMonitoring(iface, false);
     }
 
-    public synchronized void stopSupplicant() {
-        mWifiNative.stopSupplicant();
-    }
-
     public synchronized void stopAllMonitoring() {
         mConnected = false;
         setMonitoringNone();
