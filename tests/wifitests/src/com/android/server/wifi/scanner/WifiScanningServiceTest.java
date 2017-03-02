@@ -1784,7 +1784,7 @@ public class WifiScanningServiceTest {
     }
 
     /**
-     * Tests Supplicant PNO scan when the PNO scan results contain IE info. This ensures that the
+     * Tests wificond PNO scan when the PNO scan results contain IE info. This ensures that the
      * PNO scan results are plumbed back to the client as a PNO network found event.
      */
     @Test
