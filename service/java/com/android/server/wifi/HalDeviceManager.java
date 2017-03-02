@@ -491,7 +491,7 @@ public class HalDeviceManager {
 
     protected IServiceManager getServiceManagerMockable() {
         try {
-            return IServiceManager.getService("manager");
+            return IServiceManager.getService();
         } catch (RemoteException e) {
             Log.e(TAG, "Exception getting IServiceManager: " + e);
             return null;
