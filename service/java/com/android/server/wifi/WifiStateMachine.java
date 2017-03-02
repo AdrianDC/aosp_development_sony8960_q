@@ -3962,9 +3962,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiMonitor.stopAllMonitoring();
 
             mDeathRecipient.unlinkToDeath();
-            mWifiNative.tearDownInterfaces();
-
-            mWifiNative.stopHal();
+            mWifiNative.tearDown();
         }
 
         @Override
@@ -3978,7 +3976,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             logStateAndMessage(message, this);
             switch (message.what) {
                 case CMD_START_SUPPLICANT:
-                    mClientInterface = mWifiNative.setupDriverForClientMode();
+                    mClientInterface = mWifiNative.setupForClientMode();
                     if (mClientInterface == null
                             || !mDeathRecipient.linkToDeath(mClientInterface.asBinder())) {
                         setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
@@ -6600,7 +6598,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 throw new RuntimeException("Illegal transition to SoftApState: " + message);
             }
 
-            IApInterface apInterface = mWifiNative.setupDriverForSoftApMode();
+            IApInterface apInterface = mWifiNative.setupForSoftApMode();
             if (apInterface == null) {
                 setWifiApState(WIFI_AP_STATE_FAILED,
                         WifiManager.SAP_START_FAILURE_GENERAL);
