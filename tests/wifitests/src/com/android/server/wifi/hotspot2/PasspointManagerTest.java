@@ -16,10 +16,15 @@
 
 package com.android.server.wifi.hotspot2;
 
-import static android.net.wifi.WifiManager.EXTRA_PASSPOINT_ICON_BSSID;
-import static android.net.wifi.WifiManager.EXTRA_PASSPOINT_ICON_DATA;
-import static android.net.wifi.WifiManager.EXTRA_PASSPOINT_ICON_FILE;
-import static android.net.wifi.WifiManager.PASSPOINT_ICON_RECEIVED_ACTION;
+import static android.net.wifi.WifiManager.ACTION_PASSPOINT_DEAUTH_IMMINENT;
+import static android.net.wifi.WifiManager.ACTION_PASSPOINT_ICON;
+import static android.net.wifi.WifiManager.ACTION_PASSPOINT_SUBSCRIPTION_REMEDIATION;
+import static android.net.wifi.WifiManager.EXTRA_BSSID_LONG;
+import static android.net.wifi.WifiManager.EXTRA_DELAY;
+import static android.net.wifi.WifiManager.EXTRA_ESS;
+import static android.net.wifi.WifiManager.EXTRA_ICON_INFO;
+import static android.net.wifi.WifiManager.EXTRA_SUBSCRIPTION_REMEDIATION_METHOD;
+import static android.net.wifi.WifiManager.EXTRA_URL;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -39,6 +44,7 @@ import static org.mockito.MockitoAnnotations.initMocks;
 import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.EAPConstants;
+import android.net.wifi.IconInfo;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.hotspot2.PasspointConfiguration;
@@ -128,24 +134,22 @@ public class PasspointManagerTest {
     }
 
     /**
-     * Verify PASSPOINT_ICON_RECEIVED_ACTION broadcast intent.
+     * Verify {@link WifiManager#ACTION_PASSPOINT_ICON} broadcast intent.
      * @param bssid BSSID of the AP
      * @param fileName Name of the icon file
      * @param data icon data byte array
      */
     private void verifyIconIntent(long bssid, String fileName, byte[] data) {
         ArgumentCaptor<Intent> intent = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendBroadcastAsUser(intent.capture(), eq(UserHandle.ALL));
-        assertEquals(PASSPOINT_ICON_RECEIVED_ACTION, intent.getValue().getAction());
-        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_PASSPOINT_ICON_BSSID));
-        assertEquals(bssid, intent.getValue().getExtras().getLong(EXTRA_PASSPOINT_ICON_BSSID));
-        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_PASSPOINT_ICON_FILE));
-        assertEquals(fileName, intent.getValue().getExtras().getString(EXTRA_PASSPOINT_ICON_FILE));
-        if (data != null) {
-            assertTrue(intent.getValue().getExtras().containsKey(EXTRA_PASSPOINT_ICON_DATA));
-            assertEquals(data,
-                         intent.getValue().getExtras().getByteArray(EXTRA_PASSPOINT_ICON_DATA));
-        }
+        verify(mContext).sendBroadcastAsUser(intent.capture(), eq(UserHandle.ALL),
+                eq(android.Manifest.permission.ACCESS_WIFI_STATE));
+        assertEquals(ACTION_PASSPOINT_ICON, intent.getValue().getAction());
+        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_BSSID_LONG));
+        assertEquals(bssid, intent.getValue().getExtras().getLong(EXTRA_BSSID_LONG));
+        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_ICON_INFO));
+        IconInfo expectedInfo = new IconInfo(fileName, data);
+        assertEquals(new IconInfo(fileName, data),
+                (IconInfo) intent.getValue().getExtras().getParcelable(EXTRA_ICON_INFO));
     }
 
     /**
@@ -327,6 +331,61 @@ public class PasspointManagerTest {
     public void iconResponseFailure() throws Exception {
         mCallbacks.onIconResponse(BSSID, ICON_FILENAME, null);
         verifyIconIntent(BSSID, ICON_FILENAME, null);
+    }
+
+    /**
+     * Validate the broadcast intent {@link WifiManager#ACTION_PASSPOINT_DEAUTH_IMMINENT} when
+     * Deauth Imminent WNM frame is received.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void onDeauthImminentReceived() throws Exception {
+        String reasonUrl = "test.com";
+        int delay = 123;
+        boolean ess = true;
+
+        mCallbacks.onWnmFrameReceived(new WnmData(BSSID, reasonUrl, ess, delay));
+        // Verify the broadcast intent.
+        ArgumentCaptor<Intent> intent = ArgumentCaptor.forClass(Intent.class);
+        verify(mContext).sendBroadcastAsUser(intent.capture(), eq(UserHandle.ALL),
+                eq(android.Manifest.permission.ACCESS_WIFI_STATE));
+        assertEquals(ACTION_PASSPOINT_DEAUTH_IMMINENT, intent.getValue().getAction());
+        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_BSSID_LONG));
+        assertEquals(BSSID, intent.getValue().getExtras().getLong(EXTRA_BSSID_LONG));
+        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_ESS));
+        assertEquals(ess, intent.getValue().getExtras().getBoolean(EXTRA_ESS));
+        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_DELAY));
+        assertEquals(delay, intent.getValue().getExtras().getInt(EXTRA_DELAY));
+        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_URL));
+        assertEquals(reasonUrl, intent.getValue().getExtras().getString(EXTRA_URL));
+    }
+
+    /**
+     * Validate the broadcast intent {@link WifiManager#ACTION_PASSPOINT_SUBSCRIPTION_REMEDIATION}
+     * when Subscription Remediation WNM frame is received.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void onSubscriptionRemediationReceived() throws Exception {
+        int serverMethod = 1;
+        String serverUrl = "testUrl";
+
+        mCallbacks.onWnmFrameReceived(new WnmData(BSSID, serverUrl, serverMethod));
+        // Verify the broadcast intent.
+        ArgumentCaptor<Intent> intent = ArgumentCaptor.forClass(Intent.class);
+        verify(mContext).sendBroadcastAsUser(intent.capture(), eq(UserHandle.ALL),
+                eq(android.Manifest.permission.ACCESS_WIFI_STATE));
+        assertEquals(ACTION_PASSPOINT_SUBSCRIPTION_REMEDIATION, intent.getValue().getAction());
+        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_BSSID_LONG));
+        assertEquals(BSSID, intent.getValue().getExtras().getLong(EXTRA_BSSID_LONG));
+        assertTrue(intent.getValue().getExtras().containsKey(
+                EXTRA_SUBSCRIPTION_REMEDIATION_METHOD));
+        assertEquals(serverMethod, intent.getValue().getExtras().getInt(
+                EXTRA_SUBSCRIPTION_REMEDIATION_METHOD));
+        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_URL));
+        assertEquals(serverUrl, intent.getValue().getExtras().getString(EXTRA_URL));
     }
 
     /**
