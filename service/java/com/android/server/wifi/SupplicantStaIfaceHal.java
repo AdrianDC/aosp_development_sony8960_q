@@ -44,6 +44,7 @@ import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiSsid;
 import android.os.RemoteException;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.SparseArray;
 
@@ -1282,6 +1283,7 @@ public class SupplicantStaIfaceHal {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean setCountryCode(String codeStr) {
+        if (TextUtils.isEmpty(codeStr)) return false;
         return setCountryCode(NativeUtil.stringToByteArray(codeStr));
     }
 
@@ -1308,6 +1310,7 @@ public class SupplicantStaIfaceHal {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean startWpsRegistrar(String bssidStr, String pin) {
+        if (TextUtils.isEmpty(bssidStr) || TextUtils.isEmpty(pin)) return false;
         return startWpsRegistrar(NativeUtil.macAddressToByteArray(bssidStr), pin);
     }
 
@@ -1333,6 +1336,7 @@ public class SupplicantStaIfaceHal {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean startWpsPbc(String bssidStr) {
+        if (TextUtils.isEmpty(bssidStr)) return false;
         return startWpsPbc(NativeUtil.macAddressToByteArray(bssidStr));
     }
 
@@ -1358,6 +1362,7 @@ public class SupplicantStaIfaceHal {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean startWpsPinKeypad(String pin) {
+        if (TextUtils.isEmpty(pin)) return false;
         synchronized (mLock) {
             final String methodStr = "startWpsPinKeypad";
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
@@ -1378,6 +1383,7 @@ public class SupplicantStaIfaceHal {
      * @return new pin generated on success, null otherwise.
      */
     public String startWpsPinDisplay(String bssidStr) {
+        if (TextUtils.isEmpty(bssidStr)) return null;
         return startWpsPinDisplay(NativeUtil.macAddressToByteArray(bssidStr));
     }
 

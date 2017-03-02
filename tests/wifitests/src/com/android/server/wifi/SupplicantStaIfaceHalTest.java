@@ -1105,6 +1105,29 @@ public class SupplicantStaIfaceHalTest {
         verify(mISupplicantMock).setConcurrencyPriority(eq(IfaceType.STA));
     }
 
+    /**
+     * Tests the start of wps registrar.
+     */
+    @Test
+    public void testStartWpsRegistrar() throws Exception {
+        when(mISupplicantStaIfaceMock.startWpsRegistrar(any(byte[].class), anyString()))
+                .thenReturn(mStatusSuccess);
+
+        // Fail before initialization is performed.
+        assertFalse(mDut.startWpsRegistrar(null, null));
+
+        executeAndValidateInitializationSequence();
+
+        assertFalse(mDut.startWpsRegistrar(null, null));
+        verify(mISupplicantStaIfaceMock, never()).startWpsRegistrar(any(byte[].class), anyString());
+
+        assertFalse(mDut.startWpsRegistrar(new String(), "452233"));
+        verify(mISupplicantStaIfaceMock, never()).startWpsRegistrar(any(byte[].class), anyString());
+
+        assertTrue(mDut.startWpsRegistrar("45:23:12:12:12:98", "562535"));
+        verify(mISupplicantStaIfaceMock).startWpsRegistrar(any(byte[].class), anyString());
+    }
+
     private void executeAndValidateHs20DeauthImminentCallback(boolean isEss) throws Exception {
         executeAndValidateInitializationSequence();
         assertNotNull(mISupplicantStaIfaceCallback);
