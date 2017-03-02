@@ -687,22 +687,39 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     /**
      * see {@link WifiManager#getWifiApConfiguration()}
      * @return soft access point configuration
+     * @throws SecurityException if the caller does not have permission to retrieve the softap
+     * config
      */
     @Override
     public WifiConfiguration getWifiApConfiguration() {
         enforceAccessPermission();
-        mLog.trace("getWifiApConfiguration uid=%").c(Binder.getCallingUid()).flush();
+        int uid = Binder.getCallingUid();
+        // only allow Settings UI to get the saved SoftApConfig
+        if (!mWifiPermissionsUtil.checkConfigOverridePermission(uid)) {
+            // random apps should not be allowed to read the user specified config
+            throw new SecurityException("App not allowed to read or update stored WiFi Ap config "
+                    + "(uid = " + uid + ")");
+        }
+        mLog.trace("getWifiApConfiguration uid=%").c(uid).flush();
         return mWifiStateMachine.syncGetWifiApConfiguration();
     }
 
     /**
      * see {@link WifiManager#setWifiApConfiguration(WifiConfiguration)}
      * @param wifiConfig WifiConfiguration details for soft access point
+     * @throws SecurityException if the caller does not have permission to write the sotap config
      */
     @Override
     public void setWifiApConfiguration(WifiConfiguration wifiConfig) {
         enforceChangePermission();
-        mLog.trace("setWifiApConfiguration uid=%").c(Binder.getCallingUid()).flush();
+        int uid = Binder.getCallingUid();
+        // only allow Settings UI to write the stored SoftApConfig
+        if (!mWifiPermissionsUtil.checkConfigOverridePermission(uid)) {
+            // random apps should not be allowed to read the user specified config
+            throw new SecurityException("App not allowed to read or update stored WiFi AP config "
+                    + "(uid = " + uid + ")");
+        }
+        mLog.trace("setWifiApConfiguration uid=%").c(uid).flush();
         if (wifiConfig == null)
             return;
         if (isValid(wifiConfig)) {
