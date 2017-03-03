@@ -2139,6 +2139,46 @@ public class WifiConfigManagerTest {
     }
 
     /**
+     * Verify that unlocking an user that owns a legacy Passpoint configuration (which is stored
+     * temporarily in the share store) will migrate it to PasspointManager and removed from
+     * the list of configured networks.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testHandleUserUnlockRemovePasspointConfigFromSharedConfig() throws Exception {
+        int user1 = TEST_DEFAULT_USER;
+        int appId = 674;
+
+        final WifiConfiguration passpointConfig =
+                WifiConfigurationTestUtil.createPasspointNetwork();
+        passpointConfig.creatorUid = UserHandle.getUid(user1, appId);
+
+        // Set up the shared store data to contain one legacy Passpoint configuration.
+        List<WifiConfiguration> sharedNetworks = new ArrayList<WifiConfiguration>() {
+            {
+                add(passpointConfig);
+            }
+        };
+        setupStoreDataForRead(sharedNetworks, new ArrayList<WifiConfiguration>(),
+                new HashSet<String>());
+        assertTrue(mWifiConfigManager.loadFromStore());
+        verify(mWifiConfigStore).read();
+        assertEquals(1, mWifiConfigManager.getConfiguredNetworks().size());
+
+        // Unlock the owner of the legacy Passpoint configuration, verify it is removed from
+        // the configured networks (migrated to PasspointManager).
+        setupStoreDataForUserRead(new ArrayList<WifiConfiguration>(), new HashSet<String>());
+        mWifiConfigManager.handleUserUnlock(user1);
+        verify(mWifiConfigStore).switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class));
+        Pair<List<WifiConfiguration>, List<WifiConfiguration>> writtenNetworkList =
+                captureWriteNetworksListStoreData();
+        assertTrue(writtenNetworkList.first.isEmpty());
+        assertTrue(writtenNetworkList.second.isEmpty());
+        assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+    }
+
+    /**
      * Verifies the foreground user switch using {@link WifiConfigManager#handleUserSwitch(int)}
      * and {@link WifiConfigManager#handleUserUnlock(int)} and ensures that the new store is
      * read immediately if the user is unlocked during the switch.
@@ -2261,10 +2301,9 @@ public class WifiConfigManagerTest {
         setupStoreDataForUserRead(new ArrayList<WifiConfiguration>(), new HashSet<String>());
         // Read from store now.
         assertTrue(mWifiConfigManager.loadFromStore());
-        mContextConfigStoreMockOrder.verify(mWifiConfigStore).read();
         mContextConfigStoreMockOrder.verify(mWifiConfigStore)
-                .switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class));
-        mContextConfigStoreMockOrder.verify(mWifiConfigStore).write(anyBoolean());
+                .setUserStore(any(WifiConfigStore.StoreFile.class));
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore).read();
     }
 
     /**

@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -42,6 +43,8 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
+import android.net.wifi.hotspot2.PasspointConfiguration;
+import android.net.wifi.hotspot2.pps.HomeSp;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
 import android.os.Binder;
@@ -73,6 +76,7 @@ import com.android.internal.util.AsyncChannel;
 import com.android.internal.util.IState;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.hotspot2.NetworkDetail;
+import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
 
 import org.junit.After;
@@ -324,6 +328,7 @@ public class WifiStateMachineTest {
     @Mock WifiConnectivityManager mWifiConnectivityManager;
     @Mock SoftApManager mSoftApManager;
     @Mock WifiStateTracker mWifiStateTracker;
+    @Mock PasspointManager mPasspointManager;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -360,6 +365,7 @@ public class WifiStateMachineTest {
                 any(SoftApManager.Listener.class), any(IApInterface.class),
                 any(WifiConfiguration.class)))
                 .thenReturn(mSoftApManager);
+        when(mWifiInjector.getPasspointManager()).thenReturn(mPasspointManager);
 
         when(mWifiNative.setupDriverForClientMode()).thenReturn(mClientInterface);
         when(mWifiNative.setupDriverForSoftApMode()).thenReturn(mApInterface);
@@ -1088,5 +1094,83 @@ public class WifiStateMachineTest {
                 testGetSupportedFeaturesCase(featureInfra | featureD2dRtt | featureD2apRtt, false));
         assertEquals(featureInfra,
                 testGetSupportedFeaturesCase(featureInfra | featureD2dRtt | featureD2apRtt, true));
+    }
+
+    /**
+     * Verify that syncAddOrUpdatePasspointConfig will redirect calls to {@link PasspointManager}
+     * and returning the result that's returned from {@link PasspointManager}.
+     */
+    @Test
+    public void syncAddOrUpdatePasspointConfig() throws Exception {
+        when(mPasspointManager.addOrUpdateProvider(any(PasspointConfiguration.class)))
+                .thenReturn(true);
+        mLooper.startAutoDispatch();
+        assertTrue(mWsm.syncAddOrUpdatePasspointConfig(mWsmAsyncChannel,
+                new PasspointConfiguration()));
+        mLooper.stopAutoDispatch();
+        reset(mPasspointManager);
+
+        when(mPasspointManager.addOrUpdateProvider(any(PasspointConfiguration.class)))
+                .thenReturn(false);
+        mLooper.startAutoDispatch();
+        assertFalse(mWsm.syncAddOrUpdatePasspointConfig(mWsmAsyncChannel,
+                new PasspointConfiguration()));
+        mLooper.stopAutoDispatch();
+    }
+
+    /**
+     * Verify that syncRemovePasspointConfig will redirect calls to {@link PasspointManager}
+     * and returning the result that's returned from {@link PasspointManager}.
+     */
+    @Test
+    public void syncRemovePasspointConfig() throws Exception {
+        String fqdn = "test.com";
+        when(mPasspointManager.removeProvider(fqdn)).thenReturn(true);
+        mLooper.startAutoDispatch();
+        assertTrue(mWsm.syncRemovePasspointConfig(mWsmAsyncChannel, fqdn));
+        mLooper.stopAutoDispatch();
+        reset(mPasspointManager);
+
+        when(mPasspointManager.removeProvider(fqdn)).thenReturn(false);
+        mLooper.startAutoDispatch();
+        assertFalse(mWsm.syncRemovePasspointConfig(mWsmAsyncChannel, fqdn));
+        mLooper.stopAutoDispatch();
+    }
+
+    /**
+     * Verify that syncRemovePasspointConfig will redirect calls to {@link PasspointManager}
+     * and returning the result that's returned from {@link PasspointManager} when in client mode.
+     */
+    @Test
+    public void syncRemovePasspointConfigInClientMode() throws Exception {
+        loadComponentsInStaMode();
+        syncRemovePasspointConfig();
+    }
+
+    /**
+     * Verify that syncGetPasspointConfigs will redirect calls to {@link PasspointManager}
+     * and returning the result that's returned from {@link PasspointManager}.
+     */
+    @Test
+    public void syncGetPasspointConfigs() throws Exception {
+        // Setup expected configs.
+        List<PasspointConfiguration> expectedConfigs = new ArrayList<>();
+        PasspointConfiguration config = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setFqdn("test.com");
+        config.setHomeSp(homeSp);
+        expectedConfigs.add(config);
+
+        when(mPasspointManager.getProviderConfigs()).thenReturn(expectedConfigs);
+        mLooper.startAutoDispatch();
+        assertEquals(expectedConfigs, mWsm.syncGetPasspointConfigs(mWsmAsyncChannel));
+        mLooper.stopAutoDispatch();
+        reset(mPasspointManager);
+
+        when(mPasspointManager.getProviderConfigs())
+                .thenReturn(new ArrayList<PasspointConfiguration>());
+        mLooper.startAutoDispatch();
+        assertTrue(mWsm.syncGetPasspointConfigs(mWsmAsyncChannel).isEmpty());
+        mLooper.stopAutoDispatch();
     }
 }

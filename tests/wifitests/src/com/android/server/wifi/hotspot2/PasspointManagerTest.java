@@ -39,11 +39,14 @@ import static org.mockito.MockitoAnnotations.initMocks;
 import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.EAPConstants;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.hotspot2.pps.Credential;
 import android.net.wifi.hotspot2.pps.HomeSp;
 import android.os.UserHandle;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.util.Base64;
 import android.util.Pair;
 
 import com.android.server.wifi.Clock;
@@ -64,6 +67,7 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -187,7 +191,7 @@ public class PasspointManagerTest {
         userCredential.setUsername("username");
         userCredential.setPassword("password");
         userCredential.setEapType(EAPConstants.EAP_TTLS);
-        userCredential.setNonEapInnerMethod("MS-CHAP");
+        userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_MSCHAP);
         credential.setUserCredential(userCredential);
         config.setCredential(credential);
         return config;
@@ -644,5 +648,232 @@ public class PasspointManagerTest {
         verifyInstalledConfig(config);
         verify(mWifiConfigManager).saveToStore(true);
         reset(mWifiConfigManager);
+    }
+
+    /**
+     * Verify that a PasspointProvider with expected PasspointConfiguration will be installed when
+     * adding a legacy Passpoint configuration containing a valid user credential.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void addLegacyPasspointConfigWithUserCredential() throws Exception {
+        // Test data.
+        String fqdn = "test.com";
+        String friendlyName = "Friendly Name";
+        long[] rcOIs = new long[] {0x1234L, 0x2345L};
+        String realm = "realm.com";
+        String username = "username";
+        String password = "password";
+        byte[] base64EncodedPw =
+                Base64.encode(password.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT);
+        String encodedPasswordStr = new String(base64EncodedPw, StandardCharsets.UTF_8);
+        String caCertificateAlias = "CaCert";
+
+        // Setup WifiConfiguration for legacy Passpoint configuraiton.
+        WifiConfiguration wifiConfig = new WifiConfiguration();
+        wifiConfig.FQDN = fqdn;
+        wifiConfig.providerFriendlyName = friendlyName;
+        wifiConfig.roamingConsortiumIds = rcOIs;
+        wifiConfig.enterpriseConfig.setIdentity(username);
+        wifiConfig.enterpriseConfig.setPassword(password);
+        wifiConfig.enterpriseConfig.setRealm(realm);
+        wifiConfig.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TTLS);
+        wifiConfig.enterpriseConfig.setPhase2Method(WifiEnterpriseConfig.Phase2.PAP);
+        wifiConfig.enterpriseConfig.setCaCertificateAlias(caCertificateAlias);
+
+        // Setup expected {@link PasspointConfiguration}
+        PasspointConfiguration passpointConfig = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setFqdn(fqdn);
+        homeSp.setFriendlyName(friendlyName);
+        homeSp.setRoamingConsortiumOis(rcOIs);
+        passpointConfig.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        Credential.UserCredential userCredential = new Credential.UserCredential();
+        userCredential.setUsername(username);
+        userCredential.setPassword(encodedPasswordStr);
+        userCredential.setEapType(EAPConstants.EAP_TTLS);
+        userCredential.setNonEapInnerMethod("PAP");
+        credential.setUserCredential(userCredential);
+        credential.setRealm(realm);
+        passpointConfig.setCredential(credential);
+
+        assertTrue(PasspointManager.addLegacyPasspointConfig(wifiConfig));
+        verifyInstalledConfig(passpointConfig);
+    }
+
+    /**
+     * Verify that adding a legacy Passpoint configuration containing user credential will
+     * fail when client certificate is not provided.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void addLegacyPasspointConfigWithUserCredentialWithoutCaCert() throws Exception {
+        // Test data.
+        String fqdn = "test.com";
+        String friendlyName = "Friendly Name";
+        long[] rcOIs = new long[] {0x1234L, 0x2345L};
+        String realm = "realm.com";
+        String username = "username";
+        String password = "password";
+        byte[] base64EncodedPw =
+                Base64.encode(password.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT);
+        String encodedPasswordStr = new String(base64EncodedPw, StandardCharsets.UTF_8);
+
+        // Setup WifiConfiguration for legacy Passpoint configuraiton.
+        WifiConfiguration wifiConfig = new WifiConfiguration();
+        wifiConfig.FQDN = fqdn;
+        wifiConfig.providerFriendlyName = friendlyName;
+        wifiConfig.roamingConsortiumIds = rcOIs;
+        wifiConfig.enterpriseConfig.setIdentity(username);
+        wifiConfig.enterpriseConfig.setPassword(password);
+        wifiConfig.enterpriseConfig.setRealm(realm);
+        wifiConfig.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TTLS);
+        wifiConfig.enterpriseConfig.setPhase2Method(WifiEnterpriseConfig.Phase2.PAP);
+
+        assertFalse(PasspointManager.addLegacyPasspointConfig(wifiConfig));
+    }
+
+    /**
+     * Verify that a PasspointProvider with expected PasspointConfiguration will be installed when
+     * adding a legacy Passpoint configuration containing a valid SIM credential.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void addLegacyPasspointConfigWithSimCredential() throws Exception {
+        // Test data.
+        String fqdn = "test.com";
+        String friendlyName = "Friendly Name";
+        long[] rcOIs = new long[] {0x1234L, 0x2345L};
+        String realm = "realm.com";
+        String imsi = "1234";
+
+        // Setup WifiConfiguration for legacy Passpoint configuraiton.
+        WifiConfiguration wifiConfig = new WifiConfiguration();
+        wifiConfig.FQDN = fqdn;
+        wifiConfig.providerFriendlyName = friendlyName;
+        wifiConfig.roamingConsortiumIds = rcOIs;
+        wifiConfig.enterpriseConfig.setRealm(realm);
+        wifiConfig.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.SIM);
+        wifiConfig.enterpriseConfig.setPlmn(imsi);
+
+        // Setup expected {@link PasspointConfiguration}
+        PasspointConfiguration passpointConfig = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setFqdn(fqdn);
+        homeSp.setFriendlyName(friendlyName);
+        homeSp.setRoamingConsortiumOis(rcOIs);
+        passpointConfig.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        Credential.SimCredential simCredential = new Credential.SimCredential();
+        simCredential.setEapType(EAPConstants.EAP_SIM);
+        simCredential.setImsi(imsi);
+        credential.setSimCredential(simCredential);
+        credential.setRealm(realm);
+        passpointConfig.setCredential(credential);
+
+        assertTrue(PasspointManager.addLegacyPasspointConfig(wifiConfig));
+        verifyInstalledConfig(passpointConfig);
+    }
+
+    /**
+     * Verify that a PasspointProvider with expected PasspointConfiguration will be installed when
+     * adding a legacy Passpoint configuration containing a valid certificate credential.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void addLegacyPasspointConfigWithCertCredential() throws Exception {
+        // Test data.
+        String fqdn = "test.com";
+        String friendlyName = "Friendly Name";
+        long[] rcOIs = new long[] {0x1234L, 0x2345L};
+        String realm = "realm.com";
+        String caCertificateAlias = "CaCert";
+        String clientCertificateAlias = "ClientCert";
+
+        // Setup WifiConfiguration for legacy Passpoint configuraiton.
+        WifiConfiguration wifiConfig = new WifiConfiguration();
+        wifiConfig.FQDN = fqdn;
+        wifiConfig.providerFriendlyName = friendlyName;
+        wifiConfig.roamingConsortiumIds = rcOIs;
+        wifiConfig.enterpriseConfig.setRealm(realm);
+        wifiConfig.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
+        wifiConfig.enterpriseConfig.setCaCertificateAlias(caCertificateAlias);
+        wifiConfig.enterpriseConfig.setClientCertificateAlias(clientCertificateAlias);
+
+        // Setup expected {@link PasspointConfiguration}
+        PasspointConfiguration passpointConfig = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setFqdn(fqdn);
+        homeSp.setFriendlyName(friendlyName);
+        homeSp.setRoamingConsortiumOis(rcOIs);
+        passpointConfig.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        Credential.CertificateCredential certCredential = new Credential.CertificateCredential();
+        certCredential.setCertType(Credential.CertificateCredential.CERT_TYPE_X509V3);
+        credential.setCertCredential(certCredential);
+        credential.setRealm(realm);
+        passpointConfig.setCredential(credential);
+
+        assertTrue(PasspointManager.addLegacyPasspointConfig(wifiConfig));
+        verifyInstalledConfig(passpointConfig);
+    }
+
+    /**
+     * Verify that adding a legacy Passpoint configuration containing certificate credential will
+     * fail when CA certificate is not provided.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void addLegacyPasspointConfigWithCertCredentialWithoutCaCert() throws Exception {
+        // Test data.
+        String fqdn = "test.com";
+        String friendlyName = "Friendly Name";
+        long[] rcOIs = new long[] {0x1234L, 0x2345L};
+        String realm = "realm.com";
+        String clientCertificateAlias = "ClientCert";
+
+        // Setup WifiConfiguration for legacy Passpoint configuraiton.
+        WifiConfiguration wifiConfig = new WifiConfiguration();
+        wifiConfig.FQDN = fqdn;
+        wifiConfig.providerFriendlyName = friendlyName;
+        wifiConfig.roamingConsortiumIds = rcOIs;
+        wifiConfig.enterpriseConfig.setRealm(realm);
+        wifiConfig.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
+        wifiConfig.enterpriseConfig.setClientCertificateAlias(clientCertificateAlias);
+
+        assertFalse(PasspointManager.addLegacyPasspointConfig(wifiConfig));
+    }
+
+    /**
+     * Verify that adding a legacy Passpoint configuration containing certificate credential will
+     * fail when client certificate is not provided.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void addLegacyPasspointConfigWithCertCredentialWithoutClientCert() throws Exception {
+        // Test data.
+        String fqdn = "test.com";
+        String friendlyName = "Friendly Name";
+        long[] rcOIs = new long[] {0x1234L, 0x2345L};
+        String realm = "realm.com";
+        String caCertificateAlias = "CaCert";
+
+        // Setup WifiConfiguration for legacy Passpoint configuraiton.
+        WifiConfiguration wifiConfig = new WifiConfiguration();
+        wifiConfig.FQDN = fqdn;
+        wifiConfig.providerFriendlyName = friendlyName;
+        wifiConfig.roamingConsortiumIds = rcOIs;
+        wifiConfig.enterpriseConfig.setRealm(realm);
+        wifiConfig.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
+        wifiConfig.enterpriseConfig.setCaCertificateAlias(caCertificateAlias);
+
+        assertFalse(PasspointManager.addLegacyPasspointConfig(wifiConfig));
     }
 }
