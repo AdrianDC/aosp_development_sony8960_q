@@ -59,6 +59,6 @@ on property:sys.boot_completed=1 && property:sys.wifitracing.started=0
    chmod 600 /sys/kernel/debug/tracing/instances/wifi/trace
    setprop sys.wifitracing.started 1
 
-on property:sys.boot_completed=1 && property:wifi.interface=*
+on property:sys.boot_completed=1 && property:wifi.interface=* && sys.wifitracing.started=1
    # Override default value.
    write /sys/kernel/debug/tracing/instances/wifi/events/net/filter name==${wifi.interface}
