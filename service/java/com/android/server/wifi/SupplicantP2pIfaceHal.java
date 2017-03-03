@@ -18,8 +18,10 @@ package com.android.server.wifi;
 
 import android.hardware.wifi.supplicant.V1_0.ISupplicant;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantIface;
+import android.hardware.wifi.supplicant.V1_0.ISupplicantNetwork;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantP2pIface;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantP2pIfaceCallback;
+import android.hardware.wifi.supplicant.V1_0.ISupplicantP2pNetwork;
 import android.hardware.wifi.supplicant.V1_0.IfaceType;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatusCode;
@@ -27,16 +29,21 @@ import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
+import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pGroup;
+import android.net.wifi.p2p.WifiP2pGroupList;
 import android.net.wifi.p2p.WifiP2pManager;
 import android.net.wifi.p2p.nsd.WifiP2pServiceInfo;
 import android.os.HwRemoteBinder;
 import android.os.RemoteException;
 import android.util.Log;
 
+import com.android.internal.util.ArrayUtils;
 import com.android.server.wifi.util.NativeUtil;
 
 import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Native calls sending requests to the P2P Hals, and callbacks for receiving P2P events
  *
@@ -311,6 +318,9 @@ public class SupplicantP2pIfaceHal {
         return ISupplicantP2pIface.asInterface(iface.asBinder());
     }
 
+    protected ISupplicantP2pNetwork getP2pNetworkMockable(ISupplicantNetwork network) {
+        return ISupplicantP2pNetwork.asInterface(network.asBinder());
+    }
 
     protected static void logd(String s) {
         if (DBG) Log.d(TAG, s);
@@ -1646,9 +1656,148 @@ public class SupplicantP2pIfaceHal {
         }
     }
 
+    /**
+     * List the networks saved in wpa_supplicant.
+     *
+     * @return List of network ids.
+     */
+    private List<Integer> listNetworks() {
+        synchronized (mLock) {
+            if (!checkSupplicantP2pIfaceAndLogFailure("listNetworks")) return null;
+            SupplicantResult<ArrayList> result = new SupplicantResult("listNetworks()");
+            try {
+                mISupplicantP2pIface.listNetworks(
+                        (SupplicantStatus status, ArrayList<Integer> networkIds) -> {
+                            result.setResult(status, networkIds);
+                        });
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantP2pIface exception: " + e);
+                supplicantServiceDiedHandler();
+            }
+            return result.getResult();
+        }
+    }
 
+    /**
+     * Get the supplicant P2p network object for the specified network ID.
+     *
+     * @param networkId Id of the network to lookup.
+     * @return ISupplicantP2pNetwork instance on success, null on failure.
+     */
+    private ISupplicantP2pNetwork getNetwork(int networkId) {
+        synchronized (mLock) {
+            if (!checkSupplicantP2pIfaceAndLogFailure("getNetwork")) return null;
+            SupplicantResult<ISupplicantNetwork> result =
+                    new SupplicantResult("getNetwork(" + networkId + ")");
+            try {
+                mISupplicantP2pIface.getNetwork(
+                        networkId,
+                        (SupplicantStatus status, ISupplicantNetwork network) -> {
+                            result.setResult(status, network);
+                        });
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantP2pIface exception: " + e);
+                supplicantServiceDiedHandler();
+            }
+            if (result.getResult() == null) {
+                Log.e(TAG, "getNetwork got null network");
+                return null;
+            }
+            return getP2pNetworkMockable(result.getResult());
+        }
+    }
 
+    /**
+     * Populate list of available networks or update existing list.
+     *
+     * @return true, if list has been modified.
+     */
+    public boolean loadGroups(WifiP2pGroupList groups) {
+        synchronized (mLock) {
+            if (!checkSupplicantP2pIfaceAndLogFailure("loadGroups")) return false;
+            List<Integer> networkIds = listNetworks();
+            if (networkIds == null || networkIds.isEmpty()) {
+                return false;
+            }
+            for (Integer networkId : networkIds) {
+                ISupplicantP2pNetwork network = getNetwork(networkId);
+                if (network == null) {
+                    Log.e(TAG, "Failed to retrieve network object for " + networkId);
+                    continue;
+                }
+                SupplicantResult<Boolean> resultIsCurrent =
+                        new SupplicantResult("isCurrent(" + networkId + ")");
+                try {
+                    network.isCurrent(
+                            (SupplicantStatus status, boolean isCurrent) -> {
+                                resultIsCurrent.setResult(status, isCurrent);
+                            });
+                } catch (RemoteException e) {
+                    Log.e(TAG, "ISupplicantP2pIface exception: " + e);
+                    supplicantServiceDiedHandler();
+                }
+                if (!resultIsCurrent.isSuccess() || !resultIsCurrent.getResult()) {
+                    Log.i(TAG, "Skipping non current network");
+                    continue;
+                }
 
+                WifiP2pGroup group = new WifiP2pGroup();
+                group.setNetworkId(networkId);
+
+                // Now get the ssid, bssid and other flags for this network.
+                SupplicantResult<ArrayList> resultSsid =
+                        new SupplicantResult("getSsid(" + networkId + ")");
+                try {
+                    network.getSsid(
+                            (SupplicantStatus status, ArrayList<Byte> ssid) -> {
+                                resultSsid.setResult(status, ssid);
+                            });
+                } catch (RemoteException e) {
+                    Log.e(TAG, "ISupplicantP2pIface exception: " + e);
+                    supplicantServiceDiedHandler();
+                }
+                if (resultSsid.isSuccess() && resultSsid.getResult() != null
+                        && !resultSsid.getResult().isEmpty()) {
+                    group.setNetworkName(NativeUtil.encodeSsid(resultSsid.getResult()));
+                }
+
+                SupplicantResult<byte[]> resultBssid =
+                        new SupplicantResult("getBssid(" + networkId + ")");
+                try {
+                    network.getBssid(
+                            (SupplicantStatus status, byte[] bssid) -> {
+                                resultBssid.setResult(status, bssid);
+                            });
+                } catch (RemoteException e) {
+                    Log.e(TAG, "ISupplicantP2pIface exception: " + e);
+                    supplicantServiceDiedHandler();
+                }
+                if (resultBssid.isSuccess() && !ArrayUtils.isEmpty(resultBssid.getResult())) {
+                    WifiP2pDevice device = new WifiP2pDevice();
+                    device.deviceAddress =
+                            NativeUtil.macAddressFromByteArray(resultBssid.getResult());
+                    group.setOwner(device);
+                }
+
+                SupplicantResult<Boolean> resultIsGo =
+                        new SupplicantResult("isGo(" + networkId + ")");
+                try {
+                    network.isGo(
+                            (SupplicantStatus status, boolean isGo) -> {
+                                resultIsGo.setResult(status, isGo);
+                            });
+                } catch (RemoteException e) {
+                    Log.e(TAG, "ISupplicantP2pIface exception: " + e);
+                    supplicantServiceDiedHandler();
+                }
+                if (resultIsGo.isSuccess()) {
+                    group.setIsGroupOwner(resultIsGo.getResult());
+                }
+                groups.add(group);
+            }
+        }
+        return true;
+    }
 
     /** Container class allowing propagation of status and/or value
      * from callbacks.
