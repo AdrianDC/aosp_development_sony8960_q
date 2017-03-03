@@ -156,6 +156,10 @@ public class WifiConfigStore {
         mUserStore = null;
     }
 
+    public void setUserStore(StoreFile userStore) {
+        mUserStore = userStore;
+    }
+
     /**
      * Register a {@link StoreData} to store.  A {@link StoreData} is responsible
      * for a block of data in the store file, and provides serialization/deserialization functions
