@@ -182,7 +182,7 @@ public class SupplicantStaNetworkHal {
         for (int i = 0; i < 4; i++) {
             config.wepKeys[i] = null;
             if (getWepKey(i) && !ArrayUtils.isEmpty(mWepKey)) {
-                config.wepKeys[i] = NativeUtil.stringFromByteArrayList(mWepKey);
+                config.wepKeys[i] = NativeUtil.bytesToHexOrQuotedAsciiString(mWepKey);
             }
         }
         /** PSK pass phrase */
@@ -260,10 +260,9 @@ public class SupplicantStaNetworkHal {
         boolean hasSetKey = false;
         if (config.wepKeys != null) {
             for (int i = 0; i < config.wepKeys.length; i++) {
-                // Prevent client screw-up by passing in a WifiConfiguration we gave it
-                // by preventing "*" as a key.
-                if (config.wepKeys[i] != null && !config.wepKeys[i].equals("*")) {
-                    if (!setWepKey(i, NativeUtil.stringToByteArrayList(config.wepKeys[i]))) {
+                if (config.wepKeys[i] != null) {
+                    if (!setWepKey(
+                            i, NativeUtil.hexOrQuotedAsciiStringToBytes(config.wepKeys[i]))) {
                         Log.e(TAG, "failed to set wep_key " + i);
                         return false;
                     }
