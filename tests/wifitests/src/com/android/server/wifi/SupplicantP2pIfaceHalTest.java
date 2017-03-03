@@ -37,10 +37,8 @@ import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pGroup;
 import android.net.wifi.p2p.WifiP2pManager;
 import android.net.wifi.p2p.nsd.WifiP2pServiceInfo;
-import android.os.HandlerThread;
 import android.os.IHwBinder;
 import android.os.RemoteException;
-import android.os.test.TestLooper;
 
 import com.android.server.wifi.util.NativeUtil;
 
@@ -166,6 +164,10 @@ public class SupplicantP2pIfaceHalTest {
                 anyLong())).thenReturn(true);
         when(mServiceManagerMock.registerForNotifications(anyString(), anyString(),
                 any(IServiceNotification.Stub.class))).thenReturn(true);
+        when(mISupplicantMock.linkToDeath(any(IHwBinder.DeathRecipient.class),
+                anyLong())).thenReturn(true);
+        when(mISupplicantP2pIfaceMock.linkToDeath(any(IHwBinder.DeathRecipient.class),
+                anyLong())).thenReturn(true);
         mDut = new SupplicantP2pIfaceHalSpy();
     }
 
