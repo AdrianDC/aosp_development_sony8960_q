@@ -79,6 +79,28 @@ public class SupplicantP2pIfaceHal {
         mMonitor = monitor;
     }
 
+    private boolean linkToServiceManagerDeath() {
+        if (mIServiceManager == null) return false;
+        try {
+            if (!mIServiceManager.linkToDeath(cookie -> {
+                Log.w(TAG, "IServiceManager died: cookie=" + cookie);
+                synchronized (mLock) {
+                    supplicantServiceDiedHandler();
+                    mIServiceManager = null; // Will need to register a new ServiceNotification
+                }
+            }, 0)) {
+                Log.wtf(TAG, "Error on linkToDeath on IServiceManager");
+                supplicantServiceDiedHandler();
+                mIServiceManager = null; // Will need to register a new ServiceNotification
+                return false;
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "IServiceManager.linkToDeath exception", e);
+            return false;
+        }
+        return true;
+    }
+
     /**
      * Registers a service notification for the ISupplicant service, which triggers intialization of
      * the ISupplicantP2pIface
@@ -101,16 +123,7 @@ public class SupplicantP2pIfaceHal {
                     Log.e(TAG, "Failed to get HIDL Service Manager");
                     return false;
                 }
-                if (!mIServiceManager.linkToDeath(cookie -> {
-                    Log.wtf(TAG, "IServiceManager died: cookie=" + cookie);
-                    synchronized (mLock) {
-                        supplicantServiceDiedHandler();
-                        mIServiceManager = null; // Will need to register a new ServiceNotification
-                    }
-                }, 0)) {
-                    Log.wtf(TAG, "Error on linkToDeath on IServiceManager");
-                    supplicantServiceDiedHandler();
-                    mIServiceManager = null; // Will need to register a new ServiceNotification
+                if (!linkToServiceManagerDeath()) {
                     return false;
                 }
                 /* TODO(b/33639391) : Use the new ISupplicant.registerForNotifications() once it
@@ -135,6 +148,26 @@ public class SupplicantP2pIfaceHal {
         }
     }
 
+    private boolean linkToSupplicantDeath() {
+        if (mISupplicant == null) return false;
+        try {
+            if (!mISupplicant.linkToDeath(cookie -> {
+                Log.w(TAG, "ISupplicant died: cookie=" + cookie);
+                synchronized (mLock) {
+                    supplicantServiceDiedHandler();
+                }
+            }, 0)) {
+                Log.wtf(TAG, "Error on linkToDeath on ISupplicant");
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "ISupplicant.linkToDeath exception", e);
+            return false;
+        }
+        return true;
+    }
+
     private boolean initSupplicantService() {
         synchronized (mLock) {
             try {
@@ -147,6 +180,29 @@ public class SupplicantP2pIfaceHal {
                 Log.e(TAG, "Got null ISupplicant service. Stopping supplicant HIDL startup");
                 return false;
             }
+            if (!linkToSupplicantDeath()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean linkToSupplicantP2pIfaceDeath() {
+        if (mISupplicantP2pIface == null) return false;
+        try {
+            if (!mISupplicantP2pIface.linkToDeath(cookie -> {
+                Log.w(TAG, "ISupplicantP2pIface died: cookie=" + cookie);
+                synchronized (mLock) {
+                    supplicantServiceDiedHandler();
+                }
+            }, 0)) {
+                Log.wtf(TAG, "Error on linkToDeath on ISupplicantP2pIface");
+                supplicantServiceDiedHandler();
+                return false;
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "ISupplicantP2pIface.linkToDeath exception", e);
+            return false;
         }
         return true;
     }
@@ -198,6 +254,9 @@ public class SupplicantP2pIfaceHal {
                 return false;
             }
             mISupplicantP2pIface = getP2pIfaceMockable(supplicantIface.getResult());
+            if (!linkToSupplicantP2pIfaceDeath()) {
+                return false;
+            }
         }
 
         if (mISupplicantP2pIface != null && mMonitor != null) {
