@@ -591,7 +591,13 @@ public class WifiMonitor {
     }
 
 
-    private boolean ensureConnectedLocked() {
+    /**
+     * Wait for wpa_supplicant's control interface to be ready.
+     *
+     * @param isStaIface Whether STA or P2P iface.
+     * TODO: Add unit tests for these once we remove the legacy code.
+     */
+    private boolean ensureConnectedLocked(boolean isStaIface) {
         if (mConnected) {
             return true;
         }
@@ -599,7 +605,7 @@ public class WifiMonitor {
         if (mVerboseLoggingEnabled) Log.d(TAG, "connecting to supplicant");
         int connectTries = 0;
         while (true) {
-            if (mWifiNative.connectToSupplicant()) {
+            if (mWifiNative.connectToSupplicant(isStaIface)) {
                 mConnected = true;
                 if (!WifiNative.HIDL_SUP_ENABLE) {
                     new MonitorThread(mWifiNative.getLocalLog()).start();
@@ -617,10 +623,17 @@ public class WifiMonitor {
         }
     }
 
-    public synchronized void startMonitoring(String iface) {
+    /**
+     * Start Monitoring for wpa_supplicant events.
+     *
+     * @param iface Name of iface.
+     * @param isStaIface Whether STA or P2P iface.
+     * TODO: Add unit tests for these once we remove the legacy code.
+     */
+    public synchronized void startMonitoring(String iface, boolean isStaIface) {
         Log.d(TAG, "startMonitoring(" + iface + ") with mConnected = " + mConnected);
 
-        if (ensureConnectedLocked()) {
+        if (ensureConnectedLocked(isStaIface)) {
             setMonitoring(iface, true);
             broadcastSupplicantConnectionEvent(iface);
         }
