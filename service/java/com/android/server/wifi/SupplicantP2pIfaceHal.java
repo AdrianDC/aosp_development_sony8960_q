@@ -30,6 +30,7 @@ import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pGroup;
 import android.net.wifi.p2p.WifiP2pManager;
 import android.net.wifi.p2p.nsd.WifiP2pServiceInfo;
+import android.os.HwRemoteBinder;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -46,6 +47,8 @@ public class SupplicantP2pIfaceHal {
     private static final String TAG = "SupplicantP2pIfaceHal";
     private static final int RESULT_NOT_VALID = -1;
     private static final int DEFAULT_GROUP_OWNER_INTENT = 6;
+
+    private Object mLock = new Object();
 
     // Supplicant HAL HIDL interface objects
     private IServiceManager mIServiceManager = null;
@@ -69,8 +72,21 @@ public class SupplicantP2pIfaceHal {
             }
         }
     };
-    private Object mLock = new Object();
-    private boolean mServiceCallbackInstalled = false;
+    private final HwRemoteBinder.DeathRecipient mServiceManagerDeathRecipient =
+            cookie -> {
+                Log.w(TAG, "IServiceManager died: cookie=" + cookie);
+                synchronized (mLock) {
+                    supplicantServiceDiedHandler();
+                    mIServiceManager = null; // Will need to register a new ServiceNotification
+                }
+            };
+    private final HwRemoteBinder.DeathRecipient mSupplicantDeathRecipient =
+            cookie -> {
+                Log.w(TAG, "ISupplicant/ISupplicantStaIface died: cookie=" + cookie);
+                synchronized (mLock) {
+                    supplicantServiceDiedHandler();
+                }
+            };
 
     private final WifiMonitor mMonitor;
     private SupplicantP2pIfaceCallback mCallback = null;
@@ -82,13 +98,7 @@ public class SupplicantP2pIfaceHal {
     private boolean linkToServiceManagerDeath() {
         if (mIServiceManager == null) return false;
         try {
-            if (!mIServiceManager.linkToDeath(cookie -> {
-                Log.w(TAG, "IServiceManager died: cookie=" + cookie);
-                synchronized (mLock) {
-                    supplicantServiceDiedHandler();
-                    mIServiceManager = null; // Will need to register a new ServiceNotification
-                }
-            }, 0)) {
+            if (!mIServiceManager.linkToDeath(mServiceManagerDeathRecipient, 0)) {
                 Log.wtf(TAG, "Error on linkToDeath on IServiceManager");
                 supplicantServiceDiedHandler();
                 mIServiceManager = null; // Will need to register a new ServiceNotification
@@ -151,12 +161,7 @@ public class SupplicantP2pIfaceHal {
     private boolean linkToSupplicantDeath() {
         if (mISupplicant == null) return false;
         try {
-            if (!mISupplicant.linkToDeath(cookie -> {
-                Log.w(TAG, "ISupplicant died: cookie=" + cookie);
-                synchronized (mLock) {
-                    supplicantServiceDiedHandler();
-                }
-            }, 0)) {
+            if (!mISupplicant.linkToDeath(mSupplicantDeathRecipient, 0)) {
                 Log.wtf(TAG, "Error on linkToDeath on ISupplicant");
                 supplicantServiceDiedHandler();
                 return false;
@@ -190,12 +195,7 @@ public class SupplicantP2pIfaceHal {
     private boolean linkToSupplicantP2pIfaceDeath() {
         if (mISupplicantP2pIface == null) return false;
         try {
-            if (!mISupplicantP2pIface.linkToDeath(cookie -> {
-                Log.w(TAG, "ISupplicantP2pIface died: cookie=" + cookie);
-                synchronized (mLock) {
-                    supplicantServiceDiedHandler();
-                }
-            }, 0)) {
+            if (!mISupplicantP2pIface.linkToDeath(mSupplicantDeathRecipient, 0)) {
                 Log.wtf(TAG, "Error on linkToDeath on ISupplicantP2pIface");
                 supplicantServiceDiedHandler();
                 return false;
