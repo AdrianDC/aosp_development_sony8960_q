@@ -43,6 +43,7 @@ import android.net.IpConfiguration;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiSsid;
+import android.os.HwRemoteBinder;
 import android.os.RemoteException;
 import android.text.TextUtils;
 import android.util.Log;
@@ -80,9 +81,11 @@ public class SupplicantStaIfaceHal {
     private static final Pattern WPS_DEVICE_TYPE_PATTERN =
             Pattern.compile("^(\\d{1,2})-([0-9a-fA-F]{8})-(\\d{1,2})$");
 
+    private final Object mLock = new Object();
     private boolean mVerboseLoggingEnabled = false;
-    private IServiceManager mIServiceManager = null;
+
     // Supplicant HAL interface objects
+    private IServiceManager mIServiceManager = null;
     private ISupplicant mISupplicant;
     private ISupplicantStaIface mISupplicantStaIface;
     private ISupplicantStaIfaceCallback mISupplicantStaIfaceCallback;
@@ -103,12 +106,27 @@ public class SupplicantStaIfaceHal {
             }
         }
     };
+    private final HwRemoteBinder.DeathRecipient mServiceManagerDeathRecipient =
+            cookie -> {
+                Log.w(TAG, "IServiceManager died: cookie=" + cookie);
+                synchronized (mLock) {
+                    supplicantServiceDiedHandler();
+                    mIServiceManager = null; // Will need to register a new ServiceNotification
+                }
+            };
+    private final HwRemoteBinder.DeathRecipient mSupplicantDeathRecipient =
+            cookie -> {
+                Log.w(TAG, "ISupplicant/ISupplicantStaIface died: cookie=" + cookie);
+                synchronized (mLock) {
+                    supplicantServiceDiedHandler();
+                }
+            };
+
     private String mIfaceName;
     // Currently configured network in wpa_supplicant
     private SupplicantStaNetworkHal mCurrentNetwork;
     // Currently configured network's framework network Id.
     private int mFrameworkNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
-    private final Object mLock = new Object();
     private final Context mContext;
     private final WifiMonitor mWifiMonitor;
 
@@ -130,13 +148,7 @@ public class SupplicantStaIfaceHal {
     private boolean linkToServiceManagerDeath() {
         if (mIServiceManager == null) return false;
         try {
-            if (!mIServiceManager.linkToDeath(cookie -> {
-                Log.w(TAG, "IServiceManager died: cookie=" + cookie);
-                synchronized (mLock) {
-                    supplicantServiceDiedHandler();
-                    mIServiceManager = null; // Will need to register a new ServiceNotification
-                }
-            }, 0)) {
+            if (!mIServiceManager.linkToDeath(mServiceManagerDeathRecipient, 0)) {
                 Log.wtf(TAG, "Error on linkToDeath on IServiceManager");
                 supplicantServiceDiedHandler();
                 mIServiceManager = null; // Will need to register a new ServiceNotification
@@ -194,12 +206,7 @@ public class SupplicantStaIfaceHal {
     private boolean linkToSupplicantDeath() {
         if (mISupplicant == null) return false;
         try {
-            if (!mISupplicant.linkToDeath(cookie -> {
-                Log.w(TAG, "ISupplicant died: cookie=" + cookie);
-                synchronized (mLock) {
-                    supplicantServiceDiedHandler();
-                }
-            }, 0)) {
+            if (!mISupplicant.linkToDeath(mSupplicantDeathRecipient, 0)) {
                 Log.wtf(TAG, "Error on linkToDeath on ISupplicant");
                 supplicantServiceDiedHandler();
                 return false;
@@ -233,12 +240,7 @@ public class SupplicantStaIfaceHal {
     private boolean linkToSupplicantStaIfaceDeath() {
         if (mISupplicantStaIface == null) return false;
         try {
-            if (!mISupplicantStaIface.linkToDeath(cookie -> {
-                Log.w(TAG, "ISupplicantStaIface died: cookie=" + cookie);
-                synchronized (mLock) {
-                    supplicantServiceDiedHandler();
-                }
-            }, 0)) {
+            if (!mISupplicantStaIface.linkToDeath(mSupplicantDeathRecipient, 0)) {
                 Log.wtf(TAG, "Error on linkToDeath on ISupplicantStaIface");
                 supplicantServiceDiedHandler();
                 return false;
