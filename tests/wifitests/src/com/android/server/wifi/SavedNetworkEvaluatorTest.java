@@ -62,6 +62,7 @@ public class SavedNetworkEvaluatorTest {
         setupWifiConfigManager();
         mLocalLog = new LocalLog(512);
 
+        when(mWifiConnectivityHelper.isFirmwareRoamingSupported()).thenReturn(false);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
         when(mFrameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.CURATE_SAVED_OPEN_NETWORKS, 0)).thenReturn(0);
@@ -85,7 +86,8 @@ public class SavedNetworkEvaluatorTest {
                 ArgumentCaptor.forClass(ContentObserver.class);
 
         mSavedNetworkEvaluator = new SavedNetworkEvaluator(mContext, mWifiConfigManager,
-                mClock, mLocalLog, Looper.getMainLooper(), mFrameworkFacade);
+                mClock, mLocalLog, Looper.getMainLooper(), mFrameworkFacade,
+                mWifiConnectivityHelper);
         verify(mFrameworkFacade, times(2)).registerContentObserver(eq(mContext), any(Uri.class),
                 eq(false), observerCaptor.capture());
         // SavedNetworkEvaluator uses a single ContentObserver for two registrations, we only need
@@ -101,6 +103,7 @@ public class SavedNetworkEvaluatorTest {
 
     private SavedNetworkEvaluator mSavedNetworkEvaluator;
     @Mock private WifiConfigManager mWifiConfigManager;
+    @Mock private WifiConnectivityHelper mWifiConnectivityHelper;
     @Mock private Context mContext;
     @Mock private ContentResolver mContentResolver;
     @Mock private FrameworkFacade mFrameworkFacade;
@@ -114,7 +117,6 @@ public class SavedNetworkEvaluatorTest {
     private int mThresholdSaturatedRssi2G;
     private int mThresholdSaturatedRssi5G;
     private ContentObserver mContentObserver;
-    private static final String TAG = "Saved Network Evaluator Unit Test";
 
     private void setupContext() {
         when(mContext.getResources()).thenReturn(mResource);
@@ -446,5 +448,58 @@ public class SavedNetworkEvaluatorTest {
         // currently connected BSSID bonus.
         ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
         WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[0], candidate);
+    }
+
+    /**
+     * Verify that the same BSSID award is applied to all the BSSIDs which are under the same
+     * network as the currently connected BSSID.
+     */
+    @Test
+    public void currentBssidAwardForAllBssidsWithinTheSameNetworkWhenFirmwareRoamingSupported() {
+        // Three BSSIDs are carefully setup there:
+        // BSSID_0 and BSSID_1 have the same SSID and security type, so they are considered under
+        // the same 2.4 GHz network. BSSID_1 RSSI is stronger than BSSID_0.
+        // BSSID_2 is under a 5GHz network different from BSSID_0 and BSSID_1. Its RSSI is
+        // slightly stronger than BSSID_1.
+        //
+        // When firmware roaming is not supported, BSSID_2 has higher score than BSSID_0 and
+        // BSSID_1.
+        // When firmware roaming is suported, BSSID_1 has higher score than BSSID_2 because the
+        // same BSSID award is now applied to both BSSID_0 and BSSID_1.
+        String[] ssids = {"\"test1\"", "\"test1\"", "\"test2\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4", "6c:f3:7f:ae:8c:f5"};
+        int[] freqs = {2470, 2437, 5200};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
+        int[] levels = {mThresholdMinimumRssi2G + 2, mThresholdMinimumRssi2G + 5,
+                mThresholdMinimumRssi5G + 7};
+        int[] securities = {SECURITY_PSK, SECURITY_PSK, SECURITY_PSK};
+
+        ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
+                WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
+                    freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
+        WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
+
+        // Firmware roaming is not supported.
+        when(mWifiConnectivityHelper.isFirmwareRoamingSupported()).thenReturn(false);
+        // Simuluate we are connected to BSSID_0 already.
+        WifiConfiguration candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
+                savedConfigs[0], bssids[0], true, false, null);
+        // Verify that BSSID_2 is chosen.
+        ScanResult chosenScanResult = scanDetails.get(2).getScanResult();
+        WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[2], candidate);
+        WifiNetworkSelectorTestUtil.verifySelectedScanResult(mWifiConfigManager,
+                chosenScanResult, candidate);
+
+        // Firmware roaming is supported.
+        when(mWifiConnectivityHelper.isFirmwareRoamingSupported()).thenReturn(true);
+        // Simuluate we are connected to BSSID_0 already.
+        candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
+                savedConfigs[0], bssids[0], true, false, null);
+        // Verify that BSSID_1 is chosen.
+        chosenScanResult = scanDetails.get(1).getScanResult();
+        WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[1], candidate);
+        WifiNetworkSelectorTestUtil.verifySelectedScanResult(mWifiConfigManager,
+                chosenScanResult, candidate);
     }
 }

@@ -41,6 +41,7 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
     private final WifiConfigManager mWifiConfigManager;
     private final Clock mClock;
     private final LocalLog mLocalLog;
+    private final WifiConnectivityHelper mConnectivityHelper;
     private final int mRssiScoreSlope;
     private final int mRssiScoreOffset;
     private final int mSameBssidAward;
@@ -54,10 +55,12 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
     private boolean mCurateSavedOpenNetworks;
 
     SavedNetworkEvaluator(final Context context, WifiConfigManager configManager, Clock clock,
-            LocalLog localLog, Looper looper, final FrameworkFacade frameworkFacade) {
+            LocalLog localLog, Looper looper, final FrameworkFacade frameworkFacade,
+            WifiConnectivityHelper connectivityHelper) {
         mWifiConfigManager = configManager;
         mClock = clock;
         mLocalLog = localLog;
+        mConnectivityHelper = connectivityHelper;
 
         mRssiScoreSlope = context.getResources().getInteger(
                 R.integer.config_wifi_framework_RSSI_SCORE_SLOPE);
@@ -205,13 +208,22 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
             score += mSameNetworkAward;
             sbuf.append(" Same network the current one bonus: ")
                     .append(mSameNetworkAward).append(",");
+
+            // When firmware roaming is supported, equivalent BSSIDs (the ones under the
+            // same network as the currently connected one) get the same BSSID award.
+            if (mConnectivityHelper.isFirmwareRoamingSupported()
+                    && currentBssid != null && !currentBssid.equals(scanResult.BSSID)) {
+                score += mSameBssidAward;
+                sbuf.append(" Firmware roaming equivalent BSSID bonus: ")
+                        .append(mSameBssidAward).append(",");
+            }
         }
 
         // Same BSSID award.
         if (currentBssid != null && currentBssid.equals(scanResult.BSSID)) {
             score += mSameBssidAward;
             sbuf.append(" Same BSSID as the current one bonus: ").append(mSameBssidAward)
-                .append(",");
+                    .append(",");
         }
 
         // Security award.
