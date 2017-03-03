@@ -315,22 +315,27 @@ public class WifiNative {
     /**
      * This method is called repeatedly until the connection to wpa_supplicant is established.
      *
+     * @param isStaIface Whether STA or P2P iface.
      * @return true if connection is established, false otherwise.
+     * TODO: Add unit tests for these once we remove the legacy code.
      */
-    public boolean connectToSupplicant() {
-        if (HIDL_SUP_ENABLE) {
+    public boolean connectToSupplicant(boolean isStaIface) {
+        if (HIDL_SUP_ENABLE && isStaIface) {
             // Start initialization if not already started.
-            if (!mSupplicantP2pIfaceHal.isInitializationStarted()
-                    && !mSupplicantP2pIfaceHal.initialize()) {
-                return false;
-            }
             if (!mSupplicantStaIfaceHal.isInitializationStarted()
                     && !mSupplicantStaIfaceHal.initialize()) {
                 return false;
             }
             // Check if the initialization is complete.
-            return (mSupplicantP2pIfaceHal.isInitializationComplete()
-                    && mSupplicantStaIfaceHal.isInitializationComplete());
+            return mSupplicantStaIfaceHal.isInitializationComplete();
+        } else if (HIDL_P2P_ENABLE && !isStaIface) {
+            // Start initialization if not already started.
+            if (!mSupplicantP2pIfaceHal.isInitializationStarted()
+                    && !mSupplicantP2pIfaceHal.initialize()) {
+                return false;
+            }
+            // Check if the initialization is complete.
+            return mSupplicantP2pIfaceHal.isInitializationComplete();
         } else {
             synchronized (sLock) {
                 localLog(mInterfacePrefix + "connectToSupplicant");
@@ -341,7 +346,7 @@ public class WifiNative {
 
     private native static void closeSupplicantConnectionNative();
     public void closeSupplicantConnection() {
-        if (HIDL_SUP_ENABLE) {
+        if (HIDL_SUP_ENABLE && HIDL_P2P_ENABLE) {
             // Nothing to do for HIDL.
         } else {
             synchronized (sLock) {
