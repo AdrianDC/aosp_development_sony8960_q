@@ -33,6 +33,7 @@ import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.os.Handler;
+import android.os.HwRemoteBinder;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
@@ -513,6 +514,29 @@ public class HalDeviceManager {
         mInterfaceAvailableForRequestListeners.get(IfaceType.NAN).clear();
     }
 
+    private final HwRemoteBinder.DeathRecipient mServiceManagerDeathRecipient =
+            cookie -> {
+                Log.wtf(TAG, "IServiceManager died: cookie=" + cookie);
+                synchronized (mLock) {
+                    mServiceManager = null;
+                    // theoretically can call initServiceManager again here - but
+                    // there's no point since most likely system is going to reboot
+                }
+            };
+
+    private final IServiceNotification mServiceNotificationCallback =
+            new IServiceNotification.Stub() {
+                @Override
+                public void onRegistration(String fqName, String name,
+                                           boolean preexisting) {
+                    Log.d(TAG, "IWifi registration notification: fqName=" + fqName
+                            + ", name=" + name + ", preexisting=" + preexisting);
+                    mWifi = null; // get rid of old copy!
+                    initIWifiIfNecessary();
+                    stopWifi(); // just in case
+                }
+            };
+
     /**
      * Failures of IServiceManager are most likely system breaking in any case. Behavior here
      * will be to WTF and continue.
@@ -530,31 +554,15 @@ public class HalDeviceManager {
                 Log.wtf(TAG, "Failed to get IServiceManager instance");
             } else {
                 try {
-                    if (!mServiceManager.linkToDeath(cookie -> {
-                        Log.wtf(TAG, "IServiceManager died: cookie=" + cookie);
-                        synchronized (mLock) {
-                            mServiceManager = null;
-                            // theoretically can call initServiceManager again here - but
-                            // there's no point since most likely system is going to reboot
-                        }
-                    }, /* don't care */ 0)) {
+                    if (!mServiceManager.linkToDeath(
+                            mServiceManagerDeathRecipient, /* don't care */ 0)) {
                         Log.wtf(TAG, "Error on linkToDeath on IServiceManager");
                         mServiceManager = null;
                         return;
                     }
 
                     if (!mServiceManager.registerForNotifications(IWifi.kInterfaceName, "",
-                            new IServiceNotification.Stub() {
-                                @Override
-                                public void onRegistration(String fqName, String name,
-                                        boolean preexisting) {
-                                    Log.d(TAG, "IWifi registration notification: fqName=" + fqName
-                                            + ", name=" + name + ", preexisting=" + preexisting);
-                                    mWifi = null; // get rid of old copy!
-                                    initIWifiIfNecessary();
-                                    stopWifi(); // just in case
-                                }
-                            })) {
+                            mServiceNotificationCallback)) {
                         Log.wtf(TAG, "Failed to register a listener for IWifi service");
                         mServiceManager = null;
                     }
@@ -565,6 +573,16 @@ public class HalDeviceManager {
             }
         }
     }
+
+    private final HwRemoteBinder.DeathRecipient mIWifiDeathRecipient =
+            cookie -> {
+                Log.e(TAG, "IWifi HAL service died! Have a listener for it ... cookie=" + cookie);
+                synchronized (mLock) { // prevents race condition with surrounding method
+                    mWifi = null;
+                    teardownInternal();
+                    // don't restart: wait for registration notification
+                }
+            };
 
     /**
      * Initialize IWifi and register death listener and event callback.
@@ -590,15 +608,7 @@ public class HalDeviceManager {
                     return;
                 }
 
-                if (!mWifi.linkToDeath(cookie -> {
-                    Log.e(TAG, "IWifi HAL service died! Have a listener for it ... cookie="
-                            + cookie);
-                    synchronized (mLock) { // prevents race condition with surrounding method
-                        mWifi = null;
-                        teardownInternal();
-                        // don't restart: wait for registration notification
-                    }
-                }, /* don't care */ 0)) {
+                if (!mWifi.linkToDeath(mIWifiDeathRecipient, /* don't care */ 0)) {
                     Log.e(TAG, "Error on linkToDeath on IWifi - will retry later");
                     return;
                 }
