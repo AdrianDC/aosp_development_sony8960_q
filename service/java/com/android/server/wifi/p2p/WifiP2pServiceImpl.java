@@ -1063,7 +1063,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         } catch (IllegalStateException ie) {
                             loge("Unable to change interface settings: " + ie);
                         }
-                        mWifiMonitor.startMonitoring(mWifiNative.getInterfaceName());
+                        mWifiMonitor.startMonitoring(mWifiNative.getInterfaceName(), false);
                         transitionTo(mP2pEnablingState);
                         break;
                     default:
