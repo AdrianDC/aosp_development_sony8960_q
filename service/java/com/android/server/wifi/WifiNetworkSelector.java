@@ -550,26 +550,6 @@ public class WifiNetworkSelector {
         return true;
     }
 
-    /**
-     * Unregister a network evaluator
-     *
-     * @param evaluator the network evaluator to be unregistered from QNS
-     *
-     * @return true if the evaluator is successfully unregistered from;
-     *         false if failed to unregister the evaluator
-     */
-    public boolean unregisterNetworkEvaluator(NetworkEvaluator evaluator) {
-        for (NetworkEvaluator registeredEvaluator : mEvaluators) {
-            if (registeredEvaluator == evaluator) {
-                localLog("Unregistered network evaluator: " + evaluator.getName());
-                return true;
-            }
-        }
-
-        localLog("Couldn't unregister network evaluator: " + evaluator.getName());
-        return false;
-    }
-
     WifiNetworkSelector(Context context, WifiConfigManager configManager, Clock clock) {
         mWifiConfigManager = configManager;
         mClock = clock;
