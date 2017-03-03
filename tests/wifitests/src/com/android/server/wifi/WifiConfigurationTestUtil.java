@@ -63,8 +63,8 @@ public class WifiConfigurationTestUtil {
     public static final String TEST_SSID = "WifiConfigurationTestUtilSSID";
     public static final String TEST_PSK = "WifiConfigurationTestUtilPsk";
     public static final String[] TEST_WEP_KEYS =
-            {"WifiConfigurationTestUtilWep1", "WifiConfigurationTestUtilWep2",
-                    "WifiConfigurationTestUtilWep3", "WifiConfigurationTestUtilWep3"};
+            {"\"WifiConfigurationTestUtilWep1\"", "\"WifiConfigurationTestUtilWep2\"",
+                    "45342312ab", "45342312ab45342312ab34ac12"};
     public static final int TEST_WEP_TX_KEY_INDEX = 1;
     public static final String TEST_FQDN = "WifiConfigurationTestUtilFQDN";
     public static final String TEST_PROVIDER_FRIENDLY_NAME =
