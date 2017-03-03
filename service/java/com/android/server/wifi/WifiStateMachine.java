@@ -75,6 +75,7 @@ import android.net.wifi.WifiSsid;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.WpsResult;
 import android.net.wifi.WpsResult.Status;
+import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
 import android.os.Binder;
@@ -576,6 +577,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     /* try to match a provider with current network */
     static final int CMD_MATCH_PROVIDER_NETWORK                         = BASE + 105;
+
+    // Add or update a Passpoint configuration.
+    static final int CMD_ADD_OR_UPDATE_PASSPOINT_CONFIG                 = BASE + 106;
+
+    // Remove a Passpoint configuration.
+    static final int CMD_REMOVE_PASSPOINT_CONFIG                        = BASE + 107;
+
+    // Get the list of installed Passpoint configurations.
+    static final int CMD_GET_PASSPOINT_CONFIGS                          = BASE + 108;
 
     /* Commands from/to the SupplicantStateTracker */
     /* Reset the supplicant state tracker */
@@ -1826,6 +1836,50 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     public WifiConfiguration syncGetMatchingWifiConfig(ScanResult scanResult, AsyncChannel channel) {
         Message resultMsg = channel.sendMessageSynchronously(CMD_GET_MATCHING_CONFIG, scanResult);
         return (WifiConfiguration) resultMsg.obj;
+    }
+
+    /**
+     * Add or update a Passpoint configuration synchronously.
+     *
+     * @param channel Channel for communicating with the state machine
+     * @param config The configuration to add or update
+     * @return true on success
+     */
+    public boolean syncAddOrUpdatePasspointConfig(AsyncChannel channel,
+            PasspointConfiguration config) {
+        Message resultMsg = channel.sendMessageSynchronously(CMD_ADD_OR_UPDATE_PASSPOINT_CONFIG,
+                config);
+        boolean result = (resultMsg.arg1 == SUCCESS);
+        resultMsg.recycle();
+        return result;
+    }
+
+    /**
+     * Remove a Passpoint configuration synchronously.
+     *
+     * @param channel Channel for communicating with the state machine
+     * @param fqdn The FQDN of the Passpoint configuration to remove
+     * @return true on success
+     */
+    public boolean syncRemovePasspointConfig(AsyncChannel channel, String fqdn) {
+        Message resultMsg = channel.sendMessageSynchronously(CMD_REMOVE_PASSPOINT_CONFIG,
+                fqdn);
+        boolean result = (resultMsg.arg1 == SUCCESS);
+        resultMsg.recycle();
+        return result;
+    }
+
+    /**
+     * Get the list of installed Passpoint configurations synchronously.
+     *
+     * @param channel Channel for communicating with the state machine
+     * @return List of {@link PasspointConfiguration}
+     */
+    public List<PasspointConfiguration> syncGetPasspointConfigs(AsyncChannel channel) {
+        Message resultMsg = channel.sendMessageSynchronously(CMD_GET_PASSPOINT_CONFIGS);
+        List<PasspointConfiguration> result = (List<PasspointConfiguration>) resultMsg.obj;
+        resultMsg.recycle();
+        return result;
     }
 
     /**
@@ -3855,6 +3909,19 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                      */
                     replyToMessage(message, message.what);
                     break;
+                case CMD_ADD_OR_UPDATE_PASSPOINT_CONFIG:
+                    int addResult = mPasspointManager.addOrUpdateProvider(
+                            (PasspointConfiguration) message.obj) ? SUCCESS : FAILURE;
+                    replyToMessage(message, message.what, addResult);
+                    break;
+                case CMD_REMOVE_PASSPOINT_CONFIG:
+                    int removeResult = mPasspointManager.removeProvider(
+                            (String) message.obj) ? SUCCESS : FAILURE;
+                    replyToMessage(message, message.what, removeResult);
+                    break;
+                case CMD_GET_PASSPOINT_CONFIGS:
+                    replyToMessage(message, message.what, mPasspointManager.getProviderConfigs());
+                    break;
                 case CMD_RESET_SIM_NETWORKS:
                     /* Defer this message until supplicant is started. */
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
@@ -5163,6 +5230,19 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // TODO(b/31065385): Passpoint config management.
                     replyToMessage(message, message.what, 0);
                     break;
+                case CMD_REMOVE_PASSPOINT_CONFIG:
+                    String fqdn = (String) message.obj;
+                    if (mPasspointManager.removeProvider(fqdn)) {
+                        if (isProviderOwnedNetwork(mTargetNetworkId, fqdn)
+                                || isProviderOwnedNetwork(mLastNetworkId, fqdn)) {
+                            logd("Disconnect from current network since its provider is removed");
+                            sendMessage(CMD_DISCONNECT);
+                        }
+                        replyToMessage(message, message.what, SUCCESS);
+                    } else {
+                        replyToMessage(message, message.what, FAILURE);
+                    }
+                    break;
                 case CMD_ENABLE_P2P:
                     p2pSendMessage(WifiStateMachine.CMD_ENABLE_P2P);
                     break;
@@ -5195,6 +5275,25 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
 
         mNetworkAgent.sendNetworkCapabilities(networkCapabilities);
+    }
+
+    /**
+     * Checks if the given network |networkdId| is provided by the given Passpoint provider with
+     * |providerFqdn|.
+     *
+     * @param networkId The ID of the network to check
+     * @param providerFqdn The FQDN of the Passpoint provider
+     * @return true if the given network is provided by the given Passpoint provider
+     */
+    private boolean isProviderOwnedNetwork(int networkId, String providerFqdn) {
+        if (networkId == WifiConfiguration.INVALID_NETWORK_ID) {
+            return false;
+        }
+        WifiConfiguration config = mWifiConfigManager.getConfiguredNetwork(networkId);
+        if (config == null) {
+            return false;
+        }
+        return TextUtils.equals(config.FQDN, providerFqdn);
     }
 
     private class WifiNetworkAgent extends NetworkAgent {
