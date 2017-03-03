@@ -172,6 +172,55 @@ public class NativeUtil {
     }
 
     /**
+     * Converts an string to an arraylist of UTF_8 byte values.
+     * These forms are acceptable:
+     * a) ASCII String encapsulated in quotes, or
+     * b) Hex string with no delimiters.
+     *
+     * @param str String to be converted.
+     * @throws IllegalArgumentException for null string.
+     */
+    public static ArrayList<Byte> hexOrQuotedAsciiStringToBytes(String str) {
+        if (str == null) {
+            throw new IllegalArgumentException("null string");
+        }
+        int length = str.length();
+        if ((length > 1) && (str.charAt(0) == '"') && (str.charAt(length - 1) == '"')) {
+            str = str.substring(1, str.length() - 1);
+            return stringToByteArrayList(str);
+        } else {
+            return byteArrayToArrayList(hexStringToByteArray(str));
+        }
+    }
+
+    /**
+     * Converts an ArrayList<Byte> of UTF_8 byte values to string.
+     * The string will either be:
+     * a) ASCII String encapsulated in quotes (if all the bytes are ASCII encodeable and non null),
+     * or
+     * b) Hex string with no delimiters.
+     *
+     * @param bytes List of bytes for ssid.
+     * @throws IllegalArgumentException for null bytes.
+     */
+    public static String bytesToHexOrQuotedAsciiString(ArrayList<Byte> bytes) {
+        if (bytes == null) {
+            throw new IllegalArgumentException("null ssid bytes");
+        }
+        byte[] byteArray = byteArrayFromArrayList(bytes);
+        // Check for 0's in the byte stream in which case we cannot convert this into a string.
+        if (!bytes.contains(Byte.valueOf((byte) 0))) {
+            CharsetDecoder decoder = StandardCharsets.US_ASCII.newDecoder();
+            try {
+                CharBuffer decoded = decoder.decode(ByteBuffer.wrap(byteArray));
+                return "\"" + decoded.toString() + "\"";
+            } catch (CharacterCodingException cce) {
+            }
+        }
+        return hexStringFromByteArray(byteArray);
+    }
+
+    /**
      * Converts an ssid string to an arraylist of UTF_8 byte values.
      * These forms are acceptable:
      * a) ASCII String encapsulated in quotes, or
@@ -181,16 +230,7 @@ public class NativeUtil {
      * @throws IllegalArgumentException for null string.
      */
     public static ArrayList<Byte> decodeSsid(String ssidStr) {
-        if (ssidStr == null) {
-            throw new IllegalArgumentException("null ssid string");
-        }
-        int length = ssidStr.length();
-        if ((length > 1) && (ssidStr.charAt(0) == '"') && (ssidStr.charAt(length - 1) == '"')) {
-            ssidStr = ssidStr.substring(1, ssidStr.length() - 1);
-            return stringToByteArrayList(ssidStr);
-        } else {
-            return byteArrayToArrayList(hexStringToByteArray(ssidStr));
-        }
+        return hexOrQuotedAsciiStringToBytes(ssidStr);
     }
 
     /**
@@ -204,20 +244,7 @@ public class NativeUtil {
      * @throws IllegalArgumentException for null bytes.
      */
     public static String encodeSsid(ArrayList<Byte> ssidBytes) {
-        if (ssidBytes == null) {
-            throw new IllegalArgumentException("null ssid bytes");
-        }
-        byte[] ssidArray = byteArrayFromArrayList(ssidBytes);
-        // Check for 0's in the byte stream in which case we cannot convert this into a string.
-        if (!ssidBytes.contains(Byte.valueOf((byte) 0))) {
-            CharsetDecoder decoder = StandardCharsets.US_ASCII.newDecoder();
-            try {
-                CharBuffer decoded = decoder.decode(ByteBuffer.wrap(ssidArray));
-                return "\"" + decoded.toString() + "\"";
-            } catch (CharacterCodingException cce) {
-            }
-        }
-        return hexStringFromByteArray(ssidArray);
+        return bytesToHexOrQuotedAsciiString(ssidBytes);
     }
 
     /**
