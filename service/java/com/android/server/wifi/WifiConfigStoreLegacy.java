@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.net.wifi.WifiInfo;
 import android.os.Environment;
 import android.util.Log;
 import android.util.SparseArray;
@@ -214,10 +215,12 @@ public class WifiConfigStoreLegacy {
         populateMaskedFieldFromWpaSupplicantFile(
                 WifiConfiguration.wepKeyVarNames[3], configurationMap,
                 (WifiConfiguration config, String value) -> config.wepKeys[3] = value);
+        // The password stored in wpa_supplicant.conf is enclosed in double quotes, so remove
+        // it when retrieving it.
         populateMaskedFieldFromWpaSupplicantFile(
                 WifiEnterpriseConfig.PASSWORD_KEY, configurationMap,
                 (WifiConfiguration config, String value) ->
-                        config.enterpriseConfig.setPassword(value));
+                        config.enterpriseConfig.setPassword(WifiInfo.removeDoubleQuotes(value)));
     }
 
     /**

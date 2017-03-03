@@ -85,7 +85,6 @@ import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
-import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.util.WifiHandler;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
@@ -161,7 +160,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private WifiPermissionsUtil mWifiPermissionsUtil;
 
     private final boolean mPermissionReviewRequired;
-    private final PasspointManager mPasspointManager;
     private final FrameworkFacade mFrameworkFacade;
 
     /**
@@ -343,7 +341,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 || context.getResources().getBoolean(
                 com.android.internal.R.bool.config_permissionReviewRequired);
         mWifiPermissionsUtil = mWifiInjector.getWifiPermissionsUtil();
-        mPasspointManager = mWifiInjector.getPasspointManager();
         mLog = mWifiInjector.makeLog(TAG);
         mFrameworkFacade = wifiInjector.getFrameworkFacade();
         enableVerboseLoggingInternal(getVerboseLoggingLevel());
@@ -1078,7 +1075,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public boolean addOrUpdatePasspointConfiguration(PasspointConfiguration config) {
         enforceChangePermission();
         mLog.trace("addorUpdatePasspointConfiguration uid=%").c(Binder.getCallingUid()).flush();
-        return mPasspointManager.addOrUpdateProvider(config);
+        return mWifiStateMachine.syncAddOrUpdatePasspointConfig(mWifiStateMachineChannel, config);
     }
 
     /**
@@ -1091,7 +1088,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public boolean removePasspointConfiguration(String fqdn) {
         enforceChangePermission();
         mLog.trace("removePasspointConfiguration uid=%").c(Binder.getCallingUid()).flush();
-        return mPasspointManager.removeProvider(fqdn);
+        return mWifiStateMachine.syncRemovePasspointConfig(mWifiStateMachineChannel, fqdn);
     }
 
     /**
@@ -1105,7 +1102,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public List<PasspointConfiguration> getPasspointConfigurations() {
         enforceAccessPermission();
         mLog.trace("getPasspointConfigurations uid=%").c(Binder.getCallingUid()).flush();
-        return mPasspointManager.getProviderConfigs();
+        return mWifiStateMachine.syncGetPasspointConfigs(mWifiStateMachineChannel);
     }
 
     /**
