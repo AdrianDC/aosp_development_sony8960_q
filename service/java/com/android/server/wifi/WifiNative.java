@@ -228,6 +228,9 @@ public class WifiNative {
         if (mSupplicantStaIfaceHal != null) {
             mSupplicantStaIfaceHal.enableVerboseLogging(verbose > 0);
         }
+        if (mWifiVendorHal != null) {
+            mWifiVendorHal.enableVerboseLogging(verbose > 0);
+        }
     }
 
     private void localLog(String s) {
