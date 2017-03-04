@@ -499,13 +499,19 @@ public class WifiSupplicantControl {
             loge("failed to set group: " + allowedGroupCiphersString);
             return false;
         }
+        // Add quotes if they're not present in the provided psk.
+        // Temporary fix until the HIDL interface is re-enabled.
+        String preSharedKey = config.preSharedKey;
+        if (!preSharedKey.startsWith("\"")) {
+            preSharedKey = "\"" + preSharedKey + "\"";
+        }
         // Prevent client screw-up by passing in a WifiConfiguration we gave it
         // by preventing "*" as a key.
         if (config.preSharedKey != null && !config.preSharedKey.equals("*")
                 && !mWifiNative.setNetworkVariable(
                 netId,
                 WifiConfiguration.pskVarName,
-                config.preSharedKey)) {
+                preSharedKey)) {
             loge("failed to set psk");
             return false;
         }
