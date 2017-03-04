@@ -27,7 +27,6 @@ import android.util.LocalLog;
 import android.util.Pair;
 
 import com.android.internal.R;
-import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,7 +51,7 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
     private final int mSecurityAward;
     private final int mNoInternetPenalty;
     private final int mThresholdSaturatedRssi24;
-    @VisibleForTesting final ContentObserver mContentObserver;
+    private final ContentObserver mContentObserver;
     private boolean mCurateSavedOpenNetworks;
 
     SavedNetworkEvaluator(final Context context, WifiConfigManager configManager, Clock clock,
@@ -93,10 +92,10 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
             }
         };
         mContentObserver.onChange(false /* selfChange*/);
-        context.getContentResolver().registerContentObserver(
+        frameworkFacade.registerContentObserver(context,
                 Settings.Global.getUriFor(Settings.Global.CURATE_SAVED_OPEN_NETWORKS),
                 false /* notifyForDescendents */, mContentObserver);
-        context.getContentResolver().registerContentObserver(
+        frameworkFacade.registerContentObserver(context,
                 Settings.Global.getUriFor(Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED),
                 false /* notifyForDescendents */, mContentObserver);
     }

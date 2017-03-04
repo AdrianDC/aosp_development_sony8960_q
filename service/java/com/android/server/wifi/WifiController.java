@@ -270,13 +270,13 @@ public class WifiController extends StateMachine {
             }
         };
 
-        mContext.getContentResolver().registerContentObserver(
-                Settings.Global.getUriFor(Settings.Global.STAY_ON_WHILE_PLUGGED_IN),
-                false, contentObserver);
+        mFacade.registerContentObserver(mContext,
+                Settings.Global.getUriFor(Settings.Global.STAY_ON_WHILE_PLUGGED_IN), false,
+                contentObserver);
     }
 
     /**
-     * Observes settings changes to scan always mode.
+     * Observes settings changes to wifi idle time.
      */
     private void registerForWifiIdleTimeChange(Handler handler) {
         ContentObserver contentObserver = new ContentObserver(handler) {
@@ -286,9 +286,8 @@ public class WifiController extends StateMachine {
             }
         };
 
-        mContext.getContentResolver().registerContentObserver(
-                Settings.Global.getUriFor(Settings.Global.WIFI_IDLE_MS),
-                false, contentObserver);
+        mFacade.registerContentObserver(mContext,
+                Settings.Global.getUriFor(Settings.Global.WIFI_IDLE_MS), false, contentObserver);
     }
 
     /**
@@ -301,9 +300,9 @@ public class WifiController extends StateMachine {
                 readWifiSleepPolicy();
             }
         };
-        mContext.getContentResolver().registerContentObserver(
-                Settings.Global.getUriFor(Settings.Global.WIFI_SLEEP_POLICY),
-                false, contentObserver);
+        mFacade.registerContentObserver(mContext,
+                Settings.Global.getUriFor(Settings.Global.WIFI_SLEEP_POLICY), false,
+                contentObserver);
     }
 
     /**
