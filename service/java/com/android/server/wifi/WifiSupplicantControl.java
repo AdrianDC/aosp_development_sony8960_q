@@ -502,7 +502,7 @@ public class WifiSupplicantControl {
         // Add quotes if they're not present in the provided psk.
         // Temporary fix until the HIDL interface is re-enabled.
         String preSharedKey = config.preSharedKey;
-        if (!preSharedKey.startsWith("\"")) {
+        if (!TextUtils.isEmpty(preSharedKey) && !preSharedKey.startsWith("\"")) {
             preSharedKey = "\"" + preSharedKey + "\"";
         }
         // Prevent client screw-up by passing in a WifiConfiguration we gave it
