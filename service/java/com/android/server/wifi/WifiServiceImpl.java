@@ -257,6 +257,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
 
         private void replyFailed(Message msg, int what, int why) {
+            if (msg.replyTo == null) return;
             Message reply = Message.obtain();
             reply.what = what;
             reply.arg1 = why;
