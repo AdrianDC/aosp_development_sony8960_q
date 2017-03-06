@@ -1412,7 +1412,7 @@ public class WifiVendorHalTest {
     }
 
     /**
-     * Test that background scan failure is handled correctly.
+     * Test that background scan failure with wrong id is not reported.
      */
     @Test
     public void testBgScanFailureCallbackWithInvalidCmdId() throws Exception {
@@ -1466,6 +1466,60 @@ public class WifiVendorHalTest {
         verify(eventHandler).onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
         assertScanDatasEqual(
                 data.second, Arrays.asList(mWifiVendorHal.mScan.latestScanResults));
+    }
+
+    /**
+     * Test that starting a new background scan when one is active will stop the previous one.
+     */
+    @Test
+    public void testBgScanReplacement() throws Exception {
+        when(mIWifiStaIface.stopBackgroundScan(anyInt())).thenReturn(mWifiStatusSuccess);
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertNotNull(mIWifiStaIfaceEventCallback);
+        WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
+        startBgScan(eventHandler);
+        int cmdId1 = mWifiVendorHal.mScan.cmdId;
+        startBgScan(eventHandler);
+        assertNotEquals(mWifiVendorHal.mScan.cmdId, cmdId1);
+        verify(mIWifiStaIface, times(2)).startBackgroundScan(anyInt(), any());
+        verify(mIWifiStaIface).stopBackgroundScan(cmdId1);
+    }
+
+    /**
+     * Test stopping a background scan.
+     */
+    @Test
+    public void testBgScanStop() throws Exception {
+        when(mIWifiStaIface.stopBackgroundScan(anyInt())).thenReturn(mWifiStatusSuccess);
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertNotNull(mIWifiStaIfaceEventCallback);
+        WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
+        startBgScan(eventHandler);
+
+        int cmdId = mWifiVendorHal.mScan.cmdId;
+
+        mWifiVendorHal.stopScan();
+        mWifiVendorHal.stopScan(); // second call should not do anything
+        verify(mIWifiStaIface).stopBackgroundScan(cmdId); // Should be called just once
+    }
+
+    /**
+     * Test pausing and restarting a background scan.
+     */
+    @Test
+    public void testBgScanPauseAndRestart() throws Exception {
+        when(mIWifiStaIface.stopBackgroundScan(anyInt())).thenReturn(mWifiStatusSuccess);
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertNotNull(mIWifiStaIfaceEventCallback);
+        WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
+        startBgScan(eventHandler);
+
+        int cmdId = mWifiVendorHal.mScan.cmdId;
+
+        mWifiVendorHal.pauseScan();
+        mWifiVendorHal.restartScan();
+        verify(mIWifiStaIface).stopBackgroundScan(cmdId); // Should be called just once
+        verify(mIWifiStaIface, times(2)).startBackgroundScan(eq(cmdId), any());
     }
 
     /**
@@ -1600,7 +1654,14 @@ public class WifiVendorHalTest {
     private void startBgScan(WifiNative.ScanEventHandler eventHandler) throws Exception {
         when(mIWifiStaIface.startBackgroundScan(
                 anyInt(), any(StaBackgroundScanParameters.class))).thenReturn(mWifiStatusSuccess);
-        assertTrue(mWifiVendorHal.startScan(new WifiNative.ScanSettings(), eventHandler));
+        WifiNative.ScanSettings settings = new WifiNative.ScanSettings();
+        settings.num_buckets = 1;
+        WifiNative.BucketSettings bucketSettings = new WifiNative.BucketSettings();
+        bucketSettings.bucket = 0;
+        bucketSettings.period_ms = 16000;
+        bucketSettings.report_events = WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN;
+        settings.buckets = new WifiNative.BucketSettings[] {bucketSettings};
+        assertTrue(mWifiVendorHal.startScan(settings, eventHandler));
     }
 
     // Create a pair of HIDL scan result and its corresponding framework scan result for
