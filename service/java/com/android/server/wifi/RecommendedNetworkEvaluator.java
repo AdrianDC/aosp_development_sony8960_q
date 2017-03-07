@@ -42,7 +42,6 @@ import android.util.LruCache;
 import android.util.Pair;
 import android.util.Slog;
 
-import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.util.ScanResultUtil;
 
 import java.io.FileDescriptor;
@@ -63,7 +62,7 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
     private final NetworkScoreManager mNetworkScoreManager;
     private final WifiConfigManager mWifiConfigManager;
     private final LocalLog mLocalLog;
-    @VisibleForTesting final ContentObserver mContentObserver;
+    private final ContentObserver mContentObserver;
     private final RequestedScoreCache mRequestedScoreCache;
     private boolean mNetworkRecommendationsEnabled;
 
@@ -84,7 +83,7 @@ public class RecommendedNetworkEvaluator implements WifiNetworkSelector.NetworkE
                         Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0) == 1;
             }
         };
-        contentResolver.registerContentObserver(
+        frameworkFacade.registerContentObserver(context,
                 Settings.Global.getUriFor(Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED),
                 false /* notifyForDescendents */, mContentObserver);
         mContentObserver.onChange(false /* unused */);
