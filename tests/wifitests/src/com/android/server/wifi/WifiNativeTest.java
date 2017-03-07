@@ -20,6 +20,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.eq;
@@ -157,6 +158,7 @@ public class WifiNativeTest {
         wifiNativeConstructor.setAccessible(true);
         mWifiNative = spy(wifiNativeConstructor.newInstance("test", true));
         mWifiVendorHal = mock(WifiVendorHal.class);
+        when(mWifiVendorHal.startVendorHal(anyBoolean())).thenReturn(true);
         mWifiNative.setWifiVendorHal(mWifiVendorHal);
     }
 
@@ -517,10 +519,10 @@ public class WifiNativeTest {
         when(wificondControl.setupDriverForClientMode()).thenReturn(clientInterface);
         mWifiNative.setWificondControl(wificondControl);
 
-        IClientInterface returnedClientInterface = mWifiNative.setupDriverForClientMode();
+        IClientInterface returnedClientInterface = mWifiNative.setupForClientMode();
         assertEquals(clientInterface, returnedClientInterface);
-        verify(wificondControl).setupDriverForClientMode();
         verify(mWifiNative).startHal(eq(true));
+        verify(wificondControl).setupDriverForClientMode();
     }
 
     /**
@@ -535,8 +537,9 @@ public class WifiNativeTest {
         when(wificondControl.setupDriverForClientMode()).thenReturn(null);
         mWifiNative.setWificondControl(wificondControl);
 
-        IClientInterface returnedClientInterface = mWifiNative.setupDriverForClientMode();
+        IClientInterface returnedClientInterface = mWifiNative.setupForClientMode();
         assertEquals(null, returnedClientInterface);
+        verify(mWifiNative).startHal(eq(true));
         verify(wificondControl).setupDriverForClientMode();
     }
 
@@ -552,10 +555,10 @@ public class WifiNativeTest {
         when(wificondControl.setupDriverForSoftApMode()).thenReturn(apInterface);
         mWifiNative.setWificondControl(wificondControl);
 
-        IApInterface returnedApInterface = mWifiNative.setupDriverForSoftApMode();
+        IApInterface returnedApInterface = mWifiNative.setupForSoftApMode();
         assertEquals(apInterface, returnedApInterface);
-        verify(wificondControl).setupDriverForSoftApMode();
         verify(mWifiNative).startHal(eq(false));
+        verify(wificondControl).setupDriverForSoftApMode();
     }
 
     /**
@@ -570,8 +573,9 @@ public class WifiNativeTest {
         when(wificondControl.setupDriverForSoftApMode()).thenReturn(null);
         mWifiNative.setWificondControl(wificondControl);
 
-        IApInterface returnedApInterface = mWifiNative.setupDriverForSoftApMode();
+        IApInterface returnedApInterface = mWifiNative.setupForSoftApMode();
         assertEquals(null, returnedApInterface);
+        verify(mWifiNative).startHal(eq(false));
         verify(wificondControl).setupDriverForSoftApMode();
     }
 
@@ -607,14 +611,15 @@ public class WifiNativeTest {
      * Verifies that tearDownInterfaces() calls underlying WificondControl.
      */
     @Test
-    public void testTearDownInterfaces() {
+    public void testTearDown() {
         WificondControl wificondControl = mock(WificondControl.class);
 
         when(wificondControl.tearDownInterfaces()).thenReturn(true);
         mWifiNative.setWificondControl(wificondControl);
 
-        assertTrue(mWifiNative.tearDownInterfaces());
+        assertTrue(mWifiNative.tearDown());
         verify(wificondControl).tearDownInterfaces();
+        verify(mWifiVendorHal).stopVendorHal();
     }
 
     /**
