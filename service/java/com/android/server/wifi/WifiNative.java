@@ -238,40 +238,56 @@ public class WifiNative {
     }
 
    /**
-    * Setup driver for client mode via wificond.
+    * Setup wifi native for Client mode operations.
+    *
+    * 1. Starts the Wifi HAL and configures it in client/STA mode.
+    * 2. Setup Wificond to operate in client mode and retrieve the handle to use for client
+    * operations.
+    *
     * @return An IClientInterface as wificond client interface binder handler.
     * Returns null on failure.
     */
-    public IClientInterface setupDriverForClientMode() {
-        IClientInterface clientInterface = mWificondControl.setupDriverForClientMode();
+    public IClientInterface setupForClientMode() {
         if (!startHal(true)) {
             // TODO(b/34859006): Handle failures.
             Log.e(TAG, "Failed to start HAL for client mode");
         }
-        return clientInterface;
+        return mWificondControl.setupDriverForClientMode();
     }
 
     /**
-    * Setup driver for softAp mode via wificond.
-    * @return An IApInterface as wificond Ap interface binder handler.
-    * Returns null on failure.
-    */
-    public IApInterface setupDriverForSoftApMode() {
-        IApInterface apInterface = mWificondControl.setupDriverForSoftApMode();
-
+     * Setup wifi native for AP mode operations.
+     *
+     * 1. Starts the Wifi HAL and configures it in AP mode.
+     * 2. Setup Wificond to operate in AP mode and retrieve the handle to use for ap operations.
+     *
+     * @return An IApInterface as wificond Ap interface binder handler.
+     * Returns null on failure.
+     */
+    public IApInterface setupForSoftApMode() {
         if (!startHal(false)) {
             // TODO(b/34859006): Handle failures.
             Log.e(TAG, "Failed to start HAL for AP mode");
         }
-        return apInterface;
+        return mWificondControl.setupDriverForSoftApMode();
     }
 
     /**
-    * Teardown all interfaces configured in wificond.
-    * @return Returns true on success.
-    */
-    public boolean tearDownInterfaces() {
-        return mWificondControl.tearDownInterfaces();
+     * Teardown all mode configurations in wifi native.
+     *
+     * 1. Tears down all the interfaces from Wificond.
+     * 2. Stops the Wifi HAL.
+     *
+     * @return Returns true on success.
+     */
+    public boolean tearDown() {
+        if (!mWificondControl.tearDownInterfaces()) {
+            // TODO(b/34859006): Handle failures.
+            Log.e(TAG, "Failed to teardown interfaces from Wificond");
+            return false;
+        }
+        stopHal();
+        return true;
     }
 
     /**
