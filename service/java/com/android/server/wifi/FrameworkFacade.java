@@ -20,7 +20,9 @@ import android.app.AppGlobals;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.database.ContentObserver;
 import android.net.TrafficStats;
+import android.net.Uri;
 import android.net.ip.IpManager;
 import android.os.Handler;
 import android.os.IBinder;
@@ -55,6 +57,21 @@ public class FrameworkFacade {
 
     public String getStringSetting(Context context, String name) {
         return Settings.Global.getString(context.getContentResolver(), name);
+    }
+
+    /**
+     * Helper method for classes to register a ContentObserver
+     * {@see ContentResolver#registerContentObserver(Uri,boolean,ContentObserver)}.
+     *
+     * @param context
+     * @param uri
+     * @param notifyForDescendants
+     * @param contentObserver
+     */
+    public void registerContentObserver(Context context, Uri uri,
+            boolean notifyForDescendants, ContentObserver contentObserver) {
+        context.getContentResolver().registerContentObserver(uri, notifyForDescendants,
+                contentObserver);
     }
 
     public IBinder getService(String serviceName) {

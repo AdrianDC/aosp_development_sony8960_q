@@ -25,6 +25,8 @@ import static org.mockito.Mockito.*;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Resources;
+import android.database.ContentObserver;
+import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.os.Looper;
@@ -38,6 +40,7 @@ import com.android.server.wifi.WifiNetworkSelectorTestUtil.ScanDetailsAndWifiCon
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -76,8 +79,16 @@ public class SavedNetworkEvaluatorTest {
         mThresholdSaturatedRssi5G = mResource.getInteger(
                 R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_5GHz);
 
+        ArgumentCaptor<ContentObserver> observerCaptor =
+                ArgumentCaptor.forClass(ContentObserver.class);
+
         mSavedNetworkEvaluator = new SavedNetworkEvaluator(mContext, mWifiConfigManager,
                 mClock, null, Looper.getMainLooper(), mFrameworkFacade);
+        verify(mFrameworkFacade, times(2)).registerContentObserver(eq(mContext), any(Uri.class),
+                eq(false), observerCaptor.capture());
+        // SavedNetworkEvaluator uses a single ContentObserver for two registrations, we only need
+        // to get this object once.
+        mContentObserver = observerCaptor.getValue();
     }
 
     /** Cleans up test. */
@@ -99,6 +110,7 @@ public class SavedNetworkEvaluatorTest {
     private int mThresholdQualifiedRssi5G;
     private int mThresholdSaturatedRssi2G;
     private int mThresholdSaturatedRssi5G;
+    private ContentObserver mContentObserver;
     private static final String TAG = "Saved Network Evaluator Unit Test";
 
     private void setupContext() {
@@ -194,7 +206,7 @@ public class SavedNetworkEvaluatorTest {
                 Settings.Global.CURATE_SAVED_OPEN_NETWORKS, 0)).thenReturn(1);
         when(mFrameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0)).thenReturn(1);
-        mSavedNetworkEvaluator.mContentObserver.onChange(false);
+        mContentObserver.onChange(false);
 
         ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
                 WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
@@ -256,7 +268,7 @@ public class SavedNetworkEvaluatorTest {
                 Settings.Global.CURATE_SAVED_OPEN_NETWORKS, 0)).thenReturn(1);
         when(mFrameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0)).thenReturn(1);
-        mSavedNetworkEvaluator.mContentObserver.onChange(false);
+        mContentObserver.onChange(false);
 
         ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
                 WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
