@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.BitSet;
 
 public class InformationElementUtil {
+    private static final String TAG = "InformationElementUtil";
 
     public static InformationElement[] parseInformationElements(byte[] bytes) {
         if (bytes == null) {
@@ -63,6 +64,71 @@ public class InformationElementUtil {
         return infoElements.toArray(new InformationElement[infoElements.size()]);
     }
 
+    /**
+     * Parse and retrieve the Roaming Consortium Information Element from the list of IEs.
+     *
+     * @param ies List of IEs to retrieve from
+     * @return {@link RoamingConsortium}
+     */
+    public static RoamingConsortium getRoamingConsortiumIE(InformationElement[] ies) {
+        RoamingConsortium roamingConsortium = new RoamingConsortium();
+        if (ies != null) {
+            for (InformationElement ie : ies) {
+                if (ie.id == InformationElement.EID_ROAMING_CONSORTIUM) {
+                    try {
+                        roamingConsortium.from(ie);
+                    } catch (RuntimeException e) {
+                        Log.e(TAG, "Failed to parse Roaming Consortium IE: " + e.getMessage());
+                    }
+                }
+            }
+        }
+        return roamingConsortium;
+    }
+
+    /**
+     * Parse and retrieve the Hotspot 2.0 Vendor Specific Information Element from the list of IEs.
+     *
+     * @param ies List of IEs to retrieve from
+     * @return {@link Vsa}
+     */
+    public static Vsa getHS2VendorSpecificIE(InformationElement[] ies) {
+        Vsa vsa = new Vsa();
+        if (ies != null) {
+            for (InformationElement ie : ies) {
+                if (ie.id == InformationElement.EID_VSA) {
+                    try {
+                        vsa.from(ie);
+                    } catch (RuntimeException e) {
+                        Log.e(TAG, "Failed to parse Vendor Specific IE: " + e.getMessage());
+                    }
+                }
+            }
+        }
+        return vsa;
+    }
+
+    /**
+     * Parse and retrieve the Interworking information element from the list of IEs.
+     *
+     * @param ies List of IEs to retrieve from
+     * @return {@link Interworking}
+     */
+    public static Interworking getInterworkingIE(InformationElement[] ies) {
+        Interworking interworking = new Interworking();
+        if (ies != null) {
+            for (InformationElement ie : ies) {
+                if (ie.id == InformationElement.EID_INTERWORKING) {
+                    try {
+                        interworking.from(ie);
+                    } catch (RuntimeException e) {
+                        Log.e(TAG, "Failed to parse Interworking IE: " + e.getMessage());
+                    }
+                }
+            }
+        }
+        return interworking;
+    }
 
     public static class BssLoad {
         public int stationCount = 0;
