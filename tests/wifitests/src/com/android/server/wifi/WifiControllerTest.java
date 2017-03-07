@@ -32,6 +32,8 @@ import static org.mockito.Mockito.*;
 
 import android.content.ContentResolver;
 import android.content.Context;
+import android.database.ContentObserver;
+import android.net.Uri;
 import android.os.WorkSource;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -43,6 +45,7 @@ import com.android.internal.util.StateMachine;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -50,6 +53,7 @@ import org.mockito.MockitoAnnotations;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
+import java.util.List;
 
 /**
  * Test WifiController for changes in and out of ECM and SoftAP modes.
@@ -86,6 +90,11 @@ public class WifiControllerTest {
     @Mock WifiSettingsStore mSettingsStore;
     @Mock WifiStateMachine mWifiStateMachine;
     @Mock WifiLockManager mWifiLockManager;
+    @Mock ContentResolver mContentResolver;
+
+    ContentObserver mStayAwakeObserver;
+    ContentObserver mWifiIdleTimeObserver;
+    ContentObserver mWifiSleepPolicyObserver;
 
     WifiController mWifiController;
 
@@ -97,10 +106,19 @@ public class WifiControllerTest {
 
         initializeSettingsStore();
 
-        when(mContext.getContentResolver()).thenReturn(mock(ContentResolver.class));
+        when(mContext.getContentResolver()).thenReturn(mContentResolver);
+        ArgumentCaptor<ContentObserver> observerCaptor =
+                ArgumentCaptor.forClass(ContentObserver.class);
 
         mWifiController = new WifiController(mContext, mWifiStateMachine,
                 mSettingsStore, mWifiLockManager, mLooper.getLooper(), mFacade);
+        verify(mFacade, times(3)).registerContentObserver(eq(mContext), any(Uri.class), eq(false),
+                observerCaptor.capture());
+
+        List<ContentObserver> observers = observerCaptor.getAllValues();
+        mStayAwakeObserver = observers.get(0);
+        mWifiIdleTimeObserver = observers.get(1);
+        mWifiSleepPolicyObserver = observers.get(2);
 
         mWifiController.start();
         mLooper.dispatchAll();
