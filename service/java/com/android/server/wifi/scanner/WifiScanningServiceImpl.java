@@ -1769,8 +1769,10 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
         }
 
-        private WifiNative.PnoSettings convertPnoSettingsToNative(PnoSettings pnoSettings) {
+        private WifiNative.PnoSettings convertSettingsToPnoNative(ScanSettings scanSettings,
+                                                                  PnoSettings pnoSettings) {
             WifiNative.PnoSettings nativePnoSetting = new WifiNative.PnoSettings();
+            nativePnoSetting.periodInMs = scanSettings.periodInMs;
             nativePnoSetting.min5GHzRssi = pnoSettings.min5GHzRssi;
             nativePnoSetting.min24GHzRssi = pnoSettings.min24GHzRssi;
             nativePnoSetting.initialScoreMax = pnoSettings.initialScoreMax;
@@ -1840,7 +1842,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 loge("Failing scan request because there is already an active scan");
                 return false;
             }
-            WifiNative.PnoSettings nativePnoSettings = convertPnoSettingsToNative(pnoSettings);
+            WifiNative.PnoSettings nativePnoSettings =
+                    convertSettingsToPnoNative(scanSettings, pnoSettings);
             if (!mScannerImpl.setHwPnoList(nativePnoSettings, mPnoScanStateMachine)) {
                 return false;
             }
