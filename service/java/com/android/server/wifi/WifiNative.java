@@ -512,64 +512,67 @@ public class WifiNative {
      * @return true, if list has been modified.
      */
     public boolean p2pListNetworks(WifiP2pGroupList groups) {
-        String networks = doStringCommand("LIST_NETWORKS");
-        if (networks == null) {
-            logDbg("Could not fetch list of available networks.");
-            return false;
-        }
-        String[] lines = networks.split("\n");
-        if (lines == null) return false;
-        boolean modified = false;
+        if (HIDL_SUP_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.loadGroups(groups);
+        } else {
+            String networks = doStringCommand("LIST_NETWORKS");
+            if (networks == null) {
+                logDbg("Could not fetch list of available networks.");
+                return false;
+            }
+            String[] lines = networks.split("\n");
+            if (lines == null) return false;
+            boolean modified = false;
 
-        // Skip the first line, which is a header
-        for (int i = 1; i < lines.length; i++) {
-            String[] result = lines[i].split("\t");
-            if (result == null || result.length < 4) {
-                continue;
-            }
-            // network-id | ssid | bssid | flags
-            int netId = -1;
-            String ssid = result[1];
-            String bssid = result[2];
-            String flags = result[3];
-            try {
-                netId = Integer.parseInt(result[0]);
-            } catch (NumberFormatException e) {
-                Log.e(TAG, "Could not parse network id " + result[0], e);
-                continue;
-            }
+            // Skip the first line, which is a header
+            for (int i = 1; i < lines.length; i++) {
+                String[] result = lines[i].split("\t");
+                if (result == null || result.length < 4) {
+                    continue;
+                }
+                // network-id | ssid | bssid | flags
+                int netId = -1;
+                String ssid = result[1];
+                String bssid = result[2];
+                String flags = result[3];
+                try {
+                    netId = Integer.parseInt(result[0]);
+                } catch (NumberFormatException e) {
+                    Log.e(TAG, "Could not parse network id " + result[0], e);
+                    continue;
+                }
 
-            if (flags.indexOf("[CURRENT]") != -1) {
-                continue;
-            }
-            if (flags.indexOf("[P2P-PERSISTENT]") == -1) {
-                // The unused profile is sometimes remained when the p2p group formation
-                // is failed. So, we clean up the p2p group here.
-                if (DBG) logDbg("clean up the unused persistent group. netId=" + netId);
-                removeNetwork(netId);
+                if (flags.indexOf("[CURRENT]") != -1) {
+                    continue;
+                }
+                if (flags.indexOf("[P2P-PERSISTENT]") == -1) {
+                    // The unused profile is sometimes remained when the p2p group formation
+                    // is failed. So, we clean up the p2p group here.
+                    if (DBG) logDbg("clean up the unused persistent group. netId=" + netId);
+                    removeNetwork(netId);
+                    modified = true;
+                    continue;
+                }
+
+                if (groups.contains(netId)) {
+                    continue;
+                }
+
+                WifiP2pGroup group = new WifiP2pGroup();
+                group.setNetworkId(netId);
+                group.setNetworkName(ssid);
+                String mode = getNetworkVariable(netId, "mode");
+                if (mode != null && mode.equals("3")) {
+                    group.setIsGroupOwner(true);
+                }
+                WifiP2pDevice device = new WifiP2pDevice();
+                device.deviceAddress = bssid;
+                group.setOwner(device);
+                groups.add(group);
                 modified = true;
-                continue;
             }
-
-            if (groups.contains(netId)) {
-                continue;
-            }
-
-            WifiP2pGroup group = new WifiP2pGroup();
-            group.setNetworkId(netId);
-            group.setNetworkName(ssid);
-            String mode = getNetworkVariable(netId, "mode");
-            if (mode != null && mode.equals("3")) {
-                group.setIsGroupOwner(true);
-            }
-            WifiP2pDevice device = new WifiP2pDevice();
-            device.deviceAddress = bssid;
-            group.setOwner(device);
-            groups.add(group);
-            modified = true;
+            return modified;
         }
-
-        return modified;
     }
 
     public String listNetworks(int last_id) {
