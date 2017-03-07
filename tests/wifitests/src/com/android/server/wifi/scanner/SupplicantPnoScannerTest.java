@@ -192,7 +192,7 @@ public class SupplicantPnoScannerTest {
 
         // Fail the PNO resume and check that the OnPnoScanFailed callback is invoked.
         order = inOrder(pnoEventHandler, mWifiNative);
-        when(mWifiNative.setPnoScan(true)).thenReturn(false);
+        when(mWifiNative.startPnoScan(any(WifiNative.PnoSettings.class))).thenReturn(false);
         assertTrue("dispatch pno monitor alarm",
                 mAlarmManager.dispatch(
                         SupplicantWifiScannerImpl.HwPnoDebouncer.PNO_DEBOUNCER_ALARM_TAG));
@@ -227,13 +227,13 @@ public class SupplicantPnoScannerTest {
         startSuccessfulPnoScan(null, pnoSettings, null, pnoEventHandler);
 
         // Fail the PNO stop.
-        when(mWifiNative.setPnoScan(false)).thenReturn(false);
+        when(mWifiNative.stopPnoScan()).thenReturn(false);
         assertTrue(mScanner.resetHwPnoList());
         assertTrue("dispatch pno monitor alarm",
                 mAlarmManager.dispatch(
                         SupplicantWifiScannerImpl.HwPnoDebouncer.PNO_DEBOUNCER_ALARM_TAG));
         mLooper.dispatchAll();
-        verify(mWifiNative).setPnoScan(false);
+        verify(mWifiNative).stopPnoScan();
 
         // Add a new PNO scan request and ensure it runs successfully.
         startSuccessfulPnoScan(null, pnoSettings, null, pnoEventHandler);
@@ -271,7 +271,7 @@ public class SupplicantPnoScannerTest {
         assertTrue(mScanner.resetHwPnoList());
         assertTrue(mAlarmManager.isPending(
                 SupplicantWifiScannerImpl.HwPnoDebouncer.PNO_DEBOUNCER_ALARM_TAG));
-        order.verify(mWifiNative, never()).setPnoScan(false);
+        order.verify(mWifiNative, never()).stopPnoScan();
 
         // Now restart PNO scan with an extra network in settings.
         pnoSettings.networkList =
@@ -282,12 +282,12 @@ public class SupplicantPnoScannerTest {
 
         // This should bypass the debounce timer and stop PNO scan immediately and then start
         // a new debounce timer for the start.
-        order.verify(mWifiNative).setPnoScan(false);
+        order.verify(mWifiNative).stopPnoScan();
 
         // Trigger the debounce timer and ensure we start PNO scan again.
         mAlarmManager.dispatch(SupplicantWifiScannerImpl.HwPnoDebouncer.PNO_DEBOUNCER_ALARM_TAG);
         mLooper.dispatchAll();
-        order.verify(mWifiNative).setPnoScan(true);
+        order.verify(mWifiNative).startPnoScan(pnoSettings);
     }
 
     /**
@@ -314,14 +314,15 @@ public class SupplicantPnoScannerTest {
         assertTrue(mScanner.resetHwPnoList());
         assertTrue(mAlarmManager.isPending(
                 SupplicantWifiScannerImpl.HwPnoDebouncer.PNO_DEBOUNCER_ALARM_TAG));
-        order.verify(mWifiNative, never()).setPnoScan(false);
+        order.verify(mWifiNative, never()).stopPnoScan();
 
         // Now restart PNO scan with the same settings.
         startSuccessfulPnoScan(null, pnoSettings, null, pnoEventHandler);
 
         // Trigger the debounce timer and ensure that we neither stop/start.
         mLooper.dispatchAll();
-        order.verify(mWifiNative, never()).setPnoScan(anyBoolean());
+        order.verify(mWifiNative, never()).startPnoScan(any(WifiNative.PnoSettings.class));
+        order.verify(mWifiNative, never()).stopPnoScan();
     }
 
     private void doSuccessfulSwPnoScanTest(boolean isConnectedPno) {
@@ -390,7 +391,8 @@ public class SupplicantPnoScannerTest {
         when(mWifiNative.setNetworkVariable(anyInt(), anyString(), anyString())).thenReturn(true);
         // Scans succeed
         when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(true);
-        when(mWifiNative.setPnoScan(anyBoolean())).thenReturn(true);
+        when(mWifiNative.startPnoScan(any(WifiNative.PnoSettings.class))).thenReturn(true);
+        when(mWifiNative.stopPnoScan()).thenReturn(true);
 
         if (mScanner.isHwPnoSupported(pnoSettings.isConnected)) {
             // This should happen only for HW PNO scan
@@ -414,7 +416,7 @@ public class SupplicantPnoScannerTest {
     private void expectHwDisconnectedPnoScanStart(InOrder order,
             WifiNative.PnoSettings pnoSettings) {
         // Verify  HW PNO scan started
-        order.verify(mWifiNative).setPnoScan(true);
+        order.verify(mWifiNative).startPnoScan(any(WifiNative.PnoSettings.class));
     }
 
     /**
@@ -445,7 +447,7 @@ public class SupplicantPnoScannerTest {
             WifiNative.ScanEventHandler eventHandler, Set<Integer> expectedScanFreqs,
             ScanResults scanResults) {
         // Pause PNO scan first
-        order.verify(mWifiNative).setPnoScan(false);
+        order.verify(mWifiNative).stopPnoScan();
 
         order.verify(mWifiNative).scan(eq(expectedScanFreqs), any(Set.class));
 
@@ -472,7 +474,7 @@ public class SupplicantPnoScannerTest {
         order.verify(mWifiNative).scan(any(Set.class), any(Set.class));
 
         // Make sure that HW PNO scan was not started
-        verify(mWifiNative, never()).setPnoScan(anyBoolean());
+        verify(mWifiNative, never()).startPnoScan(any(WifiNative.PnoSettings.class));
 
         // Setup scan results
         when(mWifiNative.getScanResults()).thenReturn(scanResults.getScanDetailArrayList());

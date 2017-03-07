@@ -141,13 +141,24 @@ public class WifiNativeTest {
                 add(5050);
                 add(5200);
             }};
+    private static final String TEST_QUOTED_SSID_1 = "\"testSsid1\"";
+    private static final String TEST_QUOTED_SSID_2 = "\"testSsid2\"";
     private static final Set<String> SCAN_HIDDEN_NETWORK_SSID_SET =
             new HashSet<String>() {{
-                // These SSIDs should be quoted.
-                add("\"hiddenAP1\"");
-                add("\"hiddenAP2\"");
+                add(TEST_QUOTED_SSID_1);
+                add(TEST_QUOTED_SSID_2);
             }};
 
+    private static final WifiNative.PnoSettings TEST_PNO_SETTINGS =
+            new WifiNative.PnoSettings() {{
+                isConnected = false;
+                periodInMs = 6000;
+                networkList = new WifiNative.PnoNetwork[2];
+                networkList[0] = new WifiNative.PnoNetwork();
+                networkList[1] = new WifiNative.PnoNetwork();
+                networkList[0].ssid = TEST_QUOTED_SSID_1;
+                networkList[1].ssid = TEST_QUOTED_SSID_2;
+            }};
     private WifiNative mWifiNative;
     private WifiVendorHal mWifiVendorHal;
 
@@ -661,6 +672,32 @@ public class WifiNativeTest {
 
         mWifiNative.scan(SCAN_FREQ_SET, SCAN_HIDDEN_NETWORK_SSID_SET);
         verify(wificondControl).scan(SCAN_FREQ_SET, SCAN_HIDDEN_NETWORK_SSID_SET);
+    }
+
+    /**
+     * Verifies that startPnoscan() calls underlying WificondControl.
+     */
+    @Test
+    public void testStartPnoScan() throws Exception {
+        WificondControl wificondControl = mock(WificondControl.class);
+
+        mWifiNative.setWificondControl(wificondControl);
+
+        mWifiNative.startPnoScan(TEST_PNO_SETTINGS);
+        verify(wificondControl).startPnoScan(TEST_PNO_SETTINGS);
+    }
+
+    /**
+     * Verifies that stopPnoscan() calls underlying WificondControl.
+     */
+    @Test
+    public void testStopPnoScan() throws Exception {
+        WificondControl wificondControl = mock(WificondControl.class);
+
+        mWifiNative.setWificondControl(wificondControl);
+
+        mWifiNative.stopPnoScan();
+        verify(wificondControl).stopPnoScan();
     }
 
     /**
