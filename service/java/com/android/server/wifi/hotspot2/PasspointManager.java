@@ -275,18 +275,22 @@ public class PasspointManager {
     }
 
     /**
-     * Find the providers that can provide service through the given AP, which means the
-     * providers contained credential to authenticate with the given AP.
+     * Find the best provider that can provide service through the given AP, which means the
+     * provider contained credential to authenticate with the given AP.
      *
-     * An empty list will returned in the case when no match is found.
+     * Here is the current precedence of the matching rule in descending order:
+     * 1. Home Provider
+     * 2. Roaming Provider
+     *
+     * A {code null} will be returned if no matching is found.
      *
      * @param scanResult The scan result associated with the AP
-     * @return List of {@link PasspointProvider}
+     * @return A pair of {@link PasspointProvider} and match status.
      */
-    public List<Pair<PasspointProvider, PasspointMatch>> matchProvider(ScanResult scanResult) {
+    public Pair<PasspointProvider, PasspointMatch> matchProvider(ScanResult scanResult) {
         // Nothing to be done if no Passpoint provider is installed.
         if (mProviders.isEmpty()) {
-            return new ArrayList<Pair<PasspointProvider, PasspointMatch>>();
+            return null;
         }
 
         // Retrieve the relevant information elements, mainly Roaming Consortium IE and Hotspot 2.0
@@ -306,19 +310,22 @@ public class PasspointManager {
             mAnqpRequestManager.requestANQPElements(bssid, anqpKey,
                     roamingConsortium.anqpOICount > 0,
                     vsa.hsRelease  == NetworkDetail.HSRelease.R2);
-            return new ArrayList<Pair<PasspointProvider, PasspointMatch>>();
+            return null;
         }
 
-        List<Pair<PasspointProvider, PasspointMatch>> results = new ArrayList<>();
+        Pair<PasspointProvider, PasspointMatch> bestMatch = null;
         for (Map.Entry<String, PasspointProvider> entry : mProviders.entrySet()) {
             PasspointProvider provider = entry.getValue();
             PasspointMatch matchStatus = provider.match(anqpEntry.getElements());
-            if (matchStatus == PasspointMatch.HomeProvider
-                    || matchStatus == PasspointMatch.RoamingProvider) {
-                results.add(new Pair<PasspointProvider, PasspointMatch>(provider, matchStatus));
+            if (matchStatus == PasspointMatch.HomeProvider) {
+                bestMatch = Pair.create(provider, matchStatus);
+                break;
+            }
+            if (matchStatus == PasspointMatch.RoamingProvider && bestMatch == null) {
+                bestMatch = Pair.create(provider, matchStatus);
             }
         }
-        return results;
+        return bestMatch;
     }
 
     /**
