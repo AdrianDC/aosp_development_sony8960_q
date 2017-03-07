@@ -24,20 +24,16 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import android.content.ContentResolver;
 import android.content.Context;
+import android.database.ContentObserver;
 import android.net.NetworkKey;
 import android.net.NetworkScoreManager;
 import android.net.RecommendationRequest;
 import android.net.RecommendationResult;
+import android.net.Uri;
 import android.net.WifiKey;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
@@ -78,6 +74,7 @@ public class RecommendedNetworkEvaluatorTest {
     private WifiConfiguration mTrustedWifiConfiguration;
     private WifiConfiguration mUntrustedWifiConfiguration;
     private WifiConfiguration mEphemeralWifiConfiguration;
+    private ContentObserver mContentObserver;
 
     @Mock private Context mContext;
     @Mock private ContentResolver mContentResolver;
@@ -122,9 +119,16 @@ public class RecommendedNetworkEvaluatorTest {
         when(mFrameworkFacade.getLongSetting(mContext,
                 Settings.Global.RECOMMENDED_NETWORK_EVALUATOR_CACHE_EXPIRY_MS, dayMillis))
                 .thenReturn(dayMillis);
+
+        ArgumentCaptor<ContentObserver> observerCaptor =
+                ArgumentCaptor.forClass(ContentObserver.class);
         mRecommendedNetworkEvaluator = new RecommendedNetworkEvaluator(mContext, mContentResolver,
                 Looper.getMainLooper(), mFrameworkFacade, mNetworkScoreManager,
                 mWifiConfigManager, new LocalLog(0));
+        verify(mFrameworkFacade).registerContentObserver(eq(mContext), any(Uri.class), eq(false),
+                observerCaptor.capture());
+        mContentObserver = observerCaptor.getValue();
+
         reset(mNetworkScoreManager);
 
         when(mWifiConfigManager.getSavedNetworkForScanDetailAndCache(mTrustedScanDetail))
@@ -146,7 +150,7 @@ public class RecommendedNetworkEvaluatorTest {
                 Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0))
                 .thenReturn(0);
 
-        mRecommendedNetworkEvaluator.mContentObserver.onChange(false /* unused */);
+        mContentObserver.onChange(false /* unused */);
 
         mRecommendedNetworkEvaluator.update(scanDetails);
 
@@ -212,7 +216,7 @@ public class RecommendedNetworkEvaluatorTest {
                 Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0))
                 .thenReturn(0);
 
-        mRecommendedNetworkEvaluator.mContentObserver.onChange(false /* unused */);
+        mContentObserver.onChange(false /* unused */);
 
         mRecommendedNetworkEvaluator.evaluateNetworks(null, null, null, false, false, null);
 
