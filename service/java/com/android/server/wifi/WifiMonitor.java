@@ -1041,7 +1041,7 @@ public class WifiMonitor {
                     status = -1;
                 }
             }
-            broadcastAssociationRejectionEvent(iface, status, BSSID);
+            broadcastAssociationRejectionEvent(iface, status, false, BSSID);
         } else if (event == BSS_ADDED && !DBG) {
             // Ignore that event - it is not handled, and dont log it as it is too verbose
         } else if (event == BSS_REMOVED && !DBG) {
@@ -1669,10 +1669,12 @@ public class WifiMonitor {
      *
      * @param iface Name of iface on which this occurred.
      * @param status Status code for association rejection.
+     * @param timedOut Indicates if the association timed out.
      * @param bssid BSSID of the access point from which we received the reject.
      */
-    public void broadcastAssociationRejectionEvent(String iface, int status, String bssid) {
-        sendMessage(iface, ASSOCIATION_REJECTION_EVENT, 0, status, bssid);
+    public void broadcastAssociationRejectionEvent(String iface, int status, boolean timedOut,
+                                                   String bssid) {
+        sendMessage(iface, ASSOCIATION_REJECTION_EVENT, timedOut ? 1 : 0, status, bssid);
     }
 
     /**
