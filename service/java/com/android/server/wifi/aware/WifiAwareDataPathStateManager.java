@@ -473,10 +473,9 @@ public class WifiAwareDataPathStateManager {
             nnri.networkAgent = new WifiAwareNetworkAgent(mLooper, mContext,
                     AGENT_TAG_PREFIX + nnri.ndpId,
                     new NetworkInfo(ConnectivityManager.TYPE_WIFI_P2P, 0, NETWORK_TAG, ""),
-                    networkCapabilities, new LinkProperties(), NETWORK_FACTORY_SCORE_AVAIL,
+                    networkCapabilities, linkProperties, NETWORK_FACTORY_SCORE_AVAIL,
                     networkSpecifier, ndpId);
             nnri.networkAgent.sendNetworkInfo(networkInfo);
-            nnri.networkAgent.sendLinkProperties(linkProperties);
         } else {
             if (DBG) {
                 Log.d(TAG, "onDataPathConfirm: data-path for networkSpecifier=" + networkSpecifier
