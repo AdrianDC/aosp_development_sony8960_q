@@ -172,6 +172,16 @@ public class NativeUtil {
     }
 
     /**
+     * Add enclosing quotes of the provided string.
+     *
+     * @param str String to be uoted.
+     * @return String with the enclosing quotes.
+     */
+    public static String addEnclosingQuotes(String str) {
+        return "\"" + str + "\"";
+    }
+
+    /**
      * Converts an string to an arraylist of UTF_8 byte values.
      * These forms are acceptable:
      * a) ASCII String encapsulated in quotes, or

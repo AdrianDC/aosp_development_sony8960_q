@@ -95,6 +95,7 @@ public class SupplicantStaNetworkHal {
     private int mGroupCipherMask;
     private int mPairwiseCipherMask;
     private String mPskPassphrase;
+    private byte[] mPsk;
     private ArrayList<Byte> mWepKey;
     private int mWepTxKeyIdx;
     private boolean mRequirePmf;
@@ -188,7 +189,9 @@ public class SupplicantStaNetworkHal {
         /** PSK pass phrase */
         config.preSharedKey = null;
         if (getPskPassphrase() && !TextUtils.isEmpty(mPskPassphrase)) {
-            config.preSharedKey = mPskPassphrase;
+            config.preSharedKey = NativeUtil.addEnclosingQuotes(mPskPassphrase);
+        } else if (getPsk() && !ArrayUtils.isEmpty(mPsk)) {
+            config.preSharedKey = NativeUtil.hexStringFromByteArray(mPsk);
         }
         /** allowedKeyManagement */
         if (getKeyMgmt()) {
@@ -250,12 +253,21 @@ public class SupplicantStaNetworkHal {
                 return false;
             }
         }
-        /** Pre Shared Key */
-        if (config.preSharedKey != null
-                && !setPskPassphrase(NativeUtil.removeEnclosingQuotes(config.preSharedKey))) {
-            Log.e(TAG, "failed to set psk");
-            return false;
+        /** Pre Shared Key. This can either be quoted ASCII passphrase or hex string for raw psk */
+        if (config.preSharedKey != null) {
+            if (config.preSharedKey.startsWith("\"")) {
+                if (!setPskPassphrase(NativeUtil.removeEnclosingQuotes(config.preSharedKey))) {
+                    Log.e(TAG, "failed to set psk passphrase");
+                    return false;
+                }
+            } else {
+                if (!setPsk(NativeUtil.hexStringToByteArray(config.preSharedKey))) {
+                    Log.e(TAG, "failed to set psk");
+                    return false;
+                }
+            }
         }
+
         /** Wep Keys */
         boolean hasSetKey = false;
         if (config.wepKeys != null) {
@@ -1078,6 +1090,20 @@ public class SupplicantStaNetworkHal {
         }
     }
     /** See ISupplicantStaNetwork.hal for documentation */
+    private boolean setPsk(byte[] psk) {
+        synchronized (mLock) {
+            final String methodStr = "setPsk";
+            if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status =  mISupplicantStaNetwork.setPsk(psk);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                handleRemoteException(e, methodStr);
+                return false;
+            }
+        }
+    }
+    /** See ISupplicantStaNetwork.hal for documentation */
     private boolean setWepKey(int keyIdx, java.util.ArrayList<Byte> wepKey) {
         synchronized (mLock) {
             final String methodStr = "setWepKey";
@@ -1552,6 +1578,28 @@ public class SupplicantStaNetworkHal {
                     statusOk.value = status.code == SupplicantStatusCode.SUCCESS;
                     if (statusOk.value) {
                         this.mPskPassphrase = pskValue;
+                    } else {
+                        checkStatusAndLogFailure(status, methodStr);
+                    }
+                });
+                return statusOk.value;
+            } catch (RemoteException e) {
+                handleRemoteException(e, methodStr);
+                return false;
+            }
+        }
+    }
+    /** See ISupplicantStaNetwork.hal for documentation */
+    private boolean getPsk() {
+        synchronized (mLock) {
+            final String methodStr = "getPsk";
+            if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return false;
+            try {
+                MutableBoolean statusOk = new MutableBoolean(false);
+                mISupplicantStaNetwork.getPsk((SupplicantStatus status, byte[] pskValue) -> {
+                    statusOk.value = status.code == SupplicantStatusCode.SUCCESS;
+                    if (statusOk.value) {
+                        this.mPsk = pskValue;
                     } else {
                         checkStatusAndLogFailure(status, methodStr);
                     }
