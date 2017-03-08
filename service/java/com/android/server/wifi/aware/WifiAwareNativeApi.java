@@ -584,7 +584,8 @@ public class WifiAwareNativeApi {
     }
 
     /**
-     * Initiates setting up a data-path between device and peer.
+     * Initiates setting up a data-path between device and peer. Security is provided by either
+     * PMK or Passphrase - if both are null then an open (unencrypted) link is set up.
      *
      * @param transactionId      Transaction ID for the transaction - used in the async callback to
      *                           match with the original request.
@@ -596,12 +597,13 @@ public class WifiAwareNativeApi {
      * @param channel            The channel on which to set up the data-path.
      * @param peer               The MAC address of the peer to create a connection with.
      * @param interfaceName      The interface on which to create the data connection.
-     * @param pmk Pairwise master key (PMK, see IEEE 802.11i). Null value means an unsecured (open)
-     *            datapath.
+     * @param pmk Pairwise master key (PMK - see IEEE 802.11i) for the data-path.
+     * @param passphrase  Passphrase for the data-path.
      * @param capabilities The capabilities of the firmware.
      */
     public boolean initiateDataPath(short transactionId, int peerId, int channelRequestType,
-            int channel, byte[] peer, String interfaceName, byte[] pmk, Capabilities capabilities) {
+            int channel, byte[] peer, String interfaceName, byte[] pmk, String passphrase,
+            Capabilities capabilities) {
         if (VDBG) {
             Log.v(TAG, "initiateDataPath: transactionId=" + transactionId + ", peerId=" + peerId
                     + ", channelRequestType=" + channelRequestType + ", channel=" + channel
@@ -633,6 +635,7 @@ public class WifiAwareNativeApi {
             req.cipherType = getStrongestCipherSuiteType(capabilities.supportedCipherSuites);
             convertLcByteToUcByteArray(pmk, req.pmk);
         }
+        // TODO: b/35866810 connect passphrase to HAL!
 
         try {
             WifiStatus status = iface.initiateDataPathRequest(transactionId, req);
@@ -649,7 +652,8 @@ public class WifiAwareNativeApi {
     }
 
     /**
-     * Responds to a data request from a peer.
+     * Responds to a data request from a peer. Security is provided by either PMK or Passphrase -
+     * if both are null then an open (unencrypted) link is set up.
      *
      * @param transactionId Transaction ID for the transaction - used in the async callback to
      *                      match with the original request.
@@ -657,12 +661,12 @@ public class WifiAwareNativeApi {
      * @param ndpId The NDP (Aware data path) ID. Obtained from the request callback.
      * @param interfaceName The interface on which the data path will be setup. Obtained from the
      *                      request callback.
-     * @param pmk Pairwise master key (PMK - see IEEE 802.11i) for the data-path. A null indicates
-     *            an unsecure (open) link.
+     * @param pmk Pairwise master key (PMK - see IEEE 802.11i) for the data-path.
+     * @param passphrase  Passphrase for the data-path.
      * @param capabilities The capabilities of the firmware.
      */
     public boolean respondToDataPathRequest(short transactionId, boolean accept, int ndpId,
-            String interfaceName, byte[] pmk, Capabilities capabilities) {
+            String interfaceName, byte[] pmk, String passphrase, Capabilities capabilities) {
         if (VDBG) {
             Log.v(TAG, "respondToDataPathRequest: transactionId=" + transactionId + ", accept="
                     + accept + ", int ndpId=" + ndpId + ", interfaceName=" + interfaceName);
@@ -690,6 +694,7 @@ public class WifiAwareNativeApi {
             req.cipherType = getStrongestCipherSuiteType(capabilities.supportedCipherSuites);
             convertLcByteToUcByteArray(pmk, req.pmk);
         }
+        // TODO: b/35866810 connect passphrase to HAL!
 
         try {
             WifiStatus status = iface.respondToDataPathIndicationRequest(transactionId, req);
