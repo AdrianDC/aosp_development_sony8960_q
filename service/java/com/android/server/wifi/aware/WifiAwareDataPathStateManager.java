@@ -315,14 +315,14 @@ public class WifiAwareDataPathStateManager {
             if (DBG) {
                 Log.d(TAG, "onDataPathRequest: network request cache = " + mNetworkRequestsCache);
             }
-            mMgr.respondToDataPathRequest(false, ndpId, "", null);
+            mMgr.respondToDataPathRequest(false, ndpId, "", null, null);
             return null;
         }
 
         if (nnri.state != AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_REQUEST) {
             Log.w(TAG, "onDataPathRequest: request " + networkSpecifier + " is incorrect state="
                     + nnri.state);
-            mMgr.respondToDataPathRequest(false, ndpId, "", null);
+            mMgr.respondToDataPathRequest(false, ndpId, "", null, null);
             mNetworkRequestsCache.remove(networkSpecifier);
             return null;
         }
@@ -330,7 +330,7 @@ public class WifiAwareDataPathStateManager {
         nnri.state = AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_RESPOND_RESPONSE;
         nnri.ndpId = ndpId;
         nnri.interfaceName = selectInterfaceForRequest(nnri);
-        mMgr.respondToDataPathRequest(true, ndpId, nnri.interfaceName, nnri.pmk);
+        mMgr.respondToDataPathRequest(true, ndpId, nnri.interfaceName, nnri.pmk, nnri.passphrase);
 
         return networkSpecifier;
     }
@@ -631,7 +631,7 @@ public class WifiAwareDataPathStateManager {
                 nnri.interfaceName = selectInterfaceForRequest(nnri);
                 mMgr.initiateDataPathSetup(networkSpecifier, nnri.peerId,
                         NanDataPathChannelCfg.REQUEST_CHANNEL_SETUP, selectChannelForRequest(nnri),
-                        nnri.peerDiscoveryMac, nnri.interfaceName, nnri.pmk);
+                        nnri.peerDiscoveryMac, nnri.interfaceName, nnri.pmk, nnri.passphrase);
                 nnri.state =
                         AwareNetworkRequestInformation.STATE_INITIATOR_WAIT_FOR_REQUEST_RESPONSE;
             } else {
@@ -795,6 +795,7 @@ public class WifiAwareDataPathStateManager {
         public int peerId = 0;
         public byte[] peerDiscoveryMac = null;
         public byte[] pmk = null;
+        public String passphrase = null;
         public int ndpId;
         public byte[] peerDataMac;
 
@@ -805,6 +806,7 @@ public class WifiAwareDataPathStateManager {
             int type, role, uid, clientId, sessionId = 0, peerId = 0, pubSubId = 0;
             byte[] peerMac = null;
             byte[] pmk = null;
+            String passphrase = null;
 
             if (VDBG) {
                 Log.v(TAG, "parseNetworkSpecifier: networkSpecifier=" + networkSpecifier);
@@ -879,6 +881,21 @@ public class WifiAwareDataPathStateManager {
                 if (pmk != null && pmk.length == 0) {
                     pmk = null;
                 }
+
+                // passphrase: always present (though can be an empty string - equivalent to null)
+                passphrase = jsonObject.getString(
+                        WifiAwareManager.NETWORK_SPECIFIER_KEY_PASSPHRASE);
+                if (passphrase != null && passphrase.length() == 0) {
+                    passphrase = null;
+                }
+
+                if (passphrase != null) {
+                    if (pmk != null) {
+                        Log.e(TAG, "parseNetworkSpecifier: networkSpecifier=" + networkSpecifier
+                                + " -- invalid: can't specify both PMK and Passphrase");
+                        return null;
+                    }
+                }
             } catch (JSONException e) {
                 Log.e(TAG, "parseNetworkSpecifier: networkSpecifier=" + networkSpecifier
                         + " -- invalid JSON format -- e=" + e);
@@ -950,6 +967,7 @@ public class WifiAwareDataPathStateManager {
             nnri.peerId = peerId;
             nnri.peerDiscoveryMac = peerMac;
             nnri.pmk = pmk;
+            nnri.passphrase = passphrase;
 
             return nnri;
         }
