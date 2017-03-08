@@ -138,7 +138,7 @@ public class WifiNative {
     // TODO(b/34884202): Set this to true to enable HIDL once we're fully ready.
     private static final boolean HIDL_VENDOR_ENABLE = true;
     public static final boolean HIDL_SUP_ENABLE = true;
-    private static final boolean HIDL_P2P_ENABLE = false;
+    private static final boolean HIDL_P2P_ENABLE = true;
     private final String mTAG;
     private final String mInterfaceName;
     private final String mInterfacePrefix;
@@ -1182,6 +1182,31 @@ public class WifiNative {
         }
     }
 
+    public boolean removeP2pNetwork(int netId) {
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.removeNetwork(netId);
+        } else {
+            return doBooleanCommand("REMOVE_NETWORK " + netId);
+        }
+
+    }
+
+    public boolean setP2pDeviceName(String name) {
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.setWpsDeviceName(name);
+        } else {
+            return doBooleanCommand("SET device_name " + name);
+        }
+    }
+
+    public boolean setP2pDeviceType(String type) {
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.setWpsDeviceType(type);
+        } else {
+            return doBooleanCommand("SET device_type " + type);
+        }
+    }
+
     public boolean setP2pSsidPostfix(String postfix) {
         if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
             return mSupplicantP2pIfaceHal.setSsidPostfix(postfix);
@@ -1695,24 +1720,63 @@ public class WifiNative {
      * NFC-related calls
      */
     public String getNfcWpsConfigurationToken(int netId) {
-        return doStringCommand("WPS_NFC_CONFIG_TOKEN WPS " + netId);
+        if (HIDL_SUP_ENABLE) {
+            return mSupplicantStaIfaceHal.getCurrentNetworkWpsNfcConfigurationToken();
+        } else {
+            return doStringCommand("WPS_NFC_CONFIG_TOKEN WPS " + netId);
+        }
     }
 
     public String getNfcHandoverRequest() {
-        return doStringCommand("NFC_GET_HANDOVER_REQ NDEF P2P-CR");
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.getNfcHandoverRequest();
+        } else {
+            return doStringCommand("NFC_GET_HANDOVER_REQ NDEF P2P-CR");
+        }
     }
 
     public String getNfcHandoverSelect() {
-        return doStringCommand("NFC_GET_HANDOVER_SEL NDEF P2P-CR");
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.getNfcHandoverSelect();
+        } else {
+            return doStringCommand("NFC_GET_HANDOVER_SEL NDEF P2P-CR");
+        }
     }
 
     public boolean initiatorReportNfcHandover(String selectMessage) {
-        return doBooleanCommand("NFC_REPORT_HANDOVER INIT P2P 00 " + selectMessage);
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.initiatorReportNfcHandover(selectMessage);
+        } else {
+            return doBooleanCommand("NFC_REPORT_HANDOVER INIT P2P 00 " + selectMessage);
+        }
     }
 
     public boolean responderReportNfcHandover(String requestMessage) {
-        return doBooleanCommand("NFC_REPORT_HANDOVER RESP P2P " + requestMessage + " 00");
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            return mSupplicantP2pIfaceHal.responderReportNfcHandover(requestMessage);
+        } else {
+            return doBooleanCommand("NFC_REPORT_HANDOVER RESP P2P " + requestMessage + " 00");
+        }
     }
+
+    public String getP2pClientList(int netId) {
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            // TODO(b/36042785): Add HIDL method.
+            return null;
+        } else {
+            return getNetworkVariable(netId, "p2p_client_list");
+        }
+    }
+
+    public boolean setP2pClientList(int netId, String list) {
+        if (HIDL_P2P_ENABLE && mSupplicantP2pIfaceHal != null) {
+            // TODO(b/36042785): Add HIDL method.
+            return false;
+        } else {
+            return setNetworkVariable(netId, "p2p_client_list", list);
+        }
+    }
+
 
     /** WifiSupplicantControl methods. TODO: These should use HIDL soon. */
     /**
