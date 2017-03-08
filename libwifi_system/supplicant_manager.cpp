@@ -43,7 +43,7 @@ namespace {
 
 const char kSupplicantInitProperty[] = "init.svc.wpa_supplicant";
 const char kSupplicantConfigTemplatePath[] =
-    "/system/etc/wifi/wpa_supplicant.conf";
+    "/etc/wifi/wpa_supplicant.conf";
 const char kSupplicantConfigFile[] = "/data/misc/wifi/wpa_supplicant.conf";
 const char kP2pConfigFile[] = "/data/misc/wifi/p2p_supplicant.conf";
 const char kSupplicantServiceName[] = "wpa_supplicant";
@@ -54,6 +54,7 @@ int ensure_config_file_exists(const char* config_file) {
   int srcfd, destfd;
   int nread;
   int ret;
+  std::string templatePath;
 
   ret = access(config_file, R_OK | W_OK);
   if ((ret == 0) || (errno == EACCES)) {
@@ -69,11 +70,18 @@ int ensure_config_file_exists(const char* config_file) {
     return false;
   }
 
-  srcfd = TEMP_FAILURE_RETRY(open(kSupplicantConfigTemplatePath, O_RDONLY));
+  templatePath = std::string("/system") + std::string(kSupplicantConfigTemplatePath);
+  srcfd = TEMP_FAILURE_RETRY(open(templatePath.c_str(), O_RDONLY));
   if (srcfd < 0) {
-    LOG(ERROR) << "Cannot open \"" << kSupplicantConfigTemplatePath << "\": "
+    LOG(ERROR) << "Cannot open \"" << templatePath << "\": "
                << strerror(errno);
-    return false;
+    templatePath = std::string("/vendor") + std::string(kSupplicantConfigTemplatePath);
+    srcfd = TEMP_FAILURE_RETRY(open(templatePath.c_str(), O_RDONLY));
+    if (srcfd < 0) {
+      LOG(ERROR) << "Cannot open \"" << templatePath << "\": "
+                 << strerror(errno);
+      return false;
+    }
   }
 
   destfd = TEMP_FAILURE_RETRY(open(config_file,
@@ -88,7 +96,7 @@ int ensure_config_file_exists(const char* config_file) {
 
   while ((nread = TEMP_FAILURE_RETRY(read(srcfd, buf, sizeof(buf)))) != 0) {
     if (nread < 0) {
-      LOG(ERROR) << "Error reading \"" << kSupplicantConfigTemplatePath
+      LOG(ERROR) << "Error reading \"" << templatePath
                  << "\": " << strerror(errno);
       close(srcfd);
       close(destfd);
