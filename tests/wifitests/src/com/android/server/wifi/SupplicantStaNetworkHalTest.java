@@ -18,7 +18,9 @@ package com.android.server.wifi;
 import static org.junit.Assert.*;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -91,13 +93,35 @@ public class SupplicantStaNetworkHalTest {
     }
 
     /**
-     * Tests the saving/loading of WifiConfiguration to wpa_supplicant.
+     * Tests the saving/loading of WifiConfiguration to wpa_supplicant with psk passphrase.
+     */
+    @Test
+    public void testPskPassphraseNetworkWifiConfigurationSaveLoad() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createPskNetwork();
+        config.requirePMF = true;
+        testWifiConfigurationSaveLoad(config);
+        verify(mISupplicantStaNetworkMock).setPskPassphrase(anyString());
+        verify(mISupplicantStaNetworkMock)
+                .getPskPassphrase(any(ISupplicantStaNetwork.getPskPassphraseCallback.class));
+        verify(mISupplicantStaNetworkMock, never()).setPsk(any(byte[].class));
+        verify(mISupplicantStaNetworkMock, never())
+                .getPsk(any(ISupplicantStaNetwork.getPskCallback.class));
+    }
+
+    /**
+     * Tests the saving/loading of WifiConfiguration to wpa_supplicant with raw psk.
      */
     @Test
     public void testPskNetworkWifiConfigurationSaveLoad() throws Exception {
         WifiConfiguration config = WifiConfigurationTestUtil.createPskNetwork();
-        config.requirePMF = true;
+        config.preSharedKey = "945ef00c463c2a7c2496376b13263d1531366b46377179a4b17b393687450779";
         testWifiConfigurationSaveLoad(config);
+        verify(mISupplicantStaNetworkMock).setPsk(any(byte[].class));
+        verify(mISupplicantStaNetworkMock)
+                .getPsk(any(ISupplicantStaNetwork.getPskCallback.class));
+        verify(mISupplicantStaNetworkMock, never()).setPskPassphrase(anyString());
+        verify(mISupplicantStaNetworkMock)
+                .getPskPassphrase(any(ISupplicantStaNetwork.getPskPassphraseCallback.class));
     }
 
     /**
@@ -824,7 +848,7 @@ public class SupplicantStaNetworkHalTest {
         }).when(mISupplicantStaNetworkMock)
                 .getRequirePmf(any(ISupplicantStaNetwork.getRequirePmfCallback.class));
 
-        /** PSK pass phrase*/
+        /** PSK passphrase */
         doAnswer(new AnswerWithArguments() {
             public SupplicantStatus answer(String pskPassphrase) throws RemoteException {
                 mSupplicantVariables.pskPassphrase = pskPassphrase;
@@ -838,6 +862,21 @@ public class SupplicantStaNetworkHalTest {
             }
         }).when(mISupplicantStaNetworkMock)
                 .getPskPassphrase(any(ISupplicantStaNetwork.getPskPassphraseCallback.class));
+
+        /** PSK */
+        doAnswer(new AnswerWithArguments() {
+            public SupplicantStatus answer(byte[] psk) throws RemoteException {
+                mSupplicantVariables.psk = psk;
+                return mStatusSuccess;
+            }
+        }).when(mISupplicantStaNetworkMock).setPsk(any(byte[].class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantStaNetwork.getPskCallback cb)
+                    throws RemoteException {
+                cb.onValues(mStatusSuccess, mSupplicantVariables.psk);
+            }
+        }).when(mISupplicantStaNetworkMock)
+                .getPsk(any(ISupplicantStaNetwork.getPskCallback.class));
 
         /** WEP keys **/
         doAnswer(new AnswerWithArguments() {
@@ -1234,6 +1273,7 @@ public class SupplicantStaNetworkHalTest {
         public String idStr;
         public int updateIdentifier;
         public String pskPassphrase;
+        public byte[] psk;
         public ArrayList<Byte>[] wepKey = new ArrayList[4];
         public int wepTxKeyIdx;
         public int eapMethod = -1;
