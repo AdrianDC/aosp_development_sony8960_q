@@ -3684,11 +3684,15 @@ public class WifiNative {
     public int
     stopSendingOffloadedPacket(int slot) {
         Log.d(TAG, "stopSendingOffloadedPacket " + slot);
-        synchronized (sLock) {
-            if (isHalStarted()) {
-                return stopSendingOffloadedPacketNative(sWlan0Index, slot);
-            } else {
-                return -1;
+        if (HIDL_VENDOR_ENABLE) {
+            return mWifiVendorHal.stopSendingOffloadedPacket(slot);
+        } else {
+            synchronized (sLock) {
+                if (isHalStarted()) {
+                    return stopSendingOffloadedPacketNative(sWlan0Index, slot);
+                } else {
+                    return -1;
+                }
             }
         }
     }
