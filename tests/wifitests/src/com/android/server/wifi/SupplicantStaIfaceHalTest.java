@@ -935,9 +935,9 @@ public class SupplicantStaIfaceHalTest {
 
         int statusCode = 7;
         mISupplicantStaIfaceCallback.onAssociationRejected(
-                NativeUtil.macAddressToByteArray(BSSID), statusCode);
+                NativeUtil.macAddressToByteArray(BSSID), statusCode, false);
         verify(mWifiMonitor).broadcastAssociationRejectionEvent(
-                eq(WLAN_IFACE_NAME), eq(statusCode), eq(BSSID));
+                eq(WLAN_IFACE_NAME), eq(statusCode), eq(false), eq(BSSID));
     }
 
     /**

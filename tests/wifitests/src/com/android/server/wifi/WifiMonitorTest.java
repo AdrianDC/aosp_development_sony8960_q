@@ -353,12 +353,13 @@ public class WifiMonitorTest {
                 WLAN_IFACE_NAME, WifiMonitor.ASSOCIATION_REJECTION_EVENT, mHandlerSpy);
         int status = 5;
         String bssid = BSSID;
-        mWifiMonitor.broadcastAssociationRejectionEvent(WLAN_IFACE_NAME, status, bssid);
+        mWifiMonitor.broadcastAssociationRejectionEvent(WLAN_IFACE_NAME, status, false, bssid);
         mLooper.dispatchAll();
 
         ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
         verify(mHandlerSpy).handleMessage(messageCaptor.capture());
         assertEquals(WifiMonitor.ASSOCIATION_REJECTION_EVENT, messageCaptor.getValue().what);
+        assertEquals(0, messageCaptor.getValue().arg1);
         assertEquals(status, messageCaptor.getValue().arg2);
         assertEquals(bssid, (String) messageCaptor.getValue().obj);
     }
