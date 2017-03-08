@@ -435,6 +435,7 @@ public class WifiVendorHal {
     private StaBackgroundScanBucketParameters
             makeStaBackgroundScanBucketParametersFromBucketSettings(WifiNative.BucketSettings bs) {
         StaBackgroundScanBucketParameters pa = new StaBackgroundScanBucketParameters();
+        pa.bucketIdx = bs.bucket;
         pa.band = makeWifiBandFromFrameworkBand(bs.band);
         if (bs.channels != null) {
             for (WifiNative.ChannelSettings cs : bs.channels) {
