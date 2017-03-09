@@ -18,6 +18,7 @@ package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -1228,5 +1229,46 @@ public class WifiStateMachineTest {
         mLooper.startAutoDispatch();
         assertTrue(mWsm.syncGetPasspointConfigs(mWsmAsyncChannel).isEmpty());
         mLooper.stopAutoDispatch();
+    }
+
+    /**
+     * Verify that syncGetMatchingWifiConfig will redirect calls to {@link PasspointManager}
+     * with expected {@link WifiConfiguration} being returned when in client mode.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void syncGetMatchingWifiConfigInClientMode() throws Exception {
+        loadComponentsInStaMode();
+
+        when(mPasspointManager.getMatchingWifiConfig(any(ScanResult.class))).thenReturn(null);
+        mLooper.startAutoDispatch();
+        assertNull(mWsm.syncGetMatchingWifiConfig(new ScanResult(), mWsmAsyncChannel));
+        mLooper.stopAutoDispatch();
+        reset(mPasspointManager);
+
+        WifiConfiguration expectedConfig = new WifiConfiguration();
+        expectedConfig.SSID = "TestSSID";
+        when(mPasspointManager.getMatchingWifiConfig(any(ScanResult.class)))
+                .thenReturn(expectedConfig);
+        mLooper.startAutoDispatch();
+        WifiConfiguration actualConfig = mWsm.syncGetMatchingWifiConfig(new ScanResult(),
+                mWsmAsyncChannel);
+        mLooper.stopAutoDispatch();
+        assertEquals(expectedConfig.SSID, actualConfig.SSID);
+    }
+
+    /**
+     * Verify that syncGetMatchingWifiConfig will be a no-op and return {@code null} when not in
+     * client mode.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void syncGetMatchingWifiConfigInNonClientMode() throws Exception {
+        mLooper.startAutoDispatch();
+        assertNull(mWsm.syncGetMatchingWifiConfig(new ScanResult(), mWsmAsyncChannel));
+        mLooper.stopAutoDispatch();
+        verify(mPasspointManager, never()).getMatchingWifiConfig(any(ScanResult.class));
     }
 }
