@@ -44,6 +44,7 @@ import android.util.Pair;
 
 import com.android.internal.R;
 import com.android.server.wifi.WifiConfigStoreLegacy.WifiConfigStoreDataLegacy;
+import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import org.junit.After;
@@ -95,7 +96,6 @@ public class WifiConfigManagerTest {
     private static final String TEST_PAC_PROXY_LOCATION_2 = "http://blah";
 
     @Mock private Context mContext;
-    @Mock private FrameworkFacade mFrameworkFacade;
     @Mock private Clock mClock;
     @Mock private UserManager mUserManager;
     @Mock private TelephonyManager mTelephonyManager;
@@ -104,6 +104,7 @@ public class WifiConfigManagerTest {
     @Mock private WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     @Mock private PackageManager mPackageManager;
     @Mock private DevicePolicyManagerInternal mDevicePolicyManagerInternal;
+    @Mock private WifiPermissionsUtil mWifiPermissionsUtil;
     @Mock private WifiPermissionsWrapper mWifiPermissionsWrapper;
     @Mock private NetworkListStoreData mNetworkListStoreData;
     @Mock private DeletedEphemeralSsidsStoreData mDeletedEphemeralSsidsStoreData;
@@ -163,17 +164,6 @@ public class WifiConfigManagerTest {
             }
         }).when(mPackageManager).getPackageUidAsUser(anyString(), anyInt(), anyInt());
 
-        // Both the UID's in the test have the configuration override permission granted by
-        // default. This maybe modified for particular tests if needed.
-        doAnswer(new AnswerWithArguments() {
-            public int answer(String permName, int uid) throws Exception {
-                if (uid == TEST_CREATOR_UID || uid == TEST_UPDATE_UID || uid == TEST_SYSUI_UID) {
-                    return PackageManager.PERMISSION_GRANTED;
-                }
-                return PackageManager.PERMISSION_DENIED;
-            }
-        }).when(mFrameworkFacade).checkUidPermission(anyString(), anyInt());
-
         when(mWifiKeyStore
                 .updateNetworkKeys(any(WifiConfiguration.class), any(WifiConfiguration.class)))
                 .thenReturn(true);
@@ -182,6 +172,7 @@ public class WifiConfigManagerTest {
 
         when(mDevicePolicyManagerInternal.isActiveAdminWithPolicy(anyInt(), anyInt()))
                 .thenReturn(false);
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
         when(mWifiPermissionsWrapper.getDevicePolicyManagerInternal())
                 .thenReturn(mDevicePolicyManagerInternal);
         createWifiConfigManager();
@@ -313,15 +304,7 @@ public class WifiConfigManagerTest {
         // Now change BSSID of the network.
         assertAndSetNetworkBSSID(openNetwork, TEST_BSSID);
 
-        // Deny permission for |UPDATE_UID|.
-        doAnswer(new AnswerWithArguments() {
-            public int answer(String permName, int uid) throws Exception {
-                if (uid == TEST_CREATOR_UID) {
-                    return PackageManager.PERMISSION_GRANTED;
-                }
-                return PackageManager.PERMISSION_DENIED;
-            }
-        }).when(mFrameworkFacade).checkUidPermission(anyString(), anyInt());
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(false);
 
         // Update the same configuration and ensure that the operation failed.
         NetworkUpdateResult result = updateNetworkToWifiConfigManager(openNetwork);
@@ -343,13 +326,6 @@ public class WifiConfigManagerTest {
 
         // Now change BSSID of the network.
         assertAndSetNetworkBSSID(openNetwork, TEST_BSSID);
-
-        // Deny permission for all UIDs.
-        doAnswer(new AnswerWithArguments() {
-            public int answer(String permName, int uid) throws Exception {
-                return PackageManager.PERMISSION_DENIED;
-            }
-        }).when(mFrameworkFacade).checkUidPermission(anyString(), anyInt());
 
         // Update the same configuration using the creator UID.
         NetworkUpdateResult result =
@@ -746,15 +722,7 @@ public class WifiConfigManagerTest {
         assertTrue(retrievedStatus.isNetworkEnabled());
         verifyUpdateNetworkStatus(retrievedNetwork, WifiConfiguration.Status.ENABLED);
 
-        // Deny permission for |UPDATE_UID|.
-        doAnswer(new AnswerWithArguments() {
-            public int answer(String permName, int uid) throws Exception {
-                if (uid == TEST_CREATOR_UID) {
-                    return PackageManager.PERMISSION_GRANTED;
-                }
-                return PackageManager.PERMISSION_DENIED;
-            }
-        }).when(mFrameworkFacade).checkUidPermission(anyString(), anyInt());
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(false);
 
         // Now try to set it disabled with |TEST_UPDATE_UID|, it should fail and the network
         // should remain enabled.
@@ -783,15 +751,7 @@ public class WifiConfigManagerTest {
                 mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
         assertEquals(TEST_CREATOR_UID, retrievedNetwork.lastConnectUid);
 
-        // Deny permission for |UPDATE_UID|.
-        doAnswer(new AnswerWithArguments() {
-            public int answer(String permName, int uid) throws Exception {
-                if (uid == TEST_CREATOR_UID) {
-                    return PackageManager.PERMISSION_GRANTED;
-                }
-                return PackageManager.PERMISSION_DENIED;
-            }
-        }).when(mFrameworkFacade).checkUidPermission(anyString(), anyInt());
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(false);
 
         // Now try to update the last connect UID with |TEST_UPDATE_UID|, it should fail and
         // the lastConnectUid should remain the same.
@@ -3221,6 +3181,8 @@ public class WifiConfigManagerTest {
         when(mDevicePolicyManagerInternal.isActiveAdminWithPolicy(anyInt(),
                 eq(DeviceAdminInfo.USES_POLICY_DEVICE_OWNER)))
                 .thenReturn(withDeviceOwnerPolicy);
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt()))
+                .thenReturn(withConfOverride);
         int uid = withConfOverride ? TEST_CREATOR_UID : TEST_NO_PERM_UID;
         NetworkUpdateResult result = mWifiConfigManager.addOrUpdateNetwork(network, uid);
         assertEquals(assertSuccess, result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
@@ -3230,9 +3192,9 @@ public class WifiConfigManagerTest {
     private void createWifiConfigManager() {
         mWifiConfigManager =
                 new WifiConfigManager(
-                        mContext, mFrameworkFacade, mClock, mUserManager, mTelephonyManager,
+                        mContext, mClock, mUserManager, mTelephonyManager,
                         mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy,
-                        mWifiPermissionsWrapper, mNetworkListStoreData,
+                        mWifiPermissionsUtil, mWifiPermissionsWrapper, mNetworkListStoreData,
                         mDeletedEphemeralSsidsStoreData);
         mWifiConfigManager.enableVerboseLogging(1);
     }

@@ -17,8 +17,10 @@
 package com.android.server.wifi.util;
 
 import android.app.ActivityManager;
+import android.app.AppGlobals;
 import android.app.admin.DevicePolicyManagerInternal;
 import android.content.Context;
+import android.os.RemoteException;
 import android.os.UserHandle;
 
 import com.android.server.LocalServices;
@@ -80,5 +82,17 @@ public class WifiPermissionsWrapper {
      */
     public DevicePolicyManagerInternal getDevicePolicyManagerInternal() {
         return LocalServices.getService(DevicePolicyManagerInternal.class);
+    }
+
+    /**
+     * Determines if the caller has the override wifi config permission.
+     *
+     * @param uid to check the permission for
+     * @return int representation of success or denied
+     * @throws RemoteException
+     */
+    public int getOverrideWifiConfigPermission(int uid) throws RemoteException {
+        return AppGlobals.getPackageManager().checkUidPermission(
+                android.Manifest.permission.OVERRIDE_WIFI_CONFIG, uid);
     }
 }
