@@ -2311,7 +2311,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 break;
             case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
                 sb.append(" ");
-                sb.append(Integer.toString(msg.arg1));
+                sb.append(" timedOut=" + Integer.toString(msg.arg1));
                 sb.append(" ");
                 sb.append(Integer.toString(msg.arg2));
                 String bssid = (String) msg.obj;
@@ -4721,6 +4721,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             NetworkUpdateResult result;
             Set<Integer> removedNetworkIds;
             int reasonCode;
+            boolean timedOut;
             logStateAndMessage(message, this);
 
             switch (message.what) {
@@ -4729,7 +4730,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             WifiDiagnostics.REPORT_REASON_ASSOC_FAILURE);
                     didBlackListBSSID = false;
                     bssid = (String) message.obj;
+                    timedOut = message.arg1 > 0;
                     reasonCode = message.arg2;
+                    Log.d(TAG, "Assocation Rejection event: bssid=" + bssid + " reason code="
+                            + reasonCode + " timedOut=" + Boolean.toString(timedOut));
                     if (bssid == null || TextUtils.isEmpty(bssid)) {
                         // If BSSID is null, use the target roam BSSID
                         bssid = mTargetRoamBSSID;
