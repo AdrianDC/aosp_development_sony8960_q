@@ -230,32 +230,6 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
         return score;
     }
 
-    private WifiConfiguration adjustCandidateWithUserSelection(WifiConfiguration candidate,
-                        ScanResult scanResultCandidate) {
-        WifiConfiguration tempConfig = candidate;
-
-        while (tempConfig.getNetworkSelectionStatus().getConnectChoice() != null) {
-            String key = tempConfig.getNetworkSelectionStatus().getConnectChoice();
-            tempConfig = mWifiConfigManager.getConfiguredNetwork(key);
-
-            if (tempConfig != null) {
-                WifiConfiguration.NetworkSelectionStatus tempStatus =
-                        tempConfig.getNetworkSelectionStatus();
-                if (tempStatus.getCandidate() != null && tempStatus.isNetworkEnabled()) {
-                    scanResultCandidate = tempStatus.getCandidate();
-                    candidate = tempConfig;
-                }
-            } else {
-                localLog("Connect choice: " + key + " has no corresponding saved config.");
-                break;
-            }
-        }
-        localLog("After user selection adjustment, the final candidate is:"
-                + WifiNetworkSelector.toNetworkString(candidate) + " : "
-                + scanResultCandidate.BSSID);
-        return candidate;
-    }
-
     /**
      * Evaluate all the networks from the scan results and return
      * the WifiConfiguration of the network chosen for connection.
@@ -275,7 +249,6 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
         for (ScanDetail scanDetail : scanDetails) {
             ScanResult scanResult = scanDetail.getScanResult();
             int highestScoreOfScanResult = Integer.MIN_VALUE;
-            int score;
             int candidateIdOfScanResult = WifiConfiguration.INVALID_NETWORK_ID;
 
             // One ScanResult can be associated with more than one networks, hence we calculate all
@@ -310,8 +283,22 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
                     continue;
                 }
 
-                // If the network is marked to use external scores, leave it to the
-                // external score evaluator to handle it.
+                int score = calculateBssidScore(scanResult, network, currentNetwork, currentBssid,
+                        scoreHistory);
+
+                // Set candidate ScanResult for all saved networks to ensure that users can
+                // override network selection. See WifiNetworkSelector#setUserConnectChoice.
+                // TODO(b/36067705): consider alternative designs to push filtering/selecting of
+                // user connect choice networks to RecommendedNetworkEvaluator.
+                if (score > status.getCandidateScore() || (score == status.getCandidateScore()
+                        && status.getCandidate() != null
+                        && scanResult.level > status.getCandidate().level)) {
+                    mWifiConfigManager.setNetworkCandidateScanResult(
+                            network.networkId, scanResult, score);
+                }
+
+                // If the network is marked to use external scores, or is an open network with
+                // curate saved open networks enabled, do not consider it for network selection.
                 if (network.useExternalScores) {
                     localLog("Network " + WifiNetworkSelector.toNetworkString(network)
                             + " has external score.");
@@ -325,19 +312,9 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
                     continue;
                 }
 
-                score = calculateBssidScore(scanResult, network, currentNetwork, currentBssid,
-                                               scoreHistory);
-
                 if (score > highestScoreOfScanResult) {
                     highestScoreOfScanResult = score;
                     candidateIdOfScanResult = network.networkId;
-                }
-
-                if (score > status.getCandidateScore() || (score == status.getCandidateScore()
-                          && status.getCandidate() != null
-                          && scanResult.level > status.getCandidate().level)) {
-                    mWifiConfigManager.setNetworkCandidateScanResult(
-                            candidateIdOfScanResult, scanResult, score);
                 }
             }
 
@@ -363,11 +340,9 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
             localLog("\n" + scoreHistory.toString());
         }
 
-        if (scanResultCandidate != null) {
-            return adjustCandidateWithUserSelection(candidate, scanResultCandidate);
-        } else {
+        if (scanResultCandidate == null) {
             localLog("did not see any good candidates.");
-            return null;
         }
+        return candidate;
     }
 }

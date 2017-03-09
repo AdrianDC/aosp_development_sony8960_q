@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.ActivityManager;
 import android.content.Context;
@@ -399,6 +400,39 @@ public class WifiNetworkSelector {
     }
 
     /**
+     * Overrides the {@code candidate} chosen by the {@link #mEvaluators} with the user chosen
+     * {@link WifiConfiguration} if one exists.
+     *
+     * @return the user chosen {@link WifiConfiguration} if one exists, {@code candidate} otherwise
+     */
+    private WifiConfiguration overrideCandidateWithUserConnectChoice(
+            @NonNull WifiConfiguration candidate) {
+        WifiConfiguration tempConfig = candidate;
+        ScanResult scanResultCandidate = candidate.getNetworkSelectionStatus().getCandidate();
+
+        while (tempConfig.getNetworkSelectionStatus().getConnectChoice() != null) {
+            String key = tempConfig.getNetworkSelectionStatus().getConnectChoice();
+            tempConfig = mWifiConfigManager.getConfiguredNetwork(key);
+
+            if (tempConfig != null) {
+                WifiConfiguration.NetworkSelectionStatus tempStatus =
+                        tempConfig.getNetworkSelectionStatus();
+                if (tempStatus.getCandidate() != null && tempStatus.isNetworkEnabled()) {
+                    scanResultCandidate = tempStatus.getCandidate();
+                    candidate = tempConfig;
+                }
+            } else {
+                localLog("Connect choice: " + key + " has no corresponding saved config.");
+                break;
+            }
+        }
+        localLog("After user selection adjustment, the final candidate is:"
+                + WifiNetworkSelector.toNetworkString(candidate) + " : "
+                + scanResultCandidate.BSSID);
+        return candidate;
+    }
+
+    /**
      * Enable/disable a BSSID for Network Selection
      * When an association rejection event is obtained, Network Selector will disable this
      * BSSID but supplicant still can try to connect to this bssid. If supplicant connect to it
@@ -519,6 +553,7 @@ public class WifiNetworkSelector {
         }
 
         if (selectedNetwork != null) {
+            selectedNetwork = overrideCandidateWithUserConnectChoice(selectedNetwork);
             mLastNetworkSelectionTimeStamp = mClock.getElapsedSinceBootMillis();
         }
 
