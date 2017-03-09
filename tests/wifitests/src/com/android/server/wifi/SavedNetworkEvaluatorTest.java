@@ -219,6 +219,49 @@ public class SavedNetworkEvaluatorTest {
         assertNull(candidate);
     }
 
+    /**
+     * Set the candidate {@link ScanResult} for all {@link WifiConfiguration}s even if they have
+     * useExternalScores set or are open networks with
+     * {@link Settings.Global.CURATE_SAVED_OPEN_NETWORKS} and
+     * {@link Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED} enabled.
+     */
+    @Test
+    public void setCandidateScanResultsForAllSavedNetworks() {
+        String[] ssids = {"\"test1\"", "\"test2\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] freqs = {5200, 5240};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[ESS]"};
+        int[] levels = {mThresholdQualifiedRssi5G, mThresholdQualifiedRssi5G};
+        int[] securities = {SECURITY_PSK, SECURITY_NONE};
+
+        when(mFrameworkFacade.getIntegerSetting(mContext,
+                Settings.Global.CURATE_SAVED_OPEN_NETWORKS, 0)).thenReturn(1);
+        when(mFrameworkFacade.getIntegerSetting(mContext,
+                Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0)).thenReturn(1);
+        mContentObserver.onChange(false);
+
+        ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
+                WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
+                        freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
+        WifiConfiguration useExternalScoresConfig = scanDetailsAndConfigs.getWifiConfigs()[0];
+        useExternalScoresConfig.useExternalScores = true;
+        WifiConfiguration openNetworkConfig = scanDetailsAndConfigs.getWifiConfigs()[1];
+
+        WifiConfiguration candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
+                null, null, true, false, null);
+
+        assertNull(candidate);
+
+        verify(mWifiConfigManager).setNetworkCandidateScanResult(
+                eq(useExternalScoresConfig.networkId),
+                eq(scanDetails.get(0).getScanResult()),
+                anyInt());
+        verify(mWifiConfigManager).setNetworkCandidateScanResult(
+                eq(openNetworkConfig.networkId),
+                eq(scanDetails.get(1).getScanResult()),
+                anyInt());
+    }
 
     /**
      * Between two 2G networks, choose the one with stronger RSSI value if other conditions
