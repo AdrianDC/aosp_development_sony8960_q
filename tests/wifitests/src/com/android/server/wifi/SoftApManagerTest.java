@@ -106,6 +106,9 @@ public class SoftApManagerTest {
         when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
         when(mApInterface.startHostapd()).thenReturn(true);
         when(mApInterface.stopHostapd()).thenReturn(true);
+        if (config == null) {
+            when(mWifiApConfigStore.getApConfiguration()).thenReturn(mDefaultApConfig);
+        }
         SoftApManager newSoftApManager = new SoftApManager(mLooper.getLooper(),
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
@@ -116,9 +119,6 @@ public class SoftApManagerTest {
                                                            config,
                                                            mWifiMetrics);
         mLooper.dispatchAll();
-        if (config != null) {
-            verify(mWifiApConfigStore).setApConfiguration(config);
-        }
         return newSoftApManager;
     }
 
@@ -140,10 +140,21 @@ public class SoftApManagerTest {
     /** Tests softap startup if default config fails to load. **/
     @Test
     public void startSoftApDefaultConfigFailedToLoad() throws Exception {
-        InOrder order = inOrder(mListener);
-        mSoftApManager = createSoftApManager(null);
+        when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
+        when(mApInterface.startHostapd()).thenReturn(true);
+        when(mApInterface.stopHostapd()).thenReturn(true);
         when(mWifiApConfigStore.getApConfiguration()).thenReturn(null);
-        mSoftApManager.start();
+        SoftApManager newSoftApManager = new SoftApManager(mLooper.getLooper(),
+                                                           mWifiNative,
+                                                           TEST_COUNTRY_CODE,
+                                                           mListener,
+                                                           mApInterface,
+                                                           mNmService,
+                                                           mWifiApConfigStore,
+                                                           null,
+                                                           mWifiMetrics);
+        mLooper.dispatchAll();
+        newSoftApManager.start();
         mLooper.dispatchAll();
         verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
@@ -200,7 +211,6 @@ public class SoftApManagerTest {
             when(mWifiApConfigStore.getApConfiguration()).thenReturn(mDefaultApConfig);
             expectedSSID = mDefaultApConfig.SSID;
         } else {
-            when(mWifiApConfigStore.getApConfiguration()).thenReturn(config);
             expectedSSID = config.SSID;
         }
         mSoftApManager.start();

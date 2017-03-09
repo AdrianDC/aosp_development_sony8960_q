@@ -61,6 +61,8 @@ public class SoftApManager implements ActiveModeManager {
 
     private final WifiMetrics mWifiMetrics;
 
+    private WifiConfiguration mApConfig;
+
     /**
      * Listener for soft AP state changes.
      */
@@ -90,18 +92,19 @@ public class SoftApManager implements ActiveModeManager {
         mApInterface = apInterface;
         mNwService = nms;
         mWifiApConfigStore = wifiApConfigStore;
-        if (config != null) {
-            mWifiApConfigStore.setApConfiguration(config);
+        if (config == null) {
+            mApConfig = mWifiApConfigStore.getApConfiguration();
+        } else {
+            mApConfig = config;
         }
         mWifiMetrics = wifiMetrics;
     }
 
     /**
-     * Start soft AP with the current saved config.
+     * Start soft AP with the supplied config.
      */
     public void start() {
-        mStateMachine.sendMessage(SoftApStateMachine.CMD_START,
-                                  mWifiApConfigStore.getApConfiguration());
+        mStateMachine.sendMessage(SoftApStateMachine.CMD_START, mApConfig);
     }
 
     /**
