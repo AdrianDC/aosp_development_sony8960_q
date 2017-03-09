@@ -196,8 +196,6 @@ public class WifiStateMachineTest {
                     }
                 });
 
-        when(facade.checkUidPermission(eq(android.Manifest.permission.OVERRIDE_WIFI_CONFIG),
-                anyInt())).thenReturn(PackageManager.PERMISSION_GRANTED);
         return facade;
     }
 
