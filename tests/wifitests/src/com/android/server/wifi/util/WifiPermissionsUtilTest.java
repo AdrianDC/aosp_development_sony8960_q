@@ -17,6 +17,8 @@
 package com.android.server.wifi.util;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -32,13 +34,14 @@ import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.net.NetworkScoreManager;
 import android.os.Build;
+import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
 
 import com.android.server.wifi.BinderUtil;
+import com.android.server.wifi.FakeWifiLog;
 import com.android.server.wifi.WifiInjector;
-import com.android.server.wifi.WifiLog;
 import com.android.server.wifi.WifiSettingsStore;
 
 import org.junit.Before;
@@ -47,6 +50,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -70,7 +74,7 @@ public class WifiPermissionsUtilTest {
     @Mock private ContentResolver mMockContentResolver;
     @Mock private NetworkScoreManager mNetworkScoreManager;
     @Mock private WifiInjector mWifiInjector;
-    @Mock private WifiLog mWifiLog;
+    @Spy private FakeWifiLog mWifiLog;
 
     private static final String TEST_PACKAGE_NAME = "com.google.somePackage";
     private static final String INVALID_PACKAGE  = "BAD_PACKAGE";
@@ -110,6 +114,51 @@ public class WifiPermissionsUtilTest {
     private void setupTestCase() throws Exception {
         setupMocks();
         setupMockInterface();
+    }
+
+    /**
+     * Verify we return true when the UID does have the override config permission
+     */
+    @Test
+    public void testCheckConfigOverridePermissionApproved() throws Exception {
+        mUid = MANAGED_PROFILE_UID;  // do not really care about this value
+        setupTestCase();
+        WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
+                mMockContext, mMockWifiSettingsStore, mMockUserManager, mNetworkScoreManager,
+                mWifiInjector);
+        when(mMockPermissionsWrapper.getOverrideWifiConfigPermission(anyInt()))
+                .thenReturn(PackageManager.PERMISSION_GRANTED);
+        assertTrue(codeUnderTest.checkConfigOverridePermission(mUid));
+    }
+
+    /**
+     * Verify we return false when the UID does not have the override config permission.
+     */
+    @Test
+    public void testCheckConfigOverridePermissionDenied() throws Exception {
+        mUid = OTHER_USER_UID;  // do not really care about this value
+        setupTestCase();
+        WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
+                mMockContext, mMockWifiSettingsStore, mMockUserManager, mNetworkScoreManager,
+                mWifiInjector);
+        when(mMockPermissionsWrapper.getOverrideWifiConfigPermission(anyInt()))
+                .thenReturn(PackageManager.PERMISSION_DENIED);
+        assertFalse(codeUnderTest.checkConfigOverridePermission(mUid));
+    }
+
+    /**
+     * Verify we return false when the override config permission check throws a RemoteException.
+     */
+    @Test
+    public void testCheckConfigOverridePermissionWithException() throws Exception {
+        mUid = OTHER_USER_UID;  // do not really care about this value
+        setupTestCase();
+        WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
+                mMockContext, mMockWifiSettingsStore, mMockUserManager, mNetworkScoreManager,
+                mWifiInjector);
+        doThrow(new RemoteException("Failed to check permissions for " + mUid))
+                .when(mMockPermissionsWrapper).getOverrideWifiConfigPermission(mUid);
+        assertFalse(codeUnderTest.checkConfigOverridePermission(mUid));
     }
 
     /**
