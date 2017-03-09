@@ -1699,8 +1699,7 @@ public class WifiVendorHal {
     }
 
     /**
-     * indicates to driver that all
-     * the data has to be uploaded urgently
+     * Indicates to driver that all the data has to be uploaded urgently
      */
     public boolean getRingBufferData(String ringName) {
         enter("ringName %").c(ringName).flush();

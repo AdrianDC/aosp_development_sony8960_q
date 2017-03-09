@@ -22,6 +22,8 @@ import android.telephony.TelephonyManager;
 import android.util.Base64;
 import android.util.Log;
 
+import com.android.server.wifi.WifiNative;
+
 /**
  * Utilities for the Wifi Service to interact with telephony.
  */
@@ -320,7 +322,7 @@ public class TelephonyUtil {
         StringBuilder sb = new StringBuilder();
         byte[] rand = null;
         byte[] authn = null;
-        String resType = "UMTS-AUTH";
+        String resType = WifiNative.SIM_AUTH_RESP_TYPE_UMTS_AUTH;
 
         if (requestData.data.length == 2) {
             try {
@@ -365,7 +367,7 @@ public class TelephonyUtil {
                 Log.e(TAG, "synchronisation failure");
                 int autsLen = result[1];
                 String auts = makeHex(result, 2, autsLen);
-                resType = "UMTS-AUTS";
+                resType = WifiNative.SIM_AUTH_RESP_TYPE_UMTS_AUTS;
                 sb.append(":" + auts);
                 Log.v(TAG, "auts:" + auts);
                 goodReponse = true;

@@ -16,18 +16,9 @@
 
 package com.android.server.wifi.hotspot2;
 
-import android.util.Log;
-
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
-import com.android.server.wifi.hotspot2.anqp.ANQPParser;
 import com.android.server.wifi.hotspot2.anqp.Constants;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.StringReader;
-import java.net.ProtocolException;
-import java.nio.BufferUnderflowException;
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -56,6 +47,7 @@ public class AnqpEvent {
      * Bssid of the access point.
      */
     private final long mBssid;
+
     /**
      * Map of ANQP element type to the data retrieved from the access point.
      */
@@ -64,71 +56,6 @@ public class AnqpEvent {
     public AnqpEvent(long bssid, Map<Constants.ANQPElementType, ANQPElement> elements) {
         mBssid = bssid;
         mElements = elements;
-    }
-
-    /**
-     * Creates an ANQP result instance using the passed in scan result data.
-     *
-     * @param bssid   BSSID of the access point.
-     * @param bssData Scan results fetched from wpa_supplicant after ANQP query.
-     */
-    public static AnqpEvent buildAnqpEvent(long bssid, String bssData) {
-        Map<Constants.ANQPElementType, ANQPElement> elements = null;
-        try {
-            elements = parseWPSData(bssData);
-            Log.d(TAG,
-                    String.format("Successful ANQP response for %012x: %s",
-                            bssid, elements));
-        } catch (IOException | BufferUnderflowException e) {
-            Log.e(TAG, "Failed to parse ANQP: " + e.toString() + ": " + bssData);
-            return null;
-        }
-        return new AnqpEvent(bssid, elements);
-    }
-
-    private static Map<Constants.ANQPElementType, ANQPElement> parseWPSData(String bssInfo)
-            throws IOException {
-        Map<Constants.ANQPElementType, ANQPElement> elements = new HashMap<>();
-        if (bssInfo == null) {
-            return elements;
-        }
-        BufferedReader lineReader = new BufferedReader(new StringReader(bssInfo));
-        String line;
-        while ((line = lineReader.readLine()) != null) {
-            ANQPElement element = buildElement(line);
-            if (element != null) {
-                elements.put(element.getID(), element);
-            }
-        }
-        return elements;
-    }
-
-    private static ANQPElement buildElement(String text) throws ProtocolException {
-        int separator = text.indexOf('=');
-        if (separator < 0 || separator + 1 == text.length()) {
-            return null;
-        }
-
-        String elementName = text.substring(0, separator);
-        Constants.ANQPElementType elementType = sWpsNames.get(elementName);
-        if (elementType == null) {
-            return null;
-        }
-
-        byte[] payload;
-        try {
-            payload = Utils.hexToBytes(text.substring(separator + 1));
-        } catch (NumberFormatException nfe) {
-            Log.e(Utils.hs2LogTag(PasspointEventHandler.class),
-                    "Failed to parse hex string");
-            return null;
-        }
-        // Wrap the payload inside a ByteBuffer.
-        ByteBuffer buffer = ByteBuffer.wrap(payload);
-
-        return Constants.getANQPElementID(elementType) != null
-                ? ANQPParser.parseElement(elementType, buffer)
-                : ANQPParser.parseHS20Element(elementType, buffer);
     }
 
     /**
