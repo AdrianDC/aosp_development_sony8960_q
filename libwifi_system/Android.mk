@@ -39,8 +39,7 @@ LOCAL_SHARED_LIBRARIES := \
     libcutils \
     liblog \
     libnetutils \
-    libnl \
-    libwifi-hal
+    libnl
 
 # Tolerate certain emulators which apparently don't have supplicant installed.
 ifdef WPA_SUPPLICANT_VERSION
@@ -51,7 +50,6 @@ endif
 LOCAL_SRC_FILES := \
     hostapd_manager.cpp \
     interface_tool.cpp \
-    hal_tool.cpp \
     supplicant_manager.cpp \
     wifi.cpp
 include $(BUILD_SHARED_LIBRARY)
