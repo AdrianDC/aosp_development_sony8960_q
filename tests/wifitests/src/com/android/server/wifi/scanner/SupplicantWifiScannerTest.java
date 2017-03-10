@@ -48,7 +48,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
 
     @Before
     public void setup() throws Exception {
-        mScanner = new SupplicantWifiScannerImpl(mContext, mWifiNative,
+        mScanner = new SupplicantWifiScannerImpl(mContext, mWifiNative, mWifiMonitor,
                 mLooper.getLooper(), mClock);
     }
 

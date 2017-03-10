@@ -58,6 +58,13 @@ import java.util.Random;
  */
 public class SupplicantStaNetworkHalTest {
     private static final String IFACE_NAME = "wlan0";
+    private static final Map<String, String> NETWORK_EXTRAS_VALUES = new HashMap<>();
+    static {
+        NETWORK_EXTRAS_VALUES.put("key1", "value1");
+        NETWORK_EXTRAS_VALUES.put("key2", "value2");
+    }
+    private static final String NETWORK_EXTRAS_SERIALIZED =
+            "%7B%22key1%22%3A%22value1%22%2C%22key2%22%3A%22value2%22%7D";
 
     private SupplicantStaNetworkHal mSupplicantNetwork;
     private SupplicantStatus mStatusSuccess;
@@ -776,6 +783,18 @@ public class SupplicantStaNetworkHalTest {
                     Integer.parseInt(oppKeyCaching) == 1 ? true : false,
                     mSupplicantVariables.eapProactiveKeyCaching);
         }
+    }
+
+    /**
+     * Verifies that createNetworkExtra() & parseNetworkExtra correctly writes a serialized and
+     * URL-encoded JSON object.
+     */
+    @Test
+    public void testNetworkExtra() {
+        assertEquals(NETWORK_EXTRAS_SERIALIZED,
+                SupplicantStaNetworkHal.createNetworkExtra(NETWORK_EXTRAS_VALUES));
+        assertEquals(NETWORK_EXTRAS_VALUES,
+                SupplicantStaNetworkHal.parseNetworkExtra(NETWORK_EXTRAS_SERIALIZED));
     }
 
     /**

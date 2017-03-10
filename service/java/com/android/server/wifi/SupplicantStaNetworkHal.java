@@ -32,9 +32,16 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.ArrayUtils;
 import com.android.server.wifi.util.NativeUtil;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -220,7 +227,7 @@ public class SupplicantStaNetworkHal {
         }
         /** metadata: idstr */
         if (getIdStr() && !TextUtils.isEmpty(mIdStr)) {
-            Map<String, String> metadata = WifiNative.parseNetworkExtra(mIdStr);
+            Map<String, String> metadata = parseNetworkExtra(mIdStr);
             networkExtras.putAll(metadata);
         } else {
             Log.e(TAG, "getIdStr failed");
@@ -342,7 +349,7 @@ public class SupplicantStaNetworkHal {
         }
         metadata.put(ID_STRING_KEY_CONFIG_KEY, config.configKey());
         metadata.put(ID_STRING_KEY_CREATOR_UID, Integer.toString(config.creatorUid));
-        if (!setIdStr(WifiNative.createNetworkExtra(metadata))) {
+        if (!setIdStr(createNetworkExtra(metadata))) {
             Log.e(TAG, "failed to set id string");
             return false;
         }
@@ -2365,6 +2372,57 @@ public class SupplicantStaNetworkHal {
         modifiedFlags.clear(WifiConfiguration.KeyMgmt.FT_PSK);
         modifiedFlags.clear(WifiConfiguration.KeyMgmt.FT_EAP);
         return modifiedFlags;
+    }
+
+    /**
+     * Creates the JSON encoded network extra using the map of string key, value pairs.
+     */
+    public static String createNetworkExtra(Map<String, String> values) {
+        final String encoded;
+        try {
+            encoded = URLEncoder.encode(new JSONObject(values).toString(), "UTF-8");
+        } catch (NullPointerException e) {
+            Log.e(TAG, "Unable to serialize networkExtra: " + e.toString());
+            return null;
+        } catch (UnsupportedEncodingException e) {
+            Log.e(TAG, "Unable to serialize networkExtra: " + e.toString());
+            return null;
+        }
+        return encoded;
+    }
+
+    /**
+     * Parse the network extra JSON encoded string to a map of string key, value pairs.
+     */
+    public static Map<String, String> parseNetworkExtra(String encoded) {
+        if (TextUtils.isEmpty(encoded)) {
+            return null;
+        }
+        try {
+            // This method reads a JSON dictionary that was written by setNetworkExtra(). However,
+            // on devices that upgraded from Marshmallow, it may encounter a legacy value instead -
+            // an FQDN stored as a plain string. If such a value is encountered, the JSONObject
+            // constructor will thrown a JSONException and the method will return null.
+            final JSONObject json = new JSONObject(URLDecoder.decode(encoded, "UTF-8"));
+            final Map<String, String> values = new HashMap<>();
+            final Iterator<?> it = json.keys();
+            while (it.hasNext()) {
+                final String key = (String) it.next();
+                final Object value = json.get(key);
+                if (value instanceof String) {
+                    values.put(key, (String) value);
+                }
+            }
+            return values;
+        } catch (UnsupportedEncodingException e) {
+            Log.e(TAG, "Unable to deserialize networkExtra: " + e.toString());
+            return null;
+        } catch (JSONException e) {
+            // This is not necessarily an error. This exception will also occur if we encounter a
+            // legacy FQDN stored as a plain string. We want to return null in this case as no JSON
+            // dictionary of extras was found.
+            return null;
+        }
     }
 
     private static class Mutable<E> {

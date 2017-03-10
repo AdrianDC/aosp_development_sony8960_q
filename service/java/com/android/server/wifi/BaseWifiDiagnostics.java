@@ -12,17 +12,20 @@ public class BaseWifiDiagnostics {
     public static final byte CONNECTION_EVENT_SUCCEEDED = 1;
     public static final byte CONNECTION_EVENT_FAILED = 2;
 
+    protected final WifiNative mWifiNative;
+
     protected String mFirmwareVersion;
     protected String mDriverVersion;
     protected int mSupportedFeatureSet;
 
-    public BaseWifiDiagnostics() { }
+    public BaseWifiDiagnostics(WifiNative wifiNative) {
+        mWifiNative = wifiNative;
+    }
 
     public synchronized void startLogging(boolean verboseEnabled) {
-        WifiNative wifiNative = WifiNative.getWlanNativeInterface();
-        mFirmwareVersion = wifiNative.getFirmwareVersion();
-        mDriverVersion = wifiNative.getDriverVersion();
-        mSupportedFeatureSet = wifiNative.getSupportedLoggerFeatureSet();
+        mFirmwareVersion = mWifiNative.getFirmwareVersion();
+        mDriverVersion = mWifiNative.getDriverVersion();
+        mSupportedFeatureSet = mWifiNative.getSupportedLoggerFeatureSet();
     }
 
     public synchronized void startPacketLog() { }

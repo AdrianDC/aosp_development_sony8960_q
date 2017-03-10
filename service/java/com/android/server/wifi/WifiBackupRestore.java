@@ -480,7 +480,7 @@ public class WifiBackupRestore {
         public static final String SUPPLICANT_KEY_WEP_KEY3 = WifiConfiguration.wepKeyVarNames[3];
         public static final String SUPPLICANT_KEY_WEP_KEY_IDX =
                 WifiConfiguration.wepTxKeyIdxVarName;
-        public static final String SUPPLICANT_KEY_ID_STR = WifiSupplicantControl.ID_STRING_VAR_NAME;
+        public static final String SUPPLICANT_KEY_ID_STR = "id_str";
 
         /**
          * Regex to mask out passwords in backup data dump.
@@ -686,10 +686,10 @@ public class WifiBackupRestore {
                             mParsedIdStrLine.substring(mParsedIdStrLine.indexOf('=') + 1);
                     if (idString != null) {
                         Map<String, String> extras =
-                                WifiNative.parseNetworkExtra(
+                                SupplicantStaNetworkHal.parseNetworkExtra(
                                         NativeUtil.removeEnclosingQuotes(idString));
                         String configKey = extras.get(
-                                WifiSupplicantControl.ID_STRING_KEY_CONFIG_KEY);
+                                SupplicantStaNetworkHal.ID_STRING_KEY_CONFIG_KEY);
                         if (!configKey.equals(configuration.configKey())) {
                             // ConfigKey mismatches are expected for private networks because the
                             // UID is not preserved across backup/restore.
@@ -700,7 +700,7 @@ public class WifiBackupRestore {
                         // these networks were created by system apps.
                         int creatorUid =
                                 Integer.parseInt(extras.get(
-                                        WifiSupplicantControl.ID_STRING_KEY_CREATOR_UID));
+                                        SupplicantStaNetworkHal.ID_STRING_KEY_CREATOR_UID));
                         if (creatorUid >= Process.FIRST_APPLICATION_UID) {
                             return null;
                         }
