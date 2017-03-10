@@ -1258,12 +1258,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * requesting app holds the WIFI_CONFIG_OVERRIDE permission.
      */
     private boolean connectToUserSelectNetwork(int netId, int uid) {
-        if (!mWifiConfigManager.enableNetwork(netId, true, uid)) {
-            loge("connectToUserSelectNetwork uid " + uid
-                    + " did not have the permissions to enable=" + netId);
+        if (mWifiConfigManager.getConfiguredNetwork(netId) == null) {
+            loge("connectToUserSelectNetwork Invalid network Id=" + netId);
             return false;
         }
-        if (!mWifiConfigManager.checkAndUpdateLastConnectUid(netId, uid)) {
+        if (!mWifiConfigManager.enableNetwork(netId, true, uid)
+                || !mWifiConfigManager.checkAndUpdateLastConnectUid(netId, uid)) {
             logi("connectToUserSelectNetwork Allowing uid " + uid
                     + " with insufficient permissions to connect=" + netId);
         }
