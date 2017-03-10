@@ -305,7 +305,7 @@ public class SupplicantP2pIfaceHalTest {
     public void testFind_exception() throws Exception {
         executeAndValidateInitializationSequence(false, false, false);
         when(mISupplicantP2pIfaceMock.find(anyInt())).thenThrow(mRemoteException);
-        assertFalse(mDut.find());
+        assertFalse(mDut.find(0));
         // Check service is dead.
         assertFalse(mDut.isInitializationComplete());
     }

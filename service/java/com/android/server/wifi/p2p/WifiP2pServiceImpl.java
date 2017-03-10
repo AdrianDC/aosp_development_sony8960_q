@@ -593,7 +593,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                     @Override
                     public void onDeleteGroup(int netId) {
                         if (DBG) logd("called onDeleteGroup() netId=" + netId);
-                        mWifiNative.removeNetwork(netId);
+                        mWifiNative.removeP2pNetwork(netId);
                         mWifiNative.saveConfig();
                         sendP2pPersistentGroupsChangedBroadcast();
                     }
@@ -2711,7 +2711,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
          * @return p2p client list. if not found, return null.
          */
         private String[] getClientList(int netId) {
-            String p2pClients = mWifiNative.getNetworkVariable(netId, "p2p_client_list");
+            String p2pClients = mWifiNative.getP2pClientList(netId);
             if (p2pClients == null) {
                 return null;
             }
@@ -2756,8 +2756,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             if (modifiedClientList.length() == 0) {
                 modifiedClientList.append("\"\"");
             }
-            mWifiNative.setNetworkVariable(netId,
-                    "p2p_client_list", modifiedClientList.toString());
+            mWifiNative.setP2pClientList(netId, modifiedClientList.toString());
             mWifiNative.saveConfig();
             return true;
         }
@@ -2837,10 +2836,10 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
         private void initializeP2pSettings() {
             mWifiNative.setPersistentReconnect(true);
             mThisDevice.deviceName = getPersistedDeviceName();
-            mWifiNative.setDeviceName(mThisDevice.deviceName);
+            mWifiNative.setP2pDeviceName(mThisDevice.deviceName);
             // DIRECT-XY-DEVICENAME (XY is randomly generated)
             mWifiNative.setP2pSsidPostfix("-" + mThisDevice.deviceName);
-            mWifiNative.setDeviceType(mThisDevice.primaryDeviceType);
+            mWifiNative.setP2pDeviceType(mThisDevice.primaryDeviceType);
             // Supplicant defaults to using virtual display with display
             // which refers to a remote display. Use physical_display
             mWifiNative.setConfigMethods("virtual_push_button physical_display keypad");
