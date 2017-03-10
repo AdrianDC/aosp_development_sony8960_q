@@ -29,6 +29,9 @@ import android.hardware.wifi.V1_0.RttConfig;
 import android.hardware.wifi.V1_0.StaApfPacketFilterCapabilities;
 import android.hardware.wifi.V1_0.StaBackgroundScanCapabilities;
 import android.hardware.wifi.V1_0.StaBackgroundScanParameters;
+import android.hardware.wifi.V1_0.StaLinkLayerIfacePacketStats;
+import android.hardware.wifi.V1_0.StaLinkLayerRadioStats;
+import android.hardware.wifi.V1_0.StaLinkLayerStats;
 import android.hardware.wifi.V1_0.StaScanData;
 import android.hardware.wifi.V1_0.StaScanDataFlagMask;
 import android.hardware.wifi.V1_0.StaScanResult;
@@ -47,6 +50,7 @@ import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.ScanResult;
+import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
@@ -565,7 +569,7 @@ public class WifiVendorHalTest {
 
     /**
      * Test enablement of link layer stats after startup
-     * <p>
+     *
      * Request link layer stats before HAL start
      * - should not make it to the HAL layer
      * Start the HAL in STA mode
@@ -590,7 +594,7 @@ public class WifiVendorHalTest {
 
     /**
      * Test that link layer stats are not enabled and harmless in AP mode
-     * <p>
+     *
      * Start the HAL in AP mode
      * - stats should not be enabled
      * Request link layer stats
@@ -610,7 +614,79 @@ public class WifiVendorHalTest {
         verify(mIWifiStaIface, never()).getLinkLayerStats(any());
     }
 
-    // TODO(b/34900534) add test for correct MOVE CORRESPONDING of fields
+    /**
+     * Test that the link layer stats fields are populated correctly.
+     *
+     * This is done by filling with random values and then using toString on the
+     * original and converted values, comparing just the numerics in the result.
+     * This makes the assumption that the fields are in the same order in both string
+     * representations, which is not quite true. So apply some fixups before the final
+     * comparison.
+     */
+    @Test
+    public void testLinkLayerStatsAssignment() throws Exception {
+        Random r = new Random(1775968256);
+        StaLinkLayerStats stats = new StaLinkLayerStats();
+        randomizePacketStats(r, stats.iface.wmeBePktStats);
+        randomizePacketStats(r, stats.iface.wmeBkPktStats);
+        randomizePacketStats(r, stats.iface.wmeViPktStats);
+        randomizePacketStats(r, stats.iface.wmeVoPktStats);
+        randomizeRadioStats(r, stats.radio);
+        stats.timeStampInMs = 42; // currently dropped in conversion
+
+        String expected = numbersOnly(stats.toString());
+
+        WifiLinkLayerStats converted = WifiVendorHal.frameworkFromHalLinkLayerStats(stats);
+
+        String actual = numbersOnly(converted.toString());
+
+        // Do the required fixups to the both expected and actual
+        expected = rmValue(expected, stats.radio.rxTimeInMs);
+        expected = rmValue(expected, stats.radio.onTimeInMsForScan);
+
+        actual = rmValue(actual, stats.radio.rxTimeInMs);
+        actual = rmValue(actual, stats.radio.onTimeInMsForScan);
+        actual = actual + "42 ";
+
+        // The remaining fields should agree
+        assertEquals(expected, actual);
+    }
+
+    /** Just the digits with delimiting spaces, please */
+    private static String numbersOnly(String s) {
+        return s.replaceAll("[^0-9]+", " ");
+    }
+
+    /** Remove the given value from the space-delimited string, or die trying. */
+    private static String rmValue(String s, long value) throws Exception {
+        String ans = s.replaceAll(" " + value + " ", " ");
+        assertNotEquals(s, ans);
+        return ans;
+    }
+
+    /**
+     * Populate packet stats with non-negative random values
+     */
+    private static void randomizePacketStats(Random r, StaLinkLayerIfacePacketStats pstats) {
+        pstats.rxMpdu = r.nextLong() & 0xFFFFFFFFFFL; // more than 32 bits
+        pstats.txMpdu = r.nextLong() & 0xFFFFFFFFFFL;
+        pstats.lostMpdu = r.nextLong() & 0xFFFFFFFFFFL;
+        pstats.retries = r.nextLong() & 0xFFFFFFFFFFL;
+    }
+
+   /**
+     * Populate radio stats with non-negative random values
+     */
+    private static void randomizeRadioStats(Random r, StaLinkLayerRadioStats rstats) {
+        rstats.onTimeInMs = r.nextInt() & 0xFFFFFF;
+        rstats.txTimeInMs = r.nextInt() & 0xFFFFFF;
+        for (int i = 0; i < 4; i++) {
+            Integer v = r.nextInt() & 0xFFFFFF;
+            rstats.txTimeInMsPerLevel.add(v);
+        }
+        rstats.rxTimeInMs = r.nextInt() & 0xFFFFFF;
+        rstats.onTimeInMsForScan = r.nextInt() & 0xFFFFFF;
+    }
 
     /**
      * Test that getFirmwareVersion() and getDriverVersion() work

@@ -34,6 +34,7 @@ import android.hardware.wifi.V1_0.RttType;
 import android.hardware.wifi.V1_0.StaBackgroundScanBucketEventReportSchemeMask;
 import android.hardware.wifi.V1_0.StaBackgroundScanBucketParameters;
 import android.hardware.wifi.V1_0.StaBackgroundScanParameters;
+import android.hardware.wifi.V1_0.StaLinkLayerStats;
 import android.hardware.wifi.V1_0.StaRoamingConfig;
 import android.hardware.wifi.V1_0.StaRoamingState;
 import android.hardware.wifi.V1_0.StaScanData;
@@ -622,55 +623,67 @@ public class WifiVendorHal {
      * @return the statistics, or null if unable to do so
      */
     public WifiLinkLayerStats getWifiLinkLayerStats() {
+        class AnswerBox {
+            public StaLinkLayerStats value = null;
+        }
+        AnswerBox answer = new AnswerBox();
         synchronized (sLock) {
             try {
                 if (mIWifiStaIface == null) return null;
-                WifiLinkLayerStats out = new WifiLinkLayerStats();
-                MutableBoolean answerBox = new MutableBoolean(false);
                 mIWifiStaIface.getLinkLayerStats((status, stats) -> {
-                            if (!ok(status)) return;
-                            out.status = 0; // TODO
-                            out.SSID = null; // TODO
-                            out.BSSID = null; // TODO
-                            out.beacon_rx = stats.iface.beaconRx;
-                            out.rssi_mgmt = stats.iface.avgRssiMgmt;
-                        /* WME Best Effort Access Category */
-                            out.rxmpdu_be = stats.iface.wmeBePktStats.rxMpdu;
-                            out.txmpdu_be = stats.iface.wmeBePktStats.txMpdu;
-                            out.lostmpdu_be = stats.iface.wmeBePktStats.lostMpdu;
-                            out.retries_be = stats.iface.wmeBePktStats.retries;
-                        /* WME Background Access Category */
-                            out.rxmpdu_bk = stats.iface.wmeBkPktStats.rxMpdu;
-                            out.txmpdu_bk = stats.iface.wmeBkPktStats.txMpdu;
-                            out.lostmpdu_bk = stats.iface.wmeBkPktStats.lostMpdu;
-                            out.retries_bk = stats.iface.wmeBkPktStats.retries;
-                        /* WME Video Access Category */
-                            out.rxmpdu_vi = stats.iface.wmeViPktStats.rxMpdu;
-                            out.txmpdu_vi = stats.iface.wmeViPktStats.txMpdu;
-                            out.lostmpdu_vi = stats.iface.wmeViPktStats.lostMpdu;
-                            out.retries_vi = stats.iface.wmeViPktStats.retries;
-                        /* WME Voice Access Category */
-                            out.rxmpdu_vo = stats.iface.wmeVoPktStats.rxMpdu;
-                            out.txmpdu_vo = stats.iface.wmeVoPktStats.txMpdu;
-                            out.lostmpdu_vo = stats.iface.wmeVoPktStats.lostMpdu;
-                            out.retries_vo = stats.iface.wmeVoPktStats.retries;
-                            out.on_time = stats.radio.onTimeInMs;
-                            out.tx_time = stats.radio.txTimeInMs;
-                            out.tx_time_per_level = new int[stats.radio.txTimeInMsPerLevel.size()];
-                            for (int i = 0; i < out.tx_time_per_level.length; i++) {
-                                out.tx_time_per_level[i] = stats.radio.txTimeInMsPerLevel.get(i);
-                            }
-                            out.rx_time = stats.radio.rxTimeInMs;
-                            out.on_time_scan = stats.radio.onTimeInMsForScan;
-                            answerBox.value = true;
-                        }
-                );
-                return answerBox.value ? out : null;
+                    if (!ok(status)) return;
+                    answer.value = stats;
+                });
             } catch (RemoteException e) {
                 handleRemoteException(e);
                 return null;
             }
         }
+        WifiLinkLayerStats stats = frameworkFromHalLinkLayerStats(answer.value);
+        return stats;
+    }
+
+    /**
+     * Makes the framework version of link layer stats from the hal version.
+     */
+    @VisibleForTesting
+    static WifiLinkLayerStats frameworkFromHalLinkLayerStats(StaLinkLayerStats stats) {
+        if (stats == null) return null;
+        WifiLinkLayerStats out = new WifiLinkLayerStats();
+        // unpopulated: out.status, out.SSID, out.BSSID
+        out.beacon_rx = stats.iface.beaconRx;
+        out.rssi_mgmt = stats.iface.avgRssiMgmt;
+        // Statistics are broken out by Wireless Multimedia Extensions categories
+        // WME Best Effort Access Category
+        out.rxmpdu_be = stats.iface.wmeBePktStats.rxMpdu;
+        out.txmpdu_be = stats.iface.wmeBePktStats.txMpdu;
+        out.lostmpdu_be = stats.iface.wmeBePktStats.lostMpdu;
+        out.retries_be = stats.iface.wmeBePktStats.retries;
+        // WME Background Access Category
+        out.rxmpdu_bk = stats.iface.wmeBkPktStats.rxMpdu;
+        out.txmpdu_bk = stats.iface.wmeBkPktStats.txMpdu;
+        out.lostmpdu_bk = stats.iface.wmeBkPktStats.lostMpdu;
+        out.retries_bk = stats.iface.wmeBkPktStats.retries;
+        // WME Video Access Category
+        out.rxmpdu_vi = stats.iface.wmeViPktStats.rxMpdu;
+        out.txmpdu_vi = stats.iface.wmeViPktStats.txMpdu;
+        out.lostmpdu_vi = stats.iface.wmeViPktStats.lostMpdu;
+        out.retries_vi = stats.iface.wmeViPktStats.retries;
+        // WME Voice Access Category
+        out.rxmpdu_vo = stats.iface.wmeVoPktStats.rxMpdu;
+        out.txmpdu_vo = stats.iface.wmeVoPktStats.txMpdu;
+        out.lostmpdu_vo = stats.iface.wmeVoPktStats.lostMpdu;
+        out.retries_vo = stats.iface.wmeVoPktStats.retries;
+        out.on_time = stats.radio.onTimeInMs;
+        out.tx_time = stats.radio.txTimeInMs;
+        out.tx_time_per_level = new int[stats.radio.txTimeInMsPerLevel.size()];
+        for (int i = 0; i < out.tx_time_per_level.length; i++) {
+            out.tx_time_per_level[i] = stats.radio.txTimeInMsPerLevel.get(i);
+        }
+        out.rx_time = stats.radio.rxTimeInMs;
+        out.on_time_scan = stats.radio.onTimeInMsForScan;
+        // unused: stats.timeStampInMs;
+        return out;
     }
 
     @VisibleForTesting
@@ -678,7 +691,7 @@ public class WifiVendorHal {
 
     /**
      * Enables the linkLayerStats in the Hal.
-     * <p>
+     *
      * This is called unconditionally whenever we create a STA interface.
      */
     private void enableLinkLayerStats() {
