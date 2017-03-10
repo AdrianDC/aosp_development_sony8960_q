@@ -99,6 +99,8 @@ public class WifiConfigStoreTest {
                     + "<int name=\"LastUpdateUid\" value=\"-1\" />\n"
                     + "<null name=\"LastUpdateName\" />\n"
                     + "<int name=\"LastConnectUid\" value=\"0\" />\n"
+                    + "<boolean name=\"IsLegacyPasspointConfig\" value=\"false\" />\n"
+                    + "<long-array name=\"RoamingConsortiumOIs\" num=\"0\" />\n"
                     + "</WifiConfiguration>\n"
                     + "<NetworkStatus>\n"
                     + "<string name=\"SelectionStatus\">NETWORK_SELECTION_ENABLED</string>\n"

@@ -455,6 +455,7 @@ public class WifiConfigurationTestUtil {
         assertEquals(expected.lastUpdateName, actual.lastUpdateName);
         assertEquals(expected.lastConnectUid, actual.lastConnectUid);
         assertEquals(expected.updateTime, actual.updateTime);
+        assertEquals(expected.isLegacyPasspointConfig, actual.isLegacyPasspointConfig);
         assertNetworkSelectionStatusEqualForConfigStore(
                 expected.getNetworkSelectionStatus(), actual.getNetworkSelectionStatus());
         assertWifiEnterpriseConfigEqualForConfigStore(
