@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "wifi_system/hal_tool.h"
+#include "wifi_hal/hal_tool.h"
 
 #include <android-base/logging.h>
 
