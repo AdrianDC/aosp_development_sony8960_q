@@ -77,11 +77,11 @@ public class RttServiceTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        TestUtil.installWlanWifiNative(mWifiNative);
         mLooper = new TestLooper();
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
-        mRttServiceImpl = new RttService.RttServiceImpl(mContext,
-                mLooper.getLooper(), mWifiInjector);
+        when(mWifiInjector.getWifiNative()).thenReturn(mWifiNative);
+        mRttServiceImpl = new RttService.RttServiceImpl(mContext, mLooper.getLooper(),
+                mWifiInjector);
         mRttServiceImpl.startService();
     }
 

@@ -22,7 +22,6 @@ import static org.mockito.Mockito.*;
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiEnterpriseConfig;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.text.TextUtils;
 import android.util.SparseArray;
@@ -139,26 +138,6 @@ public class WifiConfigStoreLegacyTest {
             }
         }).when(mWifiNative).migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class));
 
-        // Return the unmasked values during file parsing.
-        doAnswer(new AnswerWithArguments() {
-            public Map<String, String> answer(String fieldName) {
-                if (fieldName.equals(WifiConfiguration.pskVarName)) {
-                    return createPskMap(networks);
-                } else if (fieldName.equals(WifiConfiguration.wepKeyVarNames[0])) {
-                    return createWepKey0Map(networks);
-                } else if (fieldName.equals(WifiConfiguration.wepKeyVarNames[1])) {
-                    return createWepKey1Map(networks);
-                } else if (fieldName.equals(WifiConfiguration.wepKeyVarNames[2])) {
-                    return createWepKey2Map(networks);
-                } else if (fieldName.equals(WifiConfiguration.wepKeyVarNames[3])) {
-                    return createWepKey3Map(networks);
-                } else if (fieldName.equals(WifiEnterpriseConfig.PASSWORD_KEY)) {
-                    return createEapPasswordMap(networks);
-                }
-                return new HashMap<>();
-            }
-        }).when(mWifiNative).readNetworkVariablesFromSupplicantFile(anyString());
-
         when(mPasspointConfigParser.parseConfig(anyString())).thenReturn(passpointConfigs);
         WifiConfigStoreLegacy.WifiConfigStoreDataLegacy storeData = mWifiConfigStore.read();
 
@@ -246,16 +225,8 @@ public class WifiConfigStoreLegacyTest {
 
     private Map<String, WifiConfiguration> createWpaSupplicantLoadData(
             List<WifiConfiguration> configurations) {
-        List<WifiConfiguration> newConfigurations;
-        // When HIDL is enabled, all the config params are directly read from the HIDL interface,
-        // no need to read masked variables from wpa_supplicant.conf file.
-        if (WifiNative.HIDL_SUP_ENABLE) {
-            newConfigurations = configurations;
-        } else {
-            newConfigurations = createMaskedWifiConfigurations(configurations);
-        }
         Map<String, WifiConfiguration> configurationMap = new HashMap<>();
-        for (WifiConfiguration config : newConfigurations) {
+        for (WifiConfiguration config : configurations) {
             configurationMap.put(config.configKey(true), config);
         }
         return configurationMap;
@@ -295,7 +266,7 @@ public class WifiConfigStoreLegacyTest {
 
     private Map<String, String> createNetworkExtrasForPasspointConfig(String fqdn) {
         Map<String, String> extras = new HashMap<>();
-        extras.put(WifiSupplicantControl.ID_STRING_KEY_FQDN, fqdn);
+        extras.put(SupplicantStaNetworkHal.ID_STRING_KEY_FQDN, fqdn);
         return extras;
     }
 }

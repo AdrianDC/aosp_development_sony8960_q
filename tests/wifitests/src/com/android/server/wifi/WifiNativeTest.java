@@ -21,29 +21,22 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.anyBoolean;
-import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
-import android.net.wifi.IWificond;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
-import java.lang.reflect.Constructor;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 /**
@@ -51,16 +44,6 @@ import java.util.regex.Pattern;
  */
 @SmallTest
 public class WifiNativeTest {
-    private static final int NETWORK_ID = 0;
-    private static final String NETWORK_EXTRAS_VARIABLE = "test";
-    private static final Map<String, String> NETWORK_EXTRAS_VALUES = new HashMap<>();
-    static {
-        NETWORK_EXTRAS_VALUES.put("key1", "value1");
-        NETWORK_EXTRAS_VALUES.put("key2", "value2");
-    }
-    private static final String NETWORK_EXTRAS_SERIALIZED =
-            "\"%7B%22key1%22%3A%22value1%22%2C%22key2%22%3A%22value2%22%7D\"";
-
     private static final long FATE_REPORT_DRIVER_TIMESTAMP_USEC = 12345;
     private static final byte[] FATE_REPORT_FRAME_BYTES = new byte[] {
             'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 0, 1, 2, 3, 4, 5, 6, 7};
@@ -159,42 +142,19 @@ public class WifiNativeTest {
                 networkList[0].ssid = TEST_QUOTED_SSID_1;
                 networkList[1].ssid = TEST_QUOTED_SSID_2;
             }};
+
+    @Mock private WifiVendorHal mWifiVendorHal;
+    @Mock private WificondControl mWificondControl;
+    @Mock private SupplicantStaIfaceHal mStaIfaceHal;
+    @Mock private SupplicantP2pIfaceHal mP2pIfaceHal;
     private WifiNative mWifiNative;
-    private WifiVendorHal mWifiVendorHal;
 
     @Before
     public void setUp() throws Exception {
-        final Constructor<WifiNative> wifiNativeConstructor =
-                WifiNative.class.getDeclaredConstructor(String.class, Boolean.TYPE);
-        wifiNativeConstructor.setAccessible(true);
-        mWifiNative = spy(wifiNativeConstructor.newInstance("test", true));
-        mWifiVendorHal = mock(WifiVendorHal.class);
+        MockitoAnnotations.initMocks(this);
         when(mWifiVendorHal.startVendorHal(anyBoolean())).thenReturn(true);
-        mWifiNative.setWifiVendorHal(mWifiVendorHal);
-    }
-
-    /**
-     * Verifies that setNetworkExtra() correctly writes a serialized and URL-encoded JSON object.
-     */
-    @Test
-    public void testSetNetworkExtra() {
-        when(mWifiNative.setNetworkVariable(anyInt(), anyString(), anyString())).thenReturn(true);
-        assertTrue(mWifiNative.setNetworkExtra(NETWORK_ID, NETWORK_EXTRAS_VARIABLE,
-                NETWORK_EXTRAS_VALUES));
-        verify(mWifiNative).setNetworkVariable(NETWORK_ID, NETWORK_EXTRAS_VARIABLE,
-                NETWORK_EXTRAS_SERIALIZED);
-    }
-
-    /**
-     * Verifies that getNetworkExtra() correctly reads a serialized and URL-encoded JSON object.
-     */
-    @Test
-    public void testGetNetworkExtra() {
-        when(mWifiNative.getNetworkVariable(NETWORK_ID, NETWORK_EXTRAS_VARIABLE))
-                .thenReturn(NETWORK_EXTRAS_SERIALIZED);
-        final Map<String, String> actualValues =
-                mWifiNative.getNetworkExtra(NETWORK_ID, NETWORK_EXTRAS_VARIABLE);
-        assertEquals(NETWORK_EXTRAS_VALUES, actualValues);
+        mWifiNative = new WifiNative("test0", mWifiVendorHal, mStaIfaceHal, mP2pIfaceHal,
+                mWificondControl);
     }
 
     /**
@@ -523,17 +483,13 @@ public class WifiNativeTest {
      */
     @Test
     public void testSetupDriverForClientMode() {
-        WificondControl wificondControl = mock(WificondControl.class);
-        IWificond wificond = mock(IWificond.class);
         IClientInterface clientInterface = mock(IClientInterface.class);
-
-        when(wificondControl.setupDriverForClientMode()).thenReturn(clientInterface);
-        mWifiNative.setWificondControl(wificondControl);
+        when(mWificondControl.setupDriverForClientMode()).thenReturn(clientInterface);
 
         IClientInterface returnedClientInterface = mWifiNative.setupForClientMode();
         assertEquals(clientInterface, returnedClientInterface);
-        verify(mWifiNative).startHal(eq(true));
-        verify(wificondControl).setupDriverForClientMode();
+        verify(mWifiVendorHal).startVendorHal(eq(true));
+        verify(mWificondControl).setupDriverForClientMode();
     }
 
     /**
@@ -542,16 +498,12 @@ public class WifiNativeTest {
      */
     @Test
     public void testSetupDriverForClientModeError() {
-        WificondControl wificondControl = mock(WificondControl.class);
-        IWificond wificond = mock(IWificond.class);
-
-        when(wificondControl.setupDriverForClientMode()).thenReturn(null);
-        mWifiNative.setWificondControl(wificondControl);
+        when(mWificondControl.setupDriverForClientMode()).thenReturn(null);
 
         IClientInterface returnedClientInterface = mWifiNative.setupForClientMode();
         assertEquals(null, returnedClientInterface);
-        verify(mWifiNative).startHal(eq(true));
-        verify(wificondControl).setupDriverForClientMode();
+        verify(mWifiVendorHal).startVendorHal(eq(true));
+        verify(mWificondControl).setupDriverForClientMode();
     }
 
     /**
@@ -559,17 +511,13 @@ public class WifiNativeTest {
      */
     @Test
     public void testSetupDriverForSoftApMode() {
-        WificondControl wificondControl = mock(WificondControl.class);
-        IWificond wificond = mock(IWificond.class);
         IApInterface apInterface = mock(IApInterface.class);
-
-        when(wificondControl.setupDriverForSoftApMode()).thenReturn(apInterface);
-        mWifiNative.setWificondControl(wificondControl);
+        when(mWificondControl.setupDriverForSoftApMode()).thenReturn(apInterface);
 
         IApInterface returnedApInterface = mWifiNative.setupForSoftApMode();
         assertEquals(apInterface, returnedApInterface);
-        verify(mWifiNative).startHal(eq(false));
-        verify(wificondControl).setupDriverForSoftApMode();
+        verify(mWifiVendorHal).startVendorHal(eq(false));
+        verify(mWificondControl).setupDriverForSoftApMode();
     }
 
     /**
@@ -578,16 +526,12 @@ public class WifiNativeTest {
      */
     @Test
     public void testSetupDriverForSoftApModeError() {
-        WificondControl wificondControl = mock(WificondControl.class);
-        IWificond wificond = mock(IWificond.class);
-
-        when(wificondControl.setupDriverForSoftApMode()).thenReturn(null);
-        mWifiNative.setWificondControl(wificondControl);
-
+        when(mWificondControl.setupDriverForSoftApMode()).thenReturn(null);
         IApInterface returnedApInterface = mWifiNative.setupForSoftApMode();
+
         assertEquals(null, returnedApInterface);
-        verify(mWifiNative).startHal(eq(false));
-        verify(wificondControl).setupDriverForSoftApMode();
+        verify(mWifiVendorHal).startVendorHal(eq(false));
+        verify(mWificondControl).setupDriverForSoftApMode();
     }
 
     /**
@@ -595,13 +539,10 @@ public class WifiNativeTest {
      */
     @Test
     public void testEnableSupplicant() {
-        WificondControl wificondControl = mock(WificondControl.class);
-        IWificond wificond = mock(IWificond.class);
-
-        mWifiNative.setWificondControl(wificondControl);
+        when(mWificondControl.enableSupplicant()).thenReturn(true);
 
         mWifiNative.enableSupplicant();
-        verify(wificondControl).enableSupplicant();
+        verify(mWificondControl).enableSupplicant();
     }
 
     /**
@@ -609,13 +550,10 @@ public class WifiNativeTest {
      */
     @Test
     public void testDisableSupplicant() {
-        WificondControl wificondControl = mock(WificondControl.class);
-        IWificond wificond = mock(IWificond.class);
-
-        mWifiNative.setWificondControl(wificondControl);
+        when(mWificondControl.disableSupplicant()).thenReturn(true);
 
         mWifiNative.disableSupplicant();
-        verify(wificondControl).disableSupplicant();
+        verify(mWificondControl).disableSupplicant();
     }
 
     /**
@@ -623,13 +561,10 @@ public class WifiNativeTest {
      */
     @Test
     public void testTearDown() {
-        WificondControl wificondControl = mock(WificondControl.class);
-
-        when(wificondControl.tearDownInterfaces()).thenReturn(true);
-        mWifiNative.setWificondControl(wificondControl);
+        when(mWificondControl.tearDownInterfaces()).thenReturn(true);
 
         assertTrue(mWifiNative.tearDown());
-        verify(wificondControl).tearDownInterfaces();
+        verify(mWificondControl).tearDownInterfaces();
         verify(mWifiVendorHal).stopVendorHal();
     }
 
@@ -638,13 +573,10 @@ public class WifiNativeTest {
      */
     @Test
     public void testSignalPoll() throws Exception {
-        WificondControl wificondControl = mock(WificondControl.class);
-
-        when(wificondControl.signalPoll()).thenReturn(SIGNAL_POLL_RESULT);
-        mWifiNative.setWificondControl(wificondControl);
+        when(mWificondControl.signalPoll()).thenReturn(SIGNAL_POLL_RESULT);
 
         assertEquals(SIGNAL_POLL_RESULT, mWifiNative.signalPoll());
-        verify(wificondControl).signalPoll();
+        verify(mWificondControl).signalPoll();
     }
 
     /**
@@ -652,13 +584,10 @@ public class WifiNativeTest {
      */
     @Test
     public void testGetTxPacketCounters() throws Exception {
-        WificondControl wificondControl = mock(WificondControl.class);
-
-        when(wificondControl.getTxPacketCounters()).thenReturn(PACKET_COUNTERS_RESULT);
-        mWifiNative.setWificondControl(wificondControl);
+        when(mWificondControl.getTxPacketCounters()).thenReturn(PACKET_COUNTERS_RESULT);
 
         assertEquals(PACKET_COUNTERS_RESULT, mWifiNative.getTxPacketCounters());
-        verify(wificondControl).getTxPacketCounters();
+        verify(mWificondControl).getTxPacketCounters();
     }
 
     /**
@@ -666,12 +595,8 @@ public class WifiNativeTest {
      */
     @Test
     public void testScan() throws Exception {
-        WificondControl wificondControl = mock(WificondControl.class);
-
-        mWifiNative.setWificondControl(wificondControl);
-
         mWifiNative.scan(SCAN_FREQ_SET, SCAN_HIDDEN_NETWORK_SSID_SET);
-        verify(wificondControl).scan(SCAN_FREQ_SET, SCAN_HIDDEN_NETWORK_SSID_SET);
+        verify(mWificondControl).scan(SCAN_FREQ_SET, SCAN_HIDDEN_NETWORK_SSID_SET);
     }
 
     /**
@@ -679,12 +604,8 @@ public class WifiNativeTest {
      */
     @Test
     public void testStartPnoScan() throws Exception {
-        WificondControl wificondControl = mock(WificondControl.class);
-
-        mWifiNative.setWificondControl(wificondControl);
-
         mWifiNative.startPnoScan(TEST_PNO_SETTINGS);
-        verify(wificondControl).startPnoScan(TEST_PNO_SETTINGS);
+        verify(mWificondControl).startPnoScan(TEST_PNO_SETTINGS);
     }
 
     /**
@@ -692,39 +613,7 @@ public class WifiNativeTest {
      */
     @Test
     public void testStopPnoScan() throws Exception {
-        WificondControl wificondControl = mock(WificondControl.class);
-
-        mWifiNative.setWificondControl(wificondControl);
-
         mWifiNative.stopPnoScan();
-        verify(wificondControl).stopPnoScan();
-    }
-
-    /**
-     * Verifies that the ANQP query command is correctly created.
-     */
-    @Test
-    public void testbuildAnqpQueryCommandWithOnlyHsSubtypes() {
-        String bssid = "34:12:ac:45:21:12";
-        Set<Integer> anqpIds = new TreeSet<>();
-        Set<Integer> hs20Subtypes = new TreeSet<>(Arrays.asList(3, 7));
-
-        String expectedCommand = "HS20_ANQP_GET " + bssid + " 3,7";
-        assertEquals(expectedCommand,
-                WifiNative.buildAnqpQueryCommand(bssid, anqpIds, hs20Subtypes));
-    }
-
-    /**
-     * Verifies that the ANQP query command is correctly created.
-     */
-    @Test
-    public void testbuildAnqpQueryCommandWithMixedTypes() {
-        String bssid = "34:12:ac:45:21:12";
-        Set<Integer> anqpIds = new TreeSet<>(Arrays.asList(1, 2, 5));
-        Set<Integer> hs20Subtypes = new TreeSet<>(Arrays.asList(3, 7));
-
-        String expectedCommand = "ANQP_GET " + bssid + " 1,2,5,hs20:3,hs20:7";
-        assertEquals(expectedCommand,
-                WifiNative.buildAnqpQueryCommand(bssid, anqpIds, hs20Subtypes));
+        verify(mWificondControl).stopPnoScan();
     }
 }

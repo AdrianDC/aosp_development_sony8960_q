@@ -19,7 +19,6 @@ package com.android.server.wifi;
 import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
-import android.net.wifi.WifiInfo;
 import android.os.Environment;
 import android.util.Log;
 import android.util.SparseArray;
@@ -159,71 +158,6 @@ public class WifiConfigStoreLegacy {
     }
 
     /**
-     * Populate the provided masked fieldName for all the configurations provided from
-     * wpa_supplicant.conf file.
-     *
-     * @param fieldName        field name to be retrieved from wpa_supplicant.conf file.
-     * @param configurationMap map of configKey to WifiConfiguration object.
-     * @param setter           callback function to be invoked to set the value retrieved on each
-     *                         configuration.
-     */
-    private void populateMaskedFieldFromWpaSupplicantFile(
-            String fieldName,
-            Map<String, WifiConfiguration> configurationMap,
-            MaskedWpaSupplicantFieldSetter setter) {
-        Map<String, String> configKeyToValueMap =
-                mWifiNative.readNetworkVariablesFromSupplicantFile(fieldName);
-        if (configKeyToValueMap == null || configKeyToValueMap.isEmpty()) {
-            Log.w(TAG, "Cannot retrieve field: " + fieldName + " values");
-            return;
-        }
-        for (Map.Entry<String, WifiConfiguration> entry : configurationMap.entrySet()) {
-            if (configKeyToValueMap.containsKey(entry.getKey())) {
-                WifiConfiguration config = entry.getValue();
-                setter.setValue(config, configKeyToValueMap.get(entry.getKey()));
-            }
-        }
-    }
-
-    /**
-     * Populate all the masked fields in all the configurations provided from wpa_supplicant.conf
-     * file.
-     * These are the fields which are populated in the method:
-     * 1. psk
-     * 2. wep_key0
-     * 3. wep_key1
-     * 4. wep_key2
-     * 5. wep_key2
-     * 6. password
-     *
-     * @param configurationMap Map of configKey to WifiConfiguration object.
-     */
-    private void populateMaskedFieldsFromWpaSupplicantFile(
-            Map<String, WifiConfiguration> configurationMap) {
-        populateMaskedFieldFromWpaSupplicantFile(
-                WifiConfiguration.pskVarName, configurationMap,
-                (WifiConfiguration config, String value) -> config.preSharedKey = value);
-        populateMaskedFieldFromWpaSupplicantFile(
-                WifiConfiguration.wepKeyVarNames[0], configurationMap,
-                (WifiConfiguration config, String value) -> config.wepKeys[0] = value);
-        populateMaskedFieldFromWpaSupplicantFile(
-                WifiConfiguration.wepKeyVarNames[1], configurationMap,
-                (WifiConfiguration config, String value) -> config.wepKeys[1] = value);
-        populateMaskedFieldFromWpaSupplicantFile(
-                WifiConfiguration.wepKeyVarNames[2], configurationMap,
-                (WifiConfiguration config, String value) -> config.wepKeys[2] = value);
-        populateMaskedFieldFromWpaSupplicantFile(
-                WifiConfiguration.wepKeyVarNames[3], configurationMap,
-                (WifiConfiguration config, String value) -> config.wepKeys[3] = value);
-        // The password stored in wpa_supplicant.conf is enclosed in double quotes, so remove
-        // it when retrieving it.
-        populateMaskedFieldFromWpaSupplicantFile(
-                WifiEnterpriseConfig.PASSWORD_KEY, configurationMap,
-                (WifiConfiguration config, String value) ->
-                        config.enterpriseConfig.setPassword(WifiInfo.removeDoubleQuotes(value)));
-    }
-
-    /**
      * Helper function to load {@link WifiConfiguration} data from wpa_supplicant and populate
      * the provided configuration map and network extras.
      *
@@ -243,10 +177,6 @@ public class WifiConfigStoreLegacy {
         if (configurationMap.isEmpty()) {
             Log.w(TAG, "No wifi configurations found in wpa_supplicant");
             return;
-        }
-        if (!WifiNative.HIDL_SUP_ENABLE) {
-            // Now parse wpa_supplicant.conf for the masked fields.
-            populateMaskedFieldsFromWpaSupplicantFile(configurationMap);
         }
     }
 
@@ -281,11 +211,11 @@ public class WifiConfigStoreLegacy {
             }
             // Ignore configuration without FQDN.
             Map<String, String> extras = networkExtras.get(wifiConfig.networkId);
-            if (extras == null || !extras.containsKey(WifiSupplicantControl.ID_STRING_KEY_FQDN)) {
+            if (extras == null || !extras.containsKey(SupplicantStaNetworkHal.ID_STRING_KEY_FQDN)) {
                 continue;
             }
             String fqdn = networkExtras.get(wifiConfig.networkId).get(
-                    WifiSupplicantControl.ID_STRING_KEY_FQDN);
+                    SupplicantStaNetworkHal.ID_STRING_KEY_FQDN);
 
             // Remove the configuration if failed to find the matching configuration in the
             // Passpoint configuration file.
