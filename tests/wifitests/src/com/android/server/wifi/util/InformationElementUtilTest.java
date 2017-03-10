@@ -24,6 +24,8 @@ import static org.junit.Assert.assertTrue;
 import android.net.wifi.ScanResult.InformationElement;
 import android.test.suitebuilder.annotation.SmallTest;
 
+import com.android.server.wifi.hotspot2.NetworkDetail;
+
 import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -514,5 +516,87 @@ public class InformationElementUtilTest {
                 new InformationElementUtil.TrafficIndicationMap();
         trafficIndicationMap.from(ie);
         assertEquals(trafficIndicationMap.isValid(), false);
+    }
+
+    /**
+     * Verify that the expected Roaming Consortium information element is parsed and retrieved
+     * from the list of IEs.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getRoamingConsortiumIE() throws Exception {
+        InformationElement ie = new InformationElement();
+        ie.id = InformationElement.EID_ROAMING_CONSORTIUM;
+        /**
+         * Roaming Consortium Format;
+         * | Number of OIs | OI#1 and OI#2 Lengths | OI #1 | OI #2 (optional) | OI #3 (optional) |
+         *        1                  1              variable     variable           variable
+         */
+        ie.bytes = new byte[] { (byte) 0x01 /* number of OIs */, (byte) 0x03 /* OI Length */,
+                                (byte) 0x11, (byte) 0x22, (byte) 0x33};
+        InformationElementUtil.RoamingConsortium roamingConsortium =
+                InformationElementUtil.getRoamingConsortiumIE(new InformationElement[] {ie});
+        assertEquals(1, roamingConsortium.anqpOICount);
+        assertEquals(1, roamingConsortium.roamingConsortiums.length);
+        assertEquals(0x112233, roamingConsortium.roamingConsortiums[0]);
+    }
+
+    /**
+     * Verify that the expected Hotspot 2.0 Vendor Specific information element is parsed and
+     * retrieved from the list of IEs.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getHS2VendorSpecificIE() throws Exception {
+        InformationElement ie = new InformationElement();
+        ie.id = InformationElement.EID_VSA;
+        /**
+         * Vendor Specific OI Format:
+         * | OI | Type | Hotspot Configuration | PPS MO ID (optional) | ANQP Domain ID (optional)
+         *    3    1              1                    2                        2
+         *
+         * With OI=0x506F9A and Type=0x10 for Hotspot 2.0
+         *
+         * The Format of Hotspot Configuration:
+         *        B0               B1                   B2             B3    B4              B7
+         * | DGAF Disabled | PPS MO ID Flag | ANQP Domain ID Flag | reserved | Release Number |
+         */
+        ie.bytes = new byte[] { (byte) 0x50, (byte) 0x6F, (byte) 0x9A, (byte) 0x10,
+                                (byte) 0x14 /* Hotspot Configuration */, (byte) 0x11, (byte) 0x22};
+        InformationElementUtil.Vsa vsa =
+                InformationElementUtil.getHS2VendorSpecificIE(new InformationElement[] {ie});
+        assertEquals(NetworkDetail.HSRelease.R2, vsa.hsRelease);
+        assertEquals(0x2211, vsa.anqpDomainID);
+    }
+
+    /**
+     * Verify that the expected Interworking information element is parsed and retrieved from the
+     * list of IEs.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getInterworkingElementIE() throws Exception {
+        InformationElement ie = new InformationElement();
+        ie.id = InformationElement.EID_INTERWORKING;
+        /**
+         * Interworking Format:
+         * | Access Network Option | Venue Info (optional) | HESSID (optional) |
+         *           1                       2                     6
+         *
+         * Access Network Option Format:
+         *
+         * B0                   B3    B4       B5    B6     B7
+         * | Access Network Type | Internet | ASRA | ESR | UESA |
+         */
+        ie.bytes = new byte[] { (byte) 0x10, (byte) 0x11, (byte) 0x22, (byte) 0x33, (byte) 0x44,
+                                (byte) 0x55, (byte) 0x66 };
+        InformationElementUtil.Interworking interworking =
+                InformationElementUtil.getInterworkingIE(new InformationElement[] {ie});
+        assertTrue(interworking.internet);
+        assertEquals(NetworkDetail.Ant.Private, interworking.ant);
+        assertEquals(0x112233445566L, interworking.hessid);
     }
 }
