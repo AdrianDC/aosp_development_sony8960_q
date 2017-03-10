@@ -1544,7 +1544,7 @@ public class SupplicantP2pIfaceHal {
      *
      * @param groupIfName Group interface name to use.
      * @param bssid BSSID of the AP. Use zero'ed bssid to indicate wildcard.
-     * @return true, if operation was successful.
+     * @return generated pin if operation was successful, null otherwise.
      */
     public String startWpsPinDisplay(String groupIfName, String bssid) {
         if (TextUtils.isEmpty(groupIfName) || TextUtils.isEmpty(bssid)) return null;

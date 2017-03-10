@@ -876,7 +876,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mBackupManagerProxy = backupManagerProxy;
 
         // TODO refactor WifiNative use of context out into it's own class
-        mWifiNative.initContext(mContext);
         mInterfaceName = mWifiNative.getInterfaceName();
         mNetworkInfo = new NetworkInfo(ConnectivityManager.TYPE_WIFI, 0, NETWORKTYPE, "");
         mBatteryStats = IBatteryStats.Stub.asInterface(mFacade.getService(
@@ -891,12 +890,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiPermissionsUtil = mWifiInjector.getWifiPermissionsUtil();
         mWifiConfigManager = mWifiInjector.getWifiConfigManager();
         mWifiApConfigStore = mWifiInjector.getWifiApConfigStore();
-        mWifiNative.setSystemSupportsFastBssTransition(
-                mContext.getResources().getBoolean(R.bool.config_wifi_fast_bss_transition_enabled));
 
         mPasspointManager = mWifiInjector.getPasspointManager();
 
-        mWifiMonitor = WifiMonitor.getInstance();
+        mWifiMonitor = mWifiInjector.getWifiMonitor();
         mWifiDiagnostics = mWifiInjector.makeWifiDiagnostics(mWifiNative);
 
         mWifiInfo = new WifiInfo();
@@ -2127,8 +2124,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         pw.println("mOperationalMode " + mOperationalMode);
         pw.println("mUserWantsSuspendOpt " + mUserWantsSuspendOpt);
         pw.println("mSuspendOptNeedsDisabled " + mSuspendOptNeedsDisabled);
-        pw.println("mSystemSupportsFastBssTransition "
-                + mWifiNative.getSystemSupportsFastBssTransition());
         if (mCountryCode.getCountryCodeSentToDriver() != null) {
             pw.println("CountryCode sent to driver " + mCountryCode.getCountryCodeSentToDriver());
         } else {
@@ -4178,13 +4173,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 setWifiState(WIFI_STATE_DISABLED);
                 transitionTo(mScanModeState);
             } else if (mOperationalMode == CONNECT_MODE) {
-
-                // Status pulls in the current supplicant state and network connection state
-                // events over the monitor connection. This helps framework sync up with
-                // current supplicant state
-                // TODO: actually check the supplicant status string and make sure the supplicant
-                // is in disconnecte4d state.
-                mWifiNative.status();
                 // Transitioning to Disconnected state will trigger a scan and subsequently AutoJoin
                 transitionTo(mDisconnectedState);
             } else if (mOperationalMode == DISABLED_MODE) {
@@ -6730,7 +6718,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiNative.simAuthFailedResponse(requestData.networkId);
         } else {
             logv("Supplicant Response -" + response);
-            mWifiNative.simAuthResponse(requestData.networkId, "GSM-AUTH", response);
+            mWifiNative.simAuthResponse(requestData.networkId,
+                    WifiNative.SIM_AUTH_RESP_TYPE_GSM_AUTH, response);
         }
     }
 

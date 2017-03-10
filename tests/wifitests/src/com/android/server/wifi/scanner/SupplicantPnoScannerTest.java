@@ -345,13 +345,15 @@ public class SupplicantPnoScannerTest {
     private void createScannerWithHwPnoScanSupport() {
         mResources.setBoolean(R.bool.config_wifi_background_scan_support, true);
         mScanner =
-                new SupplicantWifiScannerImpl(mContext, mWifiNative, mLooper.getLooper(), mClock);
+                new SupplicantWifiScannerImpl(mContext, mWifiNative, mWifiMonitor,
+                        mLooper.getLooper(), mClock);
     }
 
     private void createScannerWithSwPnoScanSupport() {
         mResources.setBoolean(R.bool.config_wifi_background_scan_support, false);
         mScanner =
-                new SupplicantWifiScannerImpl(mContext, mWifiNative, mLooper.getLooper(), mClock);
+                new SupplicantWifiScannerImpl(mContext, mWifiNative, mWifiMonitor,
+                        mLooper.getLooper(), mClock);
     }
 
     private WifiNative.PnoNetwork createDummyPnoNetwork(String ssid) {
@@ -388,7 +390,6 @@ public class SupplicantPnoScannerTest {
             WifiNative.PnoSettings pnoSettings, WifiNative.ScanEventHandler scanEventHandler,
             WifiNative.PnoEventHandler pnoEventHandler) {
         reset(mWifiNative);
-        when(mWifiNative.setNetworkVariable(anyInt(), anyString(), anyString())).thenReturn(true);
         // Scans succeed
         when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(true);
         when(mWifiNative.startPnoScan(any(WifiNative.PnoSettings.class))).thenReturn(true);

@@ -31,9 +31,7 @@ LOCAL_SHARED_LIBRARIES += \
 	libnativehelper \
 	libcutils \
 	libutils \
-	libdl \
-	libwifi-hal \
-	libwifi-system
+	libdl
 
 LOCAL_SRC_FILES := \
 	jni/com_android_server_wifi_WifiNative.cpp \

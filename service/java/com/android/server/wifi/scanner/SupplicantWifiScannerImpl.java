@@ -131,7 +131,8 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
         };
 
     public SupplicantWifiScannerImpl(Context context, WifiNative wifiNative,
-            ChannelHelper channelHelper, Looper looper, Clock clock) {
+                                     WifiMonitor wifiMonitor, ChannelHelper channelHelper,
+                                     Looper looper, Clock clock) {
         mContext = context;
         mWifiNative = wifiNative;
         mChannelHelper = channelHelper;
@@ -144,16 +145,16 @@ public class SupplicantWifiScannerImpl extends WifiScannerImpl implements Handle
         mHwPnoScanSupported = mContext.getResources().getBoolean(
                 R.bool.config_wifi_background_scan_support);
 
-        WifiMonitor.getInstance().registerHandler(mWifiNative.getInterfaceName(),
+        wifiMonitor.registerHandler(mWifiNative.getInterfaceName(),
                 WifiMonitor.SCAN_FAILED_EVENT, mEventHandler);
-        WifiMonitor.getInstance().registerHandler(mWifiNative.getInterfaceName(),
+        wifiMonitor.registerHandler(mWifiNative.getInterfaceName(),
                 WifiMonitor.SCAN_RESULTS_EVENT, mEventHandler);
     }
 
-    public SupplicantWifiScannerImpl(Context context, WifiNative wifiNative, Looper looper,
-            Clock clock) {
+    public SupplicantWifiScannerImpl(Context context, WifiNative wifiNative,
+                                     WifiMonitor wifiMonitor, Looper looper, Clock clock) {
         // TODO figure out how to get channel information from supplicant
-        this(context, wifiNative, new NoBandChannelHelper(), looper, clock);
+        this(context, wifiNative, wifiMonitor, new NoBandChannelHelper(), looper, clock);
     }
 
     @Override

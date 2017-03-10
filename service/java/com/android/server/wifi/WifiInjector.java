@@ -73,6 +73,7 @@ public class WifiInjector {
     private final WifiApConfigStore mWifiApConfigStore;
     private final WifiNative mWifiNative;
     private final WifiNative mWifiP2pNative;
+    private final WifiMonitor mWifiMonitor;
     private final SupplicantStaIfaceHal mSupplicantStaIfaceHal;
     private final SupplicantP2pIfaceHal mSupplicantP2pIfaceHal;
     private final WifiVendorHal mWifiVendorHal;
@@ -93,7 +94,6 @@ public class WifiInjector {
     private final WifiConfigStore mWifiConfigStore;
     private final WifiKeyStore mWifiKeyStore;
     private final WifiNetworkHistory mWifiNetworkHistory;
-    private final WifiSupplicantControl mWifiSupplicantControl;
     private final IpConfigStore mIpConfigStore;
     private final WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     private final WifiConfigManager mWifiConfigManager;
@@ -146,32 +146,27 @@ public class WifiInjector {
         mWifiStateMachineHandlerThread.start();
         Looper wifiStateMachineLooper = mWifiStateMachineHandlerThread.getLooper();
 
+        // Modules interacting with Native.
+        mWifiMonitor = new WifiMonitor(this);
+        mHalDeviceManager = new HalDeviceManager();
+        mWifiVendorHal = new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread);
+        mSupplicantStaIfaceHal = new SupplicantStaIfaceHal(mContext, mWifiMonitor);
+        mWificondControl = new WificondControl(this, mWifiMonitor);
+        mSupplicantP2pIfaceHal = new SupplicantP2pIfaceHal(mWifiMonitor);
+        mWifiNative = new WifiNative(SystemProperties.get("wifi.interface", "wlan0"),
+                mWifiVendorHal, mSupplicantStaIfaceHal, mSupplicantP2pIfaceHal, mWificondControl);
+        mWifiP2pNative = new WifiNative(SystemProperties.get("wifi.direct.interface", "p2p0"),
+                mWifiVendorHal, mSupplicantStaIfaceHal, mSupplicantP2pIfaceHal, mWificondControl);
+
         // Now get instances of all the objects that depend on the HandlerThreads
         mTrafficPoller =  new WifiTrafficPoller(mContext, mWifiServiceHandlerThread.getLooper(),
-                WifiNative.getWlanNativeInterface().getInterfaceName());
-        mCountryCode = new WifiCountryCode(WifiNative.getWlanNativeInterface(),
+                mWifiNative.getInterfaceName());
+        mCountryCode = new WifiCountryCode(mWifiNative,
                 SystemProperties.get(BOOT_DEFAULT_WIFI_COUNTRY_CODE),
                 mFrameworkFacade.getStringSetting(mContext, Settings.Global.WIFI_COUNTRY_CODE),
                 mContext.getResources()
                         .getBoolean(R.bool.config_wifi_revert_country_code_on_cellular_loss));
         mWifiApConfigStore = new WifiApConfigStore(mContext, mBackupManagerProxy);
-
-        // Modules interacting with Native.
-        mHalDeviceManager = new HalDeviceManager();
-        mWifiVendorHal = new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread);
-        mSupplicantStaIfaceHal = new SupplicantStaIfaceHal(mContext, WifiMonitor.getInstance());
-        mWificondControl = new WificondControl(this, WifiMonitor.getInstance());
-        mSupplicantP2pIfaceHal = new SupplicantP2pIfaceHal(WifiMonitor.getInstance());
-        mWifiNative = WifiNative.getWlanNativeInterface();
-        mWifiNative.setSupplicantStaIfaceHal(mSupplicantStaIfaceHal);
-        mWifiNative.setSupplicantP2pIfaceHal(mSupplicantP2pIfaceHal);
-        mWifiNative.setWifiVendorHal(mWifiVendorHal);
-        mWifiNative.setWificondControl(mWificondControl);
-        mWifiP2pNative = WifiNative.getP2pNativeInterface();
-        mWifiP2pNative.setSupplicantStaIfaceHal(mSupplicantStaIfaceHal);
-        mWifiP2pNative.setSupplicantP2pIfaceHal(mSupplicantP2pIfaceHal);
-        mWifiP2pNative.setWifiVendorHal(mWifiVendorHal);
-        mWifiP2pNative.setWificondControl(mWificondControl);
 
         // WifiConfigManager/Store objects and their dependencies.
         // New config store
@@ -181,10 +176,7 @@ public class WifiInjector {
                 WifiConfigStore.createSharedFile());
         // Legacy config store
         DelayedDiskWrite writer = new DelayedDiskWrite();
-        mWifiNetworkHistory = new WifiNetworkHistory(mContext, mWifiNative.getLocalLog(), writer);
-        mWifiSupplicantControl = new WifiSupplicantControl(
-                TelephonyManager.from(mContext), mWifiNative, mWifiNative.getLocalLog());
-        mWifiNative.setWifiSupplicantControl(mWifiSupplicantControl);
+        mWifiNetworkHistory = new WifiNetworkHistory(mContext, writer);
         mIpConfigStore = new IpConfigStore(writer);
         mWifiConfigStoreLegacy = new WifiConfigStoreLegacy(
                 mWifiNetworkHistory, mWifiNative, mIpConfigStore,
@@ -375,7 +367,7 @@ public class WifiInjector {
                     mContext, this, mWifiStateMachine, wifiNative, mBuildProperties,
                     new LastMileLogger(this));
         } else {
-            return new BaseWifiDiagnostics();
+            return new BaseWifiDiagnostics(wifiNative);
         }
     }
 
@@ -448,5 +440,17 @@ public class WifiInjector {
 
     public Runtime getJavaRuntime() {
         return mJavaRuntime;
+    }
+
+    public WifiNative getWifiNative() {
+        return mWifiNative;
+    }
+
+    public WifiNative getP2pWifiNative() {
+        return mWifiP2pNative;
+    }
+
+    public WifiMonitor getWifiMonitor() {
+        return mWifiMonitor;
     }
 }

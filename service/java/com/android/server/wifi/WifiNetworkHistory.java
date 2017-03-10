@@ -27,7 +27,6 @@ import android.os.Environment;
 import android.os.Process;
 import android.text.TextUtils;
 
-import android.util.LocalLog;
 import android.util.Log;
 
 import com.android.server.net.DelayedDiskWrite;
@@ -110,17 +109,15 @@ public class WifiNetworkHistory {
 
     protected final DelayedDiskWrite mWriter;
     Context mContext;
-    private final LocalLog mLocalLog;
     /*
      * Lost config list, whenever we read a config from networkHistory.txt that was not in
      * wpa_supplicant.conf
      */
     HashSet<String> mLostConfigsDbg = new HashSet<String>();
 
-    public WifiNetworkHistory(Context c, LocalLog localLog, DelayedDiskWrite writer) {
+    public WifiNetworkHistory(Context c, DelayedDiskWrite writer) {
         mContext = c;
         mWriter = writer;
-        mLocalLog = localLog;
     }
 
     /**
@@ -325,7 +322,6 @@ public class WifiNetworkHistory {
     public void readNetworkHistory(Map<String, WifiConfiguration> configs,
             Map<Integer, ScanDetailCache> scanDetailCaches,
             Set<String> deletedEphemeralSSIDs) {
-        localLog("readNetworkHistory() path:" + NETWORK_HISTORY_CONFIG_FILE);
 
         try (DataInputStream in =
                      new DataInputStream(new BufferedInputStream(
@@ -360,7 +356,7 @@ public class WifiNetworkHistory {
                     // skip reading that configuration data
                     // since we don't have a corresponding network ID
                     if (config == null) {
-                        localLog("readNetworkHistory didnt find netid for hash="
+                        Log.e(TAG, "readNetworkHistory didnt find netid for hash="
                                 + Integer.toString(value.hashCode())
                                 + " key: " + value);
                         mLostConfigsDbg.add(value);
@@ -619,12 +615,6 @@ public class WifiNetworkHistory {
                     + " - " + Thread.currentThread().getStackTrace()[5].getMethodName());
         } else {
             Log.e(TAG, s);
-        }
-    }
-
-    private void localLog(String s) {
-        if (mLocalLog != null) {
-            mLocalLog.log(s);
         }
     }
 

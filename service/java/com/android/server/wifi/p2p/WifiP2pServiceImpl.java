@@ -576,8 +576,8 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
         private UserAuthorizingJoinState mUserAuthorizingJoinState = new UserAuthorizingJoinState();
         private OngoingGroupRemovalState mOngoingGroupRemovalState = new OngoingGroupRemovalState();
 
-        private WifiNative mWifiNative = WifiNative.getP2pNativeInterface();
-        private WifiMonitor mWifiMonitor = WifiMonitor.getInstance();
+        private WifiNative mWifiNative = WifiInjector.getInstance().getP2pWifiNative();
+        private WifiMonitor mWifiMonitor = WifiInjector.getInstance().getWifiMonitor();
         private final WifiP2pDeviceList mPeers = new WifiP2pDeviceList();
         // WifiInjector is lazy initialized in P2p Service
         private WifiInjector mWifiInjector;
@@ -2834,7 +2834,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
         }
 
         private void initializeP2pSettings() {
-            mWifiNative.setPersistentReconnect(true);
             mThisDevice.deviceName = getPersistedDeviceName();
             mWifiNative.setP2pDeviceName(mThisDevice.deviceName);
             // DIRECT-XY-DEVICENAME (XY is randomly generated)
@@ -2844,7 +2843,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             // which refers to a remote display. Use physical_display
             mWifiNative.setConfigMethods("virtual_push_button physical_display keypad");
             // STA has higher priority over P2P
-            mWifiNative.setConcurrencyPriority("sta");
+            mWifiNative.setConcurrencyPriority(true);
 
             mThisDevice.deviceAddress = mWifiNative.p2pGetDeviceAddress();
             updateThisDevice(WifiP2pDevice.AVAILABLE);
