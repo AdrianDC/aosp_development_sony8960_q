@@ -46,7 +46,7 @@ import com.android.server.wifi.wificond.SingleScanSettings;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.ArgumentMatcher;
+import org.mockito.compat.ArgumentMatcher;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -637,7 +637,7 @@ public class WificondControlTest {
         }
 
         @Override
-        public boolean matches(Object argument) {
+        public boolean matchesObject(Object argument) {
             SingleScanSettings settings = (SingleScanSettings) argument;
             ArrayList<ChannelSettings> channelSettings = settings.channelSettings;
             ArrayList<HiddenNetwork> hiddenNetworks = settings.hiddenNetworks;
@@ -682,7 +682,7 @@ public class WificondControlTest {
             this.mExpectedPnoSettings = expectedPnoSettings;
         }
         @Override
-        public boolean matches(Object argument) {
+        public boolean matchesObject(Object argument) {
             PnoSettings settings = (PnoSettings) argument;
             if (mExpectedPnoSettings == null) {
                 return false;
