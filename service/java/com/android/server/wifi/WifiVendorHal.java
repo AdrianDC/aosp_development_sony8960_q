@@ -221,7 +221,8 @@ public class WifiVendorHal {
 
     private void handleRemoteException(RemoteException e) {
         String methodName = niceMethodName(Thread.currentThread().getStackTrace(), 3);
-        mLog.err("% RemoteException in HIDL call %").c(methodName).c(e.toString()).flush();
+        mVerboseLog.err("% RemoteException in HIDL call %").c(methodName).c(e.toString()).flush();
+        clearState();
     }
 
     /**
@@ -263,53 +264,58 @@ public class WifiVendorHal {
      * @param isStaMode true to start HAL in STA mode, false to start in AP mode.
      */
     public boolean startVendorHal(boolean isStaMode) {
-        if (!mHalDeviceManager.start()) {
-            mLog.e("Failed to start the vendor HAL");
-            return false;
-        }
-        IWifiIface iface;
-        if (isStaMode) {
-            mIWifiStaIface = mHalDeviceManager.createStaIface(null, null);
-            if (mIWifiStaIface == null) {
-                mLog.e("Failed to create STA Iface. Vendor Hal start failed");
-                mHalDeviceManager.stop();
-                return false;
+        synchronized (sLock) {
+            if (mIWifiStaIface != null) return boolResult(false);
+            if (mIWifiApIface != null) return boolResult(false);
+            if (!mHalDeviceManager.start()) {
+                return startFailedTo("start the vendor HAL");
             }
-            iface = (IWifiIface) mIWifiStaIface;
-            if (!registerStaIfaceCallback()) {
-                mLog.e("Failed to register sta iface callback");
-                mHalDeviceManager.stop();
-                return false;
+            IWifiIface iface;
+            if (isStaMode) {
+                mIWifiStaIface = mHalDeviceManager.createStaIface(null, null);
+                if (mIWifiStaIface == null) {
+                    return startFailedTo("create STA Iface");
+                }
+                iface = (IWifiIface) mIWifiStaIface;
+                if (!registerStaIfaceCallback()) {
+                    return startFailedTo("register sta iface callback");
+                }
+                mIWifiRttController = mHalDeviceManager.createRttController(iface);
+                if (mIWifiRttController == null) {
+                    return startFailedTo("create RTT controller");
+                }
+                enableLinkLayerStats();
+            } else {
+                mIWifiApIface = mHalDeviceManager.createApIface(null, null);
+                if (mIWifiApIface == null) {
+                    return startFailedTo("create AP Iface");
+                }
+                iface = (IWifiIface) mIWifiApIface;
             }
-            mIWifiRttController = mHalDeviceManager.createRttController(iface);
-            if (mIWifiRttController == null) {
-                mLog.e("Failed to create RTT controller. Vendor Hal start failed");
-                stopVendorHal();
-                return false;
+            mIWifiChip = mHalDeviceManager.getChip(iface);
+            if (mIWifiChip == null) {
+                return startFailedTo("get the chip created for the Iface");
             }
-            enableLinkLayerStats();
-        } else {
-            mIWifiApIface = mHalDeviceManager.createApIface(null, null);
-            if (mIWifiApIface == null) {
-                mLog.e("Failed to create AP Iface. Vendor Hal start failed");
-                stopVendorHal();
-                return false;
+            if (!registerChipCallback()) {
+                return startFailedTo("register chip callback");
             }
-            iface = (IWifiIface) mIWifiApIface;
+            mLog.i("Vendor Hal started successfully");
+            return true;
         }
-        mIWifiChip = mHalDeviceManager.getChip(iface);
-        if (mIWifiChip == null) {
-            mLog.e("Failed to get the chip created for the Iface. Vendor Hal start failed");
-            stopVendorHal();
-            return false;
-        }
-        if (!registerChipCallback()) {
-            mLog.e("Failed to register chip callback");
-            mHalDeviceManager.stop();
-            return false;
-        }
-        mLog.i("Vendor Hal started successfully");
-        return true;
+    }
+
+    /**
+     * Logs a message and cleans up after a failing start attempt
+     *
+     * The lock should be held.
+     * @param message describes what was being attempted
+     * @return false
+     */
+    private boolean startFailedTo(String message) {
+        mVerboseLog.err("Failed to %. Vendor Hal start failed").c(message).flush();
+        mHalDeviceManager.stop();
+        clearState();
+        return false;
     }
 
     /**
@@ -351,8 +357,26 @@ public class WifiVendorHal {
      * Stops the HAL
      */
     public void stopVendorHal() {
-        mHalDeviceManager.stop();
-        mLog.i("Vendor Hal stopped");
+        synchronized (sLock) {
+            mHalDeviceManager.stop();
+            clearState();
+            mLog.i("Vendor Hal stopped");
+        }
+    }
+
+    /**
+     * Clears the state associated with a started Iface
+     *
+     * Caller should hold the lock.
+     */
+    private void clearState() {
+        mIWifiChip = null;
+        mIWifiStaIface = null;
+        mIWifiApIface = null;
+        mIWifiRttController = null;
+        mDriverDescription = null;
+        mFirmwareDescription = null;
+        mChannelsForBandSupport = null;
     }
 
     /**
@@ -360,7 +384,9 @@ public class WifiVendorHal {
      */
     public boolean isHalStarted() {
         // For external use only. Methods in this class should test for null directly.
-        return (mIWifiStaIface != null || mIWifiApIface != null);
+        synchronized (sLock) {
+            return (mIWifiStaIface != null || mIWifiApIface != null);
+        }
     }
 
     /**
@@ -2155,8 +2181,8 @@ public class WifiVendorHal {
      */
     public boolean getRoamingCapabilities(WifiNative.RoamingCapabilities capabilities) {
         synchronized (sLock) {
+            if (mIWifiStaIface == null) return boolResult(false);
             try {
-                if (mIWifiStaIface == null) return boolResult(false);
                 MutableBoolean ok = new MutableBoolean(false);
                 WifiNative.RoamingCapabilities out = capabilities;
                 mIWifiStaIface.getRoamingCapabilities((status, cap) -> {
@@ -2433,16 +2459,11 @@ public class WifiVendorHal {
 
             mVerboseLog.i("Device Manager onStatusChanged. isReady(): " + isReady
                     + ", isStarted(): " + isStarted);
-            // Reset all our cached handles.
-            // TODO(b/33384303) it could be dicey not having this grab the lock
-            if (!isReady || !isStarted) {
-                mIWifiChip = null;
-                mIWifiStaIface = null;
-                mIWifiApIface = null;
-                mIWifiRttController = null;
-                mDriverDescription = null;
-                mFirmwareDescription = null;
-                // TODO(b/33384303) likely other things to clear out
+            if (!isReady) {
+                // Probably something unpleasant, e.g. the server died
+                synchronized (sLock) {
+                    clearState();
+                }
             }
         }
     }
