@@ -1013,11 +1013,12 @@ public class WifiVendorHalTest {
     @Test
     public void testRemoteExceptionIsHandled() throws Exception {
         mWifiLog = spy(mWifiLog);
-        mWifiVendorHal.mLog = mWifiLog;
+        mWifiVendorHal.mVerboseLog = mWifiLog;
         when(mIWifiApIface.setCountryCode(any()))
                 .thenThrow(new RemoteException("oops"));
         assertTrue(mWifiVendorHal.startVendorHalAp());
         assertFalse(mWifiVendorHal.setCountryCodeHal("CA"));
+        assertFalse(mWifiVendorHal.isHalStarted());
         verify(mWifiLog).err(any());
     }
 
