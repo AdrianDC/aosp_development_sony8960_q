@@ -41,14 +41,14 @@ import java.util.ArrayList;
 import java.util.Set;
 
 /**
- * Unit tests for {@link com.android.server.wifi.scanner.SupplicantWifiScannerImpl}.
+ * Unit tests for {@link com.android.server.wifi.scanner.WificondScannerImpl}.
  */
 @SmallTest
-public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
+public class WificondScannerTest extends BaseWifiScannerImplTest {
 
     @Before
     public void setup() throws Exception {
-        mScanner = new SupplicantWifiScannerImpl(mContext, mWifiNative, mWifiMonitor,
+        mScanner = new WificondScannerImpl(mContext, mWifiNative, mWifiMonitor,
                 mLooper.getLooper(), mClock);
     }
 
@@ -665,17 +665,17 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
 
     private void assertBackgroundPeriodAlarmPending() {
         assertTrue("background period alarm not pending",
-                mAlarmManager.isPending(SupplicantWifiScannerImpl.BACKGROUND_PERIOD_ALARM_TAG));
+                mAlarmManager.isPending(WificondScannerImpl.BACKGROUND_PERIOD_ALARM_TAG));
     }
 
     private void assertBackgroundPeriodAlarmNotPending() {
         assertFalse("background period alarm is pending",
-                mAlarmManager.isPending(SupplicantWifiScannerImpl.BACKGROUND_PERIOD_ALARM_TAG));
+                mAlarmManager.isPending(WificondScannerImpl.BACKGROUND_PERIOD_ALARM_TAG));
     }
 
     private void dispatchBackgroundPeriodAlarm() {
         assertTrue("dispatch background period alarm",
-                mAlarmManager.dispatch(SupplicantWifiScannerImpl.BACKGROUND_PERIOD_ALARM_TAG));
+                mAlarmManager.dispatch(WificondScannerImpl.BACKGROUND_PERIOD_ALARM_TAG));
         mLooper.dispatchAll();
     }
 
@@ -688,7 +688,7 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
 
             public final boolean result;
             public final boolean full;
-            private ReportType(boolean result, boolean full) {
+            ReportType(boolean result, boolean full) {
                 this.result = result;
                 this.full = full;
             }
@@ -697,12 +697,12 @@ public class SupplicantWifiScannerTest extends BaseWifiScannerImplTest {
         private final ScanResults[] mDeliveredResults;
         private final Set<Integer> mRequestedFreqs;
 
-        public ScanPeriod(ReportType reportType, ScanResults deliveredResult,
+        ScanPeriod(ReportType reportType, ScanResults deliveredResult,
                 Set<Integer> requestedFreqs) {
             this(reportType, new ScanResults[] {deliveredResult}, requestedFreqs);
         }
 
-        public ScanPeriod(ReportType reportType, ScanResults[] deliveredResults,
+        ScanPeriod(ReportType reportType, ScanResults[] deliveredResults,
                 Set<Integer> requestedFreqs) {
             mReportType = reportType;
             mDeliveredResults = deliveredResults;

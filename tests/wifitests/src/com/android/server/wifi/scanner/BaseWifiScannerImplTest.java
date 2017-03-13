@@ -180,7 +180,7 @@ public abstract class BaseWifiScannerImplTest {
 
     /**
      * Tests whether the provided hidden networkId's in scan settings is truncated to max size
-     * supported by wpa_supplicant when invoking native scan.
+     * supported by wificond when invoking native scan.
      */
     @Test
     public void singleScanSuccessWithTruncatedHiddenNetworkIds() {
@@ -198,7 +198,7 @@ public abstract class BaseWifiScannerImplTest {
                 .build();
 
         Set<String> hiddenNetworkSSIDSet = new HashSet<>();
-        for (int i = 0; i < SupplicantWifiScannerImpl.MAX_HIDDEN_NETWORK_IDS_PER_SCAN; i++) {
+        for (int i = 0; i < WificondScannerImpl.MAX_HIDDEN_NETWORK_IDS_PER_SCAN; i++) {
             hiddenNetworkSSIDSet.add(hiddenNetworkSSIDs[i]);
         }
         doSuccessfulSingleScanTest(settings, createFreqSet(5650),
@@ -285,7 +285,7 @@ public abstract class BaseWifiScannerImplTest {
         mLooper.dispatchAll();
 
         // Fire timeout
-        mAlarmManager.dispatch(SupplicantWifiScannerImpl.TIMEOUT_ALARM_TAG);
+        mAlarmManager.dispatch(WificondScannerImpl.TIMEOUT_ALARM_TAG);
         mLooper.dispatchAll();
 
         order.verify(eventHandler).onScanStatus(WifiNative.WIFI_SCAN_FAILED);
@@ -294,7 +294,7 @@ public abstract class BaseWifiScannerImplTest {
     }
 
     /**
-     * Test that a scan failure is reported if supplicant sends a scan failed event
+     * Test that a scan failure is reported if wificond sends a scan failed event
      */
     @Test
     public void singleScanFailOnFailedEvent() {
@@ -390,7 +390,7 @@ public abstract class BaseWifiScannerImplTest {
     }
 
     /**
-     * Validate that scan results that are returned from supplicant, which are timestamped prior to
+     * Validate that scan results that are returned from wificond, which are timestamped prior to
      * the start of the scan, are ignored.
      */
     @Test
