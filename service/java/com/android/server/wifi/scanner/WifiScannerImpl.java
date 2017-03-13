@@ -48,7 +48,7 @@ public abstract class WifiScannerImpl {
             public WifiScannerImpl create(Context context, Looper looper, Clock clock) {
                 WifiNative wifiNative = WifiInjector.getInstance().getWifiNative();
                 WifiMonitor wifiMonitor = WifiInjector.getInstance().getWifiMonitor();
-                if (wifiNative.getScanCapabilities(new WifiNative.ScanCapabilities())) {
+                if (wifiNative.getBgScanCapabilities(new WifiNative.ScanCapabilities())) {
                     return new HalWifiScannerImpl(context, wifiNative, wifiMonitor, looper, clock);
                 } else {
                     return new WificondScannerImpl(context, wifiNative, wifiMonitor, looper,
