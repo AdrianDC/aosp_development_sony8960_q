@@ -16,19 +16,19 @@
 
 package com.android.server.wifi.hotspot2;
 
-import static android.net.wifi.WifiManager.EXTRA_PASSPOINT_ICON_BSSID;
-import static android.net.wifi.WifiManager.EXTRA_PASSPOINT_ICON_DATA;
-import static android.net.wifi.WifiManager.EXTRA_PASSPOINT_ICON_FILE;
-import static android.net.wifi.WifiManager.EXTRA_PASSPOINT_WNM_BSSID;
-import static android.net.wifi.WifiManager.EXTRA_PASSPOINT_WNM_DELAY;
-import static android.net.wifi.WifiManager.EXTRA_PASSPOINT_WNM_ESS;
-import static android.net.wifi.WifiManager.EXTRA_PASSPOINT_WNM_METHOD;
-import static android.net.wifi.WifiManager.EXTRA_PASSPOINT_WNM_URL;
-import static android.net.wifi.WifiManager.PASSPOINT_ICON_RECEIVED_ACTION;
-import static android.net.wifi.WifiManager.PASSPOINT_WNM_FRAME_RECEIVED_ACTION;
+import static android.net.wifi.WifiManager.ACTION_PASSPOINT_DEAUTH_IMMINENT;
+import static android.net.wifi.WifiManager.ACTION_PASSPOINT_ICON;
+import static android.net.wifi.WifiManager.ACTION_PASSPOINT_SUBSCRIPTION_REMEDIATION;
+import static android.net.wifi.WifiManager.EXTRA_BSSID_LONG;
+import static android.net.wifi.WifiManager.EXTRA_DELAY;
+import static android.net.wifi.WifiManager.EXTRA_ESS;
+import static android.net.wifi.WifiManager.EXTRA_ICON_INFO;
+import static android.net.wifi.WifiManager.EXTRA_SUBSCRIPTION_REMEDIATION_METHOD;
+import static android.net.wifi.WifiManager.EXTRA_URL;
 
 import android.content.Context;
 import android.content.Intent;
+import android.net.wifi.IconInfo;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.hotspot2.PasspointConfiguration;
@@ -124,36 +124,35 @@ public class PasspointManager {
 
         @Override
         public void onIconResponse(long bssid, String fileName, byte[] data) {
-            Intent intent = new Intent(PASSPOINT_ICON_RECEIVED_ACTION);
+            Intent intent = new Intent(ACTION_PASSPOINT_ICON);
             intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-            intent.putExtra(EXTRA_PASSPOINT_ICON_BSSID, bssid);
-            intent.putExtra(EXTRA_PASSPOINT_ICON_FILE, fileName);
-            if (data != null) {
-                intent.putExtra(EXTRA_PASSPOINT_ICON_DATA, data);
-            }
-            mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
+            intent.putExtra(EXTRA_BSSID_LONG, bssid);
+            intent.putExtra(EXTRA_ICON_INFO, new IconInfo(fileName, data));
+            mContext.sendBroadcastAsUser(intent, UserHandle.ALL,
+                    android.Manifest.permission.ACCESS_WIFI_STATE);
         }
 
         @Override
         public void onWnmFrameReceived(WnmData event) {
             // %012x HS20-SUBSCRIPTION-REMEDIATION "%u %s", osu_method, url
             // %012x HS20-DEAUTH-IMMINENT-NOTICE "%u %u %s", code, reauth_delay, url
-            Intent intent = new Intent(PASSPOINT_WNM_FRAME_RECEIVED_ACTION);
-            intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-
-            intent.putExtra(EXTRA_PASSPOINT_WNM_BSSID, event.getBssid());
-            intent.putExtra(EXTRA_PASSPOINT_WNM_URL, event.getUrl());
-
+            Intent intent;
             if (event.isDeauthEvent()) {
-                intent.putExtra(EXTRA_PASSPOINT_WNM_ESS, event.isEss());
-                intent.putExtra(EXTRA_PASSPOINT_WNM_DELAY, event.getDelay());
+                intent = new Intent(ACTION_PASSPOINT_DEAUTH_IMMINENT);
+                intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+                intent.putExtra(EXTRA_BSSID_LONG, event.getBssid());
+                intent.putExtra(EXTRA_URL, event.getUrl());
+                intent.putExtra(EXTRA_ESS, event.isEss());
+                intent.putExtra(EXTRA_DELAY, event.getDelay());
             } else {
-                intent.putExtra(EXTRA_PASSPOINT_WNM_METHOD, event.getMethod());
-                // TODO(zqiu): set the passpoint matching status with the respect to the
-                // current connected network (e.g. HomeProvider, RoamingProvider, None,
-                // Declined).
+                intent = new Intent(ACTION_PASSPOINT_SUBSCRIPTION_REMEDIATION);
+                intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+                intent.putExtra(EXTRA_BSSID_LONG, event.getBssid());
+                intent.putExtra(EXTRA_SUBSCRIPTION_REMEDIATION_METHOD, event.getMethod());
+                intent.putExtra(EXTRA_URL, event.getUrl());
             }
-            mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
+            mContext.sendBroadcastAsUser(intent, UserHandle.ALL,
+                    android.Manifest.permission.ACCESS_WIFI_STATE);
         }
     }
 
