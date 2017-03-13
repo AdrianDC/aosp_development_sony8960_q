@@ -1473,14 +1473,14 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
      * 2. Move to |Started State| when we get the |WIFI_SCAN_AVAILABLE| broadcast from WifiManager.
      * 3. When a new PNO scan request comes in:
      *   a.1. Switch to |Hw Pno Scan state| when the device supports HW PNO
-     *        (This could either be HAL based ePNO or supplicant based PNO).
+     *        (This could either be HAL based ePNO or wificond based PNO).
      *   a.2. In |Hw Pno Scan state| when PNO scan results are received, check if the result
      *        contains IE (information elements). If yes, send the results to the client, else
      *        switch to |Single Scan state| and send the result to the client when the scan result
      *        is obtained.
      *   b.1. Switch to |Sw Pno Scan state| when the device does not supports HW PNO
      *        (This is for older devices which do not support HW PNO and for connected PNO on
-     *         devices which support supplicant based PNO)
+     *         devices which support wificond based PNO)
      *   b.2. In |Sw Pno Scan state| send the result to the client when the background scan result
      *        is obtained
      *
