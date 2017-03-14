@@ -21,6 +21,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -195,6 +196,11 @@ public class PasspointNetworkEvaluatorTest {
         verify(mWifiConfigManager).addOrUpdateNetwork(addedConfig.capture(), anyInt());
         assertEquals(ScanResultUtil.createQuotedSSID(TEST_SSID1), addedConfig.getValue().SSID);
         assertEquals(TEST_FQDN1, addedConfig.getValue().FQDN);
+        verify(mWifiConfigManager).enableNetwork(eq(TEST_NETWORK_ID), eq(false), anyInt());
+        verify(mWifiConfigManager).setNetworkCandidateScanResult(
+                eq(TEST_NETWORK_ID), any(ScanResult.class), anyInt());
+        verify(mWifiConfigManager).updateScanDetailForNetwork(
+                eq(TEST_NETWORK_ID), any(ScanDetail.class));
     }
 
     /**
@@ -233,6 +239,11 @@ public class PasspointNetworkEvaluatorTest {
         verify(mWifiConfigManager).addOrUpdateNetwork(addedConfig.capture(), anyInt());
         assertEquals(ScanResultUtil.createQuotedSSID(TEST_SSID1), addedConfig.getValue().SSID);
         assertEquals(TEST_FQDN1, addedConfig.getValue().FQDN);
+        verify(mWifiConfigManager).enableNetwork(eq(TEST_NETWORK_ID), eq(false), anyInt());
+        verify(mWifiConfigManager).setNetworkCandidateScanResult(
+                eq(TEST_NETWORK_ID), any(ScanResult.class), anyInt());
+        verify(mWifiConfigManager).updateScanDetailForNetwork(
+                eq(TEST_NETWORK_ID), any(ScanDetail.class));
     }
 
     /**
@@ -275,6 +286,11 @@ public class PasspointNetworkEvaluatorTest {
         verify(mWifiConfigManager).addOrUpdateNetwork(addedConfig.capture(), anyInt());
         assertEquals(ScanResultUtil.createQuotedSSID(TEST_SSID1), addedConfig.getValue().SSID);
         assertEquals(TEST_FQDN1, addedConfig.getValue().FQDN);
+        verify(mWifiConfigManager).enableNetwork(eq(TEST_NETWORK_ID), eq(false), anyInt());
+        verify(mWifiConfigManager).setNetworkCandidateScanResult(
+                eq(TEST_NETWORK_ID), any(ScanResult.class), anyInt());
+        verify(mWifiConfigManager).updateScanDetailForNetwork(
+                eq(TEST_NETWORK_ID), any(ScanDetail.class));
     }
 
     /**
