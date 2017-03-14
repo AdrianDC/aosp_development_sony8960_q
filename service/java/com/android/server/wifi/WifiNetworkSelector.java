@@ -26,6 +26,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.text.TextUtils;
 import android.util.LocalLog;
+import android.util.Log;
 import android.util.Pair;
 
 import com.android.internal.R;
@@ -42,6 +43,8 @@ import java.util.List;
  * selects a network for the phone to connect or roam to.
  */
 public class WifiNetworkSelector {
+    private static final String TAG = "WifiNetworkSelector";
+
     private static final long INVALID_TIME_STAMP = Long.MIN_VALUE;
     // Minimum time gap between last successful network selection and a new selection
     // attempt.
@@ -134,7 +137,7 @@ public class WifiNetworkSelector {
         mLocalLog.log(log);
     }
 
-    private boolean isCurrentNetworkSufficient(WifiInfo wifiInfo) {
+    private boolean isCurrentNetworkSufficient(WifiInfo wifiInfo, List<ScanDetail> scanDetails) {
         WifiConfiguration network =
                             mWifiConfigManager.getConfiguredNetwork(wifiInfo.getNetworkId());
 
@@ -159,22 +162,41 @@ public class WifiNetworkSelector {
             return false;
         }
 
-        // 2.4GHz networks is not qualified.
-        if (wifiInfo.is24GHz()) {
-            localLog("Current network is 2.4GHz.");
-            return false;
-        }
-
-        // Is the current network's singnal strength qualified? It can only
-        // be a 5GHz network if we reach here.
         int currentRssi = wifiInfo.getRssi();
-        if (wifiInfo.is5GHz() && currentRssi < mThresholdQualifiedRssi5) {
-            localLog("Current network band=" + (wifiInfo.is5GHz() ? "5GHz" : "2.4GHz")
-                    + ", RSSI[" + currentRssi + "]-acceptable but not qualified.");
+        if (wifiInfo.is24GHz()) {
+            // 2.4GHz networks is not qualified whenever 5GHz is available
+            if (is5GHzNetworkAvailable(scanDetails)) {
+                localLog("Current network is 2.4GHz. 5GHz networks available.");
+                return false;
+            }
+            // When 5GHz is not available, we go through normal 2.4GHz qualification
+            if (currentRssi < mThresholdQualifiedRssi24) {
+                localLog("Current network band=2.4GHz, RSSI["
+                        + currentRssi + "]-acceptable but not qualified.");
+                return false;
+            }
+        } else if (wifiInfo.is5GHz()) {
+            // Must be 5GHz, so we always apply qualification checks
+            if (currentRssi < mThresholdQualifiedRssi5) {
+                localLog("Current network band=5GHz, RSSI["
+                        + currentRssi + "]-acceptable but not qualified.");
+                return false;
+            }
+        } else {
+            Log.e(TAG, "We're on a wifi network that's neither 2.4 or 5GHz... aliens!");
             return false;
         }
 
         return true;
+    }
+
+    // Determine whether there are any 5GHz networks in the scan result
+    private boolean is5GHzNetworkAvailable(List<ScanDetail> scanDetails) {
+        for (ScanDetail detail : scanDetails) {
+            ScanResult result = detail.getScanResult();
+            if (result.is5GHz()) return true;
+        }
+        return false;
     }
 
     private boolean isNetworkSelectionNeeded(List<ScanDetail> scanDetails, WifiInfo wifiInfo,
@@ -203,7 +225,7 @@ public class WifiNetworkSelector {
                 }
             }
 
-            if (isCurrentNetworkSufficient(wifiInfo)) {
+            if (isCurrentNetworkSufficient(wifiInfo, scanDetails)) {
                 localLog("Current connected network already sufficient. Skip network selection.");
                 return false;
             } else {
