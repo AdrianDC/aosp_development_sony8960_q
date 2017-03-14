@@ -631,7 +631,8 @@ public class WifiVendorHalTest {
         randomizePacketStats(r, stats.iface.wmeBkPktStats);
         randomizePacketStats(r, stats.iface.wmeViPktStats);
         randomizePacketStats(r, stats.iface.wmeVoPktStats);
-        randomizeRadioStats(r, stats.radio);
+        randomizeRadioStats(r, stats.radios);
+
         stats.timeStampInMs = 42; // currently dropped in conversion
 
         String expected = numbersOnly(stats.toString());
@@ -641,11 +642,11 @@ public class WifiVendorHalTest {
         String actual = numbersOnly(converted.toString());
 
         // Do the required fixups to the both expected and actual
-        expected = rmValue(expected, stats.radio.rxTimeInMs);
-        expected = rmValue(expected, stats.radio.onTimeInMsForScan);
+        expected = rmValue(expected, stats.radios.get(0).rxTimeInMs);
+        expected = rmValue(expected, stats.radios.get(0).onTimeInMsForScan);
 
-        actual = rmValue(actual, stats.radio.rxTimeInMs);
-        actual = rmValue(actual, stats.radio.onTimeInMsForScan);
+        actual = rmValue(actual, stats.radios.get(0).rxTimeInMs);
+        actual = rmValue(actual, stats.radios.get(0).onTimeInMsForScan);
         actual = actual + "42 ";
 
         // The remaining fields should agree
@@ -677,15 +678,17 @@ public class WifiVendorHalTest {
    /**
      * Populate radio stats with non-negative random values
      */
-    private static void randomizeRadioStats(Random r, StaLinkLayerRadioStats rstats) {
-        rstats.onTimeInMs = r.nextInt() & 0xFFFFFF;
-        rstats.txTimeInMs = r.nextInt() & 0xFFFFFF;
+    private static void randomizeRadioStats(Random r, ArrayList<StaLinkLayerRadioStats> rstats) {
+        StaLinkLayerRadioStats rstat = new StaLinkLayerRadioStats();
+        rstat.onTimeInMs = r.nextInt() & 0xFFFFFF;
+        rstat.txTimeInMs = r.nextInt() & 0xFFFFFF;
         for (int i = 0; i < 4; i++) {
             Integer v = r.nextInt() & 0xFFFFFF;
-            rstats.txTimeInMsPerLevel.add(v);
+            rstat.txTimeInMsPerLevel.add(v);
         }
-        rstats.rxTimeInMs = r.nextInt() & 0xFFFFFF;
-        rstats.onTimeInMsForScan = r.nextInt() & 0xFFFFFF;
+        rstat.rxTimeInMs = r.nextInt() & 0xFFFFFF;
+        rstat.onTimeInMsForScan = r.nextInt() & 0xFFFFFF;
+        rstats.add(rstat);
     }
 
     /**
