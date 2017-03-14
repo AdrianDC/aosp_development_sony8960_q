@@ -1468,11 +1468,11 @@ public class SupplicantP2pIfaceHal {
      * AP/Registrar at about the same time (2 minute window).
      *
      * @param groupIfName Group interface name to use.
-     * @param bssid BSSID of the AP. Use zero'ed bssid to indicate wildcard.
+     * @param bssid BSSID of the AP. Use empty bssid to indicate wildcard.
      * @return true, if operation was successful.
      */
     public boolean startWpsPbc(String groupIfName, String bssid) {
-        if (TextUtils.isEmpty(groupIfName) || TextUtils.isEmpty(bssid)) return false;
+        if (TextUtils.isEmpty(groupIfName)) return false;
         synchronized (mLock) {
             if (!checkSupplicantP2pIfaceAndLogFailure("startWpsPbc")) return false;
             if (groupIfName == null) {
@@ -1543,11 +1543,11 @@ public class SupplicantP2pIfaceHal {
      * Initiate WPS Pin Display setup.
      *
      * @param groupIfName Group interface name to use.
-     * @param bssid BSSID of the AP. Use zero'ed bssid to indicate wildcard.
+     * @param bssid BSSID of the AP. Use empty bssid to indicate wildcard.
      * @return generated pin if operation was successful, null otherwise.
      */
     public String startWpsPinDisplay(String groupIfName, String bssid) {
-        if (TextUtils.isEmpty(groupIfName) || TextUtils.isEmpty(bssid)) return null;
+        if (TextUtils.isEmpty(groupIfName)) return null;
         synchronized (mLock) {
             if (!checkSupplicantP2pIfaceAndLogFailure("startWpsPinDisplay")) return null;
             if (groupIfName == null) {

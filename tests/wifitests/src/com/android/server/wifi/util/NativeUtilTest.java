@@ -37,6 +37,17 @@ public class NativeUtilTest {
     }
 
     /**
+     * Test that parsing an empty MAC address works.
+     */
+    @Test
+    public void testEmptyMacAddressToByteArray() throws Exception {
+        assertArrayEquals(new byte[]{0, 0, 0, 0, 0, 0},
+                NativeUtil.macAddressToByteArray(""));
+        assertArrayEquals(new byte[]{0, 0, 0, 0, 0, 0},
+                NativeUtil.macAddressToByteArray(null));
+    }
+
+    /**
      * Test that conversion of byte array of mac address to typical colon-delimited MAC address
      * works.
      */
