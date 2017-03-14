@@ -20,13 +20,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.*;
 
 import android.content.Context;
 import android.content.res.Resources;
+import android.net.wifi.WifiConfiguration;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
@@ -37,6 +36,7 @@ import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.util.AsyncChannel;
 import com.android.server.wifi.util.WifiAsyncChannel;
+import com.android.server.wifi.util.WifiPermissionsUtil;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -76,6 +76,7 @@ public class WifiServiceImplTest {
     @Mock WifiBackupRestore mWifiBackupRestore;
     @Mock WifiMetrics mWifiMetrics;
     @Spy FakeWifiLog mLog;
+    @Mock WifiPermissionsUtil mWifiPermissionsUtil;
 
     private class WifiAsyncChannelTester {
         private static final String TAG = "WifiAsyncChannelTester";
@@ -151,6 +152,7 @@ public class WifiServiceImplTest {
         WifiTrafficPoller wifiTrafficPoller = new WifiTrafficPoller(mContext,
                 mLooper.getLooper(), "mockWlan");
         when(mWifiInjector.getWifiTrafficPoller()).thenReturn(wifiTrafficPoller);
+        when(mWifiInjector.getWifiPermissionsUtil()).thenReturn(mWifiPermissionsUtil);
         mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
         mWifiServiceImpl.setWifiHandlerLogForTest(mLog);
     }
@@ -185,5 +187,62 @@ public class WifiServiceImplTest {
                 .dump(any(FileDescriptor.class), any(PrintWriter.class), any(String[].class));
         verify(mWifiStateMachine, never())
                 .dump(any(FileDescriptor.class), any(PrintWriter.class), any(String[].class));
+    }
+
+    /**
+     * Ensure unpermitted callers cannot write the SoftApConfiguration.
+     *
+     * @throws SecurityException
+     */
+    @Test(expected = SecurityException.class)
+    public void testSetWifiApConfigurationNotSavedWithoutPermission() {
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(false);
+        WifiConfiguration apConfig = new WifiConfiguration();
+        mWifiServiceImpl.setWifiApConfiguration(apConfig);
+        verify(mWifiStateMachine, never()).setWifiApConfiguration(eq(apConfig));
+    }
+
+    /**
+     * Ensure softap config is written when the caller has the correct permission.
+     */
+    @Test
+    public void testSetWifiApConfigurationSuccess() {
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
+        WifiConfiguration apConfig = new WifiConfiguration();
+        mWifiServiceImpl.setWifiApConfiguration(apConfig);
+        verify(mWifiStateMachine).setWifiApConfiguration(eq(apConfig));
+    }
+
+    /**
+     * Ensure that a null config does not overwrite the saved ap config.
+     */
+    @Test
+    public void testSetWifiApConfigurationNullConfigNotSaved() {
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
+        mWifiServiceImpl.setWifiApConfiguration(null);
+        verify(mWifiStateMachine, never()).setWifiApConfiguration(isNull(WifiConfiguration.class));
+    }
+
+    /**
+     * Ensure unpermitted callers are not able to retrieve the softap config.
+     *
+     * @throws SecurityException
+     */
+    @Test(expected = SecurityException.class)
+    public void testGetWifiApConfigurationNotReturnedWithoutPermission() {
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(false);
+        mWifiServiceImpl.getWifiApConfiguration();
+        verify(mWifiStateMachine, never()).syncGetWifiApConfiguration();
+    }
+
+    /**
+     * Ensure permitted callers are able to retrieve the softap config.
+     */
+    @Test
+    public void testGetWifiApConfigurationSuccess() {
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
+        WifiConfiguration apConfig = new WifiConfiguration();
+        when(mWifiStateMachine.syncGetWifiApConfiguration()).thenReturn(apConfig);
+        assertEquals(apConfig, mWifiServiceImpl.getWifiApConfiguration());
     }
 }
