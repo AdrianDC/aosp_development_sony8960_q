@@ -130,9 +130,11 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -5130,6 +5132,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case WifiManager.START_WPS:
                     WpsInfo wpsInfo = (WpsInfo) message.obj;
                     WpsResult wpsResult = new WpsResult();
+                    // TODO(b/32898136): Not needed when we start deleting networks from supplicant
+                    // on disconnect.
+                    if (!mWifiNative.removeAllNetworks()) {
+                        loge("Failed to remove networks before WPS");
+                    }
                     switch (wpsInfo.setup) {
                         case WpsInfo.PBC:
                             if (mWifiNative.startWpsPbc(wpsInfo.BSSID)) {
@@ -6465,6 +6472,23 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
+    /**
+     * WPS connection flow:
+     * 1. WifiStateMachine receive WPS_START message from WifiManager API.
+     * 2. WifiStateMachine initiates the appropriate WPS operation using WifiNative methods:
+     * {@link WifiNative#startWpsPbc(String)}, {@link WifiNative#startWpsPinDisplay(String)}, etc.
+     * 3. WifiStateMachine then transitions to this WpsRunningState.
+     * 4a. Once WifiStateMachine receive the connected event:
+     * {@link WifiMonitor#NETWORK_CONNECTION_EVENT},
+     * 4a.1 Load the network params out of wpa_supplicant.
+     * 4a.2 Add the network with params to WifiConfigManager.
+     * 4a.3 Enable the network with |disableOthers| set to true.
+     * 4a.4 Send a response to the original source of WifiManager API using {@link #mSourceMessage}.
+     * 4b. Any failures are notified to the original source of WifiManager API
+     * using {@link #mSourceMessage}.
+     * 5. We then transition to disconnected state and let network selection reconnect to the newly
+     * added network.
+     */
     class WpsRunningState extends State {
         // Tracks the source to provide a reply
         private Message mSourceMessage;
@@ -6481,7 +6505,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // Ignore intermediate success, wait for full connection
                     break;
                 case WifiMonitor.NETWORK_CONNECTION_EVENT:
-                    replyToMessage(mSourceMessage, WifiManager.WPS_COMPLETED);
+                    if (loadNetworksFromSupplicantAfterWps()) {
+                        replyToMessage(mSourceMessage, WifiManager.WPS_COMPLETED);
+                    } else {
+                        replyToMessage(mSourceMessage, WifiManager.WPS_FAILED,
+                                WifiManager.ERROR);
+                    }
                     mSourceMessage.recycle();
                     mSourceMessage = null;
                     deferMessage(message);
@@ -6570,9 +6599,30 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             return HANDLED;
         }
 
-        @Override
-        public void exit() {
-            mWifiConfigManager.loadFromStore();
+        /**
+         * Load network config from wpa_supplicant after WPS is complete.
+         */
+        private boolean loadNetworksFromSupplicantAfterWps() {
+            Map<String, WifiConfiguration> configs = new HashMap<>();
+            SparseArray<Map<String, String>> extras = new SparseArray<>();
+            if (!mWifiNative.migrateNetworksFromSupplicant(configs, extras)) {
+                loge("Failed to load networks from wpa_supplicant after Wps");
+                return false;
+            }
+            for (Map.Entry<String, WifiConfiguration> entry : configs.entrySet()) {
+                NetworkUpdateResult result = mWifiConfigManager.addOrUpdateNetwork(
+                        entry.getValue(), mSourceMessage.sendingUid);
+                if (!result.isSuccess()) {
+                    loge("Failed to add network after WPS: " + entry.getValue());
+                    return false;
+                }
+                if (!mWifiConfigManager.enableNetwork(
+                        result.getNetworkId(), true, mSourceMessage.sendingUid)) {
+                    loge("Failed to enable network after WPS: " + entry.getValue());
+                    return false;
+                }
+            }
+            return true;
         }
     }
 
