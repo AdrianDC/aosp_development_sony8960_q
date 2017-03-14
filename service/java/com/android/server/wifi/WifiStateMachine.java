@@ -1267,10 +1267,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 || !mWifiConfigManager.checkAndUpdateLastConnectUid(netId, uid)) {
             logi("connectToUserSelectNetwork Allowing uid " + uid
                     + " with insufficient permissions to connect=" + netId);
+        } else {
+            // Note user connect choice here, so that it will be considered in the next network
+            // selection.
+            mWifiConnectivityManager.setUserConnectChoice(netId);
         }
-        // Trigger an immediate connection to the specified network. We're also noting the user
-        // connect choice here, so that it will be considered in the next network selection.
-        mWifiConnectivityManager.setUserConnectChoice(netId);
         if (mWifiInfo.getNetworkId() == netId) {
             // We're already connected to the user specified network, don't trigger a
             // reconnection.
