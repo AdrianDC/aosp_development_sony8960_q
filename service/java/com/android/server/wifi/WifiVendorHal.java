@@ -34,6 +34,7 @@ import android.hardware.wifi.V1_0.RttType;
 import android.hardware.wifi.V1_0.StaBackgroundScanBucketEventReportSchemeMask;
 import android.hardware.wifi.V1_0.StaBackgroundScanBucketParameters;
 import android.hardware.wifi.V1_0.StaBackgroundScanParameters;
+import android.hardware.wifi.V1_0.StaLinkLayerRadioStats;
 import android.hardware.wifi.V1_0.StaLinkLayerStats;
 import android.hardware.wifi.V1_0.StaRoamingConfig;
 import android.hardware.wifi.V1_0.StaRoamingState;
@@ -700,14 +701,18 @@ public class WifiVendorHal {
         out.txmpdu_vo = stats.iface.wmeVoPktStats.txMpdu;
         out.lostmpdu_vo = stats.iface.wmeVoPktStats.lostMpdu;
         out.retries_vo = stats.iface.wmeVoPktStats.retries;
-        out.on_time = stats.radio.onTimeInMs;
-        out.tx_time = stats.radio.txTimeInMs;
-        out.tx_time_per_level = new int[stats.radio.txTimeInMsPerLevel.size()];
-        for (int i = 0; i < out.tx_time_per_level.length; i++) {
-            out.tx_time_per_level[i] = stats.radio.txTimeInMsPerLevel.get(i);
+        // TODO(b/36176141): Figure out how to coalesce this info for multi radio devices.
+        if (stats.radios.size() > 0) {
+            StaLinkLayerRadioStats radioStats = stats.radios.get(0);
+            out.on_time = radioStats.onTimeInMs;
+            out.tx_time = radioStats.txTimeInMs;
+            out.tx_time_per_level = new int[radioStats.txTimeInMsPerLevel.size()];
+            for (int i = 0; i < out.tx_time_per_level.length; i++) {
+                out.tx_time_per_level[i] = radioStats.txTimeInMsPerLevel.get(i);
+            }
+            out.rx_time = radioStats.rxTimeInMs;
+            out.on_time_scan = radioStats.onTimeInMsForScan;
         }
-        out.rx_time = stats.radio.rxTimeInMs;
-        out.on_time_scan = stats.radio.onTimeInMsForScan;
         // unused: stats.timeStampInMs;
         return out;
     }
