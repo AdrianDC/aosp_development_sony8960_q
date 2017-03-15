@@ -449,19 +449,19 @@ public class WifiVendorHalTest {
         mWifiLog = spy(mWifiLog);
         mWifiVendorHal.mLog = mWifiLog;
         mWifiVendorHal.mVerboseLog = mWifiLog;
-        assertFalse(mWifiVendorHal.getScanCapabilities(new WifiNative.ScanCapabilities()));
+        assertFalse(mWifiVendorHal.getBgScanCapabilities(new WifiNative.ScanCapabilities()));
         verify(mWifiLog).err("% returns %");
     }
 
     /**
-     * Test that getApfCapabilities is hooked up to the HAL correctly
+     * Test that getBgScanCapabilities is hooked up to the HAL correctly
      *
      * A call before the vendor HAL is started should return a non-null result with version 0
      *
      * A call after the HAL is started should return the mocked values.
      */
     @Test
-    public void testGetScanCapabilities() throws Exception {
+    public void testGetBgScanCapabilities() throws Exception {
         StaBackgroundScanCapabilities capabilities = new StaBackgroundScanCapabilities();
         capabilities.maxCacheSize = 12;
         capabilities.maxBuckets = 34;
@@ -478,9 +478,9 @@ public class WifiVendorHalTest {
 
         WifiNative.ScanCapabilities result = new WifiNative.ScanCapabilities();
 
-        assertFalse(mWifiVendorHal.getScanCapabilities(result));  // should fail - not started
+        assertFalse(mWifiVendorHal.getBgScanCapabilities(result));  // should fail - not started
         assertTrue(mWifiVendorHal.startVendorHalSta());           // Start the vendor hal
-        assertTrue(mWifiVendorHal.getScanCapabilities(result));   // should succeed
+        assertTrue(mWifiVendorHal.getBgScanCapabilities(result));   // should succeed
 
         assertEquals(12, result.max_scan_cache_size);
         assertEquals(34, result.max_scan_buckets);
@@ -1578,8 +1578,8 @@ public class WifiVendorHalTest {
 
         int cmdId = mWifiVendorHal.mScan.cmdId;
 
-        mWifiVendorHal.stopScan();
-        mWifiVendorHal.stopScan(); // second call should not do anything
+        mWifiVendorHal.stopBgScan();
+        mWifiVendorHal.stopBgScan(); // second call should not do anything
         verify(mIWifiStaIface).stopBackgroundScan(cmdId); // Should be called just once
     }
 
@@ -1596,8 +1596,8 @@ public class WifiVendorHalTest {
 
         int cmdId = mWifiVendorHal.mScan.cmdId;
 
-        mWifiVendorHal.pauseScan();
-        mWifiVendorHal.restartScan();
+        mWifiVendorHal.pauseBgScan();
+        mWifiVendorHal.restartBgScan();
         verify(mIWifiStaIface).stopBackgroundScan(cmdId); // Should be called just once
         verify(mIWifiStaIface, times(2)).startBackgroundScan(eq(cmdId), any());
     }
@@ -1741,7 +1741,7 @@ public class WifiVendorHalTest {
         bucketSettings.period_ms = 16000;
         bucketSettings.report_events = WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN;
         settings.buckets = new WifiNative.BucketSettings[] {bucketSettings};
-        assertTrue(mWifiVendorHal.startScan(settings, eventHandler));
+        assertTrue(mWifiVendorHal.startBgScan(settings, eventHandler));
     }
 
     // Create a pair of HIDL scan result and its corresponding framework scan result for
