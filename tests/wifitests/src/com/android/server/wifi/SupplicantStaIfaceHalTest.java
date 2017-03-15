@@ -926,6 +926,61 @@ public class SupplicantStaIfaceHalTest {
     }
 
     /**
+     * Tests the handling of incorrect network passwords.
+     */
+    @Test
+    public void testAuthFailurePassword() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        int reasonCode = 3;
+        mISupplicantStaIfaceCallback.onDisconnected(
+                NativeUtil.macAddressToByteArray(BSSID), true, reasonCode);
+        verify(mWifiMonitor, times(0)).broadcastAuthenticationFailureEvent(any(), anyInt());
+
+        mISupplicantStaIfaceCallback.onDisconnected(
+                NativeUtil.macAddressToByteArray(BSSID), false, reasonCode);
+        verify(mWifiMonitor, times(0)).broadcastAuthenticationFailureEvent(any(), anyInt());
+
+        mISupplicantStaIfaceCallback.onStateChanged(
+                ISupplicantStaIfaceCallback.State.FOURWAY_HANDSHAKE,
+                NativeUtil.macAddressToByteArray(BSSID),
+                SUPPLICANT_NETWORK_ID,
+                NativeUtil.decodeSsid(SUPPLICANT_SSID));
+        mISupplicantStaIfaceCallback.onDisconnected(
+                NativeUtil.macAddressToByteArray(BSSID), true, reasonCode);
+        mISupplicantStaIfaceCallback.onDisconnected(
+                NativeUtil.macAddressToByteArray(BSSID), false, reasonCode);
+
+        verify(mWifiMonitor, times(2)).broadcastAuthenticationFailureEvent(eq(WLAN_IFACE_NAME),
+                eq(WifiMonitor.AUTHENTICATION_FAILURE_REASON_WRONG_PSWD));
+
+    }
+
+     /**
+      * Tests the handling of incorrect network passwords, edge case.
+      *
+      * If the disconnect reason is "IE in 4way differs", do not call it a password mismatch.
+      */
+    @Test
+    public void testIeDiffers() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        int reasonCode = 17; // IEEE 802.11i WLAN_REASON_IE_IN_4WAY_DIFFERS
+
+        mISupplicantStaIfaceCallback.onStateChanged(
+                ISupplicantStaIfaceCallback.State.FOURWAY_HANDSHAKE,
+                NativeUtil.macAddressToByteArray(BSSID),
+                SUPPLICANT_NETWORK_ID,
+                NativeUtil.decodeSsid(SUPPLICANT_SSID));
+        mISupplicantStaIfaceCallback.onDisconnected(
+                NativeUtil.macAddressToByteArray(BSSID), true, reasonCode);
+        verify(mWifiMonitor, times(0)).broadcastAuthenticationFailureEvent(any(), anyInt());
+    }
+
+
+    /**
      * Tests the handling of association rejection notification.
      */
     @Test
