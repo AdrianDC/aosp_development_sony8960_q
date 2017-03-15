@@ -948,9 +948,10 @@ public class WifiConnectivityManager {
         if (mWifiState == WIFI_STATE_DISCONNECTED) {
             mLastConnectionAttemptBssid = null;
             scheduleWatchdogTimer();
+            startConnectivityScan(SCAN_IMMEDIATELY);
+        } else {
+            startConnectivityScan(SCAN_ON_SCHEDULE);
         }
-
-        startConnectivityScan(SCAN_ON_SCHEDULE);
     }
 
     /**

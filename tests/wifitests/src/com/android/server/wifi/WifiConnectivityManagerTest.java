@@ -703,14 +703,14 @@ public class WifiConnectivityManagerTest {
     }
 
     /**
-     *  When screen on trigger two connection state change events back to back to
-     *  verify that the minium scan interval is enforced.
+     *  When screen on trigger a disconnected state change event then a connected state
+     *  change event back to back to verify that the minium scan interval is enforced.
      *
      * Expected behavior: WifiConnectivityManager start the second periodic single
      * scan PERIODIC_SCAN_INTERVAL_MS after the first one.
      */
     @Test
-    public void checkMinimumPeriodicScanIntervalWhenScreenOn() {
+    public void checkMinimumPeriodicScanIntervalWhenScreenOnAndConnected() {
         long currentTimeStamp = CURRENT_SYSTEM_TIME_MS;
         when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
@@ -720,30 +720,79 @@ public class WifiConnectivityManagerTest {
         // Wait for MAX_PERIODIC_SCAN_INTERVAL_MS so that any impact triggered
         // by screen state change can settle
         currentTimeStamp += WifiConnectivityManager.MAX_PERIODIC_SCAN_INTERVAL_MS;
-        long firstScanTimeStamp = currentTimeStamp;
+        long scanForDisconnectedTimeStamp = currentTimeStamp;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
+
+        // Set WiFi to disconnected state which triggers a scan immediately
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+        verify(mWifiScanner, times(1)).startScan(anyObject(), anyObject(), anyObject());
+
+        // Set up time stamp for when entering CONNECTED state
+        currentTimeStamp += 2000;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
+
+        // Set WiFi to connected state to trigger its periodic scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        // The very first scan triggered for connected state is actually via the alarm timer
+        // and it obeys the minimum scan interval
+        long firstScanForConnectedTimeStamp = mAlarmManager
+                .getTriggerTimeMillis(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG);
+
+        // Verify that the first scan for connected state is scheduled PERIODIC_SCAN_INTERVAL_MS
+        // after the scan for disconnected state
+        assertEquals(firstScanForConnectedTimeStamp, scanForDisconnectedTimeStamp
+                + WifiConnectivityManager.PERIODIC_SCAN_INTERVAL_MS);
+    }
+
+    /**
+     *  When screen on trigger a connected state change event then a disconnected state
+     *  change event back to back to verify that a scan is fired immediately for the
+     *  disconnected state change event.
+     *
+     * Expected behavior: WifiConnectivityManager directly starts the periodic immediately
+     * for the disconnected state change event. The second scan for disconnected state is
+     * via alarm timer.
+     */
+    @Test
+    public void scanImmediatelyWhenScreenOnAndDisconnected() {
+        long currentTimeStamp = CURRENT_SYSTEM_TIME_MS;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
+
+        // Set screen to ON
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        // Wait for MAX_PERIODIC_SCAN_INTERVAL_MS so that any impact triggered
+        // by screen state change can settle
+        currentTimeStamp += WifiConnectivityManager.MAX_PERIODIC_SCAN_INTERVAL_MS;
+        long scanForConnectedTimeStamp = currentTimeStamp;
         when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
         // Set WiFi to connected state to trigger the periodic scan
         mWifiConnectivityManager.handleConnectionStateChanged(
                 WifiConnectivityManager.WIFI_STATE_CONNECTED);
+        verify(mWifiScanner, times(1)).startScan(anyObject(), anyObject(), anyObject());
 
-        // Set the second scan attempt time stamp.
+        // Set up the time stamp for when entering DISCONNECTED state
         currentTimeStamp += 2000;
+        long enteringDisconnectedStateTimeStamp = currentTimeStamp;
         when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
 
-        // Set WiFi to disconnected state to trigger another periodic scan
+        // Set WiFi to disconnected state to trigger its periodic scan
         mWifiConnectivityManager.handleConnectionStateChanged(
                 WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
 
-        // Get the second periodic scan actual time stamp
-        long secondScanTimeStamp = mAlarmManager
-                    .getTriggerTimeMillis(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG);
+        // Verify the very first scan for DISCONNECTED state is fired immediately
+        verify(mWifiScanner, times(2)).startScan(anyObject(), anyObject(), anyObject());
+        long secondScanForDisconnectedTimeStamp = mAlarmManager
+                .getTriggerTimeMillis(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG);
 
-        // Verify that the second scan is scheduled PERIODIC_SCAN_INTERVAL_MS after the
-        // very first scan.
-        assertEquals(secondScanTimeStamp, firstScanTimeStamp
-                       + WifiConnectivityManager.PERIODIC_SCAN_INTERVAL_MS);
-
+        // Verify that the second scan is scheduled PERIODIC_SCAN_INTERVAL_MS after
+        // entering DISCONNECTED state.
+        assertEquals(secondScanForDisconnectedTimeStamp, enteringDisconnectedStateTimeStamp
+                + WifiConnectivityManager.PERIODIC_SCAN_INTERVAL_MS);
     }
 
     /**
