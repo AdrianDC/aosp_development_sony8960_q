@@ -671,6 +671,16 @@ public class WifiNative {
     }
 
     /**
+     * Enable/Disable auto reconnect functionality in wpa_supplicant.
+     *
+     * @param enable true to enable auto reconnecting, false to disable.
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean enableStaAutoReconnect(boolean enable) {
+        return mSupplicantStaIfaceHal.enableAutoReconnect(enable);
+    }
+
+    /**
      * Migrate all the configured networks from wpa_supplicant.
      *
      * @param configs       Map of configuration key to configuration objects corresponding to all
