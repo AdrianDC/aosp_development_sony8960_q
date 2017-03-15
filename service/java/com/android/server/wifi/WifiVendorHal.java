@@ -394,9 +394,9 @@ public class WifiVendorHal {
      * Gets the scan capabilities
      *
      * @param capabilities object to be filled in
-     * @return true for success. false for failure
+     * @return true for success, false for failure
      */
-    public boolean getScanCapabilities(WifiNative.ScanCapabilities capabilities) {
+    public boolean getBgScanCapabilities(WifiNative.ScanCapabilities capabilities) {
         synchronized (sLock) {
             if (mIWifiStaIface == null) return boolResult(false);
             try {
@@ -540,15 +540,15 @@ public class WifiVendorHal {
 
     /**
      * Starts a background scan
-     * <p>
+     *
      * Any ongoing scan will be stopped first
      *
      * @param settings     to control the scan
      * @param eventHandler to call with the results
      * @return true for success
      */
-    public boolean startScan(WifiNative.ScanSettings settings,
-                             WifiNative.ScanEventHandler eventHandler) {
+    public boolean startBgScan(WifiNative.ScanSettings settings,
+                               WifiNative.ScanEventHandler eventHandler) {
         WifiStatus status;
         if (eventHandler == null) return boolResult(false);
         synchronized (sLock) {
@@ -576,7 +576,7 @@ public class WifiVendorHal {
     /**
      * Stops any ongoing backgound scan
      */
-    public void stopScan() {
+    public void stopBgScan() {
         WifiStatus status;
         synchronized (sLock) {
             if (mIWifiStaIface == null) return;
@@ -594,7 +594,7 @@ public class WifiVendorHal {
     /**
      * Pauses an ongoing backgound scan
      */
-    public void pauseScan() {
+    public void pauseBgScan() {
         WifiStatus status;
         synchronized (sLock) {
             try {
@@ -611,9 +611,9 @@ public class WifiVendorHal {
     }
 
     /**
-     * Restarts a paused scan
+     * Restarts a paused background scan
      */
-    public void restartScan() {
+    public void restartBgScan() {
         WifiStatus status;
         synchronized (sLock) {
             if (mIWifiStaIface == null) return;
@@ -634,7 +634,7 @@ public class WifiVendorHal {
      * TODO(b/35754840): This hop to fetch scan results after callback is unnecessary. Refactor
      * WifiScanner to use the scan results from the callback.
      */
-    public WifiScanner.ScanData[] getScanResults() {
+    public WifiScanner.ScanData[] getBgScanResults() {
         synchronized (sLock) {
             if (mIWifiStaIface == null) return null;
             if (mScan == null) return null;
@@ -803,9 +803,8 @@ public class WifiVendorHal {
 
     /**
      * Get the supported features
-     * <p>
-     * Note that not all the WifiManager.WIFI_FEATURE_* bits are supplied through
-     * this call. //TODO(b/34900537) fix this
+     *
+     * The result may differ depending on the mode (STA or AP)
      *
      * @return bitmask defined by WifiManager.WIFI_FEATURE_*
      */
@@ -923,7 +922,7 @@ public class WifiVendorHal {
         ans.measurementFrameNumber = result.measurementNumber;
         ans.successMeasurementFrameNumber = result.successNumber;
         ans.frameNumberPerBurstPeer = result.numberPerBurstPeer;
-        ans.status = result.status; //TODO(b/34901744) - don't assume identity translation
+        ans.status = result.status; //TODO(b/35138520) - don't assume identity translation
         ans.retryAfterDuration = result.retryAfterDuration;
         ans.measurementType = result.type;
         ans.rssi = result.rssi;
@@ -1488,7 +1487,7 @@ public class WifiVendorHal {
      * @return true for success
      */
     public boolean installPacketFilter(byte[] filter) {
-        int cmdId = 0; //TODO(b/34901818) We only aspire to support one program at a time
+        int cmdId = 0; // We only aspire to support one program at a time
         if (filter == null) return boolResult(false);
         // Copy the program before taking the lock.
         ArrayList<Byte> program = NativeUtil.byteArrayToArrayList(filter);
