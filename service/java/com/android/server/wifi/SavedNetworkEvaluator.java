@@ -47,7 +47,6 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
     private final int mSameNetworkAward;
     private final int mBand5GHzAward;
     private final int mLastSelectionAward;
-    private final int mPasspointSecurityAward;
     private final int mSecurityAward;
     private final int mNoInternetPenalty;
     private final int mThresholdSaturatedRssi24;
@@ -70,8 +69,6 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
                 R.integer.config_wifi_framework_current_network_boost);
         mLastSelectionAward = context.getResources().getInteger(
                 R.integer.config_wifi_framework_LAST_SELECTION_AWARD);
-        mPasspointSecurityAward = context.getResources().getInteger(
-                R.integer.config_wifi_framework_PASSPOINT_SECURITY_AWARD);
         mSecurityAward = context.getResources().getInteger(
                 R.integer.config_wifi_framework_SECURITY_AWARD);
         mBand5GHzAward = context.getResources().getInteger(
@@ -125,6 +122,15 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
 
         StringBuffer sbuf = new StringBuffer("Saved Networks List: \n");
         for (WifiConfiguration network : savedNetworks) {
+            /**
+             * Ignore Passpoint networks. Passpoint networks are also considered as "saved"
+             * network, but without being persisted to the storage. They are managed
+             * by {@link PasspointNetworkEvaluator}.
+             */
+            if (network.isPasspoint()) {
+                continue;
+            }
+
             WifiConfiguration.NetworkSelectionStatus status =
                     network.getNetworkSelectionStatus();
 
@@ -211,10 +217,7 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
         }
 
         // Security award.
-        if (network.isPasspoint()) {
-            score += mPasspointSecurityAward;
-            sbuf.append(" Passpoint bonus: ").append(mPasspointSecurityAward).append(",");
-        } else if (!WifiConfigurationUtil.isConfigForOpenNetwork(network)) {
+        if (!WifiConfigurationUtil.isConfigForOpenNetwork(network)) {
             score += mSecurityAward;
             sbuf.append(" Secure network bonus: ").append(mSecurityAward).append(",");
         }
@@ -253,8 +256,6 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
 
             // One ScanResult can be associated with more than one networks, hence we calculate all
             // the scores and use the highest one as the ScanResult's score.
-            // TODO(b/31065385): WifiConfigManager does not support passpoint networks currently.
-            // So this list has just one entry always.
             List<WifiConfiguration> associatedConfigurations = null;
             WifiConfiguration associatedConfiguration =
                     mWifiConfigManager.getSavedNetworkForScanDetailAndCache(scanDetail);
@@ -267,6 +268,15 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
             }
 
             for (WifiConfiguration network : associatedConfigurations) {
+                /**
+                 * Ignore Passpoint networks. Passpoint networks are also considered as "saved"
+                 * network, but without being persisted to the storage. They are being evaluated
+                 * by {@link PasspointNetworkEvaluator}.
+                 */
+                if (network.isPasspoint()) {
+                    continue;
+                }
+
                 WifiConfiguration.NetworkSelectionStatus status =
                         network.getNetworkSelectionStatus();
                 status.setSeenInLastQualifiedNetworkSelection(true);
