@@ -1334,11 +1334,10 @@ public class SupplicantStaIfaceHal {
     /**
      * Start WPS pin display operation with the specified peer.
      *
-     * @param bssidStr BSSID of the peer.
+     * @param bssidStr BSSID of the peer. Use empty bssid to indicate wildcard.
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean startWpsPbc(String bssidStr) {
-        if (TextUtils.isEmpty(bssidStr)) return false;
         return startWpsPbc(NativeUtil.macAddressToByteArray(bssidStr));
     }
 
@@ -1381,11 +1380,10 @@ public class SupplicantStaIfaceHal {
     /**
      * Start WPS pin display operation with the specified peer.
      *
-     * @param bssidStr BSSID of the peer.
+     * @param bssidStr BSSID of the peer. Use empty bssid to indicate wildcard.
      * @return new pin generated on success, null otherwise.
      */
     public String startWpsPinDisplay(String bssidStr) {
-        if (TextUtils.isEmpty(bssidStr)) return null;
         return startWpsPinDisplay(NativeUtil.macAddressToByteArray(bssidStr));
     }
 
