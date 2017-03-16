@@ -396,6 +396,22 @@ public class XmlUtilTest {
         deserializeWifiEnterpriseConfig(xmlString.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * Verify that WifiConfiguration representation of a legacy Passpoint configuration is
+     * serialized & deserialized correctly.
+     *
+     *@throws Exception
+     */
+    @Test
+    public void testLegacyPasspointConfigSerializeDeserialize() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createPasspointNetwork();
+        config.isLegacyPasspointConfig = true;
+        config.roamingConsortiumIds = new long[] {0x12345678};
+        config.enterpriseConfig.setPlmn("1234");
+        config.enterpriseConfig.setRealm("test.com");
+        serializeDeserializeWifiConfigurationForConfigStore(config);
+    }
+
     private byte[] serializeWifiConfigurationForBackup(WifiConfiguration configuration)
             throws IOException, XmlPullParserException {
         final XmlSerializer out = new FastXmlSerializer();

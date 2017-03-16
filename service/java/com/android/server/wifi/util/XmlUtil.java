@@ -336,6 +336,8 @@ public class XmlUtil {
         public static final String XML_TAG_LAST_UPDATE_UID = "LastUpdateUid";
         public static final String XML_TAG_LAST_UPDATE_NAME = "LastUpdateName";
         public static final String XML_TAG_LAST_CONNECT_UID = "LastConnectUid";
+        public static final String XML_TAG_IS_LEGACY_PASSPOINT_CONFIG = "IsLegacyPasspointConfig";
+        public static final String XML_TAG_ROAMING_CONSORTIUM_OIS = "RoamingConsortiumOIs";
 
         /**
          * Write WepKeys to the XML stream.
@@ -448,6 +450,11 @@ public class XmlUtil {
             XmlUtil.writeNextValue(out, XML_TAG_LAST_UPDATE_UID, configuration.lastUpdateUid);
             XmlUtil.writeNextValue(out, XML_TAG_LAST_UPDATE_NAME, configuration.lastUpdateName);
             XmlUtil.writeNextValue(out, XML_TAG_LAST_CONNECT_UID, configuration.lastConnectUid);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_IS_LEGACY_PASSPOINT_CONFIG,
+                    configuration.isLegacyPasspointConfig);
+            XmlUtil.writeNextValue(
+                    out, XML_TAG_ROAMING_CONSORTIUM_OIS, configuration.roamingConsortiumIds);
         }
 
         /**
@@ -597,6 +604,12 @@ public class XmlUtil {
                         break;
                     case XML_TAG_LAST_CONNECT_UID:
                         configuration.lastConnectUid = (int) value;
+                        break;
+                    case XML_TAG_IS_LEGACY_PASSPOINT_CONFIG:
+                        configuration.isLegacyPasspointConfig = (boolean) value;
+                        break;
+                    case XML_TAG_ROAMING_CONSORTIUM_OIS:
+                        configuration.roamingConsortiumIds = (long[]) value;
                         break;
                     default:
                         throw new XmlPullParserException(
@@ -949,6 +962,8 @@ public class XmlUtil {
         public static final String XML_TAG_CA_PATH = "CaPath";
         public static final String XML_TAG_EAP_METHOD = "EapMethod";
         public static final String XML_TAG_PHASE2_METHOD = "Phase2Method";
+        public static final String XML_TAG_PLMN = "PLMN";
+        public static final String XML_TAG_REALM = "Realm";
 
         /**
          * Write the WifiEnterpriseConfig data elements from the provided config to the XML
@@ -985,6 +1000,8 @@ public class XmlUtil {
                     enterpriseConfig.getFieldValue(WifiEnterpriseConfig.CA_PATH_KEY));
             XmlUtil.writeNextValue(out, XML_TAG_EAP_METHOD, enterpriseConfig.getEapMethod());
             XmlUtil.writeNextValue(out, XML_TAG_PHASE2_METHOD, enterpriseConfig.getPhase2Method());
+            XmlUtil.writeNextValue(out, XML_TAG_PLMN, enterpriseConfig.getPlmn());
+            XmlUtil.writeNextValue(out, XML_TAG_REALM, enterpriseConfig.getRealm());
         }
 
         /**
@@ -1059,6 +1076,12 @@ public class XmlUtil {
                         break;
                     case XML_TAG_PHASE2_METHOD:
                         enterpriseConfig.setPhase2Method((int) value);
+                        break;
+                    case XML_TAG_PLMN:
+                        enterpriseConfig.setPlmn((String) value);
+                        break;
+                    case XML_TAG_REALM:
+                        enterpriseConfig.setRealm((String) value);
                         break;
                     default:
                         throw new XmlPullParserException(
