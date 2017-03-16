@@ -62,6 +62,9 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
                     WifiConfiguration currentNetwork, String currentBssid,
                     boolean connected, boolean untrustedNetworkAllowed,
                     List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks) {
+        // Sweep the ANQP cache to remove any expired ANQP entries.
+        mPasspointManager.sweepCache();
+
         // Go through each ScanDetail and find the best provider for each ScanDetail.
         List<Pair<ScanDetail, Pair<PasspointProvider, PasspointMatch>>> providerList =
                 new ArrayList<>();
@@ -72,7 +75,7 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
             }
 
             List<Pair<PasspointProvider, PasspointMatch>> matchedProviders =
-                    mPasspointManager.matchProvider(scanDetail);
+                    mPasspointManager.matchProvider(scanDetail.getScanResult());
 
             // Find the best provider for this ScanDetail.
             Pair<PasspointProvider, PasspointMatch> bestProvider =
@@ -181,7 +184,8 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
             boolean isActiveNetwork = TextUtils.equals(currentNetworkSsid,
                     ScanResultUtil.createQuotedSSID(scanDetail.getSSID()));
             int score = PasspointNetworkScore.calculateScore(match == PasspointMatch.HomeProvider,
-                    scanDetail, isActiveNetwork);
+                    scanDetail, mPasspointManager.getANQPElements(scanDetail.getScanResult()),
+                    isActiveNetwork);
 
             if (score > bestScore) {
                 bestScanDetail = scanDetail;

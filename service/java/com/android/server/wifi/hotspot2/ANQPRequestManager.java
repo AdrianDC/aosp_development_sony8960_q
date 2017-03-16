@@ -20,7 +20,6 @@ import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.Clock;
-import com.android.server.wifi.ScanDetail;
 import com.android.server.wifi.hotspot2.anqp.Constants;
 
 import java.util.ArrayList;
@@ -43,7 +42,7 @@ public class ANQPRequestManager {
     /**
      * List of pending ANQP request associated with an AP (BSSID).
      */
-    private final Map<Long, ScanDetail> mPendingQueries;
+    private final Map<Long, ANQPNetworkKey> mPendingQueries;
 
     /**
      * List of hold off time information associated with APs specified by their BSSID.
@@ -109,14 +108,14 @@ public class ANQPRequestManager {
      * supported Hotspot 2.0 release version).
      *
      * @param bssid The BSSID of the AP
-     * @param scanDetail The ScanDetail associated with this request
+     * @param anqpNetworkKey The unique network key associated with this request
      * @param rcOIs Flag indicating the inclusion of roaming consortium OIs. When set to true,
      *              Roaming Consortium ANQP element will be requested
      * @param hsReleaseR2 Flag indicating the support of Hotspot 2.0 Release 2. When set to true,
      *              the Release 2 ANQP elements {@link #R2_ANQP_BASE_SET} will be requested
      * @return true if a request was sent successfully
      */
-    public boolean requestANQPElements(long bssid, ScanDetail scanDetail, boolean rcOIs,
+    public boolean requestANQPElements(long bssid, ANQPNetworkKey anqpNetworkKey, boolean rcOIs,
             boolean hsReleaseR2) {
         // Check if we are allow to send the request now.
         if (!canSendRequestNow(bssid)) {
@@ -132,7 +131,7 @@ public class ANQPRequestManager {
         // the given AP.
         updateHoldOffInfo(bssid);
 
-        mPendingQueries.put(bssid, scanDetail);
+        mPendingQueries.put(bssid, anqpNetworkKey);
         return true;
     }
 
@@ -141,9 +140,9 @@ public class ANQPRequestManager {
      *
      * @param bssid The BSSID of the AP
      * @param success Flag indicating the result of the query
-     * @return {@link ScanDetail} associated with the completed request
+     * @return {@link ANQPNetworkKey} associated with the completed request
      */
-    public ScanDetail onRequestCompleted(long bssid, boolean success) {
+    public ANQPNetworkKey onRequestCompleted(long bssid, boolean success) {
         if (success) {
             // Query succeeded.  No need to hold off request to the given AP.
             mHoldOffInfo.remove(bssid);
