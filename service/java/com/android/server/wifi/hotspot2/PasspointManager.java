@@ -47,6 +47,7 @@ import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.Constants;
 import com.android.server.wifi.util.InformationElementUtil;
+import com.android.server.wifi.util.ScanResultUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -409,6 +410,29 @@ public class PasspointManager {
             return anqpEntry.getElements();
         }
         return new HashMap<Constants.ANQPElementType, ANQPElement>();
+    }
+
+    /**
+     * Match the given WiFi AP to an installed Passpoint provider.  A {@link WifiConfiguration}
+     * will be generated and returned if a match is found.  The returned {@link WifiConfiguration}
+     * will contained all the necessary credentials for connecting to the given WiFi AP.
+     *
+     * A {code null} will be returned if no matching provider is found.
+     *
+     * @param scanResult The scan result of the given AP
+     * @return {@link WifiConfiguration}
+     */
+    public WifiConfiguration getMatchingWifiConfig(ScanResult scanResult) {
+        if (scanResult == null) {
+            return null;
+        }
+        Pair<PasspointProvider, PasspointMatch> matchedProvider = matchProvider(scanResult);
+        if (matchedProvider == null) {
+            return null;
+        }
+        WifiConfiguration config = matchedProvider.first.getWifiConfig();
+        config.SSID = ScanResultUtil.createQuotedSSID(scanResult.SSID);
+        return config;
     }
 
     /**

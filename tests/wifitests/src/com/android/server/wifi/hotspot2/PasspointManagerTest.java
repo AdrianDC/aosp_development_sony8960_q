@@ -68,6 +68,7 @@ import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType;
 import com.android.server.wifi.hotspot2.anqp.DomainNameElement;
+import com.android.server.wifi.util.ScanResultUtil;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -666,6 +667,70 @@ public class PasspointManagerTest {
 
         when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
         assertEquals(anqpElementMap, mManager.getANQPElements(createTestScanResult()));
+    }
+
+    /**
+     * Verify that an expected {@link WifiConfiguration} will be returned when a {@link ScanResult}
+     * is matched to a home provider.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getMatchingWifiConfigForHomeProviderAP() throws Exception {
+        PasspointProvider provider = addTestProvider();
+        ANQPData entry = new ANQPData(mClock, null);
+
+        when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
+        when(provider.match(anyMap())).thenReturn(PasspointMatch.HomeProvider);
+        when(provider.getWifiConfig()).thenReturn(new WifiConfiguration());
+        WifiConfiguration config = mManager.getMatchingWifiConfig(createTestScanResult());
+        assertEquals(ScanResultUtil.createQuotedSSID(TEST_SSID), config.SSID);
+    }
+
+    /**
+     * Verify that an expected {@link WifiConfiguration} will be returned when a {@link ScanResult}
+     * is matched to a roaming provider.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getMatchingWifiConfigForRoamingProviderAP() throws Exception {
+        PasspointProvider provider = addTestProvider();
+        ANQPData entry = new ANQPData(mClock, null);
+
+        when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
+        when(provider.match(anyMap())).thenReturn(PasspointMatch.RoamingProvider);
+        when(provider.getWifiConfig()).thenReturn(new WifiConfiguration());
+        WifiConfiguration config = mManager.getMatchingWifiConfig(createTestScanResult());
+        assertEquals(ScanResultUtil.createQuotedSSID(TEST_SSID), config.SSID);
+    }
+
+    /**
+     * Verify that a {code null} will be returned when a {@link ScanResult} doesn't match any
+     * provider.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getMatchingWifiConfigWithNoMatchingProvider() throws Exception {
+        PasspointProvider provider = addTestProvider();
+        ANQPData entry = new ANQPData(mClock, null);
+
+        when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
+        when(provider.match(anyMap())).thenReturn(PasspointMatch.None);
+        assertNull(mManager.getMatchingWifiConfig(createTestScanResult()));
+        verify(provider, never()).getWifiConfig();
+    }
+
+    /**
+     * Verify that a {@code null} will returned when trying to get a matching
+     * {@link WifiConfiguration} a {@code null} {@link ScanResult}.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getMatchingWifiConfigWithNullScanResult() throws Exception {
+        assertNull(mManager.getMatchingWifiConfig(null));
     }
 
     /**
