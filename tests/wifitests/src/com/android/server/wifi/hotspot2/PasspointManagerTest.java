@@ -28,6 +28,7 @@ import static android.net.wifi.WifiManager.EXTRA_URL;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
@@ -552,19 +553,17 @@ public class PasspointManagerTest {
     }
 
     /**
-     * Verify that an empty list will be returned when no providers are installed.
+     * Verify that a {code null} will be returned when no providers are installed.
      *
      * @throws Exception
      */
     @Test
     public void matchProviderWithNoProvidersInstalled() throws Exception {
-        List<Pair<PasspointProvider, PasspointMatch>> result =
-                mManager.matchProvider(createTestScanResult());
-        assertTrue(result.isEmpty());
+        assertNull(mManager.matchProvider(createTestScanResult()));
     }
 
     /**
-     * Verify that an empty list will be returned when ANQP entry doesn't exist in the cache.
+     * Verify that a {code null} be returned when ANQP entry doesn't exist in the cache.
      *
      * @throws Exception
      */
@@ -573,17 +572,14 @@ public class PasspointManagerTest {
         addTestProvider();
 
         when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(null);
-        List<Pair<PasspointProvider, PasspointMatch>> result =
-                mManager.matchProvider(createTestScanResult());
+        assertNull(mManager.matchProvider(createTestScanResult()));
         // Verify that a request for ANQP elements is initiated.
         verify(mAnqpRequestManager).requestANQPElements(eq(TEST_BSSID), any(ANQPNetworkKey.class),
                 anyBoolean(), anyBoolean());
-        assertTrue(result.isEmpty());
     }
 
     /**
-     * Verify that the returned list will contained an expected provider when a HomeProvider
-     * is matched.
+     * Verify that the expected provider will be returned when a HomeProvider is matched.
      *
      * @throws Exception
      */
@@ -594,15 +590,14 @@ public class PasspointManagerTest {
 
         when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
         when(provider.match(anyMap())).thenReturn(PasspointMatch.HomeProvider);
-        List<Pair<PasspointProvider, PasspointMatch>> result =
+        Pair<PasspointProvider, PasspointMatch> result =
                 mManager.matchProvider(createTestScanResult());
-        assertEquals(1, result.size());
-        assertEquals(PasspointMatch.HomeProvider, result.get(0).second);
+        assertEquals(PasspointMatch.HomeProvider, result.second);
+        assertEquals(TEST_FQDN, result.first.getConfig().getHomeSp().getFqdn());
     }
 
     /**
-     * Verify that the returned list will contained an expected provider when a RoamingProvider
-     * is matched.
+     * Verify that the expected provider will be returned when a RoamingProvider is matched.
      *
      * @throws Exception
      */
@@ -613,15 +608,14 @@ public class PasspointManagerTest {
 
         when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
         when(provider.match(anyMap())).thenReturn(PasspointMatch.RoamingProvider);
-        List<Pair<PasspointProvider, PasspointMatch>> result =
+        Pair<PasspointProvider, PasspointMatch> result =
                 mManager.matchProvider(createTestScanResult());
-        assertEquals(1, result.size());
-        assertEquals(PasspointMatch.RoamingProvider, result.get(0).second);
-        assertEquals(TEST_FQDN, provider.getConfig().getHomeSp().getFqdn());
+        assertEquals(PasspointMatch.RoamingProvider, result.second);
+        assertEquals(TEST_FQDN, result.first.getConfig().getHomeSp().getFqdn());
     }
 
     /**
-     * Verify that an empty list will be returned when there is no matching provider.
+     * Verify that a {code null} will be returned when there is no matching provider.
      *
      * @throws Exception
      */
@@ -632,9 +626,7 @@ public class PasspointManagerTest {
 
         when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
         when(provider.match(anyMap())).thenReturn(PasspointMatch.None);
-        List<Pair<PasspointProvider, PasspointMatch>> result =
-                mManager.matchProvider(createTestScanResult());
-        assertEquals(0, result.size());
+        assertNull(mManager.matchProvider(createTestScanResult()));
     }
 
     /**
