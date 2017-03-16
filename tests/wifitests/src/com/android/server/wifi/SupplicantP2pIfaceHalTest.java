@@ -90,14 +90,13 @@ public class SupplicantP2pIfaceHalTest {
     final String mInvalidMacAddress1 = "00:11:22:33:44";
     final String mInvalidMacAddress2 = ":::::";
     final String mInvalidMacAddress3 = "invalid";
-    final String mInvalidMacAddress4 = "";
     final byte mInvalidMacAddressBytes1[] = null;
     final byte mInvalidMacAddressBytes2[] = {};
     final byte mInvalidMacAddressBytes3[] = { 0x00, 0x01, 0x02, 0x03, 0x04 };
     final byte mInvalidMacAddressBytes4[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 };
     HashSet<String> mInvalidMacAddresses = new HashSet<String>(Arrays.asList(
             mInvalidMacAddress1, mInvalidMacAddress2,
-            mInvalidMacAddress3, mInvalidMacAddress4));
+            mInvalidMacAddress3));
     HashSet<byte[]> mInvalidMacAddressesBytes = new HashSet<byte[]>(Arrays.asList(
             mInvalidMacAddressBytes1, mInvalidMacAddressBytes2,
             mInvalidMacAddressBytes3, mInvalidMacAddressBytes4));
