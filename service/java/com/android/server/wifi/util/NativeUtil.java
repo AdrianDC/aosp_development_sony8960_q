@@ -16,6 +16,8 @@
 
 package com.android.server.wifi.util;
 
+import android.text.TextUtils;
+
 import libcore.util.HexEncoding;
 
 import java.nio.ByteBuffer;
@@ -102,14 +104,11 @@ public class NativeUtil {
      *
      * @param macStr string of format: "XX:XX:XX:XX:XX:XX" or "XXXXXXXXXXXX", where X is any
      *        hexadecimal digit.
-     *        Passing "any" is the same as 00:00:00:00:00:00
+     *        Passing null, empty string or "any" is the same as 00:00:00:00:00:00
      * @throws IllegalArgumentException for various malformed inputs.
      */
     public static byte[] macAddressToByteArray(String macStr) {
-        if (macStr == null) {
-            throw new IllegalArgumentException("null mac string");
-        }
-        if (ANY_MAC_STR.equals(macStr)) return ANY_MAC_BYTES;
+        if (TextUtils.isEmpty(macStr) || ANY_MAC_STR.equals(macStr)) return ANY_MAC_BYTES;
         String cleanMac = macStr.replace(":", "");
         if (cleanMac.length() != MAC_LENGTH * 2) {
             throw new IllegalArgumentException("invalid mac string length: " + cleanMac);
