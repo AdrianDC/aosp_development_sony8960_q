@@ -83,6 +83,8 @@ public class NetworkListStoreDataTest {
                     + "<int name=\"LastUpdateUid\" value=\"-1\" />\n"
                     + "<null name=\"LastUpdateName\" />\n"
                     + "<int name=\"LastConnectUid\" value=\"0\" />\n"
+                    + "<boolean name=\"IsLegacyPasspointConfig\" value=\"false\" />\n"
+                    + "<long-array name=\"RoamingConsortiumOIs\" num=\"0\" />\n"
                     + "</WifiConfiguration>\n"
                     + "<NetworkStatus>\n"
                     + "<string name=\"SelectionStatus\">NETWORK_SELECTION_ENABLED</string>\n"
@@ -131,6 +133,8 @@ public class NetworkListStoreDataTest {
                     + "<int name=\"LastUpdateUid\" value=\"-1\" />\n"
                     + "<null name=\"LastUpdateName\" />\n"
                     + "<int name=\"LastConnectUid\" value=\"0\" />\n"
+                    + "<boolean name=\"IsLegacyPasspointConfig\" value=\"false\" />\n"
+                    + "<long-array name=\"RoamingConsortiumOIs\" num=\"0\" />\n"
                     + "</WifiConfiguration>\n"
                     + "<NetworkStatus>\n"
                     + "<string name=\"SelectionStatus\">NETWORK_SELECTION_ENABLED</string>\n"
@@ -158,6 +162,8 @@ public class NetworkListStoreDataTest {
                     + "<string name=\"CaPath\"></string>\n"
                     + "<int name=\"EapMethod\" value=\"2\" />\n"
                     + "<int name=\"Phase2Method\" value=\"0\" />\n"
+                    + "<string name=\"PLMN\"></string>\n"
+                    + "<string name=\"Realm\"></string>\n"
                     + "</WifiEnterpriseConfiguration>\n"
                     + "</Network>\n";
 
