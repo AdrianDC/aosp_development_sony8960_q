@@ -1198,18 +1198,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 " with persist set to " + persist);
         enforceConnectivityInternalPermission();
         mLog.trace("setCountryCode uid=%").c(Binder.getCallingUid()).flush();
-        // TODO b/35150708 Log list of channels when country code is updated
         final long token = Binder.clearCallingIdentity();
-        try {
-            if (mCountryCode.setCountryCode(countryCode, persist) && persist) {
-                // Save this country code to persistent storage
-                mFacade.setStringSetting(mContext,
-                        Settings.Global.WIFI_COUNTRY_CODE,
-                        countryCode);
-            }
-        } finally {
-            Binder.restoreCallingIdentity(token);
-        }
+        mCountryCode.setCountryCode(countryCode);
+        Binder.restoreCallingIdentity(token);
     }
 
      /**
