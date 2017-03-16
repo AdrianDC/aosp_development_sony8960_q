@@ -16,11 +16,11 @@
 
 package com.android.server.wifi.hotspot2;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -30,7 +30,6 @@ import static org.mockito.MockitoAnnotations.initMocks;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.server.wifi.Clock;
-import com.android.server.wifi.ScanDetail;
 import com.android.server.wifi.hotspot2.anqp.Constants;
 
 import org.junit.Before;
@@ -46,7 +45,8 @@ import java.util.List;
 @SmallTest
 public class ANQPRequestManagerTest {
     private static final long TEST_BSSID = 0x123456L;
-    private static final ScanDetail TEST_SCAN_DETAIL = mock(ScanDetail.class);
+    private static final ANQPNetworkKey TEST_ANQP_KEY =
+            new ANQPNetworkKey("TestSSID", TEST_BSSID, 0, 0);
 
     private static final List<Constants.ANQPElementType> R1_ANQP_WITHOUT_RC = Arrays.asList(
             Constants.ANQPElementType.ANQPVenueName,
@@ -107,7 +107,7 @@ public class ANQPRequestManagerTest {
     @Test
     public void requestR1ANQPElementsWithoutRC() throws Exception {
         when(mHandler.requestANQP(TEST_BSSID, R1_ANQP_WITHOUT_RC)).thenReturn(true);
-        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
     }
 
     /**
@@ -120,7 +120,7 @@ public class ANQPRequestManagerTest {
     @Test
     public void requestR1ANQPElementsWithRC() throws Exception {
         when(mHandler.requestANQP(TEST_BSSID, R1_ANQP_WITH_RC)).thenReturn(true);
-        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, true, false));
+        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, true, false));
     }
 
     /**
@@ -133,7 +133,7 @@ public class ANQPRequestManagerTest {
     @Test
     public void requestR1R2ANQPElementsWithoutRC() throws Exception {
         when(mHandler.requestANQP(TEST_BSSID, R1R2_ANQP_WITHOUT_RC)).thenReturn(true);
-        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, true));
+        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, true));
     }
 
     /**
@@ -146,7 +146,7 @@ public class ANQPRequestManagerTest {
     @Test
     public void requestR1R2ANQPElementsWithRC() throws Exception {
         when(mHandler.requestANQP(TEST_BSSID, R1R2_ANQP_WITH_RC)).thenReturn(true);
-        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, true, true));
+        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, true, true));
     }
 
     /**
@@ -161,13 +161,13 @@ public class ANQPRequestManagerTest {
         long startTime = 0;
         when(mHandler.requestANQP(TEST_BSSID, R1_ANQP_WITHOUT_RC)).thenReturn(true);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(startTime);
-        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
         reset(mHandler);
 
         // Attempt another request will fail while one is still pending and hold off time is not up
         // yet.
         when(mClock.getElapsedSinceBootMillis()).thenReturn(startTime + 1);
-        assertFalse(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertFalse(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
         verify(mHandler, never()).requestANQP(anyLong(), anyObject());
         reset(mHandler);
 
@@ -175,7 +175,7 @@ public class ANQPRequestManagerTest {
         when(mHandler.requestANQP(TEST_BSSID, R1_ANQP_WITHOUT_RC)).thenReturn(true);
         when(mClock.getElapsedSinceBootMillis())
                 .thenReturn(startTime + ANQPRequestManager.BASE_HOLDOFF_TIME_MILLISECONDS);
-        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
     }
 
     /**
@@ -190,13 +190,13 @@ public class ANQPRequestManagerTest {
         long startTime = 0;
         when(mHandler.requestANQP(TEST_BSSID, R1_ANQP_WITHOUT_RC)).thenReturn(false);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(startTime);
-        assertFalse(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertFalse(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
         reset(mHandler);
 
         // Verify that new request is not being held off after previous send failure.
         when(mHandler.requestANQP(TEST_BSSID, R1_ANQP_WITHOUT_RC)).thenReturn(true);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(startTime);
-        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
     }
 
     /**
@@ -211,15 +211,16 @@ public class ANQPRequestManagerTest {
         long startTime = 0;
         when(mHandler.requestANQP(TEST_BSSID, R1_ANQP_WITHOUT_RC)).thenReturn(true);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(startTime);
-        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
         reset(mHandler);
 
-        // Request completed with success.
-        mManager.onRequestCompleted(TEST_BSSID, true);
+        // Request completed with success. Verify that the key associated with the request
+        // is returned.
+        assertEquals(TEST_ANQP_KEY, mManager.onRequestCompleted(TEST_BSSID, true));
 
         when(mHandler.requestANQP(TEST_BSSID, R1_ANQP_WITHOUT_RC)).thenReturn(true);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(startTime + 1);
-        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
     }
 
     /**
@@ -235,22 +236,23 @@ public class ANQPRequestManagerTest {
         long startTime = 0;
         when(mHandler.requestANQP(TEST_BSSID, R1_ANQP_WITHOUT_RC)).thenReturn(true);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(startTime);
-        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
         reset(mHandler);
 
-        // Request completed with failure.
-        mManager.onRequestCompleted(TEST_BSSID, false);
+        // Request completed with failure.  Verify that the key associated with the request
+        // is returned
+        assertEquals(TEST_ANQP_KEY, mManager.onRequestCompleted(TEST_BSSID, false));
 
         // Attempt another request will fail since the hold off time is not up yet.
         when(mClock.getElapsedSinceBootMillis()).thenReturn(startTime + 1);
-        assertFalse(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertFalse(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
         verify(mHandler, never()).requestANQP(anyLong(), anyObject());
 
         // Attempt another request will succeed after the hold off time is up.
         when(mHandler.requestANQP(TEST_BSSID, R1_ANQP_WITHOUT_RC)).thenReturn(true);
         when(mClock.getElapsedSinceBootMillis())
                 .thenReturn(startTime + ANQPRequestManager.BASE_HOLDOFF_TIME_MILLISECONDS);
-        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
     }
 
     /**
@@ -266,7 +268,7 @@ public class ANQPRequestManagerTest {
         // Initial request.
         when(mHandler.requestANQP(TEST_BSSID, R1_ANQP_WITHOUT_RC)).thenReturn(true);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTime);
-        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
         reset(mHandler);
 
         // Sending the request with the hold off time based on the current hold off count.
@@ -276,14 +278,14 @@ public class ANQPRequestManagerTest {
 
             // Request will fail before the hold off time is up.
             when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTime);
-            assertFalse(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+            assertFalse(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
             verify(mHandler, never()).requestANQP(anyLong(), anyObject());
 
             // Request will succeed when the hold off time is up.
             currentTime += 1;
             when(mHandler.requestANQP(TEST_BSSID, R1_ANQP_WITHOUT_RC)).thenReturn(true);
             when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTime);
-            assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+            assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
             reset(mHandler);
         }
 
@@ -292,13 +294,13 @@ public class ANQPRequestManagerTest {
                 * (1 << ANQPRequestManager.MAX_HOLDOFF_COUNT) - 1);
 
         when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTime);
-        assertFalse(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertFalse(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
         verify(mHandler, never()).requestANQP(anyLong(), anyObject());
 
         currentTime += 1;
         when(mHandler.requestANQP(TEST_BSSID, R1_ANQP_WITHOUT_RC)).thenReturn(true);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTime);
-        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_SCAN_DETAIL, false, false));
+        assertTrue(mManager.requestANQPElements(TEST_BSSID, TEST_ANQP_KEY, false, false));
         reset(mHandler);
     }
 }

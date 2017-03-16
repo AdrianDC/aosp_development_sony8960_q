@@ -129,7 +129,7 @@ public class PasspointNetworkEvaluatorTest {
                 generateScanDetail(TEST_SSID1), generateScanDetail(TEST_SSID2)});
         List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
         List<Pair<PasspointProvider, PasspointMatch>> matchedProviders = new ArrayList<>();
-        when(mPasspointManager.matchProvider(any(ScanDetail.class))).thenReturn(matchedProviders);
+        when(mPasspointManager.matchProvider(any(ScanResult.class))).thenReturn(matchedProviders);
         assertEquals(null, mEvaluator.evaluateNetworks(
                 scanDetails, null, null, false, false, connectableNetworks));
         assertTrue(connectableNetworks.isEmpty());
@@ -154,7 +154,7 @@ public class PasspointNetworkEvaluatorTest {
                 scanDetails, null, null, false, false, connectableNetworks));
         assertTrue(connectableNetworks.isEmpty());
         // Verify that no provider matching is performed.
-        verify(mPasspointManager, never()).matchProvider(any(ScanDetail.class));
+        verify(mPasspointManager, never()).matchProvider(any(ScanResult.class));
     }
 
     /**
@@ -181,7 +181,7 @@ public class PasspointNetworkEvaluatorTest {
 
         // Return matchedProviders for the first ScanDetail (TEST_SSID1) and an empty list for
         // for the second (TEST_SSID2);
-        when(mPasspointManager.matchProvider(any(ScanDetail.class))).thenReturn(matchedProviders)
+        when(mPasspointManager.matchProvider(any(ScanResult.class))).thenReturn(matchedProviders)
                 .thenReturn(new ArrayList<Pair<PasspointProvider, PasspointMatch>>());
         when(mWifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
                 .thenReturn(new NetworkUpdateResult(TEST_NETWORK_ID));
@@ -224,7 +224,7 @@ public class PasspointNetworkEvaluatorTest {
 
         // Return matchedProviders for the first ScanDetail (TEST_SSID1) and an empty list for
         // for the second (TEST_SSID2);
-        when(mPasspointManager.matchProvider(any(ScanDetail.class))).thenReturn(matchedProviders)
+        when(mPasspointManager.matchProvider(any(ScanResult.class))).thenReturn(matchedProviders)
                 .thenReturn(new ArrayList<Pair<PasspointProvider, PasspointMatch>>());
         when(mWifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
                 .thenReturn(new NetworkUpdateResult(TEST_NETWORK_ID));
@@ -271,7 +271,7 @@ public class PasspointNetworkEvaluatorTest {
 
         // Return providerForScanDetail1 for the first ScanDetail (TEST_SSID1) and
         // providerForScanDetail2 for the second (TEST_SSID2);
-        when(mPasspointManager.matchProvider(any(ScanDetail.class)))
+        when(mPasspointManager.matchProvider(any(ScanResult.class)))
                 .thenReturn(providerForScanDetail1).thenReturn(providerForScanDetail2);
         when(mWifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
                 .thenReturn(new NetworkUpdateResult(TEST_NETWORK_ID));
@@ -318,7 +318,7 @@ public class PasspointNetworkEvaluatorTest {
 
         // Returning the same matching provider for both ScanDetail.
         List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
-        when(mPasspointManager.matchProvider(any(ScanDetail.class)))
+        when(mPasspointManager.matchProvider(any(ScanResult.class)))
                 .thenReturn(matchedProviders).thenReturn(matchedProviders);
         WifiConfiguration config = mEvaluator.evaluateNetworks(scanDetails, currentNetwork,
                 currentBssid, true, false, connectableNetworks);

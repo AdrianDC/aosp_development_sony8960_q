@@ -45,6 +45,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.EAPConstants;
 import android.net.wifi.IconInfo;
+import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.hotspot2.PasspointConfiguration;
@@ -59,7 +60,6 @@ import com.android.server.wifi.Clock;
 import com.android.server.wifi.FakeKeys;
 import com.android.server.wifi.IMSIParameter;
 import com.android.server.wifi.SIMAccessor;
-import com.android.server.wifi.ScanDetail;
 import com.android.server.wifi.WifiConfigManager;
 import com.android.server.wifi.WifiConfigStore;
 import com.android.server.wifi.WifiKeyStore;
@@ -94,9 +94,12 @@ public class PasspointManagerTest {
     private static final IMSIParameter TEST_IMSI_PARAM = IMSIParameter.build(TEST_IMSI);
 
     private static final String TEST_SSID = "TestSSID";
-    private static final long TEST_BSSID = 0x1234L;
+    private static final long TEST_BSSID = 0x112233445566L;
+    private static final String TEST_BSSID_STRING = "11:22:33:44:55:66";
     private static final long TEST_HESSID = 0x5678L;
-    private static final int TEST_ANQP_DOMAIN_ID = 1;
+    private static final int TEST_ANQP_DOMAIN_ID = 0;
+    private static final ANQPNetworkKey TEST_ANQP_KEY = ANQPNetworkKey.buildKey(
+            TEST_SSID, TEST_BSSID, TEST_HESSID, TEST_ANQP_DOMAIN_ID);
 
     @Mock Context mContext;
     @Mock WifiNative mWifiNative;
@@ -239,20 +242,16 @@ public class PasspointManagerTest {
     }
 
     /**
-     * Helper function for creating a mock ScanDetail.
+     * Helper function for creating a ScanResult for testing.
      *
-     * @return {@link ScanDetail}
+     * @return {@link ScanResult}
      */
-    private ScanDetail createMockScanDetail() {
-        NetworkDetail networkDetail = mock(NetworkDetail.class);
-        when(networkDetail.getSSID()).thenReturn(TEST_SSID);
-        when(networkDetail.getBSSID()).thenReturn(TEST_BSSID);
-        when(networkDetail.getHESSID()).thenReturn(TEST_HESSID);
-        when(networkDetail.getAnqpDomainID()).thenReturn(TEST_ANQP_DOMAIN_ID);
-
-        ScanDetail scanDetail = mock(ScanDetail.class);
-        when(scanDetail.getNetworkDetail()).thenReturn(networkDetail);
-        return scanDetail;
+    private ScanResult createTestScanResult() {
+        ScanResult scanResult = new ScanResult();
+        scanResult.SSID = TEST_SSID;
+        scanResult.BSSID = TEST_BSSID_STRING;
+        scanResult.hessid = TEST_HESSID;
+        return scanResult;
     }
 
     /**
@@ -267,13 +266,9 @@ public class PasspointManagerTest {
         anqpElementMap.put(ANQPElementType.ANQPDomName,
                 new DomainNameElement(Arrays.asList(new String[] {"test.com"})));
 
-        ScanDetail scanDetail = createMockScanDetail();
-        ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(TEST_SSID, TEST_BSSID, TEST_HESSID,
-                TEST_ANQP_DOMAIN_ID);
-        when(mAnqpRequestManager.onRequestCompleted(TEST_BSSID, true)).thenReturn(scanDetail);
+        when(mAnqpRequestManager.onRequestCompleted(TEST_BSSID, true)).thenReturn(TEST_ANQP_KEY);
         mCallbacks.onANQPResponse(TEST_BSSID, anqpElementMap);
-        verify(mAnqpCache).addEntry(anqpKey, anqpElementMap);
-        verify(scanDetail).propagateANQPInfo(anqpElementMap);
+        verify(mAnqpCache).addEntry(TEST_ANQP_KEY, anqpElementMap);
     }
 
     /**
@@ -300,11 +295,7 @@ public class PasspointManagerTest {
      */
     @Test
     public void anqpResponseFailure() throws Exception {
-        ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(TEST_SSID, TEST_BSSID, TEST_HESSID,
-                TEST_ANQP_DOMAIN_ID);
-
-        ScanDetail scanDetail = createMockScanDetail();
-        when(mAnqpRequestManager.onRequestCompleted(TEST_BSSID, false)).thenReturn(scanDetail);
+        when(mAnqpRequestManager.onRequestCompleted(TEST_BSSID, false)).thenReturn(TEST_ANQP_KEY);
         mCallbacks.onANQPResponse(TEST_BSSID, null);
         verify(mAnqpCache, never()).addEntry(any(ANQPNetworkKey.class), anyMap());
 
@@ -568,7 +559,7 @@ public class PasspointManagerTest {
     @Test
     public void matchProviderWithNoProvidersInstalled() throws Exception {
         List<Pair<PasspointProvider, PasspointMatch>> result =
-                mManager.matchProvider(createMockScanDetail());
+                mManager.matchProvider(createTestScanResult());
         assertTrue(result.isEmpty());
     }
 
@@ -581,13 +572,11 @@ public class PasspointManagerTest {
     public void matchProviderWithAnqpCacheMissed() throws Exception {
         addTestProvider();
 
-        ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(TEST_SSID, TEST_BSSID, TEST_HESSID,
-                TEST_ANQP_DOMAIN_ID);
-        when(mAnqpCache.getEntry(anqpKey)).thenReturn(null);
+        when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(null);
         List<Pair<PasspointProvider, PasspointMatch>> result =
-                mManager.matchProvider(createMockScanDetail());
+                mManager.matchProvider(createTestScanResult());
         // Verify that a request for ANQP elements is initiated.
-        verify(mAnqpRequestManager).requestANQPElements(eq(TEST_BSSID), any(ScanDetail.class),
+        verify(mAnqpRequestManager).requestANQPElements(eq(TEST_BSSID), any(ANQPNetworkKey.class),
                 anyBoolean(), anyBoolean());
         assertTrue(result.isEmpty());
     }
@@ -602,13 +591,11 @@ public class PasspointManagerTest {
     public void matchProviderAsHomeProvider() throws Exception {
         PasspointProvider provider = addTestProvider();
         ANQPData entry = new ANQPData(mClock, null);
-        ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(TEST_SSID, TEST_BSSID, TEST_HESSID,
-                TEST_ANQP_DOMAIN_ID);
 
-        when(mAnqpCache.getEntry(anqpKey)).thenReturn(entry);
+        when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
         when(provider.match(anyMap())).thenReturn(PasspointMatch.HomeProvider);
         List<Pair<PasspointProvider, PasspointMatch>> result =
-                mManager.matchProvider(createMockScanDetail());
+                mManager.matchProvider(createTestScanResult());
         assertEquals(1, result.size());
         assertEquals(PasspointMatch.HomeProvider, result.get(0).second);
     }
@@ -623,13 +610,11 @@ public class PasspointManagerTest {
     public void matchProviderAsRoamingProvider() throws Exception {
         PasspointProvider provider = addTestProvider();
         ANQPData entry = new ANQPData(mClock, null);
-        ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(TEST_SSID, TEST_BSSID, TEST_HESSID,
-                TEST_ANQP_DOMAIN_ID);
 
-        when(mAnqpCache.getEntry(anqpKey)).thenReturn(entry);
+        when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
         when(provider.match(anyMap())).thenReturn(PasspointMatch.RoamingProvider);
         List<Pair<PasspointProvider, PasspointMatch>> result =
-                mManager.matchProvider(createMockScanDetail());
+                mManager.matchProvider(createTestScanResult());
         assertEquals(1, result.size());
         assertEquals(PasspointMatch.RoamingProvider, result.get(0).second);
         assertEquals(TEST_FQDN, provider.getConfig().getHomeSp().getFqdn());
@@ -644,13 +629,11 @@ public class PasspointManagerTest {
     public void matchProviderWithNoMatch() throws Exception {
         PasspointProvider provider = addTestProvider();
         ANQPData entry = new ANQPData(mClock, null);
-        ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(TEST_SSID, TEST_BSSID, TEST_HESSID,
-                TEST_ANQP_DOMAIN_ID);
 
-        when(mAnqpCache.getEntry(anqpKey)).thenReturn(entry);
+        when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
         when(provider.match(anyMap())).thenReturn(PasspointMatch.None);
         List<Pair<PasspointProvider, PasspointMatch>> result =
-                mManager.matchProvider(createMockScanDetail());
+                mManager.matchProvider(createTestScanResult());
         assertEquals(0, result.size());
     }
 
@@ -663,6 +646,34 @@ public class PasspointManagerTest {
     public void sweepCache() throws Exception {
         mManager.sweepCache();
         verify(mAnqpCache).sweep();
+    }
+
+    /**
+     * Verify that an empty map will be returned if ANQP elements are not cached for the given AP.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getANQPElementsWithNoMatchFound() throws Exception {
+        when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(null);
+        assertTrue(mManager.getANQPElements(createTestScanResult()).isEmpty());
+    }
+
+    /**
+     * Verify that an expected ANQP elements will be returned if ANQP elements are cached for the
+     * given AP.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getANQPElementsWithMatchFound() throws Exception {
+        Map<ANQPElementType, ANQPElement> anqpElementMap = new HashMap<>();
+        anqpElementMap.put(ANQPElementType.ANQPDomName,
+                new DomainNameElement(Arrays.asList(new String[] {"test.com"})));
+        ANQPData entry = new ANQPData(mClock, anqpElementMap);
+
+        when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
+        assertEquals(anqpElementMap, mManager.getANQPElements(createTestScanResult()));
     }
 
     /**
