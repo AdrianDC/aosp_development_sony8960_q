@@ -128,8 +128,7 @@ public class PasspointNetworkEvaluatorTest {
         List<ScanDetail> scanDetails = Arrays.asList(new ScanDetail[] {
                 generateScanDetail(TEST_SSID1), generateScanDetail(TEST_SSID2)});
         List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
-        List<Pair<PasspointProvider, PasspointMatch>> matchedProviders = new ArrayList<>();
-        when(mPasspointManager.matchProvider(any(ScanResult.class))).thenReturn(matchedProviders);
+        when(mPasspointManager.matchProvider(any(ScanResult.class))).thenReturn(null);
         assertEquals(null, mEvaluator.evaluateNetworks(
                 scanDetails, null, null, false, false, connectableNetworks));
         assertTrue(connectableNetworks.isEmpty());
@@ -158,31 +157,26 @@ public class PasspointNetworkEvaluatorTest {
     }
 
     /**
-     * Verify that when both home provider and roaming provider is found for the same network,
-     * home provider is preferred.
+     * Verify that when a network matches a home provider is found, the correct network
+     * information (WifiConfiguration) is setup and returned.
      *
      * @throws Exception
      */
     @Test
-    public void evaluateScansWithNetworkMatchingHomeAndRoamingProvider() throws Exception {
+    public void evaluateScansWithNetworkMatchingHomeProvider() throws Exception {
         List<ScanDetail> scanDetails = Arrays.asList(new ScanDetail[] {
                 generateScanDetail(TEST_SSID1), generateScanDetail(TEST_SSID2)});
 
         // Setup matching providers for ScanDetail with TEST_SSID1.
         Pair<PasspointProvider, PasspointMatch> homeProvider = Pair.create(
                 TEST_PROVIDER1, PasspointMatch.HomeProvider);
-        Pair<PasspointProvider, PasspointMatch> roamingProvider = Pair.create(
-                TEST_PROVIDER2, PasspointMatch.RoamingProvider);
-        List<Pair<PasspointProvider, PasspointMatch>> matchedProviders = new ArrayList<>();
-        matchedProviders.add(homeProvider);
-        matchedProviders.add(roamingProvider);
 
         List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
 
-        // Return matchedProviders for the first ScanDetail (TEST_SSID1) and an empty list for
+        // Return homeProvider for the first ScanDetail (TEST_SSID1) and a null (no match) for
         // for the second (TEST_SSID2);
-        when(mPasspointManager.matchProvider(any(ScanResult.class))).thenReturn(matchedProviders)
-                .thenReturn(new ArrayList<Pair<PasspointProvider, PasspointMatch>>());
+        when(mPasspointManager.matchProvider(any(ScanResult.class))).thenReturn(homeProvider)
+                .thenReturn(null);
         when(mWifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
                 .thenReturn(new NetworkUpdateResult(TEST_NETWORK_ID));
         when(mWifiConfigManager.getConfiguredNetwork(TEST_NETWORK_ID)).thenReturn(TEST_CONFIG1);
@@ -217,15 +211,13 @@ public class PasspointNetworkEvaluatorTest {
         // Setup matching providers for ScanDetail with TEST_SSID1.
         Pair<PasspointProvider, PasspointMatch> roamingProvider = Pair.create(
                 TEST_PROVIDER1, PasspointMatch.RoamingProvider);
-        List<Pair<PasspointProvider, PasspointMatch>> matchedProviders = new ArrayList<>();
-        matchedProviders.add(roamingProvider);
 
         List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
 
-        // Return matchedProviders for the first ScanDetail (TEST_SSID1) and an empty list for
+        // Return roamingProvider for the first ScanDetail (TEST_SSID1) and a null (no match) for
         // for the second (TEST_SSID2);
-        when(mPasspointManager.matchProvider(any(ScanResult.class))).thenReturn(matchedProviders)
-                .thenReturn(new ArrayList<Pair<PasspointProvider, PasspointMatch>>());
+        when(mPasspointManager.matchProvider(any(ScanResult.class))).thenReturn(roamingProvider)
+                .thenReturn(null);
         when(mWifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
                 .thenReturn(new NetworkUpdateResult(TEST_NETWORK_ID));
         when(mWifiConfigManager.getConfiguredNetwork(TEST_NETWORK_ID)).thenReturn(TEST_CONFIG1);
@@ -262,17 +254,13 @@ public class PasspointNetworkEvaluatorTest {
                 TEST_PROVIDER1, PasspointMatch.HomeProvider);
         Pair<PasspointProvider, PasspointMatch> roamingProvider = Pair.create(
                 TEST_PROVIDER2, PasspointMatch.RoamingProvider);
-        List<Pair<PasspointProvider, PasspointMatch>> providerForScanDetail1 = new ArrayList<>();
-        providerForScanDetail1.add(homeProvider);
-        List<Pair<PasspointProvider, PasspointMatch>> providerForScanDetail2 = new ArrayList<>();
-        providerForScanDetail2.add(roamingProvider);
 
         List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
 
-        // Return providerForScanDetail1 for the first ScanDetail (TEST_SSID1) and
-        // providerForScanDetail2 for the second (TEST_SSID2);
+        // Return homeProvider for the first ScanDetail (TEST_SSID1) and
+        // roamingProvider for the second (TEST_SSID2);
         when(mPasspointManager.matchProvider(any(ScanResult.class)))
-                .thenReturn(providerForScanDetail1).thenReturn(providerForScanDetail2);
+                .thenReturn(homeProvider).thenReturn(roamingProvider);
         when(mWifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
                 .thenReturn(new NetworkUpdateResult(TEST_NETWORK_ID));
         when(mWifiConfigManager.getConfiguredNetwork(TEST_NETWORK_ID)).thenReturn(TEST_CONFIG1);
@@ -307,8 +295,6 @@ public class PasspointNetworkEvaluatorTest {
         // Setup matching providers for both ScanDetail.
         Pair<PasspointProvider, PasspointMatch> homeProvider = Pair.create(
                 TEST_PROVIDER1, PasspointMatch.HomeProvider);
-        List<Pair<PasspointProvider, PasspointMatch>> matchedProviders = new ArrayList<>();
-        matchedProviders.add(homeProvider);
 
         // Setup currently connected network
         WifiConfiguration currentNetwork = new WifiConfiguration();
@@ -319,7 +305,7 @@ public class PasspointNetworkEvaluatorTest {
         // Returning the same matching provider for both ScanDetail.
         List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
         when(mPasspointManager.matchProvider(any(ScanResult.class)))
-                .thenReturn(matchedProviders).thenReturn(matchedProviders);
+                .thenReturn(homeProvider).thenReturn(homeProvider);
         WifiConfiguration config = mEvaluator.evaluateNetworks(scanDetails, currentNetwork,
                 currentBssid, true, false, connectableNetworks);
         assertEquals(1, connectableNetworks.size());
