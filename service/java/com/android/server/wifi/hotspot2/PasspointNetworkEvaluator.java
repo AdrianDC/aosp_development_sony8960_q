@@ -62,6 +62,9 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
                     WifiConfiguration currentNetwork, String currentBssid,
                     boolean connected, boolean untrustedNetworkAllowed,
                     List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks) {
+        // Sweep the ANQP cache to remove any expired ANQP entries.
+        mPasspointManager.sweepCache();
+
         // Go through each ScanDetail and find the best provider for each ScanDetail.
         List<Pair<ScanDetail, Pair<PasspointProvider, PasspointMatch>>> providerList =
                 new ArrayList<>();
@@ -71,12 +74,9 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
                 continue;
             }
 
-            List<Pair<PasspointProvider, PasspointMatch>> matchedProviders =
-                    mPasspointManager.matchProvider(scanDetail);
-
             // Find the best provider for this ScanDetail.
             Pair<PasspointProvider, PasspointMatch> bestProvider =
-                    findBestProvider(matchedProviders);
+                    mPasspointManager.matchProvider(scanDetail.getScanResult());
             if (bestProvider != null) {
                 providerList.add(Pair.create(scanDetail, bestProvider));
             }
@@ -132,33 +132,6 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
     }
 
     /**
-     * Given a list of provider associated with a ScanDetail, determine and return the best
-     * provider from the list.
-     *
-     * Currently the only criteria is to prefer home provider over roaming provider.  Additional
-     * criteria will be added when Hotspot 2.0 Release 2 support is added.
-     *
-     * A null will be returned if no match is found (providerList is empty).
-     *
-     * @param providerList The list of matched providers
-     * @return Pair of {@link PasspointProvider} with its matching status
-     */
-    private Pair<PasspointProvider, PasspointMatch> findBestProvider(
-            List<Pair<PasspointProvider, PasspointMatch>> providerList) {
-        Pair<PasspointProvider, PasspointMatch> bestMatch = null;
-        for (Pair<PasspointProvider, PasspointMatch> providerMatch : providerList) {
-            if (providerMatch.second == PasspointMatch.HomeProvider) {
-                // Home provider found, done.
-                bestMatch = providerMatch;
-                break;
-            } else if (bestMatch == null) {
-                bestMatch = providerMatch;
-            }
-        }
-        return bestMatch;
-    }
-
-    /**
      * Given a list of Passpoint networks (with both provider and scan info), find and return
      * the one with highest score.  The score is calculated using
      * {@link PasspointNetworkScore#calculateScore}.
@@ -181,7 +154,8 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
             boolean isActiveNetwork = TextUtils.equals(currentNetworkSsid,
                     ScanResultUtil.createQuotedSSID(scanDetail.getSSID()));
             int score = PasspointNetworkScore.calculateScore(match == PasspointMatch.HomeProvider,
-                    scanDetail, isActiveNetwork);
+                    scanDetail, mPasspointManager.getANQPElements(scanDetail.getScanResult()),
+                    isActiveNetwork);
 
             if (score > bestScore) {
                 bestScanDetail = scanDetail;

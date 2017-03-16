@@ -142,6 +142,7 @@ public class WifiConfigStoreLegacyTest {
         WifiConfigStoreLegacy.WifiConfigStoreDataLegacy storeData = mWifiConfigStore.read();
 
         // Update the expected configuration for Passpoint network.
+        passpointNetwork.isLegacyPasspointConfig = true;
         passpointNetwork.FQDN = fqdn;
         passpointNetwork.providerFriendlyName = providerFriendlyName;
         passpointNetwork.roamingConsortiumIds = roamingConsortiumIds;

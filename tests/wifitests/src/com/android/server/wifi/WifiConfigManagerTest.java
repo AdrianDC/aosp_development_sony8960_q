@@ -2113,6 +2113,7 @@ public class WifiConfigManagerTest {
         final WifiConfiguration passpointConfig =
                 WifiConfigurationTestUtil.createPasspointNetwork();
         passpointConfig.creatorUid = UserHandle.getUid(user1, appId);
+        passpointConfig.isLegacyPasspointConfig = true;
 
         // Set up the shared store data to contain one legacy Passpoint configuration.
         List<WifiConfiguration> sharedNetworks = new ArrayList<WifiConfiguration>() {
