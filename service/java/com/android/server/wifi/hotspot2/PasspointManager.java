@@ -29,6 +29,7 @@ import static android.net.wifi.WifiManager.EXTRA_URL;
 import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.IconInfo;
+import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.hotspot2.PasspointConfiguration;
@@ -39,13 +40,13 @@ import android.util.Pair;
 
 import com.android.server.wifi.Clock;
 import com.android.server.wifi.SIMAccessor;
-import com.android.server.wifi.ScanDetail;
 import com.android.server.wifi.WifiConfigManager;
 import com.android.server.wifi.WifiConfigStore;
 import com.android.server.wifi.WifiKeyStore;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.Constants;
+import com.android.server.wifi.util.InformationElementUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -103,23 +104,16 @@ public class PasspointManager {
         public void onANQPResponse(long bssid,
                 Map<Constants.ANQPElementType, ANQPElement> anqpElements) {
             // Notify request manager for the completion of a request.
-            ScanDetail scanDetail =
+            ANQPNetworkKey anqpKey =
                     mAnqpRequestManager.onRequestCompleted(bssid, anqpElements != null);
-            if (anqpElements == null || scanDetail == null) {
+            if (anqpElements == null || anqpKey == null) {
                 // Query failed or the request wasn't originated from us (not tracked by the
                 // request manager). Nothing to be done.
                 return;
             }
 
             // Add new entry to the cache.
-            NetworkDetail networkDetail = scanDetail.getNetworkDetail();
-            ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(networkDetail.getSSID(),
-                    networkDetail.getBSSID(), networkDetail.getHESSID(),
-                    networkDetail.getAnqpDomainID());
             mAnqpCache.addEntry(anqpKey, anqpElements);
-
-            // Update ANQP elements in the ScanDetail.
-            scanDetail.propagateANQPInfo(anqpElements);
         }
 
         @Override
@@ -286,26 +280,32 @@ public class PasspointManager {
      *
      * An empty list will returned in the case when no match is found.
      *
-     * @param scanDetail The detail information of the AP
+     * @param scanResult The scan result associated with the AP
      * @return List of {@link PasspointProvider}
      */
-    public List<Pair<PasspointProvider, PasspointMatch>> matchProvider(ScanDetail scanDetail) {
+    public List<Pair<PasspointProvider, PasspointMatch>> matchProvider(ScanResult scanResult) {
         // Nothing to be done if no Passpoint provider is installed.
         if (mProviders.isEmpty()) {
             return new ArrayList<Pair<PasspointProvider, PasspointMatch>>();
         }
 
+        // Retrieve the relevant information elements, mainly Roaming Consortium IE and Hotspot 2.0
+        // Vendor Specific IE.
+        InformationElementUtil.RoamingConsortium roamingConsortium =
+                InformationElementUtil.getRoamingConsortiumIE(scanResult.informationElements);
+        InformationElementUtil.Vsa vsa = InformationElementUtil.getHS2VendorSpecificIE(
+                scanResult.informationElements);
+
         // Lookup ANQP data in the cache.
-        NetworkDetail networkDetail = scanDetail.getNetworkDetail();
-        ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(networkDetail.getSSID(),
-                networkDetail.getBSSID(), networkDetail.getHESSID(),
-                networkDetail.getAnqpDomainID());
+        long bssid = Utils.parseMac(scanResult.BSSID);
+        ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(scanResult.SSID, bssid, scanResult.hessid,
+                vsa.anqpDomainID);
         ANQPData anqpEntry = mAnqpCache.getEntry(anqpKey);
 
         if (anqpEntry == null) {
-            mAnqpRequestManager.requestANQPElements(networkDetail.getBSSID(), scanDetail,
-                    networkDetail.getAnqpOICount() > 0,
-                    networkDetail.getHSRelease() == NetworkDetail.HSRelease.R2);
+            mAnqpRequestManager.requestANQPElements(bssid, anqpKey,
+                    roamingConsortium.anqpOICount > 0,
+                    vsa.hsRelease  == NetworkDetail.HSRelease.R2);
             return new ArrayList<Pair<PasspointProvider, PasspointMatch>>();
         }
 
@@ -380,6 +380,28 @@ public class PasspointManager {
      */
     public boolean queryPasspointIcon(long bssid, String fileName) {
         return mHandler.requestIcon(bssid, fileName);
+    }
+
+    /**
+     * Lookup the ANQP elements associated with the given AP from the cache. An empty map
+     * will be returned if no match found in the cache.
+     *
+     * @param scanResult The scan result associated with the AP
+     * @return Map of ANQP elements
+     */
+    public Map<Constants.ANQPElementType, ANQPElement> getANQPElements(ScanResult scanResult) {
+        // Retrieve the Hotspot 2.0 Vendor Specific IE.
+        InformationElementUtil.Vsa vsa =
+                InformationElementUtil.getHS2VendorSpecificIE(scanResult.informationElements);
+
+        // Lookup ANQP data in the cache.
+        long bssid = Utils.parseMac(scanResult.BSSID);
+        ANQPData anqpEntry = mAnqpCache.getEntry(ANQPNetworkKey.buildKey(
+                scanResult.SSID, bssid, scanResult.hessid, vsa.anqpDomainID));
+        if (anqpEntry != null) {
+            return anqpEntry.getElements();
+        }
+        return new HashMap<Constants.ANQPElementType, ANQPElement>();
     }
 
     /**

@@ -145,7 +145,7 @@ public class PasspointNetworkScore {
      * @return integer score
      */
     public static int calculateScore(boolean isHomeProvider, ScanDetail scanDetail,
-            boolean isActiveNetwork) {
+            Map<ANQPElementType, ANQPElement> anqpElements, boolean isActiveNetwork) {
         NetworkDetail networkDetail = scanDetail.getNetworkDetail();
         int score = 0;
         if (isHomeProvider) {
@@ -158,9 +158,9 @@ public class PasspointNetworkScore {
         // Adjust score based on the network type.
         score += NETWORK_TYPE_SCORES.get(networkDetail.getAnt());
 
-        Map<ANQPElementType, ANQPElement> anqp = networkDetail.getANQPElements();
-        if (anqp != null) {
-            HSWanMetricsElement wm = (HSWanMetricsElement) anqp.get(ANQPElementType.HSWANMetrics);
+        if (anqpElements != null) {
+            HSWanMetricsElement wm =
+                    (HSWanMetricsElement) anqpElements.get(ANQPElementType.HSWANMetrics);
             if (wm != null) {
                 if (wm.getStatus() != HSWanMetricsElement.LINK_STATUS_UP || wm.isCapped()) {
                     score -= WAN_PORT_DOWN_OR_CAPPED_PENALTY;
@@ -168,7 +168,7 @@ public class PasspointNetworkScore {
             }
 
             IPAddressTypeAvailabilityElement ipa = (IPAddressTypeAvailabilityElement)
-                    anqp.get(ANQPElementType.ANQPIPAddrAvailability);
+                    anqpElements.get(ANQPElementType.ANQPIPAddrAvailability);
 
             if (ipa != null) {
                 Integer v4Score = IPV4_SCORES.get(ipa.getV4Availability());

@@ -309,11 +309,10 @@ public class PasspointNetworkScoreTest {
      * @param rssiLevel RSSI level of the network
      * @param internetAccess Flag indicating if the network provides Internet access
      * @param networkType The type of the network
-     * @param anqpElements The list of ANQP elements
      * @return {@link ScanDetail}
      */
     private static ScanDetail generateScanDetail(int rssiLevel, boolean internetAccess,
-            NetworkDetail.Ant networkType, Map<ANQPElementType, ANQPElement> anqpElements) {
+            NetworkDetail.Ant networkType) {
         // Setup ScanResult.
         ScanResult scanResult = new ScanResult();
         scanResult.level = -60;
@@ -322,7 +321,6 @@ public class PasspointNetworkScoreTest {
         NetworkDetail networkDetail = mock(NetworkDetail.class);
         when(networkDetail.isInternet()).thenReturn(internetAccess);
         when(networkDetail.getAnt()).thenReturn(networkType);
-        when(networkDetail.getANQPElements()).thenReturn(anqpElements);
 
         // Setup ScanDetail.
         ScanDetail scanDetail = mock(ScanDetail.class);
@@ -341,9 +339,9 @@ public class PasspointNetworkScoreTest {
     public void calculateScore() throws Exception {
         for (TestData data : TEST_DATA_LIST) {
             ScanDetail scanDetail = generateScanDetail(data.rssiLevel, data.internetAccess,
-                    data.networkType, data.anqpElements);
+                    data.networkType);
             assertEquals(data.expectedScore, PasspointNetworkScore.calculateScore(
-                    data.isHomeProvider, scanDetail, data.isActiveNetwork));
+                    data.isHomeProvider, scanDetail, data.anqpElements, data.isActiveNetwork));
         }
     }
 
