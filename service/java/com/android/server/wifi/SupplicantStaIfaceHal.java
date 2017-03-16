@@ -1732,18 +1732,6 @@ public class SupplicantStaIfaceHal {
             }
         }
 
-        /**
-         * Helper utility to convert the bssid bytes to long.
-         */
-        private Long toLongBssid(byte[] bssidBytes) {
-            try {
-                return ByteBufferReader.readInteger(
-                        ByteBuffer.wrap(bssidBytes), ByteOrder.BIG_ENDIAN, bssidBytes.length);
-            } catch (BufferUnderflowException | IllegalArgumentException e) {
-                return 0L;
-            }
-        }
-
         @Override
         public void onNetworkAdded(int id) {
             logCallback("onNetworkAdded");
@@ -1794,7 +1782,7 @@ public class SupplicantStaIfaceHal {
                 addAnqpElementToMap(elementsMap, HSConnCapability, hs20Data.connectionCapability);
                 addAnqpElementToMap(elementsMap, HSOSUProviders, hs20Data.osuProvidersList);
                 mWifiMonitor.broadcastAnqpDoneEvent(
-                        mIfaceName, new AnqpEvent(toLongBssid(bssid), elementsMap));
+                        mIfaceName, new AnqpEvent(NativeUtil.macAddressToLong(bssid), elementsMap));
             }
         }
 
@@ -1805,7 +1793,7 @@ public class SupplicantStaIfaceHal {
             synchronized (mLock) {
                 mWifiMonitor.broadcastIconDoneEvent(
                         mIfaceName,
-                        new IconEvent(toLongBssid(bssid), fileName, data.size(),
+                        new IconEvent(NativeUtil.macAddressToLong(bssid), fileName, data.size(),
                                 NativeUtil.byteArrayFromArrayList(data)));
             }
         }
@@ -1815,7 +1803,8 @@ public class SupplicantStaIfaceHal {
             logCallback("onHs20SubscriptionRemediation");
             synchronized (mLock) {
                 mWifiMonitor.broadcastWnmEvent(
-                        mIfaceName, new WnmData(toLongBssid(bssid), url, osuMethod));
+                        mIfaceName,
+                        new WnmData(NativeUtil.macAddressToLong(bssid), url, osuMethod));
             }
         }
 
@@ -1826,8 +1815,8 @@ public class SupplicantStaIfaceHal {
             synchronized (mLock) {
                 mWifiMonitor.broadcastWnmEvent(
                         mIfaceName,
-                        new WnmData(toLongBssid(bssid), url, reasonCode == WnmData.ESS,
-                                reAuthDelayInSec));
+                        new WnmData(NativeUtil.macAddressToLong(bssid), url,
+                                reasonCode == WnmData.ESS, reAuthDelayInSec));
             }
         }
 

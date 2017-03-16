@@ -1276,29 +1276,33 @@ public class WifiNative {
     }
 
     /**
-     * Get P2P client list for the given network ID.
-     * @return true on success, false otherwise.
+     * Set the client list for the provided network.
+     *
+     * @param netId Id of the network.
+     * @return  Space separated list of clients if successfull, null otherwise.
      */
     public String getP2pClientList(int netId) {
-        // TODO(b/36042785): Add HIDL method.
-        return null;
+        return mSupplicantP2pIfaceHal.getClientList(netId);
     }
 
     /**
-     * Set P2P client list for the given network ID.
-     * @return true on success, false otherwise.
+     * Set the client list for the provided network.
+     *
+     * @param netId Id of the network.
+     * @param list Space separated list of clients.
+     * @return true, if operation was successful.
      */
     public boolean setP2pClientList(int netId, String list) {
-        // TODO(b/36042785): Add HIDL method.
-        return false;
+        return mSupplicantP2pIfaceHal.setClientList(netId, list);
     }
 
     /**
-     * Save the current configuration to wpa_supplicant.conf.
+     * Save the current configuration to p2p_supplicant.conf.
+     *
+     * @return true on success, false otherwise.
      */
     public boolean saveConfig() {
-        // TODO(b/36042785): Add HIDL method.
-        return false;
+        return mSupplicantP2pIfaceHal.saveConfig();
     }
 
     /********************************************************
