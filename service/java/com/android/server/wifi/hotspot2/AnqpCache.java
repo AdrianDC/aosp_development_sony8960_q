@@ -96,8 +96,8 @@ public class AnqpCache {
     public void dump(PrintWriter out) {
         out.println("Last sweep " + Utils.toHMS(mClock.getElapsedSinceBootMillis() - mLastSweep)
                 + " ago.");
-        for (ANQPData anqpData : mANQPCache.values()) {
-            out.println(anqpData);
+        for (Map.Entry<ANQPNetworkKey, ANQPData> entry : mANQPCache.entrySet()) {
+            out.println(entry.getKey() + ": " + entry.getValue());
         }
     }
 }
