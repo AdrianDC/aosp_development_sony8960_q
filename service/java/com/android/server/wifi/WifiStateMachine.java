@@ -1837,7 +1837,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     public WifiConfiguration syncGetMatchingWifiConfig(ScanResult scanResult, AsyncChannel channel) {
         Message resultMsg = channel.sendMessageSynchronously(CMD_GET_MATCHING_CONFIG, scanResult);
-        return (WifiConfiguration) resultMsg.obj;
+        WifiConfiguration config = (WifiConfiguration) resultMsg.obj;
+        resultMsg.recycle();
+        return config;
     }
 
     /**
@@ -4953,8 +4955,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case CMD_GET_MATCHING_CONFIG:
-                    // TODO(b/31065385)
-                    replyToMessage(message, message.what, null);
+                    replyToMessage(message, message.what,
+                            mPasspointManager.getMatchingWifiConfig((ScanResult) message.obj));
                     break;
                 case CMD_RECONNECT:
                     mWifiConnectivityManager.forceConnectivityScan();
