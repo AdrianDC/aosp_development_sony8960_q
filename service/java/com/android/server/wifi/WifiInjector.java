@@ -32,7 +32,6 @@ import android.os.Looper;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.UserManager;
-import android.provider.Settings;
 import android.security.KeyStore;
 import android.telephony.TelephonyManager;
 import android.util.LocalLog;
@@ -163,7 +162,6 @@ public class WifiInjector {
                 mWifiNative.getInterfaceName());
         mCountryCode = new WifiCountryCode(mWifiNative,
                 SystemProperties.get(BOOT_DEFAULT_WIFI_COUNTRY_CODE),
-                mFrameworkFacade.getStringSetting(mContext, Settings.Global.WIFI_COUNTRY_CODE),
                 mContext.getResources()
                         .getBoolean(R.bool.config_wifi_revert_country_code_on_cellular_loss));
         mWifiApConfigStore = new WifiApConfigStore(mContext, mBackupManagerProxy);
