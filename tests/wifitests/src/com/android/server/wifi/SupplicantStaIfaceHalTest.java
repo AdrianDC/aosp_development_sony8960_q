@@ -1183,6 +1183,29 @@ public class SupplicantStaIfaceHalTest {
         verify(mISupplicantStaIfaceMock).startWpsRegistrar(any(byte[].class), anyString());
     }
 
+    /**
+     * Tests the start of wps PBC.
+     */
+    @Test
+    public void testStartWpsPbc() throws Exception {
+        when(mISupplicantStaIfaceMock.startWpsPbc(any(byte[].class))).thenReturn(mStatusSuccess);
+        String bssid = "45:23:12:12:12:98";
+        byte[] bssidBytes = {0x45, 0x23, 0x12, 0x12, 0x12, (byte) 0x98};
+        byte[] anyBssidBytes = {0, 0, 0, 0, 0, 0};
+
+        // Fail before initialization is performed.
+        assertFalse(mDut.startWpsPbc(bssid));
+        verify(mISupplicantStaIfaceMock, never()).startWpsPbc(any(byte[].class));
+
+        executeAndValidateInitializationSequence();
+
+        assertTrue(mDut.startWpsPbc(bssid));
+        verify(mISupplicantStaIfaceMock).startWpsPbc(eq(bssidBytes));
+
+        assertTrue(mDut.startWpsPbc(null));
+        verify(mISupplicantStaIfaceMock).startWpsPbc(eq(anyBssidBytes));
+    }
+
     private void executeAndValidateHs20DeauthImminentCallback(boolean isEss) throws Exception {
         executeAndValidateInitializationSequence();
         assertNotNull(mISupplicantStaIfaceCallback);
