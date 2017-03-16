@@ -34,7 +34,6 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
-import android.os.Process;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
@@ -2666,17 +2665,14 @@ public class WifiConfigManager {
         // List of network IDs for legacy Passpoint configuration to be removed.
         List<Integer> legacyPasspointNetId = new ArrayList<>();
         for (WifiConfiguration config : mConfiguredNetworks.valuesForAllUsers()) {
-            // Ignore ephemeral and temporary Passpoint networks.  Temporary Passpoint networks
-            // are created by {@link PasspointNetworkEvaluator} using WIFI_UID.
-            if (config.ephemeral || (config.isPasspoint()
-                    && config.creatorUid == Process.WIFI_UID)) {
+            // Ignore ephemeral networks and non-legacy Passpoint configurations.
+            if (config.ephemeral || (config.isPasspoint() && !config.isLegacyPasspointConfig)) {
                 continue;
             }
 
-            // Legacy Passpoint configuration represented by WifiConfiguration is created by an
-            // actual user, so migrate the configurations owned by the current user to
+            // Migrate the legacy Passpoint configurations owned by the current user to
             // {@link PasspointManager}.
-            if (config.isPasspoint() && WifiConfigurationUtil.doesUidBelongToAnyProfile(
+            if (config.isLegacyPasspointConfig && WifiConfigurationUtil.doesUidBelongToAnyProfile(
                         config.creatorUid, mUserManager.getProfiles(mCurrentUserId))) {
                 legacyPasspointNetId.add(config.networkId);
                 // Migrate the legacy Passpoint configuration and add it to PasspointManager.

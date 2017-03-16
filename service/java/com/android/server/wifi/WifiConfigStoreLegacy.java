@@ -226,6 +226,7 @@ public class WifiConfigStoreLegacy {
 
             // Update the missing Passpoint configuration fields to this WifiConfiguration.
             LegacyPasspointConfig passpointConfig = passpointConfigMap.get(fqdn);
+            wifiConfig.isLegacyPasspointConfig = true;
             wifiConfig.FQDN = fqdn;
             wifiConfig.providerFriendlyName = passpointConfig.mFriendlyName;
             if (passpointConfig.mRoamingConsortiumOis != null) {
