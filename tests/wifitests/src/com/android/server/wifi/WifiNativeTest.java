@@ -146,15 +146,13 @@ public class WifiNativeTest {
     @Mock private WifiVendorHal mWifiVendorHal;
     @Mock private WificondControl mWificondControl;
     @Mock private SupplicantStaIfaceHal mStaIfaceHal;
-    @Mock private SupplicantP2pIfaceHal mP2pIfaceHal;
     private WifiNative mWifiNative;
 
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         when(mWifiVendorHal.startVendorHal(anyBoolean())).thenReturn(true);
-        mWifiNative = new WifiNative("test0", mWifiVendorHal, mStaIfaceHal, mP2pIfaceHal,
-                mWificondControl);
+        mWifiNative = new WifiNative("test0", mWifiVendorHal, mStaIfaceHal, mWificondControl);
     }
 
     /**

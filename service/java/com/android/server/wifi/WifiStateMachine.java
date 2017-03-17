@@ -4209,6 +4209,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             // Disable wpa_supplicant from auto reconnecting.
             mWifiNative.enableStaAutoReconnect(false);
+            // STA has higher priority over P2P
+            mWifiNative.setConcurrencyPriority(true);
         }
 
         @Override

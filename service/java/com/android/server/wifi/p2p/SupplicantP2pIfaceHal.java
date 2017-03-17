@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.p2p;
 
 import android.hardware.wifi.supplicant.V1_0.ISupplicant;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantIface;
@@ -25,6 +25,7 @@ import android.hardware.wifi.supplicant.V1_0.ISupplicantP2pNetwork;
 import android.hardware.wifi.supplicant.V1_0.IfaceType;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatusCode;
+import android.hardware.wifi.supplicant.V1_0.WpsConfigMethods;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.net.wifi.WpsInfo;
@@ -108,10 +109,10 @@ public class SupplicantP2pIfaceHal {
                 }
             };
 
-    private final WifiMonitor mMonitor;
+    private final WifiP2pMonitor mMonitor;
     private SupplicantP2pIfaceCallback mCallback = null;
 
-    public SupplicantP2pIfaceHal(WifiMonitor monitor) {
+    public SupplicantP2pIfaceHal(WifiP2pMonitor monitor) {
         mMonitor = monitor;
     }
 
@@ -411,7 +412,7 @@ public class SupplicantP2pIfaceHal {
      * be automatically deleted when the corresponding client process is dead or
      * if this interface is removed.
      *
-     * @param callback An instance of the |ISupplicantP2pIfaceCallback| HIDL
+     * @param receiver An instance of the |ISupplicantP2pIfaceCallback| HIDL
      *        interface object.
      * @return boolean value indicating whether operation was successful.
      */
@@ -565,7 +566,7 @@ public class SupplicantP2pIfaceHal {
             }
 
             SupplicantResult<Void> result = new SupplicantResult(
-                    "setGroupIdle(" + groupIfName + ", " + timeoutInSec+ ")");
+                    "setGroupIdle(" + groupIfName + ", " + timeoutInSec + ")");
             try {
                 result.setResult(mISupplicantP2pIface.setGroupIdle(groupIfName, timeoutInSec));
             } catch (RemoteException e) {
@@ -816,8 +817,8 @@ public class SupplicantP2pIfaceHal {
             }
 
             SupplicantResult<Void> result = new SupplicantResult(
-                    "invite(" + group.getInterface() + ", " +
-                    group.getOwner().deviceAddress + ", " + peerAddress + ")");
+                    "invite(" + group.getInterface() + ", " + group.getOwner().deviceAddress
+                            + ", " + peerAddress + ")");
             try {
                 result.setResult(mISupplicantP2pIface.invite(
                         group.getInterface(), ownerMacAddress, peerMacAddress));
@@ -1129,8 +1130,8 @@ public class SupplicantP2pIfaceHal {
             // Verify that the integers are not negative. Leave actual parameter validation to
             // supplicant.
             if (periodInMillis < 0 || intervalInMillis < 0) {
-                Log.e(TAG, "Invalid parameters supplied to configureExtListen: " +
-                        periodInMillis + ", " + intervalInMillis);
+                Log.e(TAG, "Invalid parameters supplied to configureExtListen: " + periodInMillis
+                        + ", " + intervalInMillis);
                 return false;
             }
 
@@ -1169,8 +1170,8 @@ public class SupplicantP2pIfaceHal {
             // Verify that the integers are not negative. Leave actual parameter validation to
             // supplicant.
             if (channel < 0 || operatingClass < 0) {
-                Log.e(TAG, "Invalid values supplied to setListenChannel: " +
-                        channel + ", " + operatingClass);
+                Log.e(TAG, "Invalid values supplied to setListenChannel: " + channel + ", "
+                        + operatingClass);
                 return false;
             }
 
@@ -1900,6 +1901,32 @@ public class SupplicantP2pIfaceHal {
     }
 
     /**
+     * Set WPS config methods
+     *
+     * @param configMethodsStr List of config methods.
+     * @return true if request is sent successfully, false otherwise.
+     */
+    public boolean setWpsConfigMethods(String configMethodsStr) {
+        synchronized (mLock) {
+            if (!checkSupplicantP2pIfaceAndLogFailure("setWpsConfigMethods")) return false;
+            SupplicantResult<Void> result =
+                    new SupplicantResult("setWpsConfigMethods(" + configMethodsStr + ")");
+            short configMethodsMask = 0;
+            String[] configMethodsStrArr = configMethodsStr.split("\\s+");
+            for (int i = 0; i < configMethodsStrArr.length; i++) {
+                configMethodsMask |= stringToWpsConfigMethod(configMethodsStrArr[i]);
+            }
+            try {
+                result.setResult(mISupplicantP2pIface.setWpsConfigMethods(configMethodsMask));
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantP2pIface exception: " + e);
+                supplicantServiceDiedHandler();
+            }
+            return result.isSuccess();
+        }
+    }
+
+    /**
      * Get NFC handover request message.
      *
      * @return select message if created successfully, null otherwise.
@@ -2090,6 +2117,45 @@ public class SupplicantP2pIfaceHal {
         }
     }
 
+    /**
+     * Converts the Wps config method string to the equivalent enum value.
+     */
+    private static short stringToWpsConfigMethod(String configMethod) {
+        switch (configMethod) {
+            case "usba":
+                return WpsConfigMethods.USBA;
+            case "ethernet":
+                return WpsConfigMethods.ETHERNET;
+            case "label":
+                return WpsConfigMethods.LABEL;
+            case "display":
+                return WpsConfigMethods.DISPLAY;
+            case "int_nfc_token":
+                return WpsConfigMethods.INT_NFC_TOKEN;
+            case "ext_nfc_token":
+                return WpsConfigMethods.EXT_NFC_TOKEN;
+            case "nfc_interface":
+                return WpsConfigMethods.NFC_INTERFACE;
+            case "push_button":
+                return WpsConfigMethods.PUSHBUTTON;
+            case "keypad":
+                return WpsConfigMethods.KEYPAD;
+            case "virtual_push_button":
+                return WpsConfigMethods.VIRT_PUSHBUTTON;
+            case "physical_push_button":
+                return WpsConfigMethods.PHY_PUSHBUTTON;
+            case "p2ps":
+                return WpsConfigMethods.P2PS;
+            case "virtual_display":
+                return WpsConfigMethods.VIRT_DISPLAY;
+            case "physical_display":
+                return WpsConfigMethods.PHY_DISPLAY;
+            default:
+                throw new IllegalArgumentException(
+                        "Invalid WPS config method: " + configMethod);
+        }
+    }
+
     /** Container class allowing propagation of status and/or value
      * from callbacks.
      *
@@ -2101,7 +2167,7 @@ public class SupplicantP2pIfaceHal {
         private SupplicantStatus mStatus;
         private E mValue;
 
-        public SupplicantResult(String methodName) {
+        SupplicantResult(String methodName) {
             mMethodName = methodName;
             mStatus = null;
             mValue = null;
