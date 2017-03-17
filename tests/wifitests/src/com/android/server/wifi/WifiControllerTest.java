@@ -27,7 +27,6 @@ import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.*;
 
 import android.content.ContentResolver;
