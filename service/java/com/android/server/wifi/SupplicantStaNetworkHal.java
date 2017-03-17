@@ -230,8 +230,7 @@ public class SupplicantStaNetworkHal {
             Map<String, String> metadata = parseNetworkExtra(mIdStr);
             networkExtras.putAll(metadata);
         } else {
-            Log.e(TAG, "getIdStr failed");
-            return false;
+            Log.w(TAG, "getIdStr failed or empty");
         }
         return loadWifiEnterpriseConfig(config.SSID, config.enterpriseConfig);
     }
