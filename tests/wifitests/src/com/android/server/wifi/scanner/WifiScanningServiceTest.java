@@ -19,7 +19,6 @@ package com.android.server.wifi.scanner;
 import static com.android.server.wifi.ScanTestUtil.*;
 
 import static org.junit.Assert.*;
-import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.*;
 
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
