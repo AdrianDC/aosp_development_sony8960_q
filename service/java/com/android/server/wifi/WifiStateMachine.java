@@ -4204,6 +4204,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             // Enable link layer stats gathering
             mWifiNative.setWifiLinkLayerStats("wlan0", 1);
+
+            // Disable wpa_supplicant from auto reconnecting.
+            mWifiNative.enableStaAutoReconnect(false);
         }
 
         @Override

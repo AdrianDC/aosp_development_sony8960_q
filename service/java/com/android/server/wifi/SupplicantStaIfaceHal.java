@@ -1446,6 +1446,21 @@ public class SupplicantStaIfaceHal {
         }
     }
 
+    /** See ISupplicant.hal for documentation */
+    public boolean enableAutoReconnect(boolean enable) {
+        synchronized (mLock) {
+            final String methodStr = "enableAutoReconnect";
+            if (!checkSupplicantAndLogFailure(methodStr)) return false;
+            try {
+                SupplicantStatus status = mISupplicantStaIface.enableAutoReconnect(enable);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                handleRemoteException(e, methodStr);
+                return false;
+            }
+        }
+    }
+
     public static final int LOG_LEVEL_EXCESSIVE = ISupplicant.DebugLevel.EXCESSIVE;
     public static final int LOG_LEVEL_MSGDUMP = ISupplicant.DebugLevel.MSGDUMP;
     public static final int LOG_LEVEL_DEBUG = ISupplicant.DebugLevel.DEBUG;
