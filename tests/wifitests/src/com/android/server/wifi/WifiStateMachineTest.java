@@ -44,6 +44,7 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
+import android.net.wifi.WpsInfo;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.hotspot2.pps.HomeSp;
 import android.net.wifi.p2p.IWifiP2pManager;
@@ -70,6 +71,7 @@ import android.test.mock.MockContentProvider;
 import android.test.mock.MockContentResolver;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
+import android.util.SparseArray;
 
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
@@ -96,6 +98,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
@@ -1270,5 +1273,121 @@ public class WifiStateMachineTest {
         assertNull(mWsm.syncGetMatchingWifiConfig(new ScanResult(), mWsmAsyncChannel));
         mLooper.stopAutoDispatch();
         verify(mPasspointManager, never()).getMatchingWifiConfig(any(ScanResult.class));
+    }
+
+    /**
+     * Verify successful Wps PBC network connection.
+     */
+    @Test
+    public void wpsPbcConnectSuccess() throws Exception {
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+
+        when(mWifiNative.startWpsPbc(anyString())).thenReturn(true);
+        WpsInfo wpsInfo = new WpsInfo();
+        wpsInfo.setup = WpsInfo.PBC;
+
+        mLooper.startAutoDispatch();
+        mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
+        mLooper.stopAutoDispatch();
+        verify(mWifiNative).startWpsPbc(anyString());
+
+        assertEquals("WpsRunningState", getCurrentState().getName());
+
+        setupMocksForWpsNetworkMigration();
+
+        mLooper.startAutoDispatch();
+        mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
+        mLooper.stopAutoDispatch();
+
+        assertEquals("DisconnectedState", getCurrentState().getName());
+    }
+
+    /**
+     * Verify failure in starting Wps PBC network connection.
+     */
+    @Test
+    public void wpsPbcConnectFailure() throws Exception {
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+
+        when(mWifiNative.startWpsPbc(anyString())).thenReturn(false);
+        WpsInfo wpsInfo = new WpsInfo();
+        wpsInfo.setup = WpsInfo.PBC;
+
+        mLooper.startAutoDispatch();
+        mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
+        mLooper.stopAutoDispatch();
+        verify(mWifiNative).startWpsPbc(anyString());
+
+        assertFalse("WpsRunningState".equals(getCurrentState().getName()));
+    }
+
+    /**
+     * Verify successful Wps Pin Display network connection.
+     */
+    @Test
+    public void wpsPinDisplayConnectSuccess() throws Exception {
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+
+        when(mWifiNative.startWpsPinDisplay(anyString())).thenReturn("34545434");
+        WpsInfo wpsInfo = new WpsInfo();
+        wpsInfo.setup = WpsInfo.DISPLAY;
+
+        mLooper.startAutoDispatch();
+        mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
+        mLooper.stopAutoDispatch();
+        verify(mWifiNative).startWpsPinDisplay(anyString());
+
+        assertEquals("WpsRunningState", getCurrentState().getName());
+
+        setupMocksForWpsNetworkMigration();
+
+        mLooper.startAutoDispatch();
+        mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
+        mLooper.stopAutoDispatch();
+
+        assertEquals("DisconnectedState", getCurrentState().getName());
+    }
+
+    /**
+     * Verify failure in Wps Pin Display network connection.
+     */
+    @Test
+    public void wpsPinDisplayConnectFailure() throws Exception {
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+
+        when(mWifiNative.startWpsPinDisplay(anyString())).thenReturn(null);
+        WpsInfo wpsInfo = new WpsInfo();
+        wpsInfo.setup = WpsInfo.DISPLAY;
+
+        mLooper.startAutoDispatch();
+        mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
+        mLooper.stopAutoDispatch();
+        verify(mWifiNative).startWpsPinDisplay(anyString());
+
+        assertFalse("WpsRunningState".equals(getCurrentState().getName()));
+    }
+
+    private void setupMocksForWpsNetworkMigration() {
+        int newNetworkId = 5;
+        // Now trigger the network connection event for adding the WPS network.
+        doAnswer(new AnswerWithArguments() {
+            public boolean answer(Map<String, WifiConfiguration> configs,
+                                  SparseArray<Map<String, String>> networkExtras) throws Exception {
+                configs.put("dummy", new WifiConfiguration());
+                return true;
+            }
+        }).when(mWifiNative).migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class));
+        when(mWifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
+                .thenReturn(new NetworkUpdateResult(newNetworkId));
+        when(mWifiConfigManager.enableNetwork(eq(newNetworkId), anyBoolean(), anyInt()))
+                .thenReturn(true);
     }
 }
