@@ -506,4 +506,22 @@ public class WifiP2pMonitor {
             String iface, List<WifiP2pServiceResponse> services) {
         sendMessage(iface, P2P_SERV_DISC_RESP_EVENT, services);
     }
+
+    /**
+     * Broadcast AP STA connection event.
+     *
+     * @param iface Name of iface on which this occurred.
+     */
+    public void broadcastP2pApStaConnected(String iface, WifiP2pDevice device) {
+        sendMessage(iface, AP_STA_CONNECTED_EVENT, device);
+    }
+
+    /**
+     * Broadcast AP STA disconnection event.
+     *
+     * @param iface Name of iface on which this occurred.
+     */
+    public void broadcastP2pApStaDisconnected(String iface, WifiP2pDevice device) {
+        sendMessage(iface, AP_STA_DISCONNECTED_EVENT, device);
+    }
 }
