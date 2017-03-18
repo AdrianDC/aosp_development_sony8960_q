@@ -4014,10 +4014,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         cleanup();
                         break;
                     }
-                    setSupplicantLogLevel();
                     setWifiState(WIFI_STATE_ENABLING);
                     if (mVerboseLoggingEnabled) log("Supplicant start successful");
                     mWifiMonitor.startMonitoring(mInterfaceName, true);
+                    setSupplicantLogLevel();
                     transitionTo(mSupplicantStartingState);
                     break;
                 case CMD_START_AP:
