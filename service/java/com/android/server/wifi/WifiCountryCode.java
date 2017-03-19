@@ -131,12 +131,13 @@ public class WifiCountryCode {
      */
     public synchronized boolean setCountryCode(String countryCode) {
         if (DBG) Log.d(TAG, "Receive set country code request: " + countryCode);
-        // Ignore empty country code.
+        // Empty country code.
         if (TextUtils.isEmpty(countryCode)) {
-            if (DBG) Log.d(TAG, "Ignore empty country code");
-            return false;
+            if (DBG) Log.d(TAG, "Received empty country code, reset to default country code");
+            mTelephonyCountryCode = null;
+        } else {
+            mTelephonyCountryCode = countryCode.toUpperCase();
         }
-        mTelephonyCountryCode = countryCode.toUpperCase();
         // If wpa_supplicant is ready we set the country code now, otherwise it will be
         // set once wpa_supplicant is ready.
         if (mReady) {
