@@ -77,7 +77,8 @@ public class ANQPRequestManager {
     private static final List<Constants.ANQPElementType> R2_ANQP_BASE_SET = Arrays.asList(
             Constants.ANQPElementType.HSFriendlyName,
             Constants.ANQPElementType.HSWANMetrics,
-            Constants.ANQPElementType.HSConnCapability);
+            Constants.ANQPElementType.HSConnCapability,
+            Constants.ANQPElementType.HSOSUProviders);
 
     /**
      * Class to keep track of AP status for ANQP requests.
