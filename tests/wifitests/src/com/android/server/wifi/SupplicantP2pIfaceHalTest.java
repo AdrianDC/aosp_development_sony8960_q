@@ -20,6 +20,8 @@ import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
@@ -2256,6 +2258,168 @@ public class SupplicantP2pIfaceHalTest {
                     group.getOwner().deviceAddress);
             assertEquals(groups.get(networkId).isGo, group.isGroupOwner());
         }
+    }
+
+    /**
+     * Sunny day scenario for setClientList()
+     */
+    @Test
+    public void testSetClientList() throws Exception {
+        int testNetworkId = 5;
+        final String client1 = mGroupOwnerMacAddress;
+        final String client2 = mPeerMacAddress;
+
+        executeAndValidateInitializationSequence(false, false, false);
+        doAnswer(new AnswerWithArguments() {
+            public void answer(final int networkId, ISupplicantP2pIface.getNetworkCallback cb) {
+                if (networkId == testNetworkId) {
+                    cb.onValues(mStatusSuccess, mISupplicantP2pNetworkMock);
+                } else {
+                    cb.onValues(mStatusFailure, null);
+                }
+                return;
+            }
+        }).when(mISupplicantP2pIfaceMock)
+                .getNetwork(anyInt(), any(ISupplicantP2pIface.getNetworkCallback.class));
+        when(mISupplicantP2pNetworkMock.setClientList(any(ArrayList.class)))
+                .thenReturn(mStatusSuccess);
+
+        String clientList = client1 + " " + client2;
+        assertTrue(mDut.setClientList(testNetworkId, clientList));
+        verify(mISupplicantP2pIfaceMock)
+                .getNetwork(anyInt(), any(ISupplicantP2pIface.getNetworkCallback.class));
+        ArgumentCaptor<ArrayList> capturedClients = ArgumentCaptor.forClass(ArrayList.class);
+        verify(mISupplicantP2pNetworkMock).setClientList(capturedClients.capture());
+
+        // Convert these to long to help with comparisons.
+        ArrayList<byte[]> clients = capturedClients.getValue();
+        ArrayList<Long> expectedClients = new ArrayList<Long>() {{
+                add(NativeUtil.macAddressToLong(mGroupOwnerMacAddressBytes));
+                add(NativeUtil.macAddressToLong(mPeerMacAddressBytes));
+            }};
+        ArrayList<Long> receivedClients = new ArrayList<Long>();
+        for (byte[] client : clients) {
+            receivedClients.add(NativeUtil.macAddressToLong(client));
+        }
+        assertEquals(expectedClients, receivedClients);
+    }
+
+    /**
+     * Failure scenario for setClientList() when getNetwork returns null.
+     */
+    @Test
+    public void testSetClientListFailureDueToGetNetwork() throws Exception {
+        int testNetworkId = 5;
+        final String client1 = mGroupOwnerMacAddress;
+        final String client2 = mPeerMacAddress;
+
+        executeAndValidateInitializationSequence(false, false, false);
+        doAnswer(new AnswerWithArguments() {
+            public void answer(final int networkId, ISupplicantP2pIface.getNetworkCallback cb) {
+                cb.onValues(mStatusFailure, null);
+                return;
+            }
+        }).when(mISupplicantP2pIfaceMock)
+                .getNetwork(anyInt(), any(ISupplicantP2pIface.getNetworkCallback.class));
+        when(mISupplicantP2pNetworkMock.setClientList(any(ArrayList.class)))
+                .thenReturn(mStatusSuccess);
+
+        String clientList = client1 + " " + client2;
+        assertFalse(mDut.setClientList(testNetworkId, clientList));
+        verify(mISupplicantP2pIfaceMock)
+                .getNetwork(anyInt(), any(ISupplicantP2pIface.getNetworkCallback.class));
+        verify(mISupplicantP2pNetworkMock, never()).setClientList(any(ArrayList.class));
+    }
+
+    /**
+     * Sunny day scenario for getClientList()
+     */
+    @Test
+    public void testGetClientList() throws Exception {
+        int testNetworkId = 5;
+        final String client1 = mGroupOwnerMacAddress;
+        final String client2 = mPeerMacAddress;
+
+        executeAndValidateInitializationSequence(false, false, false);
+        doAnswer(new AnswerWithArguments() {
+            public void answer(final int networkId, ISupplicantP2pIface.getNetworkCallback cb) {
+                if (networkId == testNetworkId) {
+                    cb.onValues(mStatusSuccess, mISupplicantP2pNetworkMock);
+                } else {
+                    cb.onValues(mStatusFailure, null);
+                }
+                return;
+            }
+        }).when(mISupplicantP2pIfaceMock)
+                .getNetwork(anyInt(), any(ISupplicantP2pIface.getNetworkCallback.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantP2pNetwork.getClientListCallback cb) {
+                ArrayList<byte[]> clients = new ArrayList<byte[]>() {{
+                        add(mGroupOwnerMacAddressBytes);
+                        add(mPeerMacAddressBytes);
+                    }};
+                cb.onValues(mStatusSuccess, clients);
+                return;
+            }
+        }).when(mISupplicantP2pNetworkMock)
+                .getClientList(any(ISupplicantP2pNetwork.getClientListCallback.class));
+
+        String clientList = client1 + " " + client2;
+        assertEquals(clientList, mDut.getClientList(testNetworkId));
+        verify(mISupplicantP2pIfaceMock)
+                .getNetwork(anyInt(), any(ISupplicantP2pIface.getNetworkCallback.class));
+        verify(mISupplicantP2pNetworkMock)
+                .getClientList(any(ISupplicantP2pNetwork.getClientListCallback.class));
+    }
+
+    /**
+     * Failure scenario for getClientList() when getNetwork returns null.
+     */
+    @Test
+    public void testGetClientListFailureDueToGetNetwork() throws Exception {
+        int testNetworkId = 5;
+        final String client1 = mGroupOwnerMacAddress;
+        final String client2 = mPeerMacAddress;
+
+        executeAndValidateInitializationSequence(false, false, false);
+        doAnswer(new AnswerWithArguments() {
+            public void answer(final int networkId, ISupplicantP2pIface.getNetworkCallback cb) {
+                cb.onValues(mStatusFailure, null);
+                return;
+            }
+        }).when(mISupplicantP2pIfaceMock)
+                .getNetwork(anyInt(), any(ISupplicantP2pIface.getNetworkCallback.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(ISupplicantP2pNetwork.getClientListCallback cb) {
+                ArrayList<byte[]> clients = new ArrayList<byte[]>() {{
+                        add(mGroupOwnerMacAddressBytes);
+                        add(mPeerMacAddressBytes);
+                    }};
+                cb.onValues(mStatusSuccess, clients);
+                return;
+            }
+        }).when(mISupplicantP2pNetworkMock)
+                .getClientList(any(ISupplicantP2pNetwork.getClientListCallback.class));
+
+        assertEquals(null, mDut.getClientList(testNetworkId));
+        verify(mISupplicantP2pIfaceMock)
+                .getNetwork(anyInt(), any(ISupplicantP2pIface.getNetworkCallback.class));
+        verify(mISupplicantP2pNetworkMock, never())
+                .getClientList(any(ISupplicantP2pNetwork.getClientListCallback.class));
+    }
+
+    /**
+     * Sunny day scenario for saveConfig()
+     */
+    @Test
+    public void testSaveConfig() throws Exception {
+        when(mISupplicantP2pIfaceMock.saveConfig()).thenReturn(mStatusSuccess);
+
+        // Should fail before initialization.
+        assertFalse(mDut.saveConfig());
+        executeAndValidateInitializationSequence(false, false, false);
+        assertTrue(mDut.saveConfig());
+        verify(mISupplicantP2pIfaceMock).saveConfig();
     }
 
     /**
