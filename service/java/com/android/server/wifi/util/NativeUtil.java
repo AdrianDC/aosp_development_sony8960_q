@@ -18,9 +18,13 @@ package com.android.server.wifi.util;
 
 import android.text.TextUtils;
 
+import com.android.server.wifi.ByteBufferReader;
+
 import libcore.util.HexEncoding;
 
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
@@ -153,6 +157,28 @@ public class NativeUtil {
             throw new IllegalArgumentException("invalid mac oui string length: " + cleanMac);
         }
         return HexEncoding.decode(cleanMac.toCharArray(), false);
+    }
+
+    /**
+     * Converts an array of 6 bytes to a long representing the MAC address.
+     *
+     * @param macArray byte array of mac values, must have length 6
+     * @return Long value of the mac address.
+     * @throws IllegalArgumentException for malformed inputs.
+     */
+    public static Long macAddressToLong(byte[] macArray) {
+        if (macArray == null) {
+            throw new IllegalArgumentException("null mac bytes");
+        }
+        if (macArray.length != MAC_LENGTH) {
+            throw new IllegalArgumentException("invalid macArray length: " + macArray.length);
+        }
+        try {
+            return ByteBufferReader.readInteger(
+                    ByteBuffer.wrap(macArray), ByteOrder.BIG_ENDIAN, macArray.length);
+        } catch (BufferUnderflowException | IllegalArgumentException e) {
+            throw new IllegalArgumentException("invalid macArray");
+        }
     }
 
     /**
