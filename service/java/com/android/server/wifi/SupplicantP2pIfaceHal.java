@@ -45,9 +45,11 @@ import com.android.server.wifi.util.NativeUtil;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Native calls sending requests to the P2P Hals, and callbacks for receiving P2P events
@@ -1998,6 +2000,96 @@ public class SupplicantP2pIfaceHal {
             return result.isSuccess();
         }
     }
+
+    /**
+     * Set the client list for the provided network.
+     *
+     * @param networkId Id of the network.
+     * @param clientListStr Space separated list of clients.
+     * @return true, if operation was successful.
+     */
+    public boolean setClientList(int networkId, String clientListStr) {
+        synchronized (mLock) {
+            if (!checkSupplicantP2pIfaceAndLogFailure("setClientList")) return false;
+            if (TextUtils.isEmpty(clientListStr)) {
+                Log.e(TAG, "Invalid client list");
+                return false;
+            }
+            ISupplicantP2pNetwork network = getNetwork(networkId);
+            if (network == null) {
+                Log.e(TAG, "Invalid network id ");
+                return false;
+            }
+            SupplicantResult<Void> result = new SupplicantResult(
+                    "setClientList(" + networkId + ", " + clientListStr + ")");
+            ArrayList<byte[]> clients = new ArrayList<>();
+            for (String clientStr : Arrays.asList(clientListStr.split("\\s+"))) {
+                clients.add(NativeUtil.macAddressToByteArray(clientStr));
+            }
+            try {
+                result.setResult(network.setClientList(clients));
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantP2pIface exception: " + e);
+                supplicantServiceDiedHandler();
+            }
+            return result.isSuccess();
+        }
+    }
+
+    /**
+     * Set the client list for the provided network.
+     *
+     * @param networkId Id of the network.
+     * @return  Space separated list of clients if successfull, null otherwise.
+     */
+    public String getClientList(int networkId) {
+        synchronized (mLock) {
+            if (!checkSupplicantP2pIfaceAndLogFailure("getClientList")) return null;
+            ISupplicantP2pNetwork network = getNetwork(networkId);
+            if (network == null) {
+                Log.e(TAG, "Invalid network id ");
+                return null;
+            }
+            SupplicantResult<ArrayList> result = new SupplicantResult(
+                    "getClientList(" + networkId + ")");
+            try {
+                network.getClientList(
+                        (SupplicantStatus status, ArrayList<byte[]> clients) -> {
+                            result.setResult(status, clients);
+                        });
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantP2pIface exception: " + e);
+                supplicantServiceDiedHandler();
+            }
+            if (!result.isSuccess()) {
+                return null;
+            }
+            ArrayList<byte[]> clients = result.getResult();
+            return clients.stream()
+                    .map(NativeUtil::macAddressFromByteArray)
+                    .collect(Collectors.joining(" "));
+        }
+    }
+
+    /**
+     * Persist the current configurations to disk.
+     *
+     * @return true, if operation was successful.
+     */
+    public boolean saveConfig() {
+        synchronized (mLock) {
+            if (!checkSupplicantP2pIfaceAndLogFailure("saveConfig")) return false;
+            SupplicantResult<Void> result = new SupplicantResult("saveConfig()");
+            try {
+                result.setResult(mISupplicantP2pIface.saveConfig());
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicantP2pIface exception: " + e);
+                supplicantServiceDiedHandler();
+            }
+            return result.isSuccess();
+        }
+    }
+
     /** Container class allowing propagation of status and/or value
      * from callbacks.
      *
