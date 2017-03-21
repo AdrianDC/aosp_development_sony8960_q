@@ -640,6 +640,11 @@ public class SupplicantP2pIfaceHal {
                 return null;
             }
 
+            if (config.wps.setup == WpsInfo.PBC && !TextUtils.isEmpty(config.wps.pin)) {
+                Log.e(TAG, "Expected empty pin for PBC.");
+                return null;
+            }
+
             byte[] peerAddress = null;
             try {
                 peerAddress = NativeUtil.macAddressToByteArray(config.deviceAddress);
@@ -653,17 +658,8 @@ public class SupplicantP2pIfaceHal {
                 Log.e(TAG, "Invalid WPS config method: " + config.wps.setup);
                 return null;
             }
-
             // NOTE: preSelectedPin cannot be null, otherwise hal would crash.
-            String preSelectedPin = "";
-            if (provisionMethod == ISupplicantP2pIface.WpsProvisionMethod.DISPLAY) {
-                preSelectedPin = config.wps.pin;
-                if (preSelectedPin == null) {
-                    Log.e(TAG, "PIN must be supplied when provision method is DISPLAY.");
-                    return null;
-                }
-            }
-
+            String preSelectedPin = TextUtils.isEmpty(config.wps.pin) ? "" : config.wps.pin;
             boolean persistent = (config.netId == WifiP2pGroup.PERSISTENT_NET_ID);
 
             int goIntent = 0;
