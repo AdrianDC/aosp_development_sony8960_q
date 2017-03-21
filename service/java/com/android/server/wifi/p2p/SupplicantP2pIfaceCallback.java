@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-package com.android.server.wifi;
+package com.android.server.wifi.p2p;
 
 import android.hardware.wifi.supplicant.V1_0.ISupplicantP2pIface;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantP2pIfaceCallback;
-import android.hardware.wifi.supplicant.V1_0.WpsConfigMethods;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pDevice;
@@ -36,14 +35,17 @@ import libcore.util.HexEncoding;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Class used for processing all P2P callbacks.
+ */
 public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub {
     private static final String TAG = "SupplicantP2pIfaceCallback";
     private static final boolean DBG = true;
 
     private final String mInterface;
-    private final WifiMonitor mMonitor;
+    private final WifiP2pMonitor mMonitor;
 
-    public SupplicantP2pIfaceCallback(String iface, WifiMonitor monitor) {
+    public SupplicantP2pIfaceCallback(String iface, WifiP2pMonitor monitor) {
         mInterface = iface;
         mMonitor = monitor;
     }
@@ -56,7 +58,7 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
     /**
      * Used to indicate that a new network has been added.
      *
-     * @param id Network ID allocated to the corresponding network.
+     * @param networkId Network ID allocated to the corresponding network.
      */
     public void onNetworkAdded(int networkId) {
     }
@@ -65,7 +67,7 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
     /**
      * Used to indicate that a network has been removed.
      *
-     * @param id Network ID allocated to the corresponding network.
+     * @param networkId Network ID allocated to the corresponding network.
      */
     public void onNetworkRemoved(int networkId) {
     }
@@ -84,7 +86,7 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
      *        device.
      * @param deviceCapabilities Refer to section 4.1.4 of Wifi P2P Technical
      *        specification v1.2.
-     * @param groupCapabilites Refer to section 4.1.4 of Wifi P2P Technical
+     * @param groupCapabilities Refer to section 4.1.4 of Wifi P2P Technical
      *        specification v1.2.
      * @param wfdDeviceInfo WFD device info as described in section 5.1.2 of WFD
      *        technical specification v1.0.0.
@@ -323,7 +325,7 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
      *
      * @param srcAddress MAC address of the device that sent the invitation.
      * @param goDeviceAddress MAC Address of the owner of this group.
-     * @param Bssid Bssid of the group.
+     * @param bssid Bssid of the group.
      * @param persistentNetworkId Persistent network Id of the group.
      * @param operatingFrequency Frequency on which the invitation was received.
      */
@@ -362,7 +364,7 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
     /**
      * Used to indicate the result of the P2P invitation request.
      *
-     * @param Bssid Bssid of the group.
+     * @param bssid Bssid of the group.
      * @param status Status of the invitation.
      */
     public void onInvitationResult(byte[] bssid, int status) {
@@ -389,8 +391,8 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
             return;
         }
 
-        logd("Provision discovery " + (isRequest ? "request" : "response") +
-                " for WPS Config method: " + configMethods);
+        logd("Provision discovery " + (isRequest ? "request" : "response")
+                + " for WPS Config method: " + configMethods);
 
         WifiP2pProvDiscEvent event = new WifiP2pProvDiscEvent();
         event.device = new WifiP2pDevice();
@@ -527,7 +529,7 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
             case P2pStatusCode.FAIL_REJECTED_BY_USER:
                 result = P2pStatus.REJECTED_BY_USER;
                 break;
-        };
+        }
         return result;
     }
 }

@@ -78,8 +78,6 @@ import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.WifiInjector;
-import com.android.server.wifi.WifiMonitor;
-import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.WifiStateMachine;
 import com.android.server.wifi.util.WifiAsyncChannel;
 import com.android.server.wifi.util.WifiHandler;
@@ -576,8 +574,8 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
         private UserAuthorizingJoinState mUserAuthorizingJoinState = new UserAuthorizingJoinState();
         private OngoingGroupRemovalState mOngoingGroupRemovalState = new OngoingGroupRemovalState();
 
-        private WifiNative mWifiNative = WifiInjector.getInstance().getP2pWifiNative();
-        private WifiMonitor mWifiMonitor = WifiInjector.getInstance().getWifiMonitor();
+        private WifiP2pNative mWifiNative = WifiInjector.getInstance().getWifiP2pNative();
+        private WifiP2pMonitor mWifiMonitor = WifiInjector.getInstance().getWifiP2pMonitor();
         private final WifiP2pDeviceList mPeers = new WifiP2pDeviceList();
         // WifiInjector is lazy initialized in P2p Service
         private WifiInjector mWifiInjector;
@@ -637,67 +635,49 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             setLogOnlyTransitions(true);
             String interfaceName = mWifiNative.getInterfaceName();
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.AP_STA_CONNECTED_EVENT, getHandler());
+                    WifiP2pMonitor.AP_STA_CONNECTED_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.AP_STA_DISCONNECTED_EVENT, getHandler());
+                    WifiP2pMonitor.AP_STA_DISCONNECTED_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.AUTHENTICATION_FAILURE_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_DEVICE_FOUND_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.NETWORK_CONNECTION_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_DEVICE_LOST_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.NETWORK_DISCONNECTION_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_FIND_STOPPED_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_DEVICE_FOUND_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_GO_NEGOTIATION_FAILURE_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_DEVICE_LOST_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_GO_NEGOTIATION_REQUEST_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_FIND_STOPPED_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_GO_NEGOTIATION_SUCCESS_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_GO_NEGOTIATION_FAILURE_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_GROUP_FORMATION_FAILURE_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_GO_NEGOTIATION_REQUEST_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_GROUP_FORMATION_SUCCESS_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_GO_NEGOTIATION_SUCCESS_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_GROUP_REMOVED_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_GROUP_FORMATION_FAILURE_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_GROUP_STARTED_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_GROUP_FORMATION_SUCCESS_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_INVITATION_RECEIVED_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_GROUP_REMOVED_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_INVITATION_RESULT_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_GROUP_STARTED_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_INVITATION_RECEIVED_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_PROV_DISC_FAILURE_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_INVITATION_RESULT_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_PROV_DISC_PBC_REQ_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_PROV_DISC_PBC_RSP_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_PROV_DISC_FAILURE_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_PROV_DISC_PBC_REQ_EVENT, getHandler());
+                    WifiP2pMonitor.P2P_SERV_DISC_RESP_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_PROV_DISC_PBC_RSP_EVENT, getHandler());
+                    WifiP2pMonitor.SUP_CONNECTION_EVENT, getHandler());
             mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT, getHandler());
-            mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.P2P_SERV_DISC_RESP_EVENT, getHandler());
-            mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.SCAN_RESULTS_EVENT, getHandler());
-            mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.SUP_CONNECTION_EVENT, getHandler());
-            mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.SUP_DISCONNECTION_EVENT, getHandler());
-            mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, getHandler());
-            mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.WPS_FAIL_EVENT, getHandler());
-            mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.WPS_OVERLAP_EVENT, getHandler());
-            mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.WPS_SUCCESS_EVENT, getHandler());
-            mWifiMonitor.registerHandler(interfaceName,
-                    WifiMonitor.WPS_TIMEOUT_EVENT, getHandler());
+                    WifiP2pMonitor.SUP_DISCONNECTION_EVENT, getHandler());
         }
 
         class DefaultState extends State {
@@ -844,23 +824,14 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         replyToMessage(message, WifiP2pManager.REPORT_NFC_HANDOVER_FAILED,
                                 WifiP2pManager.BUSY);
                         break;
-                    case WifiMonitor.P2P_INVITATION_RESULT_EVENT:
-                    case WifiMonitor.SCAN_RESULTS_EVENT:
-                    case WifiMonitor.SUP_CONNECTION_EVENT:
-                    case WifiMonitor.SUP_DISCONNECTION_EVENT:
-                    case WifiMonitor.NETWORK_CONNECTION_EVENT:
-                    case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
-                    case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
-                    case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
-                    case WifiMonitor.WPS_SUCCESS_EVENT:
-                    case WifiMonitor.WPS_FAIL_EVENT:
-                    case WifiMonitor.WPS_OVERLAP_EVENT:
-                    case WifiMonitor.WPS_TIMEOUT_EVENT:
-                    case WifiMonitor.P2P_GROUP_REMOVED_EVENT:
-                    case WifiMonitor.P2P_DEVICE_FOUND_EVENT:
-                    case WifiMonitor.P2P_DEVICE_LOST_EVENT:
-                    case WifiMonitor.P2P_FIND_STOPPED_EVENT:
-                    case WifiMonitor.P2P_SERV_DISC_RESP_EVENT:
+                    case WifiP2pMonitor.P2P_INVITATION_RESULT_EVENT:
+                    case WifiP2pMonitor.SUP_CONNECTION_EVENT:
+                    case WifiP2pMonitor.SUP_DISCONNECTION_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_REMOVED_EVENT:
+                    case WifiP2pMonitor.P2P_DEVICE_FOUND_EVENT:
+                    case WifiP2pMonitor.P2P_DEVICE_LOST_EVENT:
+                    case WifiP2pMonitor.P2P_FIND_STOPPED_EVENT:
+                    case WifiP2pMonitor.P2P_SERV_DISC_RESP_EVENT:
                     case PEER_CONNECTION_USER_ACCEPT:
                     case PEER_CONNECTION_USER_REJECT:
                     case DISCONNECT_WIFI_RESPONSE:
@@ -873,7 +844,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                     case IPM_DHCP_RESULTS:
                     case IPM_PROVISIONING_SUCCESS:
                     case IPM_PROVISIONING_FAILURE:
-                    case WifiMonitor.P2P_PROV_DISC_FAILURE_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_FAILURE_EVENT:
                     case SET_MIRACAST_MODE:
                     case WifiP2pManager.START_LISTEN:
                     case WifiP2pManager.STOP_LISTEN:
@@ -889,13 +860,13 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             loge("Unexpected disable request when WifiChannel is null");
                         }
                         break;
-                    case WifiMonitor.P2P_GROUP_STARTED_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_STARTED_EVENT:
                         // unexpected group created, remove
                         mGroup = (WifiP2pGroup) message.obj;
                         loge("Unexpected group creation, remove " + mGroup);
                         mWifiNative.p2pGroupRemove(mGroup.getInterface());
                         break;
-                    case WifiMonitor.P2P_GROUP_FORMATION_FAILURE_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_FORMATION_FAILURE_EVENT:
                         // A group formation failure is always followed by
                         // a group removed event. Flushing things at group formation
                         // failure causes supplicant issues. Ignore right now.
@@ -1015,7 +986,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             public boolean processMessage(Message message) {
                 if (DBG) logd(getName() + message.toString());
                 switch (message.what) {
-                    case WifiMonitor.SUP_DISCONNECTION_EVENT:
+                    case WifiP2pMonitor.SUP_DISCONNECTION_EVENT:
                         if (DBG) logd("p2p socket connection lost");
                         transitionTo(mP2pDisabledState);
                         break;
@@ -1063,7 +1034,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         } catch (IllegalStateException ie) {
                             loge("Unable to change interface settings: " + ie);
                         }
-                        mWifiMonitor.startMonitoring(mWifiNative.getInterfaceName(), false);
+                        mWifiMonitor.startMonitoring(mWifiNative.getInterfaceName());
                         transitionTo(mP2pEnablingState);
                         break;
                     default:
@@ -1083,11 +1054,11 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             public boolean processMessage(Message message) {
                 if (DBG) logd(getName() + message.toString());
                 switch (message.what) {
-                    case WifiMonitor.SUP_CONNECTION_EVENT:
+                    case WifiP2pMonitor.SUP_CONNECTION_EVENT:
                         if (DBG) logd("P2p socket connection successful");
                         transitionTo(mInactiveState);
                         break;
-                    case WifiMonitor.SUP_DISCONNECTION_EVENT:
+                    case WifiP2pMonitor.SUP_DISCONNECTION_EVENT:
                         loge("P2p socket connection failed");
                         transitionTo(mP2pDisabledState);
                         break;
@@ -1116,7 +1087,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             public boolean processMessage(Message message) {
                 if (DBG) logd(getName() + message.toString());
                 switch (message.what) {
-                    case WifiMonitor.SUP_DISCONNECTION_EVENT:
+                    case WifiP2pMonitor.SUP_DISCONNECTION_EVENT:
                         loge("Unexpected loss of p2p socket connection");
                         transitionTo(mP2pDisabledState);
                         break;
@@ -1195,7 +1166,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                                     WifiP2pManager.ERROR);
                         }
                         break;
-                    case WifiMonitor.P2P_FIND_STOPPED_EVENT:
+                    case WifiP2pMonitor.P2P_FIND_STOPPED_EVENT:
                         sendP2pDiscoveryChangedBroadcast(false);
                         break;
                     case WifiP2pManager.STOP_DISCOVERY:
@@ -1225,13 +1196,13 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                                     WifiP2pManager.ERROR);
                         }
                         break;
-                    case WifiMonitor.P2P_DEVICE_FOUND_EVENT:
+                    case WifiP2pMonitor.P2P_DEVICE_FOUND_EVENT:
                         WifiP2pDevice device = (WifiP2pDevice) message.obj;
                         if (mThisDevice.deviceAddress.equals(device.deviceAddress)) break;
                         mPeers.updateSupplicantDetails(device);
                         sendPeersChangedBroadcast();
                         break;
-                    case WifiMonitor.P2P_DEVICE_LOST_EVENT:
+                    case WifiP2pMonitor.P2P_DEVICE_LOST_EVENT:
                         device = (WifiP2pDevice) message.obj;
                         // Gets current details for the one removed
                         device = mPeers.remove(device.deviceAddress);
@@ -1278,7 +1249,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         clearServiceRequests(message.replyTo);
                         replyToMessage(message, WifiP2pManager.CLEAR_SERVICE_REQUESTS_SUCCEEDED);
                         break;
-                    case WifiMonitor.P2P_SERV_DISC_RESP_EVENT:
+                    case WifiP2pMonitor.P2P_SERV_DISC_RESP_EVENT:
                         if (DBG) logd(getName() + " receive service response");
                         List<WifiP2pServiceResponse> sdRespList =
                                 (List<WifiP2pServiceResponse>) message.obj;
@@ -1398,7 +1369,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                                     WifiP2pManager.ERROR);
                         }
                         break;
-                    case WifiMonitor.P2P_GO_NEGOTIATION_REQUEST_EVENT:
+                    case WifiP2pMonitor.P2P_GO_NEGOTIATION_REQUEST_EVENT:
                         config = (WifiP2pConfig) message.obj;
                         if (isConfigInvalid(config)) {
                             loge("Dropping GO neg request " + config);
@@ -1409,7 +1380,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         mJoinExistingGroup = false;
                         transitionTo(mUserAuthorizingNegotiationRequestState);
                         break;
-                    case WifiMonitor.P2P_INVITATION_RECEIVED_EVENT:
+                    case WifiP2pMonitor.P2P_INVITATION_RECEIVED_EVENT:
                         WifiP2pGroup group = (WifiP2pGroup) message.obj;
                         WifiP2pDevice owner = group.getOwner();
 
@@ -1455,9 +1426,9 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         mJoinExistingGroup = true;
                         transitionTo(mUserAuthorizingInviteRequestState);
                         break;
-                    case WifiMonitor.P2P_PROV_DISC_PBC_REQ_EVENT:
-                    case WifiMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT:
-                    case WifiMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_PBC_REQ_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT:
                         // We let the supplicant handle the provision discovery response
                         // and wait instead for the GO_NEGOTIATION_REQUEST_EVENT.
                         // Handling provision discovery and issuing a p2p_connect before
@@ -1488,7 +1459,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             // remain at this state.
                         }
                         break;
-                    case WifiMonitor.P2P_GROUP_STARTED_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_STARTED_EVENT:
                         mGroup = (WifiP2pGroup) message.obj;
                         if (DBG) logd(getName() + " group started");
 
@@ -1590,7 +1561,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             transitionTo(mInactiveState);
                         }
                         break;
-                    case WifiMonitor.P2P_DEVICE_LOST_EVENT:
+                    case WifiP2pMonitor.P2P_DEVICE_LOST_EVENT:
                         WifiP2pDevice device = (WifiP2pDevice) message.obj;
                         if (!mSavedPeerConfig.deviceAddress.equals(device.deviceAddress)) {
                             if (DBG) {
@@ -1621,7 +1592,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         transitionTo(mInactiveState);
                         replyToMessage(message, WifiP2pManager.CANCEL_CONNECT_SUCCEEDED);
                         break;
-                    case WifiMonitor.P2P_GO_NEGOTIATION_SUCCESS_EVENT:
+                    case WifiP2pMonitor.P2P_GO_NEGOTIATION_SUCCESS_EVENT:
                         // We hit this scenario when NFC handover is invoked.
                         mAutonomousGroup = false;
                         transitionTo(mGroupNegotiationState);
@@ -1719,7 +1690,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                 WifiP2pProvDiscEvent provDisc;
                 WifiP2pDevice device;
                 switch (message.what) {
-                    case WifiMonitor.P2P_PROV_DISC_PBC_RSP_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_PBC_RSP_EVENT:
                         provDisc = (WifiP2pProvDiscEvent) message.obj;
                         device = provDisc.device;
                         if (!device.deviceAddress.equals(mSavedPeerConfig.deviceAddress)) break;
@@ -1730,7 +1701,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             transitionTo(mGroupNegotiationState);
                         }
                         break;
-                    case WifiMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT:
                         provDisc = (WifiP2pProvDiscEvent) message.obj;
                         device = provDisc.device;
                         if (!device.deviceAddress.equals(mSavedPeerConfig.deviceAddress)) break;
@@ -1747,7 +1718,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             }
                         }
                         break;
-                    case WifiMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT:
                         provDisc = (WifiP2pProvDiscEvent) message.obj;
                         device = provDisc.device;
                         if (!device.deviceAddress.equals(mSavedPeerConfig.deviceAddress)) break;
@@ -1760,7 +1731,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             transitionTo(mGroupNegotiationState);
                         }
                         break;
-                    case WifiMonitor.P2P_PROV_DISC_FAILURE_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_FAILURE_EVENT:
                         loge("provision discovery failed");
                         handleGroupCreationFailure();
                         transitionTo(mInactiveState);
@@ -1784,11 +1755,11 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                 switch (message.what) {
                     // We ignore these right now, since we get a GROUP_STARTED notification
                     // afterwards
-                    case WifiMonitor.P2P_GO_NEGOTIATION_SUCCESS_EVENT:
-                    case WifiMonitor.P2P_GROUP_FORMATION_SUCCESS_EVENT:
+                    case WifiP2pMonitor.P2P_GO_NEGOTIATION_SUCCESS_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_FORMATION_SUCCESS_EVENT:
                         if (DBG) logd(getName() + " go success");
                         break;
-                    case WifiMonitor.P2P_GROUP_STARTED_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_STARTED_EVENT:
                         mGroup = (WifiP2pGroup) message.obj;
                         if (DBG) logd(getName() + " group started");
 
@@ -1834,19 +1805,19 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         }
                         transitionTo(mGroupCreatedState);
                         break;
-                    case WifiMonitor.P2P_GO_NEGOTIATION_FAILURE_EVENT:
+                    case WifiP2pMonitor.P2P_GO_NEGOTIATION_FAILURE_EVENT:
                         P2pStatus status = (P2pStatus) message.obj;
                         if (status == P2pStatus.NO_COMMON_CHANNEL) {
                             transitionTo(mFrequencyConflictState);
                             break;
                         }
                         // continue with group removal handling
-                    case WifiMonitor.P2P_GROUP_REMOVED_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_REMOVED_EVENT:
                         if (DBG) logd(getName() + " go failure");
                         handleGroupCreationFailure();
                         transitionTo(mInactiveState);
                         break;
-                    case WifiMonitor.P2P_GROUP_FORMATION_FAILURE_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_FORMATION_FAILURE_EVENT:
                         // A group formation failure is always followed by
                         // a group removed event. Flushing things at group formation
                         // failure causes supplicant issues. Ignore right now.
@@ -1856,7 +1827,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             break;
                         }
                         break;
-                    case WifiMonitor.P2P_INVITATION_RESULT_EVENT:
+                    case WifiP2pMonitor.P2P_INVITATION_RESULT_EVENT:
                         status = (P2pStatus) message.obj;
                         if (status == P2pStatus.SUCCESS) {
                             // invocation was succeeded.
@@ -1946,18 +1917,18 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             public boolean processMessage(Message message) {
                 if (DBG) logd(getName() + message.toString());
                 switch (message.what) {
-                    case WifiMonitor.P2P_GO_NEGOTIATION_SUCCESS_EVENT:
-                    case WifiMonitor.P2P_GROUP_FORMATION_SUCCESS_EVENT:
+                    case WifiP2pMonitor.P2P_GO_NEGOTIATION_SUCCESS_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_FORMATION_SUCCESS_EVENT:
                         loge(getName() + "group sucess during freq conflict!");
                         break;
-                    case WifiMonitor.P2P_GROUP_STARTED_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_STARTED_EVENT:
                         loge(getName() + "group started after freq conflict, handle anyway");
                         deferMessage(message);
                         transitionTo(mGroupNegotiationState);
                         break;
-                    case WifiMonitor.P2P_GO_NEGOTIATION_FAILURE_EVENT:
-                    case WifiMonitor.P2P_GROUP_REMOVED_EVENT:
-                    case WifiMonitor.P2P_GROUP_FORMATION_FAILURE_EVENT:
+                    case WifiP2pMonitor.P2P_GO_NEGOTIATION_FAILURE_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_REMOVED_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_FORMATION_FAILURE_EVENT:
                         // Ignore failures since we retry again
                         break;
                     case DROP_WIFI_USER_REJECT:
@@ -2018,7 +1989,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             public boolean processMessage(Message message) {
                 if (DBG) logd(getName() + message.toString());
                 switch (message.what) {
-                    case WifiMonitor.AP_STA_CONNECTED_EVENT:
+                    case WifiP2pMonitor.AP_STA_CONNECTED_EVENT:
                         WifiP2pDevice device = (WifiP2pDevice) message.obj;
                         String deviceAddress = device.deviceAddress;
                         // Clear timeout that was set when group was started.
@@ -2037,7 +2008,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         }
                         sendP2pConnectionChangedBroadcast();
                         break;
-                    case WifiMonitor.AP_STA_DISCONNECTED_EVENT:
+                    case WifiP2pMonitor.AP_STA_DISCONNECTED_EVENT:
                         device = (WifiP2pDevice) message.obj;
                         deviceAddress = device.deviceAddress;
                         if (deviceAddress != null) {
@@ -2103,7 +2074,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                                     WifiP2pManager.ERROR);
                         }
                         break;
-                    case WifiMonitor.P2P_GROUP_REMOVED_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_REMOVED_EVENT:
                         // We do not listen to NETWORK_DISCONNECTION_EVENT for group removal
                         // handling since supplicant actually tries to reconnect after a temporary
                         // disconnect until group idle time out. Eventually, a group removal event
@@ -2118,7 +2089,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         handleGroupRemoved();
                         transitionTo(mInactiveState);
                         break;
-                    case WifiMonitor.P2P_DEVICE_LOST_EVENT:
+                    case WifiP2pMonitor.P2P_DEVICE_LOST_EVENT:
                         device = (WifiP2pDevice) message.obj;
                         // Device loss for a connected device indicates
                         // it is not in discovery any more
@@ -2146,7 +2117,8 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             ret = mWifiNative.startWpsPbc(mGroup.getInterface(), null);
                         } else {
                             if (wps.pin == null) {
-                                String pin = mWifiNative.startWpsPinDisplay(mGroup.getInterface());
+                                String pin = mWifiNative.startWpsPinDisplay(
+                                        mGroup.getInterface(), null);
                                 try {
                                     Integer.parseInt(pin);
                                     notifyInvitationSent(pin, "any");
@@ -2181,7 +2153,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         // TODO: figure out updating the status to declined
                         // when invitation is rejected
                         break;
-                    case WifiMonitor.P2P_INVITATION_RESULT_EVENT:
+                    case WifiP2pMonitor.P2P_INVITATION_RESULT_EVENT:
                         P2pStatus status = (P2pStatus) message.obj;
                         if (status == P2pStatus.SUCCESS) {
                             // invocation was succeeded.
@@ -2205,15 +2177,15 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             }
                         }
                         break;
-                    case WifiMonitor.P2P_PROV_DISC_PBC_REQ_EVENT:
-                    case WifiMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT:
-                    case WifiMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_PBC_REQ_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT:
                         WifiP2pProvDiscEvent provDisc = (WifiP2pProvDiscEvent) message.obj;
                         mSavedPeerConfig = new WifiP2pConfig();
                         mSavedPeerConfig.deviceAddress = provDisc.device.deviceAddress;
-                        if (message.what == WifiMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT) {
+                        if (message.what == WifiP2pMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT) {
                             mSavedPeerConfig.wps.setup = WpsInfo.KEYPAD;
-                        } else if (message.what == WifiMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT) {
+                        } else if (message.what == WifiP2pMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT) {
                             mSavedPeerConfig.wps.setup = WpsInfo.DISPLAY;
                             mSavedPeerConfig.wps.pin = provDisc.pin;
                         } else {
@@ -2221,7 +2193,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         }
                         transitionTo(mUserAuthorizingJoinState);
                         break;
-                    case WifiMonitor.P2P_GROUP_STARTED_EVENT:
+                    case WifiP2pMonitor.P2P_GROUP_STARTED_EVENT:
                         loge("Duplicate group creation event notice, ignore");
                         break;
                     default:
@@ -2249,9 +2221,9 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             public boolean processMessage(Message message) {
                 if (DBG) logd(getName() + message.toString());
                 switch (message.what) {
-                    case WifiMonitor.P2P_PROV_DISC_PBC_REQ_EVENT:
-                    case WifiMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT:
-                    case WifiMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_PBC_REQ_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT:
+                    case WifiP2pMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT:
                         // Ignore more client requests
                         break;
                     case PEER_CONNECTION_USER_ACCEPT:
@@ -2842,8 +2814,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             // Supplicant defaults to using virtual display with display
             // which refers to a remote display. Use physical_display
             mWifiNative.setConfigMethods("virtual_push_button physical_display keypad");
-            // STA has higher priority over P2P
-            mWifiNative.setConcurrencyPriority(true);
 
             mThisDevice.deviceAddress = mWifiNative.p2pGetDeviceAddress();
             updateThisDevice(WifiP2pDevice.AVAILABLE);

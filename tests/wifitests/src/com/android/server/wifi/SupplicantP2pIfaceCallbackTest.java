@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.server.wifi;
+package com.android.server.wifi.p2p;
 
 import static org.junit.Assert.*;
 import static org.mockito.Matchers.*;
@@ -51,7 +51,7 @@ public class SupplicantP2pIfaceCallbackTest {
     private static final String TAG = "SupplicantP2pIfaceCallbackTest";
 
     private String mIface = "test_p2p0";
-    private WifiMonitor mMonitor;
+    private WifiP2pMonitor mMonitor;
     private SupplicantP2pIfaceCallback mDut;
 
     private byte[] mDeviceAddressInvalid1 = { 0x00 };
@@ -63,7 +63,7 @@ public class SupplicantP2pIfaceCallbackTest {
     private byte[] mDeviceInfoBytes = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05 };
 
     private class SupplicantP2pIfaceCallbackSpy extends SupplicantP2pIfaceCallback {
-        SupplicantP2pIfaceCallbackSpy(String iface, WifiMonitor monitor) {
+        SupplicantP2pIfaceCallbackSpy(String iface, WifiP2pMonitor monitor) {
             super(iface, monitor);
         }
     }
@@ -71,7 +71,7 @@ public class SupplicantP2pIfaceCallbackTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        mMonitor = mock(WifiMonitor.class);
+        mMonitor = mock(WifiP2pMonitor.class);
         mDut = new SupplicantP2pIfaceCallbackSpy(mIface, mMonitor);
     }
 
