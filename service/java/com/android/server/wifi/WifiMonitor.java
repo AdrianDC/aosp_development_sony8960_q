@@ -499,10 +499,20 @@ public class WifiMonitor {
      * Broadcast the association success event to all the handlers registered for this event.
      *
      * @param iface Name of iface on which this occurred.
-     * @param bssid BSSID of the access point from which we received the reject.
+     * @param bssid BSSID of the access point.
      */
-    public void broadcastAssociationSuccesfulEvent(String iface, String bssid) {
+    public void broadcastAssociatedBssidEvent(String iface, String bssid) {
         sendMessage(iface, WifiStateMachine.CMD_ASSOCIATED_BSSID, 0, 0, bssid);
+    }
+
+    /**
+     * Broadcast the start of association event to all the handlers registered for this event.
+     *
+     * @param iface Name of iface on which this occurred.
+     * @param bssid BSSID of the access point.
+     */
+    public void broadcastTargetBssidEvent(String iface, String bssid) {
+        sendMessage(iface, WifiStateMachine.CMD_TARGET_BSSID, 0, 0, bssid);
     }
 
     /**
