@@ -45,6 +45,9 @@ import com.android.server.wifi.hotspot2.LegacyPasspointConfigParser;
 import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.PasspointNetworkEvaluator;
 import com.android.server.wifi.hotspot2.PasspointObjectFactory;
+import com.android.server.wifi.p2p.SupplicantP2pIfaceHal;
+import com.android.server.wifi.p2p.WifiP2pMonitor;
+import com.android.server.wifi.p2p.WifiP2pNative;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
@@ -71,8 +74,9 @@ public class WifiInjector {
     private final BackupManagerProxy mBackupManagerProxy = new BackupManagerProxy();
     private final WifiApConfigStore mWifiApConfigStore;
     private final WifiNative mWifiNative;
-    private final WifiNative mWifiP2pNative;
     private final WifiMonitor mWifiMonitor;
+    private final WifiP2pNative mWifiP2pNative;
+    private final WifiP2pMonitor mWifiP2pMonitor;
     private final SupplicantStaIfaceHal mSupplicantStaIfaceHal;
     private final SupplicantP2pIfaceHal mSupplicantP2pIfaceHal;
     private final WifiVendorHal mWifiVendorHal;
@@ -151,11 +155,12 @@ public class WifiInjector {
         mWifiVendorHal = new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread);
         mSupplicantStaIfaceHal = new SupplicantStaIfaceHal(mContext, mWifiMonitor);
         mWificondControl = new WificondControl(this, mWifiMonitor);
-        mSupplicantP2pIfaceHal = new SupplicantP2pIfaceHal(mWifiMonitor);
         mWifiNative = new WifiNative(SystemProperties.get("wifi.interface", "wlan0"),
-                mWifiVendorHal, mSupplicantStaIfaceHal, mSupplicantP2pIfaceHal, mWificondControl);
-        mWifiP2pNative = new WifiNative(SystemProperties.get("wifi.direct.interface", "p2p0"),
-                mWifiVendorHal, mSupplicantStaIfaceHal, mSupplicantP2pIfaceHal, mWificondControl);
+                mWifiVendorHal, mSupplicantStaIfaceHal, mWificondControl);
+        mWifiP2pMonitor = new WifiP2pMonitor(this);
+        mSupplicantP2pIfaceHal = new SupplicantP2pIfaceHal(mWifiP2pMonitor);
+        mWifiP2pNative = new WifiP2pNative(SystemProperties.get("wifi.direct.interface", "p2p0"),
+                mSupplicantP2pIfaceHal);
 
         // Now get instances of all the objects that depend on the HandlerThreads
         mTrafficPoller =  new WifiTrafficPoller(mContext, mWifiServiceHandlerThread.getLooper(),
@@ -444,11 +449,15 @@ public class WifiInjector {
         return mWifiNative;
     }
 
-    public WifiNative getP2pWifiNative() {
+    public WifiMonitor getWifiMonitor() {
+        return mWifiMonitor;
+    }
+
+    public WifiP2pNative getWifiP2pNative() {
         return mWifiP2pNative;
     }
 
-    public WifiMonitor getWifiMonitor() {
-        return mWifiMonitor;
+    public WifiP2pMonitor getWifiP2pMonitor() {
+        return mWifiP2pMonitor;
     }
 }

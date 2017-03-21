@@ -20,11 +20,6 @@ import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiSsid;
-import android.net.wifi.p2p.WifiP2pConfig;
-import android.net.wifi.p2p.WifiP2pDevice;
-import android.net.wifi.p2p.WifiP2pGroup;
-import android.net.wifi.p2p.WifiP2pProvDiscEvent;
-import android.net.wifi.p2p.nsd.WifiP2pServiceResponse;
 import android.os.Handler;
 import android.os.Message;
 import android.util.ArraySet;
@@ -37,17 +32,15 @@ import com.android.internal.util.StateMachine;
 import com.android.server.wifi.hotspot2.AnqpEvent;
 import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.WnmData;
-import com.android.server.wifi.p2p.WifiP2pServiceImpl.P2pStatus;
 import com.android.server.wifi.util.TelephonyUtil.SimAuthRequestData;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
  * Listens for events from the wpa_supplicant server, and passes them on
- * to the {@link StateMachine} for handling. Runs in its own thread.
+ * to the {@link StateMachine} for handling.
  *
  * @hide
  */
@@ -94,30 +87,6 @@ public class WifiMonitor {
     public static final int SUP_REQUEST_SIM_AUTH                 = BASE + 16;
 
     public static final int SCAN_FAILED_EVENT                    = BASE + 17;
-
-    /* P2P events */
-    public static final int P2P_DEVICE_FOUND_EVENT               = BASE + 21;
-    public static final int P2P_DEVICE_LOST_EVENT                = BASE + 22;
-    public static final int P2P_GO_NEGOTIATION_REQUEST_EVENT     = BASE + 23;
-    public static final int P2P_GO_NEGOTIATION_SUCCESS_EVENT     = BASE + 25;
-    public static final int P2P_GO_NEGOTIATION_FAILURE_EVENT     = BASE + 26;
-    public static final int P2P_GROUP_FORMATION_SUCCESS_EVENT    = BASE + 27;
-    public static final int P2P_GROUP_FORMATION_FAILURE_EVENT    = BASE + 28;
-    public static final int P2P_GROUP_STARTED_EVENT              = BASE + 29;
-    public static final int P2P_GROUP_REMOVED_EVENT              = BASE + 30;
-    public static final int P2P_INVITATION_RECEIVED_EVENT        = BASE + 31;
-    public static final int P2P_INVITATION_RESULT_EVENT          = BASE + 32;
-    public static final int P2P_PROV_DISC_PBC_REQ_EVENT          = BASE + 33;
-    public static final int P2P_PROV_DISC_PBC_RSP_EVENT          = BASE + 34;
-    public static final int P2P_PROV_DISC_ENTER_PIN_EVENT        = BASE + 35;
-    public static final int P2P_PROV_DISC_SHOW_PIN_EVENT         = BASE + 36;
-    public static final int P2P_FIND_STOPPED_EVENT               = BASE + 37;
-    public static final int P2P_SERV_DISC_RESP_EVENT             = BASE + 38;
-    public static final int P2P_PROV_DISC_FAILURE_EVENT          = BASE + 39;
-
-    /* hostap events */
-    public static final int AP_STA_DISCONNECTED_EVENT            = BASE + 41;
-    public static final int AP_STA_CONNECTED_EVENT               = BASE + 42;
 
     /* Indicates assoc reject event */
     public static final int ASSOCIATION_REJECTION_EVENT          = BASE + 43;
@@ -185,8 +154,7 @@ public class WifiMonitor {
         Boolean val = mMonitoringMap.get(iface);
         if (val == null) {
             return false;
-        }
-        else {
+        } else {
             return val.booleanValue();
         }
     }
@@ -211,21 +179,16 @@ public class WifiMonitor {
     /**
      * Wait for wpa_supplicant's control interface to be ready.
      *
-     * @param isStaIface Whether STA or P2P iface.
      * TODO: Add unit tests for these once we remove the legacy code.
      */
-    private boolean ensureConnectedLocked(boolean isStaIface) {
+    private boolean ensureConnectedLocked() {
         if (mConnected) {
             return true;
         }
         if (mVerboseLoggingEnabled) Log.d(TAG, "connecting to supplicant");
         int connectTries = 0;
         while (true) {
-            if (isStaIface) {
-                mConnected = mWifiInjector.getWifiNative().connectToStaSupplicant();
-            } else {
-                mConnected = mWifiInjector.getP2pWifiNative().connectToP2pSupplicant();
-            }
+            mConnected = mWifiInjector.getWifiNative().connectToSupplicant();
             if (mConnected) {
                 return true;
             }
@@ -244,17 +207,13 @@ public class WifiMonitor {
      * Start Monitoring for wpa_supplicant events.
      *
      * @param iface Name of iface.
-     * @param isStaIface Whether STA or P2P iface.
      * TODO: Add unit tests for these once we remove the legacy code.
      */
     public synchronized void startMonitoring(String iface, boolean isStaIface) {
-        Log.d(TAG, "startMonitoring(" + iface + ") with mConnected = " + mConnected);
-
-        if (ensureConnectedLocked(isStaIface)) {
+        if (ensureConnectedLocked()) {
             setMonitoring(iface, true);
             broadcastSupplicantConnectionEvent(iface);
-        }
-        else {
+        } else {
             boolean originalMonitoring = isMonitoring(iface);
             setMonitoring(iface, true);
             broadcastSupplicantDisconnectionEvent(iface);
@@ -263,6 +222,12 @@ public class WifiMonitor {
         }
     }
 
+    /**
+     * Stop Monitoring for wpa_supplicant events.
+     *
+     * @param iface Name of iface.
+     * TODO: Add unit tests for these once we remove the legacy code.
+     */
     public synchronized void stopMonitoring(String iface) {
         if (mVerboseLoggingEnabled) Log.d(TAG, "stopMonitoring(" + iface + ")");
         setMonitoring(iface, true);
@@ -270,6 +235,11 @@ public class WifiMonitor {
         setMonitoring(iface, false);
     }
 
+    /**
+     * Stop Monitoring for wpa_supplicant events.
+     *
+     * TODO: Add unit tests for these once we remove the legacy code.
+     */
     public synchronized void stopAllMonitoring() {
         mConnected = false;
         setMonitoringNone();
@@ -312,8 +282,7 @@ public class WifiMonitor {
                         if (firstHandler) {
                             firstHandler = false;
                             sendMessage(handler, message);
-                        }
-                        else {
+                        } else {
                             sendMessage(handler, Message.obtain(message));
                         }
                     }
@@ -335,8 +304,7 @@ public class WifiMonitor {
                         if (firstHandler) {
                             firstHandler = false;
                             sendMessage(handler, message);
-                        }
-                        else {
+                        } else {
                             sendMessage(handler, Message.obtain(message));
                         }
                     }
@@ -594,207 +562,5 @@ public class WifiMonitor {
      */
     public void broadcastSupplicantDisconnectionEvent(String iface) {
         sendMessage(iface, SUP_DISCONNECTION_EVENT);
-    }
-
-    /**
-     * Broadcast new p2p device discovered event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param device Device that has been discovered during recent scan.
-     */
-    public void broadcastP2pDeviceFound(String iface, WifiP2pDevice device) {
-        if (device != null) {
-            sendMessage(iface, P2P_DEVICE_FOUND_EVENT, device);
-        }
-    }
-
-    /**
-     * Broadcast p2p device lost event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param device Device that has been lost in recent scan.
-     */
-    public void broadcastP2pDeviceLost(String iface, WifiP2pDevice device) {
-        if (device != null) {
-            sendMessage(iface, P2P_DEVICE_LOST_EVENT, device);
-        }
-    }
-
-    /**
-     * Broadcast scan termination event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     */
-    public void broadcastP2pFindStopped(String iface) {
-        sendMessage(iface, P2P_FIND_STOPPED_EVENT);
-    }
-
-    /**
-     * Broadcast group owner negotiation request event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param config P2p configuration.
-     */
-    public void broadcastP2pGoNegotiationRequest(String iface, WifiP2pConfig config) {
-        if (config != null) {
-            sendMessage(iface, P2P_GO_NEGOTIATION_REQUEST_EVENT, config);
-        }
-    }
-
-    /**
-     * Broadcast group owner negotiation success event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     */
-    public void broadcastP2pGoNegotiationSuccess(String iface) {
-        sendMessage(iface, P2P_GO_NEGOTIATION_SUCCESS_EVENT);
-    }
-
-    /**
-     * Broadcast group owner negotiation failure event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param reason Failure reason.
-     */
-    public void broadcastP2pGoNegotiationFailure(String iface, P2pStatus reason) {
-        sendMessage(iface, P2P_GO_NEGOTIATION_FAILURE_EVENT, reason);
-    }
-
-    /**
-     * Broadcast group formation success event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     */
-    public void broadcastP2pGroupFormationSuccess(String iface) {
-        sendMessage(iface, P2P_GROUP_FORMATION_SUCCESS_EVENT);
-    }
-
-    /**
-     * Broadcast group formation failure event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param reason Failure reason.
-     */
-    public void broadcastP2pGroupFormationFailure(String iface, String reason) {
-        P2pStatus err = P2pStatus.UNKNOWN;
-        if (reason.equals("FREQ_CONFLICT")) {
-            err = P2pStatus.NO_COMMON_CHANNEL;
-        }
-        sendMessage(iface, P2P_GROUP_FORMATION_FAILURE_EVENT, err);
-    }
-
-    /**
-     * Broadcast group started event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param group Started group.
-     */
-    public void broadcastP2pGroupStarted(String iface, WifiP2pGroup group) {
-        if (group != null) {
-            sendMessage(iface, P2P_GROUP_STARTED_EVENT, group);
-        }
-    }
-
-    /**
-     * Broadcast group removed event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param group Removed group.
-     */
-    public void broadcastP2pGroupRemoved(String iface, WifiP2pGroup group) {
-        if (group != null) {
-            sendMessage(iface, P2P_GROUP_REMOVED_EVENT, group);
-        }
-    }
-
-    /**
-     * Broadcast invitation received event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param group Group to which invitation has been received.
-     */
-    public void broadcastP2pInvitationReceived(String iface, WifiP2pGroup group) {
-        if (group != null) {
-            sendMessage(iface, P2P_INVITATION_RECEIVED_EVENT, group);
-        }
-    }
-
-    /**
-     * Broadcast invitation result event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param result Result of invitation.
-     */
-    public void broadcastP2pInvitationResult(String iface, P2pStatus result) {
-        sendMessage(iface, P2P_INVITATION_RESULT_EVENT, result);
-    }
-
-    /**
-     * Broadcast PB discovery request event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param event Provision discovery request event.
-     */
-    public void broadcastP2pProvisionDiscoveryPbcRequest(String iface, WifiP2pProvDiscEvent event) {
-        if (event != null) {
-            sendMessage(iface, P2P_PROV_DISC_PBC_REQ_EVENT, event);
-        }
-    }
-
-    /**
-     * Broadcast PB discovery response event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param event Provision discovery response event.
-     */
-    public void broadcastP2pProvisionDiscoveryPbcResponse(
-            String iface, WifiP2pProvDiscEvent event) {
-        if (event != null) {
-            sendMessage(iface, P2P_PROV_DISC_PBC_RSP_EVENT, event);
-        }
-    }
-
-    /**
-     * Broadcast PIN discovery request event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param event Provision discovery request event.
-     */
-    public void broadcastP2pProvisionDiscoveryEnterPin(String iface, WifiP2pProvDiscEvent event) {
-        if (event != null) {
-            sendMessage(iface, P2P_PROV_DISC_ENTER_PIN_EVENT, event);
-        }
-    }
-
-    /**
-     * Broadcast PIN discovery response event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param event Provision discovery response event.
-     */
-    public void broadcastP2pProvisionDiscoveryShowPin(String iface, WifiP2pProvDiscEvent event) {
-        if (event != null) {
-            sendMessage(iface, P2P_PROV_DISC_SHOW_PIN_EVENT, event);
-        }
-    }
-
-    /**
-     * Broadcast P2P discovery failure event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     */
-    public void broadcastP2pProvisionDiscoveryFailure(String iface) {
-        sendMessage(iface, P2P_PROV_DISC_FAILURE_EVENT);
-    }
-
-    /**
-     * Broadcast service discovery response event to all handlers registered for this event.
-     *
-     * @param iface Name of iface on which this occurred.
-     * @param services List of discovered services.
-     */
-    public void broadcastP2pServiceDiscoveryResponse(
-            String iface, List<WifiP2pServiceResponse> services) {
-        sendMessage(iface, P2P_SERV_DISC_RESP_EVENT, services);
     }
 }

@@ -303,7 +303,6 @@ public class WifiConfigStoreLegacy {
             Log.e(TAG, "Removing networks from wpa_supplicant failed");
             return false;
         }
-        mWifiNative.saveConfig();
 
         // Now remove the ipconfig.txt file.
         if (!IP_CONFIG_FILE.delete()) {
