@@ -28,6 +28,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,6 +39,7 @@ import android.hardware.wifi.supplicant.V1_0.ISupplicant;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantIface;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIface;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIfaceCallback;
+import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIfaceCallback.BssidChangeReason;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaNetwork;
 import android.hardware.wifi.supplicant.V1_0.IfaceType;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
@@ -879,8 +881,6 @@ public class SupplicantStaIfaceHalTest {
         verify(mWifiMonitor).broadcastSupplicantStateChangeEvent(
                 eq(WLAN_IFACE_NAME), eq(frameworkNetworkId),
                 any(WifiSsid.class), eq(BSSID), eq(SupplicantState.ASSOCIATED));
-        verify(mWifiMonitor).broadcastAssociationSuccesfulEvent(
-                eq(WLAN_IFACE_NAME), eq(BSSID));
     }
 
     /**
@@ -1007,6 +1007,32 @@ public class SupplicantStaIfaceHalTest {
                 NativeUtil.macAddressToByteArray(BSSID));
         verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN_IFACE_NAME),
                 eq(WifiMonitor.AUTHENTICATION_FAILURE_REASON_TIMEOUT));
+    }
+
+    /**
+     * Tests the handling of bssid change notification.
+     */
+    @Test
+    public void testBssidChangedCallback() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        mISupplicantStaIfaceCallback.onBssidChanged(
+                BssidChangeReason.ASSOC_START, NativeUtil.macAddressToByteArray(BSSID));
+        verify(mWifiMonitor).broadcastTargetBssidEvent(eq(WLAN_IFACE_NAME), eq(BSSID));
+        verify(mWifiMonitor, never()).broadcastAssociatedBssidEvent(eq(WLAN_IFACE_NAME), eq(BSSID));
+
+        reset(mWifiMonitor);
+        mISupplicantStaIfaceCallback.onBssidChanged(
+                BssidChangeReason.ASSOC_COMPLETE, NativeUtil.macAddressToByteArray(BSSID));
+        verify(mWifiMonitor, never()).broadcastTargetBssidEvent(eq(WLAN_IFACE_NAME), eq(BSSID));
+        verify(mWifiMonitor).broadcastAssociatedBssidEvent(eq(WLAN_IFACE_NAME), eq(BSSID));
+
+        reset(mWifiMonitor);
+        mISupplicantStaIfaceCallback.onBssidChanged(
+                BssidChangeReason.DISASSOC, NativeUtil.macAddressToByteArray(BSSID));
+        verify(mWifiMonitor, never()).broadcastTargetBssidEvent(eq(WLAN_IFACE_NAME), eq(BSSID));
+        verify(mWifiMonitor, never()).broadcastAssociatedBssidEvent(eq(WLAN_IFACE_NAME), eq(BSSID));
     }
 
     /**
