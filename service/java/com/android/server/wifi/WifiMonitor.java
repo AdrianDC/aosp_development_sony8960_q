@@ -72,13 +72,6 @@ public class WifiMonitor {
     public static final int WPS_OVERLAP_EVENT                    = BASE + 10;
      /* WPS timeout detected */
     public static final int WPS_TIMEOUT_EVENT                    = BASE + 11;
-    /* Driver was hung */
-    public static final int DRIVER_HUNG_EVENT                    = BASE + 12;
-    /* SSID was disabled due to auth failure or excessive
-     * connection failures */
-    public static final int SSID_TEMP_DISABLED                   = BASE + 13;
-    /* SSID reenabled by supplicant */
-    public static final int SSID_REENABLED                       = BASE + 14;
 
     /* Request Identity */
     public static final int SUP_REQUEST_IDENTITY                 = BASE + 15;
