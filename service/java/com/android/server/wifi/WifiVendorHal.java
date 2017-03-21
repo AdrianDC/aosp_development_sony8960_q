@@ -226,16 +226,22 @@ public class WifiVendorHal {
         clearState();
     }
 
+    private WifiNative.VendorHalDeathEventHandler mDeathEventHandler;
+
     /**
      * Initialize the Hal device manager and register for status callbacks.
      *
-     * @return
+     * @param handler Handler to notify if the vendor HAL dies.
+     * @return true on success, false otherwise.
      */
-    public boolean initialize() {
-        mHalDeviceManager.initialize();
-        mHalDeviceManager.registerStatusListener(
-                mHalDeviceManagerStatusCallbacks, mWifiStateMachineHandlerThread.getLooper());
-        return true;
+    public boolean initialize(WifiNative.VendorHalDeathEventHandler handler) {
+        synchronized (sLock) {
+            mHalDeviceManager.initialize();
+            mHalDeviceManager.registerStatusListener(
+                    mHalDeviceManagerStatusCallbacks, mWifiStateMachineHandlerThread.getLooper());
+            mDeathEventHandler = handler;
+            return true;
+        }
     }
 
     /**
@@ -1533,7 +1539,7 @@ public class WifiVendorHal {
         }
     }
 
-    private WifiNative.WifiLoggerEventHandler mVerboseLogEventHandler = null;
+    private WifiNative.WifiLoggerEventHandler mLogEventHandler = null;
 
     /**
      * Registers the logger callback and enables alerts.
@@ -1543,11 +1549,11 @@ public class WifiVendorHal {
         if (handler == null) return boolResult(false);
         synchronized (sLock) {
             if (mIWifiChip == null) return boolResult(false);
-            if (mVerboseLogEventHandler != null) return boolResult(false);
+            if (mLogEventHandler != null) return boolResult(false);
             try {
                 WifiStatus status = mIWifiChip.enableDebugErrorAlerts(true);
                 if (!ok(status)) return false;
-                mVerboseLogEventHandler = handler;
+                mLogEventHandler = handler;
                 return true;
             } catch (RemoteException e) {
                 handleRemoteException(e);
@@ -1563,13 +1569,13 @@ public class WifiVendorHal {
     public boolean resetLogHandler() {
         synchronized (sLock) {
             if (mIWifiChip == null) return boolResult(false);
-            if (mVerboseLogEventHandler == null) return boolResult(false);
+            if (mLogEventHandler == null) return boolResult(false);
             try {
                 WifiStatus status = mIWifiChip.enableDebugErrorAlerts(false);
                 if (!ok(status)) return false;
                 status = mIWifiChip.stopLoggingToDebugRingBuffer();
                 if (!ok(status)) return false;
-                mVerboseLogEventHandler = null;
+                mLogEventHandler = null;
                 return true;
             } catch (RemoteException e) {
                 handleRemoteException(e);
@@ -2432,8 +2438,8 @@ public class WifiVendorHal {
             // mVerboseLog.d("onDebugRingBufferDataAvailable " + status);
             WifiNative.WifiLoggerEventHandler eventHandler;
             synchronized (sLock) {
-                if (mVerboseLogEventHandler == null || status == null || data == null) return;
-                eventHandler = mVerboseLogEventHandler;
+                if (mLogEventHandler == null || status == null || data == null) return;
+                eventHandler = mLogEventHandler;
             }
             eventHandler.onRingBufferData(
                     ringBufferStatus(status), NativeUtil.byteArrayFromArrayList(data));
@@ -2444,8 +2450,8 @@ public class WifiVendorHal {
             mVerboseLog.d("onDebugErrorAlert " + errorCode);
             WifiNative.WifiLoggerEventHandler eventHandler;
             synchronized (sLock) {
-                if (mVerboseLogEventHandler == null || debugData == null) return;
-                eventHandler = mVerboseLogEventHandler;
+                if (mLogEventHandler == null || debugData == null) return;
+                eventHandler = mLogEventHandler;
             }
             eventHandler.onWifiAlert(
                     errorCode, NativeUtil.byteArrayFromArrayList(debugData));
@@ -2465,8 +2471,13 @@ public class WifiVendorHal {
                     + ", isStarted(): " + isStarted);
             if (!isReady) {
                 // Probably something unpleasant, e.g. the server died
+                WifiNative.VendorHalDeathEventHandler handler;
                 synchronized (sLock) {
                     clearState();
+                    handler = mDeathEventHandler;
+                }
+                if (handler != null) {
+                    handler.onDeath();
                 }
             }
         }
