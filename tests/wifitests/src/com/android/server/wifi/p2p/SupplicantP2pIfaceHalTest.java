@@ -44,6 +44,7 @@ import android.net.wifi.p2p.WifiP2pManager;
 import android.net.wifi.p2p.nsd.WifiP2pServiceInfo;
 import android.os.IHwBinder;
 import android.os.RemoteException;
+import android.text.TextUtils;
 
 import com.android.server.wifi.util.NativeUtil;
 
@@ -562,34 +563,47 @@ public class SupplicantP2pIfaceHalTest {
                     ISupplicantP2pIface.connectCallback cb) throws RemoteException {
                 methods.add(method);
 
-                if (method == ISupplicantP2pIface.WpsProvisionMethod.DISPLAY) {
-                    // PIN is only required for PIN methods.
-                    assertEquals(pin, configPin);
+                if (method == ISupplicantP2pIface.WpsProvisionMethod.DISPLAY
+                        && TextUtils.isEmpty(pin)) {
+                    // Return the configPin for DISPLAY method if the pin was not provided.
+                    cb.onValues(mStatusSuccess, configPin);
+                } else {
+                    if (method != ISupplicantP2pIface.WpsProvisionMethod.PBC) {
+                        // PIN is only required for PIN methods.
+                        assertEquals(pin, configPin);
+                    }
+                    // For all the other cases, there is no generated pin.
+                    cb.onValues(mStatusSuccess, "");
                 }
-
-                // Return same pin as provided for test purposes.
-                cb.onValues(mStatusSuccess, pin);
             }
         })
         .when(mISupplicantP2pIfaceMock).connect(
                 eq(mPeerMacAddressBytes), anyInt(), anyString(), anyBoolean(), anyBoolean(),
                 anyInt(), any(ISupplicantP2pIface.connectCallback.class));
 
-        WifiP2pConfig config = createDummyP2pConfig(mPeerMacAddress, WpsInfo.DISPLAY, configPin);
+        WifiP2pConfig config = createDummyP2pConfig(mPeerMacAddress, WpsInfo.DISPLAY, "");
 
         // Default value when service is not initialized.
         assertNull(mDut.connect(config, false));
 
         executeAndValidateInitializationSequence(false, false, false);
+
         assertEquals(configPin, mDut.connect(config, false));
         assertTrue(methods.contains(ISupplicantP2pIface.WpsProvisionMethod.DISPLAY));
+        methods.clear();
 
-        config.wps.setup = WpsInfo.PBC;
-        assertNotNull(mDut.connect(config, false));
+        config = createDummyP2pConfig(mPeerMacAddress, WpsInfo.DISPLAY, configPin);
+        assertTrue(mDut.connect(config, false).isEmpty());
+        assertTrue(methods.contains(ISupplicantP2pIface.WpsProvisionMethod.DISPLAY));
+        methods.clear();
+
+        config = createDummyP2pConfig(mPeerMacAddress, WpsInfo.PBC, "");
+        assertTrue(mDut.connect(config, false).isEmpty());
         assertTrue(methods.contains(ISupplicantP2pIface.WpsProvisionMethod.PBC));
+        methods.clear();
 
-        config.wps.setup = WpsInfo.KEYPAD;
-        assertNotNull(mDut.connect(config, false));
+        config = createDummyP2pConfig(mPeerMacAddress, WpsInfo.KEYPAD, configPin);
+        assertTrue(mDut.connect(config, false).isEmpty());
         assertTrue(methods.contains(ISupplicantP2pIface.WpsProvisionMethod.KEYPAD));
     }
 
@@ -626,6 +640,11 @@ public class SupplicantP2pIfaceHalTest {
         // null pin not valid.
         config.wps.setup = WpsInfo.DISPLAY;
         config.wps.pin = null;
+        assertNull(mDut.connect(config, false));
+
+        // Pin should be empty for PBC.
+        config.wps.setup = WpsInfo.PBC;
+        config.wps.pin = "03455323";
         assertNull(mDut.connect(config, false));
     }
 
@@ -2503,9 +2522,7 @@ public class SupplicantP2pIfaceHalTest {
         config.deviceAddress = peerAddress;
 
         config.wps.setup = wpsProvMethod;
-        if (wpsProvMethod == WpsInfo.DISPLAY) {
-            config.wps.pin = pin;
-        }
+        config.wps.pin = pin;
 
         return config;
     }
