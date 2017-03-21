@@ -820,6 +820,7 @@ public class WifiStateMachineTest {
 
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
+        verify(mWifiNative).removeAllNetworks();
 
         mLooper.startAutoDispatch();
         assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
@@ -857,6 +858,7 @@ public class WifiStateMachineTest {
 
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
+        verify(mWifiNative).removeAllNetworks();
 
         mLooper.startAutoDispatch();
         assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
@@ -893,6 +895,7 @@ public class WifiStateMachineTest {
 
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
+        verify(mWifiNative).removeAllNetworks();
 
         mLooper.startAutoDispatch();
         assertFalse(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
@@ -915,6 +918,7 @@ public class WifiStateMachineTest {
 
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
+        verify(mWifiNative).removeAllNetworks();
 
         mLooper.startAutoDispatch();
         mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);

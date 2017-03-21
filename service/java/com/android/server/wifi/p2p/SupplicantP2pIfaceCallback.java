@@ -463,6 +463,14 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
      */
     public void onStaAuthorized(byte[] srcAddress, byte[] p2pDeviceAddress) {
         logd("STA authorized on " + mInterface);
+        WifiP2pDevice device = new WifiP2pDevice();
+        try {
+            device.deviceAddress = NativeUtil.macAddressFromByteArray(p2pDeviceAddress);
+        } catch (Exception e) {
+            Log.e(TAG, "Could not decode MAC address.", e);
+            return;
+        }
+        mMonitor.broadcastP2pApStaConnected(mInterface, device);
     }
 
 
@@ -474,6 +482,14 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
      */
     public void onStaDeauthorized(byte[] srcAddress, byte[] p2pDeviceAddress) {
         logd("STA deauthorized on " + mInterface);
+        WifiP2pDevice device = new WifiP2pDevice();
+        try {
+            device.deviceAddress = NativeUtil.macAddressFromByteArray(p2pDeviceAddress);
+        } catch (Exception e) {
+            Log.e(TAG, "Could not decode MAC address.", e);
+            return;
+        }
+        mMonitor.broadcastP2pApStaDisconnected(mInterface, device);
     }
 
 
