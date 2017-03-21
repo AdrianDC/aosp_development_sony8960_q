@@ -29,6 +29,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.storage.StorageManager;
 import android.provider.Settings;
 import android.telephony.CarrierConfigManager;
 
@@ -150,5 +151,14 @@ public class FrameworkFacade {
      */
     public WifiAsyncChannel makeWifiAsyncChannel(String tag) {
         return new WifiAsyncChannel(tag);
+    }
+
+    /**
+     * Check if the device will be restarting after decrypting during boot by calling {@link
+     * StorageManager.inCryptKeeperBounce}.
+     * @return true if the device will restart, false otherwise
+     */
+    public boolean inStorageManagerCryptKeeperBounce() {
+        return StorageManager.inCryptKeeperBounce();
     }
 }
