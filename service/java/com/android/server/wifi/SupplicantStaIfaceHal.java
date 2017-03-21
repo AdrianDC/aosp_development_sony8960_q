@@ -32,6 +32,7 @@ import android.hardware.wifi.supplicant.V1_0.ISupplicantIface;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantNetwork;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIface;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIfaceCallback;
+import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIfaceCallback.BssidChangeReason;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaNetwork;
 import android.hardware.wifi.supplicant.V1_0.IfaceType;
 import android.hardware.wifi.supplicant.V1_0.SupplicantStatus;
@@ -1753,9 +1754,7 @@ public class SupplicantStaIfaceHal {
                 String bssidStr = NativeUtil.macAddressFromByteArray(bssid);
                 mWifiMonitor.broadcastSupplicantStateChangeEvent(
                         mIfaceName, mFrameworkNetworkId, wifiSsid, bssidStr, newSupplicantState);
-                if (newSupplicantState == SupplicantState.ASSOCIATED) {
-                    mWifiMonitor.broadcastAssociationSuccesfulEvent(mIfaceName, bssidStr);
-                } else if (newSupplicantState == SupplicantState.COMPLETED) {
+                if (newSupplicantState == SupplicantState.COMPLETED) {
                     mWifiMonitor.broadcastNetworkConnectionEvent(
                             mIfaceName, mFrameworkNetworkId, bssidStr);
                 }
@@ -1855,6 +1854,20 @@ public class SupplicantStaIfaceHal {
             synchronized (mLock) {
                 mWifiMonitor.broadcastAuthenticationFailureEvent(
                         mIfaceName, WifiMonitor.AUTHENTICATION_FAILURE_REASON_TIMEOUT);
+            }
+        }
+
+        @Override
+        public void onBssidChanged(byte reason, byte[/* 6 */] bssid) {
+            logCallback("onBssidChanged");
+            synchronized (mLock) {
+                if (reason == BssidChangeReason.ASSOC_START) {
+                    mWifiMonitor.broadcastTargetBssidEvent(
+                            mIfaceName, NativeUtil.macAddressFromByteArray(bssid));
+                } else if (reason == BssidChangeReason.ASSOC_COMPLETE) {
+                    mWifiMonitor.broadcastAssociatedBssidEvent(
+                            mIfaceName, NativeUtil.macAddressFromByteArray(bssid));
+                }
             }
         }
 

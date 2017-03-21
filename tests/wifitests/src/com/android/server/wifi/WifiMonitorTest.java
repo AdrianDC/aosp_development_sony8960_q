@@ -361,14 +361,14 @@ public class WifiMonitorTest {
     }
 
     /**
-     * Broadcast association successful test.
+     * Broadcast associated bssid test.
      */
     @Test
-    public void testBroadcastAssociationSuccessfulEvent() {
+    public void testBroadcastAssociatedBssidEvent() {
         mWifiMonitor.registerHandler(
                 WLAN_IFACE_NAME, WifiStateMachine.CMD_ASSOCIATED_BSSID, mHandlerSpy);
         String bssid = BSSID;
-        mWifiMonitor.broadcastAssociationSuccesfulEvent(WLAN_IFACE_NAME, bssid);
+        mWifiMonitor.broadcastAssociatedBssidEvent(WLAN_IFACE_NAME, bssid);
         mLooper.dispatchAll();
 
         ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
