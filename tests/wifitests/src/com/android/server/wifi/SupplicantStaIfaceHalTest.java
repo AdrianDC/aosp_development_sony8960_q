@@ -1166,12 +1166,12 @@ public class SupplicantStaIfaceHalTest {
                 .thenReturn(mStatusSuccess);
 
         // Fail before initialization is performed.
-        assertFalse(mDut.setLogLevel(SupplicantStaIfaceHal.LOG_LEVEL_DEBUG));
+        assertFalse(mDut.setLogLevel(true));
 
         executeAndValidateInitializationSequence();
 
         // This should work.
-        assertTrue(mDut.setLogLevel(SupplicantStaIfaceHal.LOG_LEVEL_DEBUG));
+        assertTrue(mDut.setLogLevel(true));
         verify(mISupplicantMock)
                 .setDebugParams(eq(ISupplicant.DebugLevel.DEBUG), eq(false), eq(false));
     }
