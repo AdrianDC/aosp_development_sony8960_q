@@ -115,7 +115,6 @@ public class WifiConnectivityManagerTest {
     private static final int CANDIDATE_NETWORK_ID = 0;
     private static final String CANDIDATE_SSID = "\"AnSsid\"";
     private static final String CANDIDATE_BSSID = "6c:f3:7f:ae:8c:f3";
-    private static final String TAG = "WifiConnectivityManager Unit Test";
     private static final long CURRENT_SYSTEM_TIME_MS = 1000;
 
     Resources mockResource() {
@@ -225,8 +224,8 @@ public class WifiConnectivityManagerTest {
         candidateScanResult.BSSID = CANDIDATE_BSSID;
         candidate.getNetworkSelectionStatus().setCandidate(candidateScanResult);
 
-        when(ns.selectNetwork(anyObject(), anyObject(), anyBoolean(), anyBoolean(),
-              anyBoolean())).thenReturn(candidate);
+        when(ns.selectNetwork(anyObject(), anyObject(), anyObject(), anyBoolean(),
+              anyBoolean(), anyBoolean())).thenReturn(candidate);
         return ns;
     }
 
@@ -501,8 +500,8 @@ public class WifiConnectivityManagerTest {
     @Test
     @Ignore("b/32977707")
     public void pnoRetryForLowRssiNetwork() {
-        when(mWifiNS.selectNetwork(anyObject(), anyObject(), anyBoolean(), anyBoolean(),
-              anyBoolean())).thenReturn(null);
+        when(mWifiNS.selectNetwork(anyObject(), anyObject(), anyObject(), anyBoolean(),
+              anyBoolean(), anyBoolean())).thenReturn(null);
 
         // Set screen to off
         mWifiConnectivityManager.handleScreenStateChanged(false);
@@ -558,8 +557,8 @@ public class WifiConnectivityManagerTest {
     @Ignore("b/32977707")
     public void watchdogBitePnoGoodIncrementsMetrics() {
         // Qns returns no candidate after watchdog single scan.
-        when(mWifiNS.selectNetwork(anyObject(), anyObject(), anyBoolean(), anyBoolean(),
-              anyBoolean())).thenReturn(null);
+        when(mWifiNS.selectNetwork(anyObject(), anyObject(), anyObject(), anyBoolean(),
+              anyBoolean(), anyBoolean())).thenReturn(null);
 
         // Set screen to off
         mWifiConnectivityManager.handleScreenStateChanged(false);
@@ -1046,5 +1045,75 @@ public class WifiConnectivityManagerTest {
         // Roaming attempt because full band scan results are available.
         verify(mWifiStateMachine).startConnectToNetwork(
                 CANDIDATE_NETWORK_ID, CANDIDATE_BSSID);
+    }
+
+    /**
+     *  Verify the BSSID blacklist implementation.
+     *
+     * Expected behavior: A BSSID gets blacklisted after being disabled
+     * for 3 times, and becomes available after being re-enabled.
+     */
+    @Test
+    public void blacklistAndReenableBssid() {
+        String bssid = "6c:f3:7f:ae:8c:f3";
+
+        // Verify that a BSSID gets blacklisted only after being disabled
+        // for BSSID_BLACKLIST_THRESHOLD times for reasons other than
+        // REASON_CODE_AP_UNABLE_TO_HANDLE_NEW_STA.
+        for (int i = 0; i < WifiConnectivityManager.BSSID_BLACKLIST_THRESHOLD; i++) {
+            assertFalse(mWifiConnectivityManager.isBssidDisabled(bssid));
+            mWifiConnectivityManager.trackBssid(bssid, false, 1);
+        }
+
+        assertTrue(mWifiConnectivityManager.isBssidDisabled(bssid));
+
+        // Re-enable the bssid.
+        mWifiConnectivityManager.trackBssid(bssid, true, 1);
+
+        // The bssid should no longer be blacklisted.
+        assertFalse(mWifiConnectivityManager.isBssidDisabled(bssid));
+    }
+
+    /**
+     *  Verify that a network gets blacklisted immediately if it is unable
+     *  to handle new stations.
+     */
+    @Test
+    public void blacklistNetworkImmediatelyIfApHasNoCapacityForNewStation() {
+        String bssid = "6c:f3:7f:ae:8c:f3";
+
+        mWifiConnectivityManager.trackBssid(bssid, false,
+                WifiConnectivityManager.REASON_CODE_AP_UNABLE_TO_HANDLE_NEW_STA);
+
+        assertTrue(mWifiConnectivityManager.isBssidDisabled(bssid));
+    }
+
+    /**
+     *  Verify that a blacklisted BSSID becomes available only after
+     *  BSSID_BLACKLIST_EXPIRE_TIME_MS.
+     */
+    @Test
+    public void verifyBlacklistRefreshedAfterScanResults() {
+        String bssid = "6c:f3:7f:ae:8c:f3";
+
+        mWifiConnectivityManager.trackBssid(bssid, false,
+                WifiConnectivityManager.REASON_CODE_AP_UNABLE_TO_HANDLE_NEW_STA);
+        assertTrue(mWifiConnectivityManager.isBssidDisabled(bssid));
+
+        // Force a connectivity scan in less than BSSID_BLACKLIST_EXPIRE_TIME_MS.
+        // Arrival of scan results will trigger WifiConnectivityManager to refresh its
+        // BSSID blacklist. Verify that the blacklisted BSSId is not freed because
+        // its blacklist expiration time hasn't reached yet.
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime()
+                + WifiConnectivityManager.BSSID_BLACKLIST_EXPIRE_TIME_MS / 2);
+        mWifiConnectivityManager.forceConnectivityScan();
+        assertTrue(mWifiConnectivityManager.isBssidDisabled(bssid));
+
+        // Force another connectivity scan at BSSID_BLACKLIST_EXPIRE_TIME_MS from when the
+        // BSSID was blacklisted. Verify that the blacklisted BSSId is freed.
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime()
+                + WifiConnectivityManager.BSSID_BLACKLIST_EXPIRE_TIME_MS);
+        mWifiConnectivityManager.forceConnectivityScan();
+        assertFalse(mWifiConnectivityManager.isBssidDisabled(bssid));
     }
 }
