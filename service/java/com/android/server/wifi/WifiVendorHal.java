@@ -65,6 +65,7 @@ import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.HandlerThread;
+import android.os.Looper;
 import android.os.RemoteException;
 import android.util.MutableBoolean;
 import android.util.MutableInt;
@@ -204,14 +205,14 @@ public class WifiVendorHal {
     private IWifiRttController mIWifiRttController;
     private final HalDeviceManager mHalDeviceManager;
     private final HalDeviceManagerStatusListener mHalDeviceManagerStatusCallbacks;
-    private final HandlerThread mWifiStateMachineHandlerThread;
+    private final Looper mLooper;
     private final IWifiStaIfaceEventCallback mIWifiStaIfaceEventCallback;
     private final IWifiChipEventCallback mIWifiChipEventCallback;
 
     public WifiVendorHal(HalDeviceManager halDeviceManager,
-                         HandlerThread wifiStateMachineHandlerThread) {
+                         Looper looper) {
         mHalDeviceManager = halDeviceManager;
-        mWifiStateMachineHandlerThread = wifiStateMachineHandlerThread;
+        mLooper = looper;
         mHalDeviceManagerStatusCallbacks = new HalDeviceManagerStatusListener();
         mIWifiStaIfaceEventCallback = new StaIfaceEventCallback();
         mIWifiChipEventCallback = new ChipEventCallback();
@@ -237,8 +238,7 @@ public class WifiVendorHal {
     public boolean initialize(WifiNative.VendorHalDeathEventHandler handler) {
         synchronized (sLock) {
             mHalDeviceManager.initialize();
-            mHalDeviceManager.registerStatusListener(
-                    mHalDeviceManagerStatusCallbacks, mWifiStateMachineHandlerThread.getLooper());
+            mHalDeviceManager.registerStatusListener(mHalDeviceManagerStatusCallbacks, mLooper);
             mDeathEventHandler = handler;
             return true;
         }

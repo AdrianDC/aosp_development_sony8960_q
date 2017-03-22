@@ -55,7 +55,7 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiWakeReasonAndCounts;
-import android.os.HandlerThread;
+import android.os.test.TestLooper;
 import android.os.RemoteException;
 import android.util.Pair;
 
@@ -90,7 +90,7 @@ public class WifiVendorHalTest {
     @Mock
     private HalDeviceManager mHalDeviceManager;
     @Mock
-    private HandlerThread mWifiStateMachineHandlerThread;
+    private TestLooper mLooper;
     @Mock
     private WifiVendorHal.HalDeviceManagerStatusListener mHalDeviceManagerStatusCallbacks;
     @Mock
@@ -120,6 +120,7 @@ public class WifiVendorHalTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         mWifiLog = new FakeWifiLog();
+        mLooper = new TestLooper();
         mWifiStatusSuccess = new WifiStatus();
         mWifiStatusSuccess.code = WifiStatusCode.SUCCESS;
         mWifiStatusFailure = new WifiStatus();
@@ -171,7 +172,7 @@ public class WifiVendorHalTest {
                 }));
 
         // Create the vendor HAL object under test.
-        mWifiVendorHal = new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread);
+        mWifiVendorHal = new WifiVendorHal(mHalDeviceManager, mLooper.getLooper());
 
         // Initialize the vendor HAL to capture the registered callback.
         mWifiVendorHal.initialize(mVendorHalDeathHandler);
