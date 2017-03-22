@@ -1288,14 +1288,15 @@ public class WifiStateMachineTest {
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
 
-        when(mWifiNative.startWpsPbc(anyString())).thenReturn(true);
+        when(mWifiNative.startWpsPbc(eq(sBSSID))).thenReturn(true);
         WpsInfo wpsInfo = new WpsInfo();
         wpsInfo.setup = WpsInfo.PBC;
+        wpsInfo.BSSID = sBSSID;
 
         mLooper.startAutoDispatch();
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.stopAutoDispatch();
-        verify(mWifiNative).startWpsPbc(anyString());
+        verify(mWifiNative).startWpsPbc(eq(sBSSID));
 
         assertEquals("WpsRunningState", getCurrentState().getName());
 
@@ -1317,14 +1318,15 @@ public class WifiStateMachineTest {
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
 
-        when(mWifiNative.startWpsPbc(anyString())).thenReturn(false);
+        when(mWifiNative.startWpsPbc(eq(sBSSID))).thenReturn(false);
         WpsInfo wpsInfo = new WpsInfo();
         wpsInfo.setup = WpsInfo.PBC;
+        wpsInfo.BSSID = sBSSID;
 
         mLooper.startAutoDispatch();
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.stopAutoDispatch();
-        verify(mWifiNative).startWpsPbc(anyString());
+        verify(mWifiNative).startWpsPbc(eq(sBSSID));
 
         assertFalse("WpsRunningState".equals(getCurrentState().getName()));
     }
@@ -1338,14 +1340,15 @@ public class WifiStateMachineTest {
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
 
-        when(mWifiNative.startWpsPinDisplay(anyString())).thenReturn("34545434");
+        when(mWifiNative.startWpsPinDisplay(eq(sBSSID))).thenReturn("34545434");
         WpsInfo wpsInfo = new WpsInfo();
         wpsInfo.setup = WpsInfo.DISPLAY;
+        wpsInfo.BSSID = sBSSID;
 
         mLooper.startAutoDispatch();
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.stopAutoDispatch();
-        verify(mWifiNative).startWpsPinDisplay(anyString());
+        verify(mWifiNative).startWpsPinDisplay(eq(sBSSID));
 
         assertEquals("WpsRunningState", getCurrentState().getName());
 
@@ -1367,14 +1370,15 @@ public class WifiStateMachineTest {
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
 
-        when(mWifiNative.startWpsPinDisplay(anyString())).thenReturn(null);
+        when(mWifiNative.startWpsPinDisplay(eq(sBSSID))).thenReturn(null);
         WpsInfo wpsInfo = new WpsInfo();
         wpsInfo.setup = WpsInfo.DISPLAY;
+        wpsInfo.BSSID = sBSSID;
 
         mLooper.startAutoDispatch();
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.stopAutoDispatch();
-        verify(mWifiNative).startWpsPinDisplay(anyString());
+        verify(mWifiNative).startWpsPinDisplay(eq(sBSSID));
 
         assertFalse("WpsRunningState".equals(getCurrentState().getName()));
     }
