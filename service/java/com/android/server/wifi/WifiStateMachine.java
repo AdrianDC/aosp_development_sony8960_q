@@ -5011,17 +5011,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
                     reportConnectionAttemptStart(config, mTargetRoamBSSID,
                             WifiMetricsProto.ConnectionEvent.ROAM_UNRELATED);
-                    boolean shouldDisconnect = (getCurrentState() != mDisconnectedState);
-                    if (mWifiNative.connectToNetwork(config, shouldDisconnect)) {
+                    if (mWifiNative.connectToNetwork(config)) {
                         lastConnectAttemptTimestamp = mClock.getWallClockMillis();
                         targetWificonfiguration = config;
                         mAutoRoaming = false;
                         if (isRoaming() || isLinkDebouncing()) {
                             transitionTo(mRoamingState);
-                        } else if (shouldDisconnect) {
+                        } else if (getCurrentState() != mDisconnectedState) {
                             transitionTo(mDisconnectingState);
-                        } else {
-                            transitionTo(mDisconnectedState);
                         }
                     } else {
                         loge("CMD_START_CONNECT Failed to start connection to network " + config);
