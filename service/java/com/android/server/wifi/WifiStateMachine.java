@@ -4429,10 +4429,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_START_SCAN:
                     handleScanRequest(message);
                     break;
-                case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
-                    SupplicantState state = handleSupplicantStateChange(message);
-                    if (mVerboseLoggingEnabled) log("SupplicantState= " + state);
-                    break;
                 default:
                     return NOT_HANDLED;
             }
@@ -4637,7 +4633,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (!mWifiNative.removeAllNetworks()) {
                 loge("Failed to remove networks on entering connect mode");
             }
-
+            mWifiInfo.reset();
+            mWifiInfo.setSupplicantState(SupplicantState.DISCONNECTED);
             // Let the system know that wifi is available in client mode.
             setWifiState(WIFI_STATE_ENABLED);
 
@@ -4669,6 +4666,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (!mWifiNative.removeAllNetworks()) {
                 loge("Failed to remove networks on exiting connect mode");
             }
+            mWifiInfo.reset();
+            mWifiInfo.setSupplicantState(SupplicantState.DISCONNECTED);
         }
 
         @Override
