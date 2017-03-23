@@ -59,6 +59,7 @@ public class PasspointConfigStoreDataTest {
     private static final String TEST_CLIENT_CERTIFICATE_ALIAS = "ClientCert";
     private static final String TEST_CLIENT_PRIVATE_KEY_ALIAS = "ClientPrivateKey";
     private static final long TEST_PROVIDER_ID = 1;
+    private static final int TEST_CREATOR_UID = 1234;
 
     @Mock WifiKeyStore mKeyStore;
     @Mock SIMAccessor mSimAccessor;
@@ -234,8 +235,9 @@ public class PasspointConfigStoreDataTest {
         // Setup expected data.
         List<PasspointProvider> providerList = new ArrayList<>();
         providerList.add(new PasspointProvider(createFullPasspointConfiguration(),
-                mKeyStore, mSimAccessor, TEST_PROVIDER_ID, TEST_CA_CERTIFICATE_ALIAS,
-                TEST_CLIENT_CERTIFICATE_ALIAS, TEST_CLIENT_PRIVATE_KEY_ALIAS));
+                mKeyStore, mSimAccessor, TEST_PROVIDER_ID, TEST_CREATOR_UID,
+                TEST_CA_CERTIFICATE_ALIAS, TEST_CLIENT_CERTIFICATE_ALIAS,
+                TEST_CLIENT_PRIVATE_KEY_ALIAS));
 
         // Serialize data for user store.
         when(mDataSource.getProviders()).thenReturn(providerList);

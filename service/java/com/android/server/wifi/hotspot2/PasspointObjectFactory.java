@@ -49,8 +49,8 @@ public class PasspointObjectFactory{
      * @return {@link PasspointProvider}
      */
     public PasspointProvider makePasspointProvider(PasspointConfiguration config,
-            WifiKeyStore keyStore, SIMAccessor simAccessor, long providerId) {
-        return new PasspointProvider(config, keyStore, simAccessor, providerId);
+            WifiKeyStore keyStore, SIMAccessor simAccessor, long providerId, int creatorUid) {
+        return new PasspointProvider(config, keyStore, simAccessor, providerId, creatorUid);
     }
 
     /**
