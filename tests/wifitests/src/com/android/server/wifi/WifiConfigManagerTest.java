@@ -35,6 +35,7 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
+import android.os.Process;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.telephony.TelephonyManager;
@@ -476,6 +477,30 @@ public class WifiConfigManagerTest {
         assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
     }
 
+    /**
+     * Verify that a Passpoint network that's added by an app with {@link #TEST_CREATOR_UID} can
+     * be removed by WiFi Service with {@link Process#WIFI_UID}.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testRemovePasspointNetworkAddedByOther() throws Exception {
+        WifiConfiguration passpointNetwork = WifiConfigurationTestUtil.createPasspointNetwork();
+
+        // Passpoint network is added using TEST_CREATOR_UID.
+        verifyAddPasspointNetworkToWifiConfigManager(passpointNetwork);
+        // Ensure that configured network list is not empty.
+        assertFalse(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+
+        assertTrue(mWifiConfigManager.removeNetwork(passpointNetwork.networkId, Process.WIFI_UID));
+
+        // Verify keys are not being removed.
+        verify(mWifiKeyStore, never()).removeKeys(any(WifiEnterpriseConfig.class));
+        verifyNetworkRemoveBroadcast(passpointNetwork);
+        // Ensure that the write was not invoked for Passpoint network remove.
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never()).write(anyBoolean());
+
+    }
     /**
      * Verifies the addition & update of multiple networks using
      * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} and the
