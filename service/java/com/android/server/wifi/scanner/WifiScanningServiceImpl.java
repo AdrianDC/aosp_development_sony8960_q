@@ -548,7 +548,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         if (DBG) localLog("ignored full scan result event");
                         return HANDLED;
                     case WifiScanner.CMD_GET_SINGLE_SCAN_RESULTS:
-                        msg.obj = new WifiScanner.ParcelableScanResults(mCachedScanResults);
+                        msg.obj = new WifiScanner.ParcelableScanResults(mCachedScanResults.clone());
                         replySucceeded(msg);
                         return HANDLED;
                     default:
