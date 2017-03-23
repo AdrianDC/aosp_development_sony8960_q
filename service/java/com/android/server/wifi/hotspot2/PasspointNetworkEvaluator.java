@@ -84,6 +84,7 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
 
         // Done if no matching provider is found.
         if (providerList.isEmpty()) {
+            localLog("No suitable Passpoint network found");
             return null;
         }
 
@@ -94,6 +95,7 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
         // Return the configuration for the current connected network if it is the best network.
         if (currentNetwork != null && TextUtils.equals(currentNetwork.SSID,
                 ScanResultUtil.createQuotedSSID(bestNetwork.second.getSSID()))) {
+            localLog("Staying with current Passpoint network " + currentNetwork.SSID);
             connectableNetworks.add(Pair.create(bestNetwork.second, currentNetwork));
             return currentNetwork;
         }
@@ -101,6 +103,7 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
         WifiConfiguration config =
                 createWifiConfigForProvider(bestNetwork.first, bestNetwork.second);
         connectableNetworks.add(Pair.create(bestNetwork.second, config));
+        localLog("Passpoint network to connect to: " + config.SSID);
         return config;
     }
 
@@ -163,6 +166,8 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
                 bestScore = score;
             }
         }
+        localLog("Best Passpoint network " + bestScanDetail.getSSID() + " provided by "
+                + bestProvider.getConfig().getHomeSp().getFqdn());
         return Pair.create(bestProvider, bestScanDetail);
     }
 
