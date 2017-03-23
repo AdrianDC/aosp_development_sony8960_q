@@ -87,6 +87,9 @@ public class WifiMonitor {
     public static final int SUP_REQUEST_SIM_AUTH                 = BASE + 16;
 
     public static final int SCAN_FAILED_EVENT                    = BASE + 17;
+    /* Pno scan results are available */
+    public static final int PNO_SCAN_RESULTS_EVENT               = BASE + 18;
+
 
     /* Indicates assoc reject event */
     public static final int ASSOCIATION_REJECTION_EVENT          = BASE + 43;
@@ -461,6 +464,14 @@ public class WifiMonitor {
      */
     public void broadcastScanResultEvent(String iface) {
         sendMessage(iface, SCAN_RESULTS_EVENT);
+    }
+
+    /**
+     * Broadcast pno scan result event to all the handlers registered for this event.
+     * @param iface Name of iface on which this occurred.
+     */
+    public void broadcastPnoScanResultEvent(String iface) {
+        sendMessage(iface, PNO_SCAN_RESULTS_EVENT);
     }
 
     /**

@@ -291,6 +291,21 @@ public class WifiMonitorTest {
     }
 
     /**
+     * Broadcast pno scan results event test.
+     */
+    @Test
+    public void testBroadcastPnoScanResultsEvent() {
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.PNO_SCAN_RESULTS_EVENT, mHandlerSpy);
+        mWifiMonitor.broadcastPnoScanResultEvent(WLAN_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mHandlerSpy).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.PNO_SCAN_RESULTS_EVENT, messageCaptor.getValue().what);
+    }
+
+    /**
      * Broadcast Scan results event test.
      */
     @Test

@@ -432,7 +432,8 @@ public class WificondPnoScannerTest {
         when(mWifiNative.getScanResults()).thenReturn(scanResults.getScanDetailArrayList());
 
         // Notify scan has finished
-        mWifiMonitor.sendMessage(mWifiNative.getInterfaceName(), WifiMonitor.SCAN_RESULTS_EVENT);
+        mWifiMonitor.sendMessage(mWifiNative.getInterfaceName(),
+                                 WifiMonitor.PNO_SCAN_RESULTS_EVENT);
         assertEquals("dispatch message after results event", 1, mLooper.dispatchAll());
 
         order.verify(eventHandler).onPnoNetworkFound(scanResults.getRawScanResults());
