@@ -302,13 +302,13 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
             Log.v(TAG, "eventMatch: discoverySessionId=" + event.discoverySessionId + ", peerId="
                     + event.peerId + ", addr=" + String.valueOf(HexEncoding.encode(event.addr))
                     + ", serviceSpecificInfo=" + Arrays.toString(
-                    convertUcByteToLcByteArray(event.serviceSpecificInfo)) + ", matchFilter="
-                    + Arrays.toString(convertUcByteToLcByteArray(event.matchFilter)));
+                    convertArrayListToNativeByteArray(event.serviceSpecificInfo)) + ", matchFilter="
+                    + Arrays.toString(convertArrayListToNativeByteArray(event.matchFilter)));
         }
 
         mWifiAwareStateManager.onMatchNotification(event.discoverySessionId, event.peerId,
-                event.addr, convertUcByteToLcByteArray(event.serviceSpecificInfo),
-                convertUcByteToLcByteArray(event.matchFilter));
+                event.addr, convertArrayListToNativeByteArray(event.serviceSpecificInfo),
+                convertArrayListToNativeByteArray(event.matchFilter));
     }
 
     @Override
@@ -330,7 +330,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
         }
 
         mWifiAwareStateManager.onMessageReceivedNotification(event.discoverySessionId, event.peerId,
-                event.addr, convertUcByteToLcByteArray(event.serviceSpecificInfo));
+                event.addr, convertArrayListToNativeByteArray(event.serviceSpecificInfo));
     }
 
     @Override
@@ -370,7 +370,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
 
         mWifiAwareStateManager.onDataPathConfirmNotification(event.ndpInstanceId,
                 event.peerNdiMacAddr, event.dataPathSetupSuccess, event.status.status,
-                convertUcByteToLcByteArray(event.appInfo));
+                convertArrayListToNativeByteArray(event.appInfo));
     }
 
     @Override
@@ -389,7 +389,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
      *
      * @return A newly allocated byte[].
      */
-    private byte[] convertUcByteToLcByteArray(ArrayList<Byte> from) {
+    private byte[] convertArrayListToNativeByteArray(ArrayList<Byte> from) {
         if (from == null) {
             return null;
         }
