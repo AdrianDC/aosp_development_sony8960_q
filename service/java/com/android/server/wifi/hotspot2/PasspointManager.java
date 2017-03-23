@@ -22,13 +22,14 @@ import static android.net.wifi.WifiManager.ACTION_PASSPOINT_SUBSCRIPTION_REMEDIA
 import static android.net.wifi.WifiManager.EXTRA_BSSID_LONG;
 import static android.net.wifi.WifiManager.EXTRA_DELAY;
 import static android.net.wifi.WifiManager.EXTRA_ESS;
-import static android.net.wifi.WifiManager.EXTRA_ICON_INFO;
+import static android.net.wifi.WifiManager.EXTRA_FILENAME;
+import static android.net.wifi.WifiManager.EXTRA_ICON;
 import static android.net.wifi.WifiManager.EXTRA_SUBSCRIPTION_REMEDIATION_METHOD;
 import static android.net.wifi.WifiManager.EXTRA_URL;
 
 import android.content.Context;
 import android.content.Intent;
-import android.net.wifi.IconInfo;
+import android.graphics.drawable.Icon;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
@@ -123,7 +124,10 @@ public class PasspointManager {
             Intent intent = new Intent(ACTION_PASSPOINT_ICON);
             intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
             intent.putExtra(EXTRA_BSSID_LONG, bssid);
-            intent.putExtra(EXTRA_ICON_INFO, new IconInfo(fileName, data));
+            intent.putExtra(EXTRA_FILENAME, fileName);
+            if (data != null) {
+                intent.putExtra(EXTRA_ICON, Icon.createWithData(data, 0, data.length));
+            }
             mContext.sendBroadcastAsUser(intent, UserHandle.ALL,
                     android.Manifest.permission.ACCESS_WIFI_STATE);
         }
