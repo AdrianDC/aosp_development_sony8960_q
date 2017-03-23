@@ -87,7 +87,7 @@ public class WificondControl {
         @Override
         public void OnPnoNetworkFound() {
             Log.d(TAG, "Pno scan result event");
-            mWifiMonitor.broadcastScanResultEvent(mClientInterfaceName);
+            mWifiMonitor.broadcastPnoScanResultEvent(mClientInterfaceName);
         }
 
         @Override
