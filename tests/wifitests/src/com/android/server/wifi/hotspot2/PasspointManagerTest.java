@@ -22,7 +22,8 @@ import static android.net.wifi.WifiManager.ACTION_PASSPOINT_SUBSCRIPTION_REMEDIA
 import static android.net.wifi.WifiManager.EXTRA_BSSID_LONG;
 import static android.net.wifi.WifiManager.EXTRA_DELAY;
 import static android.net.wifi.WifiManager.EXTRA_ESS;
-import static android.net.wifi.WifiManager.EXTRA_ICON_INFO;
+import static android.net.wifi.WifiManager.EXTRA_FILENAME;
+import static android.net.wifi.WifiManager.EXTRA_ICON;
 import static android.net.wifi.WifiManager.EXTRA_SUBSCRIPTION_REMEDIATION_METHOD;
 import static android.net.wifi.WifiManager.EXTRA_URL;
 
@@ -44,8 +45,8 @@ import static org.mockito.MockitoAnnotations.initMocks;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.drawable.Icon;
 import android.net.wifi.EAPConstants;
-import android.net.wifi.IconInfo;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
@@ -151,10 +152,15 @@ public class PasspointManagerTest {
         assertEquals(ACTION_PASSPOINT_ICON, intent.getValue().getAction());
         assertTrue(intent.getValue().getExtras().containsKey(EXTRA_BSSID_LONG));
         assertEquals(bssid, intent.getValue().getExtras().getLong(EXTRA_BSSID_LONG));
-        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_ICON_INFO));
-        IconInfo expectedInfo = new IconInfo(fileName, data);
-        assertEquals(new IconInfo(fileName, data),
-                (IconInfo) intent.getValue().getExtras().getParcelable(EXTRA_ICON_INFO));
+        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_FILENAME));
+        assertEquals(fileName, intent.getValue().getExtras().getString(EXTRA_FILENAME));
+        if (data != null) {
+            assertTrue(intent.getValue().getExtras().containsKey(EXTRA_ICON));
+            Icon icon = (Icon) intent.getValue().getExtras().getParcelable(EXTRA_ICON);
+            assertTrue(Arrays.equals(data, icon.getDataBytes()));
+        } else {
+            assertFalse(intent.getValue().getExtras().containsKey(EXTRA_ICON));
+        }
     }
 
     /**
