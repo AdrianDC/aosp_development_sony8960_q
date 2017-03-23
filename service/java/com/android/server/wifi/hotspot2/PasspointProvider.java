@@ -381,6 +381,16 @@ public class PasspointProvider {
                 mClientPrivateKeyAlias, mConfig);
     }
 
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("ProviderId: ").append(mProviderId).append("\n");
+        builder.append("Configuration Begin ---\n");
+        builder.append(mConfig);
+        builder.append("Configuration End ---\n");
+        return builder.toString();
+    }
+
     /**
      * Retrieve the client certificate from the certificates chain.  The certificate
      * with the matching SHA256 digest is the client certificate.

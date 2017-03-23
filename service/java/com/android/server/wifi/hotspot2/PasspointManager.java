@@ -49,6 +49,7 @@ import com.android.server.wifi.hotspot2.anqp.Constants;
 import com.android.server.wifi.util.InformationElementUtil;
 import com.android.server.wifi.util.ScanResultUtil;
 
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -239,6 +240,7 @@ public class PasspointManager {
 
         mProviders.put(config.getHomeSp().getFqdn(), newProvider);
         mWifiConfigManager.saveToStore(true /* forceWrite */);
+        Log.d(TAG, "Added/updated Passpoint configuration: " + config.getHomeSp().getFqdn());
         return true;
     }
 
@@ -257,6 +259,7 @@ public class PasspointManager {
         mProviders.get(fqdn).uninstallCertsAndKeys();
         mProviders.remove(fqdn);
         mWifiConfigManager.saveToStore(true /* forceWrite */);
+        Log.d(TAG, "Removed Passpoint configuration: " + fqdn);
         return true;
     }
 
@@ -311,6 +314,7 @@ public class PasspointManager {
             mAnqpRequestManager.requestANQPElements(bssid, anqpKey,
                     roamingConsortium.anqpOICount > 0,
                     vsa.hsRelease  == NetworkDetail.HSRelease.R2);
+            Log.d(TAG, "ANQP entry not found for: " + anqpKey);
             return null;
         }
 
@@ -325,6 +329,14 @@ public class PasspointManager {
             if (matchStatus == PasspointMatch.RoamingProvider && bestMatch == null) {
                 bestMatch = Pair.create(provider, matchStatus);
             }
+        }
+        if (bestMatch != null) {
+            Log.d(TAG, String.format("Matched %s to %s as %s", scanResult.SSID,
+                    bestMatch.first.getConfig().getHomeSp().getFqdn(),
+                    bestMatch.second == PasspointMatch.HomeProvider ? "Home Provider"
+                            : "Roaming Provider"));
+        } else {
+            Log.d(TAG, "Match not found for " + scanResult.SSID);
         }
         return bestMatch;
     }
@@ -345,6 +357,7 @@ public class PasspointManager {
             Log.e(TAG, "PasspointManager have not been initialized yet");
             return false;
         }
+        Log.d(TAG, "Installing legacy Passpoint configuration: " + config.FQDN);
         return sPasspointManager.addWifiConfig(config);
     }
 
@@ -424,6 +437,7 @@ public class PasspointManager {
      */
     public WifiConfiguration getMatchingWifiConfig(ScanResult scanResult) {
         if (scanResult == null) {
+            Log.e(TAG, "Attempt to get matching config for a null ScanResult");
             return null;
         }
         Pair<PasspointProvider, PasspointMatch> matchedProvider = matchProvider(scanResult);
@@ -433,6 +447,22 @@ public class PasspointManager {
         WifiConfiguration config = matchedProvider.first.getWifiConfig();
         config.SSID = ScanResultUtil.createQuotedSSID(scanResult.SSID);
         return config;
+    }
+
+    /**
+     * Dump the current state of PasspointManager to the provided output stream.
+     *
+     * @param pw The output stream to write to
+     */
+    public void dump(PrintWriter pw) {
+        pw.println("Dump of PasspointManager");
+        pw.println("PasspointManager - Providers Begin ---");
+        for (Map.Entry<String, PasspointProvider> entry : mProviders.entrySet()) {
+            pw.println(entry.getValue());
+        }
+        pw.println("PasspointManager - Providers End ---");
+        pw.println("PasspointManager - Next provider ID to be assigned " + mProviderIndex);
+        mAnqpCache.dump(pw);
     }
 
     /**
