@@ -389,7 +389,7 @@ public class WificondPnoScannerTest {
             WifiNative.PnoEventHandler pnoEventHandler) {
         reset(mWifiNative);
         // Scans succeed
-        when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(true);
+        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(true);
         when(mWifiNative.startPnoScan(any(WifiNative.PnoSettings.class))).thenReturn(true);
         when(mWifiNative.stopPnoScan()).thenReturn(true);
 
@@ -471,7 +471,7 @@ public class WificondPnoScannerTest {
             WifiNative.ScanEventHandler eventHandler, ScanResults scanResults) {
 
         // Verify scan started
-        order.verify(mWifiNative).scan(any(Set.class), any(Set.class));
+        order.verify(mWifiNative).scan(any(), any(Set.class));
 
         // Make sure that HW PNO scan was not started
         verify(mWifiNative, never()).startPnoScan(any(WifiNative.PnoSettings.class));

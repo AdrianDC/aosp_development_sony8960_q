@@ -318,7 +318,7 @@ public class WificondScannerTest extends BaseWifiScannerImplTest {
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // All scans fail
-        when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(false);
+        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(false);
 
         // Start scan
         mScanner.startBatchedScan(settings, eventHandler);
@@ -353,7 +353,7 @@ public class WificondScannerTest extends BaseWifiScannerImplTest {
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // All scan starts succeed
-        when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(true);
+        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(true);
 
         // Start scan
         mScanner.startBatchedScan(settings, eventHandler);
@@ -400,7 +400,7 @@ public class WificondScannerTest extends BaseWifiScannerImplTest {
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // All scan starts succeed
-        when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(true);
+        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(true);
 
         // Start scan
         mScanner.startBatchedScan(settings, eventHandler);
@@ -454,7 +454,7 @@ public class WificondScannerTest extends BaseWifiScannerImplTest {
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // All scan starts succeed
-        when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(true);
+        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(true);
 
         // Start scan
         mScanner.startBatchedScan(settings, eventHandler);
@@ -527,7 +527,7 @@ public class WificondScannerTest extends BaseWifiScannerImplTest {
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // All scan starts succeed
-        when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(true);
+        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(true);
 
         // Start scan
         mScanner.startBatchedScan(settings, eventHandler);
@@ -565,7 +565,7 @@ public class WificondScannerTest extends BaseWifiScannerImplTest {
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // All scans succeed
-        when(mWifiNative.scan(any(Set.class), any(Set.class))).thenReturn(true);
+        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(true);
 
         // Start scan
         mScanner.startBatchedScan(settings, eventHandler);
