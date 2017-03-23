@@ -70,16 +70,10 @@ public class ANQPData {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        if (mANQPElements == null) {
-            sb.append(", unresolved, ");
-        }
-        else {
-            sb.append(", ").append(mANQPElements.size()).append(" elements, ");
-        }
+        sb.append(mANQPElements.size()).append(" elements, ");
         long now = mClock.getElapsedSinceBootMillis();
         sb.append(" expires in ").append(Utils.toHMS(mExpiryTime - now)).append(' ');
         sb.append(expired(now) ? 'x' : '-');
-        sb.append(mANQPElements == null ? 'u' : '-');
         return sb.toString();
     }
 }
