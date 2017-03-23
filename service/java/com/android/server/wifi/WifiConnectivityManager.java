@@ -542,11 +542,17 @@ public class WifiConnectivityManager {
                     + " secureNetworkBonus " + mSecureBonus
                     + " initialScoreMax " + mInitialScoreMax);
 
+        boolean hs2Enabled = context.getResources().getBoolean(
+                R.bool.config_wifi_hotspot2_enabled);
+        localLog("Passpoint is: " + (hs2Enabled ? "enabled" : "disabled"));
+
         // Register the network evaluators
         mNetworkSelector.registerNetworkEvaluator(savedNetworkEvaluator,
                 SAVED_NETWORK_EVALUATOR_PRIORITY);
-        mNetworkSelector.registerNetworkEvaluator(passpointNetworkEvaluator,
-                PASSPOINT_NETWORK_EVALUATOR_PRIORITY);
+        if (hs2Enabled) {
+            mNetworkSelector.registerNetworkEvaluator(passpointNetworkEvaluator,
+                    PASSPOINT_NETWORK_EVALUATOR_PRIORITY);
+        }
         mNetworkSelector.registerNetworkEvaluator(recommendedNetworkEvaluator,
                 RECOMMENDED_NETWORK_EVALUATOR_PRIORITY);
 
