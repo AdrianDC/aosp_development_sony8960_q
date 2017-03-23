@@ -201,42 +201,45 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                     ac.connect(mContext, this, msg.replyTo);
                     break;
                 }
-                /* Client commands are forwarded to state machine */
-                case WifiManager.CONNECT_NETWORK:
-                case WifiManager.SAVE_NETWORK: {
+                case WifiManager.CONNECT_NETWORK: {
                     WifiConfiguration config = (WifiConfiguration) msg.obj;
                     int networkId = msg.arg1;
-                    if (msg.what == WifiManager.SAVE_NETWORK) {
-                        Slog.d("WiFiServiceImpl ", "SAVE"
-                                + " nid=" + Integer.toString(networkId)
-                                + " uid=" + msg.sendingUid
-                                + " name="
-                                + mContext.getPackageManager().getNameForUid(msg.sendingUid));
-                    }
-                    if (msg.what == WifiManager.CONNECT_NETWORK) {
-                        Slog.d("WiFiServiceImpl ", "CONNECT "
-                                + " nid=" + Integer.toString(networkId)
-                                + " uid=" + msg.sendingUid
-                                + " name="
-                                + mContext.getPackageManager().getNameForUid(msg.sendingUid));
-                    }
-
+                    Slog.d("WiFiServiceImpl ", "CONNECT "
+                            + " nid=" + Integer.toString(networkId)
+                            + " uid=" + msg.sendingUid
+                            + " name="
+                            + mContext.getPackageManager().getNameForUid(msg.sendingUid));
                     if (config != null && isValid(config)) {
-                        if (DBG) Slog.d(TAG, "Connect with config" + config);
+                        if (DBG) Slog.d(TAG, "Connect with config " + config);
+                        /* Command is forwarded to state machine */
                         mWifiStateMachine.sendMessage(Message.obtain(msg));
                     } else if (config == null
                             && networkId != WifiConfiguration.INVALID_NETWORK_ID) {
-                        if (DBG) Slog.d(TAG, "Connect with networkId" + networkId);
+                        if (DBG) Slog.d(TAG, "Connect with networkId " + networkId);
                         mWifiStateMachine.sendMessage(Message.obtain(msg));
                     } else {
                         Slog.e(TAG, "ClientHandler.handleMessage ignoring invalid msg=" + msg);
-                        if (msg.what == WifiManager.CONNECT_NETWORK) {
-                            replyFailed(msg, WifiManager.CONNECT_NETWORK_FAILED,
-                                    WifiManager.INVALID_ARGS);
-                        } else {
-                            replyFailed(msg, WifiManager.SAVE_NETWORK_FAILED,
-                                    WifiManager.INVALID_ARGS);
-                        }
+                        replyFailed(msg, WifiManager.CONNECT_NETWORK_FAILED,
+                                WifiManager.INVALID_ARGS);
+                    }
+                    break;
+                }
+                case WifiManager.SAVE_NETWORK: {
+                    WifiConfiguration config = (WifiConfiguration) msg.obj;
+                    int networkId = msg.arg1;
+                    Slog.d("WiFiServiceImpl ", "SAVE"
+                            + " nid=" + Integer.toString(networkId)
+                            + " uid=" + msg.sendingUid
+                            + " name="
+                            + mContext.getPackageManager().getNameForUid(msg.sendingUid));
+                    if (config != null && isValid(config)) {
+                        if (DBG) Slog.d(TAG, "Save network with config " + config);
+                        /* Command is forwarded to state machine */
+                        mWifiStateMachine.sendMessage(Message.obtain(msg));
+                    } else {
+                        Slog.e(TAG, "ClientHandler.handleMessage ignoring invalid msg=" + msg);
+                        replyFailed(msg, WifiManager.SAVE_NETWORK_FAILED,
+                                WifiManager.INVALID_ARGS);
                     }
                     break;
                 }
