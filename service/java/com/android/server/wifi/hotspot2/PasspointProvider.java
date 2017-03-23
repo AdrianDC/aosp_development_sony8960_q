@@ -280,6 +280,7 @@ public class PasspointProvider {
 
         WifiEnterpriseConfig enterpriseConfig = new WifiEnterpriseConfig();
         enterpriseConfig.setRealm(mConfig.getCredential().getRealm());
+        enterpriseConfig.setDomainSuffixMatch(mConfig.getHomeSp().getFqdn());
         if (mConfig.getCredential().getUserCredential() != null) {
             buildEnterpriseConfigForUserCredential(enterpriseConfig,
                     mConfig.getCredential().getUserCredential());
