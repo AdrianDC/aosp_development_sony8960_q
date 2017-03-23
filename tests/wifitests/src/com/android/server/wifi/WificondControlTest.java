@@ -61,6 +61,7 @@ public class WificondControlTest {
     private WifiInjector mWifiInjector;
     private WifiMonitor mWifiMonitor;
     private WificondControl mWificondControl;
+    private static final String TEST_INTERFACE_NAME = "test_wlan_if";
     private static final byte[] TEST_SSID =
             new byte[] {'G', 'o', 'o', 'g', 'l', 'e', 'G', 'u', 'e', 's', 't'};
     private static final byte[] TEST_BSSID =
@@ -620,6 +621,7 @@ public class WificondControlTest {
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
         when(wificond.createClientInterface()).thenReturn(clientInterface);
         when(clientInterface.getWifiScannerImpl()).thenReturn(scanner);
+        when(clientInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
 
         assertEquals(clientInterface, mWificondControl.setupDriverForClientMode());
 
