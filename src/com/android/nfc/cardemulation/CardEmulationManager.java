@@ -154,6 +154,7 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
         mHostNfcFEmulationManager.onUserSwitched();
         mT3tIdentifiersCache.onUserSwitched();
         mEnabledNfcFServices.onUserSwitched(userId);
+        mNfcFServicesCache.onUserSwitched();
         mNfcFServicesCache.invalidateCache(userId);
     }
 
