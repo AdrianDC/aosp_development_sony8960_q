@@ -33,7 +33,6 @@ import android.net.wifi.WifiScanner;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.UserHandle;
@@ -115,7 +114,7 @@ public class WifiScanningServiceTest {
 
         mLooper = new TestLooper();
         when(mWifiScannerImplFactory
-                .create(any(Context.class), any(Looper.class), any(Clock.class)))
+                .create(any(), any(), any()))
                 .thenReturn(mWifiScannerImpl);
         when(mWifiScannerImpl.getChannelHelper()).thenReturn(channelHelper);
         when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
@@ -436,7 +435,7 @@ public class WifiScanningServiceTest {
         startServiceAndLoadDriver();
         mWifiScanningServiceImpl.setWifiHandlerLogForTest(mLog);
         verify(mWifiScannerImplFactory, times(1))
-                .create(any(Context.class), any(Looper.class), any(Clock.class));
+                .create(any(), any(), any());
 
         Handler handler = mock(Handler.class);
         BidirectionalAsyncChannel controlChannel = connectChannel(handler);
