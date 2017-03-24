@@ -775,7 +775,7 @@ public class WifiNative {
      *
      * @return Hex string corresponding to the WPS NFC token.
      */
-    public String getNfcWpsConfigurationToken(int netId) {
+    public String getCurrentNetworkWpsNfcConfigurationToken() {
         return mSupplicantStaIfaceHal.getCurrentNetworkWpsNfcConfigurationToken();
     }
     /********************************************************

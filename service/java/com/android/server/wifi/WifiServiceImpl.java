@@ -515,11 +515,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     @Override
-    public String getWpsNfcConfigurationToken(int netId) {
+    public String getCurrentNetworkWpsNfcConfigurationToken() {
         enforceConnectivityInternalPermission();
-        mLog.trace("getWpsNfcConfigurationToken uid=%").c(Binder.getCallingUid()).flush();
+        mLog.trace("getCurrentNetworkWpsNfcConfigurationToken uid=%")
+                .c(Binder.getCallingUid()).flush();
         // TODO Add private logging for netId b/33807876
-        return mWifiStateMachine.syncGetWpsNfcConfigurationToken(netId);
+        return mWifiStateMachine.syncGetCurrentNetworkWpsNfcConfigurationToken();
     }
 
     boolean mInIdleMode;

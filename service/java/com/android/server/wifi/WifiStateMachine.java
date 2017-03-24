@@ -1976,8 +1976,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      *
      * @return a hex string representation of the WPS-NFC configuration token
      */
-    public String syncGetWpsNfcConfigurationToken(int netId) {
-        return mWifiNative.getNfcWpsConfigurationToken(netId);
+    public String syncGetCurrentNetworkWpsNfcConfigurationToken() {
+        return mWifiNative.getCurrentNetworkWpsNfcConfigurationToken();
     }
 
     public void enableRssiPolling(boolean enabled) {
