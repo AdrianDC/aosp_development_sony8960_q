@@ -166,7 +166,7 @@ public class WifiConfigManagerTest {
         }).when(mPackageManager).getPackageUidAsUser(anyString(), anyInt(), anyInt());
 
         when(mWifiKeyStore
-                .updateNetworkKeys(any(WifiConfiguration.class), any(WifiConfiguration.class)))
+                .updateNetworkKeys(any(WifiConfiguration.class), any()))
                 .thenReturn(true);
 
         when(mWifiConfigStore.areStoresPresent()).thenReturn(true);
