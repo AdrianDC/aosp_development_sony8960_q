@@ -30,6 +30,8 @@ import static org.mockito.MockitoAnnotations.initMocks;
 
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.hotspot2.PasspointConfiguration;
+import android.net.wifi.hotspot2.pps.HomeSp;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Pair;
 
@@ -86,6 +88,11 @@ public class PasspointNetworkEvaluatorTest {
      */
     private static PasspointProvider generateProvider(WifiConfiguration config) {
         PasspointProvider provider = mock(PasspointProvider.class);
+        PasspointConfiguration passpointConfig = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setFqdn(config.FQDN);
+        passpointConfig.setHomeSp(homeSp);
+        when(provider.getConfig()).thenReturn(passpointConfig);
         when(provider.getWifiConfig()).thenReturn(config);
         return provider;
     }
