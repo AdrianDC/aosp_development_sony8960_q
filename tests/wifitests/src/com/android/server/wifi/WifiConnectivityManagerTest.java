@@ -854,8 +854,8 @@ public class WifiConnectivityManagerTest {
 
         when(mWifiStateMachine.getCurrentWifiConfiguration())
                 .thenReturn(new WifiConfiguration());
-        when(mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(anyInt(), anyInt(),
-              anyInt())).thenReturn(channelList);
+        when(mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(anyInt(), anyLong(),
+                anyInt())).thenReturn(channelList);
 
         doAnswer(new AnswerWithArguments() {
             public void answer(ScanSettings settings, ScanListener listener,
@@ -893,7 +893,7 @@ public class WifiConnectivityManagerTest {
 
         when(mWifiStateMachine.getCurrentWifiConfiguration())
                 .thenReturn(new WifiConfiguration());
-        when(mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(anyInt(), anyInt(),
+        when(mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(anyInt(), anyLong(),
                 anyInt())).thenReturn(channelList);
 
         doAnswer(new AnswerWithArguments() {
@@ -932,7 +932,7 @@ public class WifiConnectivityManagerTest {
 
         when(mWifiStateMachine.getCurrentWifiConfiguration())
                 .thenReturn(new WifiConfiguration());
-        when(mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(anyInt(), anyInt(),
+        when(mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(anyInt(), anyLong(),
                 anyInt())).thenReturn(channelList);
 
         doAnswer(new AnswerWithArguments() {
