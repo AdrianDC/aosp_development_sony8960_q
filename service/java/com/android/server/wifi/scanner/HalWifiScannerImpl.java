@@ -151,26 +151,4 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
             return mWificondScannerDelegate.shouldScheduleBackgroundScanForHwPno();
         }
     }
-
-    @Override
-    public boolean setHotlist(WifiScanner.HotlistSettings settings,
-            WifiNative.HotlistEventHandler eventHandler) {
-        return mWifiNative.setHotlist(settings, eventHandler);
-    }
-
-    @Override
-    public void resetHotlist() {
-        mWifiNative.resetHotlist();
-    }
-
-    @Override
-    public boolean trackSignificantWifiChange(WifiScanner.WifiChangeSettings settings,
-            WifiNative.SignificantWifiChangeEventHandler handler) {
-        return mWifiNative.trackSignificantWifiChange(settings, handler);
-    }
-
-    @Override
-    public void untrackSignificantWifiChange() {
-        mWifiNative.untrackSignificantWifiChange();
-    }
 }
