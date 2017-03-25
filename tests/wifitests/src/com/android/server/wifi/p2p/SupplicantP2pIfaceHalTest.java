@@ -1760,7 +1760,7 @@ public class SupplicantP2pIfaceHalTest {
     @Test
     public void testCancelServiceDiscovery_invalidArguments() throws Exception {
         executeAndValidateInitializationSequence(false, false, false);
-        when(mISupplicantP2pIfaceMock.cancelServiceDiscovery(anyInt()))
+        when(mISupplicantP2pIfaceMock.cancelServiceDiscovery(anyLong()))
                 .thenReturn(mStatusFailure);
         assertFalse(mDut.cancelServiceDiscovery(null));
         assertFalse(mDut.cancelServiceDiscovery("not a number"));
@@ -1772,7 +1772,7 @@ public class SupplicantP2pIfaceHalTest {
     @Test
     public void testCancelServiceDiscovery_failure() throws Exception {
         executeAndValidateInitializationSequence(false, false, false);
-        when(mISupplicantP2pIfaceMock.cancelServiceDiscovery(anyInt()))
+        when(mISupplicantP2pIfaceMock.cancelServiceDiscovery(anyLong()))
                 .thenReturn(mStatusFailure);
         assertFalse(mDut.cancelServiceDiscovery("1234"));
         // Check that service is still alive.
@@ -1785,7 +1785,7 @@ public class SupplicantP2pIfaceHalTest {
     @Test
     public void testCancelServiceDiscovery_exception() throws Exception {
         executeAndValidateInitializationSequence(false, false, false);
-        when(mISupplicantP2pIfaceMock.cancelServiceDiscovery(anyInt()))
+        when(mISupplicantP2pIfaceMock.cancelServiceDiscovery(anyLong()))
                 .thenThrow(mRemoteException);
         assertFalse(mDut.cancelServiceDiscovery("1234"));
         // Check service is dead.
