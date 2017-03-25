@@ -56,7 +56,6 @@ import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.HandlerThread;
-import android.os.Looper;
 import android.os.RemoteException;
 import android.util.Pair;
 
@@ -176,8 +175,7 @@ public class WifiVendorHalTest {
         mWifiVendorHal.initialize();
         ArgumentCaptor<WifiVendorHal.HalDeviceManagerStatusListener> hdmCallbackCaptor =
                 ArgumentCaptor.forClass(WifiVendorHal.HalDeviceManagerStatusListener.class);
-        verify(mHalDeviceManager).registerStatusListener(
-                hdmCallbackCaptor.capture(), any(Looper.class));
+        verify(mHalDeviceManager).registerStatusListener(hdmCallbackCaptor.capture(), any());
         mHalDeviceManagerStatusCallbacks = hdmCallbackCaptor.getValue();
 
     }
