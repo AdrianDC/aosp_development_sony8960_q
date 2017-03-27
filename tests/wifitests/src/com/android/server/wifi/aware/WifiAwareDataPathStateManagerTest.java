@@ -37,6 +37,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.NetworkFactory;
 import android.net.NetworkRequest;
+import android.net.StringNetworkSpecifier;
 import android.net.wifi.aware.AttachCallback;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.DiscoverySession;
@@ -417,10 +418,12 @@ public class WifiAwareDataPathStateManagerTest {
                 doPublish);
 
         // corrupt the network specifier: reverse the role (so it's mis-matched)
-        JSONObject jsonObject = new JSONObject(nr.networkCapabilities.getNetworkSpecifier());
+        JSONObject jsonObject = new JSONObject(
+                ((StringNetworkSpecifier) nr.networkCapabilities.getNetworkSpecifier()).specifier);
         jsonObject.put(WifiAwareManager.NETWORK_SPECIFIER_KEY_ROLE,
                 1 - jsonObject.getInt(WifiAwareManager.NETWORK_SPECIFIER_KEY_ROLE));
-        nr.networkCapabilities.setNetworkSpecifier(jsonObject.toString());
+        nr.networkCapabilities.setNetworkSpecifier(
+                new StringNetworkSpecifier(jsonObject.toString()));
 
         Message reqNetworkMsg = Message.obtain();
         reqNetworkMsg.what = NetworkFactory.CMD_REQUEST_NETWORK;
@@ -691,7 +694,7 @@ public class WifiAwareDataPathStateManagerTest {
         nc.addTransportType(NetworkCapabilities.TRANSPORT_WIFI_AWARE);
         nc.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN).addCapability(
                 NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
-        nc.setNetworkSpecifier(ns);
+        nc.setNetworkSpecifier(new StringNetworkSpecifier(ns));
         nc.setLinkUpstreamBandwidthKbps(1);
         nc.setLinkDownstreamBandwidthKbps(1);
         nc.setSignalStrength(1);
@@ -729,7 +732,7 @@ public class WifiAwareDataPathStateManagerTest {
         nc.addTransportType(NetworkCapabilities.TRANSPORT_WIFI_AWARE);
         nc.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN).addCapability(
                 NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
-        nc.setNetworkSpecifier(ns);
+        nc.setNetworkSpecifier(new StringNetworkSpecifier(ns));
         nc.setLinkUpstreamBandwidthKbps(1);
         nc.setLinkDownstreamBandwidthKbps(1);
         nc.setSignalStrength(1);

@@ -22,12 +22,15 @@ import android.net.ConnectivityManager;
 import android.net.IpPrefix;
 import android.net.LinkAddress;
 import android.net.LinkProperties;
+import android.net.MatchAllNetworkSpecifier;
 import android.net.NetworkAgent;
 import android.net.NetworkCapabilities;
 import android.net.NetworkFactory;
 import android.net.NetworkInfo;
 import android.net.NetworkRequest;
+import android.net.NetworkSpecifier;
 import android.net.RouteInfo;
+import android.net.StringNetworkSpecifier;
 import android.net.wifi.aware.WifiAwareManager;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
@@ -113,8 +116,7 @@ public class WifiAwareDataPathStateManager {
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_TRUSTED);
-        mNetworkCapabilitiesFilter
-                .setNetworkSpecifier(NetworkCapabilities.MATCH_ALL_REQUESTS_NETWORK_SPECIFIER);
+        mNetworkCapabilitiesFilter.setNetworkSpecifier(new MatchAllNetworkSpecifier());
         mNetworkCapabilitiesFilter.setLinkUpstreamBandwidthKbps(NETWORK_FACTORY_BANDWIDTH_AVAIL);
         mNetworkCapabilitiesFilter.setLinkDownstreamBandwidthKbps(NETWORK_FACTORY_BANDWIDTH_AVAIL);
         mNetworkCapabilitiesFilter.setSignalStrength(NETWORK_FACTORY_SIGNAL_STRENGTH_AVAIL);
@@ -568,12 +570,17 @@ public class WifiAwareDataPathStateManager {
                 return false;
             }
 
-            String networkSpecifier = request.networkCapabilities.getNetworkSpecifier();
-            if (TextUtils.isEmpty(networkSpecifier)) {
+            NetworkSpecifier networkSpecifierObj =
+                    request.networkCapabilities.getNetworkSpecifier();
+            if (networkSpecifierObj == null
+                    || !(networkSpecifierObj instanceof StringNetworkSpecifier)
+                    || TextUtils.isEmpty(
+                    ((StringNetworkSpecifier) networkSpecifierObj).specifier)) {
                 Log.w(TAG, "WifiAwareNetworkFactory.acceptRequest: request=" + request
-                        + " - empty (or null) NetworkSpecifier");
+                        + " - null, empty, or not a StringNetworkSpecifier");
                 return false;
             }
+            String networkSpecifier = ((StringNetworkSpecifier) networkSpecifierObj).specifier;
 
             // look up specifier - are we being called again?
             AwareNetworkRequestInformation nnri = mNetworkRequestsCache.get(networkSpecifier);
@@ -609,7 +616,13 @@ public class WifiAwareDataPathStateManager {
                         + networkRequest + ", score=" + score);
             }
 
-            String networkSpecifier = networkRequest.networkCapabilities.getNetworkSpecifier();
+            NetworkSpecifier networkSpecifierObj =
+                    networkRequest.networkCapabilities.getNetworkSpecifier();
+            String networkSpecifier = "";
+            if (networkSpecifierObj != null
+                    && networkSpecifierObj instanceof StringNetworkSpecifier) {
+                networkSpecifier = ((StringNetworkSpecifier) networkSpecifierObj).specifier;
+            }
             AwareNetworkRequestInformation nnri = mNetworkRequestsCache.get(networkSpecifier);
             if (nnri == null) {
                 Log.e(TAG, "WifiAwareNetworkFactory.needNetworkFor: networkRequest="
@@ -656,7 +669,14 @@ public class WifiAwareDataPathStateManager {
                         + networkRequest);
             }
 
-            String networkSpecifier = networkRequest.networkCapabilities.getNetworkSpecifier();
+            NetworkSpecifier networkSpecifierObj =
+                    networkRequest.networkCapabilities.getNetworkSpecifier();
+            String networkSpecifier = "";
+            if (networkSpecifierObj != null
+                    && networkSpecifierObj instanceof StringNetworkSpecifier) {
+                networkSpecifier = ((StringNetworkSpecifier) networkSpecifierObj).specifier;
+            }
+
             AwareNetworkRequestInformation nnri = mNetworkRequestsCache.get(networkSpecifier);
             if (nnri == null) {
                 Log.e(TAG, "WifiAwareNetworkFactory.releaseNetworkFor: networkRequest="
@@ -1034,7 +1054,7 @@ public class WifiAwareDataPathStateManager {
             networkInfo.setIsAvailable(true);
             networkInfo.setDetailedState(NetworkInfo.DetailedState.CONNECTED, null, null);
 
-            networkCapabilities.setNetworkSpecifier(networkSpecifier);
+            networkCapabilities.setNetworkSpecifier(new StringNetworkSpecifier(networkSpecifier));
 
             linkProperties.setInterfaceName(nnri.interfaceName);
             linkProperties.addLinkAddress(new LinkAddress(linkLocal, 64));
