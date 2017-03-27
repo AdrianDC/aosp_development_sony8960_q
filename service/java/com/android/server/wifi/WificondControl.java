@@ -328,7 +328,17 @@ public class WificondControl {
             NativeScanResult[] nativeResults = mWificondScanner.getScanResults();
             for (NativeScanResult result : nativeResults) {
                 WifiSsid wifiSsid = WifiSsid.createFromByteArray(result.ssid);
-                String bssid = NativeUtil.macAddressFromByteArray(result.bssid);
+                String bssid;
+                try {
+                    bssid = NativeUtil.macAddressFromByteArray(result.bssid);
+                } catch (IllegalArgumentException e) {
+                    Log.e(TAG, "Illegal argument " + result.bssid, e);
+                    continue;
+                }
+                if (bssid == null) {
+                    Log.e(TAG, "Illegal null bssid");
+                    continue;
+                }
                 ScanResult.InformationElement[] ies =
                         InformationElementUtil.parseInformationElements(result.infoElement);
                 InformationElementUtil.Capabilities capabilities =
@@ -381,7 +391,12 @@ public class WificondControl {
         if (hiddenNetworkSSIDs != null) {
             for (String ssid : hiddenNetworkSSIDs) {
                 HiddenNetwork network = new HiddenNetwork();
-                network.ssid = NativeUtil.byteArrayFromArrayList(NativeUtil.decodeSsid(ssid));
+                try {
+                    network.ssid = NativeUtil.byteArrayFromArrayList(NativeUtil.decodeSsid(ssid));
+                } catch (IllegalArgumentException e) {
+                    Log.e(TAG, "Illegal argument " + ssid, e);
+                    continue;
+                }
                 settings.hiddenNetworks.add(network);
             }
         }
@@ -414,8 +429,13 @@ public class WificondControl {
                 PnoNetwork condNetwork = new PnoNetwork();
                 condNetwork.isHidden = (network.flags
                         & WifiScanner.PnoSettings.PnoNetwork.FLAG_DIRECTED_SCAN) != 0;
-                condNetwork.ssid =
-                        NativeUtil.byteArrayFromArrayList(NativeUtil.decodeSsid(network.ssid));
+                try {
+                    condNetwork.ssid =
+                            NativeUtil.byteArrayFromArrayList(NativeUtil.decodeSsid(network.ssid));
+                } catch (IllegalArgumentException e) {
+                    Log.e(TAG, "Illegal argument " + network.ssid, e);
+                    continue;
+                }
                 settings.pnoNetworks.add(condNetwork);
             }
         }
