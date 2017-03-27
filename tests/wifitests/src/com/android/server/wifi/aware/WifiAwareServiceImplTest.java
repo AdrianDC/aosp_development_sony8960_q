@@ -44,6 +44,8 @@ import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 
+import com.android.server.wifi.DisabledForUpdateToAnyMatcher;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -56,6 +58,7 @@ import java.lang.reflect.Field;
 /**
  * Unit test harness for WifiAwareStateManager.
  */
+@DisabledForUpdateToAnyMatcher
 @SmallTest
 public class WifiAwareServiceImplTest {
     private static final int MAX_LENGTH = 255;

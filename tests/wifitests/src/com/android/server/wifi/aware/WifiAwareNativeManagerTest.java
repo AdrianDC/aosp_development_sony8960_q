@@ -31,6 +31,7 @@ import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.os.Looper;
 
+import com.android.server.wifi.DisabledForUpdateToAnyMatcher;
 import com.android.server.wifi.HalDeviceManager;
 
 import org.junit.Before;
@@ -92,6 +93,7 @@ public class WifiAwareNativeManagerTest {
      * 8. onDestroyed -> disableUsage
      * 9. onStatusChange (!started)
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testControlFlow() {
         // configure HalDeviceManager as ready/wifi started

@@ -58,6 +58,8 @@ import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
 import android.util.SparseArray;
 
+import com.android.server.wifi.DisabledForUpdateToAnyMatcher;
+
 import libcore.util.HexEncoding;
 
 import org.junit.Before;
@@ -1679,6 +1681,7 @@ public class WifiAwareStateManagerTest {
      * Validate that the host-side message queue functions. Tests the perfect case of queue always
      * succeeds and all messages are received on first attempt.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testSendMessageQueueSequence() throws Exception {
         final int clientId = 1005;
@@ -1774,6 +1777,7 @@ public class WifiAwareStateManagerTest {
      * - Failure to transmit: OTA (which will be retried)
      * - Failure to transmit: other
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testSendMessageQueueSequenceImperfect() throws Exception {
         final int clientId = 1005;
@@ -1902,6 +1906,7 @@ public class WifiAwareStateManagerTest {
     /**
      * Validate that can send empty message successfully: null, byte[0], ""
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testSendEmptyMessages() throws Exception {
         final int clientId = 1005;
