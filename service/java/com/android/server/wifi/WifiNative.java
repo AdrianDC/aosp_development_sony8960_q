@@ -673,19 +673,17 @@ public class WifiNative {
     /**
      * Add the provided network configuration to wpa_supplicant and initiate connection to it.
      * This method does the following:
-     * 1. Triggers disconnect command to wpa_supplicant (if |shouldDisconnect| is true).
-     * 2. Remove any existing network in wpa_supplicant.
-     * 3. Add a new network to wpa_supplicant.
-     * 4. Save the provided configuration to wpa_supplicant.
-     * 5. Select the new network in wpa_supplicant.
-     * 6. Triggers reconnect command to wpa_supplicant.
+     * 1. Remove any existing network in wpa_supplicant(This implicitly triggers disconnect).
+     * 2. Add a new network to wpa_supplicant.
+     * 3. Save the provided configuration to wpa_supplicant.
+     * 4. Select the new network in wpa_supplicant.
+     * 5. Triggers reconnect command to wpa_supplicant.
      *
      * @param configuration WifiConfiguration parameters for the provided network.
-     * @param shouldDisconnect whether to trigger a disconnection or not.
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
-    public boolean connectToNetwork(WifiConfiguration configuration, boolean shouldDisconnect) {
-        return mSupplicantStaIfaceHal.connectToNetwork(configuration, shouldDisconnect);
+    public boolean connectToNetwork(WifiConfiguration configuration) {
+        return mSupplicantStaIfaceHal.connectToNetwork(configuration);
     }
 
     /**

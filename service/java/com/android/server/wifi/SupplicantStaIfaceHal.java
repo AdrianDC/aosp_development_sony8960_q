@@ -385,18 +385,12 @@ public class SupplicantStaIfaceHal {
      * 5. Select the new network in wpa_supplicant.
      *
      * @param config WifiConfiguration parameters for the provided network.
-     * @param shouldDisconnect whether to trigger a disconnection or not.
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
-    public boolean connectToNetwork(WifiConfiguration config, boolean shouldDisconnect) {
+    public boolean connectToNetwork(WifiConfiguration config) {
         mFrameworkNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
         mCurrentNetwork = null;
-        logd("connectToNetwork " + config.configKey()
-                + " (shouldDisconnect " + shouldDisconnect + ")");
-        if (shouldDisconnect && !disconnect()) {
-            loge("Failed to trigger disconnect");
-            return false;
-        }
+        logd("connectToNetwork " + config.configKey());
         if (!removeAllNetworks()) {
             loge("Failed to remove existing networks");
             return false;
@@ -430,7 +424,7 @@ public class SupplicantStaIfaceHal {
         if (mFrameworkNetworkId != config.networkId || mCurrentNetwork == null) {
             Log.w(TAG, "Cannot roam to a different network, initiate new connection. "
                     + "Current network ID: " + mFrameworkNetworkId);
-            return connectToNetwork(config, false);
+            return connectToNetwork(config);
         }
         String bssid = config.getNetworkSelectionStatus().getNetworkSelectionBSSID();
         logd("roamToNetwork" + config.configKey() + " (bssid " + bssid + ")");
