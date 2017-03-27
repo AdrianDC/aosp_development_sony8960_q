@@ -53,6 +53,7 @@ public class WifiStateTrackerTest {
      * Ensure BatteryStats's noteWifiState() is called when the method
      * updateState() is invoked on WifiStateTracker for relevant states.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testBatteryStatsUpdated() throws Exception {
         int[] relevantStates = new int[] { WifiStateTracker.SCAN_MODE,
