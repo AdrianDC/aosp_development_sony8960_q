@@ -65,6 +65,7 @@ import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Pair;
 
 import com.android.internal.util.AsyncChannel;
+import com.android.server.wifi.DisabledForUpdateToAnyMatcher;
 
 import libcore.util.HexEncoding;
 
@@ -241,6 +242,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the success flow of the Initiator: using session network specifier with a non-null
      * token.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathInitiatorMacTokenSuccess() throws Exception {
         testDataPathInitiatorUtility(false, true, true, true, false);
@@ -250,6 +252,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the fail flow of the Initiator: using session network specifier with a 0
      * peer ID.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test(expected = IllegalArgumentException.class)
     public void testDataPathInitiatorNoMacFail() throws Exception {
         testDataPathInitiatorUtility(false, false, true, true, false);
@@ -259,6 +262,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the success flow of the Initiator: using a direct network specifier with a non-null
      * peer mac and non-null token.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathInitiatorDirectMacTokenSuccess() throws Exception {
         testDataPathInitiatorUtility(true, true, true, true, false);
@@ -268,6 +272,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the fail flow of the Initiator: using a direct network specifier with a null peer
      * mac and non-null token.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test(expected = IllegalArgumentException.class)
     public void testDataPathInitiatorDirectNoMacTokenFail() throws Exception {
         testDataPathInitiatorUtility(true, false, true, true, false);
@@ -277,6 +282,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the fail flow of the Initiator: using a direct network specifier with a null peer
      * mac and null token.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test(expected = IllegalArgumentException.class)
     public void testDataPathInitiatorDirectNoMacNoTokenFail() throws Exception {
         testDataPathInitiatorUtility(true, false, false, true, false);
@@ -286,6 +292,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the fail flow of the Initiator: use a session network specifier with a non-null
      * token, but don't get a confirmation.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathInitiatorNoConfirmationTimeoutFail() throws Exception {
         testDataPathInitiatorUtility(false, true, true, false, false);
@@ -295,6 +302,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the fail flow of the Initiator: use a session network specifier with a non-null
      * token, but get an immediate failure
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathInitiatorNoConfirmationHalFail() throws Exception {
         testDataPathInitiatorUtility(false, true, true, true, true);
@@ -303,6 +311,7 @@ public class WifiAwareDataPathStateManagerTest {
     /**
      * Validate the fail flow of a mis-configured request: Publisher as Initiator
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathInitiatorOnPublisherError() throws Exception {
         testDataPathInitiatorResponderMismatchUtility(true);
@@ -316,6 +325,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the success flow of the Responder: using session network specifier with a non-null
      * token.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathResonderMacTokenSuccess() throws Exception {
         testDataPathResponderUtility(false, true, true, true);
@@ -325,6 +335,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the success flow of the Responder: using session network specifier with a null
      * token.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathResonderMacNoTokenSuccess() throws Exception {
         testDataPathResponderUtility(false, true, false, true);
@@ -334,6 +345,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the success flow of the Responder: using session network specifier with a
      * token and no peer ID (i.e. 0).
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathResonderMacTokenNoPeerIdSuccess() throws Exception {
         testDataPathResponderUtility(false, false, true, true);
@@ -343,6 +355,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the success flow of the Responder: using session network specifier with a null
      * token and no peer ID (i.e. 0).
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathResonderMacTokenNoPeerIdNoTokenSuccess() throws Exception {
         testDataPathResponderUtility(false, false, false, true);
@@ -352,6 +365,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the success flow of the Responder: using a direct network specifier with a non-null
      * peer mac and non-null token.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathResonderDirectMacTokenSuccess() throws Exception {
         testDataPathResponderUtility(true, true, true, true);
@@ -361,6 +375,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the success flow of the Responder: using a direct network specifier with a non-null
      * peer mac and null token.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathResonderDirectMacNoTokenSuccess() throws Exception {
         testDataPathResponderUtility(true, true, false, true);
@@ -370,6 +385,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the success flow of the Responder: using a direct network specifier with a null peer
      * mac and non-null token.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathResonderDirectNoMacTokenSuccess() throws Exception {
         testDataPathResponderUtility(true, false, true, true);
@@ -379,6 +395,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the success flow of the Responder: using a direct network specifier with a null peer
      * mac and null token.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathResonderDirectNoMacNoTokenSuccess() throws Exception {
         testDataPathResponderUtility(true, false, false, true);
@@ -388,6 +405,7 @@ public class WifiAwareDataPathStateManagerTest {
      * Validate the fail flow of the Responder: use a session network specifier with a non-null
      * token, but don't get a confirmation.
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathResponderNoConfirmationTimeoutFail() throws Exception {
         testDataPathResponderUtility(false, true, true, false);
@@ -396,6 +414,7 @@ public class WifiAwareDataPathStateManagerTest {
     /**
      * Validate the fail flow of a mis-configured request: Subscriber as Responder
      */
+    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDataPathResponderOnSubscriberError() throws Exception {
         testDataPathInitiatorResponderMismatchUtility(false);
