@@ -450,6 +450,9 @@ public class PasspointManager {
         }
         WifiConfiguration config = matchedProvider.first.getWifiConfig();
         config.SSID = ScanResultUtil.createQuotedSSID(scanResult.SSID);
+        if (matchedProvider.second == PasspointMatch.HomeProvider) {
+            config.isHomeProviderNetwork = true;
+        }
         return config;
     }
 
