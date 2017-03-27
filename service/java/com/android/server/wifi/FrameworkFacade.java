@@ -24,6 +24,7 @@ import android.database.ContentObserver;
 import android.net.TrafficStats;
 import android.net.Uri;
 import android.net.ip.IpManager;
+import android.os.BatteryStats;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -31,6 +32,7 @@ import android.os.ServiceManager;
 import android.provider.Settings;
 import android.telephony.CarrierConfigManager;
 
+import com.android.internal.app.IBatteryStats;
 import com.android.server.wifi.util.WifiAsyncChannel;
 
 /**
@@ -78,13 +80,21 @@ public class FrameworkFacade {
         return ServiceManager.getService(serviceName);
     }
 
+    /**
+     * Returns the battery stats interface
+     * @return IBatteryStats BatteryStats service interface
+     */
+    public IBatteryStats getBatteryService() {
+        return IBatteryStats.Stub.asInterface(getService(BatteryStats.SERVICE_NAME));
+    }
+
     public PendingIntent getBroadcast(Context context, int requestCode, Intent intent, int flags) {
         return PendingIntent.getBroadcast(context, requestCode, intent, flags);
     }
 
     public SupplicantStateTracker makeSupplicantStateTracker(Context context,
             WifiConfigManager configManager, Handler handler) {
-        return new SupplicantStateTracker(context, configManager, handler);
+        return new SupplicantStateTracker(context, configManager, this, handler);
     }
 
     public boolean getConfigWiFiDisableInECBM(Context context) {
