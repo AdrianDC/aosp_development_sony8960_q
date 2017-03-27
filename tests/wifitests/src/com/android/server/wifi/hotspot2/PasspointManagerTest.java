@@ -123,7 +123,7 @@ public class PasspointManagerTest {
     public void setUp() throws Exception {
         initMocks(this);
         when(mObjectFactory.makeAnqpCache(mClock)).thenReturn(mAnqpCache);
-        when(mObjectFactory.makeANQPRequestManager(any(PasspointEventHandler.class), eq(mClock)))
+        when(mObjectFactory.makeANQPRequestManager(any(), eq(mClock)))
                 .thenReturn(mAnqpRequestManager);
         mManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
                 mSimAccessor, mObjectFactory, mWifiConfigManager, mWifiConfigStore);
