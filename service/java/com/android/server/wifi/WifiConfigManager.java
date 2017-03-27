@@ -2475,21 +2475,6 @@ public class WifiConfigManager {
     }
 
     /**
-     * Helper function to add quotes for user's who lost the quotes during migration using the HIDL
-     * interface.
-     * TODO(b/36008106): This is a temporary fix and needs to be removed.
-     * @param config WifiConfiguration object corresponding to the network.
-     */
-    private void addMissingPskPassphraseQuotes(WifiConfiguration config) {
-        // Add quotes back for ASCII psk passphrase, leave them as is for the hex raw psk.
-        if (!TextUtils.isEmpty(config.preSharedKey) && !config.preSharedKey.startsWith("\"")
-                && !(config.preSharedKey.length() == 64
-                && config.preSharedKey.matches("[0-9A-Fa-f]*"))) {
-            config.preSharedKey = "\"" + config.preSharedKey + "\"";
-        }
-    }
-
-    /**
      * Helper function to populate the internal (in-memory) data from the retrieved shared store
      * (file) data.
      *
@@ -2502,7 +2487,6 @@ public class WifiConfigManager {
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, "Adding network from shared store " + configuration.configKey());
             }
-            addMissingPskPassphraseQuotes(configuration);
             mConfiguredNetworks.put(configuration);
         }
     }
@@ -2522,7 +2506,6 @@ public class WifiConfigManager {
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, "Adding network from user store " + configuration.configKey());
             }
-            addMissingPskPassphraseQuotes(configuration);
             mConfiguredNetworks.put(configuration);
         }
         for (String ssid : deletedEphemeralSSIDs) {
