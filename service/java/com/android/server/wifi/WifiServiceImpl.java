@@ -441,22 +441,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
-     * see {@link android.net.wifi.WifiManager#pingSupplicant()}
-     * @return {@code true} if the operation succeeds, {@code false} otherwise
-     */
-    @Override
-    public boolean pingSupplicant() {
-        enforceAccessPermission();
-        mLog.trace("pingSupplicant uid=%").c(Binder.getCallingUid()).flush();
-        if (mWifiStateMachineChannel != null) {
-            return mWifiStateMachine.syncPingSupplicant(mWifiStateMachineChannel);
-        } else {
-            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
-            return false;
-        }
-    }
-
-    /**
      * see {@link android.net.wifi.WifiManager#startScan}
      * and {@link android.net.wifi.WifiManager#startCustomizedScan}
      *
