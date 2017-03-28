@@ -24,8 +24,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.media.AudioManager;
-import android.media.SoundPool;
 import android.nfc.NfcAdapter;
 import android.os.Bundle;
 import android.os.Handler;
@@ -34,8 +32,6 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.util.Log;
-
-import com.android.nfc.R;
 
 public class PeripheralHandoverService extends Service implements BluetoothPeripheralHandover.Callback {
     static final String TAG = "PeripheralHandoverService";
@@ -58,8 +54,6 @@ public class PeripheralHandoverService extends Service implements BluetoothPerip
     // Variables below only accessed on main thread
     final Messenger mMessenger;
 
-    SoundPool mSoundPool;
-    int mSuccessSound;
     int mStartId;
 
     BluetoothAdapter mBluetoothAdapter;
@@ -128,9 +122,6 @@ public class PeripheralHandoverService extends Service implements BluetoothPerip
     @Override
     public void onCreate() {
         super.onCreate();
-
-        mSoundPool = new SoundPool(1, AudioManager.STREAM_NOTIFICATION, 0);
-        mSuccessSound = mSoundPool.load(this, R.raw.end, 1);
         mNfcAdapter = NfcAdapter.getDefaultAdapter(getApplicationContext());
 
         IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
@@ -140,9 +131,6 @@ public class PeripheralHandoverService extends Service implements BluetoothPerip
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (mSoundPool != null) {
-            mSoundPool.release();
-        }
         unregisterReceiver(mBluetoothStatusReceiver);
     }
 
