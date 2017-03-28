@@ -512,7 +512,7 @@ public class SupplicantStaIfaceHalTest {
                 .when(mSupplicantStaNetworkMock).saveWifiConfiguration(
                         any(WifiConfiguration.class));
 
-        assertFalse(mDut.connectToNetwork(new WifiConfiguration(), false));
+        assertFalse(mDut.connectToNetwork(new WifiConfiguration()));
         // We should have removed the existing network once before connection and once more
         // on failure to save network configuration.
         verify(mISupplicantStaIfaceMock, times(2)).removeNetwork(anyInt());
