@@ -501,6 +501,24 @@ public class SupplicantStaIfaceHalTest {
     }
 
     /**
+     * Tests connection to a specified network failure due to exception in network save.
+     */
+    @Test
+    public void testConnectFailureDueToNetworkSaveException() throws Exception {
+        executeAndValidateInitializationSequence();
+        setupMocksForConnectSequence(true);
+
+        doThrow(new IllegalArgumentException("Some error!!!"))
+                .when(mSupplicantStaNetworkMock).saveWifiConfiguration(
+                        any(WifiConfiguration.class));
+
+        assertFalse(mDut.connectToNetwork(new WifiConfiguration(), false));
+        // We should have removed the existing network once before connection and once more
+        // on failure to save network configuration.
+        verify(mISupplicantStaIfaceMock, times(2)).removeNetwork(anyInt());
+    }
+
+    /**
      * Tests connection to a specified network failure due to network select.
      */
     @Test
@@ -1148,12 +1166,12 @@ public class SupplicantStaIfaceHalTest {
                 .thenReturn(mStatusSuccess);
 
         // Fail before initialization is performed.
-        assertFalse(mDut.setLogLevel(SupplicantStaIfaceHal.LOG_LEVEL_DEBUG));
+        assertFalse(mDut.setLogLevel(true));
 
         executeAndValidateInitializationSequence();
 
         // This should work.
-        assertTrue(mDut.setLogLevel(SupplicantStaIfaceHal.LOG_LEVEL_DEBUG));
+        assertTrue(mDut.setLogLevel(true));
         verify(mISupplicantMock)
                 .setDebugParams(eq(ISupplicant.DebugLevel.DEBUG), eq(false), eq(false));
     }

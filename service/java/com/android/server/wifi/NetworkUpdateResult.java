@@ -22,18 +22,21 @@ public class NetworkUpdateResult {
     int netId;
     boolean ipChanged;
     boolean proxyChanged;
+    boolean credentialChanged;
     boolean isNewNetwork = false;
 
     public NetworkUpdateResult(int id) {
         netId = id;
         ipChanged = false;
         proxyChanged = false;
+        credentialChanged = false;
     }
 
-    public NetworkUpdateResult(boolean ip, boolean proxy) {
+    public NetworkUpdateResult(boolean ip, boolean proxy, boolean credential) {
         netId = INVALID_NETWORK_ID;
         ipChanged = ip;
         proxyChanged = proxy;
+        credentialChanged = credential;
     }
 
     public void setNetworkId(int id) {
@@ -44,20 +47,16 @@ public class NetworkUpdateResult {
         return netId;
     }
 
-    public void setIpChanged(boolean ip) {
-        ipChanged = ip;
-    }
-
     public boolean hasIpChanged() {
         return ipChanged;
     }
 
-    public void setProxyChanged(boolean proxy) {
-        proxyChanged = proxy;
-    }
-
     public boolean hasProxyChanged() {
         return proxyChanged;
+    }
+
+    public boolean hasCredentialChanged() {
+        return credentialChanged;
     }
 
     public boolean isNewNetwork() {

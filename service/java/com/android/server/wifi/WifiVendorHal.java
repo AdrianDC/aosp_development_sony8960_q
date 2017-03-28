@@ -65,6 +65,7 @@ import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.HandlerThread;
+import android.os.Looper;
 import android.os.RemoteException;
 import android.util.MutableBoolean;
 import android.util.MutableInt;
@@ -204,14 +205,14 @@ public class WifiVendorHal {
     private IWifiRttController mIWifiRttController;
     private final HalDeviceManager mHalDeviceManager;
     private final HalDeviceManagerStatusListener mHalDeviceManagerStatusCallbacks;
-    private final HandlerThread mWifiStateMachineHandlerThread;
+    private final Looper mLooper;
     private final IWifiStaIfaceEventCallback mIWifiStaIfaceEventCallback;
     private final IWifiChipEventCallback mIWifiChipEventCallback;
 
     public WifiVendorHal(HalDeviceManager halDeviceManager,
-                         HandlerThread wifiStateMachineHandlerThread) {
+                         Looper looper) {
         mHalDeviceManager = halDeviceManager;
-        mWifiStateMachineHandlerThread = wifiStateMachineHandlerThread;
+        mLooper = looper;
         mHalDeviceManagerStatusCallbacks = new HalDeviceManagerStatusListener();
         mIWifiStaIfaceEventCallback = new StaIfaceEventCallback();
         mIWifiChipEventCallback = new ChipEventCallback();
@@ -226,16 +227,21 @@ public class WifiVendorHal {
         clearState();
     }
 
+    private WifiNative.VendorHalDeathEventHandler mDeathEventHandler;
+
     /**
      * Initialize the Hal device manager and register for status callbacks.
      *
-     * @return
+     * @param handler Handler to notify if the vendor HAL dies.
+     * @return true on success, false otherwise.
      */
-    public boolean initialize() {
-        mHalDeviceManager.initialize();
-        mHalDeviceManager.registerStatusListener(
-                mHalDeviceManagerStatusCallbacks, mWifiStateMachineHandlerThread.getLooper());
-        return true;
+    public boolean initialize(WifiNative.VendorHalDeathEventHandler handler) {
+        synchronized (sLock) {
+            mHalDeviceManager.initialize();
+            mHalDeviceManager.registerStatusListener(mHalDeviceManagerStatusCallbacks, mLooper);
+            mDeathEventHandler = handler;
+            return true;
+        }
     }
 
     /**
@@ -1183,11 +1189,14 @@ public class WifiVendorHal {
     static ArrayList<RttConfig> halRttConfigArrayFromFrameworkRttParamsArray(
             RttManager.RttParams[] params) {
         final int length = params.length;
-        ArrayList<RttConfig> config = new ArrayList<RttConfig>(length);
+        ArrayList<RttConfig> configs = new ArrayList<RttConfig>(length);
         for (int i = 0; i < length; i++) {
-            config.add(halRttConfigFromFrameworkRttParams(params[i]));
+            RttConfig config = halRttConfigFromFrameworkRttParams(params[i]);
+            if (config != null) {
+                configs.add(config);
+            }
         }
-        return config;
+        return configs;
     }
 
     /**
@@ -1198,7 +1207,13 @@ public class WifiVendorHal {
      * @return success indication
      */
     public boolean requestRtt(RttManager.RttParams[] params, WifiNative.RttEventHandler handler) {
-        ArrayList<RttConfig> rttConfigs = halRttConfigArrayFromFrameworkRttParamsArray(params);
+        ArrayList<RttConfig> rttConfigs;
+        try {
+            rttConfigs = halRttConfigArrayFromFrameworkRttParamsArray(params);
+        } catch (IllegalArgumentException e) {
+            mLog.err("Illegal argument for RTT request").c(e.toString()).flush();
+            return false;
+        }
         synchronized (sLock) {
             if (mIWifiRttController == null) return boolResult(false);
             if (mRttCmdId != 0) return boolResult(false);
@@ -1533,7 +1548,7 @@ public class WifiVendorHal {
         }
     }
 
-    private WifiNative.WifiLoggerEventHandler mVerboseLogEventHandler = null;
+    private WifiNative.WifiLoggerEventHandler mLogEventHandler = null;
 
     /**
      * Registers the logger callback and enables alerts.
@@ -1543,11 +1558,11 @@ public class WifiVendorHal {
         if (handler == null) return boolResult(false);
         synchronized (sLock) {
             if (mIWifiChip == null) return boolResult(false);
-            if (mVerboseLogEventHandler != null) return boolResult(false);
+            if (mLogEventHandler != null) return boolResult(false);
             try {
                 WifiStatus status = mIWifiChip.enableDebugErrorAlerts(true);
                 if (!ok(status)) return false;
-                mVerboseLogEventHandler = handler;
+                mLogEventHandler = handler;
                 return true;
             } catch (RemoteException e) {
                 handleRemoteException(e);
@@ -1563,13 +1578,13 @@ public class WifiVendorHal {
     public boolean resetLogHandler() {
         synchronized (sLock) {
             if (mIWifiChip == null) return boolResult(false);
-            if (mVerboseLogEventHandler == null) return boolResult(false);
+            if (mLogEventHandler == null) return boolResult(false);
             try {
                 WifiStatus status = mIWifiChip.enableDebugErrorAlerts(false);
                 if (!ok(status)) return false;
                 status = mIWifiChip.stopLoggingToDebugRingBuffer();
                 if (!ok(status)) return false;
-                mVerboseLogEventHandler = null;
+                mLogEventHandler = null;
                 return true;
             } catch (RemoteException e) {
                 handleRemoteException(e);
@@ -2280,6 +2295,9 @@ public class WifiVendorHal {
             } catch (RemoteException e) {
                 handleRemoteException(e);
                 return false;
+            } catch (IllegalArgumentException e) {
+                mLog.err("Illegal argument for roaming configuration").c(e.toString()).flush();
+                return false;
             }
             return true;
         }
@@ -2432,8 +2450,8 @@ public class WifiVendorHal {
             // mVerboseLog.d("onDebugRingBufferDataAvailable " + status);
             WifiNative.WifiLoggerEventHandler eventHandler;
             synchronized (sLock) {
-                if (mVerboseLogEventHandler == null || status == null || data == null) return;
-                eventHandler = mVerboseLogEventHandler;
+                if (mLogEventHandler == null || status == null || data == null) return;
+                eventHandler = mLogEventHandler;
             }
             eventHandler.onRingBufferData(
                     ringBufferStatus(status), NativeUtil.byteArrayFromArrayList(data));
@@ -2444,8 +2462,8 @@ public class WifiVendorHal {
             mVerboseLog.d("onDebugErrorAlert " + errorCode);
             WifiNative.WifiLoggerEventHandler eventHandler;
             synchronized (sLock) {
-                if (mVerboseLogEventHandler == null || debugData == null) return;
-                eventHandler = mVerboseLogEventHandler;
+                if (mLogEventHandler == null || debugData == null) return;
+                eventHandler = mLogEventHandler;
             }
             eventHandler.onWifiAlert(
                     errorCode, NativeUtil.byteArrayFromArrayList(debugData));
@@ -2465,8 +2483,13 @@ public class WifiVendorHal {
                     + ", isStarted(): " + isStarted);
             if (!isReady) {
                 // Probably something unpleasant, e.g. the server died
+                WifiNative.VendorHalDeathEventHandler handler;
                 synchronized (sLock) {
                     clearState();
+                    handler = mDeathEventHandler;
+                }
+                if (handler != null) {
+                    handler.onDeath();
                 }
             }
         }
