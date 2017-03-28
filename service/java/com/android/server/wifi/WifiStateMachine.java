@@ -1260,8 +1260,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /**
      * Initiates connection to a network specified by the user/app. This method checks if the
      * requesting app holds the WIFI_CONFIG_OVERRIDE permission.
+     *
+     * @param netId Id network to initiate connection.
+     * @param uid UID of the app requesting the connection.
+     * @param forceReconnect Whether to force a connection even if we're connected to the same
+     *                       network currently.
      */
-    private boolean connectToUserSelectNetwork(int netId, int uid) {
+    private boolean connectToUserSelectNetwork(int netId, int uid, boolean forceReconnect) {
+        logd("connectToUserSelectNetwork netId " + netId + ", uid " + uid
+                + ", forceReconnect = " + forceReconnect);
         if (mWifiConfigManager.getConfiguredNetwork(netId) == null) {
             loge("connectToUserSelectNetwork Invalid network Id=" + netId);
             return false;
@@ -1275,9 +1282,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // selection.
             mWifiConnectivityManager.setUserConnectChoice(netId);
         }
-        if (mWifiInfo.getNetworkId() == netId) {
+        if (!forceReconnect && mWifiInfo.getNetworkId() == netId) {
             // We're already connected to the user specified network, don't trigger a
-            // reconnection.
+            // reconnection unless it was forced.
             logi("connectToUserSelectNetwork already connecting/connected=" + netId);
         } else {
             startConnectToNetwork(netId, SUPPLICANT_BSSID_ANY);
@@ -4799,7 +4806,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (disableOthers) {
                         // If the app has all the necessary permissions, this will trigger a connect
                         // attempt.
-                        ok = connectToUserSelectNetwork(netId, message.sendingUid);
+                        ok = connectToUserSelectNetwork(netId, message.sendingUid, false);
                     } else {
                         ok = mWifiConfigManager.enableNetwork(netId, false, message.sendingUid);
                     }
@@ -4973,6 +4980,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     netId = message.arg1;
                     config = (WifiConfiguration) message.obj;
                     mWifiConnectionStatistics.numWifiManagerJoinAttempt++;
+                    boolean hasCredentialChanged = false;
                     // New network addition.
                     if (config != null) {
                         result = mWifiConfigManager.addOrUpdateNetwork(config, message.sendingUid);
@@ -4984,8 +4992,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             break;
                         }
                         netId = result.getNetworkId();
+                        hasCredentialChanged = result.hasCredentialChanged();
                     }
-                    if (!connectToUserSelectNetwork(netId, message.sendingUid)) {
+                    if (!connectToUserSelectNetwork(
+                            netId, message.sendingUid, hasCredentialChanged)) {
                         messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
                         replyToMessage(message, WifiManager.CONNECT_NETWORK_FAILED,
                                 WifiManager.NOT_AUTHORIZED);
@@ -5014,29 +5024,38 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                 WifiManager.ERROR);
                         break;
                     }
-                    netId = result.getNetworkId();
-                    if (mWifiInfo.getNetworkId() == netId) {
-                        if (result.hasIpChanged()) {
-                            // The currently connection configuration was changed
-                            // We switched from DHCP to static or from static to DHCP, or the
-                            // static IP address has changed.
-                            log("Reconfiguring IP on connection");
-                            // TODO: clear addresses and disable IPv6
-                            // to simplify obtainingIpState.
-                            transitionTo(mObtainingIpState);
-                        }
-                        if (result.hasProxyChanged()) {
-                            log("Reconfiguring proxy on connection");
-                            mIpManager.setHttpProxy(
-                                    getCurrentWifiConfiguration().getHttpProxy());
-                        }
-                    } else if (!mWifiConfigManager.enableNetwork(result.getNetworkId(),
-                            false, message.sendingUid)) {
-                        loge("ENABLE_NETWORK config=" + config + " failed");
+                    if (!mWifiConfigManager.enableNetwork(
+                            result.getNetworkId(), false, message.sendingUid)) {
+                        loge("SAVE_NETWORK enabling config=" + config + " failed");
                         messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
                         replyToMessage(message, WifiManager.SAVE_NETWORK_FAILED,
                                 WifiManager.ERROR);
                         break;
+                    }
+                    netId = result.getNetworkId();
+                    if (mWifiInfo.getNetworkId() == netId) {
+                        if (result.hasCredentialChanged()) {
+                            // The network credentials changed and we're connected to this network,
+                            // start a new connection with the updated credentials.
+                            logi("SAVE_NETWORK credential changed for config=" + config.configKey()
+                                    + ", Reconnecting.");
+                            startConnectToNetwork(netId, SUPPLICANT_BSSID_ANY);
+                        } else {
+                            if (result.hasProxyChanged()) {
+                                log("Reconfiguring proxy on connection");
+                                mIpManager.setHttpProxy(
+                                        getCurrentWifiConfiguration().getHttpProxy());
+                            }
+                            if (result.hasIpChanged()) {
+                                // The current connection configuration was changed
+                                // We switched from DHCP to static or from static to DHCP, or the
+                                // static IP address has changed.
+                                log("Reconfiguring IP on connection");
+                                // TODO(b/36576642): clear addresses and disable IPv6
+                                // to simplify obtainingIpState.
+                                transitionTo(mObtainingIpState);
+                            }
+                        }
                     }
                     broadcastWifiCredentialChanged(WifiManager.WIFI_CREDENTIAL_SAVED, config);
                     replyToMessage(message, WifiManager.SAVE_NETWORK_SUCCEEDED);
