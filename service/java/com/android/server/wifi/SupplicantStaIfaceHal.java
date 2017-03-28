@@ -1199,17 +1199,29 @@ public class SupplicantStaIfaceHal {
         }
     }
 
-    public static final byte RX_FILTER_TYPE_V4_MULTICAST =
-            ISupplicantStaIface.RxFilterType.V6_MULTICAST;
-    public static final byte RX_FILTER_TYPE_V6_MULTICAST =
-            ISupplicantStaIface.RxFilterType.V6_MULTICAST;
     /**
      * Add an RX filter.
      *
-     * @param type one of {@link #RX_FILTER_TYPE_V4_MULTICAST} or
-     *        {@link #RX_FILTER_TYPE_V6_MULTICAST} values.
+     * @param type one of {@link WifiNative#RX_FILTER_TYPE_V4_MULTICAST}
+     *        {@link WifiNative#RX_FILTER_TYPE_V6_MULTICAST} values.
      * @return true if request is sent successfully, false otherwise.
      */
+    public boolean addRxFilter(int type) {
+        byte halType;
+        switch (type) {
+            case WifiNative.RX_FILTER_TYPE_V4_MULTICAST:
+                halType = ISupplicantStaIface.RxFilterType.V4_MULTICAST;
+                break;
+            case WifiNative.RX_FILTER_TYPE_V6_MULTICAST:
+                halType = ISupplicantStaIface.RxFilterType.V6_MULTICAST;
+                break;
+            default:
+                Log.e(TAG, "Invalid Rx Filter type: " + type);
+                return false;
+        }
+        return addRxFilter(halType);
+    }
+
     public boolean addRxFilter(byte type) {
         synchronized (mLock) {
             final String methodStr = "addRxFilter";
@@ -1227,10 +1239,26 @@ public class SupplicantStaIfaceHal {
     /**
      * Remove an RX filter.
      *
-     * @param type one of {@link #RX_FILTER_TYPE_V4_MULTICAST} or
-     *        {@link #RX_FILTER_TYPE_V6_MULTICAST} values.
+     * @param type one of {@link WifiNative#RX_FILTER_TYPE_V4_MULTICAST}
+     *        {@link WifiNative#RX_FILTER_TYPE_V6_MULTICAST} values.
      * @return true if request is sent successfully, false otherwise.
      */
+    public boolean removeRxFilter(int type) {
+        byte halType;
+        switch (type) {
+            case WifiNative.RX_FILTER_TYPE_V4_MULTICAST:
+                halType = ISupplicantStaIface.RxFilterType.V4_MULTICAST;
+                break;
+            case WifiNative.RX_FILTER_TYPE_V6_MULTICAST:
+                halType = ISupplicantStaIface.RxFilterType.V6_MULTICAST;
+                break;
+            default:
+                Log.e(TAG, "Invalid Rx Filter type: " + type);
+                return false;
+        }
+        return removeRxFilter(halType);
+    }
+
     public boolean removeRxFilter(byte type) {
         synchronized (mLock) {
             final String methodStr = "removeRxFilter";
@@ -1245,17 +1273,34 @@ public class SupplicantStaIfaceHal {
         }
     }
 
-    public static final byte BT_COEX_MODE_ENABLED = ISupplicantStaIface.BtCoexistenceMode.ENABLED;
-    public static final byte BT_COEX_MODE_DISABLED = ISupplicantStaIface.BtCoexistenceMode.DISABLED;
-    public static final byte BT_COEX_MODE_SENSE = ISupplicantStaIface.BtCoexistenceMode.SENSE;
     /**
      * Set Bt co existense mode.
      *
-     * @param mode one of the above {@link #BT_COEX_MODE_ENABLED}, {@link #BT_COEX_MODE_DISABLED}
-     *             or {@link #BT_COEX_MODE_SENSE} values.
+     * @param mode one of the above {@link WifiNative#BLUETOOTH_COEXISTENCE_MODE_DISABLED},
+     *             {@link WifiNative#BLUETOOTH_COEXISTENCE_MODE_ENABLED} or
+     *             {@link WifiNative#BLUETOOTH_COEXISTENCE_MODE_SENSE}.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setBtCoexistenceMode(byte mode) {
+    public boolean setBtCoexistenceMode(int mode) {
+        byte halMode;
+        switch (mode) {
+            case WifiNative.BLUETOOTH_COEXISTENCE_MODE_ENABLED:
+                halMode = ISupplicantStaIface.BtCoexistenceMode.ENABLED;
+                break;
+            case WifiNative.BLUETOOTH_COEXISTENCE_MODE_DISABLED:
+                halMode = ISupplicantStaIface.BtCoexistenceMode.DISABLED;
+                break;
+            case WifiNative.BLUETOOTH_COEXISTENCE_MODE_SENSE:
+                halMode = ISupplicantStaIface.BtCoexistenceMode.SENSE;
+                break;
+            default:
+                Log.e(TAG, "Invalid Bt Coex mode: " + mode);
+                return false;
+        }
+        return setBtCoexistenceMode(halMode);
+    }
+
+    private boolean setBtCoexistenceMode(byte mode) {
         synchronized (mLock) {
             final String methodStr = "setBtCoexistenceMode";
             if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
@@ -1507,19 +1552,17 @@ public class SupplicantStaIfaceHal {
         }
     }
 
-    public static final int LOG_LEVEL_EXCESSIVE = ISupplicant.DebugLevel.EXCESSIVE;
-    public static final int LOG_LEVEL_MSGDUMP = ISupplicant.DebugLevel.MSGDUMP;
-    public static final int LOG_LEVEL_DEBUG = ISupplicant.DebugLevel.DEBUG;
-    public static final int LOG_LEVEL_INFO = ISupplicant.DebugLevel.INFO;
-    public static final int LOG_LEVEL_WARNING = ISupplicant.DebugLevel.WARNING;
-    public static final int LOG_LEVEL_ERROR = ISupplicant.DebugLevel.ERROR;
     /**
      * Set the debug log level for wpa_supplicant
-     * @param level One of the above {@link #LOG_LEVEL_EXCESSIVE} - {@link #LOG_LEVEL_ERROR} value.
+     *
+     * @param turnOnVerbose Whether to turn on verbose logging or not.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setLogLevel(int level) {
-        return setDebugParams(level, false, false);
+    public boolean setLogLevel(boolean turnOnVerbose) {
+        int logLevel = turnOnVerbose
+                ? ISupplicant.DebugLevel.DEBUG
+                : ISupplicant.DebugLevel.INFO;
+        return setDebugParams(logLevel, false, false);
     }
 
     /** See ISupplicant.hal for documentation */
