@@ -501,6 +501,24 @@ public class SupplicantStaIfaceHalTest {
     }
 
     /**
+     * Tests connection to a specified network failure due to exception in network save.
+     */
+    @Test
+    public void testConnectFailureDueToNetworkSaveException() throws Exception {
+        executeAndValidateInitializationSequence();
+        setupMocksForConnectSequence(true);
+
+        doThrow(new IllegalArgumentException("Some error!!!"))
+                .when(mSupplicantStaNetworkMock).saveWifiConfiguration(
+                        any(WifiConfiguration.class));
+
+        assertFalse(mDut.connectToNetwork(new WifiConfiguration(), false));
+        // We should have removed the existing network once before connection and once more
+        // on failure to save network configuration.
+        verify(mISupplicantStaIfaceMock, times(2)).removeNetwork(anyInt());
+    }
+
+    /**
      * Tests connection to a specified network failure due to network select.
      */
     @Test
