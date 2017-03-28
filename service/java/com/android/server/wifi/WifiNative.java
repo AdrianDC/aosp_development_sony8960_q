@@ -779,12 +779,21 @@ public class WifiNative {
     /********************************************************
      * Vendor HAL operations
      ********************************************************/
+    /**
+     * Callback to notify vendor HAL death.
+     */
+    public interface VendorHalDeathEventHandler {
+        /**
+         * Invoked when the vendor HAL dies.
+         */
+        void onDeath();
+    }
 
     /**
      * Initializes the vendor HAL. This is just used to initialize the {@link HalDeviceManager}.
      */
-    public boolean initializeVendorHal() {
-        return mWifiVendorHal.initialize();
+    public boolean initializeVendorHal(VendorHalDeathEventHandler handler) {
+        return mWifiVendorHal.initialize(handler);
     }
 
     /**
