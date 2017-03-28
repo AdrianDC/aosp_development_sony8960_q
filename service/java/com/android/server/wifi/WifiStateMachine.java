@@ -4096,9 +4096,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             mWifiNative.setExternalSim(true);
 
-            /* turn on use of DFS channels */
-            mWifiNative.setDfsFlag(true);
-
             setRandomMacOui();
             mCountryCode.setReadyForChange(true);
 
@@ -4167,9 +4164,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
             intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_ENABLED);
             mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
-
-            // Enable link layer stats gathering
-            mWifiNative.setWifiLinkLayerStats("wlan0", 1);
 
             // Disable wpa_supplicant from auto reconnecting.
             mWifiNative.enableStaAutoReconnect(false);
