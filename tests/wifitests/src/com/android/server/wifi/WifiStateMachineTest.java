@@ -1383,6 +1383,35 @@ public class WifiStateMachineTest {
         assertFalse("WpsRunningState".equals(getCurrentState().getName()));
     }
 
+    @Test
+    public void handleVendorHalDeath() throws Exception {
+        ArgumentCaptor<WifiNative.VendorHalDeathEventHandler> deathHandlerCapturer =
+                ArgumentCaptor.forClass(WifiNative.VendorHalDeathEventHandler.class);
+        when(mWifiNative.initializeVendorHal(deathHandlerCapturer.capture())).thenReturn(true);
+
+        // Trigger initialize to capture the death handler registration.
+        mLooper.startAutoDispatch();
+        assertTrue(mWsm.syncInitialize(mWsmAsyncChannel));
+        mLooper.stopAutoDispatch();
+
+        verify(mWifiNative).initializeVendorHal(any(WifiNative.VendorHalDeathEventHandler.class));
+        WifiNative.VendorHalDeathEventHandler deathHandler = deathHandlerCapturer.getValue();
+
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+
+        // We should not be in initial state now.
+        assertFalse("InitialState".equals(getCurrentState().getName()));
+
+        // Now trigger the death notification.
+        mLooper.startAutoDispatch();
+        deathHandler.onDeath();
+        mLooper.stopAutoDispatch();
+
+        // We should back to initial state after vendor HAL death.
+        assertTrue("InitialState".equals(getCurrentState().getName()));
+    }
+
     private void setupMocksForWpsNetworkMigration() {
         int newNetworkId = 5;
         // Now trigger the network connection event for adding the WPS network.

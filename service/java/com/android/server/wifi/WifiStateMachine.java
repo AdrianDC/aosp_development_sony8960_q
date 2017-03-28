@@ -241,6 +241,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private boolean mIsLinkDebouncing = false;
     private final StateMachineDeathRecipient mDeathRecipient =
             new StateMachineDeathRecipient(this, CMD_CLIENT_INTERFACE_BINDER_DEATH);
+    private final WifiNative.VendorHalDeathEventHandler mVendorHalDeathRecipient = () -> {
+        sendMessage(CMD_VENDOR_HAL_HWBINDER_DEATH);
+    };
     private boolean mIpReachabilityDisconnectEnabled = true;
 
     @Override
@@ -698,8 +701,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /* Signals that IClientInterface instance underpinning our state is dead. */
     private static final int CMD_CLIENT_INTERFACE_BINDER_DEATH          = BASE + 250;
 
+    /* Signals that the Vendor HAL instance underpinning our state is dead. */
+    private static final int CMD_VENDOR_HAL_HWBINDER_DEATH              = BASE + 251;
+
     /* Indicates that diagnostics should time out a connection start event. */
-    private static final int CMD_DIAGS_CONNECT_TIMEOUT                  = BASE + 251;
+    private static final int CMD_DIAGS_CONNECT_TIMEOUT                  = BASE + 252;
 
     // For message logging.
     private static final Class[] sMessageClasses = {
@@ -3678,7 +3684,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case CMD_INITIALIZE:
-                    boolean ok = mWifiNative.initializeVendorHal();
+                    boolean ok = mWifiNative.initializeVendorHal(mVendorHalDeathRecipient);
                     replyToMessage(message, message.what, ok ? SUCCESS : FAILURE);
                     break;
                 case CMD_BOOT_COMPLETED:
@@ -3888,9 +3894,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case CMD_CLIENT_INTERFACE_BINDER_DEATH:
-                    // We have lost contact with a client interface, which means that we cannot
-                    // trust that the driver is up or that the interface is ready.  We are fit
-                    // for no WiFi related work.
+                    Log.wtf(TAG, "wificond died unexpectedly");
+                    // TODO(b/36586897): Automatically recover from this.
+                    transitionTo(mInitialState);
+                    break;
+                case CMD_VENDOR_HAL_HWBINDER_DEATH:
+                    Log.wtf(TAG, "Vendor HAL died unexpectedly");
+                    // TODO(b/36586897): Automatically recover from this.
                     transitionTo(mInitialState);
                     break;
                 case CMD_DIAGS_CONNECT_TIMEOUT:
