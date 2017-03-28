@@ -1087,6 +1087,39 @@ public class WifiStateMachineTest {
         assertEquals(WifiStateMachine.NUM_LOG_RECS_NORMAL, mWsm.getLogRecMaxSize());
     }
 
+    @Test
+    public void logRecsIncludeDisconnectCommand() {
+        // There's nothing special about the DISCONNECT command. It's just representative of
+        // "normal" commands.
+        mWsm.sendMessage(WifiStateMachine.CMD_DISCONNECT);
+        mLooper.dispatchAll();
+        assertEquals(1, mWsm.copyLogRecs()
+                .stream()
+                .filter(logRec -> logRec.getWhat() == WifiStateMachine.CMD_DISCONNECT)
+                .count());
+    }
+
+    @Test
+    public void logRecsExcludeRssiPollCommandByDefault() {
+        mWsm.sendMessage(WifiStateMachine.CMD_RSSI_POLL);
+        mLooper.dispatchAll();
+        assertEquals(0, mWsm.copyLogRecs()
+                .stream()
+                .filter(logRec -> logRec.getWhat() == WifiStateMachine.CMD_RSSI_POLL)
+                .count());
+    }
+
+    @Test
+    public void logRecsIncludeRssiPollCommandWhenVerboseLoggingIsEnabled() {
+        mWsm.enableVerboseLogging(1);
+        mWsm.sendMessage(WifiStateMachine.CMD_RSSI_POLL);
+        mLooper.dispatchAll();
+        assertEquals(1, mWsm.copyLogRecs()
+                .stream()
+                .filter(logRec -> logRec.getWhat() == WifiStateMachine.CMD_RSSI_POLL)
+                .count());
+    }
+
     /** Verifies that enabling verbose logging sets the hal log property in eng builds. */
     @Test
     public void enablingVerboseLoggingSetsHalLogPropertyInEngBuilds() {
