@@ -272,10 +272,7 @@ public class WifiNative {
      * @param turnOnVerbose Whether to turn on verbose logging or not.
      */
     public void setSupplicantLogLevel(boolean turnOnVerbose) {
-        int logLevel = turnOnVerbose
-                ? SupplicantStaIfaceHal.LOG_LEVEL_DEBUG
-                : SupplicantStaIfaceHal.LOG_LEVEL_INFO;
-        mSupplicantStaIfaceHal.setLogLevel(logLevel);
+        mSupplicantStaIfaceHal.setLogLevel(turnOnVerbose);
     }
 
     /**
@@ -314,6 +311,8 @@ public class WifiNative {
         return mSupplicantStaIfaceHal.getMacAddress();
     }
 
+    public static final int RX_FILTER_TYPE_V4_MULTICAST = 0;
+    public static final int RX_FILTER_TYPE_V6_MULTICAST = 1;
     /**
      * Start filtering out Multicast V4 packets
      * @return {@code true} if the operation succeeded, {@code false} otherwise
@@ -341,7 +340,7 @@ public class WifiNative {
     public boolean startFilteringMulticastV4Packets() {
         return mSupplicantStaIfaceHal.stopRxFilter()
                 && mSupplicantStaIfaceHal.removeRxFilter(
-                SupplicantStaIfaceHal.RX_FILTER_TYPE_V4_MULTICAST)
+                RX_FILTER_TYPE_V4_MULTICAST)
                 && mSupplicantStaIfaceHal.startRxFilter();
     }
 
@@ -352,7 +351,7 @@ public class WifiNative {
     public boolean stopFilteringMulticastV4Packets() {
         return mSupplicantStaIfaceHal.stopRxFilter()
                 && mSupplicantStaIfaceHal.addRxFilter(
-                SupplicantStaIfaceHal.RX_FILTER_TYPE_V4_MULTICAST)
+                RX_FILTER_TYPE_V4_MULTICAST)
                 && mSupplicantStaIfaceHal.startRxFilter();
     }
 
@@ -363,7 +362,7 @@ public class WifiNative {
     public boolean startFilteringMulticastV6Packets() {
         return mSupplicantStaIfaceHal.stopRxFilter()
                 && mSupplicantStaIfaceHal.removeRxFilter(
-                SupplicantStaIfaceHal.RX_FILTER_TYPE_V6_MULTICAST)
+                RX_FILTER_TYPE_V6_MULTICAST)
                 && mSupplicantStaIfaceHal.startRxFilter();
     }
 
@@ -374,16 +373,13 @@ public class WifiNative {
     public boolean stopFilteringMulticastV6Packets() {
         return mSupplicantStaIfaceHal.stopRxFilter()
                 && mSupplicantStaIfaceHal.addRxFilter(
-                SupplicantStaIfaceHal.RX_FILTER_TYPE_V6_MULTICAST)
+                RX_FILTER_TYPE_V6_MULTICAST)
                 && mSupplicantStaIfaceHal.startRxFilter();
     }
 
-    public static final int BLUETOOTH_COEXISTENCE_MODE_ENABLED  =
-            SupplicantStaIfaceHal.BT_COEX_MODE_ENABLED;
-    public static final int BLUETOOTH_COEXISTENCE_MODE_DISABLED =
-            SupplicantStaIfaceHal.BT_COEX_MODE_DISABLED;
-    public static final int BLUETOOTH_COEXISTENCE_MODE_SENSE    =
-            SupplicantStaIfaceHal.BT_COEX_MODE_SENSE;
+    public static final int BLUETOOTH_COEXISTENCE_MODE_ENABLED  = 0;
+    public static final int BLUETOOTH_COEXISTENCE_MODE_DISABLED = 1;
+    public static final int BLUETOOTH_COEXISTENCE_MODE_SENSE    = 2;
     /**
       * Sets the bluetooth coexistence mode.
       *
@@ -393,7 +389,7 @@ public class WifiNative {
       * @return Whether the mode was successfully set.
       */
     public boolean setBluetoothCoexistenceMode(int mode) {
-        return mSupplicantStaIfaceHal.setBtCoexistenceMode((byte) mode);
+        return mSupplicantStaIfaceHal.setBtCoexistenceMode(mode);
     }
 
     /**
