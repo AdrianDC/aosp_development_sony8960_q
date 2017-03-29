@@ -202,8 +202,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
         synchronized (mSettingsLock) {
             mPendingSingleScanSettings = settings;
             mPendingSingleScanEventHandler = eventHandler;
-            // TODO(b/36276738): Remove this after we fix b/36231150.
-            Log.d(TAG, "processPendingScans in request of startSingleScan");
             processPendingScans();
             return true;
         }
@@ -271,8 +269,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
             mBackgroundScanPeriodPending = false;
             unscheduleScansLocked();
         }
-        // TODO(b/36276738): Remove this after we fix b/36231150.
-        Log.d(TAG, "processPendingScans in request of stopBatchedScan");
         processPendingScans();
     }
 
@@ -297,8 +293,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                 mPendingBackgroundScanEventHandler.onScanPaused(results);
             }
         }
-        // TODO(b/36276738): Remove this after we fix b/36231150.
-        Log.d(TAG, "processPendingScans in request of pauseBatchedScan");
         processPendingScans();
     }
 
@@ -324,8 +318,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
     private void handleScanPeriod() {
         synchronized (mSettingsLock) {
             mBackgroundScanPeriodPending = true;
-            // TODO(b/36276738): Remove this after we fix b/36231150.
-            Log.d(TAG, "processPendingScans in request of handleScanPeriod");
             processPendingScans();
         }
     }
@@ -333,8 +325,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
     private void handleScanTimeout() {
         Log.e(TAG, "Timed out waiting for scan result from wificond");
         reportScanFailure();
-        // TODO(b/36276738): Remove this after we fix b/36231150.
-        Log.d(TAG, "processPendingScans in request of handleScanTimeout");
         processPendingScans();
     }
 
@@ -444,10 +434,11 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                 boolean success = mWifiNative.scan(freqs, hiddenNetworkSSIDSet);
                 if (success) {
                     // TODO handle scan timeout
-                    // TODO(b/36276738): Change this to DBG log after we fix b/36231150.
-                    Log.d(TAG, "Starting wifi scan for freqs=" + freqs
-                            + ", background=" + newScanSettings.backgroundScanActive
-                            + ", single=" + newScanSettings.singleScanActive);
+                    if (DBG) {
+                        Log.d(TAG, "Starting wifi scan for freqs=" + freqs
+                                + ", background=" + newScanSettings.backgroundScanActive
+                                + ", single=" + newScanSettings.singleScanActive);
+                    }
                     mLastScanSettings = newScanSettings;
                     mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
                             mClock.getElapsedSinceBootMillis() + SCAN_TIMEOUT_MS,
@@ -507,15 +498,11 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
             case WifiMonitor.PNO_SCAN_RESULTS_EVENT:
                 mAlarmManager.cancel(mScanTimeoutListener);
                 pollLatestScanDataForPno();
-                // TODO(b/36276738): Remove this after we fix b/36231150.
-                Log.d(TAG, "processPendingScans in request of SCHED_SCAN_RESULTS_EVENT");
                 processPendingScans();
                 break;
             case WifiMonitor.SCAN_RESULTS_EVENT:
                 mAlarmManager.cancel(mScanTimeoutListener);
                 pollLatestScanData();
-                // TODO(b/36276738): Remove this after we fix b/36231150.
-                Log.d(TAG, "processPendingScans in request of SCAN_RESULTS_EVENT");
                 processPendingScans();
                 break;
             default:
@@ -752,8 +739,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
             }
             mPnoEventHandler = eventHandler;
             mPnoSettings = settings;
-            // TODO(b/36276738): Remove this after we fix b/36231150.
-            Log.d(TAG, "processPendingScans in request of setHwPnoList");
 
             // For wificond based PNO, we start the scan immediately when we set pno list.
             processPendingScans();
