@@ -205,7 +205,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private WifiPermissionsUtil mWifiPermissionsUtil;
     private WifiConfigManager mWifiConfigManager;
     private WifiConnectivityManager mWifiConnectivityManager;
-    private WifiNetworkSelector mWifiNetworkSelector;
     private INetworkManagementService mNwService;
     private IClientInterface mClientInterface;
     private ConnectivityManager mCm;
@@ -333,7 +332,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * Value to set in wpa_supplicant "bssid" field when we don't want to restrict connection to
      * a specific AP.
      */
-    private static final String SUPPLICANT_BSSID_ANY = "any";
+    public static final String SUPPLICANT_BSSID_ANY = "any";
 
     private int mSupplicantRestartCount = 0;
 
@@ -903,7 +902,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiDiagnostics = mWifiInjector.makeWifiDiagnostics(mWifiNative);
 
         mWifiInfo = new WifiInfo();
-        mWifiNetworkSelector = mWifiInjector.getWifiNetworkSelector();
         mSupplicantStateTracker =
                 mFacade.makeSupplicantStateTracker(context, mWifiConfigManager, getHandler());
 
@@ -1287,6 +1285,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // reconnection unless it was forced.
             logi("connectToUserSelectNetwork already connecting/connected=" + netId);
         } else {
+            mWifiConnectivityManager.prepareForForcedConnection(netId);
             startConnectToNetwork(netId, SUPPLICANT_BSSID_ANY);
         }
         return true;
@@ -2158,7 +2157,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_USER_ACTION);
         mWifiDiagnostics.dump(fd, pw, args);
         dumpIpManager(fd, pw, args);
-        mWifiNetworkSelector.dump(fd, pw, args);
+        if (mWifiConnectivityManager != null) {
+            mWifiConnectivityManager.dump(fd, pw, args);
+        } else {
+            pw.println("mWifiConnectivityManager is not initialized");
+        }
     }
 
     public void handleUserSwitch(int userId) {

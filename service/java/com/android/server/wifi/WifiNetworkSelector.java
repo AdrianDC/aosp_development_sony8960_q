@@ -18,7 +18,6 @@ package com.android.server.wifi;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.app.ActivityManager;
 import android.content.Context;
 import android.net.NetworkKey;
 import android.net.wifi.ScanResult;
@@ -31,8 +30,6 @@ import android.util.Pair;
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 
-import java.io.FileDescriptor;
-import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -48,11 +45,9 @@ public class WifiNetworkSelector {
     @VisibleForTesting
     public static final int MINIMUM_NETWORK_SELECTION_INTERVAL_MS = 10 * 1000;
 
-    private WifiConfigManager mWifiConfigManager;
-    private Clock mClock;
-
-    private final LocalLog mLocalLog =
-            new LocalLog(ActivityManager.isLowRamDeviceStatic() ? 256 : 512);
+    private final WifiConfigManager mWifiConfigManager;
+    private final Clock mClock;
+    private final LocalLog mLocalLog;
     private long mLastNetworkSelectionTimeStamp = INVALID_TIME_STAMP;
     // Buffer of filtered scan results (Scan results considered by network selection) & associated
     // WifiConfiguration (if any).
@@ -508,9 +503,11 @@ public class WifiNetworkSelector {
         return true;
     }
 
-    WifiNetworkSelector(Context context, WifiConfigManager configManager, Clock clock) {
+    WifiNetworkSelector(Context context, WifiConfigManager configManager, Clock clock,
+            LocalLog localLog) {
         mWifiConfigManager = configManager;
         mClock = clock;
+        mLocalLog = localLog;
 
         mThresholdQualifiedRssi24 = context.getResources().getInteger(
                             R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_24GHz);
@@ -522,22 +519,5 @@ public class WifiNetworkSelector {
                             R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz);
         mEnableAutoJoinWhenAssociated = context.getResources().getBoolean(
                             R.bool.config_wifi_framework_enable_associated_network_selection);
-    }
-
-    /**
-     * Retrieve the local log buffer created by WifiNetworkSelector.
-     */
-    public LocalLog getLocalLog() {
-        return mLocalLog;
-    }
-
-    /**
-     * Dump the local logs.
-     */
-    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("Dump of WifiNetworkSelector");
-        pw.println("WifiNetworkSelector - Log Begin ----");
-        mLocalLog.dump(fd, pw, args);
-        pw.println("WifiNetworkSelector - Log End ----");
     }
 }

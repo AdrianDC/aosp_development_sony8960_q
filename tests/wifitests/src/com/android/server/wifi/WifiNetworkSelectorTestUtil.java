@@ -37,7 +37,9 @@ import android.text.TextUtils;
 import com.android.server.wifi.util.ScanResultUtil;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Helper for WifiNetworkSelector unit tests.
@@ -132,7 +134,7 @@ public class WifiNetworkSelectorTestUtil {
 
     /**
      * Generate an array of {@link android.net.wifi.WifiConfiguration} based on the caller
-     * supplied network SSID and sencurity information.
+     * supplied network SSID and security information.
      *
      * @param ssids an array of SSIDs
      * @param securities an array of the network's security setting
@@ -145,10 +147,23 @@ public class WifiNetworkSelectorTestUtil {
             return null;
         }
 
+        Map<String, Integer> netIdMap = new HashMap<>();
+        int netId = 0;
+
         WifiConfiguration[] configs = new WifiConfiguration[ssids.length];
         for (int index = 0; index < ssids.length; index++) {
-            configs[index] = generateWifiConfig(index, 0, ssids[index], false, true, null, null,
-                    securities[index]);
+            String configKey = ssids[index] + Integer.toString(securities[index]);
+            Integer id;
+
+            id = netIdMap.get(configKey);
+            if (id == null) {
+                id = new Integer(netId);
+                netIdMap.put(configKey, id);
+                netId++;
+            }
+
+            configs[index] = generateWifiConfig(id.intValue(), 0, ssids[index], false, true, null,
+                    null, securities[index]);
         }
 
         return configs;
@@ -167,19 +182,20 @@ public class WifiNetworkSelectorTestUtil {
         when(wifiConfigManager.getConfiguredNetwork(anyInt()))
                 .then(new AnswerWithArguments() {
                     public WifiConfiguration answer(int netId) {
-                        if (netId >= 0 && netId < configs.length) {
-                            return new WifiConfiguration(configs[netId]);
-                        } else {
-                            return null;
+                        for (WifiConfiguration config : configs) {
+                            if (netId == config.networkId) {
+                                return new WifiConfiguration(config);
+                            }
                         }
+                        return null;
                     }
                 });
         when(wifiConfigManager.getConfiguredNetwork(anyString()))
                 .then(new AnswerWithArguments() {
                     public WifiConfiguration answer(String configKey) {
-                        for (int netId = 0; netId < configs.length; netId++) {
-                            if (TextUtils.equals(configs[netId].configKey(), configKey)) {
-                                return new WifiConfiguration(configs[netId]);
+                        for (WifiConfiguration config : configs) {
+                            if (TextUtils.equals(config.configKey(), configKey)) {
+                                return new WifiConfiguration(config);
                             }
                         }
                         return null;
