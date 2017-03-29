@@ -30,7 +30,7 @@
 #include <openssl/sha.h>
 #include <private/android_filesystem_config.h>
 
-#include "wifi_system/wifi.h"
+#include "wifi_system/supplicant_manager.h"
 
 using android::base::ParseInt;
 using android::base::ReadFileToString;
@@ -77,7 +77,7 @@ string GeneratePsk(const vector<uint8_t>& ssid,
 }  // namespace
 
 bool HostapdManager::StartHostapd() {
-  if (ensure_entropy_file_exists() < 0) {
+  if (!SupplicantManager::EnsureEntropyFileExists()) {
     LOG(WARNING) << "Wi-Fi entropy file was not created";
   }
 
