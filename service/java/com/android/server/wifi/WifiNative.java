@@ -822,12 +822,6 @@ public class WifiNative {
         public int  max_ap_cache_per_scan;
         public int  max_rssi_sample_size;
         public int  max_scan_reporting_threshold;
-        public int  max_hotlist_bssids;
-        public int  max_significant_wifi_change_aps;
-        public int  max_bssid_history_entries;
-        public int  max_number_epno_networks;
-        public int  max_number_epno_networks_by_ssid;
-        public int  max_number_of_white_listed_ssid;
     }
 
     /**
@@ -1016,35 +1010,6 @@ public class WifiNative {
      */
     public WifiScanner.ScanData[] getBgScanResults() {
         return mWifiVendorHal.getBgScanResults();
-    }
-
-    public static interface HotlistEventHandler {
-        void onHotlistApFound (ScanResult[] result);
-        void onHotlistApLost  (ScanResult[] result);
-    }
-
-    public boolean setHotlist(WifiScanner.HotlistSettings settings,
-            HotlistEventHandler eventHandler) {
-        Log.e(mTAG, "setHotlist not supported");
-        return false;
-    }
-
-    public void resetHotlist() {
-        Log.e(mTAG, "resetHotlist not supported");
-    }
-
-    public static interface SignificantWifiChangeEventHandler {
-        void onChangesFound(ScanResult[] result);
-    }
-
-    public boolean trackSignificantWifiChange(
-            WifiScanner.WifiChangeSettings settings, SignificantWifiChangeEventHandler handler) {
-        Log.e(mTAG, "trackSignificantWifiChange not supported");
-        return false;
-    }
-
-    public void untrackSignificantWifiChange() {
-        Log.e(mTAG, "untrackSignificantWifiChange not supported");
     }
 
     public WifiLinkLayerStats getWifiLinkLayerStats(String iface) {

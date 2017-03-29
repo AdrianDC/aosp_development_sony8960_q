@@ -87,10 +87,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
     // Settings for the currently running scan, null if no scan active
     private LastScanSettings mLastScanSettings = null;
 
-    // Active hotlist settings
-    private WifiNative.HotlistEventHandler mHotlistHandler = null;
-    private ChangeBuffer mHotlistChangeBuffer = new ChangeBuffer();
-
     // Pno related info.
     private WifiNative.PnoSettings mPnoSettings = null;
     private WifiNative.PnoEventHandler mPnoEventHandler;
@@ -163,8 +159,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
             mPendingSingleScanEventHandler = null;
             stopHwPnoScan();
             stopBatchedScan();
-            resetHotlist();
-            untrackSignificantWifiChange();
             mLastScanSettings = null; // finally clear any active scan
         }
     }
@@ -176,8 +170,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
         capabilities.max_ap_cache_per_scan = MAX_APS_PER_SCAN;
         capabilities.max_rssi_sample_size = 8;
         capabilities.max_scan_reporting_threshold = SCAN_BUFFER_CAPACITY;
-        capabilities.max_hotlist_bssids = 0;
-        capabilities.max_significant_wifi_change_aps = 0;
         return true;
     }
 
@@ -664,18 +656,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                                 .onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
                     }
                 }
-
-                if (mHotlistHandler != null) {
-                    int event = mHotlistChangeBuffer.processScan(backgroundScanResults);
-                    if ((event & ChangeBuffer.EVENT_FOUND) != 0) {
-                        mHotlistHandler.onHotlistApFound(
-                                mHotlistChangeBuffer.getLastResults(ChangeBuffer.EVENT_FOUND));
-                    }
-                    if ((event & ChangeBuffer.EVENT_LOST) != 0) {
-                        mHotlistHandler.onHotlistApLost(
-                                mHotlistChangeBuffer.getLastResults(ChangeBuffer.EVENT_LOST));
-                    }
-                }
             }
 
             if (mLastScanSettings.singleScanActive
@@ -787,39 +767,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
         return false;
     }
 
-    @Override
-    public boolean setHotlist(WifiScanner.HotlistSettings settings,
-            WifiNative.HotlistEventHandler eventHandler) {
-        if (settings == null || eventHandler == null) {
-            return false;
-        }
-        synchronized (mSettingsLock) {
-            mHotlistHandler = eventHandler;
-            mHotlistChangeBuffer.setSettings(settings.bssidInfos, settings.apLostThreshold, 1);
-            return true;
-        }
-    }
-
-    @Override
-    public void resetHotlist() {
-        synchronized (mSettingsLock) {
-            mHotlistChangeBuffer.clearSettings();
-            mHotlistHandler = null;
-        }
-    }
-
-    /*
-     * Significant Wifi Change API is not implemented
-     */
-    @Override
-    public boolean trackSignificantWifiChange(WifiScanner.WifiChangeSettings settings,
-            WifiNative.SignificantWifiChangeEventHandler handler) {
-        return false;
-    }
-    @Override
-    public void untrackSignificantWifiChange() {}
-
-
     private static class LastScanSettings {
         public long startTime;
 
@@ -908,138 +855,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
 
         public WifiScanner.ScanData[] get() {
             return mBuffer.toArray(new WifiScanner.ScanData[mBuffer.size()]);
-        }
-    }
-
-    private static class ChangeBuffer {
-        public static int EVENT_NONE = 0;
-        public static int EVENT_LOST = 1;
-        public static int EVENT_FOUND = 2;
-
-        public static int STATE_FOUND = 0;
-
-        private WifiScanner.BssidInfo[] mBssidInfos = null;
-        private int mApLostThreshold;
-        private int mMinEvents;
-        private int[] mLostCount = null;
-        private ScanResult[] mMostRecentResult = null;
-        private int[] mPendingEvent = null;
-        private boolean mFiredEvents = false;
-
-        private static ScanResult findResult(List<ScanResult> results, String bssid) {
-            for (int i = 0; i < results.size(); ++i) {
-                if (bssid.equalsIgnoreCase(results.get(i).BSSID)) {
-                    return results.get(i);
-                }
-            }
-            return null;
-        }
-
-        public void setSettings(WifiScanner.BssidInfo[] bssidInfos, int apLostThreshold,
-                                int minEvents) {
-            mBssidInfos = bssidInfos;
-            if (apLostThreshold <= 0) {
-                mApLostThreshold = 1;
-            } else {
-                mApLostThreshold = apLostThreshold;
-            }
-            mMinEvents = minEvents;
-            if (bssidInfos != null) {
-                mLostCount = new int[bssidInfos.length];
-                Arrays.fill(mLostCount, mApLostThreshold); // default to lost
-                mMostRecentResult = new ScanResult[bssidInfos.length];
-                mPendingEvent = new int[bssidInfos.length];
-                mFiredEvents = false;
-            } else {
-                mLostCount = null;
-                mMostRecentResult = null;
-                mPendingEvent = null;
-            }
-        }
-
-        public void clearSettings() {
-            setSettings(null, 0, 0);
-        }
-
-        /**
-         * Get the most recent scan results for APs that triggered the given event on the last call
-         * to {@link #processScan}.
-         */
-        public ScanResult[] getLastResults(int event) {
-            ArrayList<ScanResult> results = new ArrayList<>();
-            for (int i = 0; i < mLostCount.length; ++i) {
-                if (mPendingEvent[i] == event) {
-                    results.add(mMostRecentResult[i]);
-                }
-            }
-            return results.toArray(new ScanResult[results.size()]);
-        }
-
-        /**
-         * Process the supplied scan results and determine if any events should be generated based
-         * on the configured settings
-         * @return The events that occurred
-         */
-        public int processScan(List<ScanResult> scanResults) {
-            if (mBssidInfos == null) {
-                return EVENT_NONE;
-            }
-
-            // clear events from last time
-            if (mFiredEvents) {
-                mFiredEvents = false;
-                for (int i = 0; i < mLostCount.length; ++i) {
-                    mPendingEvent[i] = EVENT_NONE;
-                }
-            }
-
-            int eventCount = 0;
-            int eventType = EVENT_NONE;
-            for (int i = 0; i < mLostCount.length; ++i) {
-                ScanResult result = findResult(scanResults, mBssidInfos[i].bssid);
-                int rssi = Integer.MIN_VALUE;
-                if (result != null) {
-                    mMostRecentResult[i] = result;
-                    rssi = result.level;
-                }
-
-                if (rssi < mBssidInfos[i].low) {
-                    if (mLostCount[i] < mApLostThreshold) {
-                        mLostCount[i]++;
-
-                        if (mLostCount[i] >= mApLostThreshold) {
-                            if (mPendingEvent[i] == EVENT_FOUND) {
-                                mPendingEvent[i] = EVENT_NONE;
-                            } else {
-                                mPendingEvent[i] = EVENT_LOST;
-                            }
-                        }
-                    }
-                } else {
-                    if (mLostCount[i] >= mApLostThreshold) {
-                        if (mPendingEvent[i] == EVENT_LOST) {
-                            mPendingEvent[i] = EVENT_NONE;
-                        } else {
-                            mPendingEvent[i] = EVENT_FOUND;
-                        }
-                    }
-                    mLostCount[i] = STATE_FOUND;
-                }
-                if (DBG) {
-                    Log.d(TAG, "ChangeBuffer BSSID: " + mBssidInfos[i].bssid + "=" + mLostCount[i]
-                            + ", " + mPendingEvent[i] + ", rssi=" + rssi);
-                }
-                if (mPendingEvent[i] != EVENT_NONE) {
-                    ++eventCount;
-                    eventType |= mPendingEvent[i];
-                }
-            }
-            if (DBG) Log.d(TAG, "ChangeBuffer events count=" + eventCount + ": " + eventType);
-            if (eventCount >= mMinEvents) {
-                mFiredEvents = true;
-                return eventType;
-            }
-            return EVENT_NONE;
         }
     }
 
