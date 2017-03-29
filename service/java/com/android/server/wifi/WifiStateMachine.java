@@ -361,8 +361,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private int mWifiLinkLayerStatsSupported = 4; // Temporary disable
 
-    // Whether the state machine goes thru the Disconnecting->Disconnected->ObtainingIpAddress
-    private boolean mAutoRoaming = false;
+    // Indicates that framework is attempting to roam, set true on CMD_START_ROAM, set false when
+    // wifi connects or fails to connect
+    private boolean mIsAutoRoaming = false;
 
     // Roaming failure count
     private int mRoamFailCount = 0;
@@ -376,10 +377,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private int mTargetNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
     private long mLastDriverRoamAttempt = 0;
     private WifiConfiguration targetWificonfiguration = null;
-
-    boolean isRoaming() {
-        return mAutoRoaming;
-    }
 
     /**
      * Method to clear {@link #mTargetRoamBSSID} and reset the the current connected network's
@@ -2377,7 +2374,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 if (mTargetRoamBSSID != null) {
                     sb.append(" Target=").append(mTargetRoamBSSID);
                 }
-                sb.append(" roam=").append(Boolean.toString(mAutoRoaming));
+                sb.append(" roam=").append(Boolean.toString(mIsAutoRoaming));
                 break;
             case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
                 if (msg.obj != null) {
@@ -2441,7 +2438,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 if (mTargetRoamBSSID != null) {
                     sb.append(" ").append(mTargetRoamBSSID);
                 }
-                sb.append(" roam=").append(Boolean.toString(mAutoRoaming));
+                sb.append(" roam=").append(Boolean.toString(mIsAutoRoaming));
                 config = getCurrentWifiConfiguration();
                 if (config != null) {
                     sb.append(config.configKey());
@@ -2471,7 +2468,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 if (mTargetRoamBSSID != null) {
                     sb.append(" ").append(mTargetRoamBSSID);
                 }
-                sb.append(" roam=").append(Boolean.toString(mAutoRoaming));
+                sb.append(" roam=").append(Boolean.toString(mIsAutoRoaming));
                 sb.append(" fail count=").append(Integer.toString(mRoamFailCount));
                 break;
             case CMD_ADD_OR_UPDATE_NETWORK:
@@ -3080,7 +3077,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private boolean setNetworkDetailedState(NetworkInfo.DetailedState state) {
         boolean hidden = false;
 
-        if (isLinkDebouncing() || isRoaming()) {
+        if (isLinkDebouncing() || mIsAutoRoaming) {
             // There is generally a confusion in the system about colluding
             // WiFi Layer 2 state (as reported by supplicant) and the Network state
             // which leads to multiple confusion.
@@ -3207,7 +3204,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiInfo.reset();
         mIsLinkDebouncing = false;
         /* Reset roaming parameters */
-        mAutoRoaming = false;
+        mIsAutoRoaming = false;
 
         setNetworkDetailedState(DetailedState.DISCONNECTED);
         if (mNetworkAgent != null) {
@@ -3361,7 +3358,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             addr = (Inet4Address) dhcpResults.ipAddress.getAddress();
         }
 
-        if (isRoaming()) {
+        if (mIsAutoRoaming) {
             int previousAddress = mWifiInfo.getIpAddress();
             int newAddress = NetworkUtils.inetAddressToInt(addr);
             if (previousAddress != newAddress) {
@@ -4925,7 +4922,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             + mSupplicantStateTracker.getSupplicantStateName()
                             + " my state " + getCurrentState().getName()
                             + " nid=" + Integer.toString(netId)
-                            + " roam=" + Boolean.toString(mAutoRoaming));
+                            + " roam=" + Boolean.toString(mIsAutoRoaming));
                     if (config == null) {
                         loge("CMD_START_CONNECT and no config, bail out...");
                         break;
@@ -4938,8 +4935,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (mWifiNative.connectToNetwork(config)) {
                         lastConnectAttemptTimestamp = mClock.getWallClockMillis();
                         targetWificonfiguration = config;
-                        mAutoRoaming = false;
-                        if (isRoaming() || isLinkDebouncing()) {
+                        mIsAutoRoaming = false;
+                        if (isLinkDebouncing()) {
                             transitionTo(mRoamingState);
                         } else if (getCurrentState() != mDisconnectedState) {
                             transitionTo(mDisconnectingState);
@@ -5703,7 +5700,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 }
                 log("enter ObtainingIpState netId=" + Integer.toString(mLastNetworkId)
                         + " " + key + " "
-                        + " roam=" + mAutoRoaming
+                        + " roam=" + mIsAutoRoaming
                         + " static=" + isUsingStaticIp);
             }
 
@@ -5988,7 +5985,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mIsLinkDebouncing = false;
 
             // Not roaming anymore
-            mAutoRoaming = false;
+            mIsAutoRoaming = false;
 
             if (testNetworkDisconnect) {
                 testNetworkDisconnectCounter++;
@@ -6152,7 +6149,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (mWifiNative.roamToNetwork(config)) {
                         lastConnectAttemptTimestamp = mClock.getWallClockMillis();
                         targetWificonfiguration = config;
-                        mAutoRoaming = true;
+                        mIsAutoRoaming = true;
                         transitionTo(mRoamingState);
                     } else {
                         loge("CMD_START_ROAM Failed to start roaming to network " + config);
@@ -6278,7 +6275,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
 
             /** clear the roaming state, if we were roaming, we failed */
-            mAutoRoaming = false;
+            mIsAutoRoaming = false;
 
             mWifiConnectivityManager.handleConnectionStateChanged(
                     WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
