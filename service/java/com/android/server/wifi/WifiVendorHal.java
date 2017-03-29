@@ -64,7 +64,6 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiWakeReasonAndCounts;
-import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.util.MutableBoolean;
@@ -1455,16 +1454,6 @@ public class WifiVendorHal {
         getChannelsForBand(WifiBand.BAND_24GHZ);
         if (mChannelsForBandSupport != null) return mChannelsForBandSupport;
         return false;
-    }
-
-    /**
-     * Set DFS - actually, this is always on.
-     *
-     * @param dfsOn
-     * @return success indication
-     */
-    public boolean setDfsFlag(boolean dfsOn) {
-        return dfsOn;
     }
 
     /**
