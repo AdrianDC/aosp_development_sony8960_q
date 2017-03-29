@@ -803,8 +803,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     /**
      * see {@link android.net.wifi.WifiManager#startSoftAp(WifiConfiguration)}
-     * @param wifiConfig SSID, security and channel details as
-     *        part of WifiConfiguration
+     * @param wifiConfig SSID, security and channel details as part of WifiConfiguration
      * @return {@code true} if softap start was triggered
      * @throws SecurityException if the caller does not have permission to start softap
      */
@@ -859,6 +858,59 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         mWifiController.sendMessage(CMD_SET_AP, 0, 0);
         return true;
+    }
+
+    /**
+     * see {@link WifiManager#startLocalOnlyHotspot(LocalOnlyHotspotCallback)}
+     *
+     * @param messenger Messenger to send messages to the corresponding WifiManager.
+     * @param binder IBinder instance to allow cleanup if the app dies
+     *
+     * @return WifiConfiguration generated temporary configuration for SoftAp mode.
+     *
+     * @throws SecurityException if the caller does not have permission to start a Local Only
+     * Hotspot.
+     * @throws IllegalStateException if the caller attempts to start the LocalOnlyHotspot while they
+     * have an outstanding request.
+     */
+    @Override
+    public WifiConfiguration startLocalOnlyHotspot(Messenger messenger, IBinder binder) {
+        throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
+    }
+
+    /**
+     * see {@link WifiManager#stopLocalOnlyHotspot()}
+     *
+     * @throws SecurityException if the caller does not have permission to stop a Local Only
+     * Hotspot.
+     */
+    @Override
+    public void stopLocalOnlyHotspot() {
+        throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
+    }
+
+    /**
+     * see {@link WifiManager#watchLocalOnlyHotspot(LocalOnlyHotspotObserver)}
+     *
+     * @param messenger Messenger to send messages to the corresponding WifiManager.
+     * @param binder IBinder instance to allow cleanup if the app dies
+     *
+     * @throws SecurityException if the caller does not have permission to watch Local Only Hotspot
+     * status updates.
+     * @throws IllegalStateException if the caller attempts to watch LocalOnlyHotspot updates with
+     * an existing subscription.
+     */
+    @Override
+    public void startWatchLocalOnlyHotspot(Messenger messenger, IBinder binder) {
+        throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
+    }
+
+    /**
+     * see {@link WifiManager#unregisterLocalOnlyHotspotObserver()}
+     */
+    @Override
+    public void stopWatchLocalOnlyHotspot() {
+        throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
     }
 
     /**
