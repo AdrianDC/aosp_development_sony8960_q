@@ -1051,10 +1051,6 @@ public class WifiNative {
         return mWifiVendorHal.getWifiLinkLayerStats();
     }
 
-    public void setWifiLinkLayerStats(String iface, int enable) {
-        // TODO(b//36087365) Remove this. Link layer stats is enabled when the HAL is started.
-    }
-
     /**
      * Get the supported features
      *
@@ -1140,16 +1136,6 @@ public class WifiNative {
      */
     public boolean isGetChannelsForBandSupported() {
         return mWifiVendorHal.isGetChannelsForBandSupported();
-    }
-
-    /**
-     * Set DFS - actually, this is always on.
-     *
-     * @param dfsOn
-     * @return success indication
-     */
-    public boolean setDfsFlag(boolean dfsOn) {
-        return mWifiVendorHal.setDfsFlag(dfsOn);
     }
 
     /**
