@@ -30,6 +30,7 @@ import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiInfo;
 import android.os.SystemClock;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.util.LocalLog;
 import android.util.Pair;
 
 import com.android.internal.R;
@@ -58,8 +59,10 @@ public class WifiNetworkSelectorTest {
         setupResources();
         setupWifiConfigManager();
         setupWifiInfo();
+        mLocalLog = new LocalLog(512);
 
-        mWifiNetworkSelector = new WifiNetworkSelector(mContext, mWifiConfigManager, mClock);
+        mWifiNetworkSelector = new WifiNetworkSelector(mContext, mWifiConfigManager, mClock,
+                mLocalLog);
         mWifiNetworkSelector.registerNetworkEvaluator(mDummyEvaluator, 1);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
 
@@ -116,6 +119,7 @@ public class WifiNetworkSelectorTest {
     @Mock private Resources mResource;
     @Mock private WifiInfo mWifiInfo;
     @Mock private Clock mClock;
+    private LocalLog mLocalLog;
     private int mThresholdMinimumRssi2G;
     private int mThresholdMinimumRssi5G;
     private int mThresholdQualifiedRssi2G;

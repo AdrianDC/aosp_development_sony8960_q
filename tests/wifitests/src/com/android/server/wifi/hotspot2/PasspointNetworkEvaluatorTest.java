@@ -33,6 +33,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.hotspot2.pps.HomeSp;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.util.LocalLog;
 import android.util.Pair;
 
 import com.android.server.wifi.NetworkUpdateResult;
@@ -66,6 +67,7 @@ public class PasspointNetworkEvaluatorTest {
 
     @Mock PasspointManager mPasspointManager;
     @Mock WifiConfigManager mWifiConfigManager;
+    LocalLog mLocalLog;
     PasspointNetworkEvaluator mEvaluator;
 
     /**
@@ -122,7 +124,9 @@ public class PasspointNetworkEvaluatorTest {
     @Before
     public void setUp() throws Exception {
         initMocks(this);
-        mEvaluator = new PasspointNetworkEvaluator(mPasspointManager, mWifiConfigManager, null);
+        mLocalLog = new LocalLog(512);
+        mEvaluator = new PasspointNetworkEvaluator(mPasspointManager, mWifiConfigManager,
+                mLocalLog);
     }
 
     /**

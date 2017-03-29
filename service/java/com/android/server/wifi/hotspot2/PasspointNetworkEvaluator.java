@@ -172,8 +172,6 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
     }
 
     private void localLog(String log) {
-        if (mLocalLog != null) {
-            mLocalLog.log(log);
-        }
+        mLocalLog.log(log);
     }
 }
