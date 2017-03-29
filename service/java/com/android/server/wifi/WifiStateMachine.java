@@ -596,6 +596,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     int disconnectingWatchdogCount = 0;
     static final int DISCONNECTING_GUARD_TIMER_MSEC = 5000;
 
+    /* Disable p2p watchdog */
+    static final int CMD_DISABLE_P2P_WATCHDOG_TIMER                   = BASE + 112;
+
+    int mDisableP2pWatchdogCount = 0;
+    static final int DISABLE_P2P_GUARD_TIMER_MSEC = 2000;
+
     /* P2p commands */
     /* We are ok with no response here since we wont do much with it anyway */
     public static final int CMD_ENABLE_P2P                              = BASE + 131;
@@ -2615,6 +2621,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 sb.append(Integer.toString(msg.arg2));
                 sb.append(" cur=").append(disconnectingWatchdogCount);
                 break;
+            case CMD_DISABLE_P2P_WATCHDOG_TIMER:
+                sb.append(" ");
+                sb.append(Integer.toString(msg.arg1));
+                sb.append(" ");
+                sb.append(Integer.toString(msg.arg2));
+                sb.append(" cur=").append(mDisableP2pWatchdogCount);
+                break;
             case CMD_START_RSSI_MONITORING_OFFLOAD:
             case CMD_STOP_RSSI_MONITORING_OFFLOAD:
             case CMD_RSSI_THRESHOLD_BREACH:
@@ -4366,7 +4379,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mTransitionToState = mSupplicantStoppingState;
                     break;
             }
-            p2pSendMessage(WifiStateMachine.CMD_DISABLE_P2P_REQ);
+            if (p2pSendMessage(WifiStateMachine.CMD_DISABLE_P2P_REQ)) {
+                sendMessageDelayed(obtainMessage(CMD_DISABLE_P2P_WATCHDOG_TIMER,
+                        mDisableP2pWatchdogCount, 0), DISABLE_P2P_GUARD_TIMER_MSEC);
+            } else {
+                transitionTo(mTransitionToState);
+            }
         }
         @Override
         public boolean processMessage(Message message) {
@@ -4375,6 +4393,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             switch(message.what) {
                 case WifiStateMachine.CMD_DISABLE_P2P_RSP:
                     transitionTo(mTransitionToState);
+                    break;
+                case WifiStateMachine.CMD_DISABLE_P2P_WATCHDOG_TIMER:
+                    if (mDisableP2pWatchdogCount == message.arg1) {
+                        logd("Timeout waiting for CMD_DISABLE_P2P_RSP");
+                        transitionTo(mTransitionToState);
+                    }
                     break;
                 /* Defer wifi start/shut and driver commands */
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
@@ -6847,16 +6871,30 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return null;
     }
 
-    private void p2pSendMessage(int what) {
+    /**
+     * Send message to WifiP2pServiceImpl.
+     * @return true if message is sent.
+     *         false if there is no channel configured for WifiP2pServiceImpl.
+     */
+    private boolean p2pSendMessage(int what) {
         if (mWifiP2pChannel != null) {
             mWifiP2pChannel.sendMessage(what);
+            return true;
         }
+        return false;
     }
 
-    private void p2pSendMessage(int what, int arg1) {
+    /**
+     * Send message to WifiP2pServiceImpl with an additional param |arg1|.
+     * @return true if message is sent.
+     *         false if there is no channel configured for WifiP2pServiceImpl.
+     */
+    private boolean p2pSendMessage(int what, int arg1) {
         if (mWifiP2pChannel != null) {
             mWifiP2pChannel.sendMessage(what, arg1);
+            return true;
         }
+        return false;
     }
 
     /**
