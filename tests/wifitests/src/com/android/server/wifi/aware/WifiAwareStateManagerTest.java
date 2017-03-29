@@ -1035,7 +1035,6 @@ public class WifiAwareStateManagerTest {
         final String callingPackage = "com.google.somePackage";
         final String serviceName = "some-service-name";
         final String ssi = "some much longer and more arbitrary data";
-        final int subscribeCount = 7;
         final int reasonFail = NanStatusType.INTERNAL_FAILURE;
         final int subscribeId = 15;
         final int requestorId = 22;
@@ -1050,7 +1049,7 @@ public class WifiAwareStateManagerTest {
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(ssi.getBytes())
                 .setSubscribeType(SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE)
-                .setSubscribeCount(subscribeCount).build();
+                .build();
 
         IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
         IWifiAwareDiscoverySessionCallback mockSessionCallback = mock(
@@ -1909,7 +1908,6 @@ public class WifiAwareStateManagerTest {
         final String callingPackage = "com.google.somePackage";
         final String serviceName = "some-service-name";
         final String ssi = "some much longer and more arbitrary data";
-        final int subscribeCount = 7;
         final int subscribeId = 15;
         final int requestorId = 22;
         final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
@@ -1921,7 +1919,7 @@ public class WifiAwareStateManagerTest {
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
                 .setServiceSpecificInfo(ssi.getBytes())
                 .setSubscribeType(SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE)
-                .setSubscribeCount(subscribeCount).build();
+                .build();
 
         IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
         IWifiAwareDiscoverySessionCallback mockSessionCallback = mock(
@@ -2312,7 +2310,6 @@ public class WifiAwareStateManagerTest {
         final int masterPref = 111;
         final String serviceName = "some-service-name";
         final String ssi = "some much longer and more arbitrary data";
-        final int publishCount = 7;
         final int publishId = 22;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().setClusterLow(clusterLow)
@@ -2320,7 +2317,7 @@ public class WifiAwareStateManagerTest {
 
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(
                 serviceName).setServiceSpecificInfo(ssi.getBytes()).setPublishType(
-                PublishConfig.PUBLISH_TYPE_UNSOLICITED).setPublishCount(publishCount).build();
+                PublishConfig.PUBLISH_TYPE_UNSOLICITED).build();
 
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
@@ -2388,14 +2385,13 @@ public class WifiAwareStateManagerTest {
         final int masterPref = 234;
         final String serviceName = "some-service-name";
         final String ssi = "some much longer and more arbitrary data";
-        final int publishCount = 15;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().setClusterLow(clusterLow)
                 .setClusterHigh(clusterHigh).setMasterPreference(masterPref).build();
 
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName(
                 serviceName).setServiceSpecificInfo(ssi.getBytes()).setPublishType(
-                PublishConfig.PUBLISH_TYPE_UNSOLICITED).setPublishCount(publishCount).build();
+                PublishConfig.PUBLISH_TYPE_UNSOLICITED).build();
 
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
