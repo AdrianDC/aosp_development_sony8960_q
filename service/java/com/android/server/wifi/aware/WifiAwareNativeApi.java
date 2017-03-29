@@ -302,7 +302,7 @@ public class WifiAwareNativeApi {
         req.baseConfigs.sessionId = 0;
         req.baseConfigs.ttlSec = (short) publishConfig.mTtlSec;
         req.baseConfigs.discoveryWindowPeriod = 1;
-        req.baseConfigs.discoveryCount = (byte) publishConfig.mPublishCount;
+        req.baseConfigs.discoveryCount = 0;
         convertNativeByteArrayToArrayList(publishConfig.mServiceName, req.baseConfigs.serviceName);
         // TODO: what's the right value on publish?
         req.baseConfigs.discoveryMatchIndicator = NanMatchAlg.MATCH_ONCE;
@@ -364,7 +364,7 @@ public class WifiAwareNativeApi {
         req.baseConfigs.sessionId = 0;
         req.baseConfigs.ttlSec = (short) subscribeConfig.mTtlSec;
         req.baseConfigs.discoveryWindowPeriod = 1;
-        req.baseConfigs.discoveryCount = (byte) subscribeConfig.mSubscribeCount;
+        req.baseConfigs.discoveryCount = 0;
         convertNativeByteArrayToArrayList(subscribeConfig.mServiceName,
                 req.baseConfigs.serviceName);
         req.baseConfigs.discoveryMatchIndicator = subscribeConfig.mMatchStyle;
