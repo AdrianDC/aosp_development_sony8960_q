@@ -48,6 +48,7 @@ import android.util.Pair;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.IBatteryStats;
+import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.AsyncChannel;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
@@ -738,8 +739,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 return false;
             }
 
-            if (settings.hiddenNetworks != null) {
-                if (mActiveScanSettings.hiddenNetworks == null) {
+            if (!ArrayUtils.isEmpty(settings.hiddenNetworks)) {
+                if (ArrayUtils.isEmpty(mActiveScanSettings.hiddenNetworks)) {
                     return false;
                 }
                 List<WifiNative.HiddenNetwork> activeHiddenNetworks = new ArrayList<>();
