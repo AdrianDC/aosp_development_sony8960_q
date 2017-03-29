@@ -86,6 +86,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -1425,5 +1426,70 @@ public class WifiStateMachineTest {
                 .thenReturn(new NetworkUpdateResult(newNetworkId));
         when(mWifiConfigManager.enableNetwork(eq(newNetworkId), anyBoolean(), anyInt()))
                 .thenReturn(true);
+    }
+
+    /**
+     * Verifies that WifiInfo is cleared upon exiting and entering WifiInfo, and that it is not
+     * updated by SUPPLICAN_STATE_CHANGE_EVENTs in ScanModeState.
+     * This protects WifiStateMachine from  getting into a bad state where WifiInfo says wifi is
+     * already Connected or Connecting, (when it is in-fact Disconnected), so
+     * WifiConnectivityManager does not attempt any new Connections, freezing wifi.
+     */
+    @Test
+    public void testWifiInfoCleanedUpEnteringExitingConnectModeState() throws Exception {
+        InOrder inOrder = inOrder(mWifiConnectivityManager);
+        Log.i(TAG, mWsm.getCurrentState().getName());
+        String initialBSSID = "aa:bb:cc:dd:ee:ff";
+        WifiInfo wifiInfo = mWsm.getWifiInfo();
+        wifiInfo.setBSSID(initialBSSID);
+
+        // Set WSM to CONNECT_MODE and verify state, and wifi enabled in ConnectivityManager
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        startSupplicantAndDispatchMessages();
+        mWsm.setSupplicantRunning(true);
+        mLooper.dispatchAll();
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals(WifiManager.WIFI_STATE_ENABLED, mWsm.syncGetWifiState());
+        inOrder.verify(mWifiConnectivityManager).setWifiEnabled(eq(true));
+        assertNull(wifiInfo.getBSSID());
+
+        // Send a SUPPLICANT_STATE_CHANGE_EVENT, verify WifiInfo is updated
+        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
+                new StateChangeResult(0, sWifiSsid, sBSSID, SupplicantState.COMPLETED));
+        mLooper.dispatchAll();
+        assertEquals(sBSSID, wifiInfo.getBSSID());
+        assertEquals(SupplicantState.COMPLETED, wifiInfo.getSupplicantState());
+
+        // Set WSM to SCAN_ONLY_MODE, verify state and wifi disabled in ConnectivityManager, and
+        // WifiInfo is reset() and state set to DISCONNECTED
+        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
+        mLooper.dispatchAll();
+        assertEquals(WifiStateMachine.SCAN_ONLY_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("ScanModeState", getCurrentState().getName());
+        assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
+        inOrder.verify(mWifiConnectivityManager).setWifiEnabled(eq(false));
+        assertNull(wifiInfo.getBSSID());
+        assertEquals(SupplicantState.DISCONNECTED, wifiInfo.getSupplicantState());
+
+        // Send a SUPPLICANT_STATE_CHANGE_EVENT, verify WifiInfo is not updated
+        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
+                new StateChangeResult(0, sWifiSsid, sBSSID, SupplicantState.COMPLETED));
+        mLooper.dispatchAll();
+        assertNull(wifiInfo.getBSSID());
+        assertEquals(SupplicantState.DISCONNECTED, wifiInfo.getSupplicantState());
+
+        // Set the bssid to something, so we can verify it is cleared (just in case)
+        wifiInfo.setBSSID(initialBSSID);
+
+        // Set WSM to CONNECT_MODE and verify state, and wifi enabled in ConnectivityManager,
+        // and WifiInfo has been reset
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals(WifiManager.WIFI_STATE_ENABLED, mWsm.syncGetWifiState());
+        inOrder.verify(mWifiConnectivityManager).setWifiEnabled(eq(true));
+        assertEquals("DisconnectedState", getCurrentState().getName());
+        assertEquals(SupplicantState.DISCONNECTED, wifiInfo.getSupplicantState());
+        assertNull(wifiInfo.getBSSID());
     }
 }
