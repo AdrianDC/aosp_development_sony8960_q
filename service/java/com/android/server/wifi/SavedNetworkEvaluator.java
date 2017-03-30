@@ -49,8 +49,8 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
     private final int mBand5GHzAward;
     private final int mLastSelectionAward;
     private final int mSecurityAward;
-    private final int mNoInternetPenalty;
     private final int mThresholdSaturatedRssi24;
+    private final int mThresholdSaturatedRssi5;
     private final ContentObserver mContentObserver;
     private boolean mCurateSavedOpenNetworks;
 
@@ -78,9 +78,8 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
                 R.integer.config_wifi_framework_5GHz_preference_boost_factor);
         mThresholdSaturatedRssi24 = context.getResources().getInteger(
                 R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_24GHz);
-        mNoInternetPenalty = (mThresholdSaturatedRssi24 + mRssiScoreOffset)
-                * mRssiScoreSlope + mBand5GHzAward + mSameNetworkAward
-                + mSameBssidAward + mSecurityAward;
+        mThresholdSaturatedRssi5 = context.getResources().getInteger(
+                R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_5GHz);
         mContentObserver = new ContentObserver(new Handler(looper)) {
             @Override
             public void onChange(boolean selfChange) {
@@ -155,8 +154,8 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
                 sbuf.append(status.getDisableReasonCounter(index)).append(" ");
             }
             sbuf.append("Connect Choice: ").append(status.getConnectChoice())
-                .append(" set time: ").append(status.getConnectChoiceTimestamp())
-                .append("\n");
+                    .append(" set time: ").append(status.getConnectChoiceTimestamp())
+                    .append("\n");
         }
         localLog(sbuf.toString());
     }
@@ -172,19 +171,20 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
                         WifiConfiguration currentNetwork, String currentBssid,
                         StringBuffer sbuf) {
         int score = 0;
+        boolean is5GHz = scanResult.is5GHz();
 
         sbuf.append("[ ").append(scanResult).append("] ");
         // Calculate the RSSI score.
-        int rssi = scanResult.level <= mThresholdSaturatedRssi24
-                ? scanResult.level : mThresholdSaturatedRssi24;
+        int rssiSaturationThreshold = is5GHz ? mThresholdSaturatedRssi5 : mThresholdSaturatedRssi24;
+        int rssi = scanResult.level < rssiSaturationThreshold ? scanResult.level
+                : rssiSaturationThreshold;
         score += (rssi + mRssiScoreOffset) * mRssiScoreSlope;
         sbuf.append(" RSSI score: ").append(score).append(",");
 
         // 5GHz band bonus.
-        if (scanResult.is5GHz()) {
+        if (is5GHz) {
             score += mBand5GHzAward;
-            sbuf.append(" 5GHz bonus: ").append(mBand5GHzAward)
-                .append(",");
+            sbuf.append(" 5GHz bonus: ").append(mBand5GHzAward).append(",");
         }
 
         // Last user selection award.
@@ -230,12 +230,6 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
         if (!WifiConfigurationUtil.isConfigForOpenNetwork(network)) {
             score += mSecurityAward;
             sbuf.append(" Secure network bonus: ").append(mSecurityAward).append(",");
-        }
-
-        // No internet penalty.
-        if (network.numNoInternetAccessReports > 0 && !network.validatedInternetAccess) {
-            score -= mNoInternetPenalty;
-            sbuf.append(" No internet penalty: -").append(mNoInternetPenalty).append(",");
         }
 
         sbuf.append(" ## Total score: ").append(score).append("\n");

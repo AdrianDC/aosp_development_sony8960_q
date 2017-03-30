@@ -126,10 +126,10 @@ public class SavedNetworkEvaluatorTest {
     private void setupResource() {
         when(mResource.getInteger(
                 R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_5GHz))
-                .thenReturn(-70);
+                .thenReturn(-57);
         when(mResource.getInteger(
                 R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_24GHz))
-                .thenReturn(-73);
+                .thenReturn(-60);
         when(mResource.getInteger(
                 R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_5GHz))
                 .thenReturn(-70);
@@ -497,6 +497,89 @@ public class SavedNetworkEvaluatorTest {
         candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
                 savedConfigs[0], bssids[0], true, false, null);
         // Verify that BSSID_1 is chosen.
+        chosenScanResult = scanDetails.get(1).getScanResult();
+        WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[1], candidate);
+        WifiNetworkSelectorTestUtil.verifySelectedScanResult(mWifiConfigManager,
+                chosenScanResult, candidate);
+    }
+
+    /**
+     * One 2.4GHz network and one 5GHz network have the same security type. Perform
+     * the following tests to verify that once across the RSSI saturation threshold
+     * stronger RSSI value doesn't increase network score.
+     *
+     * 1) Both 2.4GHz network and 5GHz network have the same RSSI value,
+     *    mThresholdQualifiedRssi2G, which is below the saturation threshold. 5GHz
+     *    network is chosen because of the 5G band award.
+     * 2) Bump up 2.4GHz network RSSI 20dBm higher. Verify that it helps the 2.4GHz network
+     *    score and it gets chosen over the 5GHz network.
+     * 3) Bring both 2.4GHz network and 5GHz network RSSI value to mThresholdSaturatedRssi2G.
+     *    Verify that 5GHz network is chosen because of the 5G band award.
+     * 4) Bump up 2.4GHz network RSSI to be 20dBm higher than mThresholdSaturatedRssi2G.
+     *    Verify that the incresed RSSI doesn't help 2.4GHz network score and 5GHz network
+     *    is still chosen.
+     */
+    @Test
+    public void saturatedRssiAddsNoWeightToNetwork() {
+        String[] ssids = {"\"test1\"", "\"test2\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] freqs = {2437, 5400};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
+        int[] securities = {SECURITY_PSK, SECURITY_PSK};
+
+        // 1) The RSSI of both networks is mThresholdQualifiedRssi2G
+        int[] levels = {mThresholdQualifiedRssi2G, mThresholdQualifiedRssi2G};
+        ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
+                WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
+                    freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
+        WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
+        WifiConfiguration candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
+                null, null, false, false, null);
+        // Verify that 5GHz network is chosen because of 5G band award
+        ScanResult chosenScanResult = scanDetails.get(1).getScanResult();
+        WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[1], candidate);
+        WifiNetworkSelectorTestUtil.verifySelectedScanResult(mWifiConfigManager,
+                chosenScanResult, candidate);
+
+        // 2) Bump up 2.4GHz network RSSI by 20dBm.
+        levels[0] = mThresholdQualifiedRssi2G + 20;
+        scanDetailsAndConfigs = WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids,
+                bssids, freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        scanDetails = scanDetailsAndConfigs.getScanDetails();
+        savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
+        candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails, null, null, false,
+                false, null);
+        // Verify that 2.4GHz network is chosen because of much higher RSSI value
+        chosenScanResult = scanDetails.get(0).getScanResult();
+        WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[0], candidate);
+        WifiNetworkSelectorTestUtil.verifySelectedScanResult(mWifiConfigManager,
+                chosenScanResult, candidate);
+
+        // 3) Bring both 2.4GHz network and 5GHz network RSSI to mThresholdSaturatedRssi2G
+        levels[0] = levels[1] = mThresholdSaturatedRssi2G;
+        scanDetailsAndConfigs = WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids,
+                bssids, freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        scanDetails = scanDetailsAndConfigs.getScanDetails();
+        savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
+        candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails, null, null, false,
+                false, null);
+        // Verify that 5GHz network is chosen because of 5G band award
+        chosenScanResult = scanDetails.get(1).getScanResult();
+        WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[1], candidate);
+        WifiNetworkSelectorTestUtil.verifySelectedScanResult(mWifiConfigManager,
+                chosenScanResult, candidate);
+
+        // 4) Bump 2.4GHz network RSSI to be 20dBm higher than mThresholdSaturatedRssi2G
+        levels[0] = mThresholdSaturatedRssi2G + 20;
+        scanDetailsAndConfigs = WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids,
+                bssids, freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        scanDetails = scanDetailsAndConfigs.getScanDetails();
+        savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
+        candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails, null, null, false,
+                false, null);
+        // Verify that the increased RSSI doesn't help 2.4GHz network and 5GHz network
+        // is still chosen
         chosenScanResult = scanDetails.get(1).getScanResult();
         WifiConfigurationTestUtil.assertConfigurationEqual(savedConfigs[1], candidate);
         WifiNetworkSelectorTestUtil.verifySelectedScanResult(mWifiConfigManager,
