@@ -114,7 +114,7 @@ public class WifiStateMachinePrimeTest {
                 }).when(mWifiInjector).makeSoftApManager(any(INetworkManagementService.class),
                                                          any(SoftApManager.Listener.class),
                                                          any(IApInterface.class),
-                                                         any(WifiConfiguration.class));
+                                                         any());
         mWifiStateMachinePrime.enterSoftAPMode(wifiConfig);
         mLooper.dispatchAll();
         Log.e("WifiStateMachinePrimeTest", "check fromState: " + fromState);
@@ -143,7 +143,6 @@ public class WifiStateMachinePrimeTest {
      * Test that WifiStateMachinePrime properly enters the SoftApModeActiveState from the
      * WifiDisabled state.
      */
-    @DisabledForUpdateToAnyMatcher
     @Test
     public void testEnterSoftApModeFromDisabled() throws Exception {
         enterSoftApActiveMode();
@@ -154,7 +153,6 @@ public class WifiStateMachinePrimeTest {
      * Expectations: When going from one state to another, any interfaces that are still up are torn
      * down.
      */
-    @DisabledForUpdateToAnyMatcher
     @Test
     public void testEnterSoftApModeFromDifferentState() throws Exception {
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
@@ -167,7 +165,6 @@ public class WifiStateMachinePrimeTest {
     /**
      * Test that we can disable wifi fully from the SoftApModeActiveState.
      */
-    @DisabledForUpdateToAnyMatcher
     @Test
     public void testDisableWifiFromSoftApModeActiveState() throws Exception {
         enterSoftApActiveMode();
@@ -201,7 +198,6 @@ public class WifiStateMachinePrimeTest {
      * Expectation: When switching out of SoftApModeActiveState we stop the SoftApManager and tear
      * down existing interfaces.
      */
-    @DisabledForUpdateToAnyMatcher
     @Test
     public void testSwitchModeWhenSoftApActiveMode() throws Exception {
         enterSoftApActiveMode();
@@ -247,7 +243,6 @@ public class WifiStateMachinePrimeTest {
      * Expectations: We should exit the current SoftApModeState and re-enter before successfully
      * entering the SoftApModeActiveState.
      */
-    @DisabledForUpdateToAnyMatcher
     @Test
     public void testEnterSoftApModeActiveWhenAlreadyInSoftApMode() throws Exception {
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
@@ -264,7 +259,6 @@ public class WifiStateMachinePrimeTest {
      * SoftApModeActiveState.
      * Expectations: We should exit the SoftApModeActiveState and stop the SoftApManager.
      */
-    @DisabledForUpdateToAnyMatcher
     @Test
     public void testSoftApFailureWhenActive() throws Exception {
         enterSoftApActiveMode();
@@ -280,7 +274,6 @@ public class WifiStateMachinePrimeTest {
      * SoftApModeActiveState.
      * Expectations: We should exit the SoftApModeActiveState and stop the SoftApManager.
      */
-    @DisabledForUpdateToAnyMatcher
     @Test
     public void testSoftApDisabledWhenActive() throws Exception {
         enterSoftApActiveMode();
@@ -312,7 +305,6 @@ public class WifiStateMachinePrimeTest {
      *
      * Expectations: WifiInjector should be called with a null config.
      */
-    @DisabledForUpdateToAnyMatcher
     @Test
     public void testNullConfigIsPassedToWifiInjector() throws Exception {
         enterSoftApActiveMode(null);
