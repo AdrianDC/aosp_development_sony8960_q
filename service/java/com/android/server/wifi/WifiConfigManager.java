@@ -998,6 +998,10 @@ public class WifiConfigManager {
             Log.e(TAG, "Cannot add/update network with null config");
             return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
         }
+        if (mPendingStoreRead) {
+            Log.e(TAG, "Cannot add/update network before store is read!");
+            return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
+        }
         NetworkUpdateResult result = addOrUpdateNetworkInternal(config, uid);
         if (!result.isSuccess()) {
             Log.e(TAG, "Failed to add/update network " + config.getPrintableSsid());
