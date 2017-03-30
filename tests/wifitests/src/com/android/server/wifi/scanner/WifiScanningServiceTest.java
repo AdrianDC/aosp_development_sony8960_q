@@ -355,8 +355,6 @@ public class WifiScanningServiceTest {
                             capabilities.max_ap_cache_per_scan = MAX_AP_PER_SCAN;
                             capabilities.max_rssi_sample_size = 8;
                             capabilities.max_scan_reporting_threshold = 10;
-                            capabilities.max_hotlist_bssids = 0;
-                            capabilities.max_significant_wifi_change_aps = 0;
                             return true;
                         }
                     });
