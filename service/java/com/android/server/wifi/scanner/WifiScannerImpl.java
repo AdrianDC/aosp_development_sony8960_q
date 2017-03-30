@@ -158,26 +158,4 @@ public abstract class WifiScannerImpl {
      * @return true if background scan needs to be started, false otherwise.
      */
     public abstract boolean shouldScheduleBackgroundScanForHwPno();
-
-    /**
-     * Set a new hotlist
-     */
-    public abstract boolean setHotlist(WifiScanner.HotlistSettings settings,
-            WifiNative.HotlistEventHandler eventHandler);
-
-    /**
-     * Reset any active hotlist
-     */
-    public abstract void resetHotlist();
-
-    /**
-     * Start tracking significant wifi changes
-     */
-    public abstract boolean trackSignificantWifiChange(WifiScanner.WifiChangeSettings settings,
-            WifiNative.SignificantWifiChangeEventHandler handler);
-
-    /**
-     * Stop tracking significant wifi changes
-     */
-    public abstract void untrackSignificantWifiChange();
 }
