@@ -27,6 +27,7 @@ import android.net.wifi.aware.IWifiAwareEventCallback;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
 import android.net.wifi.aware.WifiAwareManager;
+import android.net.wifi.aware.WifiAwareNetworkSpecifier;
 import android.os.Bundle;
 import android.os.Looper;
 import android.os.Message;
@@ -465,8 +466,9 @@ public class WifiAwareStateManager {
     /**
      * Command to initiate a data-path (executed by the initiator).
      */
-    public void initiateDataPathSetup(String networkSpecifier, int peerId, int channelRequestType,
-            int channel, byte[] peer, String interfaceName, byte[] pmk, String passphrase) {
+    public void initiateDataPathSetup(WifiAwareNetworkSpecifier networkSpecifier, int peerId,
+            int channelRequestType, int channel, byte[] peer, String interfaceName, byte[] pmk,
+            String passphrase) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_INITIATE_DATA_PATH_SETUP;
         msg.obj = networkSpecifier;
@@ -636,8 +638,8 @@ public class WifiAwareStateManager {
     }
 
     /**
-     * Response from firmware to {@link #initiateDataPathSetup(String, int, int, int, byte[],
-     * String, byte[], String)}. Indicates that command has started succesfully (not completed!).
+     * Response from firmware to initiateDataPathSetup(...). Indicates that command has started
+     * succesfully (not completed!).
      */
     public void onInitiateDataPathResponseSuccess(short transactionId, int ndpId) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
@@ -648,8 +650,7 @@ public class WifiAwareStateManager {
     }
 
     /**
-     * Response from firmware to
-     * {@link #initiateDataPathSetup(String, int, int, int, byte[], String, byte[], String)}.
+     * Response from firmware to initiateDataPathSetup(...).
      * Indicates that command has failed.
      */
     public void onInitiateDataPathResponseFail(short transactionId, int reason) {
@@ -856,7 +857,8 @@ public class WifiAwareStateManager {
                 HAL_SEND_MESSAGE_TIMEOUT_TAG, MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT);
 
         private static final long AWARE_WAIT_FOR_DP_CONFIRM_TIMEOUT = 5_000;
-        private final Map<String, WakeupMessage> mDataPathConfirmTimeoutMessages = new ArrayMap<>();
+        private final Map<WifiAwareNetworkSpecifier, WakeupMessage>
+                mDataPathConfirmTimeoutMessages = new ArrayMap<>();
 
         WifiAwareStateMachine(String name, Looper looper) {
             super(name, looper);
@@ -889,7 +891,8 @@ public class WifiAwareStateManager {
                         processSendMessageTimeout();
                         return HANDLED;
                     case MESSAGE_TYPE_DATA_PATH_TIMEOUT: {
-                        String networkSpecifier = (String) msg.obj;
+                        WifiAwareNetworkSpecifier networkSpecifier =
+                                (WifiAwareNetworkSpecifier) msg.obj;
 
                         if (VDBG) {
                             Log.v(TAG, "MESSAGE_TYPE_DATA_PATH_TIMEOUT: networkSpecifier="
@@ -1127,8 +1130,8 @@ public class WifiAwareStateManager {
                     break;
                 }
                 case NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST: {
-                    String networkSpecifier = mDataPathMgr.onDataPathRequest(msg.arg2,
-                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS),
+                    WifiAwareNetworkSpecifier networkSpecifier = mDataPathMgr.onDataPathRequest(
+                            msg.arg2, msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS),
                             (int) msg.obj);
 
                     if (networkSpecifier != null) {
@@ -1143,8 +1146,8 @@ public class WifiAwareStateManager {
                     break;
                 }
                 case NOTIFICATION_TYPE_ON_DATA_PATH_CONFIRM: {
-                    String networkSpecifier = mDataPathMgr.onDataPathConfirm(msg.arg2,
-                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS),
+                    WifiAwareNetworkSpecifier networkSpecifier = mDataPathMgr.onDataPathConfirm(
+                            msg.arg2, msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS),
                             msg.getData().getBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG),
                             msg.getData().getInt(MESSAGE_BUNDLE_KEY_STATUS_CODE),
                             msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA));
@@ -1364,7 +1367,8 @@ public class WifiAwareStateManager {
                 case COMMAND_TYPE_INITIATE_DATA_PATH_SETUP: {
                     Bundle data = msg.getData();
 
-                    String networkSpecifier = (String) msg.obj;
+                    WifiAwareNetworkSpecifier networkSpecifier =
+                            (WifiAwareNetworkSpecifier) msg.obj;
 
                     int peerId = data.getInt(MESSAGE_BUNDLE_KEY_PEER_ID);
                     int channelRequestType = data.getInt(MESSAGE_BUNDLE_KEY_CHANNEL_REQ_TYPE);
@@ -2068,9 +2072,9 @@ public class WifiAwareStateManager {
         mRtt.startRanging(rangingId, client, params);
     }
 
-    private boolean initiateDataPathSetupLocal(short transactionId, String networkSpecifier,
-            int peerId, int channelRequestType, int channel, byte[] peer, String interfaceName,
-            byte[] pmk, String passphrase) {
+    private boolean initiateDataPathSetupLocal(short transactionId,
+            WifiAwareNetworkSpecifier networkSpecifier, int peerId, int channelRequestType,
+            int channel, byte[] peer, String interfaceName, byte[] pmk, String passphrase) {
         if (VDBG) {
             Log.v(TAG,
                     "initiateDataPathSetupLocal(): transactionId=" + transactionId
@@ -2412,7 +2416,7 @@ public class WifiAwareStateManager {
                     + ndpId);
         }
 
-        mDataPathMgr.onDataPathInitiateSuccess((String) command.obj, ndpId);
+        mDataPathMgr.onDataPathInitiateSuccess((WifiAwareNetworkSpecifier) command.obj, ndpId);
     }
 
     private void onInitiateDataPathResponseFailLocal(Message command, int reason) {
@@ -2421,7 +2425,7 @@ public class WifiAwareStateManager {
                     + reason);
         }
 
-        mDataPathMgr.onDataPathInitiateFail((String) command.obj, reason);
+        mDataPathMgr.onDataPathInitiateFail((WifiAwareNetworkSpecifier) command.obj, reason);
     }
 
     private void onRespondToDataPathSetupRequestResponseLocal(Message command, boolean success,

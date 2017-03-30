@@ -37,7 +37,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.NetworkFactory;
 import android.net.NetworkRequest;
-import android.net.StringNetworkSpecifier;
+import android.net.NetworkSpecifier;
 import android.net.wifi.aware.AttachCallback;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.DiscoverySession;
@@ -51,6 +51,7 @@ import android.net.wifi.aware.PublishDiscoverySession;
 import android.net.wifi.aware.SubscribeConfig;
 import android.net.wifi.aware.SubscribeDiscoverySession;
 import android.net.wifi.aware.WifiAwareManager;
+import android.net.wifi.aware.WifiAwareNetworkSpecifier;
 import android.net.wifi.aware.WifiAwareSession;
 import android.os.Handler;
 import android.os.INetworkManagementService;
@@ -64,7 +65,6 @@ import com.android.internal.util.AsyncChannel;
 
 import libcore.util.HexEncoding;
 
-import org.json.JSONObject;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -418,12 +418,19 @@ public class WifiAwareDataPathStateManagerTest {
                 doPublish);
 
         // corrupt the network specifier: reverse the role (so it's mis-matched)
-        JSONObject jsonObject = new JSONObject(
-                ((StringNetworkSpecifier) nr.networkCapabilities.getNetworkSpecifier()).specifier);
-        jsonObject.put(WifiAwareManager.NETWORK_SPECIFIER_KEY_ROLE,
-                1 - jsonObject.getInt(WifiAwareManager.NETWORK_SPECIFIER_KEY_ROLE));
-        nr.networkCapabilities.setNetworkSpecifier(
-                new StringNetworkSpecifier(jsonObject.toString()));
+        WifiAwareNetworkSpecifier ns =
+                (WifiAwareNetworkSpecifier) nr.networkCapabilities.getNetworkSpecifier();
+        ns = new WifiAwareNetworkSpecifier(
+                ns.type,
+                1 - ns.role, // corruption hack
+                ns.clientId,
+                ns.sessionId,
+                ns.peerId,
+                ns.peerMac,
+                ns.pmk,
+                ns.passphrase
+                );
+        nr.networkCapabilities.setNetworkSpecifier(ns);
 
         Message reqNetworkMsg = Message.obtain();
         reqNetworkMsg.what = NetworkFactory.CMD_REQUEST_NETWORK;
@@ -682,7 +689,7 @@ public class WifiAwareDataPathStateManagerTest {
                     (SubscribeDiscoverySession) discoverySession.capture());
         }
 
-        String ns;
+        NetworkSpecifier ns;
         if (pmk == null) {
             ns = discoverySession.getValue().createNetworkSpecifierOpen(peerHandle);
         } else {
@@ -694,7 +701,7 @@ public class WifiAwareDataPathStateManagerTest {
         nc.addTransportType(NetworkCapabilities.TRANSPORT_WIFI_AWARE);
         nc.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN).addCapability(
                 NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
-        nc.setNetworkSpecifier(new StringNetworkSpecifier(ns));
+        nc.setNetworkSpecifier(ns);
         nc.setLinkUpstreamBandwidthKbps(1);
         nc.setLinkDownstreamBandwidthKbps(1);
         nc.setSignalStrength(1);
@@ -721,7 +728,7 @@ public class WifiAwareDataPathStateManagerTest {
         mMockLooper.dispatchAll();
         verify(mockCallback).onAttached(sessionCaptor.capture());
 
-        String ns;
+        NetworkSpecifier ns;
         if (pmk == null) {
             ns = sessionCaptor.getValue().createNetworkSpecifierOpen(role, peer);
         } else {
@@ -732,7 +739,7 @@ public class WifiAwareDataPathStateManagerTest {
         nc.addTransportType(NetworkCapabilities.TRANSPORT_WIFI_AWARE);
         nc.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN).addCapability(
                 NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
-        nc.setNetworkSpecifier(new StringNetworkSpecifier(ns));
+        nc.setNetworkSpecifier(ns);
         nc.setLinkUpstreamBandwidthKbps(1);
         nc.setLinkDownstreamBandwidthKbps(1);
         nc.setSignalStrength(1);
