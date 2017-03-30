@@ -5172,6 +5172,20 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // TODO(b/31065385): Passpoint config management.
                     replyToMessage(message, message.what, 0);
                     break;
+                case CMD_ADD_OR_UPDATE_PASSPOINT_CONFIG:
+                    PasspointConfiguration passpointConfig = (PasspointConfiguration) message.obj;
+                    if (mPasspointManager.addOrUpdateProvider(passpointConfig)) {
+                        String fqdn = passpointConfig.getHomeSp().getFqdn();
+                        if (isProviderOwnedNetwork(mTargetNetworkId, fqdn)
+                                || isProviderOwnedNetwork(mLastNetworkId, fqdn)) {
+                            logd("Disconnect from current network since its provider is updated");
+                            sendMessage(CMD_DISCONNECT);
+                        }
+                        replyToMessage(message, message.what, SUCCESS);
+                    } else {
+                        replyToMessage(message, message.what, FAILURE);
+                    }
+                    break;
                 case CMD_REMOVE_PASSPOINT_CONFIG:
                     String fqdn = (String) message.obj;
                     if (mPasspointManager.removeProvider(fqdn)) {

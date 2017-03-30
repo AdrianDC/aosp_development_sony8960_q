@@ -1166,20 +1166,31 @@ public class WifiStateMachineTest {
      */
     @Test
     public void syncAddOrUpdatePasspointConfig() throws Exception {
-        when(mPasspointManager.addOrUpdateProvider(any(PasspointConfiguration.class)))
-                .thenReturn(true);
+        PasspointConfiguration config = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setFqdn("test.com");
+        config.setHomeSp(homeSp);
+
+        when(mPasspointManager.addOrUpdateProvider(config)).thenReturn(true);
         mLooper.startAutoDispatch();
-        assertTrue(mWsm.syncAddOrUpdatePasspointConfig(mWsmAsyncChannel,
-                new PasspointConfiguration()));
+        assertTrue(mWsm.syncAddOrUpdatePasspointConfig(mWsmAsyncChannel, config));
         mLooper.stopAutoDispatch();
         reset(mPasspointManager);
 
-        when(mPasspointManager.addOrUpdateProvider(any(PasspointConfiguration.class)))
-                .thenReturn(false);
+        when(mPasspointManager.addOrUpdateProvider(config)).thenReturn(false);
         mLooper.startAutoDispatch();
-        assertFalse(mWsm.syncAddOrUpdatePasspointConfig(mWsmAsyncChannel,
-                new PasspointConfiguration()));
+        assertFalse(mWsm.syncAddOrUpdatePasspointConfig(mWsmAsyncChannel, config));
         mLooper.stopAutoDispatch();
+    }
+
+    /**
+     * Verify that syncAddOrUpdatePasspointConfig will redirect calls to {@link PasspointManager}
+     * and returning the result that's returned from {@link PasspointManager} when in client mode.
+     */
+    @Test
+    public void syncAddOrUpdatePasspointConfigInClientMode() throws Exception {
+        loadComponentsInStaMode();
+        syncAddOrUpdatePasspointConfig();
     }
 
     /**
