@@ -661,7 +661,8 @@ public class WifiConnectivityManager {
 
         if (currentConnectedNetwork != null
                 && (currentConnectedNetwork.networkId == candidate.networkId
-                || currentConnectedNetwork.isLinked(candidate))) {
+                //TODO(b/36788683): re-enable linked configuration check
+                /* || currentConnectedNetwork.isLinked(candidate) */)) {
             // Framework initiates roaming only if firmware doesn't support
             // {@link android.net.wifi.WifiManager#WIFI_FEATURE_CONTROL_ROAMING}.
             if (mConnectivityHelper.isFirmwareRoamingSupported()) {
