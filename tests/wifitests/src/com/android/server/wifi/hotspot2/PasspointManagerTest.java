@@ -691,6 +691,7 @@ public class PasspointManagerTest {
         when(provider.getWifiConfig()).thenReturn(new WifiConfiguration());
         WifiConfiguration config = mManager.getMatchingWifiConfig(createTestScanResult());
         assertEquals(ScanResultUtil.createQuotedSSID(TEST_SSID), config.SSID);
+        assertTrue(config.isHomeProviderNetwork);
     }
 
     /**
@@ -709,6 +710,7 @@ public class PasspointManagerTest {
         when(provider.getWifiConfig()).thenReturn(new WifiConfiguration());
         WifiConfiguration config = mManager.getMatchingWifiConfig(createTestScanResult());
         assertEquals(ScanResultUtil.createQuotedSSID(TEST_SSID), config.SSID);
+        assertFalse(config.isHomeProviderNetwork);
     }
 
     /**
