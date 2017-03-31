@@ -43,6 +43,7 @@ import android.hidl.manager.V1_0.IServiceNotification;
 import android.net.IpConfiguration;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiManager;
 import android.net.wifi.WifiSsid;
 import android.os.HwRemoteBinder;
 import android.os.RemoteException;
@@ -1919,7 +1920,7 @@ public class SupplicantStaIfaceHal {
                 if (mStateIsFourway
                         && (!locallyGenerated || reasonCode != WLAN_REASON_IE_IN_4WAY_DIFFERS)) {
                     mWifiMonitor.broadcastAuthenticationFailureEvent(
-                            mIfaceName, WifiMonitor.AUTHENTICATION_FAILURE_REASON_WRONG_PSWD);
+                            mIfaceName, WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD);
                 }
                 mWifiMonitor.broadcastNetworkDisconnectionEvent(
                         mIfaceName, locallyGenerated ? 1 : 0, reasonCode,
@@ -1941,7 +1942,7 @@ public class SupplicantStaIfaceHal {
             logCallback("onAuthenticationTimeout");
             synchronized (mLock) {
                 mWifiMonitor.broadcastAuthenticationFailureEvent(
-                        mIfaceName, WifiMonitor.AUTHENTICATION_FAILURE_REASON_TIMEOUT);
+                        mIfaceName, WifiManager.ERROR_AUTH_FAILURE_TIMEOUT);
             }
         }
 
@@ -1964,7 +1965,7 @@ public class SupplicantStaIfaceHal {
             logCallback("onEapFailure");
             synchronized (mLock) {
                 mWifiMonitor.broadcastAuthenticationFailureEvent(
-                        mIfaceName, WifiMonitor.AUTHENTICATION_FAILURE_REASON_EAP_FAILURE);
+                        mIfaceName, WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE);
             }
         }
 
