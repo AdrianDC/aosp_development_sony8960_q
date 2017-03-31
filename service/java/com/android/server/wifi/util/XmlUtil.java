@@ -59,6 +59,10 @@ import java.util.HashMap;
  *   </Sub Section 1 Header>
  *  </Section 1 Header>
  * </Document Header>
+ *
+ * Note: These utility methods are meant to be used for:
+ * 1. Backup/restore wifi network data to/from cloud.
+ * 2. Persisting wifi network data to/from disk.
  */
 public class XmlUtil {
     private static final String TAG = "WifiXmlUtil";
@@ -555,7 +559,13 @@ public class XmlUtil {
                         configuration.shared = (boolean) value;
                         break;
                     case XML_TAG_STATUS:
-                        configuration.status = (int) value;
+                        int status = (int) value;
+                        // Any network which was CURRENT before reboot needs
+                        // to be restored to ENABLED.
+                        if (status == WifiConfiguration.Status.CURRENT) {
+                            status = WifiConfiguration.Status.ENABLED;
+                        }
+                        configuration.status = status;
                         break;
                     case XML_TAG_FQDN:
                         configuration.FQDN = (String) value;

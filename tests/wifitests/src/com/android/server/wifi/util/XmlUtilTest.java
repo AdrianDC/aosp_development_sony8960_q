@@ -212,6 +212,21 @@ public class XmlUtilTest {
     }
 
     /**
+     * Verify that a WifiConfiguration with status as CURRENT when serializing
+     * is deserialized as ENABLED.
+     */
+    @Test
+    public void testCurrentStatusConfigurationSerializeDeserializeForConfigStore()
+            throws IOException, XmlPullParserException {
+        WifiConfiguration configuration = WifiConfigurationTestUtil.createEapNetwork();
+        configuration.status = WifiConfiguration.Status.CURRENT;
+        byte[] xmlData = serializeWifiConfigurationForConfigStore(configuration);
+        Pair<String, WifiConfiguration> deserializedConfiguration =
+                deserializeWifiConfiguration(xmlData);
+        assertEquals(WifiConfiguration.Status.ENABLED, deserializedConfiguration.second.status);
+    }
+
+    /**
      * Verify that an enabled network selection status object is serialized & deserialized
      * correctly.
      */
