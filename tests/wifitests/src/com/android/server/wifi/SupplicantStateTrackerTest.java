@@ -52,7 +52,6 @@ public class SupplicantStateTrackerTest {
     private SupplicantStateTracker mSupplicantStateTracker;
     private TestLooper mLooper;
     private FrameworkFacade mFacade;
-    private BroadcastReceiver mWifiBroadcastReceiver;
 
     private FrameworkFacade getFrameworkFacade() {
         FrameworkFacade facade = mock(FrameworkFacade.class);
@@ -83,7 +82,7 @@ public class SupplicantStateTrackerTest {
      */
     @Test
     public void testSupplicantStateChangeIntent() {
-        mWifiBroadcastReceiver = new BroadcastReceiver() {
+        BroadcastReceiver wifiBroadcastReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getAction();
@@ -95,8 +94,91 @@ public class SupplicantStateTrackerTest {
         };
         IntentFilter mIntentFilter = new IntentFilter();
         mIntentFilter.addAction(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION);
-        mContext.registerReceiver(mWifiBroadcastReceiver, mIntentFilter);
+        mContext.registerReceiver(wifiBroadcastReceiver, mIntentFilter);
         mSupplicantStateTracker.sendMessage(getSupplicantStateChangeMessage(0, sWifiSsid,
                 sBSSID, SupplicantState.SCANNING));
+    }
+
+    /**
+     * This test verifies that the current auth status is sent in the Broadcast intent
+     */
+    @Test
+    public void testAuthPassInSupplicantStateChangeIntent() {
+        BroadcastReceiver wifiBroadcastReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                assertTrue(action.equals(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION));
+                SupplicantState recvdState =
+                        (SupplicantState) intent.getExtra(WifiManager.EXTRA_NEW_STATE, -1);
+                assertEquals(SupplicantState.AUTHENTICATING, recvdState);
+                boolean authStatus =
+                        (boolean) intent.getExtra(WifiManager.EXTRA_SUPPLICANT_ERROR, -1);
+                assertEquals(authStatus, true);
+            }
+        };
+        IntentFilter mIntentFilter = new IntentFilter();
+        mIntentFilter.addAction(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION);
+        mContext.registerReceiver(wifiBroadcastReceiver, mIntentFilter);
+        mSupplicantStateTracker.sendMessage(getSupplicantStateChangeMessage(0, sWifiSsid,
+                sBSSID, SupplicantState.AUTHENTICATING));
+        mSupplicantStateTracker.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT);
+    }
+
+    /**
+     * This test verifies that the current auth status is sent in the Broadcast intent
+     */
+    @Test
+    public void testAuthFailedInSupplicantStateChangeIntent() {
+        BroadcastReceiver wifiBroadcastReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                assertTrue(action.equals(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION));
+                SupplicantState recvdState =
+                        (SupplicantState) intent.getExtra(WifiManager.EXTRA_NEW_STATE, -1);
+                assertEquals(SupplicantState.AUTHENTICATING, recvdState);
+                boolean authStatus =
+                        (boolean) intent.getExtra(WifiManager.EXTRA_SUPPLICANT_ERROR, -1);
+                assertEquals(authStatus, false);
+            }
+        };
+        IntentFilter mIntentFilter = new IntentFilter();
+        mIntentFilter.addAction(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION);
+        mContext.registerReceiver(wifiBroadcastReceiver, mIntentFilter);
+        mSupplicantStateTracker.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT);
+        mSupplicantStateTracker.sendMessage(getSupplicantStateChangeMessage(0, sWifiSsid,
+                sBSSID, SupplicantState.AUTHENTICATING));
+    }
+
+    /**
+     * This test verifies the correct reasonCode for auth failure is sent in Broadcast
+     * intent.
+     */
+    @Test
+    public void testReasonCodeInSupplicantStateChangeIntent() {
+        BroadcastReceiver wifiBroadcastReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                assertTrue(action.equals(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION));
+                SupplicantState recvdState =
+                        (SupplicantState) intent.getExtra(WifiManager.EXTRA_NEW_STATE, -1);
+                assertEquals(SupplicantState.AUTHENTICATING, recvdState);
+                boolean authStatus =
+                        (boolean) intent.getExtra(WifiManager.EXTRA_SUPPLICANT_ERROR, -1);
+                assertEquals(authStatus, false);
+                int reasonCode = (int)
+                        intent.getExtra(WifiManager.EXTRA_SUPPLICANT_ERROR_REASON, -1);
+                assertEquals(reasonCode, WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD);
+            }
+        };
+        IntentFilter mIntentFilter = new IntentFilter();
+        mIntentFilter.addAction(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION);
+        mContext.registerReceiver(wifiBroadcastReceiver, mIntentFilter);
+        mSupplicantStateTracker.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT, 0,
+                WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD);
+        mSupplicantStateTracker.sendMessage(getSupplicantStateChangeMessage(0, sWifiSsid,
+                sBSSID, SupplicantState.AUTHENTICATING));
     }
 }

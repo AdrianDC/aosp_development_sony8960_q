@@ -96,15 +96,6 @@ public class WifiMonitor {
     /* hotspot 2.0 events */
     public static final int HS20_REMEDIATION_EVENT               = BASE + 61;
 
-    /**
-     * Authentication Failure reasonCode, used internally by WifiStateMachine
-     * @hide
-     */
-    public static final int AUTHENTICATION_FAILURE_REASON_DEFAULT = 0;
-    public static final int AUTHENTICATION_FAILURE_REASON_TIMEOUT = 1;
-    public static final int AUTHENTICATION_FAILURE_REASON_WRONG_PSWD = 2;
-    public static final int AUTHENTICATION_FAILURE_REASON_EAP_FAILURE = 3;
-
     /* WPS config errrors */
     private static final int CONFIG_MULTIPLE_PBC_DETECTED = 12;
     private static final int CONFIG_AUTH_FAILURE = 18;
@@ -480,7 +471,10 @@ public class WifiMonitor {
      *
      * @param iface Name of iface on which this occurred.
      * @param reason Reason for authentication failure. This has to be one of the
-     *               |AUTHENTICATION_FAILURE_REASON_*| reason codes.
+     *               {@link android.net.wifi.WifiManager#ERROR_AUTH_FAILURE_NONE},
+     *               {@link android.net.wifi.WifiManager#ERROR_AUTH_FAILURE_TIMEOUT},
+     *               {@link android.net.wifi.WifiManager#ERROR_AUTH_FAILURE_WRONG_PSWD},
+     *               {@link android.net.wifi.WifiManager#ERROR_AUTH_FAILURE_EAP_FAILURE}
      */
     public void broadcastAuthenticationFailureEvent(String iface, int reason) {
         sendMessage(iface, AUTHENTICATION_FAILURE_EVENT, 0, reason);
