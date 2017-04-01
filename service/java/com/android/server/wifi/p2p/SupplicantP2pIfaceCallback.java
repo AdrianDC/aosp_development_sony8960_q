@@ -16,8 +16,8 @@
 
 package com.android.server.wifi.p2p;
 
-import android.hardware.wifi.supplicant.V1_0.ISupplicantP2pIface;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantP2pIfaceCallback;
+import android.hardware.wifi.supplicant.V1_0.WpsConfigMethods;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pDevice;
@@ -385,7 +385,7 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
      */
     public void onProvisionDiscoveryCompleted(byte[] p2pDeviceAddress, boolean isRequest,
             byte status, short configMethods, String generatedPin) {
-        if (status != 0) {
+        if (status != ISupplicantP2pIfaceCallback.P2pProvDiscStatusCode.SUCCESS) {
             Log.e(TAG, "Provision discovery failed: " + status);
             mMonitor.broadcastP2pProvisionDiscoveryFailure(mInterface);
             return;
@@ -404,7 +404,7 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
             return;
         }
 
-        if ((configMethods & ISupplicantP2pIface.WpsProvisionMethod.PBC) != 0) {
+        if ((configMethods & WpsConfigMethods.PUSHBUTTON) != 0) {
             if (isRequest) {
                 event.event = WifiP2pProvDiscEvent.PBC_REQ;
                 mMonitor.broadcastP2pProvisionDiscoveryPbcRequest(mInterface, event);
@@ -412,11 +412,11 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
                 event.event = WifiP2pProvDiscEvent.PBC_RSP;
                 mMonitor.broadcastP2pProvisionDiscoveryPbcResponse(mInterface, event);
             }
-        } else if ((configMethods & ISupplicantP2pIface.WpsProvisionMethod.DISPLAY) != 0) {
+        } else if ((configMethods & WpsConfigMethods.DISPLAY) != 0) {
             event.event = WifiP2pProvDiscEvent.SHOW_PIN;
             event.pin = generatedPin;
             mMonitor.broadcastP2pProvisionDiscoveryShowPin(mInterface, event);
-        } else if ((configMethods & ISupplicantP2pIface.WpsProvisionMethod.KEYPAD) != 0) {
+        } else if ((configMethods & WpsConfigMethods.KEYPAD) != 0) {
             event.event = WifiP2pProvDiscEvent.ENTER_PIN;
             mMonitor.broadcastP2pProvisionDiscoveryEnterPin(mInterface, event);
         } else {
