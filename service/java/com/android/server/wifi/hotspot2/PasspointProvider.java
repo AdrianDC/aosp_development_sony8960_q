@@ -79,7 +79,6 @@ public class PasspointProvider {
     private String mClientCertificateAlias;
 
     private final long mProviderId;
-    private final int mCreatorUid;
 
     private final IMSIParameter mImsiParameter;
     private final List<String> mMatchingSIMImsiList;
@@ -88,18 +87,17 @@ public class PasspointProvider {
     private final AuthParam mAuthParam;
 
     public PasspointProvider(PasspointConfiguration config, WifiKeyStore keyStore,
-            SIMAccessor simAccessor, long providerId, int creatorUid) {
-        this(config, keyStore, simAccessor, providerId, creatorUid, null, null, null);
+            SIMAccessor simAccessor, long providerId) {
+        this(config, keyStore, simAccessor, providerId, null, null, null);
     }
 
     public PasspointProvider(PasspointConfiguration config, WifiKeyStore keyStore,
-            SIMAccessor simAccessor, long providerId, int creatorUid, String caCertificateAlias,
+            SIMAccessor simAccessor, long providerId, String caCertificateAlias,
             String clientCertificateAlias, String clientPrivateKeyAlias) {
         // Maintain a copy of the configuration to avoid it being updated by others.
         mConfig = new PasspointConfiguration(config);
         mKeyStore = keyStore;
         mProviderId = providerId;
-        mCreatorUid = creatorUid;
         mCaCertificateAlias = caCertificateAlias;
         mClientCertificateAlias = clientCertificateAlias;
         mClientPrivateKeyAlias = clientPrivateKeyAlias;
@@ -144,10 +142,6 @@ public class PasspointProvider {
 
     public long getProviderId() {
         return mProviderId;
-    }
-
-    public int getCreatorUid() {
-        return mCreatorUid;
     }
 
     /**
@@ -391,7 +385,6 @@ public class PasspointProvider {
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("ProviderId: ").append(mProviderId).append("\n");
-        builder.append("CreatorUID: ").append(mCreatorUid).append("\n");
         builder.append("Configuration Begin ---\n");
         builder.append(mConfig);
         builder.append("Configuration End ---\n");

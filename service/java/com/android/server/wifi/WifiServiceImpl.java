@@ -1114,8 +1114,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 com.android.internal.R.bool.config_wifi_hotspot2_enabled)) {
             throw new UnsupportedOperationException("Passpoint not enabled");
         }
-        return mWifiStateMachine.syncAddOrUpdatePasspointConfig(mWifiStateMachineChannel, config,
-                Binder.getCallingUid());
+        return mWifiStateMachine.syncAddOrUpdatePasspointConfig(mWifiStateMachineChannel, config);
     }
 
     /**

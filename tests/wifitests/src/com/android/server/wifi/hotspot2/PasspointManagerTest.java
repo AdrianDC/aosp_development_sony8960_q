@@ -103,7 +103,6 @@ public class PasspointManagerTest {
     private static final int TEST_ANQP_DOMAIN_ID = 0;
     private static final ANQPNetworkKey TEST_ANQP_KEY = ANQPNetworkKey.buildKey(
             TEST_SSID, TEST_BSSID, TEST_HESSID, TEST_ANQP_DOMAIN_ID);
-    private static final int TEST_CREATOR_UID = 1234;
 
     @Mock Context mContext;
     @Mock WifiNative mWifiNative;
@@ -244,8 +243,8 @@ public class PasspointManagerTest {
         PasspointConfiguration config = createTestConfigWithUserCredential();
         PasspointProvider provider = createMockProvider(config);
         when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
-                eq(mSimAccessor), anyLong(), eq(TEST_CREATOR_UID))).thenReturn(provider);
-        assertTrue(mManager.addOrUpdateProvider(config, TEST_CREATOR_UID));
+                eq(mSimAccessor), anyLong())).thenReturn(provider);
+        assertTrue(mManager.addOrUpdateProvider(config));
 
         return provider;
     }
@@ -395,7 +394,7 @@ public class PasspointManagerTest {
      */
     @Test
     public void addProviderWithNullConfig() throws Exception {
-        assertFalse(mManager.addOrUpdateProvider(null, TEST_CREATOR_UID));
+        assertFalse(mManager.addOrUpdateProvider(null));
     }
 
     /**
@@ -405,7 +404,7 @@ public class PasspointManagerTest {
      */
     @Test
     public void addProviderWithEmptyConfig() throws Exception {
-        assertFalse(mManager.addOrUpdateProvider(new PasspointConfiguration(), TEST_CREATOR_UID));
+        assertFalse(mManager.addOrUpdateProvider(new PasspointConfiguration()));
     }
 
     /**
@@ -419,7 +418,7 @@ public class PasspointManagerTest {
         PasspointConfiguration config = createTestConfigWithUserCredential();
         // EAP-TLS not allowed for user credential.
         config.getCredential().getUserCredential().setEapType(EAPConstants.EAP_TLS);
-        assertFalse(mManager.addOrUpdateProvider(config, TEST_CREATOR_UID));
+        assertFalse(mManager.addOrUpdateProvider(config));
     }
 
     /**
@@ -432,8 +431,8 @@ public class PasspointManagerTest {
         PasspointConfiguration config = createTestConfigWithUserCredential();
         PasspointProvider provider = createMockProvider(config);
         when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
-                eq(mSimAccessor), anyLong(), eq(TEST_CREATOR_UID))).thenReturn(provider);
-        assertTrue(mManager.addOrUpdateProvider(config, TEST_CREATOR_UID));
+                eq(mSimAccessor), anyLong())).thenReturn(provider);
+        assertTrue(mManager.addOrUpdateProvider(config));
         verifyInstalledConfig(config);
         verify(mWifiConfigManager).saveToStore(true);
         reset(mWifiConfigManager);
@@ -467,8 +466,8 @@ public class PasspointManagerTest {
         PasspointConfiguration config = createTestConfigWithSimCredential();
         PasspointProvider provider = createMockProvider(config);
         when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
-                eq(mSimAccessor), anyLong(), eq(TEST_CREATOR_UID))).thenReturn(provider);
-        assertTrue(mManager.addOrUpdateProvider(config, TEST_CREATOR_UID));
+                eq(mSimAccessor), anyLong())).thenReturn(provider);
+        assertTrue(mManager.addOrUpdateProvider(config));
         verifyInstalledConfig(config);
         verify(mWifiConfigManager).saveToStore(true);
         reset(mWifiConfigManager);
@@ -505,8 +504,8 @@ public class PasspointManagerTest {
         PasspointConfiguration origConfig = createTestConfigWithSimCredential();
         PasspointProvider origProvider = createMockProvider(origConfig);
         when(mObjectFactory.makePasspointProvider(eq(origConfig), eq(mWifiKeyStore),
-                eq(mSimAccessor), anyLong(), eq(TEST_CREATOR_UID))).thenReturn(origProvider);
-        assertTrue(mManager.addOrUpdateProvider(origConfig, TEST_CREATOR_UID));
+                eq(mSimAccessor), anyLong())).thenReturn(origProvider);
+        assertTrue(mManager.addOrUpdateProvider(origConfig));
         verifyInstalledConfig(origConfig);
         verify(mWifiConfigManager).saveToStore(true);
         reset(mWifiConfigManager);
@@ -522,8 +521,8 @@ public class PasspointManagerTest {
         PasspointConfiguration newConfig = createTestConfigWithUserCredential();
         PasspointProvider newProvider = createMockProvider(newConfig);
         when(mObjectFactory.makePasspointProvider(eq(newConfig), eq(mWifiKeyStore),
-                eq(mSimAccessor), anyLong(), eq(TEST_CREATOR_UID))).thenReturn(newProvider);
-        assertTrue(mManager.addOrUpdateProvider(newConfig, TEST_CREATOR_UID));
+                eq(mSimAccessor), anyLong())).thenReturn(newProvider);
+        assertTrue(mManager.addOrUpdateProvider(newConfig));
         verifyInstalledConfig(newConfig);
         verify(mWifiConfigManager).saveToStore(true);
 
@@ -546,8 +545,8 @@ public class PasspointManagerTest {
         PasspointProvider provider = mock(PasspointProvider.class);
         when(provider.installCertsAndKeys()).thenReturn(false);
         when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
-                eq(mSimAccessor), anyLong(), eq(TEST_CREATOR_UID))).thenReturn(provider);
-        assertFalse(mManager.addOrUpdateProvider(config, TEST_CREATOR_UID));
+                eq(mSimAccessor), anyLong())).thenReturn(provider);
+        assertFalse(mManager.addOrUpdateProvider(config));
     }
 
     /**
@@ -777,8 +776,8 @@ public class PasspointManagerTest {
         PasspointProvider provider = createMockProvider(config);
         // Verify the provider ID used to create the new provider.
         when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
-                eq(mSimAccessor), eq(providerIndex), eq(TEST_CREATOR_UID))).thenReturn(provider);
-        assertTrue(mManager.addOrUpdateProvider(config, TEST_CREATOR_UID));
+                eq(mSimAccessor), eq(providerIndex))).thenReturn(provider);
+        assertTrue(mManager.addOrUpdateProvider(config));
         verifyInstalledConfig(config);
         verify(mWifiConfigManager).saveToStore(true);
         reset(mWifiConfigManager);
