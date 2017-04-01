@@ -86,4 +86,13 @@ public class PasspointObjectFactory{
     public ANQPRequestManager makeANQPRequestManager(PasspointEventHandler handler, Clock clock) {
         return new ANQPRequestManager(handler, clock);
     }
+
+    /**
+     * Create an instance of {@link CertificateVerifier}.
+     *
+     * @return {@link CertificateVerifier}
+     */
+    public CertificateVerifier makeCertificateVerifier() {
+        return new CertificateVerifier();
+    }
 }
