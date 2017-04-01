@@ -1846,9 +1846,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * @return true on success
      */
     public boolean syncAddOrUpdatePasspointConfig(AsyncChannel channel,
-            PasspointConfiguration config, int uid) {
+            PasspointConfiguration config) {
         Message resultMsg = channel.sendMessageSynchronously(CMD_ADD_OR_UPDATE_PASSPOINT_CONFIG,
-                uid, 0, config);
+                config);
         boolean result = (resultMsg.arg1 == SUCCESS);
         resultMsg.recycle();
         return result;
@@ -3885,8 +3885,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_ADD_OR_UPDATE_PASSPOINT_CONFIG:
                     int addResult = mPasspointManager.addOrUpdateProvider(
-                            (PasspointConfiguration) message.obj, message.arg1)
-                            ? SUCCESS : FAILURE;
+                            (PasspointConfiguration) message.obj) ? SUCCESS : FAILURE;
                     replyToMessage(message, message.what, addResult);
                     break;
                 case CMD_REMOVE_PASSPOINT_CONFIG:

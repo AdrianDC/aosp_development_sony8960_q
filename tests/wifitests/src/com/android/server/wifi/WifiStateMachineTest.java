@@ -1199,19 +1199,19 @@ public class WifiStateMachineTest {
      */
     @Test
     public void syncAddOrUpdatePasspointConfig() throws Exception {
-        when(mPasspointManager.addOrUpdateProvider(any(PasspointConfiguration.class),
-                eq(MANAGED_PROFILE_UID))).thenReturn(true);
+        when(mPasspointManager.addOrUpdateProvider(any(PasspointConfiguration.class)))
+                .thenReturn(true);
         mLooper.startAutoDispatch();
         assertTrue(mWsm.syncAddOrUpdatePasspointConfig(mWsmAsyncChannel,
-                new PasspointConfiguration(), MANAGED_PROFILE_UID));
+                new PasspointConfiguration()));
         mLooper.stopAutoDispatch();
         reset(mPasspointManager);
 
-        when(mPasspointManager.addOrUpdateProvider(any(PasspointConfiguration.class),
-                eq(MANAGED_PROFILE_UID))).thenReturn(false);
+        when(mPasspointManager.addOrUpdateProvider(any(PasspointConfiguration.class)))
+                .thenReturn(false);
         mLooper.startAutoDispatch();
         assertFalse(mWsm.syncAddOrUpdatePasspointConfig(mWsmAsyncChannel,
-                new PasspointConfiguration(), MANAGED_PROFILE_UID));
+                new PasspointConfiguration()));
         mLooper.stopAutoDispatch();
     }
 
