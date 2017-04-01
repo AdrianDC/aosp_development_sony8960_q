@@ -93,6 +93,7 @@ public class PasspointManager {
     private final AnqpCache mAnqpCache;
     private final ANQPRequestManager mAnqpRequestManager;
     private final WifiConfigManager mWifiConfigManager;
+    private final CertificateVerifier mCertVerifier;
 
     // Counter used for assigning unique identifier to each provider.
     private long mProviderIndex;
@@ -199,6 +200,7 @@ public class PasspointManager {
         mProviders = new HashMap<>();
         mAnqpCache = objectFactory.makeAnqpCache(clock);
         mAnqpRequestManager = objectFactory.makeANQPRequestManager(mHandler, clock);
+        mCertVerifier = objectFactory.makeCertificateVerifier();
         mWifiConfigManager = wifiConfigManager;
         mProviderIndex = 0;
         wifiConfigStore.registerStoreData(objectFactory.makePasspointConfigStoreData(
@@ -224,6 +226,21 @@ public class PasspointManager {
         if (!config.validate()) {
             Log.e(TAG, "Invalid configuration");
             return false;
+        }
+
+        // For Hotspot 2.0 Release 1, the CA Certificate must be trusted by one of the pre-loaded
+        // public CAs in the system key store on the device.  Since the provisioning method
+        // for Release 1 is not standardized nor trusted,  this is a reasonable restriction
+        // to improve security.  The presence of UpdateIdentifier is used to differentiate
+        // between R1 and R2 configuration.
+        if (config.getUpdateIdentifier() == Integer.MIN_VALUE
+                && config.getCredential().getCaCertificate() != null) {
+            try {
+                mCertVerifier.verifyCaCert(config.getCredential().getCaCertificate());
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to verify CA certificate: " + e.getMessage());
+                return false;
+            }
         }
 
         // Create a provider and install the necessary certificates and keys.
