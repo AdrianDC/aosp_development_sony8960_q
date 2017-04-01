@@ -218,7 +218,7 @@ public class PasspointManager {
      * @param config Configuration of the Passpoint provider to be added
      * @return true if provider is added, false otherwise
      */
-    public boolean addOrUpdateProvider(PasspointConfiguration config, int uid) {
+    public boolean addOrUpdateProvider(PasspointConfiguration config) {
         if (config == null) {
             Log.e(TAG, "Configuration not provided");
             return false;
@@ -245,7 +245,7 @@ public class PasspointManager {
 
         // Create a provider and install the necessary certificates and keys.
         PasspointProvider newProvider = mObjectFactory.makePasspointProvider(
-                config, mKeyStore, mSimAccessor, mProviderIndex++, uid);
+                config, mKeyStore, mSimAccessor, mProviderIndex++);
 
         if (!newProvider.installCertsAndKeys()) {
             Log.e(TAG, "Failed to install certificates and keys to keystore");
@@ -261,8 +261,7 @@ public class PasspointManager {
 
         mProviders.put(config.getHomeSp().getFqdn(), newProvider);
         mWifiConfigManager.saveToStore(true /* forceWrite */);
-        Log.d(TAG, "Added/updated Passpoint configuration: " + config.getHomeSp().getFqdn()
-                + " by " + uid);
+        Log.d(TAG, "Added/updated Passpoint configuration: " + config.getHomeSp().getFqdn());
         return true;
     }
 
@@ -531,8 +530,7 @@ public class PasspointManager {
         // Note that for legacy configuration, the alias for client private key is the same as the
         // alias for the client certificate.
         PasspointProvider provider = new PasspointProvider(passpointConfig, mKeyStore,
-                mSimAccessor, mProviderIndex++, wifiConfig.creatorUid,
-                enterpriseConfig.getCaCertificateAlias(),
+                mSimAccessor, mProviderIndex++, enterpriseConfig.getCaCertificateAlias(),
                 enterpriseConfig.getClientCertificateAlias(),
                 enterpriseConfig.getClientCertificateAlias());
         mProviders.put(passpointConfig.getHomeSp().getFqdn(), provider);
