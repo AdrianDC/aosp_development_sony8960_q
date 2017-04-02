@@ -38,6 +38,9 @@ class SupplicantManager {
   // Returns true iff supplicant is still running.
   virtual bool IsSupplicantRunning();
 
+  // Returns true iff supplicant entropy file exists.
+  static bool EnsureEntropyFileExists();
+
  private:
   DISALLOW_COPY_AND_ASSIGN(SupplicantManager);
 };  // class SupplicantManager
