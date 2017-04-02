@@ -71,7 +71,8 @@ public class ANQPRequestManagerTest {
             Constants.ANQPElementType.ANQPDomName,
             Constants.ANQPElementType.HSFriendlyName,
             Constants.ANQPElementType.HSWANMetrics,
-            Constants.ANQPElementType.HSConnCapability);
+            Constants.ANQPElementType.HSConnCapability,
+            Constants.ANQPElementType.HSOSUProviders);
 
     private static final List<Constants.ANQPElementType> R1R2_ANQP_WITH_RC = Arrays.asList(
             Constants.ANQPElementType.ANQPVenueName,
@@ -82,7 +83,8 @@ public class ANQPRequestManagerTest {
             Constants.ANQPElementType.ANQPRoamingConsortium,
             Constants.ANQPElementType.HSFriendlyName,
             Constants.ANQPElementType.HSWANMetrics,
-            Constants.ANQPElementType.HSConnCapability);
+            Constants.ANQPElementType.HSConnCapability,
+            Constants.ANQPElementType.HSOSUProviders);
 
     @Mock PasspointEventHandler mHandler;
     @Mock Clock mClock;
