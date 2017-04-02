@@ -28,15 +28,6 @@
 #define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
 #include <sys/_system_properties.h>
 
-// Certain system (emulators) don't have wpa_supplicant installed at all.
-#ifdef LIBWPA_CLIENT_EXISTS
-#include <libwpa_client/wpa_ctrl.h>
-#else
-void wpa_ctrl_cleanup(void) {}
-#endif
-
-#include "wifi_system/wifi.h"
-
 namespace android {
 namespace wifi_system {
 namespace {
@@ -48,6 +39,12 @@ const char kSupplicantConfigFile[] = "/data/misc/wifi/wpa_supplicant.conf";
 const char kP2pConfigFile[] = "/data/misc/wifi/p2p_supplicant.conf";
 const char kSupplicantServiceName[] = "wpa_supplicant";
 constexpr mode_t kConfigFileMode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
+
+const char kWiFiEntropyFile[] = "/data/misc/wifi/entropy.bin";
+
+const unsigned char kDummyKey[21] = {0x02, 0x11, 0xbe, 0x33, 0x43, 0x35, 0x68,
+                                     0x47, 0x84, 0x99, 0xa9, 0x2b, 0x1c, 0xd3,
+                                     0xee, 0xff, 0xf1, 0xe2, 0xf3, 0xf4, 0xf5};
 
 int ensure_config_file_exists(const char* config_file) {
   char buf[2048];
@@ -149,12 +146,9 @@ bool SupplicantManager::StartSupplicant() {
    */
   (void)ensure_config_file_exists(kP2pConfigFile);
 
-  if (ensure_entropy_file_exists() < 0) {
+  if (!EnsureEntropyFileExists()) {
     LOG(ERROR) << "Wi-Fi entropy file was not created";
   }
-
-  /* Clear out any stale socket files that might be left over. */
-  wpa_ctrl_cleanup();
 
   /*
    * Get a reference to the status property, so we can distinguish
@@ -223,6 +217,44 @@ bool SupplicantManager::IsSupplicantRunning() {
     return strcmp(supp_status, "running") == 0;
   }
   return false;  // Failed to read service status from init.
+}
+
+bool SupplicantManager::EnsureEntropyFileExists() {
+  int ret;
+  int destfd;
+
+  ret = access(kWiFiEntropyFile, R_OK | W_OK);
+  if ((ret == 0) || (errno == EACCES)) {
+    if ((ret != 0) &&
+        (chmod(kWiFiEntropyFile, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP) != 0)) {
+      PLOG(ERROR) << "Cannot set RW to " << kWiFiEntropyFile;
+      return false;
+    }
+    return true;
+  }
+  destfd = TEMP_FAILURE_RETRY(open(kWiFiEntropyFile, O_CREAT | O_RDWR, 0660));
+  if (destfd < 0) {
+    PLOG(ERROR) << "Cannot create " << kWiFiEntropyFile;
+    return false;
+  }
+
+  if (TEMP_FAILURE_RETRY(write(destfd, kDummyKey, sizeof(kDummyKey))) !=
+      sizeof(kDummyKey)) {
+    PLOG(ERROR) << "Error writing " << kWiFiEntropyFile;
+    close(destfd);
+    return false;
+  }
+  close(destfd);
+
+  /* chmod is needed because open() didn't set permisions properly */
+  if (chmod(kWiFiEntropyFile, 0660) < 0) {
+    PLOG(ERROR) << "Error changing permissions of " << kWiFiEntropyFile
+                << " to 0600 ";
+    unlink(kWiFiEntropyFile);
+    return false;
+  }
+
+  return true;
 }
 
 }  // namespace wifi_system

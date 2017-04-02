@@ -36,22 +36,12 @@ LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := libbase
 LOCAL_SHARED_LIBRARIES := \
     libbase \
     libcrypto \
-    libcutils \
-    liblog \
-    libnetutils \
-    libnl
-
-# Tolerate certain emulators which apparently don't have supplicant installed.
-ifdef WPA_SUPPLICANT_VERSION
-LOCAL_CFLAGS += -DLIBWPA_CLIENT_EXISTS
-LOCAL_SHARED_LIBRARIES += libwpa_client
-endif
+    libcutils
 
 LOCAL_SRC_FILES := \
     hostapd_manager.cpp \
     interface_tool.cpp \
-    supplicant_manager.cpp \
-    wifi.cpp
+    supplicant_manager.cpp
 include $(BUILD_SHARED_LIBRARY)
 
 # Test utilities (e.g. mock classes) for libwifi-system
