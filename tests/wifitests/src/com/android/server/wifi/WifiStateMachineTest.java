@@ -1337,18 +1337,16 @@ public class WifiStateMachineTest {
         wpsInfo.setup = WpsInfo.PBC;
         wpsInfo.BSSID = sBSSID;
 
-        mLooper.startAutoDispatch();
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
-        mLooper.stopAutoDispatch();
+        mLooper.dispatchAll();
         verify(mWifiNative).startWpsPbc(eq(sBSSID));
 
         assertEquals("WpsRunningState", getCurrentState().getName());
 
         setupMocksForWpsNetworkMigration();
 
-        mLooper.startAutoDispatch();
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
-        mLooper.stopAutoDispatch();
+        mLooper.dispatchAll();
 
         assertEquals("DisconnectedState", getCurrentState().getName());
     }
@@ -1367,9 +1365,8 @@ public class WifiStateMachineTest {
         wpsInfo.setup = WpsInfo.PBC;
         wpsInfo.BSSID = sBSSID;
 
-        mLooper.startAutoDispatch();
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
-        mLooper.stopAutoDispatch();
+        mLooper.dispatchAll();
         verify(mWifiNative).startWpsPbc(eq(sBSSID));
 
         assertFalse("WpsRunningState".equals(getCurrentState().getName()));
@@ -1389,18 +1386,16 @@ public class WifiStateMachineTest {
         wpsInfo.setup = WpsInfo.DISPLAY;
         wpsInfo.BSSID = sBSSID;
 
-        mLooper.startAutoDispatch();
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
-        mLooper.stopAutoDispatch();
+        mLooper.dispatchAll();
         verify(mWifiNative).startWpsPinDisplay(eq(sBSSID));
 
         assertEquals("WpsRunningState", getCurrentState().getName());
 
         setupMocksForWpsNetworkMigration();
 
-        mLooper.startAutoDispatch();
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
-        mLooper.stopAutoDispatch();
+        mLooper.dispatchAll();
 
         assertEquals("DisconnectedState", getCurrentState().getName());
     }
@@ -1419,9 +1414,8 @@ public class WifiStateMachineTest {
         wpsInfo.setup = WpsInfo.DISPLAY;
         wpsInfo.BSSID = sBSSID;
 
-        mLooper.startAutoDispatch();
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
-        mLooper.stopAutoDispatch();
+        mLooper.dispatchAll();
         verify(mWifiNative).startWpsPinDisplay(eq(sBSSID));
 
         assertFalse("WpsRunningState".equals(getCurrentState().getName()));
@@ -1448,9 +1442,8 @@ public class WifiStateMachineTest {
         assertFalse("InitialState".equals(getCurrentState().getName()));
 
         // Now trigger the death notification.
-        mLooper.startAutoDispatch();
         deathHandler.onDeath();
-        mLooper.stopAutoDispatch();
+        mLooper.dispatchAll();
 
         // We should back to initial state after vendor HAL death.
         assertTrue("InitialState".equals(getCurrentState().getName()));
