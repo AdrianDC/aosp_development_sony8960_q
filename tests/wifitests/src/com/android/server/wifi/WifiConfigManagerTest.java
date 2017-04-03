@@ -109,6 +109,7 @@ public class WifiConfigManagerTest {
     @Mock private WifiPermissionsWrapper mWifiPermissionsWrapper;
     @Mock private NetworkListStoreData mNetworkListStoreData;
     @Mock private DeletedEphemeralSsidsStoreData mDeletedEphemeralSsidsStoreData;
+    @Mock private WifiConfigManager.OnSavedNetworkUpdateListener mWcmListener;
 
     private MockResources mResources;
     private InOrder mContextConfigStoreMockOrder;
@@ -177,6 +178,7 @@ public class WifiConfigManagerTest {
         when(mWifiPermissionsWrapper.getDevicePolicyManagerInternal())
                 .thenReturn(mDevicePolicyManagerInternal);
         createWifiConfigManager();
+        mWifiConfigManager.setOnSavedNetworkUpdateListener(mWcmListener);
     }
 
     /**
@@ -240,6 +242,7 @@ public class WifiConfigManagerTest {
                 mWifiConfigManager.getConfiguredNetworksWithPasswords();
         WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
                 networks, retrievedNetworks);
+        verify(mWcmListener, times(2)).onSavedNetworkUpdate();
     }
 
     /**
@@ -263,6 +266,7 @@ public class WifiConfigManagerTest {
 
         // Ensure that this is not returned in the saved network list.
         assertTrue(mWifiConfigManager.getSavedNetworks().isEmpty());
+        verify(mWcmListener, never()).onSavedNetworkUpdate();
     }
 
     /**
@@ -440,6 +444,7 @@ public class WifiConfigManagerTest {
         verifyRemoveNetworkFromWifiConfigManager(openNetwork);
         // Ensure that configured network list is empty now.
         assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+        verify(mWcmListener, times(2)).onSavedNetworkUpdate();
     }
 
     /**
@@ -458,6 +463,7 @@ public class WifiConfigManagerTest {
         verifyRemoveEphemeralNetworkFromWifiConfigManager(ephemeralNetwork);
         // Ensure that configured network list is empty now.
         assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+        verify(mWcmListener, never()).onSavedNetworkUpdate();
     }
 
     /**
@@ -475,6 +481,7 @@ public class WifiConfigManagerTest {
         verifyRemovePasspointNetworkFromWifiConfigManager(passpointNetwork);
         // Ensure that configured network list is empty now.
         assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+        verify(mWcmListener, never()).onSavedNetworkUpdate();
     }
 
     /**
@@ -582,10 +589,12 @@ public class WifiConfigManagerTest {
         // Now set it to permanently disabled.
         verifyUpdateNetworkSelectionStatus(
                 result.getNetworkId(), NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER, 0);
+        verify(mWcmListener, times(3)).onSavedNetworkUpdate();
 
         // Now set it back to enabled.
         verifyUpdateNetworkSelectionStatus(
                 result.getNetworkId(), NetworkSelectionStatus.NETWORK_SELECTION_ENABLE, 0);
+        verify(mWcmListener, times(4)).onSavedNetworkUpdate();
     }
 
     /**

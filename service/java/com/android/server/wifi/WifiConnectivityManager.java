@@ -490,6 +490,18 @@ public class WifiConnectivityManager {
 
     private final PnoScanListener mPnoScanListener = new PnoScanListener();
 
+    private class OnSavedNetworkUpdateListener implements
+            WifiConfigManager.OnSavedNetworkUpdateListener {
+        public void onSavedNetworkUpdate() {
+            // Update the PNO scan network list when screen is off. Here we
+            // rely on startConnectivityScan() to perform all the checks and clean up.
+            if (!mScreenOn) {
+                localLog("Saved networks updated");
+                startConnectivityScan(false);
+            }
+        }
+    }
+
     /**
      * WifiConnectivityManager constructor
      */
@@ -562,6 +574,9 @@ public class WifiConnectivityManager {
 
         // Register for all single scan results
         mScanner.registerScanListener(mAllSingleScanListener);
+
+        // Listen to WifiConfigManager network update events
+        mConfigManager.setOnSavedNetworkUpdateListener(new OnSavedNetworkUpdateListener());
 
         mWifiConnectivityManagerEnabled = enable;
 
