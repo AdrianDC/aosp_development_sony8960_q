@@ -1369,6 +1369,7 @@ public class WifiConfigManager {
         if (disableOthers) {
             setLastSelectedNetwork(networkId);
         }
+        saveToStore(true);
         return true;
     }
 
@@ -1403,6 +1404,7 @@ public class WifiConfigManager {
         if (networkId == mLastSelectedNetworkId) {
             clearLastSelectedNetwork();
         }
+        saveToStore(true);
         return true;
     }
 
