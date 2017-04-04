@@ -482,6 +482,7 @@ class P2pLinkManager implements Handler.Callback, P2pEventListener.Callback {
                 } else {
                     mMessageToSend = createDefaultNdef(pkgs[0]);
                     mUrisToSend = null;
+                    mSendFlags = 0;
                 }
             }
 
