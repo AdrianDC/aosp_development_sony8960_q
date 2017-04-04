@@ -85,6 +85,7 @@ public class LegacyPasspointConfigParser {
     private static final String TAG_ROAMING_CONSORTIUM_OI = "RoamingConsortiumOI";
     private static final String TAG_CREDENTIAL = "Credential";
     private static final String TAG_REALM = "Realm";
+    private static final String TAG_SIM = "SIM";
     private static final String TAG_IMSI = "IMSI";
 
     private static final String LONG_ARRAY_SEPARATOR = ",";
@@ -274,7 +275,7 @@ public class LegacyPasspointConfigParser {
      */
     private static LegacyPasspointConfig processPpsNode(Node ppsNode) throws IOException {
         if (ppsNode.getChildren() == null || ppsNode.getChildren().size() != 1) {
-            throw new IOException("PerProviderSubscription node should contained "
+            throw new IOException("PerProviderSubscription node should contain "
                     + "one instance node");
         }
 
@@ -319,7 +320,7 @@ public class LegacyPasspointConfigParser {
     private static void processHomeSPNode(Node homeSpNode, LegacyPasspointConfig config)
             throws IOException {
         if (homeSpNode.getChildren() == null) {
-            throw new IOException("HomeSP node should contained at least one child node");
+            throw new IOException("HomeSP node should contain at least one child node");
         }
 
         for (Node node : homeSpNode.getChildren()) {
@@ -351,7 +352,7 @@ public class LegacyPasspointConfigParser {
             LegacyPasspointConfig config)
             throws IOException {
         if (credentialNode.getChildren() == null) {
-            throw new IOException("Credential node should contained at least one child node");
+            throw new IOException("Credential node should contain at least one child node");
         }
 
         for (Node node : credentialNode.getChildren()) {
@@ -359,11 +360,36 @@ public class LegacyPasspointConfigParser {
                 case TAG_REALM:
                     config.mRealm = getValue(node);
                     break;
+                case TAG_SIM:
+                    processSimNode(node, config);
+                    break;
+                default:
+                    Log.d(TAG, "Ignore uninterested field under Credential: " + node.getName());
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Process a SIM node to retrieve configuration data into the given |config|.
+     *
+     * @param simNode The SIM node to process
+     * @param config The config object to fill in the data
+     * @throws IOException
+     */
+    private static void processSimNode(Node simNode, LegacyPasspointConfig config)
+            throws IOException {
+        if (simNode.getChildren() == null) {
+            throw new IOException("SIM node should contain at least one child node");
+        }
+
+        for (Node node : simNode.getChildren()) {
+            switch (node.getName()) {
                 case TAG_IMSI:
                     config.mImsi = getValue(node);
                     break;
                 default:
-                    Log.d(TAG, "Ignore uninterested field under Credential: " + node.getName());
+                    Log.d(TAG, "Ignore uninterested field under SIM: " + node.getName());
                     break;
             }
         }
