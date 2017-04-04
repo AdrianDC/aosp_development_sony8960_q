@@ -1846,9 +1846,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * @return true on success
      */
     public boolean syncAddOrUpdatePasspointConfig(AsyncChannel channel,
-            PasspointConfiguration config) {
+            PasspointConfiguration config, int uid) {
         Message resultMsg = channel.sendMessageSynchronously(CMD_ADD_OR_UPDATE_PASSPOINT_CONFIG,
-                config);
+                uid, 0, config);
         boolean result = (resultMsg.arg1 == SUCCESS);
         resultMsg.recycle();
         return result;
@@ -3875,7 +3875,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_ADD_OR_UPDATE_PASSPOINT_CONFIG:
                     int addResult = mPasspointManager.addOrUpdateProvider(
-                            (PasspointConfiguration) message.obj) ? SUCCESS : FAILURE;
+                            (PasspointConfiguration) message.obj, message.arg1)
+                            ? SUCCESS : FAILURE;
                     replyToMessage(message, message.what, addResult);
                     break;
                 case CMD_REMOVE_PASSPOINT_CONFIG:
@@ -5174,7 +5175,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_ADD_OR_UPDATE_PASSPOINT_CONFIG:
                     PasspointConfiguration passpointConfig = (PasspointConfiguration) message.obj;
-                    if (mPasspointManager.addOrUpdateProvider(passpointConfig)) {
+                    if (mPasspointManager.addOrUpdateProvider(passpointConfig, message.arg1)) {
                         String fqdn = passpointConfig.getHomeSp().getFqdn();
                         if (isProviderOwnedNetwork(mTargetNetworkId, fqdn)
                                 || isProviderOwnedNetwork(mLastNetworkId, fqdn)) {

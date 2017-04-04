@@ -67,6 +67,7 @@ import java.util.Set;
 @SmallTest
 public class PasspointProviderTest {
     private static final long PROVIDER_ID = 12L;
+    private static final int CREATOR_UID = 1234;
     private static final String CA_CERTIFICATE_NAME = "CACERT_HS2_12";
     private static final String CLIENT_CERTIFICATE_NAME = "USRCERT_HS2_12";
     private static final String CLIENT_PRIVATE_KEY_NAME = "USRPKEY_HS2_12";
@@ -91,7 +92,7 @@ public class PasspointProviderTest {
      * @return {@link com.android.server.wifi.hotspot2.PasspointProvider}
      */
     private PasspointProvider createProvider(PasspointConfiguration config) {
-        return new PasspointProvider(config, mKeyStore, mSimAccessor, PROVIDER_ID);
+        return new PasspointProvider(config, mKeyStore, mSimAccessor, PROVIDER_ID, CREATOR_UID);
     }
 
     /**
