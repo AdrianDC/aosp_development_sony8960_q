@@ -87,6 +87,7 @@ public class WifiConnectivityManagerTest {
         mWifiConnectivityHelper = mockWifiConnectivityHelper();
         mWifiNS = mockWifiNetworkSelector();
         mWifiConnectivityManager = createConnectivityManager();
+        verify(mWifiConfigManager).setOnSavedNetworkUpdateListener(anyObject());
         mWifiConnectivityManager.setWifiEnabled(true);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
     }
