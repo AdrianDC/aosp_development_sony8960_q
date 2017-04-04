@@ -707,7 +707,7 @@ public class WifiConfigManagerTest {
      * {@link WifiConfigManager#disableNetwork(int, int)}.
      */
     @Test
-    public void testEnableDisableNetwork() {
+    public void testEnableDisableNetwork() throws Exception {
         WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
 
         NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
@@ -719,6 +719,7 @@ public class WifiConfigManagerTest {
         NetworkSelectionStatus retrievedStatus = retrievedNetwork.getNetworkSelectionStatus();
         assertTrue(retrievedStatus.isNetworkEnabled());
         verifyUpdateNetworkStatus(retrievedNetwork, WifiConfiguration.Status.ENABLED);
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore).write(eq(true));
 
         // Now set it disabled.
         assertTrue(mWifiConfigManager.disableNetwork(result.getNetworkId(), TEST_CREATOR_UID));
@@ -726,6 +727,7 @@ public class WifiConfigManagerTest {
         retrievedStatus = retrievedNetwork.getNetworkSelectionStatus();
         assertTrue(retrievedStatus.isNetworkPermanentlyDisabled());
         verifyUpdateNetworkStatus(retrievedNetwork, WifiConfiguration.Status.DISABLED);
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore).write(eq(true));
     }
 
     /**
