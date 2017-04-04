@@ -1304,8 +1304,10 @@ public class WifiConfigManager {
         }
 
         config.getNetworkSelectionStatus().setNotRecommended(notRecommended);
-        localLog("updateNetworkRecommendation: configKey=" + config.configKey()
-                + " recommended=" + notRecommended);
+        if (mVerboseLoggingEnabled) {
+            localLog("updateNetworkRecommendation: configKey=" + config.configKey()
+                    + " notRecommended=" + notRecommended);
+        }
         saveToStore(false);
         return true;
     }
