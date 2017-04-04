@@ -147,6 +147,17 @@ public class WifiConfigManager {
             Integer.MAX_VALUE   // threshold for DISABLED_BY_USER_SWITCH
     };
     /**
+     * Interface for other modules to listen to the saved network updated
+     * events.
+     */
+    public interface OnSavedNetworkUpdateListener {
+        /**
+         * Invoked on saved network being enabled, disabled, blacklisted or
+         * un-blacklisted.
+         */
+        void onSavedNetworkUpdate();
+    }
+    /**
      * Max size of scan details to cache in {@link #mScanDetailCaches}.
      */
     @VisibleForTesting
@@ -297,6 +308,9 @@ public class WifiConfigManager {
     // parsing data to/from the config store.
     private final NetworkListStoreData mNetworkListStoreData;
     private final DeletedEphemeralSsidsStoreData mDeletedEphemeralSsidsStoreData;
+
+    // Store the saved network update listener.
+    private OnSavedNetworkUpdateListener mListener = null;
 
     /**
      * Create new instance of WifiConfigManager.
@@ -1012,6 +1026,7 @@ public class WifiConfigManager {
         // Unless the added network is ephemeral or Passpoint, persist the network update/addition.
         if (!config.ephemeral && !config.isPasspoint()) {
             saveToStore(true);
+            if (mListener != null) mListener.onSavedNetworkUpdate();
         }
         return result;
     }
@@ -1076,6 +1091,7 @@ public class WifiConfigManager {
         // Unless the removed network is ephemeral or Passpoint, persist the network removal.
         if (!config.ephemeral && !config.isPasspoint()) {
             saveToStore(true);
+            if (mListener != null) mListener.onSavedNetworkUpdate();
         }
         return true;
     }
@@ -1145,6 +1161,7 @@ public class WifiConfigManager {
 
         // Clear out all the disable reason counters.
         status.clearDisableReasonCounter();
+        if (mListener != null) mListener.onSavedNetworkUpdate();
     }
 
     /**
@@ -1169,6 +1186,7 @@ public class WifiConfigManager {
         status.setDisableTime(
                 NetworkSelectionStatus.INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP);
         status.setNetworkSelectionDisableReason(disableReason);
+        if (mListener != null) mListener.onSavedNetworkUpdate();
     }
 
     /**
@@ -2764,5 +2782,12 @@ public class WifiConfigManager {
                     + " ProfileOwner=" + isUidProfileOwner);
         }
         return false;
+    }
+
+    /**
+     * Set the saved network update event listener
+     */
+    public void setOnSavedNetworkUpdateListener(OnSavedNetworkUpdateListener listener) {
+        mListener = listener;
     }
 }
