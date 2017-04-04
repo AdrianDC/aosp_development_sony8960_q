@@ -1204,15 +1204,17 @@ public class WifiStateMachineTest {
         homeSp.setFqdn("test.com");
         config.setHomeSp(homeSp);
 
-        when(mPasspointManager.addOrUpdateProvider(config)).thenReturn(true);
+        when(mPasspointManager.addOrUpdateProvider(config, MANAGED_PROFILE_UID)).thenReturn(true);
         mLooper.startAutoDispatch();
-        assertTrue(mWsm.syncAddOrUpdatePasspointConfig(mWsmAsyncChannel, config));
+        assertTrue(mWsm.syncAddOrUpdatePasspointConfig(
+                mWsmAsyncChannel, config, MANAGED_PROFILE_UID));
         mLooper.stopAutoDispatch();
         reset(mPasspointManager);
 
-        when(mPasspointManager.addOrUpdateProvider(config)).thenReturn(false);
+        when(mPasspointManager.addOrUpdateProvider(config, MANAGED_PROFILE_UID)).thenReturn(false);
         mLooper.startAutoDispatch();
-        assertFalse(mWsm.syncAddOrUpdatePasspointConfig(mWsmAsyncChannel, config));
+        assertFalse(mWsm.syncAddOrUpdatePasspointConfig(
+                mWsmAsyncChannel, config, MANAGED_PROFILE_UID));
         mLooper.stopAutoDispatch();
     }
 
