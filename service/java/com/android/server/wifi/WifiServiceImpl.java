@@ -1477,8 +1477,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 mWifiController.sendMessage(CMD_SCAN_ALWAYS_MODE_CHANGED);
             }
         };
-
-        mContext.getContentResolver().registerContentObserver(
+        mFrameworkFacade.registerContentObserver(mContext,
                 Settings.Global.getUriFor(Settings.Global.WIFI_SCAN_ALWAYS_AVAILABLE),
                 false, contentObserver);
     }
