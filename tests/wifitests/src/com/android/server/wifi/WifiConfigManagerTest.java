@@ -115,6 +115,7 @@ public class WifiConfigManagerTest {
     private InOrder mContextConfigStoreMockOrder;
     private InOrder mNetworkListStoreDataMockOrder;
     private WifiConfigManager mWifiConfigManager;
+    private boolean mStoreReadTriggered = false;
 
     /**
      * Setup the mocks and an instance of WifiConfigManager before each test.
@@ -171,6 +172,8 @@ public class WifiConfigManagerTest {
                 .thenReturn(true);
 
         when(mWifiConfigStore.areStoresPresent()).thenReturn(true);
+        setupStoreDataForRead(new ArrayList<WifiConfiguration>(),
+                new ArrayList<WifiConfiguration>(), new HashSet<String>());
 
         when(mDevicePolicyManagerInternal.isActiveAdminWithPolicy(anyInt(), anyInt()))
                 .thenReturn(false);
@@ -199,6 +202,18 @@ public class WifiConfigManagerTest {
     public void testGetConfiguredNetworksBeforeLoadFromStore() {
         assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
         assertTrue(mWifiConfigManager.getConfiguredNetworksWithPasswords().isEmpty());
+    }
+
+    /**
+     * Verifies that network addition via
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} fails if we have not
+     * yet loaded data from store.
+     */
+    @Test
+    public void testAddNetworkBeforeLoadFromStore() {
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        assertFalse(
+                mWifiConfigManager.addOrUpdateNetwork(openNetwork, TEST_CREATOR_UID).isSuccess());
     }
 
     /**
@@ -2378,8 +2393,7 @@ public class WifiConfigManagerTest {
 
         // Create a network for user2 try adding it. This should be rejected.
         final WifiConfiguration user2Network = WifiConfigurationTestUtil.createPskNetwork();
-        NetworkUpdateResult result =
-                mWifiConfigManager.addOrUpdateNetwork(user2Network, creatorUid);
+        NetworkUpdateResult result = addNetworkToWifiConfigManager(user2Network, creatorUid);
         assertFalse(result.isSuccess());
     }
 
@@ -2399,8 +2413,7 @@ public class WifiConfigManagerTest {
 
         // Create a network for user2 try adding it. This should be rejected.
         final WifiConfiguration user2Network = WifiConfigurationTestUtil.createPskNetwork();
-        NetworkUpdateResult result =
-                mWifiConfigManager.addOrUpdateNetwork(user2Network, TEST_SYSUI_UID);
+        NetworkUpdateResult result = addNetworkToWifiConfigManager(user2Network, TEST_SYSUI_UID);
         assertTrue(result.isSuccess());
     }
 
@@ -2920,8 +2933,7 @@ public class WifiConfigManagerTest {
     public void testUpdateNetworkAddProxyWithPermissionAndSystem() {
         // Testing updating network with uid permission OVERRIDE_WIFI_CONFIG
         WifiConfiguration network = WifiConfigurationTestUtil.createOpenHiddenNetwork();
-        NetworkUpdateResult result =
-                mWifiConfigManager.addOrUpdateNetwork(network, TEST_CREATOR_UID);
+        NetworkUpdateResult result = addNetworkToWifiConfigManager(network, TEST_CREATOR_UID);
         assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
         verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
                 true, // withConfOverride
@@ -2933,7 +2945,7 @@ public class WifiConfigManagerTest {
 
         // Testing updating network with proxy while holding Profile Owner policy
         network = WifiConfigurationTestUtil.createOpenHiddenNetwork();
-        result = mWifiConfigManager.addOrUpdateNetwork(network, TEST_NO_PERM_UID);
+        result = addNetworkToWifiConfigManager(network, TEST_NO_PERM_UID);
         assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
         verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
                 false, // withConfOverride
@@ -2945,7 +2957,7 @@ public class WifiConfigManagerTest {
 
         // Testing updating network with proxy while holding Device Owner Policy
         network = WifiConfigurationTestUtil.createOpenHiddenNetwork();
-        result = mWifiConfigManager.addOrUpdateNetwork(network, TEST_NO_PERM_UID);
+        result = addNetworkToWifiConfigManager(network, TEST_NO_PERM_UID);
         assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
         verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
                 false, // withConfOverride
@@ -3181,7 +3193,7 @@ public class WifiConfigManagerTest {
         when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt()))
                 .thenReturn(withConfOverride);
         int uid = withConfOverride ? TEST_CREATOR_UID : TEST_NO_PERM_UID;
-        NetworkUpdateResult result = mWifiConfigManager.addOrUpdateNetwork(network, uid);
+        NetworkUpdateResult result = addNetworkToWifiConfigManager(network, uid);
         assertEquals(assertSuccess, result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
         return result;
     }
@@ -3472,17 +3484,41 @@ public class WifiConfigManagerTest {
                 WifiManager.CHANGE_REASON_REMOVED);
     }
 
+    private void verifyWifiConfigStoreRead() {
+        assertTrue(mWifiConfigManager.loadFromStore());
+        mContextConfigStoreMockOrder.verify(mContext)
+                .sendBroadcastAsUser(any(Intent.class), any(UserHandle.class));
+    }
+
+    private void triggerStoreReadIfNeeded() {
+        // Trigger a store read if not already done.
+        if (!mStoreReadTriggered) {
+            verifyWifiConfigStoreRead();
+            mStoreReadTriggered = true;
+        }
+    }
+
+    /**
+     * Adds the provided configuration to WifiConfigManager with uid = TEST_CREATOR_UID.
+     */
+    private NetworkUpdateResult addNetworkToWifiConfigManager(WifiConfiguration configuration) {
+        return addNetworkToWifiConfigManager(configuration, TEST_CREATOR_UID);
+    }
+
     /**
      * Adds the provided configuration to WifiConfigManager and modifies the provided configuration
      * with creator/update uid, package name and time. This also sets defaults for fields not
      * populated.
      * These fields are populated internally by WifiConfigManager and hence we need
      * to modify the configuration before we compare the added network with the retrieved network.
+     * This method also triggers a store read if not already done.
      */
-    private NetworkUpdateResult addNetworkToWifiConfigManager(WifiConfiguration configuration) {
+    private NetworkUpdateResult addNetworkToWifiConfigManager(WifiConfiguration configuration,
+                                                              int uid) {
+        triggerStoreReadIfNeeded();
         when(mClock.getWallClockMillis()).thenReturn(TEST_WALLCLOCK_CREATION_TIME_MILLIS);
         NetworkUpdateResult result =
-                mWifiConfigManager.addOrUpdateNetwork(configuration, TEST_CREATOR_UID);
+                mWifiConfigManager.addOrUpdateNetwork(configuration, uid);
         setDefaults(configuration);
         setCreationDebugParams(configuration);
         configuration.networkId = result.getNetworkId();
