@@ -3677,7 +3677,24 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             BluetoothAdapter.STATE_DISCONNECTED);
                     break;
                 case CMD_ENABLE_NETWORK:
+                    boolean disableOthers = message.arg2 == 1;
+                    int netId = message.arg1;
+                    boolean ok = mWifiConfigManager.enableNetwork(
+                            netId, disableOthers, message.sendingUid);
+                    if (!ok) {
+                        messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
+                    }
+                    replyToMessage(message, message.what, ok ? SUCCESS : FAILURE);
+                    break;
                 case CMD_ADD_OR_UPDATE_NETWORK:
+                    WifiConfiguration config = (WifiConfiguration) message.obj;
+                    NetworkUpdateResult result =
+                            mWifiConfigManager.addOrUpdateNetwork(config, message.sendingUid);
+                    if (!result.isSuccess()) {
+                        messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
+                    }
+                    replyToMessage(message, message.what, result.getNetworkId());
+                    break;
                 case CMD_SAVE_CONFIG:
                     replyToMessage(message, message.what, FAILURE);
                     break;
@@ -3702,7 +3719,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case CMD_INITIALIZE:
-                    boolean ok = mWifiNative.initializeVendorHal(mVendorHalDeathRecipient);
+                    ok = mWifiNative.initializeVendorHal(mVendorHalDeathRecipient);
                     replyToMessage(message, message.what, ok ? SUCCESS : FAILURE);
                     break;
                 case CMD_BOOT_COMPLETED:
@@ -4782,14 +4799,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mWifiNative.reconnect();
                         mTemporarilyDisconnectWifi = false;
                     }
-                    break;
-                case CMD_ADD_OR_UPDATE_NETWORK:
-                    config = (WifiConfiguration) message.obj;
-                    result = mWifiConfigManager.addOrUpdateNetwork(config, message.sendingUid);
-                    if (!result.isSuccess()) {
-                        messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
-                    }
-                    replyToMessage(message, message.what, result.getNetworkId());
                     break;
                 case CMD_REMOVE_NETWORK:
                     if (!deleteNetworkConfigAndSendReply(message, false)) {
