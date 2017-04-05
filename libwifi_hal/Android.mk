@@ -77,7 +77,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := libwifi-hal-fallback
 LOCAL_CFLAGS := $(wifi_hal_cflags)
 LOCAL_SRC_FILES := wifi_hal_fallback.cpp
-LOCAL_C_INCLUDES := $(call include-path-for, libhardware_legacy)
+LOCAL_HEADER_LIBRARIES := libhardware_legacy_headers
 include $(BUILD_STATIC_LIBRARY)
 
 # Pick a vendor provided HAL implementation library.
@@ -104,8 +104,9 @@ LOCAL_PROPRIETARY_MODULE := true
 LOCAL_CFLAGS := $(wifi_hal_cflags)
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
 LOCAL_EXPORT_C_INCLUDE_DIRS := \
-    $(LOCAL_PATH)/include \
-    $(call include-path-for, libhardware_legacy)
+    $(LOCAL_PATH)/include
+LOCAL_EXPORT_HEADER_LIBRARY_HEADERS := libhardware_legacy_headers
+LOCAL_HEADER_LIBRARIES := libhardware_legacy_headers
 LOCAL_SHARED_LIBRARIES := \
     libbase \
     libcutils \
