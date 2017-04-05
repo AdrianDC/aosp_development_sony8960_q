@@ -18,6 +18,7 @@ package com.android.nfc;
 
 import android.app.ActivityManager;
 import android.app.Application;
+import android.app.backup.BackupManager;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
 import android.app.admin.DevicePolicyManager;
@@ -193,6 +194,8 @@ public class NfcService implements DeviceHostListener {
     private final NfcUnlockManager mNfcUnlockManager;
 
     private final NfceeAccessControl mNfceeAccessControl;
+
+    private final BackupManager mBackupManager;
 
     List<PackageInfo> mInstalledPackages; // cached version of installed packages
 
@@ -418,6 +421,8 @@ public class NfcService implements DeviceHostListener {
         mNumTagsDetected = new AtomicInteger();
         mNumP2pDetected = new AtomicInteger();
         mNumHceDetected = new AtomicInteger();
+
+        mBackupManager = new BackupManager(mContext);
 
         // Intents for all users
         IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
@@ -678,6 +683,7 @@ public class NfcService implements DeviceHostListener {
         synchronized (NfcService.this) {
             mPrefsEditor.putBoolean(PREF_NFC_ON, on);
             mPrefsEditor.apply();
+            mBackupManager.dataChanged();
         }
     }
 
@@ -820,6 +826,7 @@ public class NfcService implements DeviceHostListener {
                 if (isNfcEnabled()) {
                     mP2pLinkManager.enableDisable(true, true);
                 }
+                mBackupManager.dataChanged();
             }
             return true;
         }
@@ -839,6 +846,7 @@ public class NfcService implements DeviceHostListener {
                 if (isNfcEnabled()) {
                     mP2pLinkManager.enableDisable(false, true);
                 }
+                mBackupManager.dataChanged();
             }
             return true;
         }
