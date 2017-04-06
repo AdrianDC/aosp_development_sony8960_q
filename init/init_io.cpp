@@ -33,7 +33,7 @@ void write_int(const char* path, int value)
 {
     int fd, bytes;
 
-    fd = open(path, O_CREAT | O_RDWR);
+    fd = open(path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP);
     if (fd >= 0) {
         bytes = snprintf(buffer, sizeof(buffer), "%d\n", value);
         write(fd, buffer, bytes);
@@ -46,7 +46,8 @@ void write_string(const char* path, const char* value, bool append)
 {
     int fd, bytes;
 
-    fd = open(path, O_CREAT | O_RDWR | (append ? O_APPEND : 0));
+    fd = open(path, O_CREAT | O_RDWR | (append ? O_APPEND : 0),
+            S_IRUSR | S_IWUSR | S_IRGRP);
     if (fd >= 0) {
         bytes = snprintf(buffer, sizeof(buffer), "%s\n", value);
         write(fd, buffer, bytes);
@@ -61,7 +62,8 @@ void write_date(const char* path, bool append)
     struct tm* time_info;
     time_t time_raw;
 
-    fd = open(path, O_CREAT | O_RDWR | (append ? O_APPEND : 0));
+    fd = open(path, O_CREAT | O_RDWR | (append ? O_APPEND : 0),
+            S_IRUSR | S_IWUSR | S_IRGRP);
     if (fd >= 0) {
         time(&time_raw);
         time_info = localtime(&time_raw);
