@@ -151,10 +151,13 @@ public class WifiServiceImplTest {
         when(mWifiInjector.getWifiController()).thenReturn(mWifiController);
         when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
         when(mWifiInjector.getWifiStateMachine()).thenReturn(mWifiStateMachine);
+        when(mWifiStateMachine.syncInitialize(any())).thenReturn(true);
         when(mWifiInjector.getWifiServiceHandlerThread()).thenReturn(mHandlerThread);
         when(mHandlerThread.getLooper()).thenReturn(mLooper.getLooper());
         when(mContext.getResources()).thenReturn(mResources);
         when(mContext.getContentResolver()).thenReturn(mContentResolver);
+        doNothing().when(mFrameworkFacade).registerContentObserver(eq(mContext), any(),
+                anyBoolean(), any());
         IPowerManager powerManagerService = mock(IPowerManager.class);
         mPowerManager = new PowerManager(mContext, powerManagerService, new Handler());
         when(mContext.getSystemServiceName(PowerManager.class)).thenReturn(Context.POWER_SERVICE);
