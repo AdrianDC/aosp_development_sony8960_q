@@ -492,7 +492,8 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     }
 
     private boolean enableVerboseLoggingForDogfood() {
-        return false;
+        return true;
+
     }
 
     private BugReport captureBugreport(int errorCode, boolean captureFWDump) {
