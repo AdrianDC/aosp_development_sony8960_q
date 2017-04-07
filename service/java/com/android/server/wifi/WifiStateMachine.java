@@ -5101,6 +5101,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case WifiManager.START_WPS:
                     WpsInfo wpsInfo = (WpsInfo) message.obj;
+                    if (wpsInfo == null) {
+                        loge("Cannot start WPS with null WpsInfo object");
+                        replyToMessage(message, WifiManager.WPS_FAILED, WifiManager.ERROR);
+                        break;
+                    }
                     WpsResult wpsResult = new WpsResult();
                     // TODO(b/32898136): Not needed when we start deleting networks from supplicant
                     // on disconnect.
