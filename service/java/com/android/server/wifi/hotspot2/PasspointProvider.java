@@ -303,6 +303,13 @@ public class PasspointProvider {
     }
 
     /**
+     * @return true if provider is backed by a SIM credential.
+     */
+    public boolean isSimCredential() {
+        return mConfig.getCredential().getSimCredential() != null;
+    }
+
+    /**
      * Convert a legacy {@link WifiConfiguration} representation of a Passpoint configuration to
      * a {@link PasspointConfiguration}.  This is used for migrating legacy Passpoint
      * configuration (release N and older).

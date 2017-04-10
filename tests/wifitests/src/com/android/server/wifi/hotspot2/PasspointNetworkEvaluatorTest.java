@@ -333,4 +333,30 @@ public class PasspointNetworkEvaluatorTest {
         assertEquals(ScanResultUtil.createQuotedSSID(TEST_SSID2), config.SSID);
         assertEquals(TEST_NETWORK_ID, config.networkId);
     }
+
+    /**
+     * Verify that null will be returned when matching a SIM credential provider without SIM
+     * card installed.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void evaluateScanMatchingSIMProviderWithoutSIMCard() throws Exception {
+        // Setup ScanDetail and match providers.
+        List<ScanDetail> scanDetails = Arrays.asList(new ScanDetail[] {
+                generateScanDetail(TEST_SSID1)});
+        PasspointProvider testProvider = mock(PasspointProvider.class);
+        Pair<PasspointProvider, PasspointMatch> homeProvider = Pair.create(
+                testProvider, PasspointMatch.HomeProvider);
+
+        List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks = new ArrayList<>();
+        when(mPasspointManager.matchProvider(any(ScanResult.class))).thenReturn(homeProvider);
+        when(testProvider.isSimCredential()).thenReturn(true);
+        when(mWifiConfigManager.isSimPresent()).thenReturn(false);
+        assertEquals(null, mEvaluator.evaluateNetworks(
+                scanDetails, null, null, false, false, connectableNetworks));
+        assertTrue(connectableNetworks.isEmpty());
+        verify(testProvider, never()).getWifiConfig();
+
+    }
 }
