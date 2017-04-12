@@ -100,7 +100,6 @@ LOCAL_JNI_SHARED_LIBRARIES := \
 	libstagefright_foundation \
 	libstdc++ \
 	libsync \
-	libwifi-hal \
 	libwifi-system \
 	libui \
 	libunwind \
