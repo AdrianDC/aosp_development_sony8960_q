@@ -1545,4 +1545,20 @@ public class WifiStateMachineTest {
         addNetworkAndVerifySuccess(false);
         verify(mWifiConnectivityManager, never()).setUserConnectChoice(eq(0));
     }
+
+    /**
+     * Test START_WPS with a null wpsInfo object fails gracefully (No NPE)
+     */
+    @Test
+    public void testStartWps_nullWpsInfo() throws Exception {
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("DisconnectedState", getCurrentState().getName());
+        mLooper.startAutoDispatch();
+        Message reply = mWsmAsyncChannel.sendMessageSynchronously(WifiManager.START_WPS, 0, 0,
+                null);
+        mLooper.stopAutoDispatch();
+        assertEquals(WifiManager.WPS_FAILED, reply.what);
+    }
 }
