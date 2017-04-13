@@ -25,8 +25,10 @@ import android.hardware.wifi.V1_0.IWifiRttControllerEventCallback;
 import android.hardware.wifi.V1_0.IWifiStaIface;
 import android.hardware.wifi.V1_0.IWifiStaIfaceEventCallback;
 import android.hardware.wifi.V1_0.IfaceType;
+import android.hardware.wifi.V1_0.RttBw;
 import android.hardware.wifi.V1_0.RttCapabilities;
 import android.hardware.wifi.V1_0.RttConfig;
+import android.hardware.wifi.V1_0.RttPreamble;
 import android.hardware.wifi.V1_0.StaApfPacketFilterCapabilities;
 import android.hardware.wifi.V1_0.StaBackgroundScanCapabilities;
 import android.hardware.wifi.V1_0.StaBackgroundScanParameters;
@@ -899,19 +901,52 @@ public class WifiVendorHalTest {
                 0, 64);
     }
 
+    /**
+     * Test translation of framwork RttParams to hal RttConfig
+     */
     @Test
     public void testGetRttStuff() throws Exception {
         RttManager.RttParams params = new RttManager.RttParams();
-        //TODO(b/34901744) populate
+        params.bssid = "03:01:04:01:05:09";
+        params.frequency = 2420;
+        params.channelWidth = ScanResult.CHANNEL_WIDTH_40MHZ;
+        params.centerFreq0 = 2440;
+        params.centerFreq1 = 1;
+        params.num_samples = 2;
+        params.num_retries = 3;
+        params.numberBurst = 4;
+        params.interval = 5;
+        params.numSamplesPerBurst = 8;
+        params.numRetriesPerMeasurementFrame = 6;
+        params.numRetriesPerFTMR = 7;
+        params.LCIRequest = false;
+        params.LCRRequest = false;
+        params.burstTimeout = 15;
+        String frameish = params.toString();
+        assertFalse(frameish.contains("=0,")); // make sure all fields are initialized
         RttConfig config = WifiVendorHal.halRttConfigFromFrameworkRttParams(params);
-        //TODO(b/34901744) check
+        String halish = config.toString();
+        StringBuffer expect = new StringBuffer(200);
+        expect.append("{.addr = [3, 1, 4, 1, 5, 9], .type = ONE_SIDED, .peer = AP, ");
+        expect.append(".channel = {.width = WIDTH_40, .centerFreq = 2420, ");
+        expect.append(".centerFreq0 = 2440, .centerFreq1 = 1}, ");
+        expect.append(".burstPeriod = 5, .numBurst = 4, .numFramesPerBurst = 8, ");
+        expect.append(".numRetriesPerRttFrame = 6, .numRetriesPerFtmr = 7, ");
+        expect.append(".mustRequestLci = false, .mustRequestLcr = false, .burstDuration = 15, ");
+        expect.append(".preamble = HT, .bw = BW_20MHZ}");
+        assertEquals(expect.toString(), halish);
     }
 
+    /**
+     * Test that RTT capabilities are plumbed through
+     */
     @Test
     public void testGetRttCapabilities() throws Exception {
         RttCapabilities capabilities = new RttCapabilities();
-        //TODO(b/34901744) populate
-
+        capabilities.lcrSupported = true;
+        capabilities.preambleSupport = RttPreamble.LEGACY | RttPreamble.VHT;
+        capabilities.bwSupport = RttBw.BW_5MHZ | RttBw.BW_20MHZ;
+        capabilities.mcVersion = 43;
         doAnswer(new AnswerWithArguments() {
             public void answer(IWifiRttController.getCapabilitiesCallback cb)
                     throws RemoteException {
@@ -925,12 +960,21 @@ public class WifiVendorHalTest {
         assertTrue(mWifiVendorHal.startVendorHalSta());
 
         RttManager.RttCapabilities actual = mWifiVendorHal.getRttCapabilities();
-        //TODO(b/34901744) check
-
+        assertTrue(actual.lcrSupported);
+        assertEquals(RttManager.PREAMBLE_LEGACY | RttManager.PREAMBLE_VHT,
+                actual.preambleSupported);
+        assertEquals(RttManager.RTT_BW_5_SUPPORT | RttManager.RTT_BW_20_SUPPORT,
+                actual.bwSupported);
+        assertEquals(43, (int) capabilities.mcVersion);
     }
 
-    //TODO(b/34901744) negative RTT test cases as well.
-    // e.g. invoke RTT without putting the HAL in the correct mode.
+    /**
+     * Negative test of disableRttResponder
+     */
+    @Test
+    public void testDisableOfUnstartedRtt() throws Exception {
+        assertFalse(mWifiVendorHal.disableRttResponder());
+    }
 
     /**
      * Test that setScanningMacOui is hooked up to the HAL correctly
