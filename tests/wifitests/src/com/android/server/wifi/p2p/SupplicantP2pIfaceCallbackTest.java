@@ -18,12 +18,10 @@ package com.android.server.wifi.p2p;
 import static org.junit.Assert.*;
 import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantP2pIfaceCallback;
@@ -33,15 +31,12 @@ import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pGroup;
 import android.net.wifi.p2p.WifiP2pProvDiscEvent;
-import android.net.wifi.p2p.WifiP2pWfdInfo;
 
 import org.junit.Assert.*;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -295,7 +290,7 @@ public class SupplicantP2pIfaceCallbackTest {
             add((byte)0x32);
             add((byte)0x33);
         }};
-        String fakeSsidString = "\"0123\"";
+        String fakeSsidString = "0123";
         HashSet<String> passwords = new HashSet<String>();
 
         doAnswer(new AnswerWithArguments() {
