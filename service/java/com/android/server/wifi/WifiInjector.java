@@ -237,6 +237,10 @@ public class WifiInjector {
         return sWifiInjector;
     }
 
+    public UserManager getUserManager() {
+        return UserManager.get(mContext);
+    }
+
     public WifiMetrics getWifiMetrics() {
         return mWifiMetrics;
     }
