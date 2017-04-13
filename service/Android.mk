@@ -57,8 +57,8 @@ LOCAL_SRC_FILES := $(call all-java-files-under, java) \
 
 LOCAL_JAVA_LIBRARIES := bouncycastle conscrypt jsr305 services
 LOCAL_STATIC_JAVA_LIBRARIES := \
-	android.hardware.wifi@1.0-java-static \
-	android.hardware.wifi.supplicant@1.0-java-static
+	android.hardware.wifi-V1.0-java-static \
+	android.hardware.wifi.supplicant-V1.0-java-static
 LOCAL_REQUIRED_MODULES := services
 LOCAL_MODULE_TAGS :=
 LOCAL_MODULE := wifi-service
