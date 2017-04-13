@@ -1841,13 +1841,13 @@ public class SupplicantStaIfaceHal {
                 WifiSsid wifiSsid =
                         WifiSsid.createFromByteArray(NativeUtil.byteArrayFromArrayList(ssid));
                 String bssidStr = NativeUtil.macAddressFromByteArray(bssid);
-                mWifiMonitor.broadcastSupplicantStateChangeEvent(
-                        mIfaceName, mFrameworkNetworkId, wifiSsid, bssidStr, newSupplicantState);
+                mStateIsFourway = (newState == ISupplicantStaIfaceCallback.State.FOURWAY_HANDSHAKE);
                 if (newSupplicantState == SupplicantState.COMPLETED) {
                     mWifiMonitor.broadcastNetworkConnectionEvent(
                             mIfaceName, mFrameworkNetworkId, bssidStr);
                 }
-                mStateIsFourway = (newState == ISupplicantStaIfaceCallback.State.FOURWAY_HANDSHAKE);
+                mWifiMonitor.broadcastSupplicantStateChangeEvent(
+                        mIfaceName, mFrameworkNetworkId, wifiSsid, bssidStr, newSupplicantState);
             }
         }
 

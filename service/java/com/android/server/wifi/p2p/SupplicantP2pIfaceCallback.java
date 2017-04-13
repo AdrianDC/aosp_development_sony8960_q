@@ -271,7 +271,8 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
         group.setInterface(groupIfName);
 
         try {
-            group.setNetworkName(NativeUtil.encodeSsid(ssid));
+            String quotedSsid = NativeUtil.encodeSsid(ssid);
+            group.setNetworkName(NativeUtil.removeEnclosingQuotes(quotedSsid));
         } catch (Exception e) {
             Log.e(TAG, "Could not encode SSID.", e);
             return;

@@ -898,6 +898,7 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testStateChangeToCompletedCallback() throws Exception {
+        InOrder wifiMonitorInOrder = inOrder(mWifiMonitor);
         executeAndValidateInitializationSequence();
         int frameworkNetworkId = 6;
         executeAndValidateConnectSequence(frameworkNetworkId, false);
@@ -908,11 +909,11 @@ public class SupplicantStaIfaceHalTest {
                 NativeUtil.macAddressToByteArray(BSSID), SUPPLICANT_NETWORK_ID,
                 NativeUtil.decodeSsid(SUPPLICANT_SSID));
 
-        verify(mWifiMonitor).broadcastSupplicantStateChangeEvent(
+        wifiMonitorInOrder.verify(mWifiMonitor).broadcastNetworkConnectionEvent(
+                eq(WLAN_IFACE_NAME), eq(frameworkNetworkId), eq(BSSID));
+        wifiMonitorInOrder.verify(mWifiMonitor).broadcastSupplicantStateChangeEvent(
                 eq(WLAN_IFACE_NAME), eq(frameworkNetworkId),
                 any(WifiSsid.class), eq(BSSID), eq(SupplicantState.COMPLETED));
-        verify(mWifiMonitor).broadcastNetworkConnectionEvent(
-                eq(WLAN_IFACE_NAME), eq(frameworkNetworkId), eq(BSSID));
     }
 
     /**
