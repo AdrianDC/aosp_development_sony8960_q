@@ -1638,18 +1638,22 @@ static jint nfcManager_doGetTimeout(JNIEnv*, jobject, jint tech)
 **
 ** Function:        nfcManager_doDump
 **
-** Description:     Not used.
+** Description:     Get libnfc-nci dump
 **                  e: JVM environment.
-**                  o: Java object.
+**                  obj: Java object.
+**                  fdobj: File descriptor to be used
 **
-** Returns:         Text dump.
+** Returns:         Void
 **
 *******************************************************************************/
-static jstring nfcManager_doDump(JNIEnv* e, jobject)
+static void nfcManager_doDump(JNIEnv* e, jobject obj, jobject fdobj)
 {
-    char buffer[100];
-    snprintf(buffer, sizeof(buffer), "libnfc llc error_count=%u", /*libnfc_llc_error_count*/ 0);
-    return e->NewStringUTF(buffer);
+    int fd = jniGetFDFromFileDescriptor(e, fdobj);
+    if (fd < 0)
+        return;
+
+    NfcAdaptation& theInstance = NfcAdaptation::GetInstance();
+    theInstance.Dump(fd);
 }
 
 static jint nfcManager_doGetNciVersion(JNIEnv* , jobject)
@@ -1881,7 +1885,7 @@ static JNINativeMethod gMethods[] =
     {"doDisableScreenOffSuspend", "()V",
             (void *)nfcManager_doDisableScreenOffSuspend},
 
-    {"doDump", "()Ljava/lang/String;",
+    {"doDump", "(Ljava/io/FileDescriptor;)V",
             (void *)nfcManager_doDump},
 
     {"getNciVersion","()I",
