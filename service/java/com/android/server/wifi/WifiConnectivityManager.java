@@ -124,7 +124,7 @@ public class WifiConnectivityManager {
     // Saved network evaluator priority
     private static final int SAVED_NETWORK_EVALUATOR_PRIORITY = 1;
     private static final int PASSPOINT_NETWORK_EVALUATOR_PRIORITY = 2;
-    private static final int RECOMMENDED_NETWORK_EVALUATOR_PRIORITY = 3;
+    private static final int SCORED_NETWORK_EVALUATOR_PRIORITY = 3;
 
     // Log tag for this class
     private static final String TAG = "WifiConnectivityManager";
@@ -512,7 +512,7 @@ public class WifiConnectivityManager {
             Looper looper, Clock clock, LocalLog localLog, boolean enable,
             FrameworkFacade frameworkFacade,
             SavedNetworkEvaluator savedNetworkEvaluator,
-            RecommendedNetworkEvaluator recommendedNetworkEvaluator,
+            ScoredNetworkEvaluator scoredNetworkEvaluator,
             PasspointNetworkEvaluator passpointNetworkEvaluator) {
         mStateMachine = stateMachine;
         mScanner = scanner;
@@ -569,8 +569,8 @@ public class WifiConnectivityManager {
             mNetworkSelector.registerNetworkEvaluator(passpointNetworkEvaluator,
                     PASSPOINT_NETWORK_EVALUATOR_PRIORITY);
         }
-        mNetworkSelector.registerNetworkEvaluator(recommendedNetworkEvaluator,
-                RECOMMENDED_NETWORK_EVALUATOR_PRIORITY);
+        mNetworkSelector.registerNetworkEvaluator(scoredNetworkEvaluator,
+                SCORED_NETWORK_EVALUATOR_PRIORITY);
 
         // Register for all single scan results
         mScanner.registerScanListener(mAllSingleScanListener);
