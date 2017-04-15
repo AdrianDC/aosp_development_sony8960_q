@@ -33,6 +33,7 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IPowerManager;
@@ -67,6 +68,10 @@ public class WifiServiceImplTest {
 
     private static final String TAG = "WifiServiceImplTest";
     private static final int DEFAULT_VERBOSE_LOGGING = 0;
+    private static final String ANDROID_SYSTEM_PACKAGE = "android";
+    private static final String TEST_PACKAGE_NAME = "TestPackage";
+    private static final String SETTINGS_PACKAGE_NAME = "com.android.settings";
+    private static final String SYSUI_PACKAGE_NAME = "com.android.systemui";
 
     @Mock Context mContext;
     @Mock WifiInjector mWifiInjector;
@@ -230,6 +235,112 @@ public class WifiServiceImplTest {
                 .dump(any(FileDescriptor.class), any(PrintWriter.class), any(String[].class));
     }
 
+
+    /**
+     * Verify that wifi can be enabled by a caller with WIFI_STATE_CHANGE permission when wifi is
+     * off (no hotspot, no airplane mode).
+     */
+    @Test
+    public void testSetWifiEnabledSuccess() throws Exception {
+        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
+        when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
+        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
+        verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify that the CMD_TOGGLE_WIFI message won't be sent if wifi is already on.
+     */
+    @Test
+    public void testSetWifiEnabledNoToggle() throws Exception {
+        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
+        when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(false);
+        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
+        verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify a SecurityException is thrown if a caller does not have the correct permission to
+     * toggle wifi.
+     */
+    @Test(expected = SecurityException.class)
+    public void testSetWifiEnableWithoutPermission() throws Exception {
+        doThrow(new SecurityException()).when(mContext)
+                .enforceCallingOrSelfPermission(eq(android.Manifest.permission.CHANGE_WIFI_STATE),
+                                                eq("WifiService"));
+        mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true);
+        verify(mWifiStateMachine, never()).syncGetWifiApState();
+    }
+
+    /**
+     * Verify that a call from Settings can enable wifi if we are in softap mode.
+     */
+    @Test
+    public void testSetWifiEnabledFromSettingsWhenApEnabled() throws Exception {
+        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
+        when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
+        assertTrue(mWifiServiceImpl.setWifiEnabled(SETTINGS_PACKAGE_NAME, true));
+        verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify that a call from SysUI can enable wifi if we are in softap mode.
+     */
+    @Test
+    public void testSetWifiEnabledFromSysUiWhenApEnabled() throws Exception {
+        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
+        when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
+        assertTrue(mWifiServiceImpl.setWifiEnabled(SYSUI_PACKAGE_NAME, true));
+        verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify that a call from an app cannot enable wifi if we are in softap mode.
+     */
+    @Test
+    public void testSetWifiEnabledFromAppFailsWhenApEnabled() throws Exception {
+        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
+        assertFalse(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
+        verify(mSettingsStore, never()).handleWifiToggled(anyBoolean());
+        verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify that wifi can be disabled by a caller with WIFI_STATE_CHANGE permission when wifi is
+     * on.
+     */
+    @Test
+    public void testSetWifiDisabledSuccess() throws Exception {
+        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
+        when(mSettingsStore.handleWifiToggled(eq(false))).thenReturn(true);
+        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false));
+        verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify that CMD_TOGGLE_WIFI message won't be sent if wifi is already off.
+     */
+    @Test
+    public void testSetWifiDisabledNoToggle() throws Exception {
+        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
+        when(mSettingsStore.handleWifiToggled(eq(false))).thenReturn(false);
+        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false));
+        verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify a SecurityException is thrown if a caller does not have the correct permission to
+     * toggle wifi.
+     */
+    @Test(expected = SecurityException.class)
+    public void testSetWifiDisabledWithoutPermission() throws Exception {
+        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
+        doThrow(new SecurityException()).when(mContext)
+                .enforceCallingOrSelfPermission(eq(android.Manifest.permission.CHANGE_WIFI_STATE),
+                                                eq("WifiService"));
+        mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false);
+    }
+
     /**
      * Ensure unpermitted callers cannot write the SoftApConfiguration.
      *
@@ -319,6 +430,8 @@ public class WifiServiceImplTest {
         when(mSettingsStore.handleWifiToggled(true)).thenReturn(true);
         when(mSettingsStore.isWifiToggleEnabled()).thenReturn(true);
         when(mWifiStateMachine.syncGetWifiState()).thenReturn(WIFI_STATE_DISABLED);
+        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
+        when(mContext.getPackageName()).thenReturn(ANDROID_SYSTEM_PACKAGE);
         mWifiServiceImpl.checkAndStartWifi();
         verify(mWifiController).start();
         verify(mWifiController).sendMessage(CMD_WIFI_TOGGLED);
