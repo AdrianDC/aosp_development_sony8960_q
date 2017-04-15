@@ -203,8 +203,24 @@ public class WifiApConfigStore {
         return config;
     }
 
-    private int getRandomIntForDefaultSsid() {
+    private static int getRandomIntForDefaultSsid() {
         Random random = new Random();
         return random.nextInt((RAND_SSID_INT_MAX - RAND_SSID_INT_MIN) + 1) + RAND_SSID_INT_MIN;
+    }
+
+    /**
+     * Generate a temporary WPA2 based configuration for use by the local only hotspot.
+     * This config is not persisted and will not be stored by the WifiApConfigStore.
+     */
+    public static WifiConfiguration generateLocalOnlyHotspotConfig(Context context) {
+        WifiConfiguration config = new WifiConfiguration();
+        config.SSID = context.getResources().getString(
+              R.string.wifi_localhotspot_configure_ssid_default) + "_"
+                      + getRandomIntForDefaultSsid();
+        config.allowedKeyManagement.set(KeyMgmt.WPA2_PSK);
+        String randomUUID = UUID.randomUUID().toString();
+        // first 12 chars from xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+        config.preSharedKey = randomUUID.substring(0, 8) + randomUUID.substring(9, 13);
+        return config;
     }
 }
