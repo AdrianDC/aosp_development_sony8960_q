@@ -120,6 +120,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private static final boolean DBG = true;
     private static final boolean VDBG = false;
 
+    // Package names for Settings, QuickSettings and QuickQuickSettings
+    private static final String SYSUI_PACKAGE_NAME = "com.android.systemui";
+    private static final String SETTINGS_PACKAGE_NAME = "com.android.settings";
+
     // Dumpsys argument to enable/disable disconnect on IP reachability failures.
     private static final String DUMP_ARG_SET_IPREACH_DISCONNECT = "set-ipreach-disconnect";
     private static final String DUMP_ARG_SET_IPREACH_DISCONNECT_ENABLED = "enabled";
@@ -587,8 +591,20 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             throws RemoteException {
         enforceChangePermission();
         Slog.d(TAG, "setWifiEnabled: " + enable + " pid=" + Binder.getCallingPid()
-                    + ", uid=" + Binder.getCallingUid());
-        mLog.trace("setWifiEnabled uid=% enable=%").c(Binder.getCallingUid()).c(enable).flush();
+                    + ", uid=" + Binder.getCallingUid() + ", package=" + packageName);
+        mLog.trace("setWifiEnabled package=% uid=% enable=%").c(packageName)
+                .c(Binder.getCallingUid()).c(enable).flush();
+
+        // If SoftAp is enabled, only Settings is allowed to toggle wifi
+        boolean apEnabled =
+                mWifiStateMachine.syncGetWifiApState() != WifiManager.WIFI_AP_STATE_DISABLED;
+        boolean isFromSettings =
+                packageName.equals(SYSUI_PACKAGE_NAME) || packageName.equals(SETTINGS_PACKAGE_NAME);
+        if (apEnabled && !isFromSettings) {
+            mLog.trace("setWifiEnabled SoftAp not disabled: only Settings can enable wifi").flush();
+            return false;
+        }
+
         /*
         * Caller might not have WRITE_SECURE_SETTINGS,
         * only CHANGE_WIFI_STATE is enforced
@@ -660,7 +676,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
         // null wifiConfig is a meaningful input for CMD_SET_AP
         if (wifiConfig == null || isValid(wifiConfig)) {
-            mWifiController.obtainMessage(CMD_SET_AP, enabled ? 1 : 0, 0, wifiConfig).sendToTarget();
+            mWifiController.sendMessage(CMD_SET_AP, enabled ? 1 : 0, 0, wifiConfig);
         } else {
             Slog.e(TAG, "Invalid WifiConfiguration");
         }
