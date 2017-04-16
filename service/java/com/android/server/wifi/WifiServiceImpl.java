@@ -39,7 +39,6 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ParceledListSlice;
 import android.database.ContentObserver;
-import android.net.ConnectivityManager;
 import android.net.DhcpInfo;
 import android.net.DhcpResults;
 import android.net.IpConfiguration;
@@ -332,7 +331,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mFacade = mWifiInjector.getFrameworkFacade();
         mWifiMetrics = mWifiInjector.getWifiMetrics();
         mTrafficPoller = mWifiInjector.getWifiTrafficPoller();
-        mUserManager = UserManager.get(mContext);
+        mUserManager = mWifiInjector.getUserManager();
         mCountryCode = mWifiInjector.getWifiCountryCode();
         mWifiStateMachine = mWifiInjector.getWifiStateMachine();
         mWifiStateMachine.enableRssiPolling(true);
@@ -670,7 +669,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void setWifiApEnabled(WifiConfiguration wifiConfig, boolean enabled) {
         enforceChangePermission();
-        ConnectivityManager.enforceTetherChangePermission(mContext);
+        mWifiPermissionsUtil.enforceTetherChangePermission(mContext);
 
         mLog.trace("setWifiApEnabled uid=% enable=%").c(Binder.getCallingUid()).c(enabled).flush();
 
