@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import static com.android.server.connectivity.tethering.IControlsTethering.STATE_TETHERED;
 import static com.android.server.wifi.WifiController.CMD_AIRPLANE_TOGGLED;
 import static com.android.server.wifi.WifiController.CMD_BATTERY_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_CALL_STATE_CHANGED;
@@ -544,6 +545,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
     }
 
+    private void enforceNetworkStackPermission() {
+        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.NETWORK_STACK,
+                "WifiService");
+    }
+
     private void enforceAccessPermission() {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.ACCESS_WIFI_STATE,
                 "WifiService");
@@ -697,6 +703,66 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         enforceAccessPermission();
         mLog.trace("getWifiApEnabledState uid=%").c(Binder.getCallingUid()).flush();
         return mWifiStateMachine.syncGetWifiApState();
+    }
+
+    /**
+     * see {@link android.net.wifi.WifiManager#startSoftAp(WifiConfiguration)}
+     * @param wifiConfig SSID, security and channel details as
+     *        part of WifiConfiguration
+     * @return {@code true} if softap start was triggered
+     * @throws SecurityException if the caller does not have permission to start softap
+     */
+    @Override
+    public boolean startSoftAp(WifiConfiguration wifiConfig) {
+        // NETWORK_STACK is a signature only permission.
+        enforceNetworkStackPermission();
+
+        mLog.trace("startSoftAp uid=%").c(Binder.getCallingUid()).flush();
+
+        return startSoftApInternal(wifiConfig, STATE_TETHERED);
+    }
+
+    private boolean startSoftApInternal(WifiConfiguration wifiConfig, int mode) {
+        mLog.trace("startSoftApInternal uid=% mode=%")
+                .c(Binder.getCallingUid()).c(mode).flush();
+
+        // null wifiConfig is a meaningful input for CMD_SET_AP
+        if (wifiConfig == null || isValid(wifiConfig)) {
+            // TODO: need a way to set the mode
+            mWifiController.sendMessage(CMD_SET_AP, 1, 0, wifiConfig);
+            return true;
+        }
+        Slog.e(TAG, "Invalid WifiConfiguration");
+        return false;
+    }
+
+    /**
+     * see {@link android.net.wifi.WifiManager#stopSoftAp()}
+     * @return {@code true} if softap stop was triggered
+     * @throws SecurityException if the caller does not have permission to stop softap
+     */
+    @Override
+    public boolean stopSoftAp() {
+        // NETWORK_STACK is a signature only permission.
+        enforceNetworkStackPermission();
+
+        mLog.trace("stopSoftAp uid=%").c(Binder.getCallingUid()).flush();
+
+        // add checks here to make sure this is the proper caller - apps can't disable tethering or
+        // instances of local only hotspot that they didn't start.  return false for those cases
+
+        return stopSoftApInternal();
+    }
+
+    /**
+     * Internal method to stop softap mode.  Callers of this method should have already checked
+     * proper permissions beyond the NetworkStack permission.
+     */
+    private boolean stopSoftApInternal() {
+        mLog.trace("stopSoftApInternal uid=%").c(Binder.getCallingUid()).flush();
+
+        mWifiController.sendMessage(CMD_SET_AP, 0, 0);
+        return true;
     }
 
     /**
