@@ -16,12 +16,9 @@
 
 package com.android.server.wifi;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.atLeast;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -100,28 +97,6 @@ public class WifiScoreReportTest {
     }
 
     /**
-     *  Pulls the final score from a report string
-     *
-     *  The report string is essentially free-form, intended for debugging,
-     *  but we would like to know that the score is in there somewhere.
-     *
-     *  Currently, the score is found as the last value in a comma-separated
-     *  list enclosed in square brackets.
-     */
-    private int fishScoreFromReportString(String report) {
-        int score = 0;
-        if (report != null) {
-            String[] f = report.split("]");
-            assertTrue(f.length > 1);
-            f = f[f.length - 2].split(",");
-            score = Integer.parseInt(f[f.length - 1]);
-            // clipping happens after stashing in report string, so do that here.
-            score = Integer.min(score, NetworkAgent.WIFI_BASE_SCORE);
-        }
-        return score;
-    }
-
-    /**
      * Sets up for unit test
      */
     @Before
@@ -133,7 +108,7 @@ public class WifiScoreReportTest {
         config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
         config.hiddenSSID = false;
         mWifiInfo = new WifiInfo();
-        mWifiInfo.setFrequency(2410);
+        mWifiInfo.setFrequency(2412);
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(Arrays.asList(config));
         when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
         mWifiConfiguration = config;
@@ -188,65 +163,6 @@ public class WifiScoreReportTest {
     }
 
     /**
-     * Test operation of saved last report
-     *
-     * One score is calculated
-     * Expect: last report is not valid before any score is calculated
-     * Expect: last report is valid after a score is calculated
-     * Expect: the score in the last report string matches the reported score
-     * Expect: reset makes the last report invalid again
-     */
-    @Test
-    public void makeSureLastReportWorks() throws Exception {
-        mWifiInfo.setRssi(-33);
-        assertFalse(mWifiScoreReport.isLastReportValid());
-        mWifiScoreReport.enableVerboseLogging(true);
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, 0, mWifiMetrics);
-        assertTrue(mWifiScoreReport.isLastReportValid());
-        String report = mWifiScoreReport.getLastReport();
-        int score = fishScoreFromReportString(report);
-        verify(mWifiMetrics).incrementWifiScoreCount(score);
-        verify(mNetworkAgent).sendNetworkScore(score);
-        mWifiScoreReport.reset();
-        assertFalse(mWifiScoreReport.isLastReportValid());
-        assertTrue(mWifiScoreReport.getLastReport().equals(""));
-    }
-
-    /**
-     * Test bad linkspeed counter
-     *
-     * Expect badLinkspeed count to be incemented based on bad link speed.
-     * Expect counter to be pinned at a maximum value.
-     * Expect counter to be cleared by reset.
-     */
-    @Test
-    public void badLinkspeedCounter() throws Exception {
-        mWifiInfo.setRssi(-123);
-        mWifiInfo.setLinkSpeed(1);
-        mWifiInfo.setFrequency(2410);
-        assertFalse(mWifiScoreReport.isLastReportValid());
-        mWifiScoreReport.enableVerboseLogging(true);
-        assertEquals(0, mWifiScoreReport.getLastBadLinkspeedcount());
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, 0, mWifiMetrics);
-        assertEquals(1, mWifiScoreReport.getLastBadLinkspeedcount());
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, 0, mWifiMetrics);
-        assertEquals(2, mWifiScoreReport.getLastBadLinkspeedcount());
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, 0, mWifiMetrics);
-        assertEquals(3, mWifiScoreReport.getLastBadLinkspeedcount());
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, 1, mWifiMetrics);
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, 0, mWifiMetrics);
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, 1, mWifiMetrics);
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, 0, mWifiMetrics);
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, 0, mWifiMetrics);
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, 0, mWifiMetrics);
-        assertEquals(6, mWifiScoreReport.getLastBadLinkspeedcount()); // pinned at limit
-        verify(mWifiMetrics, times(9)).incrementWifiScoreCount(anyInt());
-        assertTrue(mWifiScoreReport.isLastReportValid());
-        mWifiScoreReport.reset();
-        assertEquals(0, mWifiScoreReport.getLastBadLinkspeedcount());
-    }
-
-    /**
      * Exercise the rates with low RSSI
      *
      * The setup has a low (not bad) RSSI, and data movement (txSuccessRate) above
@@ -263,8 +179,7 @@ public class WifiScoreReportTest {
         for (int i = 0; i < 10; i++) {
             mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, 0, mWifiMetrics);
         }
-        assertTrue(mWifiScoreReport.isLastReportValid());
-        int score = fishScoreFromReportString(mWifiScoreReport.getLastReport());
+        int score = mWifiInfo.score;
         assertTrue(score > CELLULAR_THRESHOLD_SCORE);
     }
 
@@ -280,17 +195,14 @@ public class WifiScoreReportTest {
     public void giveUpOnBadRssiWhenDataIsNotMoving() throws Exception {
         mWifiInfo.setRssi(-100);
         mWifiInfo.setLinkSpeed(6); // Mbps
-        mWifiInfo.setFrequency(5010);
+        mWifiInfo.setFrequency(5220);
         mWifiScoreReport.enableVerboseLogging(true);
         mWifiInfo.txSuccessRate = 0.1;
         mWifiInfo.rxSuccessRate = 0.1;
         for (int i = 0; i < 10; i++) {
             mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, 0, mWifiMetrics);
-            String report = mWifiScoreReport.getLastReport();
-            assertTrue(report.contains(" br "));
         }
-        assertTrue(mWifiScoreReport.isLastReportValid());
-        int score = fishScoreFromReportString(mWifiScoreReport.getLastReport());
+        int score = mWifiInfo.score;
         assertTrue(score < CELLULAR_THRESHOLD_SCORE);
         verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
     }
