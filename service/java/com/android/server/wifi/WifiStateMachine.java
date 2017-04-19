@@ -5800,7 +5800,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         // If this network was explicitly selected by the user, evaluate whether to call
         // explicitlySelected() so the system can treat it appropriately.
         WifiConfiguration config = getCurrentWifiConfiguration();
-        if (mWifiConfigManager.getLastSelectedNetwork() == config.networkId) {
+        if (config == null) {
+            Log.wtf(TAG, "Current WifiConfiguration is null, but IP provisioning just succeeded");
+        } else if (mWifiConfigManager.getLastSelectedNetwork() == config.networkId) {
             boolean prompt =
                     mWifiPermissionsUtil.checkConfigOverridePermission(config.lastConnectUid);
             if (mVerboseLoggingEnabled) {
