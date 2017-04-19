@@ -49,6 +49,7 @@ public class WifiScoreReportTest {
     WifiScoreReport mWifiScoreReport;
     ScanDetailCache mScanDetailCache;
     WifiInfo mWifiInfo;
+    int mAggr; // Aggressive handover
     @Mock Context mContext;
     @Mock NetworkAgent mNetworkAgent;
     @Mock Resources mResources;
@@ -106,6 +107,7 @@ public class WifiScoreReportTest {
         config.hiddenSSID = false;
         mWifiInfo = new WifiInfo();
         mWifiInfo.setFrequency(2412);
+        mAggr = 0;
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(Arrays.asList(config));
         when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
         mWifiConfiguration = config;
@@ -138,10 +140,9 @@ public class WifiScoreReportTest {
      */
     @Test
     public void calculateAndReportScoreSucceeds() throws Exception {
-        int aggressiveHandover = 0;
         mWifiInfo.setRssi(-77);
         mWifiScoreReport.calculateAndReportScore(mWifiInfo,
-                mNetworkAgent, aggressiveHandover, mWifiMetrics);
+                mNetworkAgent, mAggr, mWifiMetrics);
         verify(mNetworkAgent).sendNetworkScore(anyInt());
         verify(mWifiMetrics).incrementWifiScoreCount(anyInt());
     }
@@ -155,7 +156,7 @@ public class WifiScoreReportTest {
     public void networkAgentMayBeNull() throws Exception {
         mWifiInfo.setRssi(-33);
         mWifiScoreReport.enableVerboseLogging(true);
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, 0, mWifiMetrics);
+        mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, mAggr, mWifiMetrics);
         verify(mWifiMetrics).incrementWifiScoreCount(anyInt());
     }
 
@@ -174,7 +175,7 @@ public class WifiScoreReportTest {
         mWifiInfo.txSuccessRate = 5.1; // proportional to pps
         mWifiInfo.rxSuccessRate = 5.1;
         for (int i = 0; i < 10; i++) {
-            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, 0, mWifiMetrics);
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
         }
         int score = mWifiInfo.score;
         assertTrue(score > CELLULAR_THRESHOLD_SCORE);
@@ -197,10 +198,49 @@ public class WifiScoreReportTest {
         mWifiInfo.txSuccessRate = 0.1;
         mWifiInfo.rxSuccessRate = 0.1;
         for (int i = 0; i < 10; i++) {
-            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, 0, mWifiMetrics);
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
         }
         int score = mWifiInfo.score;
         assertTrue(score < CELLULAR_THRESHOLD_SCORE);
         verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
     }
+
+    /**
+     * Test reporting with aggressive handover
+     */
+    @Test
+    public void calculateAndReportScoreSucceedsAggressively() throws Exception {
+        mAggr = 1;
+        mWifiInfo.setRssi(-77);
+        mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
+        verify(mNetworkAgent).sendNetworkScore(anyInt());
+        verify(mWifiMetrics).incrementWifiScoreCount(anyInt());
+    }
+
+    /**
+     * Test low rssi with aggressive handover
+     */
+    @Test
+    public void giveUpOnBadRssiAggressively() throws Exception {
+        mAggr = 1;
+        mWifiInfo.setRssi(-83);
+        mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
+        int score = mWifiInfo.score;
+        verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
+        assertTrue(score < CELLULAR_THRESHOLD_SCORE);
+    }
+
+    /**
+     * Test high rssi with aggressive handover
+     */
+    @Test
+    public void allowGoodRssiAggressively() throws Exception {
+        mAggr = 1;
+        mWifiInfo.setRssi(-65);
+        mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
+        int score = mWifiInfo.score;
+        verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
+        assertTrue(score > CELLULAR_THRESHOLD_SCORE);
+    }
+
 }
