@@ -91,9 +91,6 @@ public class WifiScoreReportTest {
         when(resources.getInteger(
                 R.integer.config_wifi_framework_wifi_score_good_link_speed_5))
             .thenReturn(36);
-        when(resources.getBoolean(
-                R.bool.config_wifi_framework_cellular_handover_enable_user_triggered_adjustment))
-            .thenReturn(true);
     }
 
     /**
