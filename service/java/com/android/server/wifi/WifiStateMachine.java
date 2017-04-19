@@ -3789,6 +3789,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_UNWANTED_NETWORK:
                 case CMD_DISCONNECTING_WATCHDOG_TIMER:
                 case CMD_ROAM_WATCHDOG_TIMER:
+                case CMD_DISABLE_P2P_WATCHDOG_TIMER:
                 case CMD_DISABLE_EPHEMERAL_NETWORK:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
