@@ -64,9 +64,11 @@ endif
 # ============================================================
 include $(CLEAR_VARS)
 LOCAL_MODULE := libwifi-hal-common
+LOCAL_VENDOR_MODULE := true
 LOCAL_CFLAGS := $(wifi_hal_cflags)
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
 LOCAL_SHARED_LIBRARIES := libbase
+LOCAL_HEADER_LIBRARIES := libcutils_headers
 LOCAL_SRC_FILES := wifi_hal_common.cpp
 include $(BUILD_STATIC_LIBRARY)
 
@@ -75,6 +77,7 @@ include $(BUILD_STATIC_LIBRARY)
 # ============================================================
 include $(CLEAR_VARS)
 LOCAL_MODULE := libwifi-hal-fallback
+LOCAL_VENDOR_MODULE := true
 LOCAL_CFLAGS := $(wifi_hal_cflags)
 LOCAL_SRC_FILES := wifi_hal_fallback.cpp
 LOCAL_HEADER_LIBRARIES := libhardware_legacy_headers
