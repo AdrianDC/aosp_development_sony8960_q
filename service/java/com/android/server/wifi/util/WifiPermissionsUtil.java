@@ -81,7 +81,8 @@ public class WifiPermissionsUtil {
      * @param context Context object of the caller.
      */
     public void enforceTetherChangePermission(Context context) {
-        ConnectivityManager.enforceTetherChangePermission(context);
+        String pkgName = context.getOpPackageName();
+        ConnectivityManager.enforceTetherChangePermission(context, pkgName);
     }
 
     /**
