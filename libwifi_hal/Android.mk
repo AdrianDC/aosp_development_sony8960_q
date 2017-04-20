@@ -68,6 +68,7 @@ LOCAL_VENDOR_MODULE := true
 LOCAL_CFLAGS := $(wifi_hal_cflags)
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
 LOCAL_SHARED_LIBRARIES := libbase
+LOCAL_HEADER_LIBRARIES := libcutils_headers
 LOCAL_SRC_FILES := wifi_hal_common.cpp
 include $(BUILD_STATIC_LIBRARY)
 
