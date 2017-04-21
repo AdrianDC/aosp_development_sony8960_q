@@ -4204,7 +4204,12 @@ $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) \
 	$(call build-ota-package-target,$@,-k $(KEY_CERT_PAIR) --output_metadata_path $(INTERNAL_OTA_METADATA))
 
 .PHONY: otapackage
+
+TARGET_ROM_PACKAGE := $(PRODUCT_OUT)/aosp-$(PLATFORM_VERSION)-$(shell date +%Y%m%d)-$(TARGET_DEVICE)-$(USER).zip
 otapackage: $(INTERNAL_OTA_PACKAGE_TARGET)
+	   $(hide) ln -f $(INTERNAL_OTA_PACKAGE_TARGET) $(TARGET_ROM_PACKAGE)
+	   $(hide) $(MD5SUM) $(TARGET_ROM_PACKAGE) > $(TARGET_ROM_PACKAGE).md5sum
+	   @echo "OTA Package: " $(TARGET_ROM_PACKAGE) >&2
 
 ifeq ($(BOARD_BUILD_RETROFIT_DYNAMIC_PARTITIONS_OTA_PACKAGE),true)
 name := $(TARGET_PRODUCT)
