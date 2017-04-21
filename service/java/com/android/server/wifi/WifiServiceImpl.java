@@ -703,6 +703,29 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
+     * see {@link android.net.wifi.WifiManager#updateInterfaceIpState(String, int)}
+     *
+     * The possible modes include: {@link WifiManager#IFACE_IP_MODE_TETHERED},
+     *                             {@link WifiManager#IFACE_IP_MODE_LOCAL_ONLY},
+     *                             {@link WifiManager#IFACE_IP_MODE_CONFIGURATION_ERROR}
+     *
+     * @param ifaceName String name of the updated interface
+     * @param mode new operating mode of the interface
+     *
+     * @throws SecurityException if the caller does not have permission to call update
+     */
+    @Override
+    public void updateInterfaceIpState(String ifaceName, int mode) {
+        // NETWORK_STACK is a signature only permission.
+        enforceNetworkStackPermission();
+
+        Slog.d(TAG, "updateInterfaceIpState: ifaceName=" + ifaceName + " mode=" + mode);
+        // TODO: keep track of modes in a datastructure - protect it with a lock of some sort.
+        // TODO: check the mode when startLOHS comes in in case it is already active
+        // TODO: if mode == LOCAL_ONLY, trigger onStarted callbacks
+    }
+
+    /**
      * see {@link android.net.wifi.WifiManager#startSoftAp(WifiConfiguration)}
      * @param wifiConfig SSID, security and channel details as
      *        part of WifiConfiguration
