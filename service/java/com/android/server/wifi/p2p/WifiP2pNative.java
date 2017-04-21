@@ -21,6 +21,8 @@ import android.net.wifi.p2p.WifiP2pGroup;
 import android.net.wifi.p2p.WifiP2pGroupList;
 import android.net.wifi.p2p.nsd.WifiP2pServiceInfo;
 
+import com.android.server.wifi.WificondControl;
+
 /**
  * Native calls for bring up/shut down of the supplicant daemon and for
  * sending requests to the supplicant daemon
@@ -31,11 +33,14 @@ public class WifiP2pNative {
     private final String mTAG;
     private final String mInterfaceName;
     private final SupplicantP2pIfaceHal mSupplicantP2pIfaceHal;
+    private final WificondControl mWificondControl;
 
-    public WifiP2pNative(String interfaceName, SupplicantP2pIfaceHal p2pIfaceHal) {
+    public WifiP2pNative(String interfaceName, SupplicantP2pIfaceHal p2pIfaceHal,
+            WificondControl wificondcontrol) {
         mTAG = "WifiP2pNative-" + interfaceName;
         mInterfaceName = interfaceName;
         mSupplicantP2pIfaceHal = p2pIfaceHal;
+        mWificondControl = wificondcontrol;
     }
 
     public String getInterfaceName() {
@@ -247,6 +252,7 @@ public class WifiP2pNative {
      * @return boolean value indicating whether operation was successful.
      */
     public boolean p2pFind(int timeout) {
+        abortScan();
         return mSupplicantP2pIfaceHal.find(timeout);
     }
 
@@ -596,5 +602,14 @@ public class WifiP2pNative {
      */
     public boolean saveConfig() {
         return mSupplicantP2pIfaceHal.saveConfig();
+    }
+
+    /**
+     * Abort ongoing single scan triggered by wificond.
+     *
+     * @return true on success, false otherwise.
+     */
+    private boolean abortScan() {
+        return mWificondControl.abortScan();
     }
 }
