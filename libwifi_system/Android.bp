@@ -41,7 +41,6 @@ cc_library_shared {
     ],
     srcs: [
         "hostapd_manager.cpp",
-        "interface_tool.cpp",
         "supplicant_manager.cpp",
     ],
 }
