@@ -367,7 +367,7 @@ public class WifiAwareNativeApi {
         req.baseConfigs.discoveryCount = 0;
         convertNativeByteArrayToArrayList(subscribeConfig.mServiceName,
                 req.baseConfigs.serviceName);
-        req.baseConfigs.discoveryMatchIndicator = subscribeConfig.mMatchStyle;
+        req.baseConfigs.discoveryMatchIndicator = NanMatchAlg.MATCH_ONCE;
         convertNativeByteArrayToArrayList(subscribeConfig.mServiceSpecificInfo,
                 req.baseConfigs.serviceSpecificInfo);
         convertNativeByteArrayToArrayList(subscribeConfig.mMatchFilter,
