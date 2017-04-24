@@ -88,7 +88,7 @@ public class WifiInjector {
     private final WifiController mWifiController;
     private final WificondControl mWificondControl;
     private final Clock mClock = new Clock();
-    private final WifiMetrics mWifiMetrics = new WifiMetrics(mClock);
+    private final WifiMetrics mWifiMetrics;
     private final WifiLastResortWatchdog mWifiLastResortWatchdog;
     private final PropertyService mPropertyService = new SystemPropertyService();
     private final BuildProperties mBuildProperties = new SystemBuildProperties();
@@ -151,7 +151,7 @@ public class WifiInjector {
         mWifiStateMachineHandlerThread = new HandlerThread("WifiStateMachine");
         mWifiStateMachineHandlerThread.start();
         Looper wifiStateMachineLooper = mWifiStateMachineHandlerThread.getLooper();
-
+        mWifiMetrics = new WifiMetrics(mClock, wifiStateMachineLooper);
         // Modules interacting with Native.
         mWifiMonitor = new WifiMonitor(this);
         mHalDeviceManager = new HalDeviceManager();
