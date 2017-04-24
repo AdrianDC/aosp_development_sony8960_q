@@ -391,6 +391,10 @@ public class WifiAwareStateManager {
      * only happens when a connection is created.
      */
     public void enableUsage() {
+        if (mSm == null) {
+            Log.e(TAG, "enableUsage: race condition - called while mSm null!");
+            return;
+        }
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_ENABLE_USAGE;
         mSm.sendMessage(msg);
