@@ -16,23 +16,33 @@
 
 package com.android.server.wifi;
 
+import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIfaceCallback;
 import android.net.NetworkAgent;
 import android.net.wifi.ScanResult;
+import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.util.Base64;
 import android.util.Log;
 import android.util.SparseIntArray;
 
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.nano.WifiMetricsProto;
+import com.android.server.wifi.nano.WifiMetricsProto.StaEvent;
+import com.android.server.wifi.nano.WifiMetricsProto.StaEvent.ConfigInfo;
 import com.android.server.wifi.util.InformationElementUtil;
 import com.android.server.wifi.util.ScanResultUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Calendar;
+import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -62,6 +72,7 @@ public class WifiMetrics {
     private Clock mClock;
     private boolean mScreenOn;
     private int mWifiState;
+    private Handler mHandler;
     /**
      * Metrics are stored within an instance of the WifiLog proto during runtime,
      * The ConnectionEvent, SystemStateEntries & ScanReturnEntries metrics are stored during
@@ -333,12 +344,20 @@ public class WifiMetrics {
         }
     }
 
-    public WifiMetrics(Clock clock) {
+    public WifiMetrics(Clock clock, Looper looper) {
         mClock = clock;
         mCurrentConnectionEvent = null;
         mScreenOn = true;
         mWifiState = WifiMetricsProto.WifiLog.WIFI_DISABLED;
         mRecordStartTimeSec = mClock.getElapsedSinceBootMillis() / 1000;
+
+        mHandler = new Handler(looper) {
+            public void handleMessage(Message msg) {
+                synchronized (mLock) {
+                    processMessage(msg);
+                }
+            }
+        };
     }
 
     // Values used for indexing SystemStateEntries
@@ -796,6 +815,16 @@ public class WifiMetrics {
     }
 
     /**
+     * Increment various poll related metrics, and cache performance data for StaEvent logging
+     */
+    public void handlePollResult(WifiInfo wifiInfo) {
+        mLastPollRssi = wifiInfo.getRssi();
+        mLastPollLinkSpeed = wifiInfo.getLinkSpeed();
+        mLastPollFreq = wifiInfo.getFrequency();
+        incrementRssiPollRssiCount(mLastPollRssi);
+    }
+
+    /**
      * Increment occurence count of RSSI level from RSSI poll.
      * Ignores rssi values outside the bounds of [MIN_RSSI_POLL, MAX_RSSI_POLL]
      */
@@ -1146,6 +1175,10 @@ public class WifiMetrics {
                 pw.println("  FAILED_NO_CHANNEL: " + mSoftApManagerReturnCodeCounts.get(
                         WifiMetricsProto.SoftApReturnCodeCount.SOFT_AP_FAILED_NO_CHANNEL));
                 pw.print("\n");
+                pw.println("StaEventList:");
+                for (StaEvent event : mStaEventList) {
+                    pw.println(staEventToString(event));
+                }
             }
         }
     }
@@ -1308,6 +1341,8 @@ public class WifiMetrics {
                 mWifiLogProto.softApReturnCode[sapCode].count =
                         mSoftApManagerReturnCodeCounts.valueAt(sapCode);
             }
+
+            mWifiLogProto.staEventList = mStaEventList.toArray(mWifiLogProto.staEventList);
         }
     }
 
@@ -1330,6 +1365,7 @@ public class WifiMetrics {
             mWifiLogProto.clear();
             mScanResultRssiTimestampMillis = -1;
             mSoftApManagerReturnCodeCounts.clear();
+            mStaEventList.clear();
         }
     }
 
@@ -1349,5 +1385,371 @@ public class WifiMetrics {
         synchronized (mLock) {
             mWifiState = wifiState;
         }
+    }
+
+    /**
+     * Message handler for interesting WifiMonitor messages. Generates StaEvents
+     */
+    private void processMessage(Message msg) {
+        StaEvent event = new StaEvent();
+        boolean logEvent = true;
+        switch (msg.what) {
+            case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
+                event.type = StaEvent.TYPE_ASSOCIATION_REJECTION_EVENT;
+                event.associationTimedOut = msg.arg1 > 0 ? true : false;
+                event.status = msg.arg2;
+                break;
+            case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
+                event.type = StaEvent.TYPE_AUTHENTICATION_FAILURE_EVENT;
+                switch (msg.arg2) {
+                    case WifiManager.ERROR_AUTH_FAILURE_NONE:
+                        event.authFailureReason = StaEvent.AUTH_FAILURE_NONE;
+                        break;
+                    case WifiManager.ERROR_AUTH_FAILURE_TIMEOUT:
+                        event.authFailureReason = StaEvent.AUTH_FAILURE_TIMEOUT;
+                        break;
+                    case WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD:
+                        event.authFailureReason = StaEvent.AUTH_FAILURE_WRONG_PSWD;
+                        break;
+                    case WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE:
+                        event.authFailureReason = StaEvent.AUTH_FAILURE_EAP_FAILURE;
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            case WifiMonitor.NETWORK_CONNECTION_EVENT:
+                event.type = StaEvent.TYPE_NETWORK_CONNECTION_EVENT;
+                break;
+            case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
+                event.type = StaEvent.TYPE_NETWORK_DISCONNECTION_EVENT;
+                event.reason = msg.arg2;
+                event.localGen = msg.arg1 == 0 ? false : true;
+                break;
+            case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
+                logEvent = false;
+                StateChangeResult stateChangeResult = (StateChangeResult) msg.obj;
+                mSupplicantStateChangeBitmask |= supplicantStateToBit(stateChangeResult.state);
+                break;
+            case WifiStateMachine.CMD_ASSOCIATED_BSSID:
+                event.type = StaEvent.TYPE_CMD_ASSOCIATED_BSSID;
+                break;
+            case WifiStateMachine.CMD_TARGET_BSSID:
+                event.type = StaEvent.TYPE_CMD_TARGET_BSSID;
+                break;
+            default:
+                return;
+        }
+        if (logEvent) {
+            addStaEvent(event);
+        }
+    }
+    /**
+     * Log a StaEvent from WifiStateMachine. The StaEvent must not be one of the supplicant
+     * generated event types, which are logged through 'sendMessage'
+     * @param type StaEvent.EventType describing the event
+     */
+    public void logStaEvent(int type) {
+        logStaEvent(type, StaEvent.DISCONNECT_UNKNOWN, null);
+    }
+    /**
+     * Log a StaEvent from WifiStateMachine. The StaEvent must not be one of the supplicant
+     * generated event types, which are logged through 'sendMessage'
+     * @param type StaEvent.EventType describing the event
+     * @param config WifiConfiguration for a framework initiated connection attempt
+     */
+    public void logStaEvent(int type, WifiConfiguration config) {
+        logStaEvent(type, StaEvent.DISCONNECT_UNKNOWN, config);
+    }
+    /**
+     * Log a StaEvent from WifiStateMachine. The StaEvent must not be one of the supplicant
+     * generated event types, which are logged through 'sendMessage'
+     * @param type StaEvent.EventType describing the event
+     * @param frameworkDisconnectReason StaEvent.FrameworkDisconnectReason explaining why framework
+     *                                  initiated a FRAMEWORK_DISCONNECT
+     */
+    public void logStaEvent(int type, int frameworkDisconnectReason) {
+        logStaEvent(type, frameworkDisconnectReason, null);
+    }
+    /**
+     * Log a StaEvent from WifiStateMachine. The StaEvent must not be one of the supplicant
+     * generated event types, which are logged through 'sendMessage'
+     * @param type StaEvent.EventType describing the event
+     * @param frameworkDisconnectReason StaEvent.FrameworkDisconnectReason explaining why framework
+     *                                  initiated a FRAMEWORK_DISCONNECT
+     * @param config WifiConfiguration for a framework initiated connection attempt
+     */
+    public void logStaEvent(int type, int frameworkDisconnectReason, WifiConfiguration config) {
+        switch (type) {
+            case StaEvent.TYPE_CMD_IP_CONFIGURATION_SUCCESSFUL:
+            case StaEvent.TYPE_CMD_IP_CONFIGURATION_LOST:
+            case StaEvent.TYPE_CMD_IP_REACHABILITY_LOST:
+            case StaEvent.TYPE_CMD_START_CONNECT:
+            case StaEvent.TYPE_CMD_START_ROAM:
+            case StaEvent.TYPE_CONNECT_NETWORK:
+            case StaEvent.TYPE_NETWORK_AGENT_VALID_NETWORK:
+            case StaEvent.TYPE_FRAMEWORK_DISCONNECT:
+                break;
+            default:
+                Log.e(TAG, "Unknown StaEvent:" + type);
+                return;
+        }
+        StaEvent event = new StaEvent();
+        event.type = type;
+        if (frameworkDisconnectReason != StaEvent.DISCONNECT_UNKNOWN) {
+            event.frameworkDisconnectReason = frameworkDisconnectReason;
+        }
+        event.configInfo = createConfigInfo(config);
+        addStaEvent(event);
+    }
+
+    private void addStaEvent(StaEvent staEvent) {
+        staEvent.startTimeMillis = mClock.getElapsedSinceBootMillis();
+        staEvent.lastRssi = mLastPollRssi;
+        staEvent.lastFreq = mLastPollFreq;
+        staEvent.lastLinkSpeed = mLastPollLinkSpeed;
+        staEvent.supplicantStateChangesBitmask = mSupplicantStateChangeBitmask;
+        mSupplicantStateChangeBitmask = 0;
+        mLastPollRssi = -127;
+        mLastPollFreq = -1;
+        mLastPollLinkSpeed = -1;
+        mStaEventList.add(staEvent);
+        // Prune StaEventList if it gets too long
+        if (mStaEventList.size() > MAX_STA_EVENTS) mStaEventList.remove();
+    }
+
+    private ConfigInfo createConfigInfo(WifiConfiguration config) {
+        if (config == null) return null;
+        ConfigInfo info = new ConfigInfo();
+        info.allowedKeyManagement = bitSetToInt(config.allowedKeyManagement);
+        info.allowedProtocols = bitSetToInt(config.allowedProtocols);
+        info.allowedAuthAlgorithms = bitSetToInt(config.allowedAuthAlgorithms);
+        info.allowedPairwiseCiphers = bitSetToInt(config.allowedPairwiseCiphers);
+        info.allowedGroupCiphers = bitSetToInt(config.allowedGroupCiphers);
+        info.hiddenSsid = config.hiddenSSID;
+        info.isPasspoint = config.isPasspoint();
+        info.isEphemeral = config.isEphemeral();
+        info.hasEverConnected = config.getNetworkSelectionStatus().getHasEverConnected();
+        ScanResult candidate = config.getNetworkSelectionStatus().getCandidate();
+        if (candidate != null) {
+            info.scanRssi = candidate.level;
+            info.scanFreq = candidate.frequency;
+        }
+        return info;
+    }
+
+    public Handler getHandler() {
+        return mHandler;
+    }
+
+    // Rather than generate a StaEvent for each SUPPLICANT_STATE_CHANGE, cache these in a bitmask
+    // and attach it to the next event which is generated.
+    private int mSupplicantStateChangeBitmask = 0;
+
+    /**
+     * Converts a SupplicantState value to a single bit, with position defined by
+     * {@code StaEvent.SupplicantState}
+     */
+    public static int supplicantStateToBit(SupplicantState state) {
+        switch(state) {
+            case DISCONNECTED:
+                return 1 << StaEvent.STATE_DISCONNECTED;
+            case INTERFACE_DISABLED:
+                return 1 << StaEvent.STATE_INTERFACE_DISABLED;
+            case INACTIVE:
+                return 1 << StaEvent.STATE_INACTIVE;
+            case SCANNING:
+                return 1 << StaEvent.STATE_SCANNING;
+            case AUTHENTICATING:
+                return 1 << StaEvent.STATE_AUTHENTICATING;
+            case ASSOCIATING:
+                return 1 << StaEvent.STATE_ASSOCIATING;
+            case ASSOCIATED:
+                return 1 << StaEvent.STATE_ASSOCIATED;
+            case FOUR_WAY_HANDSHAKE:
+                return 1 << StaEvent.STATE_FOUR_WAY_HANDSHAKE;
+            case GROUP_HANDSHAKE:
+                return 1 << StaEvent.STATE_GROUP_HANDSHAKE;
+            case COMPLETED:
+                return 1 << StaEvent.STATE_COMPLETED;
+            case DORMANT:
+                return 1 << StaEvent.STATE_DORMANT;
+            case UNINITIALIZED:
+                return 1 << StaEvent.STATE_UNINITIALIZED;
+            case INVALID:
+                return 1 << StaEvent.STATE_INVALID;
+            default:
+                Log.wtf(TAG, "Got unknown supplicant state: " + state.ordinal());
+                return 0;
+        }
+    }
+
+    private static String supplicantStateChangesBitmaskToString(int mask) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("SUPPLICANT_STATE_CHANGE_EVENTS: {");
+        if ((mask & (1 << StaEvent.STATE_DISCONNECTED)) > 0) sb.append(" DISCONNECTED");
+        if ((mask & (1 << StaEvent.STATE_INTERFACE_DISABLED)) > 0) sb.append(" INTERFACE_DISABLED");
+        if ((mask & (1 << StaEvent.STATE_INACTIVE)) > 0) sb.append(" INACTIVE");
+        if ((mask & (1 << StaEvent.STATE_SCANNING)) > 0) sb.append(" SCANNING");
+        if ((mask & (1 << StaEvent.STATE_AUTHENTICATING)) > 0) sb.append(" AUTHENTICATING");
+        if ((mask & (1 << StaEvent.STATE_ASSOCIATING)) > 0) sb.append(" ASSOCIATING");
+        if ((mask & (1 << StaEvent.STATE_ASSOCIATED)) > 0) sb.append(" ASSOCIATED");
+        if ((mask & (1 << StaEvent.STATE_FOUR_WAY_HANDSHAKE)) > 0) sb.append(" FOUR_WAY_HANDSHAKE");
+        if ((mask & (1 << StaEvent.STATE_GROUP_HANDSHAKE)) > 0) sb.append(" GROUP_HANDSHAKE");
+        if ((mask & (1 << StaEvent.STATE_COMPLETED)) > 0) sb.append(" COMPLETED");
+        if ((mask & (1 << StaEvent.STATE_DORMANT)) > 0) sb.append(" DORMANT");
+        if ((mask & (1 << StaEvent.STATE_UNINITIALIZED)) > 0) sb.append(" UNINITIALIZED");
+        if ((mask & (1 << StaEvent.STATE_INVALID)) > 0) sb.append(" INVALID");
+        sb.append("}");
+        return sb.toString();
+    }
+
+    /**
+     * Returns a human readable string from a Sta Event. Only adds information relevant to the event
+     * type.
+     */
+    public static String staEventToString(StaEvent event) {
+        if (event == null) return "<NULL>";
+        StringBuilder sb = new StringBuilder();
+        Long time = event.startTimeMillis;
+        sb.append(String.format("%9d ", time.longValue())).append(" ");
+        switch (event.type) {
+            case StaEvent.TYPE_ASSOCIATION_REJECTION_EVENT:
+                sb.append("ASSOCIATION_REJECTION_EVENT:")
+                        .append(" timedOut=").append(event.associationTimedOut)
+                        .append(" status=").append(event.status).append(":")
+                        .append(ISupplicantStaIfaceCallback.StatusCode.toString(event.status));
+                break;
+            case StaEvent.TYPE_AUTHENTICATION_FAILURE_EVENT:
+                sb.append("AUTHENTICATION_FAILURE_EVENT: reason=").append(event.authFailureReason)
+                        .append(":").append(authFailureReasonToString(event.authFailureReason));
+                break;
+            case StaEvent.TYPE_NETWORK_CONNECTION_EVENT:
+                sb.append("NETWORK_CONNECTION_EVENT:");
+                break;
+            case StaEvent.TYPE_NETWORK_DISCONNECTION_EVENT:
+                sb.append("NETWORK_DISCONNECTION_EVENT:")
+                        .append(" local_gen=").append(event.localGen)
+                        .append(" reason=").append(event.reason).append(":")
+                        .append(ISupplicantStaIfaceCallback.ReasonCode.toString(
+                                (event.reason >= 0 ? event.reason : -1 * event.reason)));
+                break;
+            case StaEvent.TYPE_CMD_ASSOCIATED_BSSID:
+                sb.append("CMD_ASSOCIATED_BSSID:");
+                break;
+            case StaEvent.TYPE_CMD_IP_CONFIGURATION_SUCCESSFUL:
+                sb.append("CMD_IP_CONFIGURATION_SUCCESSFUL:");
+                break;
+            case StaEvent.TYPE_CMD_IP_CONFIGURATION_LOST:
+                sb.append("CMD_IP_CONFIGURATION_LOST:");
+                break;
+            case StaEvent.TYPE_CMD_IP_REACHABILITY_LOST:
+                sb.append("CMD_IP_REACHABILITY_LOST:");
+                break;
+            case StaEvent.TYPE_CMD_TARGET_BSSID:
+                sb.append("CMD_TARGET_BSSID:");
+                break;
+            case StaEvent.TYPE_CMD_START_CONNECT:
+                sb.append("CMD_START_CONNECT:");
+                break;
+            case StaEvent.TYPE_CMD_START_ROAM:
+                sb.append("CMD_START_ROAM:");
+                break;
+            case StaEvent.TYPE_CONNECT_NETWORK:
+                sb.append("CONNECT_NETWORK:");
+                break;
+            case StaEvent.TYPE_NETWORK_AGENT_VALID_NETWORK:
+                sb.append("NETWORK_AGENT_VALID_NETWORK:");
+                break;
+            case StaEvent.TYPE_FRAMEWORK_DISCONNECT:
+                sb.append("FRAMEWORK_DISCONNECT:")
+                        .append(" reason=")
+                        .append(frameworkDisconnectReasonToString(event.frameworkDisconnectReason));
+                break;
+            default:
+                sb.append("UNKNOWN " + event.type + ":");
+                break;
+        }
+        if (event.lastRssi != -127) sb.append(" lastRssi=").append(event.lastRssi);
+        if (event.lastFreq != -1) sb.append(" lastFreq=").append(event.lastFreq);
+        if (event.lastLinkSpeed != -1) sb.append(" lastLinkSpeed=").append(event.lastLinkSpeed);
+        if (event.supplicantStateChangesBitmask != 0) {
+            sb.append("\n             ").append(supplicantStateChangesBitmaskToString(
+                    event.supplicantStateChangesBitmask));
+        }
+        if (event.configInfo != null) {
+            sb.append("\n             ").append(configInfoToString(event.configInfo));
+        }
+
+        return sb.toString();
+    }
+
+    private static String authFailureReasonToString(int authFailureReason) {
+        switch (authFailureReason) {
+            case StaEvent.AUTH_FAILURE_NONE:
+                return "ERROR_AUTH_FAILURE_NONE";
+            case StaEvent.AUTH_FAILURE_TIMEOUT:
+                return "ERROR_AUTH_FAILURE_TIMEOUT";
+            case StaEvent.AUTH_FAILURE_WRONG_PSWD:
+                return "ERROR_AUTH_FAILURE_WRONG_PSWD";
+            case StaEvent.AUTH_FAILURE_EAP_FAILURE:
+                return "ERROR_AUTH_FAILURE_EAP_FAILURE";
+            default:
+                return "";
+        }
+    }
+
+    private static String frameworkDisconnectReasonToString(int frameworkDisconnectReason) {
+        switch (frameworkDisconnectReason) {
+            case StaEvent.DISCONNECT_API:
+                return "DISCONNECT_API";
+            case StaEvent.DISCONNECT_GENERIC:
+                return "DISCONNECT_GENERIC";
+            case StaEvent.DISCONNECT_UNWANTED:
+                return "DISCONNECT_UNWANTED";
+            case StaEvent.DISCONNECT_ROAM_WATCHDOG_TIMER:
+                return "DISCONNECT_ROAM_WATCHDOG_TIMER";
+            case StaEvent.DISCONNECT_P2P_DISCONNECT_WIFI_REQUEST:
+                return "DISCONNECT_P2P_DISCONNECT_WIFI_REQUEST";
+            case StaEvent.DISCONNECT_RESET_SIM_NETWORKS:
+                return "DISCONNECT_RESET_SIM_NETWORKS";
+            default:
+                return "DISCONNECT_UNKNOWN=" + frameworkDisconnectReason;
+        }
+    }
+
+    private static String configInfoToString(ConfigInfo info) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("ConfigInfo:")
+                .append(" allowed_key_management=").append(info.allowedKeyManagement)
+                .append(" allowed_protocols=").append(info.allowedProtocols)
+                .append(" allowed_auth_algorithms=").append(info.allowedAuthAlgorithms)
+                .append(" allowed_pairwise_ciphers=").append(info.allowedPairwiseCiphers)
+                .append(" allowed_group_ciphers=").append(info.allowedGroupCiphers)
+                .append(" hidden_ssid=").append(info.hiddenSsid)
+                .append(" is_passpoint=").append(info.isPasspoint)
+                .append(" is_ephemeral=").append(info.isEphemeral)
+                .append(" has_ever_connected=").append(info.hasEverConnected)
+                .append(" scan_rssi=").append(info.scanRssi)
+                .append(" scan_freq=").append(info.scanFreq);
+        return sb.toString();
+    }
+
+    public static final int MAX_STA_EVENTS = 512;
+    private LinkedList<StaEvent> mStaEventList = new LinkedList<StaEvent>();
+    private int mLastPollRssi = -127;
+    private int mLastPollLinkSpeed = -1;
+    private int mLastPollFreq = -1;
+
+    /**
+     * Converts the first 31 bits of a BitSet to a little endian int
+     */
+    private static int bitSetToInt(BitSet bits) {
+        int value = 0;
+        int nBits = bits.length() < 31 ? bits.length() : 31;
+        for (int i = 0; i < nBits; i++) {
+            value += bits.get(i) ? (1 << i) : 0;
+        }
+        return value;
     }
 }
