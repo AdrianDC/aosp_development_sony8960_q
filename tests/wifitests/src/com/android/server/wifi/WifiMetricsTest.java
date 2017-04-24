@@ -21,13 +21,19 @@ import static org.mockito.Mockito.*;
 
 import android.net.NetworkAgent;
 import android.net.wifi.ScanResult;
+import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiSsid;
+import android.os.Handler;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Base64;
 
+
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.nano.WifiMetricsProto;
+import com.android.server.wifi.nano.WifiMetricsProto.StaEvent;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -37,6 +43,7 @@ import org.mockito.MockitoAnnotations;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -49,6 +56,7 @@ public class WifiMetricsTest {
 
     WifiMetrics mWifiMetrics;
     WifiMetricsProto.WifiLog mDeserializedWifiMetrics;
+    TestLooper mTestLooper;
     @Mock Clock mClock;
 
     @Before
@@ -56,7 +64,8 @@ public class WifiMetricsTest {
         MockitoAnnotations.initMocks(this);
         mDeserializedWifiMetrics = null;
         when(mClock.getElapsedSinceBootMillis()).thenReturn((long) 0);
-        mWifiMetrics = new WifiMetrics(mClock);
+        mTestLooper = new TestLooper();
+        mWifiMetrics = new WifiMetrics(mClock, mTestLooper.getLooper());
     }
 
     /**
@@ -847,6 +856,156 @@ public class WifiMetricsTest {
         assertEquals(0, mDeserializedWifiMetrics.rssiPollDeltaCount.length);
     }
 
+    private static final int DEAUTH_REASON = 7;
+    private static final int ASSOC_STATUS = 11;
+    private static final int ASSOC_TIMEOUT = 1;
+    private static final int LOCAL_GEN = 1;
+    private static final int AUTH_FAILURE_REASON = WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD;
+    private static final int NUM_TEST_STA_EVENTS = 14;
+    private static final String   sSSID = "\"SomeTestSsid\"";
+    private static final WifiSsid sWifiSsid = WifiSsid.createFromAsciiEncoded(sSSID);
+    private static final String   sBSSID = "01:02:03:04:05:06";
+
+    private final StateChangeResult mStateDisconnected =
+            new StateChangeResult(0, sWifiSsid, sBSSID, SupplicantState.DISCONNECTED);
+    private final StateChangeResult mStateCompleted =
+            new StateChangeResult(0, sWifiSsid, sBSSID, SupplicantState.COMPLETED);
+    // Test bitmasks of supplicant state changes
+    private final int mSupBm1 = WifiMetrics.supplicantStateToBit(mStateDisconnected.state);
+    private final int mSupBm2 = WifiMetrics.supplicantStateToBit(mStateDisconnected.state)
+            | WifiMetrics.supplicantStateToBit(mStateCompleted.state);
+    // An invalid but interesting wifiConfiguration that exercises the StaEvent.ConfigInfo encoding
+    private final WifiConfiguration mTestWifiConfig = createComplexWifiConfig();
+    // <msg.what> <msg.arg1> <msg.arg2>
+    private int[][] mTestStaMessageInts = {
+        {WifiMonitor.ASSOCIATION_REJECTION_EVENT,   ASSOC_TIMEOUT,      ASSOC_STATUS},
+        {WifiMonitor.AUTHENTICATION_FAILURE_EVENT,  0,                  AUTH_FAILURE_REASON},
+        {WifiMonitor.NETWORK_CONNECTION_EVENT,      0,                  0},
+        {WifiMonitor.NETWORK_DISCONNECTION_EVENT,   LOCAL_GEN,          DEAUTH_REASON},
+        {WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0,                  0},
+        {WifiStateMachine.CMD_ASSOCIATED_BSSID,     0,                  0},
+        {WifiStateMachine.CMD_TARGET_BSSID,         0,                  0},
+        {WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0,                  0},
+        {WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0,                  0}
+    };
+    private Object[] mTestStaMessageObjs = {
+        null,
+        null,
+        null,
+        null,
+        mStateDisconnected,
+        null,
+        null,
+        mStateDisconnected,
+        mStateCompleted
+    };
+    // Values used to generate the StaEvent log calls from WifiStateMachine
+    // <StaEvent.Type>, <StaEvent.FrameworkDisconnectReason>, <1|0>(testWifiConfiguration, null)
+    private int[][] mTestStaLogInts = {
+        {StaEvent.TYPE_CMD_IP_CONFIGURATION_SUCCESSFUL, 0,                          0},
+        {StaEvent.TYPE_CMD_IP_CONFIGURATION_LOST,       0,                          0},
+        {StaEvent.TYPE_CMD_IP_REACHABILITY_LOST,        0,                          0},
+        {StaEvent.TYPE_CMD_START_CONNECT,               0,                          1},
+        {StaEvent.TYPE_CMD_START_ROAM,                  0,                          1},
+        {StaEvent.TYPE_CONNECT_NETWORK,                 0,                          1},
+        {StaEvent.TYPE_NETWORK_AGENT_VALID_NETWORK,     0,                          0},
+        {StaEvent.TYPE_FRAMEWORK_DISCONNECT,            StaEvent.DISCONNECT_API,    0}
+    };
+    // Values used to generate the StaEvent log calls from WifiMonitor
+    // <type>, <reason>, <status>, <local_gen>,
+    // <auth_fail_reason>, <assoc_timed_out> <supplicantStateChangeBitmask> <1|0>(has ConfigInfo)
+    private int[][] mExpectedValues = {
+        {StaEvent.TYPE_ASSOCIATION_REJECTION_EVENT,     -1,  ASSOC_STATUS,         0,
+            /**/                               0, ASSOC_TIMEOUT,        0, 0},    /**/
+        {StaEvent.TYPE_AUTHENTICATION_FAILURE_EVENT,    -1,            -1,         0,
+            /**/StaEvent.AUTH_FAILURE_WRONG_PSWD,             0,        0, 0},    /**/
+        {StaEvent.TYPE_NETWORK_CONNECTION_EVENT,        -1,            -1,         0,
+            /**/                               0,             0,        0, 0},    /**/
+        {StaEvent.TYPE_NETWORK_DISCONNECTION_EVENT, DEAUTH_REASON,     -1, LOCAL_GEN,
+            /**/                               0,             0,        0, 0},    /**/
+        {StaEvent.TYPE_CMD_ASSOCIATED_BSSID,            -1,            -1,         0,
+            /**/                               0,             0,  mSupBm1, 0},    /**/
+        {StaEvent.TYPE_CMD_TARGET_BSSID,                -1,            -1,         0,
+            /**/                               0,             0,        0, 0},    /**/
+        {StaEvent.TYPE_CMD_IP_CONFIGURATION_SUCCESSFUL, -1,            -1,         0,
+            /**/                               0,             0,  mSupBm2, 0},    /**/
+        {StaEvent.TYPE_CMD_IP_CONFIGURATION_LOST,       -1,            -1,         0,
+            /**/                               0,             0,        0, 0},    /**/
+        {StaEvent.TYPE_CMD_IP_REACHABILITY_LOST,        -1,            -1,         0,
+            /**/                               0,             0,        0, 0},    /**/
+        {StaEvent.TYPE_CMD_START_CONNECT,               -1,            -1,         0,
+            /**/                               0,             0,        0, 1},    /**/
+        {StaEvent.TYPE_CMD_START_ROAM,                  -1,            -1,         0,
+            /**/                               0,             0,        0, 1},    /**/
+        {StaEvent.TYPE_CONNECT_NETWORK,                 -1,            -1,         0,
+            /**/                               0,             0,        0, 1},    /**/
+        {StaEvent.TYPE_NETWORK_AGENT_VALID_NETWORK,     -1,            -1,         0,
+            /**/                               0,             0,        0, 0},    /**/
+        {StaEvent.TYPE_FRAMEWORK_DISCONNECT,            -1,            -1,         0,
+            /**/                               0,             0,        0, 0}     /**/
+    };
+
+    /**
+     * Generates events from all the rows in mTestStaMessageInts, and then mTestStaLogInts
+     */
+    private void generateStaEvents(WifiMetrics wifiMetrics) {
+        Handler handler = wifiMetrics.getHandler();
+        for (int i = 0; i < mTestStaMessageInts.length; i++) {
+            int[] mia = mTestStaMessageInts[i];
+            handler.sendMessage(
+                    handler.obtainMessage(mia[0], mia[1], mia[2], mTestStaMessageObjs[i]));
+        }
+        mTestLooper.dispatchAll();
+        for (int i = 0; i < mTestStaLogInts.length; i++) {
+            int[] lia = mTestStaLogInts[i];
+            wifiMetrics.logStaEvent(lia[0], lia[1], lia[2] == 1 ? mTestWifiConfig : null);
+        }
+    }
+    private void verifyDeserializedStaEvents(WifiMetricsProto.WifiLog wifiLog) {
+        assertEquals(NUM_TEST_STA_EVENTS, wifiLog.staEventList.length);
+        int j = 0; // De-serialized event index
+        for (int i = 0; i < mTestStaMessageInts.length; i++) {
+            StaEvent event = wifiLog.staEventList[j];
+            int[] mia = mTestStaMessageInts[i];
+            int[] evs = mExpectedValues[j];
+            if (mia[0] != WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT) {
+                assertEquals(evs[0], event.type);
+                assertEquals(evs[1], event.reason);
+                assertEquals(evs[2], event.status);
+                assertEquals(evs[3] == 1 ? true : false, event.localGen);
+                assertEquals(evs[4], event.authFailureReason);
+                assertEquals(evs[5] == 1 ? true : false, event.associationTimedOut);
+                assertEquals(evs[6], event.supplicantStateChangesBitmask);
+                assertConfigInfoEqualsWifiConfig(
+                        evs[7] == 1 ? mTestWifiConfig : null, event.configInfo);
+                j++;
+            }
+        }
+    }
+
+    /**
+     * Generate StaEvents of each type, ensure all the different values are logged correctly,
+     * and that they survive serialization & de-serialization
+     */
+    @Test
+    public void testStaEventsLogSerializeDeserialize() throws Exception {
+        generateStaEvents(mWifiMetrics);
+        dumpProtoAndDeserialize();
+        verifyDeserializedStaEvents(mDeserializedWifiMetrics);
+    }
+
+    /**
+     * Ensure the number of StaEvents does not exceed MAX_STA_EVENTS by generating lots of events
+     * and checking how many are deserialized
+     */
+    @Test
+    public void testStaEventBounding() throws Exception {
+        for (int i = 0; i < (WifiMetrics.MAX_STA_EVENTS + 10); i++) {
+            mWifiMetrics.logStaEvent(StaEvent.TYPE_CMD_START_CONNECT);
+        }
+        dumpProtoAndDeserialize();
+        assertEquals(WifiMetrics.MAX_STA_EVENTS, mDeserializedWifiMetrics.staEventList.length);
+    }
     /**
      * Generate an RSSI delta event by creating a connection event and an RSSI poll within
      * 'interArrivalTime' milliseconds of each other.
@@ -910,5 +1069,57 @@ public class WifiMetricsTest {
         mWifiMetrics.dump(null, writer, args);
         writer.flush();
         return stream.toString();
+    }
+
+    private static final int TEST_ALLOWED_KEY_MANAGEMENT = 83;
+    private static final int TEST_ALLOWED_PROTOCOLS = 22;
+    private static final int TEST_ALLOWED_AUTH_ALGORITHMS = 11;
+    private static final int TEST_ALLOWED_PAIRWISE_CIPHERS = 67;
+    private static final int TEST_ALLOWED_GROUP_CIPHERS = 231;
+    private static final int TEST_CANDIDATE_LEVEL = -80;
+    private static final int TEST_CANDIDATE_FREQ = 2345;
+
+    private WifiConfiguration createComplexWifiConfig() {
+        WifiConfiguration config = new WifiConfiguration();
+        config.allowedKeyManagement = intToBitSet(TEST_ALLOWED_KEY_MANAGEMENT);
+        config.allowedProtocols = intToBitSet(TEST_ALLOWED_PROTOCOLS);
+        config.allowedAuthAlgorithms = intToBitSet(TEST_ALLOWED_AUTH_ALGORITHMS);
+        config.allowedPairwiseCiphers = intToBitSet(TEST_ALLOWED_PAIRWISE_CIPHERS);
+        config.allowedGroupCiphers = intToBitSet(TEST_ALLOWED_GROUP_CIPHERS);
+        config.hiddenSSID = true;
+        config.ephemeral = true;
+        config.getNetworkSelectionStatus().setHasEverConnected(true);
+        ScanResult candidate = new ScanResult();
+        candidate.level = TEST_CANDIDATE_LEVEL;
+        candidate.frequency = TEST_CANDIDATE_FREQ;
+        config.getNetworkSelectionStatus().setCandidate(candidate);
+        return config;
+    }
+
+    private void assertConfigInfoEqualsWifiConfig(WifiConfiguration config,
+            StaEvent.ConfigInfo info) {
+        if (config == null && info == null) return;
+        assertEquals(config.allowedKeyManagement,   intToBitSet(info.allowedKeyManagement));
+        assertEquals(config.allowedProtocols,       intToBitSet(info.allowedProtocols));
+        assertEquals(config.allowedAuthAlgorithms,  intToBitSet(info.allowedAuthAlgorithms));
+        assertEquals(config.allowedPairwiseCiphers, intToBitSet(info.allowedPairwiseCiphers));
+        assertEquals(config.allowedGroupCiphers,    intToBitSet(info.allowedGroupCiphers));
+        assertEquals(config.hiddenSSID, info.hiddenSsid);
+        assertEquals(config.ephemeral, info.isEphemeral);
+        assertEquals(config.getNetworkSelectionStatus().getHasEverConnected(),
+                info.hasEverConnected);
+        assertEquals(config.getNetworkSelectionStatus().getCandidate().level, info.scanRssi);
+        assertEquals(config.getNetworkSelectionStatus().getCandidate().frequency, info.scanFreq);
+    }
+
+    /**
+     * Sets the values of bitSet to match an int mask
+     */
+    private static BitSet intToBitSet(int mask) {
+        BitSet bitSet = new BitSet();
+        for (int bitIndex = 0; mask > 0; mask >>>= 1, bitIndex++) {
+            if ((mask & 1) != 0) bitSet.set(bitIndex);
+        }
+        return bitSet;
     }
 }
