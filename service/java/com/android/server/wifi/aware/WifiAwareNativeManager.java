@@ -53,6 +53,9 @@ class WifiAwareNativeManager {
         mWifiAwareStateManager = awareStateManager;
         mHalDeviceManager = halDeviceManager;
         mWifiAwareNativeCallback = wifiAwareNativeCallback;
+    }
+
+    public void start() {
         mHalDeviceManager.registerStatusListener(
                 new HalDeviceManager.ManagerStatusListener() {
                     @Override
