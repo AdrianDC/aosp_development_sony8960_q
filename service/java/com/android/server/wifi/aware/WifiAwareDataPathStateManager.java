@@ -592,8 +592,6 @@ public class WifiAwareDataPathStateManager {
                 return true;
             }
 
-            // TODO: validate that the client ID actually comes from the correct process and is
-            // not faked?
             nnri = AwareNetworkRequestInformation.processNetworkSpecifier(networkSpecifier, mMgr);
             if (nnri == null) {
                 Log.e(TAG, "WifiAwareNetworkFactory.acceptRequest: request=" + request
@@ -901,6 +899,13 @@ public class WifiAwareDataPathStateManager {
                         return null;
                     }
                 }
+            }
+
+            // validate UID
+            if (ns.requestorUid != uid) {
+                Log.e(TAG, "processNetworkSpecifier: networkSpecifier=" + ns.toString()
+                        + " -- UID mismatch to clientId's uid=" + uid);
+                return null;
             }
 
             // create container and populate
