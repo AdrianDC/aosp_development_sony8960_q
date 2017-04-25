@@ -2334,7 +2334,9 @@ public class WifiConfigManager {
                 String currentIdentity = TelephonyUtil.getSimIdentity(mTelephonyManager, config);
                 // Update the loaded config
                 config.enterpriseConfig.setIdentity(currentIdentity);
-                config.enterpriseConfig.setAnonymousIdentity("");
+                if (config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.PEAP) {
+                    config.enterpriseConfig.setAnonymousIdentity("");
+                }
             }
         }
     }
