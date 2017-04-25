@@ -198,9 +198,8 @@ public class WifiInjector {
         mConnectivityLocalLog = new LocalLog(ActivityManager.isLowRamDeviceStatic() ? 256 : 512);
         mWifiNetworkSelector = new WifiNetworkSelector(mContext, mWifiConfigManager, mClock,
                 mConnectivityLocalLog);
-        mSavedNetworkEvaluator = new SavedNetworkEvaluator(mContext,
-                mWifiConfigManager, mClock, mConnectivityLocalLog, wifiStateMachineLooper,
-                mFrameworkFacade, mWifiConnectivityHelper);
+        mSavedNetworkEvaluator = new SavedNetworkEvaluator(mContext, mWifiConfigManager, mClock,
+                mConnectivityLocalLog, mWifiConnectivityHelper);
         mRecommendedNetworkEvaluator = new RecommendedNetworkEvaluator(context,
                 context.getContentResolver(), wifiStateMachineLooper, mFrameworkFacade,
                 mNetworkScoreManager, mWifiConfigManager, mConnectivityLocalLog);

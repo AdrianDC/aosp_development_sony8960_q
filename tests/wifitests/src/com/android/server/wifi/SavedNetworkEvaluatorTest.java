@@ -22,16 +22,11 @@ import static com.android.server.wifi.WifiConfigurationTestUtil.SECURITY_PSK;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Resources;
-import android.database.ContentObserver;
-import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
-import android.os.Looper;
 import android.os.SystemClock;
-import android.provider.Settings;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.LocalLog;
 
@@ -41,7 +36,6 @@ import com.android.server.wifi.WifiNetworkSelectorTestUtil.ScanDetailsAndWifiCon
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -64,10 +58,6 @@ public class SavedNetworkEvaluatorTest {
 
         when(mWifiConnectivityHelper.isFirmwareRoamingSupported()).thenReturn(false);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
-        when(mFrameworkFacade.getIntegerSetting(mContext,
-                Settings.Global.CURATE_SAVED_OPEN_NETWORKS, 0)).thenReturn(0);
-        when(mFrameworkFacade.getIntegerSetting(mContext,
-                Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0)).thenReturn(0);
 
         mThresholdMinimumRssi2G = mResource.getInteger(
                 R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_24GHz);
@@ -82,17 +72,8 @@ public class SavedNetworkEvaluatorTest {
         mThresholdSaturatedRssi5G = mResource.getInteger(
                 R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_5GHz);
 
-        ArgumentCaptor<ContentObserver> observerCaptor =
-                ArgumentCaptor.forClass(ContentObserver.class);
-
         mSavedNetworkEvaluator = new SavedNetworkEvaluator(mContext, mWifiConfigManager,
-                mClock, mLocalLog, Looper.getMainLooper(), mFrameworkFacade,
-                mWifiConnectivityHelper);
-        verify(mFrameworkFacade, times(2)).registerContentObserver(eq(mContext), any(Uri.class),
-                eq(false), observerCaptor.capture());
-        // SavedNetworkEvaluator uses a single ContentObserver for two registrations, we only need
-        // to get this object once.
-        mContentObserver = observerCaptor.getValue();
+                mClock, mLocalLog, mWifiConnectivityHelper);
     }
 
     /** Cleans up test. */
@@ -105,8 +86,6 @@ public class SavedNetworkEvaluatorTest {
     @Mock private WifiConfigManager mWifiConfigManager;
     @Mock private WifiConnectivityHelper mWifiConnectivityHelper;
     @Mock private Context mContext;
-    @Mock private ContentResolver mContentResolver;
-    @Mock private FrameworkFacade mFrameworkFacade;
     @Mock private Resources mResource;
     @Mock private Clock mClock;
     private LocalLog mLocalLog;
@@ -116,11 +95,9 @@ public class SavedNetworkEvaluatorTest {
     private int mThresholdQualifiedRssi5G;
     private int mThresholdSaturatedRssi2G;
     private int mThresholdSaturatedRssi5G;
-    private ContentObserver mContentObserver;
 
     private void setupContext() {
         when(mContext.getResources()).thenReturn(mResource);
-        when(mContext.getContentResolver()).thenReturn(mContentResolver);
     }
 
     private void setupResource() {
@@ -195,55 +172,18 @@ public class SavedNetworkEvaluatorTest {
     }
 
     /**
-     * Do not evaluate open networks when {@link Settings.Global.CURATE_SAVED_OPEN_NETWORKS} and
-     * {@link Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED} are enabled.
-     */
-    @Test
-    public void ignoreOpensNetworksIfCurateSavedNetworksEnabled() {
-        String[] ssids = {"\"test1\"", "\"test2\""};
-        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
-        int[] freqs = {5200, 5240};
-        String[] caps = {"[ESS]", "[ESS]"};
-        int[] levels = {mThresholdQualifiedRssi5G, mThresholdQualifiedRssi5G};
-        int[] securities = {SECURITY_NONE, SECURITY_NONE};
-
-        when(mFrameworkFacade.getIntegerSetting(mContext,
-                Settings.Global.CURATE_SAVED_OPEN_NETWORKS, 0)).thenReturn(1);
-        when(mFrameworkFacade.getIntegerSetting(mContext,
-                Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0)).thenReturn(1);
-        mContentObserver.onChange(false);
-
-        ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
-                WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
-                        freqs, caps, levels, securities, mWifiConfigManager, mClock);
-        List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
-
-        WifiConfiguration candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
-                null, null, true, false, null);
-
-        assertNull(candidate);
-    }
-
-    /**
-     * Set the candidate {@link ScanResult} for all {@link WifiConfiguration}s even if they have
-     * useExternalScores set or are open networks with
-     * {@link Settings.Global.CURATE_SAVED_OPEN_NETWORKS} and
-     * {@link Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED} enabled.
+     * Set the candidate {@link ScanResult} for all {@link WifiConfiguration}s regardless of
+     * whether they are secure saved, open saved, or {@link WifiConfiguration#useExternalScores}.
      */
     @Test
     public void setCandidateScanResultsForAllSavedNetworks() {
-        String[] ssids = {"\"test1\"", "\"test2\""};
-        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
-        int[] freqs = {5200, 5240};
-        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[ESS]"};
-        int[] levels = {mThresholdQualifiedRssi5G, mThresholdQualifiedRssi5G};
-        int[] securities = {SECURITY_PSK, SECURITY_NONE};
-
-        when(mFrameworkFacade.getIntegerSetting(mContext,
-                Settings.Global.CURATE_SAVED_OPEN_NETWORKS, 0)).thenReturn(1);
-        when(mFrameworkFacade.getIntegerSetting(mContext,
-                Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0)).thenReturn(1);
-        mContentObserver.onChange(false);
+        String[] ssids = {"\"test1\"", "\"test2\"", "\"test3\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4", "6c:f3:7f:ae:8c:f5"};
+        int[] freqs = {5200, 5220, 5240};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[ESS]", "[WPA2-EAP-CCMP][ESS]"};
+        int[] levels =
+                {mThresholdQualifiedRssi5G, mThresholdQualifiedRssi5G, mThresholdQualifiedRssi5G};
+        int[] securities = {SECURITY_PSK, SECURITY_NONE, SECURITY_PSK};
 
         ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
                 WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
@@ -252,25 +192,27 @@ public class SavedNetworkEvaluatorTest {
         WifiConfiguration useExternalScoresConfig = scanDetailsAndConfigs.getWifiConfigs()[0];
         useExternalScoresConfig.useExternalScores = true;
         WifiConfiguration openNetworkConfig = scanDetailsAndConfigs.getWifiConfigs()[1];
+        WifiConfiguration secureNetworkConfig = scanDetailsAndConfigs.getWifiConfigs()[2];
 
-        WifiConfiguration candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
-                null, null, true, false, null);
+        mSavedNetworkEvaluator.evaluateNetworks(scanDetails, null, null, true, false, null);
 
-        assertNull(candidate);
-
-        verify(mWifiConfigManager).setNetworkCandidateScanResult(
+        verify(mWifiConfigManager, atLeastOnce()).setNetworkCandidateScanResult(
                 eq(useExternalScoresConfig.networkId),
                 eq(scanDetails.get(0).getScanResult()),
                 anyInt());
-        verify(mWifiConfigManager).setNetworkCandidateScanResult(
+        verify(mWifiConfigManager, atLeastOnce()).setNetworkCandidateScanResult(
                 eq(openNetworkConfig.networkId),
                 eq(scanDetails.get(1).getScanResult()),
+                anyInt());
+        verify(mWifiConfigManager, atLeastOnce()).setNetworkCandidateScanResult(
+                eq(secureNetworkConfig.networkId),
+                eq(scanDetails.get(2).getScanResult()),
                 anyInt());
     }
 
     /**
      * Between two 2G networks, choose the one with stronger RSSI value if other conditions
-     * are the same and the RSSI values are not satuarted.
+     * are the same and the RSSI values are not saturated.
      */
     @Test
     public void chooseStrongerRssi2GNetwork() {
@@ -299,9 +241,6 @@ public class SavedNetworkEvaluatorTest {
     /**
      * Between two 5G networks, choose the one with stronger RSSI value if other conditions
      * are the same and the RSSI values are not saturated.
-     * {@link Settings.Global.CURATE_SAVED_OPEN_NETWORKS} and
-     * {@link Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED} will no affect on the outcome
-     * because both networks are secure.
      */
     @Test
     public void chooseStrongerRssi5GNetwork() {
@@ -311,12 +250,6 @@ public class SavedNetworkEvaluatorTest {
         String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
         int[] levels = {mThresholdQualifiedRssi5G + 8, mThresholdQualifiedRssi5G + 10};
         int[] securities = {SECURITY_PSK, SECURITY_PSK};
-
-        when(mFrameworkFacade.getIntegerSetting(mContext,
-                Settings.Global.CURATE_SAVED_OPEN_NETWORKS, 0)).thenReturn(1);
-        when(mFrameworkFacade.getIntegerSetting(mContext,
-                Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0)).thenReturn(1);
-        mContentObserver.onChange(false);
 
         ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
                 WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
