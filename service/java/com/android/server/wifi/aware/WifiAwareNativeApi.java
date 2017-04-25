@@ -36,6 +36,7 @@ import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
 import android.os.RemoteException;
+import android.os.ShellCommand;
 import android.util.Log;
 
 import libcore.util.HexEncoding;
@@ -43,13 +44,15 @@ import libcore.util.HexEncoding;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Translates Wi-Fi Aware requests from the framework to the HAL (HIDL).
  *
  * Delegates the management of the NAN interface to WifiAwareNativeManager.
  */
-public class WifiAwareNativeApi {
+public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellCommand {
     private static final String TAG = "WifiAwareNativeApi";
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
@@ -58,6 +61,70 @@ public class WifiAwareNativeApi {
 
     public WifiAwareNativeApi(WifiAwareNativeManager wifiAwareNativeManager) {
         mHal = wifiAwareNativeManager;
+    }
+
+    /*
+     * Parameters settable through the shell command.
+     */
+    public static final String PARAM_DW_ON_INACTIVE_24GHZ = "dw_on_inactive_24ghz";
+    public static final String PARAM_DW_ON_INACTIVE_5GHZ = "dw_on_inactive_5ghz";
+    public static final String PARAM_DW_ON_IDLE_24GHZ = "dw_on_idle_24ghz";
+    public static final String PARAM_DW_ON_IDLE_5GHZ = "dw_on_idle_5ghz";
+
+    private Map<String, Integer> mSettableParameters = new HashMap<>();
+    {
+        mSettableParameters.put(PARAM_DW_ON_INACTIVE_24GHZ, -1); // -1 mean no-op, don't override
+        mSettableParameters.put(PARAM_DW_ON_INACTIVE_5GHZ, -1); // -1 mean no-op, don't override
+        mSettableParameters.put(PARAM_DW_ON_IDLE_24GHZ, -1); // -1 mean no-op, don't override
+        mSettableParameters.put(PARAM_DW_ON_IDLE_5GHZ, -1); // -1 mean no-op, don't override
+    }
+
+    /**
+     * Interpreter of adb shell command 'adb shell wifiaware native_api ...'.
+     *
+     * @return -1 if parameter not recognized or invalid value, 0 otherwise.
+     */
+    @Override
+    public int onCommand(ShellCommand parentShell) {
+        final PrintWriter pw = parentShell.getErrPrintWriter();
+
+        String subCmd = parentShell.getNextArgRequired();
+        if (VDBG) Log.v(TAG, "onCommand: subCmd='" + subCmd + "'");
+        switch (subCmd) {
+            case "set": {
+                String name = parentShell.getNextArgRequired();
+                if (VDBG) Log.v(TAG, "onCommand: name='" + name + "'");
+                if (!mSettableParameters.containsKey(name)) {
+                    pw.println("Unknown parameter name -- '" + name + "'");
+                    return -1;
+                }
+
+                String valueStr = parentShell.getNextArgRequired();
+                if (VDBG) Log.v(TAG, "onCommand: valueStr='" + valueStr + "'");
+                int value;
+                try {
+                    value = Integer.valueOf(valueStr);
+                } catch (NumberFormatException e) {
+                    pw.println("Can't convert value to integer -- '" + valueStr + "'");
+                    return -1;
+                }
+                mSettableParameters.put(name, value);
+                return 0;
+            }
+            default:
+                pw.println("Unknown 'wifiaware native_api <cmd>'");
+        }
+
+        return -1;
+    }
+
+    @Override
+    public void onHelp(String command, ShellCommand parentShell) {
+        final PrintWriter pw = parentShell.getOutPrintWriter();
+
+        pw.println("  " + command);
+        pw.println("    set <name> <value>: sets named parameter to value. Names: "
+                + mSettableParameters.keySet());
     }
 
     /**
@@ -98,13 +165,17 @@ public class WifiAwareNativeApi {
      * @param notifyIdentityChange Indicates whether or not to get address change callbacks.
      * @param initialConfiguration Specifies whether initial configuration
      *            (true) or an update (false) to the configuration.
+     * @param isInteractive PowerManager.isInteractive
+     * @param isIdle PowerManager.isIdle
      */
     public boolean enableAndConfigure(short transactionId, ConfigRequest configRequest,
-            boolean notifyIdentityChange, boolean initialConfiguration) {
+            boolean notifyIdentityChange, boolean initialConfiguration, boolean isInteractive,
+            boolean isIdle) {
         if (VDBG) {
             Log.v(TAG, "enableAndConfigure: transactionId=" + transactionId + ", configRequest="
                     + configRequest + ", notifyIdentityChange=" + notifyIdentityChange
-                    + ", initialConfiguration=" + initialConfiguration);
+                    + ", initialConfiguration=" + initialConfiguration
+                    + ", isInteractive=" + isInteractive + ", isIdle=" + isIdle);
         }
 
         IWifiNanIface iface = mHal.getWifiNanIface();
@@ -187,6 +258,8 @@ public class WifiAwareNativeApi {
                 req.debugConfigs.useSdfInBandVal[NanBandIndex.NAN_BAND_24GHZ] = true;
                 req.debugConfigs.useSdfInBandVal[NanBandIndex.NAN_BAND_5GHZ] = true;
 
+                updateConfigForPowerSettings(req.configParams, isInteractive, isIdle);
+
                 status = iface.enableRequest(transactionId, req);
             } else {
                 NanConfigRequest req = new NanConfigRequest();
@@ -234,6 +307,8 @@ public class WifiAwareNativeApi {
                                     .NAN_BAND_5GHZ];
                 }
                 req.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ] = config5;
+
+                updateConfigForPowerSettings(req, isInteractive, isIdle);
 
                 status = iface.configRequest(transactionId, req);
             }
@@ -758,6 +833,33 @@ public class WifiAwareNativeApi {
     // utilities
 
     /**
+     * Update the NAN configuration to reflect the current power settings.
+     */
+    private void updateConfigForPowerSettings(NanConfigRequest req, boolean isInteractive,
+            boolean isIdle) {
+        if (isIdle) { // lowest power state: doze
+            updateSingleConigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ],
+                    mSettableParameters.get(PARAM_DW_ON_IDLE_5GHZ));
+            updateSingleConigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ],
+                    mSettableParameters.get(PARAM_DW_ON_IDLE_24GHZ));
+        } else if (!isInteractive) { // intermediate power state: inactive
+            updateSingleConigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ],
+                    mSettableParameters.get(PARAM_DW_ON_INACTIVE_5GHZ));
+            updateSingleConigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ],
+                    mSettableParameters.get(PARAM_DW_ON_INACTIVE_24GHZ));
+        }
+
+        // else do nothing - normal power state
+    }
+
+    private void updateSingleConigForPowerSettings(NanBandSpecificConfig cfg, int override) {
+        if (override != -1) {
+            cfg.validDiscoveryWindowIntervalVal = true;
+            cfg.discoveryWindowIntervalVal = (byte) override;
+        }
+    }
+
+    /**
      * Returns the strongest supported cipher suite.
      *
      * Baseline is very simple: 256 > 128 > 0.
@@ -820,6 +922,8 @@ public class WifiAwareNativeApi {
      * Dump the internal state of the class.
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        pw.println("WifiAwareNativeApi:");
+        pw.println("  mSettableParameters: " + mSettableParameters);
         mHal.dump(fd, pw, args);
     }
 }

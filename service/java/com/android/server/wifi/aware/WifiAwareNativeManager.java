@@ -23,6 +23,7 @@ import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.os.RemoteException;
 import android.util.Log;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.HalDeviceManager;
 
 import java.io.FileDescriptor;
@@ -31,7 +32,7 @@ import java.io.PrintWriter;
 /**
  * Manages the interface to Wi-Fi Aware HIDL (HAL).
  */
-class WifiAwareNativeManager {
+public class WifiAwareNativeManager {
     private static final String TAG = "WifiAwareNativeManager";
     private static final boolean DBG = false;
 
@@ -78,12 +79,20 @@ class WifiAwareNativeManager {
         }
     }
 
-    /* package */ IWifiNanIface getWifiNanIface() {
+    /**
+     * Returns the native HAL WifiNanIface through which commands to the NAN HAL are dispatched.
+     * Return may be null if not initialized/available.
+     */
+    @VisibleForTesting
+    public IWifiNanIface getWifiNanIface() {
         synchronized (mLock) {
             return mWifiNanIface;
         }
     }
 
+    /**
+     * Attempt to obtain the HAL NAN interface. If available then enables Aware usage.
+     */
     private void tryToGetAware() {
         synchronized (mLock) {
             if (DBG) Log.d(TAG, "tryToGetAware: mWifiNanIface=" + mWifiNanIface);

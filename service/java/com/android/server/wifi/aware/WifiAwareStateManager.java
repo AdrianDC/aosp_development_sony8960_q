@@ -16,8 +16,10 @@
 
 package com.android.server.wifi.aware;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.hardware.wifi.V1_0.NanStatusType;
 import android.net.wifi.RttManager;
 import android.net.wifi.aware.Characteristics;
@@ -31,7 +33,9 @@ import android.net.wifi.aware.WifiAwareNetworkSpecifier;
 import android.os.Bundle;
 import android.os.Looper;
 import android.os.Message;
+import android.os.PowerManager;
 import android.os.RemoteException;
+import android.os.ShellCommand;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.util.ArrayMap;
@@ -50,6 +54,7 @@ import libcore.util.HexEncoding;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -57,7 +62,7 @@ import java.util.Map;
 /**
  * Manages the state of the Wi-Fi Aware system service.
  */
-public class WifiAwareStateManager {
+public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShellCommand {
     private static final String TAG = "WifiAwareStateManager";
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
@@ -108,6 +113,7 @@ public class WifiAwareStateManager {
     private static final int COMMAND_TYPE_RESPOND_TO_DATA_PATH_SETUP_REQUEST = 117;
     private static final int COMMAND_TYPE_END_DATA_PATH = 118;
     private static final int COMMAND_TYPE_TRANSMIT_NEXT_MESSAGE = 119;
+    private static final int COMMAND_TYPE_RECONFIGURE = 120;
 
     private static final int RESPONSE_TYPE_ON_CONFIG_SUCCESS = 200;
     private static final int RESPONSE_TYPE_ON_CONFIG_FAIL = 201;
@@ -189,6 +195,7 @@ public class WifiAwareStateManager {
     private WifiAwareStateMachine mSm;
     private WifiAwareRttStateManager mRtt;
     private WifiAwareDataPathStateManager mDataPathMgr;
+    private PowerManager mPowerManager;
 
     private final SparseArray<WifiAwareClientState> mClients = new SparseArray<>();
     private ConfigRequest mCurrentAwareConfiguration = null;
@@ -201,8 +208,70 @@ public class WifiAwareStateManager {
         // empty
     }
 
+    /**
+     * Inject references to other manager objects. Needed to resolve
+     * circular dependencies and to allow mocking.
+     */
     public void setNative(WifiAwareNativeApi wifiAwareNativeApi) {
         mWifiAwareNativeApi = wifiAwareNativeApi;
+    }
+
+    /*
+     * parameters settable through shell command
+     */
+    public static final String PARAM_ON_IDLE_DISABLE_AWARE = "on_idle_disable_aware";
+
+    private Map<String, Integer> mSettableParameters = new HashMap<>();
+    {
+        mSettableParameters.put(PARAM_ON_IDLE_DISABLE_AWARE, 0); // 0 = false
+    }
+
+    /**
+     * Interpreter of adb shell command 'adb shell wifiaware native_api ...'.
+     *
+     * @return -1 if parameter not recognized or invalid value, 0 otherwise.
+     */
+    @Override
+    public int onCommand(ShellCommand parentShell) {
+        final PrintWriter pw = parentShell.getErrPrintWriter();
+
+        String subCmd = parentShell.getNextArgRequired();
+        if (VDBG) Log.v(TAG, "onCommand: subCmd='" + subCmd + "'");
+        switch (subCmd) {
+            case "set": {
+                String name = parentShell.getNextArgRequired();
+                if (VDBG) Log.v(TAG, "onCommand: name='" + name + "'");
+                if (!mSettableParameters.containsKey(name)) {
+                    pw.println("Unknown parameter name -- '" + name + "'");
+                    return -1;
+                }
+
+                String valueStr = parentShell.getNextArgRequired();
+                if (VDBG) Log.v(TAG, "onCommand: valueStr='" + valueStr + "'");
+                int value;
+                try {
+                    value = Integer.valueOf(valueStr);
+                } catch (NumberFormatException e) {
+                    pw.println("Can't convert value to integer -- '" + valueStr + "'");
+                    return -1;
+                }
+                mSettableParameters.put(name, value);
+                return 0;
+            }
+            default:
+                pw.println("Unknown 'wifiaware state_mgr <cmd>'");
+        }
+
+        return -1;
+    }
+
+    @Override
+    public void onHelp(String command, ShellCommand parentShell) {
+        final PrintWriter pw = parentShell.getOutPrintWriter();
+
+        pw.println("  " + command);
+        pw.println("    set <name> <value>: sets named parameter to value. Names: "
+                + mSettableParameters.keySet());
     }
 
     /**
@@ -222,6 +291,36 @@ public class WifiAwareStateManager {
         mRtt = new WifiAwareRttStateManager();
         mDataPathMgr = new WifiAwareDataPathStateManager(this);
         mDataPathMgr.start(mContext, mSm.getHandler().getLooper());
+
+        mPowerManager = mContext.getSystemService(PowerManager.class);
+
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Intent.ACTION_SCREEN_ON);
+        intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
+        intentFilter.addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED);
+        mContext.registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                if (VDBG) Log.v(TAG, "BroadcastReceiver: action=" + action);
+                if (action.equals(Intent.ACTION_SCREEN_ON)
+                        || action.equals(Intent.ACTION_SCREEN_OFF)) {
+                    reconfigure();
+                }
+
+                if (action.equals(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED)) {
+                    if (mSettableParameters.get(PARAM_ON_IDLE_DISABLE_AWARE) != 0) {
+                        if (mPowerManager.isDeviceIdleMode()) {
+                            disableUsage();
+                        } else {
+                            enableUsage();
+                        }
+                    } else {
+                        reconfigure();
+                    }
+                }
+            }
+        }, intentFilter);
     }
 
     /**
@@ -287,6 +386,17 @@ public class WifiAwareStateManager {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_DISCONNECT;
         msg.arg2 = clientId;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Place a request to reconfigure Aware. No additional input - intended to use current
+     * power settings when executed. Thus possibly entering or exiting power saving mode if
+     * needed (or do nothing if Aware is not active).
+     */
+    public void reconfigure() {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_RECONFIGURE;
         mSm.sendMessage(msg);
     }
 
@@ -391,6 +501,11 @@ public class WifiAwareStateManager {
      * only happens when a connection is created.
      */
     public void enableUsage() {
+        if (mSettableParameters.get(PARAM_ON_IDLE_DISABLE_AWARE) != 0
+                && mPowerManager.isDeviceIdleMode()) {
+            Log.d(TAG, "enableUsage(): while device is in IDLE mode - ignoring");
+            return;
+        }
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_ENABLE_USAGE;
         mSm.sendMessage(msg);
@@ -1218,6 +1333,9 @@ public class WifiAwareStateManager {
                     waitForResponse = disconnectLocal(mCurrentTransactionId, clientId);
                     break;
                 }
+                case COMMAND_TYPE_RECONFIGURE:
+                    waitForResponse = reconfigureLocal(mCurrentTransactionId);
+                    break;
                 case COMMAND_TYPE_TERMINATE_SESSION: {
                     int clientId = msg.arg2;
                     int sessionId = (Integer) msg.obj;
@@ -1573,6 +1691,13 @@ public class WifiAwareStateManager {
                     onConfigFailedLocal(mCurrentCommand, NanStatusType.INTERNAL_FAILURE);
                     break;
                 }
+                case COMMAND_TYPE_RECONFIGURE:
+                    /*
+                     * Reconfigure timed-out. There is nothing to do but log the issue - which
+                      * will be done in the callback.
+                     */
+                    onConfigFailedLocal(mCurrentCommand, NanStatusType.INTERNAL_FAILURE);
+                    break;
                 case COMMAND_TYPE_TERMINATE_SESSION: {
                     Log.wtf(TAG, "processTimeout: TERMINATE_SESSION - shouldn't be waiting!");
                     break;
@@ -1818,7 +1943,8 @@ public class WifiAwareStateManager {
                 doesAnyClientNeedIdentityChangeNotifications() || notifyIdentityChange;
 
         boolean success = mWifiAwareNativeApi.enableAndConfigure(transactionId, merged,
-                notificationRequired, mCurrentAwareConfiguration == null);
+                notificationRequired, mCurrentAwareConfiguration == null,
+                mPowerManager.isInteractive(), mPowerManager.isDeviceIdleMode());
         if (!success) {
             try {
                 callback.onConnectFail(NanStatusType.INTERNAL_FAILURE);
@@ -1862,7 +1988,22 @@ public class WifiAwareStateManager {
         }
 
         return mWifiAwareNativeApi.enableAndConfigure(transactionId, merged, notificationReqs,
-                false);
+                false, mPowerManager.isInteractive(), mPowerManager.isDeviceIdleMode());
+    }
+
+    private boolean reconfigureLocal(short transactionId) {
+        if (VDBG) Log.v(TAG, "reconfigureLocal(): transactionId=" + transactionId);
+
+        if (mClients.size() == 0) {
+            // no clients - Aware is not enabled, nothing to reconfigure
+            return false;
+        }
+
+        boolean notificationReqs = doesAnyClientNeedIdentityChangeNotifications();
+
+        return mWifiAwareNativeApi.enableAndConfigure(transactionId, mCurrentAwareConfiguration,
+                notificationReqs, false, mPowerManager.isInteractive(),
+                mPowerManager.isDeviceIdleMode());
     }
 
     private void terminateSessionLocal(int clientId, int sessionId) {
@@ -2156,6 +2297,10 @@ public class WifiAwareStateManager {
             /*
              * NOP (i.e. updated configuration after disconnecting a client)
              */
+        } else if (completedCommand.arg1 == COMMAND_TYPE_RECONFIGURE) {
+            /*
+             * NOP (i.e. updated configuration at power saving event)
+             */
         } else {
             Log.wtf(TAG, "onConfigCompletedLocal: unexpected completedCommand=" + completedCommand);
             return;
@@ -2188,11 +2333,15 @@ public class WifiAwareStateManager {
              * shouldn't fail but there's nothing to do - the old configuration
              * is still up-and-running).
              */
+        } else if (failedCommand.arg1 == COMMAND_TYPE_RECONFIGURE) {
+            /*
+             * NOP (configuration change as part of possibly power saving event - should not
+             * fail but there's nothing to do).
+             */
         } else {
             Log.wtf(TAG, "onConfigFailedLocal: unexpected failedCommand=" + failedCommand);
             return;
         }
-
     }
 
     private void onSessionConfigSuccessLocal(Message completedCommand, int pubSubId,
@@ -2699,6 +2848,7 @@ public class WifiAwareStateManager {
         for (int i = 0; i < mClients.size(); ++i) {
             mClients.valueAt(i).dump(fd, pw, args);
         }
+        pw.println("  mSettableParameters: " + mSettableParameters);
         mSm.dump(fd, pw, args);
         mRtt.dump(fd, pw, args);
         mDataPathMgr.dump(fd, pw, args);
