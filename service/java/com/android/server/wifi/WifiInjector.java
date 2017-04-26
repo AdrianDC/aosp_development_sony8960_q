@@ -44,6 +44,7 @@ import com.android.internal.app.IBatteryStats;
 import com.android.server.am.BatteryStatsService;
 import com.android.server.net.DelayedDiskWrite;
 import com.android.server.net.IpConfigStore;
+import com.android.server.wifi.aware.WifiAwareMetrics;
 import com.android.server.wifi.hotspot2.LegacyPasspointConfigParser;
 import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.PasspointNetworkEvaluator;
@@ -158,7 +159,8 @@ public class WifiInjector {
         mWifiStateMachineHandlerThread = new HandlerThread("WifiStateMachine");
         mWifiStateMachineHandlerThread.start();
         Looper wifiStateMachineLooper = mWifiStateMachineHandlerThread.getLooper();
-        mWifiMetrics = new WifiMetrics(mClock, wifiStateMachineLooper);
+        WifiAwareMetrics awareMetrics = new WifiAwareMetrics(mClock);
+        mWifiMetrics = new WifiMetrics(mClock, wifiStateMachineLooper, awareMetrics);
         // Modules interacting with Native.
         mWifiMonitor = new WifiMonitor(this);
         mHalDeviceManager = new HalDeviceManager();

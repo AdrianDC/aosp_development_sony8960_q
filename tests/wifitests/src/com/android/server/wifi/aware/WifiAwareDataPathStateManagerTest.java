@@ -99,6 +99,7 @@ public class WifiAwareDataPathStateManagerTest {
     @Mock private WifiAwareDataPathStateManager.NetworkInterfaceWrapper mMockNetworkInterface;
     @Mock private IWifiAwareEventCallback mMockCallback;
     @Mock IWifiAwareDiscoverySessionCallback mMockSessionCallback;
+    @Mock private WifiAwareMetrics mAwareMetricsMock;
     TestAlarmManager mAlarmManager;
     private PowerManager mMockPowerManager;
 
@@ -130,7 +131,7 @@ public class WifiAwareDataPathStateManagerTest {
 
         mDut = new WifiAwareStateManager();
         mDut.setNative(mMockNative);
-        mDut.start(mMockContext, mMockLooper.getLooper());
+        mDut.start(mMockContext, mMockLooper.getLooper(), mAwareMetricsMock);
         mDut.startLate();
 
         when(mMockNative.getCapabilities(anyShort())).thenReturn(true);

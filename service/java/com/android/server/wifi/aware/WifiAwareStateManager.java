@@ -195,6 +195,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
      * handler thread: no need to use a lock.
      */
     private Context mContext;
+    private WifiAwareMetrics mAwareMetrics;
     private volatile Capabilities mCapabilities;
     private volatile Characteristics mCharacteristics = null;
     private WifiAwareStateMachine mSm;
@@ -315,17 +316,18 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
      *
      * @param looper Thread looper on which to run the handler.
      */
-    public void start(Context context, Looper looper) {
+    public void start(Context context, Looper looper, WifiAwareMetrics awareMetrics) {
         Log.i(TAG, "start()");
 
         mContext = context;
+        mAwareMetrics = awareMetrics;
         mSm = new WifiAwareStateMachine(TAG, looper);
         mSm.setDbg(DBG);
         mSm.start();
 
         mRtt = new WifiAwareRttStateManager();
         mDataPathMgr = new WifiAwareDataPathStateManager(this);
-        mDataPathMgr.start(mContext, mSm.getHandler().getLooper());
+        mDataPathMgr.start(mContext, mSm.getHandler().getLooper(), awareMetrics);
 
         mPowerManager = mContext.getSystemService(PowerManager.class);
 
@@ -2208,6 +2210,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         mUsageEnabled = true;
         queryCapabilities();
         sendAwareStateChangedBroadcast(true);
+
+        mAwareMetrics.recordEnableUsage();
     }
 
     private boolean disableUsageLocal(short transactionId) {
@@ -2226,6 +2230,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         boolean callDispatched = mWifiAwareNativeApi.disable(transactionId);
 
         sendAwareStateChangedBroadcast(false);
+
+        mAwareMetrics.recordDisableUsage();
 
         return callDispatched;
     }
