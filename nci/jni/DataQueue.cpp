@@ -103,7 +103,7 @@ bool DataQueue::enqueue (uint8_t* data, uint16_t dataLen)
     }
     else
     {
-        ALOGE ("DataQueue::enqueue: out of memory ?????");
+        ALOGE("DataQueue::enqueue: out of memory ?????");
     }
     mMutex.unlock ();
     return retval;
