@@ -393,7 +393,8 @@ public class NfcService implements DeviceHostListener {
             mInProvisionMode = false;
         }
 
-        mNfcDispatcher = new NfcDispatcher(mContext, mHandoverDataParser, mInProvisionMode);
+        mNfcDispatcher = new NfcDispatcher(mContext, mHandoverDataParser, mInProvisionMode,
+                mIsLiveCaseEnabled);
         mP2pLinkManager = new P2pLinkManager(mContext, mHandoverDataParser,
                 mDeviceHost.getDefaultLlcpMiu(), mDeviceHost.getDefaultLlcpRwSize());
 
