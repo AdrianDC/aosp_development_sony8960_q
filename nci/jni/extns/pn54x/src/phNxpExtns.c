@@ -230,7 +230,7 @@ NFCSTATUS EXTNS_MfcPresenceCheck (void)
     gAuthCmdBuf.status = NFCSTATUS_FAILED;
     if (sem_init (&gAuthCmdBuf.semPresenceCheck, 0, 0) == -1)
     {
-        ALOGE ("%s: semaphore creation failed (errno=%d)", __func__, errno);
+        ALOGE("%s: semaphore creation failed (errno=%d)", __func__, errno);
         return NFCSTATUS_FAILED;
     }
 
@@ -629,14 +629,14 @@ NFCSTATUS EXTNS_GetPresenceCheckStatus (void)
 
     if (sem_timedwait (&gAuthCmdBuf.semPresenceCheck, &ts))
     {
-        ALOGE ("%s: failed to wait (errno=%d)", __func__, errno);
+        ALOGE("%s: failed to wait (errno=%d)", __func__, errno);
         sem_destroy (&gAuthCmdBuf.semPresenceCheck);
         gAuthCmdBuf.auth_sent = false;
         return NFCSTATUS_FAILED;
     }
     if (sem_destroy (&gAuthCmdBuf.semPresenceCheck))
     {
-        ALOGE ("%s: Failed to destroy check Presence semaphore (errno=%d)", __func__, errno);
+        ALOGE("%s: Failed to destroy check Presence semaphore (errno=%d)", __func__, errno);
     }
     return gAuthCmdBuf.status;
 }
