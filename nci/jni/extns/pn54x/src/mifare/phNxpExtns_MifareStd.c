@@ -610,8 +610,8 @@ NFCSTATUS Mfc_SetReadOnly(uint8_t *secrtkey, uint8_t len)
     gphNxpExtns_Context.CallBackCtxt   = NdefMap;
     for (id = 0; id < len; id++)
     {
-        ALOGD("secrtkey[%d] = 0x%x", id, secrtkey[id]);
-        ALOGD("mif_secrete_key[%d] = 0x%x", id, mif_secrete_key[id]);
+        ALOGV("secrtkey[%d] = 0x%x", id, secrtkey[id]);
+        ALOGV("mif_secrete_key[%d] = 0x%x", id, mif_secrete_key[id]);
     }
     /* Set Completion Routine for ReadNdef */
     NdefMap->CompletionRoutine[0].CompletionRoutine = Mfc_SetRdOnly_Completion_Routine;
@@ -1421,7 +1421,7 @@ NFCSTATUS Mfc_RecvPacket(uint8_t *buff, uint8_t buffSz)
     status = phNciNfc_RecvMfResp(&RspBuff, status);
     if (true == gAuthCmdBuf.auth_sent)
     {
-        ALOGD("%s Mfc Check Presence in progress", __func__);
+        ALOGV("%s Mfc Check Presence in progress", __func__);
         gAuthCmdBuf.auth_sent = false;
         return status;
     }
