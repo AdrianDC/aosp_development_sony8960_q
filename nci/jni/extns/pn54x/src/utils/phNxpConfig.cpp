@@ -216,10 +216,10 @@ bool CNxpNfcConfig::readConfig (const char* name, bool bResetContent)
     /* open config file, read it into a buffer */
     if ((fd = fopen (name, "rb")) == NULL)
     {
-        ALOGE ("%s Cannot open config file %s", __func__, name);
+        ALOGE("%s Cannot open config file %s", __func__, name);
         if (bResetContent)
         {
-            ALOGE ("%s Using default value for all settings", __func__);
+            ALOGE("%s Using default value for all settings", __func__);
             mValidFile = false;
         }
         return false;
@@ -718,7 +718,7 @@ int CNxpNfcConfig::checkTimestamp ()
 
     if (stat(config_timestamp_path, &st) != 0)
     {
-        ALOGD ("%s file %s not exist, creat it.", __func__, config_timestamp_path);
+        ALOGV("%s file %s not exist, creat it.", __func__, config_timestamp_path);
         if ((fd = fopen (config_timestamp_path, "w+")) != NULL)
         {
             fwrite (&m_timeStamp, sizeof(unsigned long), 1, fd);
@@ -731,7 +731,7 @@ int CNxpNfcConfig::checkTimestamp ()
         fd = fopen (config_timestamp_path, "r+");
         if (fd == NULL)
         {
-            ALOGE ("%s Cannot open file %s", __func__, config_timestamp_path);
+            ALOGE("%s Cannot open file %s", __func__, config_timestamp_path);
             return 1;
         }
 
