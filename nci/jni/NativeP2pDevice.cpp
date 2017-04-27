@@ -28,35 +28,35 @@ namespace android
 
 static jboolean nativeP2pDeviceDoConnect (JNIEnv*, jobject)
 {
-    ALOGD ("%s", __func__);
+    ALOGV("%s", __func__);
     return JNI_TRUE;
 }
 
 
 static jboolean nativeP2pDeviceDoDisconnect (JNIEnv*, jobject)
 {
-    ALOGD ("%s", __func__);
+    ALOGV("%s", __func__);
     return JNI_TRUE;
 }
 
 
 static jbyteArray nativeP2pDeviceDoTransceive (JNIEnv*, jobject, jbyteArray)
 {
-    ALOGD ("%s", __func__);
+    ALOGV("%s", __func__);
     return NULL;
 }
 
 
 static jbyteArray nativeP2pDeviceDoReceive (JNIEnv*, jobject)
 {
-    ALOGD ("%s", __func__);
+    ALOGV("%s", __func__);
     return NULL;
 }
 
 
 static jboolean nativeP2pDeviceDoSend (JNIEnv*, jobject, jbyteArray)
 {
-    ALOGD ("%s", __func__);
+    ALOGV("%s", __func__);
     return JNI_TRUE;
 }
 

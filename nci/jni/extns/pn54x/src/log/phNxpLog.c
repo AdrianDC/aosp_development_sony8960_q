@@ -260,7 +260,7 @@ void phNxpLog_InitializeLogLevel(void)
     phNxpLog_SetDnldLogLevel (level);
     phNxpLog_SetNciTxLogLevel (level);
 
-    ALOGD ("%s: global =%u, Fwdnld =%u, extns =%u, \
+    ALOGV("%s: global =%u, Fwdnld =%u, extns =%u, \
                 hal =%u, tml =%u, ncir =%u, \
                 ncix =%u", \
                 __func__, gLog_level.global_log_level, gLog_level.dnld_log_level,
