@@ -207,6 +207,8 @@ public class WifiVendorHal {
     private final Looper mLooper;
     private final IWifiStaIfaceEventCallback mIWifiStaIfaceEventCallback;
     private final IWifiChipEventCallback mIWifiChipEventCallback;
+    private final RttEventCallback mRttEventCallback;
+
 
     public WifiVendorHal(HalDeviceManager halDeviceManager,
                          Looper looper) {
@@ -215,6 +217,7 @@ public class WifiVendorHal {
         mHalDeviceManagerStatusCallbacks = new HalDeviceManagerStatusListener();
         mIWifiStaIfaceEventCallback = new StaIfaceEventCallback();
         mIWifiChipEventCallback = new ChipEventCallback();
+        mRttEventCallback = new RttEventCallback();
     }
 
     // TODO(mplass): figure out where we need locking in hidl world. b/33383725
@@ -290,6 +293,9 @@ public class WifiVendorHal {
                 if (mIWifiRttController == null) {
                     return startFailedTo("create RTT controller");
                 }
+                if (!registerRttEventCallback()) {
+                    return startFailedTo("register RTT iface callback");
+                }
                 enableLinkLayerStats();
             } else {
                 mIWifiApIface = mHalDeviceManager.createApIface(null, null);
@@ -351,6 +357,22 @@ public class WifiVendorHal {
             if (mIWifiChipEventCallback == null) return boolResult(false);
             try {
                 WifiStatus status = mIWifiChip.registerEventCallback(mIWifiChipEventCallback);
+                return ok(status);
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Registers RTT event callback. Returns whether the registration is successful.
+     */
+    private boolean registerRttEventCallback() {
+        synchronized (sLock) {
+            if (mIWifiRttController == null) return boolResult(false);
+            try {
+                WifiStatus status = mIWifiRttController.registerEventCallback(mRttEventCallback);
                 return ok(status);
             } catch (RemoteException e) {
                 handleRemoteException(e);
@@ -881,19 +903,13 @@ public class WifiVendorHal {
 
     private int mRttCmdIdNext = 1;              // used to generate new command ids
     private int mRttCmdId;                      // id of currently active request
-    private RttEventCallback mRttEventCallback; // currently active RTT callback
+    // Event handler for current active RTT request.
+    private WifiNative.RttEventHandler mRttEventHandler;
 
     /**
      * Receives a callback from the Hal and passes it along to our client using RttEventHandler
      */
     private class RttEventCallback extends IWifiRttControllerEventCallback.Stub {
-        WifiNative.RttEventHandler mRttEventHandler;
-        int mRttCmdId;
-
-        RttEventCallback(int cmdId, WifiNative.RttEventHandler rttEventHandler) {
-            mRttCmdId = cmdId;
-            mRttEventHandler = rttEventHandler;
-        }
 
         @Override
         public void onResults(int cmdId, java.util.ArrayList<RttResult> results) {
@@ -901,6 +917,8 @@ public class WifiVendorHal {
             synchronized (sLock) {
                 if (cmdId != mRttCmdId || mRttEventHandler == null) return;
                 eventHandler = mRttEventHandler;
+                // Reset the command id for RTT operations in WifiVendorHal.
+                WifiVendorHal.this.mRttCmdId = 0;
             }
             RttManager.RttResult[] rtt = new RttManager.RttResult[results.size()];
             for (int i = 0; i < rtt.length; i++) {
@@ -1211,13 +1229,10 @@ public class WifiVendorHal {
             if (mIWifiRttController == null) return boolResult(false);
             if (mRttCmdId != 0) return boolResult(false);
             mRttCmdId = mRttCmdIdNext++;
+            mRttEventHandler = handler;
             if (mRttCmdIdNext <= 0) mRttCmdIdNext = 1;
             try {
-                mRttEventCallback = new RttEventCallback(mRttCmdId, handler);
                 WifiStatus status = mIWifiRttController.rangeRequest(mRttCmdId, rttConfigs);
-                if (ok(status)) {
-                    status = mIWifiRttController.registerEventCallback(mRttEventCallback);
-                }
                 if (ok(status)) return true;
                 mRttCmdId = 0;
                 return false;

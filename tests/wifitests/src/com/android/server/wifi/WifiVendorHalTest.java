@@ -15,13 +15,13 @@
  */
 
 package com.android.server.wifi;
-
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.hardware.wifi.V1_0.IWifiApIface;
 import android.hardware.wifi.V1_0.IWifiChip;
 import android.hardware.wifi.V1_0.IWifiChipEventCallback;
 import android.hardware.wifi.V1_0.IWifiIface;
 import android.hardware.wifi.V1_0.IWifiRttController;
+import android.hardware.wifi.V1_0.IWifiRttControllerEventCallback;
 import android.hardware.wifi.V1_0.IWifiStaIface;
 import android.hardware.wifi.V1_0.IWifiStaIfaceEventCallback;
 import android.hardware.wifi.V1_0.RttCapabilities;
@@ -55,8 +55,8 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiWakeReasonAndCounts;
-import android.os.test.TestLooper;
 import android.os.RemoteException;
+import android.os.test.TestLooper;
 import android.util.Pair;
 
 import com.android.server.connectivity.KeepalivePacketData;
@@ -170,6 +170,9 @@ public class WifiVendorHalTest {
                     mIWifiChipEventCallback = (IWifiChipEventCallback) args[0];
                     return (mWifiStatusSuccess);
                 }));
+
+        when(mIWifiRttController.registerEventCallback(any(IWifiRttControllerEventCallback.class)))
+                .thenReturn(mWifiStatusSuccess);
 
         // Create the vendor HAL object under test.
         mWifiVendorHal = new WifiVendorHal(mHalDeviceManager, mLooper.getLooper());
