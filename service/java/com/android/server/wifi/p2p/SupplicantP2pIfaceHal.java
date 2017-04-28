@@ -1471,23 +1471,19 @@ public class SupplicantP2pIfaceHal {
      * @return true, if operation was successful.
      */
     public boolean startWpsPbc(String groupIfName, String bssid) {
-        if (TextUtils.isEmpty(groupIfName)) return false;
+        if (TextUtils.isEmpty(groupIfName)) {
+            Log.e(TAG, "Group name required when requesting WPS PBC. Got (" + groupIfName + ")");
+            return false;
+        }
         synchronized (mLock) {
             if (!checkSupplicantP2pIfaceAndLogFailure("startWpsPbc")) return false;
-            if (groupIfName == null) {
-                Log.e(TAG, "Group name required when requesting WPS PBC.");
-                return false;
-            }
-
             // Null values should be fine, since bssid can be empty.
             byte[] macAddress = null;
-            if (bssid != null) {
-                try {
-                    macAddress = NativeUtil.macAddressToByteArray(bssid);
-                } catch (Exception e) {
-                    Log.e(TAG, "Could not parse BSSID.", e);
-                    return false;
-                }
+            try {
+                macAddress = NativeUtil.macAddressToByteArray(bssid);
+            } catch (Exception e) {
+                Log.e(TAG, "Could not parse BSSID.", e);
+                return false;
             }
 
             SupplicantResult<Void> result = new SupplicantResult(
@@ -1556,13 +1552,11 @@ public class SupplicantP2pIfaceHal {
 
             // Null values should be fine, since bssid can be empty.
             byte[] macAddress = null;
-            if (bssid != null) {
-                try {
-                    macAddress = NativeUtil.macAddressToByteArray(bssid);
-                } catch (Exception e) {
-                    Log.e(TAG, "Could not parse BSSID.", e);
-                    return null;
-                }
+            try {
+                macAddress = NativeUtil.macAddressToByteArray(bssid);
+            } catch (Exception e) {
+                Log.e(TAG, "Could not parse BSSID.", e);
+                return null;
             }
 
             SupplicantResult<String> result = new SupplicantResult(
@@ -1746,8 +1740,9 @@ public class SupplicantP2pIfaceHal {
     }
 
     /**
-     * Populate list of available networks or update existing list.
+     * Get the persistent group list from wpa_supplicant's p2p mgmt interface
      *
+     * @param groups WifiP2pGroupList to store persistent groups in
      * @return true, if list has been modified.
      */
     public boolean loadGroups(WifiP2pGroupList groups) {
@@ -1774,8 +1769,10 @@ public class SupplicantP2pIfaceHal {
                     Log.e(TAG, "ISupplicantP2pIface exception: " + e);
                     supplicantServiceDiedHandler();
                 }
-                if (!resultIsCurrent.isSuccess() || !resultIsCurrent.getResult()) {
-                    Log.i(TAG, "Skipping non current network");
+                /** Skip the current network, if we're somehow getting networks from the p2p GO
+                    interface, instead of p2p mgmt interface*/
+                if (!resultIsCurrent.isSuccess() || resultIsCurrent.getResult()) {
+                    Log.i(TAG, "Skipping current network");
                     continue;
                 }
 
@@ -1796,7 +1793,8 @@ public class SupplicantP2pIfaceHal {
                 }
                 if (resultSsid.isSuccess() && resultSsid.getResult() != null
                         && !resultSsid.getResult().isEmpty()) {
-                    group.setNetworkName(NativeUtil.encodeSsid(resultSsid.getResult()));
+                    group.setNetworkName(NativeUtil.removeEnclosingQuotes(
+                            NativeUtil.encodeSsid(resultSsid.getResult())));
                 }
 
                 SupplicantResult<byte[]> resultBssid =
