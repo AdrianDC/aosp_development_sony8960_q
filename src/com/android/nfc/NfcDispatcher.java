@@ -87,7 +87,8 @@ class NfcDispatcher {
 
     NfcDispatcher(Context context,
                   HandoverDataParser handoverDataParser,
-                  boolean provisionOnly) {
+                  boolean provisionOnly,
+                  boolean isLiveCaseEnabled) {
         mContext = context;
         mIActivityManager = ActivityManager.getService();
         mTechListFilters = new RegisteredComponentCache(mContext,
@@ -114,12 +115,14 @@ class NfcDispatcher {
         mProvisioningMimes = provisionMimes;
 
         String[] liveCaseMimes = null;
-        try {
-            // Get accepted mime-types
-            liveCaseMimes = context.getResources().
-                    getStringArray(R.array.live_case_mime_types);
-        } catch (NotFoundException e) {
-           liveCaseMimes = null;
+        if (isLiveCaseEnabled) {
+            try {
+                // Get accepted mime-types
+                liveCaseMimes = context.getResources().
+                        getStringArray(R.array.live_case_mime_types);
+            } catch (NotFoundException e) {
+               liveCaseMimes = null;
+            }
         }
         mLiveCaseMimes = liveCaseMimes;
     }
