@@ -42,6 +42,8 @@ import android.util.MutableBoolean;
 import android.util.MutableInt;
 import android.util.SparseArray;
 
+import com.android.internal.annotations.VisibleForTesting;
+
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -59,6 +61,12 @@ import java.util.Set;
 public class HalDeviceManager {
     private static final String TAG = "HalDeviceManager";
     private static final boolean DBG = false;
+
+    private static final int START_HAL_RETRY_INTERVAL_MS = 20;
+    // Number of attempts a start() is re-tried. A value of 0 means no retries after a single
+    // attempt.
+    @VisibleForTesting
+    public static final int START_HAL_RETRY_TIMES = 3;
 
     // public API
     public HalDeviceManager() {
@@ -1054,15 +1062,35 @@ public class HalDeviceManager {
                     Log.w(TAG, "startWifi called but mWifi is null!?");
                     return false;
                 } else {
-                    WifiStatus status = mWifi.start();
-                    boolean success = status.code == WifiStatusCode.SUCCESS;
-                    if (success) {
-                        initIWifiChipDebugListeners();
-                        managerStatusListenerDispatch();
-                    } else {
-                        Log.e(TAG, "Cannot start IWifi: " + statusString(status));
+                    int triedCount = 0;
+                    while (triedCount <= START_HAL_RETRY_TIMES) {
+                        WifiStatus status = mWifi.start();
+                        if (status.code == WifiStatusCode.SUCCESS) {
+                            initIWifiChipDebugListeners();
+                            managerStatusListenerDispatch();
+                            if (triedCount != 0) {
+                                Log.d(TAG, "start IWifi succeeded after trying "
+                                         + triedCount + " times");
+                            }
+                            return true;
+                        } else if (status.code == WifiStatusCode.ERROR_NOT_AVAILABLE) {
+                            // Should retry. Hal might still be stopping.
+                            Log.e(TAG, "Cannot start IWifi: " + statusString(status)
+                                    + ", Retrying...");
+                            try {
+                                Thread.sleep(START_HAL_RETRY_INTERVAL_MS);
+                            } catch (InterruptedException ignore) {
+                                // no-op
+                            }
+                            triedCount++;
+                        } else {
+                            // Should not retry on other failures.
+                            Log.e(TAG, "Cannot start IWifi: " + statusString(status));
+                            return false;
+                        }
                     }
-                    return success;
+                    Log.e(TAG, "Cannot start IWifi after trying " + triedCount + " times");
+                    return false;
                 }
             } catch (RemoteException e) {
                 Log.e(TAG, "startWifi exception: " + e);
