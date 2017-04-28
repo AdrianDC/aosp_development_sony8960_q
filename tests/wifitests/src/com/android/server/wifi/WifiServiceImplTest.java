@@ -29,10 +29,13 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
 
+import android.app.ActivityManager;
+import android.app.AppOpsManager;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Resources;
 import android.net.IpConfiguration;
+import android.net.wifi.ScanSettings;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
@@ -43,7 +46,9 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
 import android.os.UserManager;
+import android.os.WorkSource;
 import android.os.test.TestLooper;
+import android.provider.Settings;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.util.AsyncChannel;
@@ -69,7 +74,10 @@ import java.io.StringWriter;
 public class WifiServiceImplTest {
 
     private static final String TAG = "WifiServiceImplTest";
+    private static final String SCAN_PACKAGE_NAME = "scanPackage";
+    private static final String WHITE_LIST_SCAN_PACKAGE_NAME = "whiteListScanPackage";
     private static final int DEFAULT_VERBOSE_LOGGING = 0;
+    private static final long WIFI_BACKGROUND_SCAN_INTERVAL = 10000;
     private static final String ANDROID_SYSTEM_PACKAGE = "android";
     private static final String TEST_PACKAGE_NAME = "TestPackage";
     private static final String SETTINGS_PACKAGE_NAME = "com.android.settings";
@@ -77,6 +85,7 @@ public class WifiServiceImplTest {
 
     @Mock Context mContext;
     @Mock WifiInjector mWifiInjector;
+    @Mock Clock mClock;
     WifiServiceImpl mWifiServiceImpl;
 
     @Mock WifiController mWifiController;
@@ -98,6 +107,8 @@ public class WifiServiceImplTest {
     @Mock ContentResolver mContentResolver;
     @Mock UserManager mUserManager;
     @Mock WifiConfiguration mApConfig;
+    @Mock ActivityManager mActivityManager;
+    @Mock AppOpsManager mAppOpsManager;
     PowerManager mPowerManager;
 
     private class WifiAsyncChannelTester {
@@ -168,6 +179,17 @@ public class WifiServiceImplTest {
         when(mContext.getContentResolver()).thenReturn(mContentResolver);
         doNothing().when(mFrameworkFacade).registerContentObserver(eq(mContext), any(),
                 anyBoolean(), any());
+        when(mContext.getSystemService(Context.ACTIVITY_SERVICE)).thenReturn(mActivityManager);
+        when(mContext.getSystemService(Context.APP_OPS_SERVICE)).thenReturn(mAppOpsManager);
+        when(mFrameworkFacade.getLongSetting(
+                eq(mContext),
+                eq(Settings.Global.WIFI_SCAN_BACKGROUND_THROTTLE_INTERVAL_MS),
+                anyLong()))
+                .thenReturn(WIFI_BACKGROUND_SCAN_INTERVAL);
+        when(mFrameworkFacade.getStringSetting(
+                eq(mContext),
+                eq(Settings.Global.WIFI_SCAN_BACKGROUND_THROTTLE_PACKAGE_WHITELIST)))
+                .thenReturn(WHITE_LIST_SCAN_PACKAGE_NAME);
         IPowerManager powerManagerService = mock(IPowerManager.class);
         mPowerManager = new PowerManager(mContext, powerManagerService, new Handler());
         when(mContext.getSystemServiceName(PowerManager.class)).thenReturn(Context.POWER_SERVICE);
@@ -186,6 +208,7 @@ public class WifiServiceImplTest {
         when(mWifiInjector.getWifiTrafficPoller()).thenReturn(wifiTrafficPoller);
         when(mWifiInjector.getWifiPermissionsUtil()).thenReturn(mWifiPermissionsUtil);
         when(mWifiInjector.getWifiSettingsStore()).thenReturn(mSettingsStore);
+        when(mWifiInjector.getClock()).thenReturn(mClock);
         mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
         mWifiServiceImpl.setWifiHandlerLogForTest(mLog);
     }
@@ -586,5 +609,78 @@ public class WifiServiceImplTest {
                 .enforceCallingOrSelfPermission(eq(android.Manifest.permission.NETWORK_STACK),
                                                 eq("WifiService"));
         mWifiServiceImpl.stopSoftAp();
+    }
+
+    /**
+     * Ensure foreground apps can always do wifi scans.
+     */
+    @Test
+    public void testWifiScanStartedForeground() {
+        when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
+                ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE);
+        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
+        verify(mWifiStateMachine).startScan(
+                anyInt(), anyInt(), (ScanSettings) eq(null), any(WorkSource.class));
+    }
+
+    /**
+     * Ensure background apps get throttled when the previous scan is too close.
+     */
+    @Test
+    public void testWifiScanBackgroundThrottled() {
+        when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
+                ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED);
+        long startMs = 1000;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(startMs);
+        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
+        verify(mWifiStateMachine).startScan(
+                anyInt(), anyInt(), (ScanSettings) eq(null), any(WorkSource.class));
+
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(
+                startMs + WIFI_BACKGROUND_SCAN_INTERVAL - 1000);
+        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
+        verify(mWifiStateMachine, times(1)).startScan(
+                anyInt(), anyInt(), (ScanSettings) eq(null), any(WorkSource.class));
+    }
+
+    /**
+     * Ensure background apps can do wifi scan when the throttle interval reached.
+     */
+
+    @Test
+    public void testWifiScanBackgroundNotThrottled() {
+        when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
+                ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED);
+        long startMs = 1000;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(startMs);
+        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
+        verify(mWifiStateMachine).startScan(
+                anyInt(), eq(0), (ScanSettings) eq(null), any(WorkSource.class));
+
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(
+                startMs + WIFI_BACKGROUND_SCAN_INTERVAL + 1000);
+        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
+        verify(mWifiStateMachine).startScan(
+                anyInt(), eq(1), (ScanSettings) eq(null), any(WorkSource.class));
+    }
+
+    /**
+     * Ensure background apps can do wifi scan when the throttle interval reached.
+     */
+    @Test
+    public void testWifiScanBackgroundWhiteListed() {
+        when(mActivityManager.getPackageImportance(WHITE_LIST_SCAN_PACKAGE_NAME)).thenReturn(
+                ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED);
+        long startMs = 1000;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(startMs);
+        mWifiServiceImpl.startScan(null, null, WHITE_LIST_SCAN_PACKAGE_NAME);
+        verify(mWifiStateMachine).startScan(
+                anyInt(), anyInt(), (ScanSettings) eq(null), any(WorkSource.class));
+
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(
+                startMs + WIFI_BACKGROUND_SCAN_INTERVAL - 1000);
+        mWifiServiceImpl.startScan(null, null, WHITE_LIST_SCAN_PACKAGE_NAME);
+        verify(mWifiStateMachine, times(2)).startScan(
+                anyInt(), anyInt(), (ScanSettings) eq(null), any(WorkSource.class));
     }
 }
