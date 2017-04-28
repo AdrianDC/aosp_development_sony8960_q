@@ -2186,6 +2186,8 @@ public class SupplicantP2pIfaceHalTest {
 
     /**
      * Verify the loading of group info.
+     * Specifically, all groups returned by listNetworks are added as a persistent group, so long as
+     * they are NOT current.
      */
     @Test
     public void testLoadGroups() throws Exception {
@@ -2193,11 +2195,11 @@ public class SupplicantP2pIfaceHalTest {
 
         // Class to hold the P2p group info returned from the HIDL interface.
         class P2pGroupInfo {
-            public ArrayList<Byte> ssid;
+            public String ssid;
             public byte[] bssid;
             public boolean isGo;
             public boolean isCurrent;
-            P2pGroupInfo(ArrayList<Byte> ssid, byte[] bssid, boolean isGo, boolean isCurrent) {
+            P2pGroupInfo(String ssid, byte[] bssid, boolean isGo, boolean isCurrent) {
                 this.ssid = ssid;
                 this.bssid = bssid;
                 this.isGo = isGo;
@@ -2207,16 +2209,20 @@ public class SupplicantP2pIfaceHalTest {
 
         Map<Integer, P2pGroupInfo> groups = new HashMap<>();
         groups.put(0, new P2pGroupInfo(
-                NativeUtil.decodeSsid("\"test_34\""),
+                "test_34",
                 NativeUtil.macAddressToByteArray("56:34:ab:12:12:34"),
                 false, false));
         groups.put(1, new P2pGroupInfo(
-                NativeUtil.decodeSsid("\"test_1234\""),
+                "test_1234",
                 NativeUtil.macAddressToByteArray("16:ed:ab:12:45:34"),
-                true, true));
+                true, false));
         groups.put(2, new P2pGroupInfo(
-                NativeUtil.decodeSsid("\"test_4545\""),
+                "test_4545",
                 NativeUtil.macAddressToByteArray("32:89:23:56:45:34"),
+                true, false));
+        groups.put(3, new P2pGroupInfo(
+                "iShouldntBeHere",
+                NativeUtil.macAddressToByteArray("aa:bb:cc:56:45:34"),
                 true, true));
 
         doAnswer(new AnswerWithArguments() {
@@ -2231,7 +2237,8 @@ public class SupplicantP2pIfaceHalTest {
                 try {
                     doAnswer(new AnswerWithArguments() {
                         public void answer(ISupplicantP2pNetwork.getSsidCallback cb) {
-                            cb.onValues(mStatusSuccess, groups.get(networkId).ssid);
+                            cb.onValues(mStatusSuccess,
+                                    NativeUtil.stringToByteArrayList(groups.get(networkId).ssid));
                             return;
                         }
                     }).when(mISupplicantP2pNetworkMock)
@@ -2268,10 +2275,10 @@ public class SupplicantP2pIfaceHalTest {
         WifiP2pGroupList p2pGroups = new WifiP2pGroupList();
         assertTrue(mDut.loadGroups(p2pGroups));
 
-        assertEquals(2, p2pGroups.getGroupList().size());
+        assertEquals(3, p2pGroups.getGroupList().size());
         for (WifiP2pGroup group : p2pGroups.getGroupList()) {
             int networkId = group.getNetworkId();
-            assertEquals(NativeUtil.encodeSsid(groups.get(networkId).ssid), group.getNetworkName());
+            assertEquals(groups.get(networkId).ssid, group.getNetworkName());
             assertEquals(
                     NativeUtil.macAddressFromByteArray(groups.get(networkId).bssid),
                     group.getOwner().deviceAddress);

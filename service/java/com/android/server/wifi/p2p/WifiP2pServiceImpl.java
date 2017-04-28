@@ -2364,6 +2364,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             pw.println("mWifiP2pInfo " + mWifiP2pInfo);
             pw.println("mGroup " + mGroup);
             pw.println("mSavedPeerConfig " + mSavedPeerConfig);
+            pw.println("mGroups" + mGroups);
             pw.println();
         }
 
