@@ -32,6 +32,8 @@ import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.os.ResultReceiver;
+import android.os.ShellCallback;
 import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
@@ -368,6 +370,13 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         }
         mStateManager.startRanging(clientId, sessionId, params.mParams, rangingId);
         return rangingId;
+    }
+
+    @Override
+    public void onShellCommand(FileDescriptor in, FileDescriptor out, FileDescriptor err,
+            String[] args, ShellCallback callback, ResultReceiver resultReceiver) {
+        (new WifiAwareShellCommand(mStateManager)).exec(this, in, out, err, args, callback,
+                resultReceiver);
     }
 
     @Override
