@@ -40,6 +40,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.IBinder;
 import android.os.IPowerManager;
 import android.os.Looper;
 import android.os.Message;
@@ -83,16 +84,19 @@ public class WifiServiceImplTest {
     private static final String SETTINGS_PACKAGE_NAME = "com.android.settings";
     private static final String SYSUI_PACKAGE_NAME = "com.android.systemui";
 
+    private WifiServiceImpl mWifiServiceImpl;
+    private TestLooper mLooper;
+    private PowerManager mPowerManager;
+    private Handler mHandler;
+    private Messenger mAppMessenger;
+
     @Mock Context mContext;
     @Mock WifiInjector mWifiInjector;
     @Mock Clock mClock;
-    WifiServiceImpl mWifiServiceImpl;
-
     @Mock WifiController mWifiController;
     @Mock WifiTrafficPoller mWifiTrafficPoller;
     @Mock WifiStateMachine mWifiStateMachine;
     @Mock HandlerThread mHandlerThread;
-    TestLooper mLooper;
     @Mock AsyncChannel mAsyncChannel;
     @Mock Resources mResources;
     @Mock FrameworkFacade mFrameworkFacade;
@@ -101,7 +105,6 @@ public class WifiServiceImplTest {
     @Mock WifiLastResortWatchdog mWifiLastResortWatchdog;
     @Mock WifiBackupRestore mWifiBackupRestore;
     @Mock WifiMetrics mWifiMetrics;
-    @Spy FakeWifiLog mLog;
     @Mock WifiPermissionsUtil mWifiPermissionsUtil;
     @Mock WifiSettingsStore mSettingsStore;
     @Mock ContentResolver mContentResolver;
@@ -109,7 +112,9 @@ public class WifiServiceImplTest {
     @Mock WifiConfiguration mApConfig;
     @Mock ActivityManager mActivityManager;
     @Mock AppOpsManager mAppOpsManager;
-    PowerManager mPowerManager;
+    @Mock IBinder mAppBinder;
+
+    @Spy FakeWifiLog mLog;
 
     private class WifiAsyncChannelTester {
         private static final String TAG = "WifiAsyncChannelTester";
@@ -167,6 +172,8 @@ public class WifiServiceImplTest {
     @Before public void setUp() {
         MockitoAnnotations.initMocks(this);
         mLooper = new TestLooper();
+        mHandler = new Handler(mLooper.getLooper());
+        mAppMessenger = new Messenger(mHandler);
 
         when(mWifiInjector.getUserManager()).thenReturn(mUserManager);
         when(mWifiInjector.getWifiController()).thenReturn(mWifiController);
@@ -646,7 +653,6 @@ public class WifiServiceImplTest {
     /**
      * Ensure background apps can do wifi scan when the throttle interval reached.
      */
-
     @Test
     public void testWifiScanBackgroundNotThrottled() {
         when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
@@ -682,5 +688,41 @@ public class WifiServiceImplTest {
         mWifiServiceImpl.startScan(null, null, WHITE_LIST_SCAN_PACKAGE_NAME);
         verify(mWifiStateMachine, times(2)).startScan(
                 anyInt(), anyInt(), (ScanSettings) eq(null), any(WorkSource.class));
+    }
+
+    /**
+     * Verify that the call to startLocalOnlyHotspot throws the UnsupportedOperationException
+     * until the implementation is complete.
+     */
+    @Test(expected = UnsupportedOperationException.class)
+    public void testStartLocalOnlyHotspotNotSupported() {
+        mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+    }
+
+    /**
+     * Verify that the call to stopLocalOnlyHotspot throws the UnsupportedOperationException until
+     * the implementation is complete.
+     */
+    @Test(expected = UnsupportedOperationException.class)
+    public void testStopLocalOnlyHotspotNotSupported() {
+        mWifiServiceImpl.stopLocalOnlyHotspot();
+    }
+
+    /**
+     * Verify that the call to startWatchLocalOnlyHotspot throws the UnsupportedOperationException
+     * until the implementation is complete.
+     */
+    @Test(expected = UnsupportedOperationException.class)
+    public void testStartWatchLocalOnlyHotspotNotSupported() {
+        mWifiServiceImpl.startWatchLocalOnlyHotspot(mAppMessenger, mAppBinder);
+    }
+
+    /**
+     * Verify that the call to stopWatchLocalOnlyHotspot throws the UnsupportedOperationException
+     * until the implementation is complete.
+     */
+    @Test(expected = UnsupportedOperationException.class)
+    public void testStopWatchLocalOnlyHotspotNotSupported() {
+        mWifiServiceImpl.stopWatchLocalOnlyHotspot();
     }
 }
