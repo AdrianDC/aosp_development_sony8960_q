@@ -57,8 +57,10 @@ import android.provider.Settings;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.util.AsyncChannel;
+import com.android.server.wifi.WifiServiceImpl.LocalOnlyRequestorCallback;
 import com.android.server.wifi.util.WifiAsyncChannel;
 import com.android.server.wifi.util.WifiPermissionsUtil;
+
 
 import org.junit.Before;
 import org.junit.Test;
@@ -87,12 +89,14 @@ public class WifiServiceImplTest {
     private static final String TEST_PACKAGE_NAME = "TestPackage";
     private static final String SETTINGS_PACKAGE_NAME = "com.android.settings";
     private static final String SYSUI_PACKAGE_NAME = "com.android.systemui";
+    private static final int TEST_UID = 6789;
 
     private WifiServiceImpl mWifiServiceImpl;
     private TestLooper mLooper;
     private PowerManager mPowerManager;
     private Handler mHandler;
     private Messenger mAppMessenger;
+    private int mUid;
 
     @Mock Context mContext;
     @Mock WifiInjector mWifiInjector;
@@ -118,6 +122,7 @@ public class WifiServiceImplTest {
     @Mock AppOpsManager mAppOpsManager;
     @Mock IBinder mAppBinder;
     @Mock WifiNotificationController mWifiNotificationController;
+    @Mock LocalOnlyHotspotRequestInfo mRequestInfo;
 
     @Spy FakeWifiLog mLog;
 
@@ -180,6 +185,7 @@ public class WifiServiceImplTest {
         mHandler = new Handler(mLooper.getLooper());
         mAppMessenger = new Messenger(mHandler);
 
+        when(mRequestInfo.getUid()).thenReturn(mUid);
         when(mWifiInjector.getUserManager()).thenReturn(mUserManager);
         when(mWifiInjector.getWifiController()).thenReturn(mWifiController);
         when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
@@ -800,6 +806,22 @@ public class WifiServiceImplTest {
                 .enforceCallingOrSelfPermission(eq(android.Manifest.permission.CHANGE_WIFI_STATE),
                                                 eq("WifiService"));
         mWifiServiceImpl.stopLocalOnlyHotspot();
+    }
+
+    /**
+     * Verify that WifiServiceImpl does not send the stop ap message if there were no
+     * pending LOHS requests upon a binder death callback.
+     *
+     * TODO: add a test verifying it is not called when there are remaining requests.
+     * TODO: add a test verifying it is called when the last request was removed.
+     */
+    @Test
+    public void testServiceImplNotCalledWhenBinderDeathTriggeredNoRequests() {
+        LocalOnlyRequestorCallback binderDeathCallback =
+                mWifiServiceImpl.new LocalOnlyRequestorCallback();
+
+        binderDeathCallback.onLocalOnlyHotspotRequestorDeath(mRequestInfo);
+        verify(mWifiController, never()).sendMessage(eq(CMD_SET_AP), eq(0), eq(0));
     }
 
     /**

@@ -200,6 +200,22 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private WifiConfiguration mLocalOnlyHotspotConfig = null;
 
     /**
+     * Callback for use with LocalOnlyHotspot to unregister requesting applications upon death.
+     *
+     * @hide
+     */
+    public final class LocalOnlyRequestorCallback
+            implements LocalOnlyHotspotRequestInfo.RequestingApplicationDeathCallback {
+        /**
+         * Called with requesting app has died.
+         */
+        @Override
+        public void onLocalOnlyHotspotRequestorDeath(LocalOnlyHotspotRequestInfo requestor) {
+            unregisterCallingAppAndStopLocalOnlyHotspot(requestor);
+        };
+    }
+
+    /**
      * Handles client connections
      */
     private class ClientHandler extends WifiHandler {
@@ -953,6 +969,31 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mLog.trace("stopLocalOnlyHotspot uid=%").c(uid).flush();
 
         throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
+    }
+
+    /**
+     * Helper method to unregister LocalOnlyHotspot requestors and stop the hotspot if needed.
+     */
+    private void unregisterCallingAppAndStopLocalOnlyHotspot(LocalOnlyHotspotRequestInfo request) {
+        mLog.trace("unregisterCallingAppAndStopLocalOnlyHotspot uid=%").c(request.getUid()).flush();
+
+        synchronized (mLocalOnlyHotspotRequests) {
+            if (mLocalOnlyHotspotRequests.remove(request.getUid()) == null) {
+                mLog.trace("LocalOnlyHotspotRequestInfo not found to remove");
+                return;
+            }
+
+            if (mLocalOnlyHotspotRequests.isEmpty()) {
+                mLocalOnlyHotspotConfig = null;
+                // if that was the last caller, then call stopSoftAp as WifiService
+                long identity = Binder.clearCallingIdentity();
+                try {
+                    stopSoftApInternal();
+                } finally {
+                    Binder.restoreCallingIdentity(identity);
+                }
+            }
+        }
     }
 
     /**
