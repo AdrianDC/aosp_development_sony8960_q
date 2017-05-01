@@ -659,6 +659,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 "ConnectivityService");
     }
 
+    private void enforceLocationPermission(String pkgName, int uid) {
+        mWifiPermissionsUtil.enforceLocationPermission(pkgName, uid);
+    }
+
     /**
      * see {@link android.net.wifi.WifiManager#setWifiEnabled(boolean)}
      * @param enable {@code true} to enable, {@code false} to disable.
@@ -875,6 +879,20 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public WifiConfiguration startLocalOnlyHotspot(Messenger messenger, IBinder binder) {
+        // first check if the caller has permission to start a local only hotspot
+        // need to check for WIFI_STATE_CHANGE and location permission
+        final int uid = Binder.getCallingUid();
+        final String pkgName = mContext.getOpPackageName();
+
+        enforceChangePermission();
+        enforceLocationPermission(pkgName, uid);
+        // also need to verify that Locations services are enabled.
+        if (mSettingsStore.getLocationModeSetting(mContext) == Settings.Secure.LOCATION_MODE_OFF) {
+            throw new SecurityException("Location mode is not enabled.");
+        }
+
+        mLog.trace("startLocalOnlyHotspot uid=%").c(uid).flush();
+
         throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
     }
 
@@ -886,6 +904,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public void stopLocalOnlyHotspot() {
+        // first check if the caller has permission to stop a local only hotspot
+        enforceChangePermission();
+        final int uid = Binder.getCallingUid();
+
+        mLog.trace("stopLocalOnlyHotspot uid=%").c(uid).flush();
         throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
     }
 
