@@ -107,11 +107,12 @@ public class PasspointConfigStoreDataTest {
         config.setSubscriptionUpdate(subscriptionUpdate);
 
         // Subscription parameters.
-        config.setSubscriptionCreationTimeInMs(format.parse("2016-02-01T10:00:00Z").getTime());
-        config.setSubscriptionExpirationTimeInMs(format.parse("2016-03-01T10:00:00Z").getTime());
+        config.setSubscriptionCreationTimeInMillis(format.parse("2016-02-01T10:00:00Z").getTime());
+        config.setSubscriptionExpirationTimeInMillis(
+                format.parse("2016-03-01T10:00:00Z").getTime());
         config.setSubscriptionType("Gold");
         config.setUsageLimitDataLimit(921890);
-        config.setUsageLimitStartTimeInMs(format.parse("2016-12-01T10:00:00Z").getTime());
+        config.setUsageLimitStartTimeInMillis(format.parse("2016-12-01T10:00:00Z").getTime());
         config.setUsageLimitTimeLimitInMinutes(120);
         config.setUsageLimitUsageTimePeriodInMinutes(99910);
 
@@ -132,8 +133,8 @@ public class PasspointConfigStoreDataTest {
 
         // Credential configuration.
         Credential credential = new Credential();
-        credential.setCreationTimeInMs(format.parse("2016-01-01T10:00:00Z").getTime());
-        credential.setExpirationTimeInMs(format.parse("2016-02-01T10:00:00Z").getTime());
+        credential.setCreationTimeInMillis(format.parse("2016-01-01T10:00:00Z").getTime());
+        credential.setExpirationTimeInMillis(format.parse("2016-02-01T10:00:00Z").getTime());
         credential.setRealm("shaken.stirred.com");
         credential.setCheckAaaServerCertStatus(true);
         Credential.UserCredential userCredential = new Credential.UserCredential();
