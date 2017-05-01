@@ -428,6 +428,40 @@ public class WifiPermissionsUtilTest {
         }
     }
 
+    /**
+     * Test case setting: caller does have Location permission.
+     * A SecurityException should not be thrown.
+     */
+    @Test
+    public void testEnforceLocationPermission() throws Exception {
+        mThrowSecurityException = false;
+        mMockApplInfo.targetSdkVersion = Build.VERSION_CODES.GINGERBREAD;
+        mLocationModeSetting = Settings.Secure.LOCATION_MODE_HIGH_ACCURACY;
+        mCoarseLocationPermission = PackageManager.PERMISSION_GRANTED;
+        mAllowCoarseLocationApps = AppOpsManager.MODE_ALLOWED;
+        mWifiScanAllowApps = AppOpsManager.MODE_ALLOWED;
+        mUid = MANAGED_PROFILE_UID;
+        mMockUserInfo.id = mCallingUser;
+        setupTestCase();
+        WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
+                mMockContext, mMockWifiSettingsStore, mMockUserManager, mNetworkScoreManager,
+                mWifiInjector);
+        codeUnderTest.enforceLocationPermission(TEST_PACKAGE_NAME, mUid);
+    }
+
+    /**
+     * Test case setting: caller does not have Location permission.
+     * Expect a SecurityException
+     */
+    @Test(expected = SecurityException.class)
+    public void testEnforceLocationPermissionExpectSecurityException() throws Exception {
+        setupTestCase();
+        WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
+                mMockContext, mMockWifiSettingsStore, mMockUserManager, mNetworkScoreManager,
+                mWifiInjector);
+        codeUnderTest.enforceLocationPermission(TEST_PACKAGE_NAME, mUid);
+    }
+
     private Answer<Integer> createPermissionAnswer() {
         return new Answer<Integer>() {
             @Override

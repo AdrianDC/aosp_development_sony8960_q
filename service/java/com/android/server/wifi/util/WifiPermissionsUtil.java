@@ -86,6 +86,18 @@ public class WifiPermissionsUtil {
     }
 
     /**
+     * Check and enforce Location permission.
+     *
+     * @param pkgName PackageName of the application requesting access
+     * @param uid The uid of the package
+     */
+    public void enforceLocationPermission(String pkgName, int uid) {
+        if (!checkCallersLocationPermission(pkgName, uid)) {
+            throw new SecurityException("UID " + uid + " does not have Location permission");
+        }
+    }
+
+    /**
      * API to determine if the caller has permissions to get
      * scan results.
      * @param pkgName Packagename of the application requesting access
