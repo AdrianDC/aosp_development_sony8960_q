@@ -2313,7 +2313,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     @Override
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        if (args.length > 1 && WifiMetrics.PROTO_DUMP_ARG.equals(args[0])
+        if ((args != null) && args.length > 1 && WifiMetrics.PROTO_DUMP_ARG.equals(args[0])
                 && WifiMetrics.CLEAN_DUMP_ARG.equals(args[1])) {
             // Dump only wifi metrics serialized proto bytes (base64)
             updateWifiMetrics();
