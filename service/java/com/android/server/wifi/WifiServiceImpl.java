@@ -77,6 +77,7 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ResultReceiver;
+import android.os.ShellCallback;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.WorkSource;
@@ -130,11 +131,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     // Package names for Settings, QuickSettings and QuickQuickSettings
     private static final String SYSUI_PACKAGE_NAME = "com.android.systemui";
     private static final String SETTINGS_PACKAGE_NAME = "com.android.settings";
-
-    // Dumpsys argument to enable/disable disconnect on IP reachability failures.
-    private static final String DUMP_ARG_SET_IPREACH_DISCONNECT = "set-ipreach-disconnect";
-    private static final String DUMP_ARG_SET_IPREACH_DISCONNECT_ENABLED = "enabled";
-    private static final String DUMP_ARG_SET_IPREACH_DISCONNECT_DISABLED = "disabled";
 
     // Default scan background throttling interval if not overriden in settings
     private static final long DEFAULT_SCAN_BACKGROUND_THROTTLE_INTERVAL_MS = 30 * 60 * 1000;
@@ -1859,6 +1855,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     @Override
+    public void onShellCommand(FileDescriptor in, FileDescriptor out, FileDescriptor err,
+            String[] args, ShellCallback callback, ResultReceiver resultReceiver) {
+        (new WifiShellCommand(mWifiStateMachine)).exec(this, in, out, err, args, callback,
+                resultReceiver);
+    }
+
+    @Override
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         if (mContext.checkCallingOrSelfPermission(android.Manifest.permission.DUMP)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -1876,18 +1879,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             String[] ipManagerArgs = new String[args.length - 1];
             System.arraycopy(args, 1, ipManagerArgs, 0, ipManagerArgs.length);
             mWifiStateMachine.dumpIpManager(fd, pw, ipManagerArgs);
-        } else if (args != null && args.length > 0
-                && DUMP_ARG_SET_IPREACH_DISCONNECT.equals(args[0])) {
-            if (args.length > 1) {
-                if (DUMP_ARG_SET_IPREACH_DISCONNECT_ENABLED.equals(args[1])) {
-                    mWifiStateMachine.setIpReachabilityDisconnectEnabled(true);
-                } else if (DUMP_ARG_SET_IPREACH_DISCONNECT_DISABLED.equals(args[1])) {
-                    mWifiStateMachine.setIpReachabilityDisconnectEnabled(false);
-                }
-            }
-            pw.println("IPREACH_DISCONNECT state is "
-                    + mWifiStateMachine.getIpReachabilityDisconnectEnabled());
-            return;
         } else {
             pw.println("Wi-Fi is " + mWifiStateMachine.syncGetWifiStateByName());
             pw.println("Stay-awake conditions: " +
