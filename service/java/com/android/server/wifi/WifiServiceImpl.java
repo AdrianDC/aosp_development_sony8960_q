@@ -893,6 +893,15 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         mLog.trace("startLocalOnlyHotspot uid=%").c(uid).flush();
 
+        // check current mode to see if we can start localOnlyHotspot
+        boolean apDisabled =
+                mWifiStateMachine.syncGetWifiApState() == WifiManager.WIFI_AP_STATE_DISABLED;
+        if (!apDisabled) {
+            // Tethering is enabled, cannot start LocalOnlyHotspot
+            mLog.trace("Cannot start localOnlyHotspot when WiFi Tethering is active.");
+            return null;
+        }
+
         throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
     }
 
@@ -909,6 +918,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         final int uid = Binder.getCallingUid();
 
         mLog.trace("stopLocalOnlyHotspot uid=%").c(uid).flush();
+
         throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
     }
 
