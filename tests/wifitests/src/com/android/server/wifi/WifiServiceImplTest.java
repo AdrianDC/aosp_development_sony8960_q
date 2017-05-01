@@ -16,6 +16,8 @@
 
 package com.android.server.wifi;
 
+import static android.net.wifi.WifiManager.LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
+import static android.net.wifi.WifiManager.LocalOnlyHotspotCallback.ERROR_TETHERING_DISALLOWED;
 import static android.net.wifi.WifiManager.WIFI_STATE_DISABLED;
 import static android.provider.Settings.Secure.LOCATION_MODE_HIGH_ACCURACY;
 import static android.provider.Settings.Secure.LOCATION_MODE_OFF;
@@ -25,7 +27,6 @@ import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -702,6 +703,8 @@ public class WifiServiceImplTest {
         // allow test to proceed without a permission check failure
         when(mSettingsStore.getLocationModeSetting(mContext))
                 .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
+        when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING))
+                .thenReturn(false);
         when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
         mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
     }
@@ -749,9 +752,22 @@ public class WifiServiceImplTest {
         when(mSettingsStore.getLocationModeSetting(mContext))
                             .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
         when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
-        WifiConfiguration hotspotConfig =
-                mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
-        assertNull(hotspotConfig);
+        int returnCode = mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+        assertEquals(ERROR_INCOMPATIBLE_MODE, returnCode);
+    }
+
+    /**
+     * Only start LocalOnlyHotspot if admin setting does not disallow tethering.
+     */
+    @Test
+    public void testHotspotDoesNotStartWhenTetheringDisallowed() {
+        when(mSettingsStore.getLocationModeSetting(mContext))
+                .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
+        when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING))
+                .thenReturn(true);
+        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
+        int returnCode = mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+        assertEquals(ERROR_TETHERING_DISALLOWED, returnCode);
     }
 
     /**
