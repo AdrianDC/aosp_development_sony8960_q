@@ -124,14 +124,14 @@ public class PasspointXmlUtils {
         XmlUtil.writeNextValue(out, XML_TAG_CREDENTIAL_PRIORITY, config.getCredentialPriority());
         XmlUtil.writeNextValue(out, XML_TAG_TRUST_ROOT_CERT_LIST, config.getTrustRootCertList());
         XmlUtil.writeNextValue(out, XML_TAG_SUBSCRIPTION_CREATION_TIME,
-                config.getSubscriptionCreationTimeInMs());
+                config.getSubscriptionCreationTimeInMillis());
         XmlUtil.writeNextValue(out, XML_TAG_SUBSCRIPTION_EXPIRATION_TIME,
-                config.getSubscriptionExpirationTimeInMs());
+                config.getSubscriptionExpirationTimeInMillis());
         XmlUtil.writeNextValue(out, XML_TAG_SUBSCRIPTION_TYPE, config.getSubscriptionType());
         XmlUtil.writeNextValue(out, XML_TAG_USAGE_LIMIT_TIME_PERIOD,
                 config.getUsageLimitUsageTimePeriodInMinutes());
         XmlUtil.writeNextValue(out, XML_TAG_USAGE_LIMIT_START_TIME,
-                config.getUsageLimitStartTimeInMs());
+                config.getUsageLimitStartTimeInMillis());
         XmlUtil.writeNextValue(out, XML_TAG_USAGE_LIMIT_DATA_LIMIT,
                 config.getUsageLimitDataLimit());
         XmlUtil.writeNextValue(out, XML_TAG_USAGE_LIMIT_TIME_LIMIT,
@@ -171,10 +171,10 @@ public class PasspointXmlUtils {
                         config.setTrustRootCertList((Map<String, byte[]>) value);
                         break;
                     case XML_TAG_SUBSCRIPTION_CREATION_TIME:
-                        config.setSubscriptionCreationTimeInMs((long) value);
+                        config.setSubscriptionCreationTimeInMillis((long) value);
                         break;
                     case XML_TAG_SUBSCRIPTION_EXPIRATION_TIME:
-                        config.setSubscriptionExpirationTimeInMs((long) value);
+                        config.setSubscriptionExpirationTimeInMillis((long) value);
                         break;
                     case XML_TAG_SUBSCRIPTION_TYPE:
                         config.setSubscriptionType((String) value);
@@ -183,7 +183,7 @@ public class PasspointXmlUtils {
                         config.setUsageLimitUsageTimePeriodInMinutes((long) value);
                         break;
                     case XML_TAG_USAGE_LIMIT_START_TIME:
-                        config.setUsageLimitStartTimeInMs((long) value);
+                        config.setUsageLimitStartTimeInMillis((long) value);
                         break;
                     case XML_TAG_USAGE_LIMIT_DATA_LIMIT:
                         config.setUsageLimitDataLimit((long) value);
@@ -260,8 +260,9 @@ public class PasspointXmlUtils {
             return;
         }
         XmlUtil.writeNextSectionStart(out, XML_TAG_SECTION_HEADER_CREDENTIAL);
-        XmlUtil.writeNextValue(out, XML_TAG_CREATION_TIME, credential.getCreationTimeInMs());
-        XmlUtil.writeNextValue(out, XML_TAG_EXPIRATION_TIME, credential.getExpirationTimeInMs());
+        XmlUtil.writeNextValue(out, XML_TAG_CREATION_TIME, credential.getCreationTimeInMillis());
+        XmlUtil.writeNextValue(out, XML_TAG_EXPIRATION_TIME,
+                credential.getExpirationTimeInMillis());
         XmlUtil.writeNextValue(out, XML_TAG_REALM, credential.getRealm());
         XmlUtil.writeNextValue(out, XML_TAG_CHECK_AAA_SERVER_CERT_STATUS,
                 credential.getCheckAaaServerCertStatus());
@@ -519,10 +520,10 @@ public class PasspointXmlUtils {
                 Object value = XmlUtil.readCurrentValue(in, name);
                 switch (name[0]) {
                     case XML_TAG_CREATION_TIME:
-                        credential.setCreationTimeInMs((long) value);
+                        credential.setCreationTimeInMillis((long) value);
                         break;
                     case XML_TAG_EXPIRATION_TIME:
-                        credential.setExpirationTimeInMs((long) value);
+                        credential.setExpirationTimeInMillis((long) value);
                         break;
                     case XML_TAG_REALM:
                         credential.setRealm((String) value);
