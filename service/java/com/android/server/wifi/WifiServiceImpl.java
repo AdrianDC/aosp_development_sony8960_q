@@ -60,6 +60,7 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiManager.LocalOnlyHotspotCallback;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.os.AsyncTask;
@@ -659,6 +660,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 "ConnectivityService");
     }
 
+    private void enforceLocationPermission(String pkgName, int uid) {
+        mWifiPermissionsUtil.enforceLocationPermission(pkgName, uid);
+    }
+
     /**
      * see {@link android.net.wifi.WifiManager#setWifiEnabled(boolean)}
      * @param enable {@code true} to enable, {@code false} to disable.
@@ -861,12 +866,19 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
+     * Method to start LocalOnlyHotspot.  In this method, permissions, settings and modes are
+     * checked to verify that we can enter softapmode.  This method returns
+     * {@link LocalOnlyHotspotCallback#REQUEST_REGISTERED} if we will attempt to start, otherwise,
+     * possible startup erros may include tethering being disallowed failure reason {@link
+     * LocalOnlyHotspotCallback#ERROR_TETHERING_DISALLOWED} or an incompatible mode failure reason
+     * {@link LocalOnlyHotspotCallback#ERROR_INCOMPATIBLE_MODE}.
+     *
      * see {@link WifiManager#startLocalOnlyHotspot(LocalOnlyHotspotCallback)}
      *
      * @param messenger Messenger to send messages to the corresponding WifiManager.
      * @param binder IBinder instance to allow cleanup if the app dies
      *
-     * @return WifiConfiguration generated temporary configuration for SoftAp mode.
+     * @return int return code for attempt to start LocalOnlyHotspot.
      *
      * @throws SecurityException if the caller does not have permission to start a Local Only
      * Hotspot.
@@ -874,7 +886,35 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * have an outstanding request.
      */
     @Override
-    public WifiConfiguration startLocalOnlyHotspot(Messenger messenger, IBinder binder) {
+    public int startLocalOnlyHotspot(Messenger messenger, IBinder binder) {
+        // first check if the caller has permission to start a local only hotspot
+        // need to check for WIFI_STATE_CHANGE and location permission
+        final int uid = Binder.getCallingUid();
+        final String pkgName = mContext.getOpPackageName();
+
+        enforceChangePermission();
+        enforceLocationPermission(pkgName, uid);
+        // also need to verify that Locations services are enabled.
+        if (mSettingsStore.getLocationModeSetting(mContext) == Settings.Secure.LOCATION_MODE_OFF) {
+            throw new SecurityException("Location mode is not enabled.");
+        }
+
+        // verify that tethering is not disabled
+        if (mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING)) {
+            return LocalOnlyHotspotCallback.ERROR_TETHERING_DISALLOWED;
+        }
+
+        mLog.trace("startLocalOnlyHotspot uid=%").c(uid).flush();
+
+        // check current mode to see if we can start localOnlyHotspot
+        boolean apDisabled =
+                mWifiStateMachine.syncGetWifiApState() == WifiManager.WIFI_AP_STATE_DISABLED;
+        if (!apDisabled) {
+            // Tethering is enabled, cannot start LocalOnlyHotspot
+            mLog.trace("Cannot start localOnlyHotspot when WiFi Tethering is active.");
+            return LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
+        }
+
         throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
     }
 
@@ -886,6 +926,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public void stopLocalOnlyHotspot() {
+        // first check if the caller has permission to stop a local only hotspot
+        enforceChangePermission();
+        final int uid = Binder.getCallingUid();
+
+        mLog.trace("stopLocalOnlyHotspot uid=%").c(uid).flush();
+
         throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
     }
 

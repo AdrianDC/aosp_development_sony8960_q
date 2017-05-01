@@ -16,7 +16,11 @@
 
 package com.android.server.wifi;
 
+import static android.net.wifi.WifiManager.LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
+import static android.net.wifi.WifiManager.LocalOnlyHotspotCallback.ERROR_TETHERING_DISALLOWED;
 import static android.net.wifi.WifiManager.WIFI_STATE_DISABLED;
+import static android.provider.Settings.Secure.LOCATION_MODE_HIGH_ACCURACY;
+import static android.provider.Settings.Secure.LOCATION_MODE_OFF;
 
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
@@ -696,7 +700,74 @@ public class WifiServiceImplTest {
      */
     @Test(expected = UnsupportedOperationException.class)
     public void testStartLocalOnlyHotspotNotSupported() {
+        // allow test to proceed without a permission check failure
+        when(mSettingsStore.getLocationModeSetting(mContext))
+                .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
+        when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING))
+                .thenReturn(false);
+        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
         mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+    }
+
+    /**
+     * Verify that a call to startLocalOnlyHotspot throws a SecurityException if the caller does not
+     * have the CHANGE_WIFI_STATE permission.
+     */
+    @Test(expected = SecurityException.class)
+    public void testStartLocalOnlyHotspotThrowsSecurityExceptionWithoutCorrectPermission() {
+        doThrow(new SecurityException()).when(mContext)
+                .enforceCallingOrSelfPermission(eq(android.Manifest.permission.CHANGE_WIFI_STATE),
+                                                eq("WifiService"));
+        mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+    }
+
+    /**
+     * Verify that a call to startLocalOnlyHotspot throws a SecurityException if the caller does not
+     * have Location permission.
+     */
+    @Test(expected = SecurityException.class)
+    public void testStartLocalOnlyHotspotThrowsSecurityExceptionWithoutLocationPermission() {
+        when(mContext.getOpPackageName()).thenReturn(TEST_PACKAGE_NAME);
+        doThrow(new SecurityException())
+                .when(mWifiPermissionsUtil).enforceLocationPermission(eq(TEST_PACKAGE_NAME),
+                                                                      anyInt());
+        mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+    }
+
+    /**
+     * Verify that a call to startLocalOnlyHotspot throws a SecurityException if Location mode is
+     * disabled.
+     */
+    @Test(expected = SecurityException.class)
+    public void testStartLocalOnlyHotspotThrowsSecurityExceptionWithoutLocationEnabled() {
+        when(mSettingsStore.getLocationModeSetting(mContext)).thenReturn(LOCATION_MODE_OFF);
+        mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+    }
+
+    /**
+     * Only start LocalOnlyHotspot if we are not tethering.
+     */
+    @Test
+    public void testHotspotDoesNotStartWhenAlreadyTethering() {
+        when(mSettingsStore.getLocationModeSetting(mContext))
+                            .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
+        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
+        int returnCode = mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+        assertEquals(ERROR_INCOMPATIBLE_MODE, returnCode);
+    }
+
+    /**
+     * Only start LocalOnlyHotspot if admin setting does not disallow tethering.
+     */
+    @Test
+    public void testHotspotDoesNotStartWhenTetheringDisallowed() {
+        when(mSettingsStore.getLocationModeSetting(mContext))
+                .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
+        when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING))
+                .thenReturn(true);
+        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
+        int returnCode = mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+        assertEquals(ERROR_TETHERING_DISALLOWED, returnCode);
     }
 
     /**
@@ -705,6 +776,19 @@ public class WifiServiceImplTest {
      */
     @Test(expected = UnsupportedOperationException.class)
     public void testStopLocalOnlyHotspotNotSupported() {
+        // allow test to proceed without a permission check failure
+        mWifiServiceImpl.stopLocalOnlyHotspot();
+    }
+
+    /**
+     * Verify that a call to stopLocalOnlyHotspot throws a SecurityException if the caller does not
+     * have the CHANGE_WIFI_STATE permission.
+     */
+    @Test(expected = SecurityException.class)
+    public void testStopLocalOnlyHotspotThrowsSecurityExceptionWithoutCorrectPermission() {
+        doThrow(new SecurityException()).when(mContext)
+                .enforceCallingOrSelfPermission(eq(android.Manifest.permission.CHANGE_WIFI_STATE),
+                                                eq("WifiService"));
         mWifiServiceImpl.stopLocalOnlyHotspot();
     }
 
