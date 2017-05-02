@@ -465,4 +465,19 @@ public class WificondControl {
         return false;
     }
 
+    /**
+     * Abort ongoing single scan.
+     */
+    public void abortScan() {
+        if (mWificondScanner == null) {
+            Log.e(TAG, "No valid wificond scanner interface handler");
+            return;
+        }
+        try {
+            mWificondScanner.abortScan();
+        } catch (RemoteException e1) {
+            Log.e(TAG, "Failed to request abortScan due to remote exception");
+        }
+    }
+
 }
