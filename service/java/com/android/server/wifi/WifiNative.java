@@ -534,6 +534,15 @@ public class WifiNative {
     }
 
     /**
+     * This get anonymous identity from supplicant and returns it as a string.
+     *
+     * @return anonymous identity string if succeeds, null otherwise.
+     */
+    public String getEapAnonymousIdentity() {
+        return mSupplicantStaIfaceHal.getCurrentNetworkEapAnonymousIdentity();
+    }
+
+    /**
      * Start WPS pin registrar operation with the specified peer and pin.
      *
      * @param bssid BSSID of the peer.
