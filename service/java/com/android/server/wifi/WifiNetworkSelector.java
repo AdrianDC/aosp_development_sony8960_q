@@ -385,6 +385,7 @@ public class WifiNetworkSelector {
     private WifiConfiguration overrideCandidateWithUserConnectChoice(
             @NonNull WifiConfiguration candidate) {
         WifiConfiguration tempConfig = candidate;
+        WifiConfiguration originalCandidate = candidate;
         ScanResult scanResultCandidate = candidate.getNetworkSelectionStatus().getCandidate();
 
         while (tempConfig.getNetworkSelectionStatus().getConnectChoice() != null) {
@@ -403,9 +404,12 @@ public class WifiNetworkSelector {
                 break;
             }
         }
-        localLog("After user selection adjustment, the final candidate is:"
-                + WifiNetworkSelector.toNetworkString(candidate) + " : "
-                + scanResultCandidate.BSSID);
+
+        if (candidate != originalCandidate) {
+            localLog("After user selection adjustment, the final candidate is:"
+                    + WifiNetworkSelector.toNetworkString(candidate) + " : "
+                    + scanResultCandidate.BSSID);
+        }
         return candidate;
     }
 
@@ -461,10 +465,14 @@ public class WifiNetworkSelector {
         WifiConfiguration selectedNetwork = null;
         for (NetworkEvaluator registeredEvaluator : mEvaluators) {
             if (registeredEvaluator != null) {
+                localLog("About to run " + registeredEvaluator.getName() + " :");
                 selectedNetwork = registeredEvaluator.evaluateNetworks(filteredScanDetails,
                             currentNetwork, currentBssid, connected,
                             untrustedNetworkAllowed, mConnectableNetworks);
                 if (selectedNetwork != null) {
+                    localLog(registeredEvaluator.getName() + " selects "
+                            + WifiNetworkSelector.toNetworkString(selectedNetwork) + " : "
+                            + selectedNetwork.getNetworkSelectionStatus().getCandidate().BSSID);
                     break;
                 }
             }
