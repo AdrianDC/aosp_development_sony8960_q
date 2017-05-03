@@ -276,6 +276,14 @@ public class WifiServiceImplTest {
 
 
     /**
+     * Ensure WifiServiceImpl.dump() doesn't throw an NPE when executed with null args
+     */
+    @Test
+    public void testDumpNullArgs() {
+        mWifiServiceImpl.dump(new FileDescriptor(), new PrintWriter(new StringWriter()), null);
+    }
+
+    /**
      * Verify that wifi can be enabled by a caller with WIFI_STATE_CHANGE permission when wifi is
      * off (no hotspot, no airplane mode).
      */
