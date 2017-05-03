@@ -41,7 +41,9 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
@@ -1006,6 +1008,15 @@ public class WifiMetricsTest {
         dumpProtoAndDeserialize();
         assertEquals(WifiMetrics.MAX_STA_EVENTS, mDeserializedWifiMetrics.staEventList.length);
     }
+
+    /**
+     * Ensure WifiMetrics doesn't cause a null pointer exception when called with null args
+     */
+    @Test
+    public void testDumpNullArg() {
+        mWifiMetrics.dump(new FileDescriptor(), new PrintWriter(new StringWriter()), null);
+    }
+
     /**
      * Generate an RSSI delta event by creating a connection event and an RSSI poll within
      * 'interArrivalTime' milliseconds of each other.
