@@ -894,6 +894,8 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                 return false;
             }
             mLastPnoChangeTimeStamp = mClock.getElapsedSinceBootMillis();
+            Log.d(TAG, "Remove all networks from supplicant before starting PNO scan");
+            mWifiNative.removeAllNetworks();
             if (mWifiNative.startPnoScan(mPnoSettings)) {
                 Log.d(TAG, "Changed PNO state from " + mCurrentPnoState + " to enable");
                 mCurrentPnoState = true;
