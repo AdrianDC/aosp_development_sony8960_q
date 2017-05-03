@@ -668,6 +668,7 @@ public class SupplicantP2pIfaceHal {
                 if (groupOwnerIntent < 0 || groupOwnerIntent > 15) {
                     groupOwnerIntent = DEFAULT_GROUP_OWNER_INTENT;
                 }
+                goIntent = groupOwnerIntent;
             }
 
             SupplicantResult<String> result = new SupplicantResult(
