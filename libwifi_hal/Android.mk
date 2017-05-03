@@ -86,10 +86,12 @@ include $(BUILD_STATIC_LIBRARY)
 # Pick a vendor provided HAL implementation library.
 # ============================================================
 LIB_WIFI_HAL := libwifi-hal-fallback
+VENDOR_LOCAL_SHARED_LIBRARIES :=
 ifeq ($(BOARD_WLAN_DEVICE), bcmdhd)
   LIB_WIFI_HAL := libwifi-hal-bcm
 else ifeq ($(BOARD_WLAN_DEVICE), qcwcn)
   LIB_WIFI_HAL := libwifi-hal-qcom
+  VENDOR_LOCAL_SHARED_LIBRARIES := libcld80211
 else ifeq ($(BOARD_WLAN_DEVICE), mrvl)
   # this is commented because none of the nexus devices
   # that sport Marvell's wifi have support for HAL
@@ -116,7 +118,7 @@ LOCAL_SHARED_LIBRARIES := \
     liblog \
     libnl \
     libutils \
-    libcld80211
+    $(VENDOR_LOCAL_SHARED_LIBRARIES)
 LOCAL_SRC_FILES := \
     driver_tool.cpp \
     hal_tool.cpp
