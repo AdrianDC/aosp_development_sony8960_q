@@ -33,7 +33,7 @@ import java.util.List;
  * saved networks.
  */
 public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluator {
-    private static final String NAME = "WifiSavedNetworkEvaluator";
+    private static final String NAME = "SavedNetworkEvaluator";
     private final WifiConfigManager mWifiConfigManager;
     private final Clock mClock;
     private final LocalLog mLocalLog;
@@ -96,7 +96,7 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
             return;
         }
 
-        StringBuffer sbuf = new StringBuffer("Saved Networks List: \n");
+        StringBuffer sbuf = new StringBuffer();
         for (WifiConfiguration network : savedNetworks) {
             /**
              * Ignore Passpoint networks. Passpoint networks are also considered as "saved"
@@ -120,20 +120,36 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
             // Clear the cached candidate, score and seen.
             mWifiConfigManager.clearNetworkCandidateScanResult(network.networkId);
 
-            sbuf.append(" ").append(WifiNetworkSelector.toNetworkString(network)).append(" ")
-                    .append(" User Preferred BSSID: ").append(network.BSSID)
-                    .append(" FQDN: ").append(network.FQDN).append(" ")
-                    .append(status.getNetworkStatusString()).append(" Disable account: ");
-            for (int index = WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE;
+            boolean networkDisabled = false;
+            boolean networkStringLogged = false;
+            for (int index = WifiConfiguration.NetworkSelectionStatus
+                    .NETWORK_SELECTION_DISABLED_STARTING_INDEX;
                     index < WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_DISABLED_MAX;
                     index++) {
-                sbuf.append(status.getDisableReasonCounter(index)).append(" ");
+                int count = status.getDisableReasonCounter(index);
+                if (count > 0) {
+                    networkDisabled = true;
+                    if (!networkStringLogged) {
+                        sbuf.append("  ").append(WifiNetworkSelector.toNetworkString(network))
+                                .append(" ");
+                        networkStringLogged = true;
+                    }
+                    sbuf.append("reason=")
+                            .append(WifiConfiguration.NetworkSelectionStatus
+                                    .getNetworkDisableReasonString(index))
+                            .append(", count=").append(count).append("; ");
+                }
             }
-            sbuf.append("Connect Choice: ").append(status.getConnectChoice())
-                    .append(" set time: ").append(status.getConnectChoiceTimestamp())
-                    .append("\n");
+
+            if (networkDisabled) {
+                sbuf.append("\n");
+            }
         }
-        localLog(sbuf.toString());
+
+        if (sbuf.length() > 0) {
+            localLog("Disabled saved networks:");
+            localLog(sbuf.toString());
+        }
     }
 
     /**
