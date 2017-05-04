@@ -32,6 +32,8 @@ import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pGroup;
 import android.net.wifi.p2p.WifiP2pProvDiscEvent;
 
+import com.android.server.wifi.util.NativeUtil;
+
 import org.junit.Assert.*;
 import org.junit.Before;
 import org.junit.Test;
@@ -395,5 +397,33 @@ public class SupplicantP2pIfaceCallbackTest {
         verify(mMonitor).broadcastP2pProvisionDiscoveryPbcRequest(
                 anyString(), discEventCaptor.capture());
         assertEquals(WifiP2pProvDiscEvent.PBC_REQ, discEventCaptor.getValue().event);
+    }
+
+    /**
+     * Test staAuth with device address, should trigger ApStaConnected broadcast
+     */
+    @Test
+    public void testStaAuth_success() {
+        // Trigger onStaAuthorized callback, ensure wifimonitor broadcast is sent with WifiP2pDevice
+        // using the p2pDeviceAddress
+        ArgumentCaptor<WifiP2pDevice> p2pDeviceCaptor =
+                ArgumentCaptor.forClass(WifiP2pDevice.class);
+        mDut.onStaAuthorized(mDeviceAddress1Bytes, mDeviceAddress2Bytes);
+        verify(mMonitor).broadcastP2pApStaConnected(any(String.class), p2pDeviceCaptor.capture());
+        assertEquals(mDeviceAddress2String, p2pDeviceCaptor.getValue().deviceAddress);
+    }
+
+    /**
+     * Test staAuth without device address, should trigger ApStaConnected broadcast using srcAddress
+     */
+    @Test
+    public void testStaAuth_noDeviceAddress_success() {
+        // Trigger onStaAuthorized callback, using a zero'd p2pDeviceAddress, ensure wifimonitor
+        // broadcast is sent with WifiP2pDevice using the srcAddress
+        ArgumentCaptor<WifiP2pDevice> p2pDeviceCaptor =
+                ArgumentCaptor.forClass(WifiP2pDevice.class);
+        mDut.onStaAuthorized(mDeviceAddress1Bytes, NativeUtil.ANY_MAC_BYTES);
+        verify(mMonitor).broadcastP2pApStaConnected(any(String.class), p2pDeviceCaptor.capture());
+        assertEquals(mDeviceAddress1String, p2pDeviceCaptor.getValue().deviceAddress);
     }
 }
