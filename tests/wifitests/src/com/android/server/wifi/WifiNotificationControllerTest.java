@@ -26,7 +26,6 @@ import static org.mockito.Mockito.when;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.IntentFilter;
 import android.content.res.Resources;
@@ -35,6 +34,7 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.os.test.TestLooper;
 import android.provider.Settings;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -56,8 +56,10 @@ public class WifiNotificationControllerTest {
     public static final String TAG = "WifiScanningServiceTest";
 
     @Mock private Context mContext;
+    @Mock private Resources mResources;
     @Mock private FrameworkFacade mFrameworkFacade;
     @Mock private NotificationManager mNotificationManager;
+    @Mock private UserManager mUserManager;
     @Mock private WifiInjector mWifiInjector;
     @Mock private WifiScanner mWifiScanner;
     WifiNotificationController mWifiNotificationController;
@@ -72,15 +74,15 @@ public class WifiNotificationControllerTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-
-        // Needed for the NotificationEnabledSettingObserver.
-        when(mContext.getContentResolver()).thenReturn(mock(ContentResolver.class));
-
         when(mContext.getSystemService(Context.NOTIFICATION_SERVICE))
                 .thenReturn(mNotificationManager);
 
         when(mFrameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON, 1)).thenReturn(1);
+
+        when(mContext.getSystemService(Context.USER_SERVICE))
+                .thenReturn(mUserManager);
+        when(mContext.getResources()).thenReturn(mResources);
 
         when(mWifiInjector.getWifiScanner()).thenReturn(mWifiScanner);
 
@@ -116,8 +118,7 @@ public class WifiNotificationControllerTest {
         TestUtil.sendScanResultsAvailable(mBroadcastReceiver, mContext);
         TestUtil.sendScanResultsAvailable(mBroadcastReceiver, mContext);
         verify(mNotificationManager, never())
-                .notifyAsUser(any(String.class), anyInt(), any(Notification.class),
-                        any(UserHandle.class));
+                .notifyAsUser(any(), anyInt(), any(), any(UserHandle.class));
 
         // Changing to and from "SCANNING" state should not affect the counter.
         TestUtil.sendNetworkStateChanged(mBroadcastReceiver, mContext,
@@ -125,21 +126,36 @@ public class WifiNotificationControllerTest {
         TestUtil.sendNetworkStateChanged(mBroadcastReceiver, mContext,
                 NetworkInfo.DetailedState.DISCONNECTED);
 
-        // Needed while WifiNotificationController creates its notification.
-        when(mContext.getResources()).thenReturn(mock(Resources.class));
-
         // The third scan result notification will trigger the notification.
         TestUtil.sendScanResultsAvailable(mBroadcastReceiver, mContext);
         verify(mNotificationManager)
-                .notifyAsUser(any(String.class), anyInt(), any(Notification.class),
-                        any(UserHandle.class));
+                .notifyAsUser(any(), anyInt(), any(), any(UserHandle.class));
         verify(mNotificationManager, never())
-                .cancelAsUser(any(String.class), anyInt(), any(UserHandle.class));
+                .cancelAsUser(any(), anyInt(), any(UserHandle.class));
 
         // Changing network state should cause the notification to go away.
         TestUtil.sendNetworkStateChanged(mBroadcastReceiver, mContext,
                 NetworkInfo.DetailedState.CONNECTED);
         verify(mNotificationManager)
-                .cancelAsUser(any(String.class), anyInt(), any(UserHandle.class));
+                .cancelAsUser(any(), anyInt(), any(UserHandle.class));
+    }
+
+    @Test
+    public void verifyNotificationNotDisplayed_userHasDisallowConfigWifiRestriction() {
+        when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI, UserHandle.CURRENT))
+                .thenReturn(true);
+
+        TestUtil.sendWifiStateChanged(mBroadcastReceiver, mContext, WifiManager.WIFI_STATE_ENABLED);
+        TestUtil.sendNetworkStateChanged(mBroadcastReceiver, mContext,
+                NetworkInfo.DetailedState.DISCONNECTED);
+        setOpenAccessPoint();
+
+        // The notification should be displayed after three scan results.
+        TestUtil.sendScanResultsAvailable(mBroadcastReceiver, mContext);
+        TestUtil.sendScanResultsAvailable(mBroadcastReceiver, mContext);
+        TestUtil.sendScanResultsAvailable(mBroadcastReceiver, mContext);
+
+        verify(mNotificationManager, never())
+                .notifyAsUser(any(), anyInt(), any(), any(UserHandle.class));
     }
 }

@@ -20,7 +20,6 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.TaskStackBuilder;
 import android.content.BroadcastReceiver;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -33,7 +32,10 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.provider.Settings;
+
+import com.android.internal.notification.SystemNotificationChannels;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -54,6 +56,7 @@ public class WifiNotificationController {
      * When a notification is shown, we wait this amount before possibly showing it again.
      */
     private final long NOTIFICATION_REPEAT_DELAY_MS;
+
     /**
      * Whether the user has set the setting to show the 'available networks' notification.
      */
@@ -62,6 +65,7 @@ public class WifiNotificationController {
      * Observes the user setting to keep {@link #mNotificationEnabled} in sync.
      */
     private NotificationEnabledSettingObserver mNotificationEnabledSettingObserver;
+
     /**
      * The {@link System#currentTimeMillis()} must be at least this value for us
      * to show the notification again.
@@ -121,7 +125,8 @@ public class WifiNotificationController {
                 new BroadcastReceiver() {
                     @Override
                     public void onReceive(Context context, Intent intent) {
-                        if (intent.getAction().equals(WifiManager.WIFI_STATE_CHANGED_ACTION)) {
+                        if (intent.getAction()
+                                .equals(WifiManager.WIFI_STATE_CHANGED_ACTION)) {
                             mWifiState = intent.getIntExtra(WifiManager.EXTRA_WIFI_STATE,
                                     WifiManager.WIFI_STATE_UNKNOWN);
                             resetNotification();
@@ -167,7 +172,7 @@ public class WifiNotificationController {
 
         // Setting is in seconds
         NOTIFICATION_REPEAT_DELAY_MS = mFrameworkFacade.getIntegerSetting(context,
-                Settings.Global.WIFI_NETWORKS_AVAILABLE_REPEAT_DELAY, 900) * 1000l;
+                Settings.Global.WIFI_NETWORKS_AVAILABLE_REPEAT_DELAY, 900) * 1000L;
         mNotificationEnabledSettingObserver = new NotificationEnabledSettingObserver(
                 new Handler(looper));
         mNotificationEnabledSettingObserver.register();
@@ -181,6 +186,10 @@ public class WifiNotificationController {
         // don't bother doing any of the following
         if (!mNotificationEnabled) return;
         if (mWifiState != WifiManager.WIFI_STATE_ENABLED) return;
+        if (UserManager.get(mContext)
+                .hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI, UserHandle.CURRENT)) {
+            return;
+        }
 
         NetworkInfo.State state = NetworkInfo.State.DISCONNECTED;
         if (networkInfo != null)
@@ -267,7 +276,8 @@ public class WifiNotificationController {
 
             if (mNotificationBuilder == null) {
                 // Cache the Notification builder object.
-                mNotificationBuilder = new Notification.Builder(mContext)
+                mNotificationBuilder = new Notification.Builder(mContext,
+                        SystemNotificationChannels.NETWORK_AVAILABLE)
                         .setWhen(0)
                         .setSmallIcon(ICON_NETWORKS_AVAILABLE)
                         .setAutoCancel(true)
@@ -311,8 +321,7 @@ public class WifiNotificationController {
         }
 
         public void register() {
-            ContentResolver cr = mContext.getContentResolver();
-            cr.registerContentObserver(Settings.Global.getUriFor(
+            mFrameworkFacade.registerContentObserver(mContext, Settings.Global.getUriFor(
                     Settings.Global.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON), true, this);
             synchronized (WifiNotificationController.this) {
                 mNotificationEnabled = getValue();
