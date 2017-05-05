@@ -1190,8 +1190,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public WifiConfiguration getMatchingWifiConfig(ScanResult scanResult) {
         enforceAccessPermission();
         mLog.trace("getMatchingWifiConfig uid=%").c(Binder.getCallingUid()).flush();
-        if (!mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_wifi_hotspot2_enabled)) {
+        if (!mContext.getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_WIFI_PASSPOINT)) {
             throw new UnsupportedOperationException("Passpoint not enabled");
         }
         return mWifiStateMachine.syncGetMatchingWifiConfig(scanResult, mWifiStateMachineChannel);
@@ -1380,8 +1380,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public boolean addOrUpdatePasspointConfiguration(PasspointConfiguration config) {
         enforceChangePermission();
         mLog.trace("addorUpdatePasspointConfiguration uid=%").c(Binder.getCallingUid()).flush();
-        if (!mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_wifi_hotspot2_enabled)) {
+        if (!mContext.getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_WIFI_PASSPOINT)) {
             throw new UnsupportedOperationException("Passpoint not enabled");
         }
         return mWifiStateMachine.syncAddOrUpdatePasspointConfig(mWifiStateMachineChannel, config,
@@ -1398,8 +1398,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public boolean removePasspointConfiguration(String fqdn) {
         enforceChangePermission();
         mLog.trace("removePasspointConfiguration uid=%").c(Binder.getCallingUid()).flush();
-        if (!mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_wifi_hotspot2_enabled)) {
+        if (!mContext.getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_WIFI_PASSPOINT)) {
             throw new UnsupportedOperationException("Passpoint not enabled");
         }
         return mWifiStateMachine.syncRemovePasspointConfig(mWifiStateMachineChannel, fqdn);
@@ -1416,8 +1416,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public List<PasspointConfiguration> getPasspointConfigurations() {
         enforceAccessPermission();
         mLog.trace("getPasspointConfigurations uid=%").c(Binder.getCallingUid()).flush();
-        if (!mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_wifi_hotspot2_enabled)) {
+        if (!mContext.getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_WIFI_PASSPOINT)) {
             throw new UnsupportedOperationException("Passpoint not enabled");
         }
         return mWifiStateMachine.syncGetPasspointConfigs(mWifiStateMachineChannel);
@@ -1432,8 +1432,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public void queryPasspointIcon(long bssid, String fileName) {
         enforceAccessPermission();
         mLog.trace("queryPasspointIcon uid=%").c(Binder.getCallingUid()).flush();
-        if (!mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_wifi_hotspot2_enabled)) {
+        if (!mContext.getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_WIFI_PASSPOINT)) {
             throw new UnsupportedOperationException("Passpoint not enabled");
         }
         mWifiStateMachine.syncQueryPasspointIcon(mWifiStateMachineChannel, bssid, fileName);
