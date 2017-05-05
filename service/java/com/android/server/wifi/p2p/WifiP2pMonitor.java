@@ -240,14 +240,10 @@ public class WifiP2pMonitor {
         SparseArray<Set<Handler>> ifaceHandlers = mHandlerMap.get(iface);
         if (iface != null && ifaceHandlers != null) {
             if (isMonitoring(iface)) {
-                boolean firstHandler = true;
                 Set<Handler> ifaceWhatHandlers = ifaceHandlers.get(message.what);
                 if (ifaceWhatHandlers != null) {
                     for (Handler handler : ifaceWhatHandlers) {
-                        if (firstHandler) {
-                            firstHandler = false;
-                            sendMessage(handler, message);
-                        } else {
+                        if (handler != null) {
                             sendMessage(handler, Message.obtain(message));
                         }
                     }
@@ -261,28 +257,24 @@ public class WifiP2pMonitor {
             if (mVerboseLoggingEnabled) {
                 Log.d(TAG, "Sending to all monitors because there's no matching iface");
             }
-            boolean firstHandler = true;
             for (Map.Entry<String, SparseArray<Set<Handler>>> entry : mHandlerMap.entrySet()) {
                 if (isMonitoring(entry.getKey())) {
                     Set<Handler> ifaceWhatHandlers = entry.getValue().get(message.what);
                     for (Handler handler : ifaceWhatHandlers) {
-                        if (firstHandler) {
-                            firstHandler = false;
-                            sendMessage(handler, message);
-                        } else {
+                        if (handler != null) {
                             sendMessage(handler, Message.obtain(message));
                         }
                     }
                 }
             }
         }
+
+        message.recycle();
     }
 
     private void sendMessage(Handler handler, Message message) {
-        if (handler != null) {
-            message.setTarget(handler);
-            message.sendToTarget();
-        }
+        message.setTarget(handler);
+        message.sendToTarget();
     }
 
     /**
