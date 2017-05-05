@@ -48,6 +48,7 @@ import org.mockito.ArgumentCaptor;
 @SmallTest
 public class WifiMonitorTest {
     private static final String WLAN_IFACE_NAME = "wlan0";
+    private static final String SECOND_WLAN_IFACE_NAME = "wlan1";
     private static final String[] GSM_AUTH_DATA = { "45adbc", "fead45", "0x3452"};
     private static final String[] UMTS_AUTH_DATA = { "fead45", "0x3452"};
     private static final String BSSID = "fe:45:23:12:12:0a";
@@ -56,12 +57,14 @@ public class WifiMonitorTest {
     private WifiMonitor mWifiMonitor;
     private TestLooper mLooper;
     private Handler mHandlerSpy;
+    private Handler mSecondHandlerSpy;
 
     @Before
     public void setUp() throws Exception {
         mWifiMonitor = new WifiMonitor(mock(WifiInjector.class));
         mLooper = new TestLooper();
         mHandlerSpy = spy(new Handler(mLooper.getLooper()));
+        mSecondHandlerSpy = spy(new Handler(mLooper.getLooper()));
         mWifiMonitor.setMonitoring(WLAN_IFACE_NAME, true);
     }
 
@@ -479,6 +482,52 @@ public class WifiMonitorTest {
         mWifiMonitor.registerHandler(
                 WLAN_IFACE_NAME, WifiMonitor.SUP_DISCONNECTION_EVENT, mHandlerSpy);
         mWifiMonitor.broadcastSupplicantDisconnectionEvent(WLAN_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mHandlerSpy).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.SUP_DISCONNECTION_EVENT, messageCaptor.getValue().what);
+    }
+    /**
+     * Broadcast message to two handlers test.
+     */
+    @Test
+    public void testBroadcastEventToTwoHandlers() {
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.SUP_CONNECTION_EVENT, mHandlerSpy);
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.SUP_CONNECTION_EVENT, mSecondHandlerSpy);
+        mWifiMonitor.broadcastSupplicantConnectionEvent(WLAN_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mHandlerSpy).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.SUP_CONNECTION_EVENT, messageCaptor.getValue().what);
+        verify(mSecondHandlerSpy).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.SUP_CONNECTION_EVENT, messageCaptor.getValue().what);
+    }
+    /**
+     * Broadcast message when iface is null.
+     */
+    @Test
+    public void testBroadcastEventWhenIfaceIsNull() {
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.SUP_DISCONNECTION_EVENT, mHandlerSpy);
+        mWifiMonitor.broadcastSupplicantDisconnectionEvent(null);
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mHandlerSpy).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.SUP_DISCONNECTION_EVENT, messageCaptor.getValue().what);
+    }
+    /**
+     * Broadcast message when iface handler is null.
+     */
+    @Test
+    public void testBroadcastEventWhenIfaceHandlerIsNull() {
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.SUP_DISCONNECTION_EVENT, mHandlerSpy);
+        mWifiMonitor.broadcastSupplicantDisconnectionEvent(SECOND_WLAN_IFACE_NAME);
         mLooper.dispatchAll();
 
         ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
