@@ -168,6 +168,7 @@ public class WifiDiagnosticsTest {
     @Test
     public void startLoggingStopsAndRestartsRingBufferLogging() throws Exception {
         final boolean verbosityToggle = false;
+        setBuildPropertiesToEnableRingBuffers();
         mWifiDiagnostics.startLogging(verbosityToggle);
         verify(mWifiNative).startLoggingRingBuffer(
                 eq(WifiDiagnostics.VERBOSE_NO_LOG), anyInt(), anyInt(), anyInt(),
@@ -175,6 +176,14 @@ public class WifiDiagnosticsTest {
         verify(mWifiNative).startLoggingRingBuffer(
                 eq(WifiDiagnostics.VERBOSE_NORMAL_LOG), anyInt(), anyInt(), anyInt(),
                 eq(FAKE_RING_BUFFER_NAME));
+    }
+
+    @Test
+    public void startLoggingDoesNotStartRingBuffersOnUserBuilds() throws Exception {
+        final boolean verbosityToggle = true;
+        mWifiDiagnostics.startLogging(verbosityToggle);
+        verify(mWifiNative, never()).startLoggingRingBuffer(
+                anyInt(), anyInt(), anyInt(), anyInt(), anyString());
     }
 
     /** Verifies that, if a log handler was registered, then stopLogging() resets it. */
@@ -222,6 +231,7 @@ public class WifiDiagnosticsTest {
     @Test
     public void canCaptureAndStoreRingBufferData() throws Exception {
         final boolean verbosityToggle = false;
+        setBuildPropertiesToEnableRingBuffers();
         mWifiDiagnostics.startLogging(verbosityToggle);
 
         final byte[] data = new byte[SMALL_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE];
@@ -239,6 +249,7 @@ public class WifiDiagnosticsTest {
     @Test
     public void loggerDiscardsExtraneousData() throws Exception {
         final boolean verbosityToggle = false;
+        setBuildPropertiesToEnableRingBuffers();
         mWifiDiagnostics.startLogging(verbosityToggle);
 
         final byte[] data1 = new byte[SMALL_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE];
@@ -593,15 +604,16 @@ public class WifiDiagnosticsTest {
         assertFalse(fateDumpString.contains("Frame bytes"));
     }
 
-    /** Verifies that the default size of our ring buffers is small. */
     @Test
-    public void ringBufferSizeIsSmallByDefault() throws Exception {
-        final boolean verbosityToggle = false;
+    public void dumpSucceedsEvenIfRingBuffersAreDisabled() {
+        final boolean verbosityToggle = true;
         mWifiDiagnostics.startLogging(verbosityToggle);
-        mWifiDiagnostics.onRingBufferData(
-                mFakeRbs, new byte[SMALL_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE + 1]);
-        mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
-        assertEquals(0, getLoggerRingBufferData().length);
+        verify(mWifiNative, never()).startLoggingRingBuffer(
+                anyInt(), anyInt(), anyInt(), anyInt(), anyString());
+
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        mWifiDiagnostics.dump(new FileDescriptor(), pw, new String[]{"bogus", "args"});
     }
 
     /** Verifies that we use small ring buffers by default, on userdebug builds. */
@@ -636,6 +648,8 @@ public class WifiDiagnosticsTest {
     @Test
     public void ringBufferSizeIsLargeInVerboseMode() throws Exception {
         final boolean verbosityToggle = true;
+        setBuildPropertiesToEnableRingBuffers();
+
         mWifiDiagnostics.startLogging(verbosityToggle);
         mWifiDiagnostics.onRingBufferData(
                 mFakeRbs, new byte[LARGE_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE]);
@@ -646,6 +660,8 @@ public class WifiDiagnosticsTest {
     /** Verifies that we use large ring buffers when switched from normal to verbose mode. */
     @Test
     public void startLoggingGrowsRingBuffersIfNeeded() throws Exception {
+        setBuildPropertiesToEnableRingBuffers();
+
         mWifiDiagnostics.startLogging(false  /* verbose disabled */);
         mWifiDiagnostics.startLogging(true  /* verbose enabled */);
         mWifiDiagnostics.onRingBufferData(
@@ -657,6 +673,8 @@ public class WifiDiagnosticsTest {
     /** Verifies that we use small ring buffers when switched from verbose to normal mode. */
     @Test
     public void startLoggingShrinksRingBuffersIfNeeded() throws Exception {
+        setBuildPropertiesToEnableRingBuffers();
+
         mWifiDiagnostics.startLogging(true  /* verbose enabled */);
         mWifiDiagnostics.onRingBufferData(
                 mFakeRbs, new byte[SMALL_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE + 1]);
@@ -785,5 +803,11 @@ public class WifiDiagnosticsTest {
         mWifiDiagnostics.dump(
                 new FileDescriptor(), new PrintWriter(new StringWriter()), new String[]{});
         verify(mLastMileLogger).dump(anyObject());
+    }
+
+    private void setBuildPropertiesToEnableRingBuffers() {
+        when(mBuildProperties.isEngBuild()).thenReturn(false);
+        when(mBuildProperties.isUserdebugBuild()).thenReturn(true);
+        when(mBuildProperties.isUserBuild()).thenReturn(false);
     }
 }
