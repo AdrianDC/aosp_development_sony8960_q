@@ -61,14 +61,15 @@ public class WifiAwareClientState {
     private final String mCallingPackage;
     private final boolean mNotifyIdentityChange;
 
-    private AppOpsManager mAppOps;
+    private final AppOpsManager mAppOps;
+    private final long mCreationTime;
 
     private static final byte[] ALL_ZERO_MAC = new byte[] {0, 0, 0, 0, 0, 0};
     private byte[] mLastDiscoveryInterfaceMac = ALL_ZERO_MAC;
 
     public WifiAwareClientState(Context context, int clientId, int uid, int pid,
             String callingPackage, IWifiAwareEventCallback callback, ConfigRequest configRequest,
-            boolean notifyIdentityChange) {
+            boolean notifyIdentityChange, long creationTime) {
         mContext = context;
         mClientId = clientId;
         mUid = uid;
@@ -79,6 +80,7 @@ public class WifiAwareClientState {
         mNotifyIdentityChange = notifyIdentityChange;
 
         mAppOps = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
+        mCreationTime = creationTime;
     }
 
     /**
@@ -107,6 +109,10 @@ public class WifiAwareClientState {
 
     public boolean getNotifyIdentityChange() {
         return mNotifyIdentityChange;
+    }
+
+    public long getCreationTime() {
+        return mCreationTime;
     }
 
     /**

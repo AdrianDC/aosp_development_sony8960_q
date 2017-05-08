@@ -18,6 +18,7 @@ package com.android.server.wifi.aware;
 
 import android.hardware.wifi.V1_0.NanStatusType;
 import android.util.Log;
+import android.util.SparseArray;
 import android.util.SparseIntArray;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -26,6 +27,8 @@ import com.android.server.wifi.nano.WifiMetricsProto;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Wi-Fi Aware metric container/processor.
@@ -49,10 +52,20 @@ public class WifiAwareMetrics {
     private final Object mLock = new Object();
     private final Clock mClock;
 
+    // enableUsage/disableUsage data
     private long mLastEnableUsage = 0;
     private long mLastEnableUsageInThisLogWindow = 0;
     private long mAvailableTime = 0;
     private SparseIntArray mHistogramAwareAvailableDurationMs = new SparseIntArray();
+
+    // app data (attach)
+    private static class AttachData {
+        boolean mUsesIdentityCallback; // do any attach sessions of the UID use identity callback
+        int mMaxConcurrentAttaches;
+    }
+    private Map<Integer, AttachData> mAttachDataByUid = new HashMap<>();
+    private SparseIntArray mAttachStatusData = new SparseIntArray();
+    private SparseIntArray mHistogramAttachDuration = new SparseIntArray();
 
     public WifiAwareMetrics(Clock clock) {
         mClock = clock;
@@ -94,6 +107,52 @@ public class WifiAwareMetrics {
     }
 
     /**
+     * Push information about a new attach session.
+     */
+    public void recordAttachSession(int uid, boolean usesIdentityCallback,
+            SparseArray<WifiAwareClientState> clients) {
+        // count the number of clients with the specific uid
+        int currentConcurrentCount = 0;
+        for (int i = 0; i < clients.size(); ++i) {
+            if (clients.valueAt(i).getUid() == uid) {
+                ++currentConcurrentCount;
+            }
+        }
+
+        synchronized (mLock) {
+            AttachData data = mAttachDataByUid.get(uid);
+            if (data == null) {
+                data = new AttachData();
+                mAttachDataByUid.put(uid, data);
+            }
+            data.mUsesIdentityCallback |= usesIdentityCallback;
+            data.mMaxConcurrentAttaches = Math.max(data.mMaxConcurrentAttaches,
+                    currentConcurrentCount);
+            recordAttachStatus(NanStatusType.SUCCESS);
+        }
+    }
+
+    /**
+     * Push information about a new attach session status (recorded when attach session is created).
+     */
+    public void recordAttachStatus(int status) {
+        synchronized (mLock) {
+            mAttachStatusData.put(status, mAttachStatusData.get(status) + 1);
+        }
+    }
+
+    /**
+     * Push duration information of an attach session.
+     */
+    public void recordAttachSessionDuration(long creationTime) {
+        synchronized (mLock) {
+            addLogValueToHistogram(mClock.getElapsedSinceBootMillis() - creationTime,
+                    mHistogramAttachDuration,
+                    DURATION_LOG_HISTOGRAM);
+        }
+    }
+
+    /**
      * Consolidate all metrics into the proto.
      */
     public WifiMetricsProto.WifiAwareLog consolidateProto() {
@@ -106,6 +165,19 @@ public class WifiAwareMetrics {
             if (mLastEnableUsageInThisLogWindow != 0) {
                 log.availableTimeMs += now - mLastEnableUsageInThisLogWindow;
             }
+            log.numApps = mAttachDataByUid.size();
+            log.numAppsUsingIdentityCallback = 0;
+            log.maxConcurrentAttachSessionsInApp = 0;
+            for (AttachData ad: mAttachDataByUid.values()) {
+                if (ad.mUsesIdentityCallback) {
+                    ++log.numAppsUsingIdentityCallback;
+                }
+                log.maxConcurrentAttachSessionsInApp = Math.max(
+                        log.maxConcurrentAttachSessionsInApp, ad.mMaxConcurrentAttaches);
+            }
+            log.histogramAttachSessionStatus = histogramToProtoArray(mAttachStatusData);
+            log.histogramAttachDurationMs = histogramToProtoArray(mHistogramAttachDuration,
+                    DURATION_LOG_HISTOGRAM);
         }
         return log;
     }
@@ -122,6 +194,9 @@ public class WifiAwareMetrics {
             if (mLastEnableUsageInThisLogWindow != 0) {
                 mLastEnableUsageInThisLogWindow = now;
             }
+            mAttachDataByUid.clear();
+            mAttachStatusData.clear();
+            mHistogramAttachDuration.clear();
         }
     }
 
@@ -142,6 +217,22 @@ public class WifiAwareMetrics {
             for (int i = 0; i < mHistogramAwareAvailableDurationMs.size(); ++i) {
                 pw.println("  " + mHistogramAwareAvailableDurationMs.keyAt(i) + ": "
                         + mHistogramAwareAvailableDurationMs.valueAt(i));
+            }
+            pw.println("mAttachDataByUid:");
+            for (Map.Entry<Integer, AttachData> ade: mAttachDataByUid.entrySet()) {
+                pw.println("  " + "uid=" + ade.getKey() + ": identity="
+                        + ade.getValue().mUsesIdentityCallback + ", maxConcurrent="
+                        + ade.getValue().mMaxConcurrentAttaches);
+            }
+            pw.println("mAttachStatusData:");
+            for (int i = 0; i < mAttachStatusData.size(); ++i) {
+                pw.println("  " + mAttachStatusData.keyAt(i) + ": "
+                        + mAttachStatusData.valueAt(i));
+            }
+            pw.println("mHistogramAttachDuration:");
+            for (int i = 0; i < mHistogramAttachDuration.size(); ++i) {
+                pw.println("  " + mHistogramAttachDuration.keyAt(i) + ": "
+                        + mHistogramAttachDuration.valueAt(i));
             }
         }
     }

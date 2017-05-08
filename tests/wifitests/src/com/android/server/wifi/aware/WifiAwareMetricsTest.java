@@ -22,7 +22,11 @@ import static com.android.server.wifi.aware.WifiAwareMetrics.histogramToProtoArr
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Mockito.when;
 
+import android.app.AppOpsManager;
+import android.content.Context;
 import android.hardware.wifi.V1_0.NanStatusType;
+import android.util.Log;
+import android.util.SparseArray;
 import android.util.SparseIntArray;
 
 import com.android.server.wifi.Clock;
@@ -35,11 +39,16 @@ import org.junit.rules.ErrorCollector;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+
 /**
  * Unit test harness for WifiAwareMetrics
  */
 public class WifiAwareMetricsTest {
     @Mock Clock mClock;
+    @Mock private Context mMockContext;
+    @Mock private AppOpsManager mMockAppOpsManager;
     @Rule public ErrorCollector collector = new ErrorCollector();
 
     private WifiAwareMetrics mDut;
@@ -73,6 +82,7 @@ public class WifiAwareMetricsTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
+        when(mMockContext.getSystemService(Context.APP_OPS_SERVICE)).thenReturn(mMockAppOpsManager);
         setTime(0);
 
         mDut = new WifiAwareMetrics(mClock);
@@ -137,6 +147,76 @@ public class WifiAwareMetricsTest {
         log = mDut.consolidateProto();
         collector.checkThat(countAllHistogramSamples(log.histogramAwareAvailableDurationMs),
                 equalTo(0));
+    }
+
+    @Test
+    public void testAttachSessionMetrics() {
+        final int uid1 = 1005;
+        final int uid2 = 1006;
+        final SparseArray<WifiAwareClientState> clients = new SparseArray<>();
+        WifiMetricsProto.WifiAwareLog log;
+
+        setTime(5);
+
+        // uid1: session 1
+        clients.put(10,
+                new WifiAwareClientState(mMockContext, 10, uid1, 0, null, null, null, false,
+                        mClock.getElapsedSinceBootMillis()));
+        mDut.recordAttachSession(uid1, false, clients);
+
+        // uid1: session 2
+        clients.put(11,
+                new WifiAwareClientState(mMockContext, 11, uid1, 0, null, null, null, false,
+                        mClock.getElapsedSinceBootMillis()));
+        mDut.recordAttachSession(uid1, false, clients);
+
+        // uid2: session 1
+        clients.put(12,
+                new WifiAwareClientState(mMockContext, 12, uid2, 0, null, null, null, false,
+                        mClock.getElapsedSinceBootMillis()));
+        mDut.recordAttachSession(uid2, false, clients);
+
+        // uid2: session 2
+        clients.put(13,
+                new WifiAwareClientState(mMockContext, 13, uid2, 0, null, null, null, true,
+                        mClock.getElapsedSinceBootMillis()));
+        mDut.recordAttachSession(uid2, true, clients);
+
+        // uid2: delete session 1
+        setTime(10);
+        mDut.recordAttachSessionDuration(clients.get(12).getCreationTime());
+        clients.delete(12);
+
+        // uid2: delete session 2
+        setTime(15);
+        mDut.recordAttachSessionDuration(clients.get(13).getCreationTime());
+        clients.delete(13);
+
+        // uid2: session 3
+        clients.put(14,
+                new WifiAwareClientState(mMockContext, 14, uid2, 0, null, null, null, false,
+                        mClock.getElapsedSinceBootMillis()));
+        mDut.recordAttachSession(uid2, false, clients);
+
+        // a few failures
+        mDut.recordAttachStatus(NanStatusType.INTERNAL_FAILURE);
+        mDut.recordAttachStatus(NanStatusType.INTERNAL_FAILURE);
+        mDut.recordAttachStatus(-5); // invalid
+
+        // verify
+        log = mDut.consolidateProto();
+
+        collector.checkThat("numApps", log.numApps, equalTo(2));
+        collector.checkThat("numAppsUsingIdentityCallback", log.numAppsUsingIdentityCallback,
+                equalTo(1));
+        collector.checkThat("maxConcurrentAttachSessionsInApp",
+                log.maxConcurrentAttachSessionsInApp, equalTo(2));
+        collector.checkThat("histogramAttachSessionStatus.length",
+                log.histogramAttachSessionStatus.length, equalTo(3)); // 3 buckets
+        collector.checkThat("histogramAttachDurationMs.length",
+                log.histogramAttachDurationMs.length, equalTo(2));
+        validateProtoHistBucket("Duration[0]", log.histogramAttachDurationMs[0], 5, 6, 1);
+        validateProtoHistBucket("Duration[1]", log.histogramAttachDurationMs[1], 10, 20, 1);
     }
 
     /**
@@ -292,6 +372,15 @@ public class WifiAwareMetricsTest {
         return sum;
     }
 
+    private int countAllHistogramSamples(
+            WifiMetricsProto.WifiAwareLog.NanStatusHistogramBucket[] nshba) {
+        int sum = 0;
+        for (WifiMetricsProto.WifiAwareLog.NanStatusHistogramBucket nshb: nshba) {
+            sum += nshb.count;
+        }
+        return sum;
+    }
+
     private void bucketValueAndVerify(String logPrefix, long value, SparseIntArray h,
             WifiAwareMetrics.HistParms hp, int expectedKey, int expectedValue) {
         WifiAwareMetrics.addLogValueToHistogram(value, h, hp);
@@ -309,5 +398,11 @@ public class WifiAwareMetricsTest {
             WifiMetricsProto.WifiAwareLog.NanStatusHistogramBucket bucket, int type, int count) {
         collector.checkThat(logPrefix + ": type", bucket.nanStatusType, equalTo(type));
         collector.checkThat(logPrefix + ": count", bucket.count, equalTo(count));
+    }
+
+    private void dumpDut(String prefix) {
+        StringWriter sw = new StringWriter();
+        mDut.dump(null, new PrintWriter(sw), null);
+        Log.e("WifiAwareMetrics", prefix + sw.toString());
     }
 }
