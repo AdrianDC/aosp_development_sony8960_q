@@ -1785,6 +1785,20 @@ public class SupplicantStaNetworkHal {
             }
         }
     }
+
+    /**
+     * A wrapping method for getEapAnonymousIdentity().
+     * This get anonymous identity from supplicant and returns it as a string.
+     *
+     * @return anonymous identity string if succeeds, null otherwise.
+     */
+    public String fetchEapAnonymousIdentity() {
+        if (!getEapAnonymousIdentity()) {
+            return null;
+        }
+        return NativeUtil.stringFromByteArrayList(mEapAnonymousIdentity);
+    }
+
     /** See ISupplicantStaNetwork.hal for documentation */
     private boolean getEapPassword() {
         synchronized (mLock) {

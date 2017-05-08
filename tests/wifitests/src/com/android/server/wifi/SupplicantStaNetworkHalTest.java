@@ -65,6 +65,7 @@ public class SupplicantStaNetworkHalTest {
     }
     private static final String NETWORK_EXTRAS_SERIALIZED =
             "%7B%22key1%22%3A%22value1%22%2C%22key2%22%3A%22value2%22%7D";
+    private static final String ANONYMOUS_IDENTITY = "aaa@bbb.cc.ddd";
 
     private SupplicantStaNetworkHal mSupplicantNetwork;
     private SupplicantStatus mStatusSuccess;
@@ -795,6 +796,17 @@ public class SupplicantStaNetworkHalTest {
                 SupplicantStaNetworkHal.createNetworkExtra(NETWORK_EXTRAS_VALUES));
         assertEquals(NETWORK_EXTRAS_VALUES,
                 SupplicantStaNetworkHal.parseNetworkExtra(NETWORK_EXTRAS_SERIALIZED));
+    }
+
+    /**
+     * Verifies that fetachEapAnonymousIdentity() can get the anonymous identity from supplicant.
+     */
+    @Test
+    public void testFetchEapAnonymousIdentity() {
+        WifiConfiguration config = WifiConfigurationTestUtil.createEapNetwork();
+        config.enterpriseConfig.setAnonymousIdentity(ANONYMOUS_IDENTITY);
+        assertTrue(mSupplicantNetwork.saveWifiConfiguration(config));
+        assertEquals(ANONYMOUS_IDENTITY, mSupplicantNetwork.fetchEapAnonymousIdentity());
     }
 
     /**

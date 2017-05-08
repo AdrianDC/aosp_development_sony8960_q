@@ -636,6 +636,15 @@ public class WifiConfigManager {
             return true;
         }
 
+        // EAP-SIM/AKA/AKA' network needs framework to update the anonymous identity provided
+        // by authenticator back to the WifiConfiguration object.
+        // Since it is "owned" by us, so always allow us to modify them.
+        if (config.enterpriseConfig != null
+                && uid == Process.WIFI_UID
+                && TelephonyUtil.isSimEapMethod(config.enterpriseConfig.getEapMethod())) {
+            return true;
+        }
+
         final DevicePolicyManagerInternal dpmi = LocalServices.getService(
                 DevicePolicyManagerInternal.class);
 
