@@ -241,6 +241,15 @@ public class WifiConfigurationTestUtil {
         return configuration;
     }
 
+    public static WifiConfiguration createPskNetwork(String ssid) {
+        WifiConfiguration configuration =
+                generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid, true, true, null,
+                        null, SECURITY_PSK);
+        configuration.preSharedKey = TEST_PSK;
+        return configuration;
+    }
+
+
     public static WifiConfiguration createPskHiddenNetwork() {
         WifiConfiguration configuration = createPskNetwork();
         configuration.hiddenSSID = true;
@@ -279,6 +288,14 @@ public class WifiConfigurationTestUtil {
                         null, null, SECURITY_EAP);
         return configuration;
     }
+
+    public static WifiConfiguration createEapNetwork(String ssid) {
+        WifiConfiguration configuration =
+                generateWifiConfig(TEST_NETWORK_ID, TEST_UID, ssid, true, true,
+                        null, null, SECURITY_EAP);
+        return configuration;
+    }
+
 
     public static WifiConfiguration createEapNetwork(int eapMethod, int phase2Method) {
         WifiConfiguration configuration =
