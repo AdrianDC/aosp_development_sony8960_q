@@ -664,6 +664,23 @@ public class SupplicantStaIfaceHalTest {
     }
 
     /**
+     * Tests the getting of anonymous identity for the current network.
+     */
+    @Test
+    public void testGetCurrentNetworkEapAnonymousIdentity() throws Exception {
+        String anonymousIdentity = "aaa@bbb.ccc";
+        when(mSupplicantStaNetworkMock.fetchEapAnonymousIdentity())
+                .thenReturn(anonymousIdentity);
+        executeAndValidateInitializationSequence();
+
+        // Return null when not connected to the network.
+        assertEquals(null, mDut.getCurrentNetworkEapAnonymousIdentity());
+        executeAndValidateConnectSequence(4, false);
+        // Return anonymous identity for the current network.
+        assertEquals(anonymousIdentity, mDut.getCurrentNetworkEapAnonymousIdentity());
+    }
+
+    /**
      * Tests the sending gsm auth response for the current network.
      */
     @Test
