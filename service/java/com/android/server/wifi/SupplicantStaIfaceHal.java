@@ -539,6 +539,16 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Get the eap anonymous identity for the currently configured network.
+     *
+     * @return anonymous identity string if succeeds, null otherwise.
+     */
+    public String getCurrentNetworkEapAnonymousIdentity() {
+        if (mCurrentNetwork == null) return null;
+        return mCurrentNetwork.fetchEapAnonymousIdentity();
+    }
+
+    /**
      * Send the eap identity response for the currently configured network.
      *
      * @param identityStr String to send.
