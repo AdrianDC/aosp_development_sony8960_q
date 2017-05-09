@@ -20,6 +20,7 @@ import static com.android.server.wifi.WifiStateMachine.WIFI_WORK_SOURCE;
 
 import android.app.AlarmManager;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
@@ -553,8 +554,8 @@ public class WifiConnectivityManager {
                 + " secureNetworkBonus " + mSecureBonus
                 + " initialScoreMax " + mInitialScoreMax);
 
-        boolean hs2Enabled = context.getResources().getBoolean(
-                R.bool.config_wifi_hotspot2_enabled);
+        boolean hs2Enabled = context.getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_WIFI_PASSPOINT);
         localLog("Passpoint is: " + (hs2Enabled ? "enabled" : "disabled"));
 
         // Register the network evaluators
