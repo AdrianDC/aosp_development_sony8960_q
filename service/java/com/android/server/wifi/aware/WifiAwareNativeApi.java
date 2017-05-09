@@ -42,6 +42,7 @@ import libcore.util.HexEncoding;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 /**
@@ -53,6 +54,8 @@ public class WifiAwareNativeApi {
     private static final String TAG = "WifiAwareNativeApi";
     private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
+
+    private static final String SERVICE_NAME_FOR_OOB_DATA_PATH = "Wi-Fi Aware Data Path";
 
     private final WifiAwareNativeManager mHal;
 
@@ -605,7 +608,7 @@ public class WifiAwareNativeApi {
      */
     public boolean initiateDataPath(short transactionId, int peerId, int channelRequestType,
             int channel, byte[] peer, String interfaceName, byte[] pmk, String passphrase,
-            Capabilities capabilities) {
+            boolean isOutOfBand, Capabilities capabilities) {
         if (VDBG) {
             Log.v(TAG, "initiateDataPath: transactionId=" + transactionId + ", peerId=" + peerId
                     + ", channelRequestType=" + channelRequestType + ", channel=" + channel
@@ -642,6 +645,12 @@ public class WifiAwareNativeApi {
                     capabilities.supportedCipherSuites);
             req.securityConfig.securityType = NanDataPathSecurityType.PASSPHRASE;
             convertNativeByteArrayToArrayList(passphrase.getBytes(), req.securityConfig.passphrase);
+
+            if (isOutOfBand) { // only relevant when using passphrase
+                convertNativeByteArrayToArrayList(
+                        SERVICE_NAME_FOR_OOB_DATA_PATH.getBytes(StandardCharsets.UTF_8),
+                        req.serviceNameOutOfBand);
+            }
         }
 
         try {
