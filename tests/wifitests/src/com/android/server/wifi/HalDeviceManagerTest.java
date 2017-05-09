@@ -16,6 +16,8 @@
 
 package com.android.server.wifi;
 
+import static com.android.server.wifi.HalDeviceManager.START_HAL_RETRY_TIMES;
+
 import static junit.framework.Assert.assertEquals;
 
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -211,7 +213,7 @@ public class HalDeviceManagerTest {
         mInOrder.verify(mWifiMock).registerEventCallback(mWifiEventCallbackCaptor.capture());
 
         // act: start
-        mDut.start();
+        collector.checkThat(mDut.start(), equalTo(true));
         mWifiEventCallbackCaptor.getValue().onStart();
         mTestLooper.dispatchAll();
 
@@ -239,7 +241,7 @@ public class HalDeviceManagerTest {
         mInOrder.verify(mManagerStatusListenerMock).onStatusChanged();
 
         // act: start again
-        mDut.start();
+        collector.checkThat(mDut.start(), equalTo(true));
         mWifiEventCallbackCaptor.getValue().onStart();
         mTestLooper.dispatchAll();
 
@@ -1000,6 +1002,54 @@ public class HalDeviceManagerTest {
         assertEquals(0, results.size());
     }
 
+    /**
+     * Test start HAL can retry upon failure.
+     */
+    @Test
+    public void testStartHalRetryUponNotAvailableFailure() throws Exception {
+        // Override the stubbing for mWifiMock in before().
+        when(mWifiMock.start())
+            .thenReturn(getStatus(WifiStatusCode.ERROR_NOT_AVAILABLE))
+            .thenReturn(mStatusOk);
+
+        BaselineChip chipMock = new BaselineChip();
+        chipMock.initialize();
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
+                mManagerStatusListenerMock);
+        executeAndValidateInitializationSequence();
+        executeAndValidateStartupSequence(2, true);
+    }
+
+    /**
+     * Test start HAL fails after multiple retry failures.
+     */
+    @Test
+    public void testStartHalRetryFailUponMultipleNotAvailableFailures() throws Exception {
+        // Override the stubbing for mWifiMock in before().
+        when(mWifiMock.start()).thenReturn(getStatus(WifiStatusCode.ERROR_NOT_AVAILABLE));
+
+        BaselineChip chipMock = new BaselineChip();
+        chipMock.initialize();
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip);
+        executeAndValidateInitializationSequence();
+        executeAndValidateStartupSequence(START_HAL_RETRY_TIMES + 1, false);
+    }
+
+    /**
+     * Test start HAL fails after multiple retry failures.
+     */
+    @Test
+    public void testStartHalRetryFailUponTrueFailure() throws Exception {
+        // Override the stubbing for mWifiMock in before().
+        when(mWifiMock.start()).thenReturn(getStatus(WifiStatusCode.ERROR_UNKNOWN));
+
+        BaselineChip chipMock = new BaselineChip();
+        chipMock.initialize();
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip);
+        executeAndValidateInitializationSequence();
+        executeAndValidateStartupSequence(1, false);
+    }
+
     // utilities
     private void dumpDut(String prefix) {
         StringWriter sw = new StringWriter();
@@ -1026,20 +1076,27 @@ public class HalDeviceManagerTest {
         collector.checkThat("isReady is true", mDut.isReady(), equalTo(true));
     }
 
-    private void executeAndValidateStartupSequence() throws Exception {
+    private void executeAndValidateStartupSequence()throws Exception {
+        executeAndValidateStartupSequence(1, true);
+    }
+
+    private void executeAndValidateStartupSequence(int numAttempts, boolean success)
+            throws Exception {
         // act: register listener & start Wi-Fi
         mDut.registerStatusListener(mManagerStatusListenerMock, mTestLooper.getLooper());
-        mDut.start();
+        collector.checkThat(mDut.start(), equalTo(success));
 
         // verify
-        mInOrder.verify(mWifiMock).start();
+        mInOrder.verify(mWifiMock, times(numAttempts)).start();
 
-        // act: trigger onStart callback of IWifiEventCallback
-        mWifiEventCallbackCaptor.getValue().onStart();
-        mTestLooper.dispatchAll();
+        if (success) {
+            // act: trigger onStart callback of IWifiEventCallback
+            mWifiEventCallbackCaptor.getValue().onStart();
+            mTestLooper.dispatchAll();
 
-        // verify: onStart called on registered listener
-        mInOrder.verify(mManagerStatusListenerMock).onStatusChanged();
+            // verify: onStart called on registered listener
+            mInOrder.verify(mManagerStatusListenerMock).onStatusChanged();
+        }
     }
 
     private IWifiIface validateInterfaceSequence(ChipMockBase chipMock,
