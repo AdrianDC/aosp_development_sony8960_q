@@ -128,6 +128,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     private static final int RESPONSE_TYPE_ON_INITIATE_DATA_PATH_FAIL = 210;
     private static final int RESPONSE_TYPE_ON_RESPOND_TO_DATA_PATH_SETUP_REQUEST = 211;
     private static final int RESPONSE_TYPE_ON_END_DATA_PATH = 212;
+    private static final int RESPONSE_TYPE_ON_DISABLE = 213;
 
     private static final int NOTIFICATION_TYPE_INTERFACE_CHANGE = 301;
     private static final int NOTIFICATION_TYPE_CLUSTER_CHANGE = 302;
@@ -661,6 +662,18 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     public void onConfigFailedResponse(short transactionId, int reason) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
         msg.arg1 = RESPONSE_TYPE_ON_CONFIG_FAIL;
+        msg.arg2 = transactionId;
+        msg.obj = reason;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Place a callback request on the stage machine queue: disable request finished
+     * (with the provided reason code).
+     */
+    public void onDisableResponse(short transactionId, int reason) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
+        msg.arg1 = RESPONSE_TYPE_ON_DISABLE;
         msg.arg2 = transactionId;
         msg.obj = reason;
         mSm.sendMessage(msg);
@@ -1442,8 +1455,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                     waitForResponse = false;
                     break;
                 case COMMAND_TYPE_DISABLE_USAGE:
-                    disableUsageLocal();
-                    waitForResponse = false;
+                    waitForResponse = disableUsageLocal(mCurrentTransactionId);
                     break;
                 case COMMAND_TYPE_START_RANGING: {
                     Bundle data = msg.getData();
@@ -1658,6 +1670,9 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                             msg.getData().getBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG),
                             msg.getData().getInt(MESSAGE_BUNDLE_KEY_STATUS_CODE));
                     break;
+                case RESPONSE_TYPE_ON_DISABLE:
+                    onDisableResponseLocal(mCurrentCommand, (Integer) msg.obj);
+                    break;
                 default:
                     Log.wtf(TAG, "processResponse: this isn't a RESPONSE -- msg=" + msg);
                     mCurrentCommand = null;
@@ -1689,10 +1704,6 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                     break;
                 }
                 case COMMAND_TYPE_DISCONNECT: {
-                    /*
-                     * Will only get here on DISCONNECT if was downgrading. The
-                     * callback will do a NOP - but should still call it.
-                     */
                     onConfigFailedLocal(mCurrentCommand, NanStatusType.INTERNAL_FAILURE);
                     break;
                 }
@@ -1982,8 +1993,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
 
         if (mClients.size() == 0) {
             mCurrentAwareConfiguration = null;
-            mWifiAwareNativeApi.disable((short) 0);
-            return false;
+            return mWifiAwareNativeApi.disable(transactionId);
         }
 
         ConfigRequest merged = mergeConfigRequests(null);
@@ -2167,20 +2177,25 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         sendAwareStateChangedBroadcast(true);
     }
 
-    private void disableUsageLocal() {
-        if (VDBG) Log.v(TAG, "disableUsageLocal: mUsageEnabled=" + mUsageEnabled);
+    private boolean disableUsageLocal(short transactionId) {
+        if (VDBG) {
+            Log.v(TAG, "disableUsageLocal: transactionId=" + transactionId + ", mUsageEnabled="
+                    + mUsageEnabled);
+        }
 
         if (!mUsageEnabled) {
-            return;
+            return false;
         }
 
         onAwareDownLocal();
         deleteAllDataPathInterfaces();
 
         mUsageEnabled = false;
-        mWifiAwareNativeApi.disable((short) 0);
+        boolean callDispatched = mWifiAwareNativeApi.disable(transactionId);
 
         sendAwareStateChangedBroadcast(false);
+
+        return callDispatched;
     }
 
     private void startRangingLocal(int clientId, int sessionId, RttManager.RttParams[] params,
@@ -2345,6 +2360,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
              * NOP (tried updating configuration after disconnecting a client -
              * shouldn't fail but there's nothing to do - the old configuration
              * is still up-and-running).
+             *
+             * OR: timed-out getting a response to a disable. Either way a NOP.
              */
         } else if (failedCommand.arg1 == COMMAND_TYPE_RECONFIGURE) {
             /*
@@ -2354,6 +2371,22 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         } else {
             Log.wtf(TAG, "onConfigFailedLocal: unexpected failedCommand=" + failedCommand);
             return;
+        }
+    }
+
+    private void onDisableResponseLocal(Message command, int reason) {
+        if (VDBG) {
+            Log.v(TAG, "onDisableResponseLocal: command=" + command + ", reason=" + reason);
+        }
+
+        /*
+         * do nothing:
+         * - success: was waiting so that don't enable while disabling
+         * - fail: should never happen, serious error (nothing to be done)
+         */
+        if (reason != NanStatusType.SUCCESS) {
+            Log.wtf(TAG, "onDisableResponseLocal: FAILED!? command=" + command
+                    + ", reason=" + reason);
         }
     }
 
