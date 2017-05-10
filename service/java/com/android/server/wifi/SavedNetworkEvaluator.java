@@ -165,7 +165,8 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
         int score = 0;
         boolean is5GHz = scanResult.is5GHz();
 
-        sbuf.append("[ ").append(scanResult).append("] ");
+        sbuf.append("[ ").append(scanResult.SSID).append(" ").append(scanResult.BSSID)
+                .append(" RSSI:").append(scanResult.level).append(" ] ");
         // Calculate the RSSI score.
         int rssiSaturationThreshold = is5GHz ? mThresholdSaturatedRssi5 : mThresholdSaturatedRssi24;
         int rssi = scanResult.level < rssiSaturationThreshold ? scanResult.level
@@ -188,7 +189,7 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
             if (timeDifference > 0) {
                 int bonus = mLastSelectionAward - (int) (timeDifference / 1000 / 60);
                 score += bonus > 0 ? bonus : 0;
-                sbuf.append(" User selected it last time ").append(timeDifference / 1000 / 60)
+                sbuf.append(" User selection ").append(timeDifference / 1000 / 60)
                         .append(" minutes ago, bonus: ").append(bonus).append(",");
             }
         }
@@ -199,8 +200,7 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
                 //TODO(b/36788683): re-enable linked configuration check
                 /* || network.isLinked(currentNetwork) */)) {
             score += mSameNetworkAward;
-            sbuf.append(" Same network the current one bonus: ")
-                    .append(mSameNetworkAward).append(",");
+            sbuf.append(" Same network bonus: ").append(mSameNetworkAward).append(",");
 
             // When firmware roaming is supported, equivalent BSSIDs (the ones under the
             // same network as the currently connected one) get the same BSSID award.
@@ -215,8 +215,7 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
         // Same BSSID award.
         if (currentBssid != null && currentBssid.equals(scanResult.BSSID)) {
             score += mSameBssidAward;
-            sbuf.append(" Same BSSID as the current one bonus: ").append(mSameBssidAward)
-                    .append(",");
+            sbuf.append(" Same BSSID bonus: ").append(mSameBssidAward).append(",");
         }
 
         // Security award.
