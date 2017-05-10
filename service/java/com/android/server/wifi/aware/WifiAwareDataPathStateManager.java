@@ -639,7 +639,7 @@ public class WifiAwareDataPathStateManager {
 
                 nnri.interfaceName = selectInterfaceForRequest(nnri);
                 mMgr.initiateDataPathSetup(networkSpecifier, nnri.networkSpecifier.peerId,
-                        NanDataPathChannelCfg.REQUEST_CHANNEL_SETUP, selectChannelForRequest(nnri),
+                        NanDataPathChannelCfg.CHANNEL_NOT_REQUESTED, selectChannelForRequest(nnri),
                         nnri.peerDiscoveryMac, nnri.interfaceName, nnri.networkSpecifier.pmk,
                         nnri.networkSpecifier.passphrase, nnri.networkSpecifier.isOutOfBand());
                 nnri.state =
@@ -781,7 +781,8 @@ public class WifiAwareDataPathStateManager {
     /**
      * Select a channel for the network request.
      *
-     * TODO: for now simply select channel 6
+     * TODO (b/38209409): The value from this function isn't currently used - the channel selection
+     * is delegated to the HAL.
      */
     private int selectChannelForRequest(AwareNetworkRequestInformation req) {
         return 2437;
