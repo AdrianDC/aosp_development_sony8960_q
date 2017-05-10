@@ -1679,9 +1679,10 @@ public class WifiVendorHalTest {
         new Random().nextBytes(errorData);
 
         // Randomly raise the HIDL callback before we register for the log callback.
-        // This should be ignored.
+        // This should be safely ignored. (Not trigger NPE.)
         mIWifiChipEventCallback.onDebugErrorAlert(
                 errorCode, NativeUtil.byteArrayToArrayList(errorData));
+        mLooper.dispatchAll();
 
         WifiNative.WifiLoggerEventHandler eventHandler =
                 mock(WifiNative.WifiLoggerEventHandler.class);
@@ -1691,12 +1692,16 @@ public class WifiVendorHalTest {
         // Now raise the HIDL callback, this should be properly handled.
         mIWifiChipEventCallback.onDebugErrorAlert(
                 errorCode, NativeUtil.byteArrayToArrayList(errorData));
+        mLooper.dispatchAll();
         verify(eventHandler).onWifiAlert(eq(errorCode), eq(errorData));
 
         // Now stop the logging and invoke the callback. This should be ignored.
+        reset(eventHandler);
         assertTrue(mWifiVendorHal.resetLogHandler());
         mIWifiChipEventCallback.onDebugErrorAlert(
                 errorCode, NativeUtil.byteArrayToArrayList(errorData));
+        mLooper.dispatchAll();
+        verify(eventHandler, never()).onWifiAlert(anyInt(), anyObject());
     }
 
     /**
@@ -1714,9 +1719,10 @@ public class WifiVendorHalTest {
         new Random().nextBytes(errorData);
 
         // Randomly raise the HIDL callback before we register for the log callback.
-        // This should be ignored.
+        // This should be safely ignored. (Not trigger NPE.)
         mIWifiChipEventCallback.onDebugRingBufferDataAvailable(
                 new WifiDebugRingBufferStatus(), NativeUtil.byteArrayToArrayList(errorData));
+        mLooper.dispatchAll();
 
         WifiNative.WifiLoggerEventHandler eventHandler =
                 mock(WifiNative.WifiLoggerEventHandler.class);
@@ -1726,13 +1732,17 @@ public class WifiVendorHalTest {
         // Now raise the HIDL callback, this should be properly handled.
         mIWifiChipEventCallback.onDebugRingBufferDataAvailable(
                 new WifiDebugRingBufferStatus(), NativeUtil.byteArrayToArrayList(errorData));
+        mLooper.dispatchAll();
         verify(eventHandler).onRingBufferData(
                 any(WifiNative.RingBufferStatus.class), eq(errorData));
 
         // Now stop the logging and invoke the callback. This should be ignored.
+        reset(eventHandler);
         assertTrue(mWifiVendorHal.resetLogHandler());
         mIWifiChipEventCallback.onDebugRingBufferDataAvailable(
                 new WifiDebugRingBufferStatus(), NativeUtil.byteArrayToArrayList(errorData));
+        mLooper.dispatchAll();
+        verify(eventHandler, never()).onRingBufferData(anyObject(), anyObject());
     }
 
     /**

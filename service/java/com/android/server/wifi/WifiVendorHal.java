@@ -64,6 +64,7 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiWakeReasonAndCounts;
+import android.os.Handler;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.util.MutableBoolean;
@@ -204,16 +205,23 @@ public class WifiVendorHal {
     private IWifiRttController mIWifiRttController;
     private final HalDeviceManager mHalDeviceManager;
     private final HalDeviceManagerStatusListener mHalDeviceManagerStatusCallbacks;
-    private final Looper mLooper;
     private final IWifiStaIfaceEventCallback mIWifiStaIfaceEventCallback;
     private final IWifiChipEventCallback mIWifiChipEventCallback;
     private final RttEventCallback mRttEventCallback;
 
+    // Plumbing for event handling.
+    //
+    // Being final fields, they can be accessed without synchronization under
+    // some reasonable assumptions. See
+    // https://docs.oracle.com/javase/specs/jls/se7/html/jls-17.html#jls-17.5
+    private final Looper mLooper;
+    private final Handler mHalEventHandler;
 
     public WifiVendorHal(HalDeviceManager halDeviceManager,
                          Looper looper) {
         mHalDeviceManager = halDeviceManager;
         mLooper = looper;
+        mHalEventHandler = new Handler(looper);
         mHalDeviceManagerStatusCallbacks = new HalDeviceManagerStatusListener();
         mIWifiStaIfaceEventCallback = new StaIfaceEventCallback();
         mIWifiChipEventCallback = new ChipEventCallback();
@@ -2455,25 +2463,47 @@ public class WifiVendorHal {
                 WifiDebugRingBufferStatus status, java.util.ArrayList<Byte> data) {
             //TODO(b/35875078) Reinstate logging when execessive callbacks are fixed
             // mVerboseLog.d("onDebugRingBufferDataAvailable " + status);
-            WifiNative.WifiLoggerEventHandler eventHandler;
-            synchronized (sLock) {
-                if (mLogEventHandler == null || status == null || data == null) return;
-                eventHandler = mLogEventHandler;
-            }
-            eventHandler.onRingBufferData(
-                    ringBufferStatus(status), NativeUtil.byteArrayFromArrayList(data));
+            mHalEventHandler.post(() -> {
+                WifiNative.WifiLoggerEventHandler eventHandler;
+                synchronized (sLock) {
+                    if (mLogEventHandler == null || status == null || data == null) return;
+                    eventHandler = mLogEventHandler;
+                }
+                // Because |sLock| has been released, there is a chance that we'll execute
+                // a spurious callback (after someone has called resetLogHandler()).
+                //
+                // However, the alternative risks deadlock. Consider:
+                // [T1.1] WifiDiagnostics.captureBugReport()
+                // [T1.2] -- acquire WifiDiagnostics object's intrinsic lock
+                // [T1.3]    -> WifiVendorHal.getRingBufferData()
+                // [T1.4]       -- acquire WifiVendorHal.sLock
+                // [T2.1] <lambda>()
+                // [T2.2] -- acquire WifiVendorHal.sLock
+                // [T2.3]    -> WifiDiagnostics.onRingBufferData()
+                // [T2.4]       -- acquire WifiDiagnostics object's intrinsic lock
+                //
+                // The problem here is that the two threads acquire the locks in opposite order.
+                // If, for example, T2.2 executes between T1.2 and 1.4, then T1 and T2
+                // will be deadlocked.
+                eventHandler.onRingBufferData(
+                        ringBufferStatus(status), NativeUtil.byteArrayFromArrayList(data));
+            });
         }
 
         @Override
         public void onDebugErrorAlert(int errorCode, java.util.ArrayList<Byte> debugData) {
             mVerboseLog.d("onDebugErrorAlert " + errorCode);
-            WifiNative.WifiLoggerEventHandler eventHandler;
-            synchronized (sLock) {
-                if (mLogEventHandler == null || debugData == null) return;
-                eventHandler = mLogEventHandler;
-            }
-            eventHandler.onWifiAlert(
-                    errorCode, NativeUtil.byteArrayFromArrayList(debugData));
+            mHalEventHandler.post(() -> {
+                WifiNative.WifiLoggerEventHandler eventHandler;
+                synchronized (sLock) {
+                    if (mLogEventHandler == null || debugData == null) return;
+                    eventHandler = mLogEventHandler;
+                }
+                // See comment in onDebugRingBufferDataAvailable(), for an explanation
+                // of why this callback is invoked without |sLock| held.
+                eventHandler.onWifiAlert(
+                        errorCode, NativeUtil.byteArrayFromArrayList(debugData));
+            });
         }
     }
 
