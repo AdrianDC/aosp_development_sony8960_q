@@ -25,6 +25,7 @@ import static org.mockito.Mockito.*;
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.app.test.TestAlarmManager;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.net.NetworkScoreManager;
 import android.net.wifi.ScanResult;
@@ -154,6 +155,7 @@ public class WifiConnectivityManagerTest {
         when(context.getResources()).thenReturn(mResource);
         when(context.getSystemService(Context.ALARM_SERVICE)).thenReturn(
                 mAlarmManager.getAlarmManager());
+        when(context.getPackageManager()).thenReturn(mock(PackageManager.class));
 
         return context;
     }
