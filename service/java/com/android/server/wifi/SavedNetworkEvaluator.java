@@ -207,8 +207,7 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
             if (mConnectivityHelper.isFirmwareRoamingSupported()
                     && currentBssid != null && !currentBssid.equals(scanResult.BSSID)) {
                 score += mSameBssidAward;
-                sbuf.append(" Firmware roaming equivalent BSSID bonus: ")
-                        .append(mSameBssidAward).append(",");
+                sbuf.append(" Equivalent BSSID bonus: ").append(mSameBssidAward).append(",");
             }
         }
 
