@@ -136,7 +136,7 @@ public class WifiAwareDataPathStateManagerTest {
         when(mMockNative.createAwareNetworkInterface(anyShort(), any())).thenReturn(true);
         when(mMockNative.deleteAwareNetworkInterface(anyShort(), any())).thenReturn(true);
         when(mMockNative.initiateDataPath(anyShort(), anyInt(), anyInt(), anyInt(),
-                any(), any(), any(), any(),
+                any(), any(), any(), any(), anyBoolean(),
                 any())).thenReturn(true);
         when(mMockNative.respondToDataPathRequest(anyShort(), anyBoolean(), anyInt(), any(),
                 any(), any(), any())).thenReturn(true);
@@ -562,7 +562,7 @@ public class WifiAwareDataPathStateManagerTest {
 
         if (immediateHalFailure) {
             when(mMockNative.initiateDataPath(anyShort(), anyInt(), anyInt(), anyInt(), any(),
-                    any(), any(), any(), any())).thenReturn(false);
+                    any(), any(), any(), anyBoolean(), any())).thenReturn(false);
 
         }
 
@@ -590,7 +590,7 @@ public class WifiAwareDataPathStateManagerTest {
         inOrder.verify(mMockNative).initiateDataPath(transactionId.capture(),
                 eq(useDirect ? 0 : peerHandle.peerId),
                 eq(REQUEST_CHANNEL_SETUP), eq(2437), eq(peerDiscoveryMac),
-                eq(sAwareInterfacePrefix + "0"), eq(pmk), eq(null), any());
+                eq(sAwareInterfacePrefix + "0"), eq(pmk), eq(null), eq(useDirect), any());
         if (immediateHalFailure) {
             // short-circuit the rest of this test
             verifyNoMoreInteractions(mMockNative, mMockCm);

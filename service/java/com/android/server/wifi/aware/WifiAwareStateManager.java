@@ -171,6 +171,7 @@ public class WifiAwareStateManager {
     private static final String MESSAGE_BUNDLE_KEY_NOTIFY_IDENTITY_CHANGE = "notify_identity_chg";
     private static final String MESSAGE_BUNDLE_KEY_PMK = "pmk";
     private static final String MESSAGE_BUNDLE_KEY_PASSPHRASE = "passphrase";
+    private static final String MESSAGE_BUNDLE_KEY_OOB = "out_of_band";
 
     private WifiAwareNativeApi mWifiAwareNativeApi;
 
@@ -468,7 +469,7 @@ public class WifiAwareStateManager {
      */
     public void initiateDataPathSetup(WifiAwareNetworkSpecifier networkSpecifier, int peerId,
             int channelRequestType, int channel, byte[] peer, String interfaceName, byte[] pmk,
-            String passphrase) {
+            String passphrase, boolean isOutOfBand) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_INITIATE_DATA_PATH_SETUP;
         msg.obj = networkSpecifier;
@@ -479,6 +480,7 @@ public class WifiAwareStateManager {
         msg.getData().putString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME, interfaceName);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_PMK, pmk);
         msg.getData().putString(MESSAGE_BUNDLE_KEY_PASSPHRASE, passphrase);
+        msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_OOB, isOutOfBand);
         mSm.sendMessage(msg);
     }
 
@@ -1377,10 +1379,11 @@ public class WifiAwareStateManager {
                     String interfaceName = data.getString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME);
                     byte[] pmk = data.getByteArray(MESSAGE_BUNDLE_KEY_PMK);
                     String passphrase = data.getString(MESSAGE_BUNDLE_KEY_PASSPHRASE);
+                    boolean isOutOfBand = data.getBoolean(MESSAGE_BUNDLE_KEY_OOB);
 
                     waitForResponse = initiateDataPathSetupLocal(mCurrentTransactionId,
                             networkSpecifier, peerId, channelRequestType, channel, peer,
-                            interfaceName, pmk, passphrase);
+                            interfaceName, pmk, passphrase, isOutOfBand);
 
                     if (waitForResponse) {
                         WakeupMessage timeout = new WakeupMessage(mContext, getHandler(),
@@ -2074,7 +2077,8 @@ public class WifiAwareStateManager {
 
     private boolean initiateDataPathSetupLocal(short transactionId,
             WifiAwareNetworkSpecifier networkSpecifier, int peerId, int channelRequestType,
-            int channel, byte[] peer, String interfaceName, byte[] pmk, String passphrase) {
+            int channel, byte[] peer, String interfaceName, byte[] pmk, String passphrase,
+            boolean isOutOfBand) {
         if (VDBG) {
             Log.v(TAG,
                     "initiateDataPathSetupLocal(): transactionId=" + transactionId
@@ -2082,11 +2086,12 @@ public class WifiAwareStateManager {
                             + ", channelRequestType=" + channelRequestType + ", channel=" + channel
                             + ", peer=" + String.valueOf(HexEncoding.encode(peer))
                             + ", interfaceName=" + interfaceName + ", pmk=" + pmk
-                            + ", passphrase=" + passphrase);
+                            + ", passphrase=" + passphrase + ", isOutOfBand=" + isOutOfBand);
         }
 
         boolean success = mWifiAwareNativeApi.initiateDataPath(transactionId, peerId,
-                channelRequestType, channel, peer, interfaceName, pmk, passphrase, mCapabilities);
+                channelRequestType, channel, peer, interfaceName, pmk, passphrase, isOutOfBand,
+                mCapabilities);
         if (!success) {
             mDataPathMgr.onDataPathInitiateFail(networkSpecifier, NanStatusType.INTERNAL_FAILURE);
         }

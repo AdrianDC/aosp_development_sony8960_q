@@ -639,7 +639,7 @@ public class WifiAwareDataPathStateManager {
                 mMgr.initiateDataPathSetup(networkSpecifier, nnri.networkSpecifier.peerId,
                         NanDataPathChannelCfg.REQUEST_CHANNEL_SETUP, selectChannelForRequest(nnri),
                         nnri.peerDiscoveryMac, nnri.interfaceName, nnri.networkSpecifier.pmk,
-                        nnri.networkSpecifier.passphrase);
+                        nnri.networkSpecifier.passphrase, nnri.networkSpecifier.isOutOfBand());
                 nnri.state =
                         AwareNetworkRequestInformation.STATE_INITIATOR_WAIT_FOR_REQUEST_RESPONSE;
             } else {
