@@ -4042,7 +4042,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         cleanup();
                         break;
                     }
-                    setWifiState(WIFI_STATE_ENABLING);
                     if (mVerboseLoggingEnabled) log("Supplicant start successful");
                     mWifiMonitor.startMonitoring(mInterfaceName, true);
                     setSupplicantLogLevel();
@@ -4202,6 +4201,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 setWifiState(WIFI_STATE_DISABLED);
                 transitionTo(mScanModeState);
             } else if (mOperationalMode == CONNECT_MODE) {
+                setWifiState(WIFI_STATE_ENABLING);
                 // Transitioning to Disconnected state will trigger a scan and subsequently AutoJoin
                 transitionTo(mDisconnectedState);
             } else if (mOperationalMode == DISABLED_MODE) {
@@ -4486,6 +4486,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_SET_OPERATIONAL_MODE:
                     if (message.arg1 == CONNECT_MODE) {
                         mOperationalMode = CONNECT_MODE;
+                        setWifiState(WIFI_STATE_ENABLING);
                         transitionTo(mDisconnectedState);
                     } else if (message.arg1 == DISABLED_MODE) {
                         transitionTo(mSupplicantStoppingState);
