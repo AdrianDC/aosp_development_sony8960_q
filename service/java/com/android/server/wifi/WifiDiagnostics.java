@@ -413,6 +413,11 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     }
 
     private boolean fetchRingBuffers() {
+        if (mBuildProperties.isUserBuild()) {
+            mRingBuffers = null;
+            return false;
+        }
+
         if (mRingBuffers != null) return true;
 
         mRingBuffers = mWifiNative.getRingBufferStatus();
