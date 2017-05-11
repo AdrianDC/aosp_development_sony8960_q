@@ -729,9 +729,16 @@ public class SupplicantP2pIfaceHal {
             if (!checkSupplicantP2pIfaceAndLogFailure("provisionDiscovery")) return false;
 
             int targetMethod = wpsInfoToConfigMethod(config.wps.setup);
-            if (targetMethod == -1) {
+            if (targetMethod == RESULT_NOT_VALID) {
                 Log.e(TAG, "Unrecognized WPS configuration method: " + config.wps.setup);
                 return false;
+            }
+            if (targetMethod == ISupplicantP2pIface.WpsProvisionMethod.DISPLAY) {
+                // We are doing display, so provision discovery is keypad.
+                targetMethod = ISupplicantP2pIface.WpsProvisionMethod.KEYPAD;
+            } else if (targetMethod == ISupplicantP2pIface.WpsProvisionMethod.KEYPAD) {
+                // We are doing keypad, so provision discovery is display.
+                targetMethod = ISupplicantP2pIface.WpsProvisionMethod.DISPLAY;
             }
 
             if (config.deviceAddress == null) {
