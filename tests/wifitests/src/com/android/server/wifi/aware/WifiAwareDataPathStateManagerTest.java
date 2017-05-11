@@ -55,8 +55,10 @@ import android.net.wifi.aware.WifiAwareNetworkSpecifier;
 import android.net.wifi.aware.WifiAwareSession;
 import android.os.Handler;
 import android.os.INetworkManagementService;
+import android.os.IPowerManager;
 import android.os.Message;
 import android.os.Messenger;
+import android.os.PowerManager;
 import android.os.Process;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -97,6 +99,7 @@ public class WifiAwareDataPathStateManagerTest {
     @Mock private IWifiAwareEventCallback mMockCallback;
     @Mock IWifiAwareDiscoverySessionCallback mMockSessionCallback;
     TestAlarmManager mAlarmManager;
+    private PowerManager mMockPowerManager;
 
     @Rule
     public ErrorCollector collector = new ErrorCollector();
@@ -112,10 +115,17 @@ public class WifiAwareDataPathStateManagerTest {
         when(mMockContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
 
-        when(mMockContext.getSystemService(Context.CONNECTIVITY_SERVICE)).thenReturn(mMockCm);
-
         mMockLooper = new TestLooper();
         mMockLooperHandler = new Handler(mMockLooper.getLooper());
+
+        IPowerManager powerManagerService = mock(IPowerManager.class);
+        mMockPowerManager = new PowerManager(mMockContext, powerManagerService,
+                new Handler(mMockLooper.getLooper()));
+
+        when(mMockContext.getSystemService(Context.CONNECTIVITY_SERVICE)).thenReturn(mMockCm);
+        when(mMockContext.getSystemServiceName(PowerManager.class)).thenReturn(
+                Context.POWER_SERVICE);
+        when(mMockContext.getSystemService(PowerManager.class)).thenReturn(mMockPowerManager);
 
         mDut = new WifiAwareStateManager();
         mDut.setNative(mMockNative);
@@ -124,7 +134,7 @@ public class WifiAwareDataPathStateManagerTest {
 
         when(mMockNative.getCapabilities(anyShort())).thenReturn(true);
         when(mMockNative.enableAndConfigure(anyShort(), any(), anyBoolean(),
-                anyBoolean())).thenReturn(true);
+                anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(true);
         when(mMockNative.disable(anyShort())).thenReturn(true);
         when(mMockNative.publish(anyShort(), anyInt(), any())).thenReturn(true);
         when(mMockNative.subscribe(anyShort(), anyInt(), any()))
@@ -144,6 +154,9 @@ public class WifiAwareDataPathStateManagerTest {
 
         when(mMockNetworkInterface.configureAgentProperties(any(), any(), anyInt(), any(), any(),
                 any())).thenReturn(true);
+
+        when(mMockPowerManager.isDeviceIdleMode()).thenReturn(false);
+        when(mMockPowerManager.isInteractive()).thenReturn(true);
 
         installDataPathStateManagerMocks();
     }
@@ -884,7 +897,7 @@ public class WifiAwareDataPathStateManagerTest {
                 false);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
-                eq(configRequest), eq(false), eq(true));
+                eq(configRequest), eq(false), eq(true), eq(true), eq(false));
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
         inOrder.verify(mMockCallback).onConnectSuccess(clientId);
