@@ -36,7 +36,7 @@ import java.util.ArrayList;
  */
 public class NativeUtil {
     private static final String ANY_MAC_STR = "any";
-    private static final byte[] ANY_MAC_BYTES = {0, 0, 0, 0, 0, 0};
+    public static final byte[] ANY_MAC_BYTES = {0, 0, 0, 0, 0, 0};
     private static final int MAC_LENGTH = 6;
     private static final int MAC_OUI_LENGTH = 3;
     private static final int MAC_STR_LENGTH = MAC_LENGTH * 2 + 5;
