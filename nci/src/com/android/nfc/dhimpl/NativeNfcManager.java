@@ -143,6 +143,12 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public native int getLfT3tMax();
 
+    @Override
+    public native void doSetScreenState(int screen_state_mask);
+
+    @Override
+    public native int getNciVersion();
+
     private native void doEnableDiscovery(int techMask,
                                           boolean enableLowPowerPolling,
                                           boolean enableReaderMode,
