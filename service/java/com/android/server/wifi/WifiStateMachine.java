@@ -1985,7 +1985,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     public boolean syncDisableNetwork(AsyncChannel channel, int netId) {
         Message resultMsg = channel.sendMessageSynchronously(WifiManager.DISABLE_NETWORK, netId);
-        boolean result = (resultMsg.arg1 != WifiManager.DISABLE_NETWORK_FAILED);
+        boolean result = (resultMsg.what != WifiManager.DISABLE_NETWORK_FAILED);
         resultMsg.recycle();
         return result;
     }
@@ -4886,7 +4886,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             sendMessage(CMD_DISCONNECT);
                         }
                     } else {
-                        loge("Failed to remove network");
+                        loge("Failed to disable network");
                         messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
                         replyToMessage(message, WifiManager.DISABLE_NETWORK_FAILED,
                                 WifiManager.ERROR);
