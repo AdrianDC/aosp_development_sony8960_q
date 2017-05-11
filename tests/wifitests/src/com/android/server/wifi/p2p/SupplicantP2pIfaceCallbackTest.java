@@ -370,18 +370,35 @@ public class SupplicantP2pIfaceCallbackTest {
                 ArgumentCaptor.forClass(WifiP2pProvDiscEvent.class);
         mDut.onProvisionDiscoveryCompleted(
                 p2pDeviceAddr, isRequest, status, configMethods, generatedPin);
+        verify(mMonitor).broadcastP2pProvisionDiscoveryEnterPin(
+                anyString(), discEventCaptor.capture());
+        assertEquals(WifiP2pProvDiscEvent.ENTER_PIN, discEventCaptor.getValue().event);
+
+        configMethods = WpsConfigMethods.KEYPAD;
+        mDut.onProvisionDiscoveryCompleted(
+                p2pDeviceAddr, isRequest, status, configMethods, generatedPin);
         verify(mMonitor).broadcastP2pProvisionDiscoveryShowPin(
                 anyString(), discEventCaptor.capture());
         assertEquals(WifiP2pProvDiscEvent.SHOW_PIN, discEventCaptor.getValue().event);
         assertEquals(generatedPin, discEventCaptor.getValue().pin);
 
+        isRequest = true;
         configMethods = WpsConfigMethods.KEYPAD;
         mDut.onProvisionDiscoveryCompleted(
                 p2pDeviceAddr, isRequest, status, configMethods, generatedPin);
-        verify(mMonitor).broadcastP2pProvisionDiscoveryEnterPin(
+        verify(mMonitor, times(2)).broadcastP2pProvisionDiscoveryEnterPin(
                 anyString(), discEventCaptor.capture());
         assertEquals(WifiP2pProvDiscEvent.ENTER_PIN, discEventCaptor.getValue().event);
 
+        configMethods = WpsConfigMethods.DISPLAY;
+        mDut.onProvisionDiscoveryCompleted(
+                p2pDeviceAddr, isRequest, status, configMethods, generatedPin);
+        verify(mMonitor, times(2)).broadcastP2pProvisionDiscoveryShowPin(
+                anyString(), discEventCaptor.capture());
+        assertEquals(WifiP2pProvDiscEvent.SHOW_PIN, discEventCaptor.getValue().event);
+        assertEquals(generatedPin, discEventCaptor.getValue().pin);
+
+        isRequest = false;
         configMethods = WpsConfigMethods.PUSHBUTTON;
         mDut.onProvisionDiscoveryCompleted(
                 p2pDeviceAddr, isRequest, status, configMethods, generatedPin);

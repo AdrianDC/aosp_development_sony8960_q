@@ -413,11 +413,18 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
                 event.event = WifiP2pProvDiscEvent.PBC_RSP;
                 mMonitor.broadcastP2pProvisionDiscoveryPbcResponse(mInterface, event);
             }
-        } else if ((configMethods & WpsConfigMethods.DISPLAY) != 0) {
+        } else if (!isRequest && (configMethods & WpsConfigMethods.KEYPAD) != 0) {
             event.event = WifiP2pProvDiscEvent.SHOW_PIN;
             event.pin = generatedPin;
             mMonitor.broadcastP2pProvisionDiscoveryShowPin(mInterface, event);
-        } else if ((configMethods & WpsConfigMethods.KEYPAD) != 0) {
+        } else if (!isRequest && (configMethods & WpsConfigMethods.DISPLAY) != 0) {
+            event.event = WifiP2pProvDiscEvent.ENTER_PIN;
+            mMonitor.broadcastP2pProvisionDiscoveryEnterPin(mInterface, event);
+        } else if (isRequest && (configMethods & WpsConfigMethods.DISPLAY) != 0) {
+            event.event = WifiP2pProvDiscEvent.SHOW_PIN;
+            event.pin = generatedPin;
+            mMonitor.broadcastP2pProvisionDiscoveryShowPin(mInterface, event);
+        } else if (isRequest && (configMethods & WpsConfigMethods.KEYPAD) != 0) {
             event.event = WifiP2pProvDiscEvent.ENTER_PIN;
             mMonitor.broadcastP2pProvisionDiscoveryEnterPin(mInterface, event);
         } else {
