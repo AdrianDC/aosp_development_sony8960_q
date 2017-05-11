@@ -1778,6 +1778,11 @@ public class WifiAwareStateManager {
 
         if (!mUsageEnabled) {
             Log.w(TAG, "connect(): called with mUsageEnabled=false");
+            try {
+                callback.onConnectFail(NanStatusType.INTERNAL_FAILURE);
+            } catch (RemoteException e) {
+                Log.w(TAG, "connectLocal onConnectFail(): RemoteException (FYI): " + e);
+            }
             return false;
         }
 

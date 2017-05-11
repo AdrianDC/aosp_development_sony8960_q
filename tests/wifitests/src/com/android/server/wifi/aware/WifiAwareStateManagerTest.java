@@ -203,10 +203,11 @@ public class WifiAwareStateManagerTest {
         inOrder.verify(mMockNative).disable((short) 0);
         validateCorrectAwareStatusChangeBroadcast(inOrder, false);
 
-        // (3) try connecting and validate that get nothing (app should be aware of non-availability
-        // through state change broadcast and/or query API)
+        // (3) try connecting and validate that get failure callback (though app should be aware of
+        // non-availability through state change broadcast and/or query API)
         mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
         mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectFail(anyInt());
 
         verifyNoMoreInteractions(mMockNative, mockCallback);
     }
@@ -255,9 +256,10 @@ public class WifiAwareStateManagerTest {
         validateCorrectAwareStatusChangeBroadcast(inOrder, false);
         validateInternalClientInfoCleanedUp(clientId);
 
-        // (4) try connecting again and validate that just get an onAwareDown
+        // (4) try connecting again and validate that get a failure
         mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
         mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectFail(anyInt());
 
         // (5) disable usage again and validate that not much happens
         mDut.disableUsage();
