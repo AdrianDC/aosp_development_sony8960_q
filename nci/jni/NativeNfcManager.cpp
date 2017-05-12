@@ -793,18 +793,19 @@ static jboolean nfcManager_sendRawFrame (JNIEnv* e, jobject, jbyteArray data)
 **
 ** Description:     Route an AID to an EE
 **                  e: JVM environment.
-**                  o: Java object.
+**                  aid: aid to be added to routing table.
+**                  route: aid route location. i.e. DH/eSE/UICC
+**                  aidInfo: prefix or suffix aid.
 **
-** Returns:         True if ok.
+** Returns:         True if aid is accpted by NFA Layer.
 **
 *******************************************************************************/
-static jboolean nfcManager_routeAid (JNIEnv* e, jobject, jbyteArray aid, jint route)
+static jboolean nfcManager_routeAid (JNIEnv* e, jobject, jbyteArray aid, jint route, jint aidInfo)
 {
     ScopedByteArrayRO bytes(e, aid);
     uint8_t* buf = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(&bytes[0]));
     size_t bufLen = bytes.size();
-    bool result = RoutingManager::getInstance().addAidRouting(buf, bufLen, route);
-    return result;
+    return RoutingManager::getInstance().addAidRouting(buf, bufLen, route, aidInfo);
 }
 
 /*******************************************************************************
@@ -1811,7 +1812,7 @@ static JNINativeMethod gMethods[] =
     {"sendRawFrame", "([B)Z",
             (void*) nfcManager_sendRawFrame},
 
-    {"routeAid", "([BI)Z",
+    {"routeAid", "([BII)Z",
             (void*) nfcManager_routeAid},
 
     {"unrouteAid", "([B)Z",
