@@ -603,7 +603,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
      * Command to respond to the data-path request (executed by the responder).
      */
     public void respondToDataPathRequest(boolean accept, int ndpId, String interfaceName,
-            byte[] pmk, String passphrase) {
+            byte[] pmk, String passphrase, boolean isOutOfBand) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_RESPOND_TO_DATA_PATH_SETUP_REQUEST;
         msg.arg2 = ndpId;
@@ -611,6 +611,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         msg.getData().putString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME, interfaceName);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_PMK, pmk);
         msg.getData().putString(MESSAGE_BUNDLE_KEY_PASSPHRASE, passphrase);
+        msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_OOB, isOutOfBand);
         mSm.sendMessage(msg);
     }
 
@@ -1521,9 +1522,10 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                     String interfaceName = data.getString(MESSAGE_BUNDLE_KEY_INTERFACE_NAME);
                     byte[] pmk = data.getByteArray(MESSAGE_BUNDLE_KEY_PMK);
                     String passphrase = data.getString(MESSAGE_BUNDLE_KEY_PASSPHRASE);
+                    boolean isOutOfBand = data.getBoolean(MESSAGE_BUNDLE_KEY_OOB);
 
                     waitForResponse = respondToDataPathRequestLocal(mCurrentTransactionId, accept,
-                            ndpId, interfaceName, pmk, passphrase);
+                            ndpId, interfaceName, pmk, passphrase, isOutOfBand);
 
                     break;
                 }
@@ -2246,16 +2248,17 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     }
 
     private boolean respondToDataPathRequestLocal(short transactionId, boolean accept,
-            int ndpId, String interfaceName, byte[] pmk, String passphrase) {
+            int ndpId, String interfaceName, byte[] pmk, String passphrase, boolean isOutOfBand) {
         if (VDBG) {
             Log.v(TAG,
                     "respondToDataPathRequestLocal(): transactionId=" + transactionId + ", accept="
                             + accept + ", ndpId=" + ndpId + ", interfaceName=" + interfaceName
-                            + ", pmk=" + pmk + ", passphrase=" + passphrase);
+                            + ", pmk=" + pmk + ", passphrase=" + passphrase + ", isOutOfBand="
+                            + isOutOfBand);
         }
 
         boolean success = mWifiAwareNativeApi.respondToDataPathRequest(transactionId, accept, ndpId,
-                interfaceName, pmk, passphrase, mCapabilities);
+                interfaceName, pmk, passphrase, isOutOfBand, mCapabilities);
         if (!success) {
             mDataPathMgr.onRespondToDataPathRequest(ndpId, false);
         }
