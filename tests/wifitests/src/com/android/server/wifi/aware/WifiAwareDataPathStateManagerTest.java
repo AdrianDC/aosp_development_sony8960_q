@@ -149,7 +149,7 @@ public class WifiAwareDataPathStateManagerTest {
                 any(), any(), any(), any(), anyBoolean(),
                 any())).thenReturn(true);
         when(mMockNative.respondToDataPathRequest(anyShort(), anyBoolean(), anyInt(), any(),
-                any(), any(), any())).thenReturn(true);
+                any(), any(), anyBoolean(), any())).thenReturn(true);
         when(mMockNative.endDataPath(anyShort(), anyInt())).thenReturn(true);
 
         when(mMockNetworkInterface.configureAgentProperties(any(), any(), anyInt(), any(), any(),
@@ -495,7 +495,7 @@ public class WifiAwareDataPathStateManagerTest {
             mDut.onDataPathRequestNotification(pubSubId, peerDiscoveryMac, ndpId);
             mMockLooper.dispatchAll();
             inOrder.verify(mMockNative).respondToDataPathRequest(anyShort(), eq(false),
-                    eq(ndpId), eq(""), eq(null), eq(null), any());
+                    eq(ndpId), eq(""), eq(null), eq(null), anyBoolean(), any());
         }
 
         verifyNoMoreInteractions(mMockNative, mMockCm);
@@ -551,7 +551,7 @@ public class WifiAwareDataPathStateManagerTest {
             mDut.onDataPathRequestNotification(pubSubId, peerDiscoveryMac, ndpId);
             mMockLooper.dispatchAll();
             inOrder.verify(mMockNative).respondToDataPathRequest(anyShort(), eq(false),
-                    eq(ndpId), eq(""), eq(null), eq(null), any());
+                    eq(ndpId), eq(""), eq(null), eq(null), anyBoolean(), any());
         }
 
         verifyNoMoreInteractions(mMockNative, mMockCm);
@@ -691,7 +691,7 @@ public class WifiAwareDataPathStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).respondToDataPathRequest(transactionId.capture(), eq(true),
                 eq(ndpId), eq(sAwareInterfacePrefix + "0"), eq(providePmk ? pmk : null), eq(null),
-                any());
+                eq(useDirect), any());
         mDut.onRespondToDataPathSetupRequestResponse(transactionId.getValue(), true, 0);
         mMockLooper.dispatchAll();
 

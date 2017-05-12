@@ -754,10 +754,13 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      *                      request callback.
      * @param pmk Pairwise master key (PMK - see IEEE 802.11i) for the data-path.
      * @param passphrase  Passphrase for the data-path.
+     * @param isOutOfBand Is the data-path out-of-band (i.e. without a corresponding Aware discovery
+     *                    session).
      * @param capabilities The capabilities of the firmware.
      */
     public boolean respondToDataPathRequest(short transactionId, boolean accept, int ndpId,
-            String interfaceName, byte[] pmk, String passphrase, Capabilities capabilities) {
+            String interfaceName, byte[] pmk, String passphrase, boolean isOutOfBand,
+            Capabilities capabilities) {
         if (VDBG) {
             Log.v(TAG, "respondToDataPathRequest: transactionId=" + transactionId + ", accept="
                     + accept + ", int ndpId=" + ndpId + ", interfaceName=" + interfaceName);
@@ -790,6 +793,12 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
                     capabilities.supportedCipherSuites);
             req.securityConfig.securityType = NanDataPathSecurityType.PASSPHRASE;
             convertNativeByteArrayToArrayList(passphrase.getBytes(), req.securityConfig.passphrase);
+
+            if (isOutOfBand) { // only relevant when using passphrase
+                convertNativeByteArrayToArrayList(
+                        SERVICE_NAME_FOR_OOB_DATA_PATH.getBytes(StandardCharsets.UTF_8),
+                        req.serviceNameOutOfBand);
+            }
         }
 
         try {
