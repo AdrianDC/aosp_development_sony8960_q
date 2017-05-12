@@ -23,6 +23,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -151,6 +152,7 @@ public class WifiNativeTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
+        when(mWifiVendorHal.isVendorHalSupported()).thenReturn(true);
         when(mWifiVendorHal.startVendorHal(anyBoolean())).thenReturn(true);
         mWifiNative = new WifiNative("test0", mWifiVendorHal, mStaIfaceHal, mWificondControl);
     }
@@ -491,17 +493,46 @@ public class WifiNativeTest {
     }
 
     /**
+     * Verifies that setupDriverForClientMode() does not call start vendor HAL when it is not
+     * supported and calls underlying WificondControl setup.
+     */
+    @Test
+    public void testSetupDriverForClientModeWithNoVendorHal() {
+        when(mWifiVendorHal.isVendorHalSupported()).thenReturn(false);
+        IClientInterface clientInterface = mock(IClientInterface.class);
+        when(mWificondControl.setupDriverForClientMode()).thenReturn(clientInterface);
+
+        IClientInterface returnedClientInterface = mWifiNative.setupForClientMode();
+        assertEquals(clientInterface, returnedClientInterface);
+        verify(mWifiVendorHal, never()).startVendorHal(anyBoolean());
+        verify(mWificondControl).setupDriverForClientMode();
+    }
+
+    /**
      * Verifies that setupDriverForClientMode() returns null when underlying WificondControl
      * call fails.
      */
     @Test
-    public void testSetupDriverForClientModeError() {
+    public void testSetupDriverForClientModeWificondError() {
         when(mWificondControl.setupDriverForClientMode()).thenReturn(null);
 
         IClientInterface returnedClientInterface = mWifiNative.setupForClientMode();
         assertEquals(null, returnedClientInterface);
         verify(mWifiVendorHal).startVendorHal(eq(true));
         verify(mWificondControl).setupDriverForClientMode();
+    }
+
+    /**
+     * Verifies that setupDriverForClientMode() returns null when underlying Hal call fails.
+     */
+    @Test
+    public void testSetupDriverForClientModeHalError() {
+        when(mWifiVendorHal.startVendorHal(anyBoolean())).thenReturn(false);
+
+        IClientInterface returnedClientInterface = mWifiNative.setupForClientMode();
+        assertEquals(null, returnedClientInterface);
+        verify(mWifiVendorHal).startVendorHal(eq(true));
+        verify(mWificondControl, never()).setupDriverForClientMode();
     }
 
     /**
@@ -519,17 +550,46 @@ public class WifiNativeTest {
     }
 
     /**
+     * Verifies that setupDriverForClientMode() does not call start vendor HAL when it is not
+     * supported and calls underlying WificondControl setup.
+     */
+    @Test
+    public void testSetupDriverForSoftApModeWithNoVendorHal() {
+        when(mWifiVendorHal.isVendorHalSupported()).thenReturn(false);
+        IApInterface apInterface = mock(IApInterface.class);
+        when(mWificondControl.setupDriverForSoftApMode()).thenReturn(apInterface);
+
+        IApInterface returnedApInterface = mWifiNative.setupForSoftApMode();
+        assertEquals(apInterface, returnedApInterface);
+        verify(mWifiVendorHal, never()).startVendorHal(anyBoolean());
+        verify(mWificondControl).setupDriverForSoftApMode();
+    }
+
+    /**
      * Verifies that setupDriverForSoftApMode() returns null when underlying WificondControl
      * call fails.
      */
     @Test
-    public void testSetupDriverForSoftApModeError() {
+    public void testSetupDriverForSoftApModeWificondError() {
         when(mWificondControl.setupDriverForSoftApMode()).thenReturn(null);
         IApInterface returnedApInterface = mWifiNative.setupForSoftApMode();
 
         assertEquals(null, returnedApInterface);
         verify(mWifiVendorHal).startVendorHal(eq(false));
         verify(mWificondControl).setupDriverForSoftApMode();
+    }
+
+    /**
+     * Verifies that setupDriverForSoftApMode() returns null when underlying Hal call fails.
+     */
+    @Test
+    public void testSetupDriverForSoftApModeHalError() {
+        when(mWifiVendorHal.startVendorHal(anyBoolean())).thenReturn(false);
+
+        IApInterface returnedApInterface = mWifiNative.setupForSoftApMode();
+        assertEquals(null, returnedApInterface);
+        verify(mWifiVendorHal).startVendorHal(eq(false));
+        verify(mWificondControl, never()).setupDriverForSoftApMode();
     }
 
     /**
