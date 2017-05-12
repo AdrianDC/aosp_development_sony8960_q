@@ -1405,9 +1405,9 @@ public class SupplicantP2pIfaceHal {
                 return false;
             }
 
-            int id = 0;
+            long id = 0;
             try {
-                id = Integer.parseInt(identifier);
+                id = Long.parseLong(identifier);
             } catch (NumberFormatException e) {
                 Log.e(TAG, "Service discovery identifier invalid: " + identifier, e);
                 return false;
