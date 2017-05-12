@@ -86,6 +86,7 @@ public class WifiInjector {
     private final WifiStateMachine mWifiStateMachine;
     private final WifiSettingsStore mSettingsStore;
     private final WifiCertManager mCertManager;
+    private final WifiNotificationController mNotificationController;
     private final WifiLockManager mLockManager;
     private final WifiController mWifiController;
     private final WificondControl mWificondControl;
@@ -220,6 +221,8 @@ public class WifiInjector {
                 wifiStateMachineLooper, UserManager.get(mContext),
                 this, mBackupManagerProxy, mCountryCode, mWifiNative);
         mCertManager = new WifiCertManager(mContext);
+        mNotificationController = new WifiNotificationController(mContext,
+                mWifiServiceHandlerThread.getLooper(), mFrameworkFacade, null, this);
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
                 mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade);
@@ -292,6 +295,10 @@ public class WifiInjector {
 
     public WifiCertManager getWifiCertManager() {
         return mCertManager;
+    }
+
+    public WifiNotificationController getWifiNotificationController() {
+        return mNotificationController;
     }
 
     public WifiLockManager getWifiLockManager() {
