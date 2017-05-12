@@ -488,7 +488,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                 processPendingScans();
                 break;
             case WifiMonitor.PNO_SCAN_RESULTS_EVENT:
-                mAlarmManager.cancel(mScanTimeoutListener);
                 pollLatestScanDataForPno();
                 processPendingScans();
                 break;
