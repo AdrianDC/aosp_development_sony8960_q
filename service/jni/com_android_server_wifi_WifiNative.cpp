@@ -34,6 +34,7 @@
 namespace android {
 
 static jint DBG = false;
+constexpr int SAFE_NET_LOG_ID = 0x534e4554;
 
 static bool doCommand(JNIEnv* env, jstring javaCommand,
                       char* reply, size_t reply_len) {
@@ -628,7 +629,7 @@ static jboolean android_net_wifi_setHotlist(
     if (params.num_ap >
             static_cast<int>(sizeof(params.ap) / sizeof(params.ap[0]))) {
         ALOGE("setHotlist array length is too long");
-        android_errorWriteLog(0x534e4554, "31856351");
+        android_errorWriteLog(SAFE_NET_LOG_ID, "31856351");
         return false;
     }
 
@@ -749,7 +750,12 @@ static jboolean android_net_wifi_trackSignificantWifiChange(
         ALOGE("Error in accessing array");
         return false;
     }
-
+    if (params.num_ap >
+        static_cast<int>(sizeof(params.ap) / sizeof(params.ap[0]))) {
+        ALOGE("trackSignificantWifiChange array length is too long");
+        android_errorWriteLog(SAFE_NET_LOG_ID, "37775935");
+        return false;
+    }
     ALOGD("Initialized common fields %d, %d, %d, %d", params.rssi_sample_size,
             params.lost_ap_sample_size, params.min_breaching, params.num_ap);
 
