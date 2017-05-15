@@ -102,9 +102,9 @@ public class WifiNative {
     * Returns null on failure.
     */
     public IClientInterface setupForClientMode() {
-        if (!startHal(true)) {
-            // TODO(b/34859006): Handle failures.
+        if (!startHalIfNecessary(true)) {
             Log.e(mTAG, "Failed to start HAL for client mode");
+            return null;
         }
         return mWificondControl.setupDriverForClientMode();
     }
@@ -119,9 +119,9 @@ public class WifiNative {
      * Returns null on failure.
      */
     public IApInterface setupForSoftApMode() {
-        if (!startHal(false)) {
-            // TODO(b/34859006): Handle failures.
+        if (!startHalIfNecessary(false)) {
             Log.e(mTAG, "Failed to start HAL for AP mode");
+            return null;
         }
         return mWificondControl.setupDriverForSoftApMode();
     }
@@ -140,7 +140,7 @@ public class WifiNative {
             Log.e(mTAG, "Failed to teardown interfaces from Wificond");
             return false;
         }
-        stopHal();
+        stopHalIfNecessary();
         return true;
     }
 
@@ -802,18 +802,27 @@ public class WifiNative {
     }
 
     /**
-     * Bring up the Vendor HAL and configure for STA mode or AP mode.
+     * Bring up the Vendor HAL and configure for STA mode or AP mode, if vendor HAL is supported.
      *
      * @param isStaMode true to start HAL in STA mode, false to start in AP mode.
+     * @return false if the HAL start fails, true if successful or if vendor HAL not supported.
      */
-    public boolean startHal(boolean isStaMode) {
+    private boolean startHalIfNecessary(boolean isStaMode) {
+        if (!mWifiVendorHal.isVendorHalSupported()) {
+            Log.i(mTAG, "Vendor HAL not supported, Ignore start...");
+            return true;
+        }
         return mWifiVendorHal.startVendorHal(isStaMode);
     }
 
     /**
-     * Stops the HAL
+     * Stops the HAL, if vendor HAL is supported.
      */
-    public void stopHal() {
+    private void stopHalIfNecessary() {
+        if (!mWifiVendorHal.isVendorHalSupported()) {
+            Log.i(mTAG, "Vendor HAL not supported, Ignore stop...");
+            return;
+        }
         mWifiVendorHal.stopVendorHal();
     }
 
