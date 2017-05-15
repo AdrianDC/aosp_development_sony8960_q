@@ -193,8 +193,16 @@ public class WifiAwareStateManagerTest {
      */
     @Test
     public void testAwareDataPathInterfaceUpDown() throws Exception {
+        final int clientId = 12341;
+        final int uid = 1000;
+        final int pid = 2000;
+        final String callingPackage = "com.google.somePackage";
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+
+        IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
-        InOrder inOrder = inOrder(mMockContext, mMockNative, mMockAwareDataPathStatemanager);
+        InOrder inOrder = inOrder(mMockContext, mMockNative, mMockAwareDataPathStatemanager,
+                mockCallback);
 
         // (1) enable usage
         mDut.enableUsage();
@@ -203,19 +211,25 @@ public class WifiAwareStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockAwareDataPathStatemanager).createAllInterfaces();
         collector.checkThat("usage enabled", mDut.isUsageEnabled(), equalTo(true));
 
-        // (2) disable usage
-        mDut.disableUsage();
+        // (2) connect (enable Aware)
+        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockAwareDataPathStatemanager).onAwareDownCleanupDataPaths();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
+                eq(false), eq(true), eq(true), eq(false));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
+        inOrder.verify(mMockAwareDataPathStatemanager).createAllInterfaces();
+
+        // (3) disconnect (disable Aware)
+        mDut.disconnect(clientId);
+        mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).disable(transactionId.capture());
-        validateCorrectAwareStatusChangeBroadcast(inOrder, false);
         mDut.onDisableResponse(transactionId.getValue(), NanStatusType.SUCCESS);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockAwareDataPathStatemanager).deleteAllInterfaces();
-        collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
 
         verifyNoMoreInteractions(mMockNative, mMockAwareDataPathStatemanager);
     }

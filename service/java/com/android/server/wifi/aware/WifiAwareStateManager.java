@@ -1993,6 +1993,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
 
         if (mClients.size() == 0) {
             mCurrentAwareConfiguration = null;
+            deleteAllDataPathInterfaces();
             return mWifiAwareNativeApi.disable(transactionId);
         }
 
@@ -2173,7 +2174,6 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
 
         mUsageEnabled = true;
         queryCapabilities();
-        createAllDataPathInterfaces();
         sendAwareStateChangedBroadcast(true);
     }
 
@@ -2188,7 +2188,6 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         }
 
         onAwareDownLocal();
-        deleteAllDataPathInterfaces();
 
         mUsageEnabled = false;
         boolean callDispatched = mWifiAwareNativeApi.disable(transactionId);
@@ -2334,6 +2333,9 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             return;
         }
 
+        if (mCurrentAwareConfiguration == null) { // enabled (as opposed to re-configured)
+            createAllDataPathInterfaces();
+        }
         mCurrentAwareConfiguration = mergeConfigRequests(null);
         if (mCurrentAwareConfiguration == null) {
             Log.wtf(TAG, "onConfigCompletedLocal: got a null merged configuration after config!?");
@@ -2742,6 +2744,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         mSm.onAwareDownCleanupSendQueueState();
         mDataPathMgr.onAwareDownCleanupDataPaths();
         mCurrentDiscoveryInterfaceMac = ALL_ZERO_MAC;
+        deleteAllDataPathInterfaces();
     }
 
     /*

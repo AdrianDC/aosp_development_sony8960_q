@@ -882,14 +882,8 @@ public class WifiAwareDataPathStateManagerTest {
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), capabilities);
         mMockLooper.dispatchAll();
 
-        // (2) enable usage (creates interfaces)
+        // (2) enable usage
         mDut.enableUsage();
-        mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).createAwareNetworkInterface(transactionId.capture(),
-                strCaptor.capture());
-        collector.checkThat("interface created -- 0", sAwareInterfacePrefix + 0,
-                equalTo(strCaptor.getValue()));
-        mDut.onCreateDataPathInterfaceResponse(transactionId.getValue(), true, 0);
         mMockLooper.dispatchAll();
 
         // (3) create client & session & rx message
@@ -901,6 +895,14 @@ public class WifiAwareDataPathStateManagerTest {
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
         inOrder.verify(mMockCallback).onConnectSuccess(clientId);
+
+        inOrder.verify(mMockNative).createAwareNetworkInterface(transactionId.capture(),
+                strCaptor.capture());
+        collector.checkThat("interface created -- 0", sAwareInterfacePrefix + 0,
+                equalTo(strCaptor.getValue()));
+        mDut.onCreateDataPathInterfaceResponse(transactionId.getValue(), true, 0);
+        mMockLooper.dispatchAll();
+
         if (doPublish) {
             mDut.publish(clientId, publishConfig, mMockSessionCallback);
         } else {
