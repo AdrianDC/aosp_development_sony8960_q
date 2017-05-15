@@ -1597,4 +1597,22 @@ public class WifiStateMachineTest {
         mLooper.stopAutoDispatch();
         assertEquals(WifiManager.WPS_FAILED, reply.what);
     }
+
+    /**
+     * Test that DISABLE_NETWORK returns failure to public API when WifiConfigManager returns
+     * failure.
+     */
+    @Test
+    public void testSyncDisableNetwork_failure() throws Exception {
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("DisconnectedState", getCurrentState().getName());
+        when(mWifiConfigManager.disableNetwork(anyInt(), anyInt())).thenReturn(false);
+
+        mLooper.startAutoDispatch();
+        boolean succeeded = mWsm.syncDisableNetwork(mWsmAsyncChannel, 0);
+        mLooper.stopAutoDispatch();
+        assertFalse(succeeded);
+    }
 }
