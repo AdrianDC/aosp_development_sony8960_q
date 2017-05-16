@@ -17,6 +17,8 @@
 package com.android.server.wifi;
 
 import android.annotation.NonNull;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiManager;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.Message;
@@ -31,7 +33,9 @@ import com.android.internal.util.Preconditions;
  * @hide
  */
 public class LocalOnlyHotspotRequestInfo implements IBinder.DeathRecipient {
-    private final int mUid;
+    static final int HOTSPOT_NO_ERROR = -1;
+
+    private final int mPid;
     private final IBinder mBinder;
     private final RequestingApplicationDeathCallback mCallback;
     private final Messenger mMessenger;
@@ -48,7 +52,7 @@ public class LocalOnlyHotspotRequestInfo implements IBinder.DeathRecipient {
 
     LocalOnlyHotspotRequestInfo(@NonNull IBinder binder, @NonNull Messenger messenger,
             @NonNull RequestingApplicationDeathCallback callback) {
-        mUid = Binder.getCallingUid();
+        mPid = Binder.getCallingPid();
         mBinder = Preconditions.checkNotNull(binder);
         mMessenger = Preconditions.checkNotNull(messenger);
         mCallback = Preconditions.checkNotNull(callback);
@@ -76,21 +80,45 @@ public class LocalOnlyHotspotRequestInfo implements IBinder.DeathRecipient {
     }
 
     /**
-     * Send a message to WifiManager for the calling application.
+     * Send a HOTSPOT_FAILED message to WifiManager for the calling application with the error code.
      *
-     * @param what Message type to send
-     * @param arg1 arg1 for the message
+     * @param reasonCode error code for the message
      *
      * @throws RemoteException
      */
-    public void sendMessage(int what, int arg1) throws RemoteException {
+    public void sendHotspotFailedMessage(int reasonCode) throws RemoteException {
         Message message = Message.obtain();
-        message.what = what;
-        message.arg1 = arg1;
+        message.what = WifiManager.HOTSPOT_FAILED;
+        message.arg1 = reasonCode;
         mMessenger.send(message);
     }
 
-    public int getUid() {
-        return mUid;
+    /**
+     * Send a HOTSPOT_STARTED message to WifiManager for the calling application with the config.
+     *
+     * @param config WifiConfiguration for the callback
+     *
+     * @throws RemoteException
+     */
+    public void sendHotspotStartedMessage(WifiConfiguration config) throws RemoteException {
+        Message message = Message.obtain();
+        message.what = WifiManager.HOTSPOT_STARTED;
+        message.obj = config;
+        mMessenger.send(message);
+    }
+
+    /**
+     * Send a HOTSPOT_STOPPED message to WifiManager for the calling application.
+     *
+     * @throws RemoteException
+     */
+    public void sendHotspotStoppedMessage() throws RemoteException {
+        Message message = Message.obtain();
+        message.what = WifiManager.HOTSPOT_STOPPED;
+        mMessenger.send(message);
+    }
+
+    public int getPid() {
+        return mPid;
     }
 }

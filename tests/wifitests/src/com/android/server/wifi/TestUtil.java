@@ -71,6 +71,21 @@ public class TestUtil {
     }
 
     /**
+     * Send {@link WifiManager#WIFI_AP_STATE_CHANGED} broadcast.
+     */
+    public static void sendWifiApStateChanged(BroadcastReceiver broadcastReceiver,
+            Context context, int apState, int previousState, int error) {
+        Intent intent = new Intent(WifiManager.WIFI_AP_STATE_CHANGED_ACTION);
+        intent.putExtra(WifiManager.EXTRA_WIFI_AP_STATE, apState);
+        intent.putExtra(WifiManager.EXTRA_PREVIOUS_WIFI_AP_STATE, previousState);
+        if (apState == WifiManager.WIFI_AP_STATE_FAILED) {
+            //only set reason number when softAP start failed
+            intent.putExtra(WifiManager.EXTRA_WIFI_AP_FAILURE_REASON, error);
+        }
+        broadcastReceiver.onReceive(context, intent);
+    }
+
+    /**
      * Send {@link ConnectivityManager#ACTION_TETHER_STATE_CHANGED} broadcast.
      */
     public static void sendTetherStateChanged(BroadcastReceiver broadcastReceiver,

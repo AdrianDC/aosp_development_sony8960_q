@@ -16,7 +16,18 @@
 
 package com.android.server.wifi;
 
+import static android.net.wifi.WifiManager.EXTRA_PREVIOUS_WIFI_AP_STATE;
+import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_FAILURE_REASON;
+import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_STATE;
+import static android.net.wifi.WifiManager.LocalOnlyHotspotCallback.ERROR_GENERIC;
+import static android.net.wifi.WifiManager.LocalOnlyHotspotCallback.ERROR_NO_CHANNEL;
+import static android.net.wifi.WifiManager.SAP_START_FAILURE_NO_CHANNEL;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLED;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLING;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_FAILED;
+
 import static com.android.server.connectivity.tethering.IControlsTethering.STATE_TETHERED;
+import static com.android.server.wifi.LocalOnlyHotspotRequestInfo.HOTSPOT_NO_ERROR;
 import static com.android.server.wifi.WifiController.CMD_AIRPLANE_TOGGLED;
 import static com.android.server.wifi.WifiController.CMD_BATTERY_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_CALL_STATE_CHANGED;
@@ -475,6 +486,21 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 },
                 new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED));
 
+        mContext.registerReceiver(
+                new BroadcastReceiver() {
+                    @Override
+                    public void onReceive(Context context, Intent intent) {
+                        final int currentState = intent.getIntExtra(EXTRA_WIFI_AP_STATE,
+                                                                    WIFI_AP_STATE_DISABLED);
+                        final int prevState = intent.getIntExtra(EXTRA_PREVIOUS_WIFI_AP_STATE,
+                                                                 WIFI_AP_STATE_DISABLED);
+                        final int errorCode = intent.getIntExtra(EXTRA_WIFI_AP_FAILURE_REASON,
+                                                                 HOTSPOT_NO_ERROR);
+                        handleWifiApStateChange(currentState, prevState, errorCode);
+                    }
+                },
+                new IntentFilter(WifiManager.WIFI_AP_STATE_CHANGED_ACTION));
+
         // Adding optimizations of only receiving broadcasts when wifi is enabled
         // can result in race conditions when apps toggle wifi in the background
         // without active user involvement. Always receive broadcasts.
@@ -907,6 +933,108 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
+     * Private method to handle SoftAp state changes
+     */
+    private void handleWifiApStateChange(int currentState, int previousState, int errorCode) {
+        // The AP state update from WifiStateMachine for softap
+        Slog.d(TAG, "handleWifiApStateChange: currentState=" + currentState
+                + " previousState=" + previousState + " errorCode= " + errorCode);
+
+        // check if we have a failure - since it is possible (worst case scenario where
+        // WifiController and WifiStateMachine are out of sync wrt modes) to get two FAILED
+        // notifications in a row, we need to handle this first.
+        if (currentState == WIFI_AP_STATE_FAILED) {
+            // update registered LOHS callbacks if we see a failure
+            synchronized (mLocalOnlyHotspotRequests) {
+                int errorToReport = ERROR_GENERIC;
+                if (errorCode == SAP_START_FAILURE_NO_CHANNEL) {
+                    errorToReport = ERROR_NO_CHANNEL;
+                }
+                // holding the required lock: send message to requestors and clear the list
+                sendHotspotFailedMessageToAllLOHSRequestInfoEntriesLocked(
+                        errorToReport);
+            }
+            return;
+        }
+
+        if (currentState == WIFI_AP_STATE_DISABLING || currentState == WIFI_AP_STATE_DISABLED) {
+            // softap is shutting down or is down...  let requestors know via the onStopped call
+            synchronized (mLocalOnlyHotspotRequests) {
+                // holding the required lock: send message to requestors and clear the list
+                sendHotspotStoppedMessageToAllLOHSRequestInfoEntriesLocked();
+            }
+            return;
+        }
+
+        // remaining states are enabling or enabled...  those are not used for the callbacks
+    }
+
+    /**
+     * Helper method to send a HOTSPOT_FAILED message to all registered LocalOnlyHotspotRequest
+     * callers and clear the registrations.
+     *
+     * Callers should already hold the mLocalOnlyHotspotRequests lock.
+     */
+    private void sendHotspotFailedMessageToAllLOHSRequestInfoEntriesLocked(int arg1) {
+        for (LocalOnlyHotspotRequestInfo requestor : mLocalOnlyHotspotRequests.values()) {
+            try {
+                requestor.sendHotspotFailedMessage(arg1);
+            } catch (RemoteException e) {
+                // This will be cleaned up by binder death handling
+            }
+        }
+
+        // Since all callers were notified, now clear the registrations.
+        mLocalOnlyHotspotRequests.clear();
+    }
+
+    /**
+     * Helper method to send a HOTSPOT_STOPPED message to all registered LocalOnlyHotspotRequest
+     * callers and clear the registrations.
+     *
+     * Callers should already hold the mLocalOnlyHotspotRequests lock.
+     */
+    private void sendHotspotStoppedMessageToAllLOHSRequestInfoEntriesLocked() {
+        for (LocalOnlyHotspotRequestInfo requestor : mLocalOnlyHotspotRequests.values()) {
+            try {
+                requestor.sendHotspotStoppedMessage();
+            } catch (RemoteException e) {
+                // This will be cleaned up by binder death handling
+            }
+        }
+
+        // Since all callers were notified, now clear the registrations.
+        mLocalOnlyHotspotRequests.clear();
+    }
+
+    /**
+     * Helper method to send a HOTSPOT_STARTED message to all registered LocalOnlyHotspotRequest
+     * callers.
+     *
+     * Callers should already hold the mLocalOnlyHotspotRequests lock.
+     */
+    private void sendHotspotStartedMessageToAllLOHSRequestInfoEntriesLocked() {
+        for (LocalOnlyHotspotRequestInfo requestor : mLocalOnlyHotspotRequests.values()) {
+            try {
+                requestor.sendHotspotStartedMessage(mLocalOnlyHotspotConfig);
+            } catch (RemoteException e) {
+                // This will be cleaned up by binder death handling
+            }
+        }
+    }
+
+    /**
+     * Temporary method used for testing while startLocalOnlyHotspot is not fully implemented.  This
+     * method allows unit tests to register callbacks directly for testing mechanisms triggered by
+     * softap mode changes.
+     * TODO: remove when startLocalOnlyHotspot is implemented.
+     */
+    @VisibleForTesting
+    void registerLOHSForTest(int pid, LocalOnlyHotspotRequestInfo request) {
+        mLocalOnlyHotspotRequests.put(pid, request);
+    }
+
+    /**
      * Method to start LocalOnlyHotspot.  In this method, permissions, settings and modes are
      * checked to verify that we can enter softapmode.  This method returns
      * {@link LocalOnlyHotspotCallback#REQUEST_REGISTERED} if we will attempt to start, otherwise,
@@ -980,10 +1108,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * Helper method to unregister LocalOnlyHotspot requestors and stop the hotspot if needed.
      */
     private void unregisterCallingAppAndStopLocalOnlyHotspot(LocalOnlyHotspotRequestInfo request) {
-        mLog.trace("unregisterCallingAppAndStopLocalOnlyHotspot uid=%").c(request.getUid()).flush();
+        mLog.trace("unregisterCallingAppAndStopLocalOnlyHotspot pid=%").c(request.getPid()).flush();
 
         synchronized (mLocalOnlyHotspotRequests) {
-            if (mLocalOnlyHotspotRequests.remove(request.getUid()) == null) {
+            if (mLocalOnlyHotspotRequests.remove(request.getPid()) == null) {
                 mLog.trace("LocalOnlyHotspotRequestInfo not found to remove");
                 return;
             }
