@@ -1381,12 +1381,45 @@ public class SupplicantP2pIfaceHalTest {
      */
     @Test
     public void testSetListenChannel_success() throws Exception {
-        when(mISupplicantP2pIfaceMock.setListenChannel(eq(123), eq(456)))
+        int lc = 4;
+        int oc = 163;
+        ISupplicantP2pIface.FreqRange range1 = new ISupplicantP2pIface.FreqRange();
+        range1.min = 1000;
+        range1.max = 5810;
+        ISupplicantP2pIface.FreqRange range2 = new ISupplicantP2pIface.FreqRange();
+        range2.min = 5820;
+        range2.max = 6000;
+        ArrayList<ISupplicantP2pIface.FreqRange> ranges = new ArrayList<>();
+        ranges.add(range1);
+        ranges.add(range2);
+
+        when(mISupplicantP2pIfaceMock.setListenChannel(eq(lc),  anyInt()))
+                .thenReturn(mStatusSuccess);
+        when(mISupplicantP2pIfaceMock.setDisallowedFrequencies(eq(ranges)))
                 .thenReturn(mStatusSuccess);
         // Default value when service is not initialized.
-        assertFalse(mDut.setListenChannel(123, 456));
+        assertFalse(mDut.setListenChannel(lc, oc));
         executeAndValidateInitializationSequence(false, false, false);
-        assertTrue(mDut.setListenChannel(123, 456));
+        assertTrue(mDut.setListenChannel(lc, oc));
+    }
+
+    /**
+     * Sunny day scenario for setListenChannel()
+     */
+    @Test
+    public void testSetListenChannel_successResetDisallowedFreq() throws Exception {
+        int lc = 2;
+        int oc = 0;
+        ArrayList<ISupplicantP2pIface.FreqRange> ranges = new ArrayList<>();
+
+        when(mISupplicantP2pIfaceMock.setListenChannel(eq(lc),  anyInt()))
+                .thenReturn(mStatusSuccess);
+        when(mISupplicantP2pIfaceMock.setDisallowedFrequencies(eq(ranges)))
+                .thenReturn(mStatusSuccess);
+        // Default value when service is not initialized.
+        assertFalse(mDut.setListenChannel(lc, oc));
+        executeAndValidateInitializationSequence(false, false, false);
+        assertTrue(mDut.setListenChannel(lc, oc));
     }
 
     /**
@@ -1396,6 +1429,8 @@ public class SupplicantP2pIfaceHalTest {
     public void testSetListenChannel_invalidArguments() throws Exception {
         executeAndValidateInitializationSequence(false, false, false);
         when(mISupplicantP2pIfaceMock.setListenChannel(anyInt(), anyInt()))
+                .thenReturn(mStatusSuccess);
+        when(mISupplicantP2pIfaceMock.setDisallowedFrequencies(any(ArrayList.class)))
                 .thenReturn(mStatusSuccess);
         assertFalse(mDut.setListenChannel(-1, 1));
         assertFalse(mDut.setListenChannel(1, -1));
@@ -1409,6 +1444,8 @@ public class SupplicantP2pIfaceHalTest {
         executeAndValidateInitializationSequence(false, false, false);
         when(mISupplicantP2pIfaceMock.setListenChannel(anyInt(), anyInt()))
                 .thenReturn(mStatusFailure);
+        when(mISupplicantP2pIfaceMock.setDisallowedFrequencies(any(ArrayList.class)))
+                .thenReturn(mStatusSuccess);
         assertFalse(mDut.setListenChannel(1, 1));
         // Check that service is still alive.
         assertTrue(mDut.isInitializationComplete());
