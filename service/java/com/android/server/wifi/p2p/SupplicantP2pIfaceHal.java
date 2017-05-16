@@ -62,6 +62,7 @@ public class SupplicantP2pIfaceHal {
     private static final String TAG = "SupplicantP2pIfaceHal";
     private static final int RESULT_NOT_VALID = -1;
     private static final int DEFAULT_GROUP_OWNER_INTENT = 6;
+    private static final int DEFAULT_OPERATING_CLASS = 81;
     /**
      * Regex pattern for extracting the wps device type bytes.
      * Matches a strings like the following: "<categ>-<OUI>-<subcateg>";
@@ -1155,39 +1156,60 @@ public class SupplicantP2pIfaceHal {
 
 
     /**
-     * Set P2P Listen channel.
+     * Set P2P Listen channel and operating chanel.
      *
-     * When specifying a social channel on the 2.4 GHz band (1/6/11) there is no
-     * need to specify the operating class since it defaults to 81. When
-     * specifying a social channel on the 60 GHz band (2), specify the 60 GHz
-     * operating class (180).
-     *
-     * @param channel Wifi channel. eg, 1, 6, 11.
-     * @param operatingClass Operating Class indicates the channel set of the AP
-     *        indicated by this BSSID
+     * @param listenChannel Wifi channel. eg, 1, 6, 11.
+     * @param operatingChannel Wifi channel. eg, 1, 6, 11.
      *
      * @return true, if operation was successful.
      */
-    public boolean setListenChannel(int channel, int operatingClass) {
+    public boolean setListenChannel(int listenChannel, int operatingChannel) {
         synchronized (mLock) {
             if (!checkSupplicantP2pIfaceAndLogFailure("setListenChannel")) return false;
-            // Verify that the integers are not negative. Leave actual parameter validation to
-            // supplicant.
-            if (channel < 0 || operatingClass < 0) {
-                Log.e(TAG, "Invalid values supplied to setListenChannel: " + channel + ", "
-                        + operatingClass);
+
+            if (listenChannel >= 1 && listenChannel <= 11) {
+                SupplicantResult<Void> result = new SupplicantResult(
+                        "setListenChannel(" + listenChannel + ", " + DEFAULT_OPERATING_CLASS + ")");
+                try {
+                    result.setResult(mISupplicantP2pIface.setListenChannel(
+                            listenChannel, DEFAULT_OPERATING_CLASS));
+                } catch (RemoteException e) {
+                    Log.e(TAG, "ISupplicantP2pIface exception: " + e);
+                    supplicantServiceDiedHandler();
+                }
+                if (!result.isSuccess()) {
+                    return false;
+                }
+            } else if (listenChannel != 0) {
+                // listenChannel == 0 does not set any listen channel.
                 return false;
             }
 
-            SupplicantResult<Void> result = new SupplicantResult(
-                    "setListenChannel(" + channel + ", " + operatingClass + ")");
-            try {
-                result.setResult(mISupplicantP2pIface.setListenChannel(channel, operatingClass));
-            } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantP2pIface exception: " + e);
-                supplicantServiceDiedHandler();
+            if (operatingChannel >= 0 && operatingChannel <= 165) {
+                ArrayList<ISupplicantP2pIface.FreqRange> ranges = new ArrayList<>();
+                // operatingChannel == 0 enables all freqs.
+                if (operatingChannel >= 1 && operatingChannel <= 165) {
+                    int freq = (operatingChannel <= 14 ? 2407 : 5000) + operatingChannel * 5;
+                    ISupplicantP2pIface.FreqRange range1 =  new ISupplicantP2pIface.FreqRange();
+                    range1.min = 1000;
+                    range1.max = freq - 5;
+                    ISupplicantP2pIface.FreqRange range2 =  new ISupplicantP2pIface.FreqRange();
+                    range2.min = freq + 5;
+                    range2.max = 6000;
+                    ranges.add(range1);
+                    ranges.add(range2);
+                }
+                SupplicantResult<Void> result = new SupplicantResult(
+                        "setDisallowedFrequencies(" + ranges + ")");
+                try {
+                    result.setResult(mISupplicantP2pIface.setDisallowedFrequencies(ranges));
+                } catch (RemoteException e) {
+                    Log.e(TAG, "ISupplicantP2pIface exception: " + e);
+                    supplicantServiceDiedHandler();
+                }
+                return result.isSuccess();
             }
-            return result.isSuccess();
+            return false;
         }
     }
 
