@@ -116,8 +116,8 @@ public class SupplicantP2pIfaceHalTest {
     final String mInvalidBonjourService2 = "bonjour 123456";
     final String mInvalidBonjourService3 = "bonjour invalid_hex 123456";
     final String mInvalidBonjourService4 = "bonjour 123456 invalid_hex";
-    final String mValidUpnpService = "upnp 1 serviceName";
-    final int mValidUpnpServiceVersion = 1;
+    final String mValidUpnpService = "upnp 10 serviceName";
+    final int mValidUpnpServiceVersion = 16;
     final String mValidUpnpServiceName = "serviceName";
     final String mValidBonjourService = "bonjour 30313233 34353637";
     final ArrayList<Byte> mValidBonjourServiceRequest = new ArrayList<Byte>() {{
