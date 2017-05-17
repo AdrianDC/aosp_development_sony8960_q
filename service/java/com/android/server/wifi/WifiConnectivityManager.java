@@ -487,7 +487,32 @@ public class WifiConnectivityManager {
 
     private class OnSavedNetworkUpdateListener implements
             WifiConfigManager.OnSavedNetworkUpdateListener {
-        public void onSavedNetworkUpdate() {
+        @Override
+        public void onSavedNetworkAdded(int networkId) {
+            updatePnoScan();
+        }
+        @Override
+        public void onSavedNetworkEnabled(int networkId) {
+            updatePnoScan();
+        }
+        @Override
+        public void onSavedNetworkRemoved(int networkId) {
+            updatePnoScan();
+        }
+        @Override
+        public void onSavedNetworkUpdated(int networkId) {
+            updatePnoScan();
+        }
+        @Override
+        public void onSavedNetworkTemporarilyDisabled(int networkId) {
+            mConnectivityHelper.removeNetworkIfCurrent(networkId);
+        }
+        @Override
+        public void onSavedNetworkPermanentlyDisabled(int networkId) {
+            mConnectivityHelper.removeNetworkIfCurrent(networkId);
+            updatePnoScan();
+        }
+        private void updatePnoScan() {
             // Update the PNO scan network list when screen is off. Here we
             // rely on startConnectivityScan() to perform all the checks and clean up.
             if (!mScreenOn) {

@@ -511,6 +511,21 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Remove the request |networkId| from supplicant if it's the current network,
+     * if the current configured network matches |networkId|.
+     *
+     * @param networkId network id of the network to be removed from supplicant.
+     */
+    public void removeNetworkIfCurrent(int networkId) {
+        synchronized (mLock) {
+            if (getCurrentNetworkId() == networkId) {
+                // Currently we only save 1 network in supplicant.
+                removeAllNetworks();
+            }
+        }
+    }
+
+    /**
      * Remove all networks from supplicant
      */
     public boolean removeAllNetworks() {
