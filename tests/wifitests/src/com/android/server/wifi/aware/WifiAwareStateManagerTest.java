@@ -193,8 +193,16 @@ public class WifiAwareStateManagerTest {
      */
     @Test
     public void testAwareDataPathInterfaceUpDown() throws Exception {
+        final int clientId = 12341;
+        final int uid = 1000;
+        final int pid = 2000;
+        final String callingPackage = "com.google.somePackage";
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+
+        IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
-        InOrder inOrder = inOrder(mMockContext, mMockNative, mMockAwareDataPathStatemanager);
+        InOrder inOrder = inOrder(mMockContext, mMockNative, mMockAwareDataPathStatemanager,
+                mockCallback);
 
         // (1) enable usage
         mDut.enableUsage();
@@ -203,17 +211,25 @@ public class WifiAwareStateManagerTest {
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockAwareDataPathStatemanager).createAllInterfaces();
         collector.checkThat("usage enabled", mDut.isUsageEnabled(), equalTo(true));
 
-        // (2) disable usage
-        mDut.disableUsage();
+        // (2) connect (enable Aware)
+        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockAwareDataPathStatemanager).onAwareDownCleanupDataPaths();
-        inOrder.verify(mMockNative).disable((short) 0);
-        validateCorrectAwareStatusChangeBroadcast(inOrder, false);
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
+                eq(false), eq(true), eq(true), eq(false));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
+        inOrder.verify(mMockAwareDataPathStatemanager).createAllInterfaces();
+
+        // (3) disconnect (disable Aware)
+        mDut.disconnect(clientId);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).disable(transactionId.capture());
+        mDut.onDisableResponse(transactionId.getValue(), NanStatusType.SUCCESS);
+        mMockLooper.dispatchAll();
         inOrder.verify(mMockAwareDataPathStatemanager).deleteAllInterfaces();
-        collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
 
         verifyNoMoreInteractions(mMockNative, mMockAwareDataPathStatemanager);
     }
@@ -247,7 +263,8 @@ public class WifiAwareStateManagerTest {
         mDut.disableUsage();
         mMockLooper.dispatchAll();
         collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
-        inOrder.verify(mMockNative).disable((short) 0);
+        inOrder.verify(mMockNative).disable(transactionId.capture());
+        mDut.onDisableResponse(transactionId.getValue(), NanStatusType.SUCCESS);
         validateCorrectAwareStatusChangeBroadcast(inOrder, false);
 
         // (3) try connecting and validate that get failure callback (though app should be aware of
@@ -299,9 +316,11 @@ public class WifiAwareStateManagerTest {
         mDut.disableUsage();
         mMockLooper.dispatchAll();
         collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
-        inOrder.verify(mMockNative).disable((short) 0);
+        inOrder.verify(mMockNative).disable(transactionId.capture());
         validateCorrectAwareStatusChangeBroadcast(inOrder, false);
         validateInternalClientInfoCleanedUp(clientId);
+        mDut.onDisableResponse(transactionId.getValue(), NanStatusType.SUCCESS);
+        mMockLooper.dispatchAll();
 
         // (4) try connecting again and validate that get a failure
         mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
@@ -786,7 +805,7 @@ public class WifiAwareStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionStarted(anyInt());
         inOrder.verify(mMockNative).stopPublish(transactionId.capture(), eq(publishId));
-        inOrder.verify(mMockNative).disable((short) 0);
+        inOrder.verify(mMockNative).disable(anyShort());
 
         validateInternalClientInfoCleanedUp(clientId);
 
@@ -1065,7 +1084,7 @@ public class WifiAwareStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionStarted(anyInt());
         inOrder.verify(mMockNative).stopSubscribe((short) 0, subscribeId);
-        inOrder.verify(mMockNative).disable((short) 0);
+        inOrder.verify(mMockNative).disable(anyShort());
 
         validateInternalClientInfoCleanedUp(clientId);
 
@@ -2340,7 +2359,7 @@ public class WifiAwareStateManagerTest {
         mDut.disconnect(clientId1);
         mMockLooper.dispatchAll();
         validateInternalClientInfoCleanedUp(clientId1);
-        inOrder.verify(mMockNative).disable((short) 0);
+        inOrder.verify(mMockNative).disable(anyShort());
 
         verifyNoMoreInteractions(mMockNative, mockCallback1, mockCallback2, mockCallback3);
     }
@@ -2404,7 +2423,7 @@ public class WifiAwareStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionStarted(anyInt());
         inOrder.verify(mMockNative).stopPublish((short) 0, publishId);
-        inOrder.verify(mMockNative).disable((short) 0);
+        inOrder.verify(mMockNative).disable(anyShort());
 
         validateInternalClientInfoCleanedUp(clientId);
 
@@ -2816,7 +2835,8 @@ public class WifiAwareStateManagerTest {
         // (3) power state change: DOZE
         simulatePowerStateChangeDoze(true);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).disable((short) 0);
+        inOrder.verify(mMockNative).disable(transactionId.capture());
+        mDut.onDisableResponse(transactionId.getValue(), NanStatusType.SUCCESS);
         validateCorrectAwareStatusChangeBroadcast(inOrder, false);
 
         // (4) power state change: SCREEN ON (but DOZE still on - fakish but expect no changes)

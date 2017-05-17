@@ -111,12 +111,11 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
             Log.v(TAG, "notifyDisableResponse: id=" + id + ", status=" + statusString(status));
         }
 
-        if (status.status == NanStatusType.SUCCESS) {
-            // NOP
-        } else {
+        if (status.status != NanStatusType.SUCCESS) {
             Log.e(TAG, "notifyDisableResponse: failure - code=" + status.status + " ("
                     + status.description + ")");
         }
+        mWifiAwareStateManager.onDisableResponse(id, status.status);
     }
 
     @Override
