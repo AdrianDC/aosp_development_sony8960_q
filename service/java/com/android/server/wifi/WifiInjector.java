@@ -123,6 +123,7 @@ public class WifiInjector {
     private final IBatteryStats mBatteryStats;
     private final WifiStateTracker mWifiStateTracker;
     private final Runtime mJavaRuntime;
+    private final SelfRecovery mSelfRecovery;
 
     private final boolean mUseRealLogger;
 
@@ -228,7 +229,8 @@ public class WifiInjector {
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
                 mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade);
-        mWifiLastResortWatchdog = new WifiLastResortWatchdog(mWifiController, mWifiMetrics);
+        mSelfRecovery = new SelfRecovery(mWifiController);
+        mWifiLastResortWatchdog = new WifiLastResortWatchdog(mSelfRecovery, mWifiMetrics);
         mWifiMulticastLockManager = new WifiMulticastLockManager(mWifiStateMachine,
                 BatteryStatsService.getService());
     }
@@ -477,5 +479,9 @@ public class WifiInjector {
 
     public WifiP2pMonitor getWifiP2pMonitor() {
         return mWifiP2pMonitor;
+    }
+
+    public SelfRecovery getSelfRecovery() {
+        return mSelfRecovery;
     }
 }
