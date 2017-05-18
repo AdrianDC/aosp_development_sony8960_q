@@ -573,37 +573,37 @@ public class WifiBackupRestore {
                 if (line.isEmpty()) return; // only whitespace; drop the line.
 
                 // Now parse the network block within wpa_supplicant.conf and store the important
-                // lines for procesing later.
-                if (line.startsWith(SUPPLICANT_KEY_SSID)) {
+                // lines for processing later.
+                if (line.startsWith(SUPPLICANT_KEY_SSID + "=")) {
                     mParsedSSIDLine = line;
-                } else if (line.startsWith(SUPPLICANT_KEY_HIDDEN)) {
+                } else if (line.startsWith(SUPPLICANT_KEY_HIDDEN + "=")) {
                     mParsedHiddenLine = line;
-                } else if (line.startsWith(SUPPLICANT_KEY_KEY_MGMT)) {
+                } else if (line.startsWith(SUPPLICANT_KEY_KEY_MGMT + "=")) {
                     mParsedKeyMgmtLine = line;
                     if (line.contains("EAP")) {
                         isEap = true;
                     }
-                } else if (line.startsWith(SUPPLICANT_KEY_CLIENT_CERT)) {
+                } else if (line.startsWith(SUPPLICANT_KEY_CLIENT_CERT + "=")) {
                     certUsed = true;
-                } else if (line.startsWith(SUPPLICANT_KEY_CA_CERT)) {
+                } else if (line.startsWith(SUPPLICANT_KEY_CA_CERT + "=")) {
                     certUsed = true;
-                } else if (line.startsWith(SUPPLICANT_KEY_CA_PATH)) {
+                } else if (line.startsWith(SUPPLICANT_KEY_CA_PATH + "=")) {
                     certUsed = true;
-                } else if (line.startsWith(SUPPLICANT_KEY_EAP)) {
+                } else if (line.startsWith(SUPPLICANT_KEY_EAP + "=")) {
                     isEap = true;
-                } else if (line.startsWith(SUPPLICANT_KEY_PSK)) {
+                } else if (line.startsWith(SUPPLICANT_KEY_PSK + "=")) {
                     mParsedPskLine = line;
-                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY0)) {
+                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY0 + "=")) {
                     mParsedWepKeyLines[0] = line;
-                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY1)) {
+                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY1 + "=")) {
                     mParsedWepKeyLines[1] = line;
-                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY2)) {
+                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY2 + "=")) {
                     mParsedWepKeyLines[2] = line;
-                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY3)) {
+                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY3 + "=")) {
                     mParsedWepKeyLines[3] = line;
-                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY_IDX)) {
+                } else if (line.startsWith(SUPPLICANT_KEY_WEP_KEY_IDX + "=")) {
                     mParsedWepTxKeyIdxLine = line;
-                } else if (line.startsWith(SUPPLICANT_KEY_ID_STR)) {
+                } else if (line.startsWith(SUPPLICANT_KEY_ID_STR + "=")) {
                     mParsedIdStrLine = line;
                 }
             }
