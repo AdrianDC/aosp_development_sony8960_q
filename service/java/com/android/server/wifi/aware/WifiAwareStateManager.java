@@ -684,7 +684,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
      * configuration (new or update) request succeeded.
      */
     public void onSessionConfigSuccessResponse(short transactionId, boolean isPublish,
-            int pubSubId) {
+            byte pubSubId) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_RESPONSE);
         msg.arg1 = RESPONSE_TYPE_ON_SESSION_CONFIG_SUCCESS;
         msg.arg2 = transactionId;
@@ -794,7 +794,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
 
     /**
      * Response from firmware to
-     * {@link #respondToDataPathRequest(boolean, int, String, byte[], String)}.
+     * {@link #respondToDataPathRequest(boolean, int, String, byte[], String, boolean)}
      */
     public void onRespondToDataPathSetupRequestResponse(short transactionId, boolean success,
             int reasonOnFailure) {
@@ -1582,7 +1582,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                     break;
                 }
                 case RESPONSE_TYPE_ON_SESSION_CONFIG_SUCCESS: {
-                    int pubSubId = (Integer) msg.obj;
+                    byte pubSubId = (Byte) msg.obj;
                     boolean isPublish = msg.getData().getBoolean(MESSAGE_BUNDLE_KEY_SESSION_TYPE);
 
                     onSessionConfigSuccessLocal(mCurrentCommand, pubSubId, isPublish);
@@ -2055,7 +2055,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             return false;
         }
 
-        boolean success = mWifiAwareNativeApi.publish(transactionId, 0, publishConfig);
+        boolean success = mWifiAwareNativeApi.publish(transactionId, (byte) 0, publishConfig);
         if (!success) {
             try {
                 callback.onSessionConfigFail(NanStatusType.INTERNAL_FAILURE);
@@ -2103,7 +2103,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             return false;
         }
 
-        boolean success = mWifiAwareNativeApi.subscribe(transactionId, 0, subscribeConfig);
+        boolean success = mWifiAwareNativeApi.subscribe(transactionId, (byte) 0, subscribeConfig);
         if (!success) {
             try {
                 callback.onSessionConfigFail(NanStatusType.INTERNAL_FAILURE);
@@ -2392,7 +2392,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         }
     }
 
-    private void onSessionConfigSuccessLocal(Message completedCommand, int pubSubId,
+    private void onSessionConfigSuccessLocal(Message completedCommand, byte pubSubId,
             boolean isPublish) {
         if (VDBG) {
             Log.v(TAG, "onSessionConfigSuccessLocal: completedCommand=" + completedCommand

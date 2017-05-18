@@ -365,9 +365,10 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      *            session.
      * @param publishConfig Configuration of the discovery session.
      */
-    public boolean publish(short transactionId, int publishId, PublishConfig publishConfig) {
+    public boolean publish(short transactionId, byte publishId, PublishConfig publishConfig) {
         if (VDBG) {
-            Log.d(TAG, "publish: transactionId=" + transactionId + ", config=" + publishConfig);
+            Log.d(TAG, "publish: transactionId=" + transactionId + ", publishId=" + publishId
+                    + ", config=" + publishConfig);
         }
 
         IWifiNanIface iface = mHal.getWifiNanIface();
@@ -377,7 +378,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
         }
 
         NanPublishRequest req = new NanPublishRequest();
-        req.baseConfigs.sessionId = 0;
+        req.baseConfigs.sessionId = publishId;
         req.baseConfigs.ttlSec = (short) publishConfig.mTtlSec;
         req.baseConfigs.discoveryWindowPeriod = 1;
         req.baseConfigs.discoveryCount = 0;
@@ -426,10 +427,11 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      *            subscribe session.
      * @param subscribeConfig Configuration of the discovery session.
      */
-    public boolean subscribe(short transactionId, int subscribeId,
+    public boolean subscribe(short transactionId, byte subscribeId,
             SubscribeConfig subscribeConfig) {
         if (VDBG) {
-            Log.d(TAG, "subscribe: transactionId=" + transactionId + ", config=" + subscribeConfig);
+            Log.d(TAG, "subscribe: transactionId=" + transactionId + ", subscribeId=" + subscribeId
+                    + ", config=" + subscribeConfig);
         }
 
         IWifiNanIface iface = mHal.getWifiNanIface();
@@ -439,7 +441,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
         }
 
         NanSubscribeRequest req = new NanSubscribeRequest();
-        req.baseConfigs.sessionId = 0;
+        req.baseConfigs.sessionId = subscribeId;
         req.baseConfigs.ttlSec = (short) subscribeConfig.mTtlSec;
         req.baseConfigs.discoveryWindowPeriod = 1;
         req.baseConfigs.discoveryCount = 0;
@@ -491,7 +493,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      * @param messageId Arbitary integer from host (not sent to HAL - useful for
      *                  testing/debugging at this level)
      */
-    public boolean sendMessage(short transactionId, int pubSubId, int requestorInstanceId,
+    public boolean sendMessage(short transactionId, byte pubSubId, int requestorInstanceId,
             byte[] dest, byte[] message, int messageId) {
         if (VDBG) {
             Log.d(TAG,
@@ -508,7 +510,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
         }
 
         NanTransmitFollowupRequest req = new NanTransmitFollowupRequest();
-        req.discoverySessionId = (byte) pubSubId;
+        req.discoverySessionId = pubSubId;
         req.peerId = requestorInstanceId;
         copyArray(dest, req.addr);
         req.isHighPriority = false;
@@ -538,7 +540,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      * @param pubSubId ID of the publish/subscribe session - obtained when
      *            creating a session.
      */
-    public boolean stopPublish(short transactionId, int pubSubId) {
+    public boolean stopPublish(short transactionId, byte pubSubId) {
         if (VDBG) {
             Log.d(TAG, "stopPublish: transactionId=" + transactionId + ", pubSubId=" + pubSubId);
         }
@@ -550,7 +552,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
         }
 
         try {
-            WifiStatus status = iface.stopPublishRequest(transactionId, (byte) pubSubId);
+            WifiStatus status = iface.stopPublishRequest(transactionId, pubSubId);
             if (status.code == WifiStatusCode.SUCCESS) {
                 return true;
             } else {
@@ -571,7 +573,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      * @param pubSubId ID of the publish/subscribe session - obtained when
      *            creating a session.
      */
-    public boolean stopSubscribe(short transactionId, int pubSubId) {
+    public boolean stopSubscribe(short transactionId, byte pubSubId) {
         if (VDBG) {
             Log.d(TAG, "stopSubscribe: transactionId=" + transactionId + ", pubSubId=" + pubSubId);
         }
@@ -583,7 +585,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
         }
 
         try {
-            WifiStatus status = iface.stopSubscribeRequest(transactionId, (byte) pubSubId);
+            WifiStatus status = iface.stopSubscribeRequest(transactionId, pubSubId);
             if (status.code == WifiStatusCode.SUCCESS) {
                 return true;
             } else {

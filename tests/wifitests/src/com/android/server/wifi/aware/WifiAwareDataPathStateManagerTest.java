@@ -22,6 +22,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyByte;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyShort;
 import static org.mockito.ArgumentMatchers.eq;
@@ -136,13 +137,13 @@ public class WifiAwareDataPathStateManagerTest {
         when(mMockNative.enableAndConfigure(anyShort(), any(), anyBoolean(),
                 anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(true);
         when(mMockNative.disable(anyShort())).thenReturn(true);
-        when(mMockNative.publish(anyShort(), anyInt(), any())).thenReturn(true);
-        when(mMockNative.subscribe(anyShort(), anyInt(), any()))
+        when(mMockNative.publish(anyShort(), anyByte(), any())).thenReturn(true);
+        when(mMockNative.subscribe(anyShort(), anyByte(), any()))
                 .thenReturn(true);
-        when(mMockNative.sendMessage(anyShort(), anyInt(), anyInt(), any(),
+        when(mMockNative.sendMessage(anyShort(), anyByte(), anyInt(), any(),
                 any(), anyInt())).thenReturn(true);
-        when(mMockNative.stopPublish(anyShort(), anyInt())).thenReturn(true);
-        when(mMockNative.stopSubscribe(anyShort(), anyInt())).thenReturn(true);
+        when(mMockNative.stopPublish(anyShort(), anyByte())).thenReturn(true);
+        when(mMockNative.stopSubscribe(anyShort(), anyByte())).thenReturn(true);
         when(mMockNative.createAwareNetworkInterface(anyShort(), any())).thenReturn(true);
         when(mMockNative.deleteAwareNetworkInterface(anyShort(), any())).thenReturn(true);
         when(mMockNative.initiateDataPath(anyShort(), anyInt(), anyInt(), anyInt(),
@@ -449,7 +450,7 @@ public class WifiAwareDataPathStateManagerTest {
 
     private void testDataPathInitiatorResponderMismatchUtility(boolean doPublish) throws Exception {
         final int clientId = 123;
-        final int pubSubId = 11234;
+        final byte pubSubId = 55;
         final int ndpId = 2;
         final byte[] pmk = "some bytes".getBytes();
         final PeerHandle peerHandle = new PeerHandle(1341234);
@@ -504,7 +505,7 @@ public class WifiAwareDataPathStateManagerTest {
     private void testDataPathInitiatorResponderInvalidUidUtility(boolean doPublish,
             boolean isUidSet) throws Exception {
         final int clientId = 123;
-        final int pubSubId = 11234;
+        final byte pubSubId = 56;
         final int ndpId = 2;
         final byte[] pmk = "some bytes".getBytes();
         final PeerHandle peerHandle = new PeerHandle(1341234);
@@ -561,7 +562,7 @@ public class WifiAwareDataPathStateManagerTest {
             boolean providePmk, boolean getConfirmation, boolean immediateHalFailure)
             throws Exception {
         final int clientId = 123;
-        final int pubSubId = 11234;
+        final byte pubSubId = 58;
         final PeerHandle peerHandle = new PeerHandle(1341234);
         final int ndpId = 2;
         final byte[] pmk = "some bytes".getBytes();
@@ -652,7 +653,7 @@ public class WifiAwareDataPathStateManagerTest {
     private void testDataPathResponderUtility(boolean useDirect, boolean provideMac,
             boolean providePmk, boolean getConfirmation) throws Exception {
         final int clientId = 123;
-        final int pubSubId = 11234;
+        final byte pubSubId = 60;
         final PeerHandle peerHandle = new PeerHandle(1341234);
         final int ndpId = 2;
         final byte[] pmk = "some bytes".getBytes();
@@ -851,7 +852,7 @@ public class WifiAwareDataPathStateManagerTest {
         return new NetworkRequest(nc, 0, 0, NetworkRequest.Type.REQUEST);
     }
 
-    private Pair<Integer, Messenger> initDataPathEndPoint(int clientId, int pubSubId,
+    private Pair<Integer, Messenger> initDataPathEndPoint(int clientId, byte pubSubId,
             PeerHandle peerHandle, byte[] peerDiscoveryMac, InOrder inOrder,
             boolean doPublish)
             throws Exception {
@@ -910,9 +911,10 @@ public class WifiAwareDataPathStateManagerTest {
         }
         mMockLooper.dispatchAll();
         if (doPublish) {
-            inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+            inOrder.verify(mMockNative).publish(transactionId.capture(), eq((byte) 0),
+                    eq(publishConfig));
         } else {
-            inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0),
+            inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
                     eq(subscribeConfig));
         }
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), doPublish, pubSubId);
