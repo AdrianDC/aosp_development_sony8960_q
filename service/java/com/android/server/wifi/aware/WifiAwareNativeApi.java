@@ -383,8 +383,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
         req.baseConfigs.discoveryWindowPeriod = 1;
         req.baseConfigs.discoveryCount = 0;
         convertNativeByteArrayToArrayList(publishConfig.mServiceName, req.baseConfigs.serviceName);
-        // TODO: what's the right value on publish?
-        req.baseConfigs.discoveryMatchIndicator = NanMatchAlg.MATCH_ONCE;
+        req.baseConfigs.discoveryMatchIndicator = NanMatchAlg.MATCH_NEVER;
         convertNativeByteArrayToArrayList(publishConfig.mServiceSpecificInfo,
                 req.baseConfigs.serviceSpecificInfo);
         convertNativeByteArrayToArrayList(publishConfig.mMatchFilter,
