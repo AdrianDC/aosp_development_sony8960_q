@@ -632,6 +632,37 @@ public class WifiBackupRestoreTest {
     }
 
     /**
+     * Verifying that backup data containing some unknown keys is properly restored.
+     * The backup data used here is a PII masked version of a backup data seen in a reported bug.
+     */
+    @Test
+    public void testSingleNetworkSupplicantBackupRestoreWithUnknownEAPKey() {
+        String backupSupplicantConfNetworkBlock = "network={\n"
+                + "ssid=" + WifiConfigurationTestUtil.TEST_SSID + "\n"
+                + "psk=" + WifiConfigurationTestUtil.TEST_PSK + "\n"
+                + "key_mgmt=WPA-PSK WPA-PSK-SHA256\n"
+                + "priority=18\n"
+                + "id_str=\"%7B%22creatorUid%22%3A%221000%22%2C%22configKey"
+                + "%22%3A%22%5C%22BLAH%5C%22WPA_PSK%22%7D\"\n"
+                + "eapRetryCount=6\n";
+        byte[] supplicantData = backupSupplicantConfNetworkBlock.getBytes();
+        List<WifiConfiguration> retrievedConfigurations =
+                mWifiBackupRestore.retrieveConfigurationsFromSupplicantBackupData(
+                        supplicantData, null);
+
+        final WifiConfiguration expectedConfiguration = new WifiConfiguration();
+        expectedConfiguration.SSID = WifiConfigurationTestUtil.TEST_SSID;
+        expectedConfiguration.preSharedKey = WifiConfigurationTestUtil.TEST_PSK;
+        expectedConfiguration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
+
+        ArrayList<WifiConfiguration> expectedConfigurations = new ArrayList<WifiConfiguration>() {{
+                add(expectedConfiguration);
+            }};
+        WifiConfigurationTestUtil.assertConfigurationsEqualForBackup(
+                expectedConfigurations, retrievedConfigurations);
+    }
+
+    /**
      * Verify that any corrupted data provided by Backup/Restore is ignored correctly.
      */
     @Test
