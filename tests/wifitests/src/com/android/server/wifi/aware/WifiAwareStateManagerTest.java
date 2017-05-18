@@ -23,6 +23,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyByte;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyShort;
 import static org.mockito.ArgumentMatchers.eq;
@@ -152,13 +153,13 @@ public class WifiAwareStateManagerTest {
         when(mMockNative.enableAndConfigure(anyShort(), any(), anyBoolean(),
                 anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(true);
         when(mMockNative.disable(anyShort())).thenReturn(true);
-        when(mMockNative.publish(anyShort(), anyInt(), any())).thenReturn(true);
-        when(mMockNative.subscribe(anyShort(), anyInt(), any()))
+        when(mMockNative.publish(anyShort(), anyByte(), any())).thenReturn(true);
+        when(mMockNative.subscribe(anyShort(), anyByte(), any()))
                 .thenReturn(true);
-        when(mMockNative.sendMessage(anyShort(), anyInt(), anyInt(), any(),
+        when(mMockNative.sendMessage(anyShort(), anyByte(), anyInt(), any(),
                 any(), anyInt())).thenReturn(true);
-        when(mMockNative.stopPublish(anyShort(), anyInt())).thenReturn(true);
-        when(mMockNative.stopSubscribe(anyShort(), anyInt())).thenReturn(true);
+        when(mMockNative.stopPublish(anyShort(), anyByte())).thenReturn(true);
+        when(mMockNative.stopSubscribe(anyShort(), anyByte())).thenReturn(true);
         when(mMockNative.getCapabilities(anyShort())).thenReturn(true);
     }
 
@@ -517,7 +518,7 @@ public class WifiAwareStateManagerTest {
         // (2) publish + timeout
         mDut.publish(clientId, publishConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).publish(anyShort(), eq(0), eq(publishConfig));
+        inOrder.verify(mMockNative).publish(anyShort(), eq((byte) 0), eq(publishConfig));
         assertTrue(mAlarmManager.dispatch(WifiAwareStateManager.HAL_COMMAND_TIMEOUT_TAG));
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionConfigFail(NanStatusType.INTERNAL_FAILURE);
@@ -526,8 +527,9 @@ public class WifiAwareStateManagerTest {
         // (3) publish + success
         mDut.publish(clientId, publishConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
-        mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, 9999);
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq((byte) 0),
+                eq(publishConfig));
+        mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, (byte) 99);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionStarted(anyInt());
 
@@ -573,7 +575,8 @@ public class WifiAwareStateManagerTest {
         // (1) initial publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq((byte) 0),
+                eq(publishConfig));
 
         // (2) publish failure callback (i.e. firmware tried and failed)
         mDut.onSessionConfigFailResponse(transactionId.getValue(), true, reasonFail);
@@ -582,11 +585,12 @@ public class WifiAwareStateManagerTest {
         validateInternalNoSessions(clientId);
 
         // (3) publish and get immediate failure (i.e. HAL failed)
-        when(mMockNative.publish(anyShort(), anyInt(), any())).thenReturn(false);
+        when(mMockNative.publish(anyShort(), anyByte(), any())).thenReturn(false);
 
         mDut.publish(clientId, publishConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq((byte) 0),
+                eq(publishConfig));
 
         inOrder.verify(mockSessionCallback).onSessionConfigFail(reasonFail);
         validateInternalNoSessions(clientId);
@@ -607,7 +611,7 @@ public class WifiAwareStateManagerTest {
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
         final int reasonTerminate = NanStatusType.SUCCESS;
-        final int publishId = 15;
+        final byte publishId = 15;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         PublishConfig publishConfig = new PublishConfig.Builder().build();
@@ -637,7 +641,8 @@ public class WifiAwareStateManagerTest {
         // (1) initial publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq((byte) 0),
+                eq(publishConfig));
 
         // (2) publish success
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, publishId);
@@ -680,7 +685,7 @@ public class WifiAwareStateManagerTest {
         final int uid = 1000;
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
-        final int publishId = 15;
+        final byte publishId = 15;
         final int reasonFail = NanStatusType.INTERNAL_FAILURE;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -711,7 +716,8 @@ public class WifiAwareStateManagerTest {
         // (1) initial publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq((byte) 0),
+                eq(publishConfig));
 
         // (2) publish success
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, publishId);
@@ -741,7 +747,7 @@ public class WifiAwareStateManagerTest {
         inOrder.verify(mockSessionCallback).onSessionConfigSuccess();
 
         // (7) another update + immediate failure
-        when(mMockNative.publish(anyShort(), anyInt(), any())).thenReturn(false);
+        when(mMockNative.publish(anyShort(), anyByte(), any())).thenReturn(false);
 
         mDut.updatePublish(clientId, sessionId.getValue(), publishConfig);
         mMockLooper.dispatchAll();
@@ -764,7 +770,7 @@ public class WifiAwareStateManagerTest {
         final int uid = 1000;
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
-        final int publishId = 15;
+        final byte publishId = 15;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         PublishConfig publishConfig = new PublishConfig.Builder().build();
@@ -793,7 +799,8 @@ public class WifiAwareStateManagerTest {
         // (1) initial publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq((byte) 0),
+                eq(publishConfig));
 
         // (2) disconnect (but doesn't get executed until get response for
         // publish command)
@@ -851,7 +858,8 @@ public class WifiAwareStateManagerTest {
         // (1) initial subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
 
         // (2) subscribe failure
         mDut.onSessionConfigFailResponse(transactionId.getValue(), false, reasonFail);
@@ -860,12 +868,13 @@ public class WifiAwareStateManagerTest {
         validateInternalNoSessions(clientId);
 
         // (3) subscribe and get immediate failure (i.e. HAL failed)
-        when(mMockNative.subscribe(anyShort(), anyInt(), any()))
+        when(mMockNative.subscribe(anyShort(), anyByte(), any()))
                 .thenReturn(false);
 
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
 
         inOrder.verify(mockSessionCallback).onSessionConfigFail(reasonFail);
         validateInternalNoSessions(clientId);
@@ -886,7 +895,7 @@ public class WifiAwareStateManagerTest {
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
         final int reasonTerminate = NanStatusType.SUCCESS;
-        final int subscribeId = 15;
+        final byte subscribeId = 15;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
@@ -916,7 +925,8 @@ public class WifiAwareStateManagerTest {
         // (1) initial subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
 
         // (2) subscribe success
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
@@ -958,7 +968,7 @@ public class WifiAwareStateManagerTest {
         final int uid = 1000;
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
-        final int subscribeId = 15;
+        final byte subscribeId = 15;
         final int reasonFail = NanStatusType.INTERNAL_FAILURE;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -989,7 +999,8 @@ public class WifiAwareStateManagerTest {
         // (1) initial subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
 
         // (2) subscribe success
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
@@ -1019,7 +1030,7 @@ public class WifiAwareStateManagerTest {
         inOrder.verify(mockSessionCallback).onSessionConfigSuccess();
 
         // (7) another update + immediate failure
-        when(mMockNative.subscribe(anyShort(), anyInt(), any()))
+        when(mMockNative.subscribe(anyShort(), anyByte(), any()))
                 .thenReturn(false);
 
         mDut.updateSubscribe(clientId, sessionId.getValue(), subscribeConfig);
@@ -1043,7 +1054,7 @@ public class WifiAwareStateManagerTest {
         final int uid = 1000;
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
-        final int subscribeId = 15;
+        final byte subscribeId = 15;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
@@ -1072,7 +1083,8 @@ public class WifiAwareStateManagerTest {
         // (1) initial subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
 
         // (2) disconnect (but doesn't get executed until get response for
         // subscribe command)
@@ -1104,7 +1116,7 @@ public class WifiAwareStateManagerTest {
         final String serviceName = "some-service-name";
         final String ssi = "some much longer and more arbitrary data";
         final int reasonFail = NanStatusType.INTERNAL_FAILURE;
-        final int subscribeId = 15;
+        final byte subscribeId = 15;
         final int requestorId = 22;
         final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
         final String peerSsi = "some peer ssi data";
@@ -1144,7 +1156,8 @@ public class WifiAwareStateManagerTest {
         // (1) subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
@@ -1206,7 +1219,7 @@ public class WifiAwareStateManagerTest {
         final int clusterHigh = 7;
         final int masterPref = 0;
         final String serviceName = "some-service-name";
-        final int publishId = 88;
+        final byte publishId = 88;
         final int peerId1 = 568;
         final int peerId2 = 873;
         final byte[] peerMac1 = HexEncoding.decode("000102030405".toCharArray(), false);
@@ -1250,7 +1263,8 @@ public class WifiAwareStateManagerTest {
         // (2) publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq((byte) 0),
+                eq(publishConfig));
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, publishId);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
@@ -1303,7 +1317,7 @@ public class WifiAwareStateManagerTest {
         final int clusterHigh = 7;
         final int masterPref = 0;
         final String serviceName = "some-service-name";
-        final int publishId = 88;
+        final byte publishId = 88;
         final int peerId = 568;
         final byte[] peerMacOrig = HexEncoding.decode("000102030405".toCharArray(), false);
         final byte[] peerMacLater = HexEncoding.decode("060708090A0B".toCharArray(), false);
@@ -1344,7 +1358,8 @@ public class WifiAwareStateManagerTest {
         // (2) publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq((byte) 0),
+                eq(publishConfig));
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, publishId);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
@@ -1392,7 +1407,7 @@ public class WifiAwareStateManagerTest {
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
         final String ssi = "some much longer and more arbitrary data";
-        final int subscribeId = 15;
+        final byte subscribeId = 15;
         final int requestorId = 22;
         final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
         final String peerSsi = "some peer ssi data";
@@ -1427,7 +1442,8 @@ public class WifiAwareStateManagerTest {
         // (2) subscribe & match
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
         mDut.onMatchNotification(subscribeId, requestorId, peerMac, peerSsi.getBytes(),
                 peerMatchFilter.getBytes());
@@ -1459,7 +1475,7 @@ public class WifiAwareStateManagerTest {
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
         final String ssi = "some much longer and more arbitrary data";
-        final int subscribeId = 15;
+        final byte subscribeId = 15;
         final int requestorId = 22;
         final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
         final String peerSsi = "some peer ssi data";
@@ -1494,7 +1510,8 @@ public class WifiAwareStateManagerTest {
         // (2) subscribe & match
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
         mDut.onMatchNotification(subscribeId, requestorId, peerMac, peerSsi.getBytes(),
                 peerMatchFilter.getBytes());
@@ -1536,7 +1553,7 @@ public class WifiAwareStateManagerTest {
         validateInternalSendMessageQueuesCleanedUp(messageId + 2);
 
         // (5) send a message and get an immediate failure (configure first)
-        when(mMockNative.sendMessage(anyShort(), anyInt(), anyInt(), any(),
+        when(mMockNative.sendMessage(anyShort(), anyByte(), anyInt(), any(),
                 any(), anyInt())).thenReturn(false);
 
         mDut.sendMessage(clientId, sessionId.getValue(), requestorId, ssi.getBytes(), messageId + 3,
@@ -1582,7 +1599,7 @@ public class WifiAwareStateManagerTest {
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
         final String ssi = "some much longer and more arbitrary data";
-        final int subscribeId = 15;
+        final byte subscribeId = 15;
         final int requestorId = 22;
         final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
         final String peerSsi = "some peer ssi data";
@@ -1618,7 +1635,8 @@ public class WifiAwareStateManagerTest {
         // (2) subscribe & match
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
         mDut.onMatchNotification(subscribeId, requestorId, peerMac, peerSsi.getBytes(),
                 peerMatchFilter.getBytes());
@@ -1667,7 +1685,7 @@ public class WifiAwareStateManagerTest {
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
         final String ssi = "some much longer and more arbitrary data";
-        final int subscribeId = 15;
+        final byte subscribeId = 15;
         final int requestorId = 22;
         final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
         final String peerSsi = "some peer ssi data";
@@ -1703,7 +1721,8 @@ public class WifiAwareStateManagerTest {
         // (2) subscribe & match
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
         mDut.onMatchNotification(subscribeId, requestorId, peerMac, peerSsi.getBytes(),
                 peerMatchFilter.getBytes());
@@ -1752,7 +1771,7 @@ public class WifiAwareStateManagerTest {
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
         final String serviceName = "some-service-name";
-        final int subscribeId = 15;
+        final byte subscribeId = 15;
         final int requestorId = 22;
         final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
         final int messageIdBase = 6948;
@@ -1789,7 +1808,8 @@ public class WifiAwareStateManagerTest {
         // (1) subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
@@ -1802,7 +1822,7 @@ public class WifiAwareStateManagerTest {
         // (3) transmit messages
         SendMessageQueueModelAnswer answerObj = new SendMessageQueueModelAnswer(queueDepth,
                 null, null, null);
-        when(mMockNative.sendMessage(anyShort(), anyInt(), anyInt(), any(),
+        when(mMockNative.sendMessage(anyShort(), anyByte(), anyInt(), any(),
                 any(), anyInt())).thenAnswer(answerObj);
 
         int remainingMessages = numberOfMessages;
@@ -1847,7 +1867,7 @@ public class WifiAwareStateManagerTest {
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
         final String serviceName = "some-service-name";
-        final int subscribeId = 15;
+        final byte subscribeId = 15;
         final int requestorId = 22;
         final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
         final int messageIdBase = 6948;
@@ -1885,7 +1905,8 @@ public class WifiAwareStateManagerTest {
         // (1) subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
@@ -1942,7 +1963,7 @@ public class WifiAwareStateManagerTest {
 
         SendMessageQueueModelAnswer answerObj = new SendMessageQueueModelAnswer(queueDepth,
                 failQueueCommandImmediately, failQueueCommandLater, numberOfRetries);
-        when(mMockNative.sendMessage(anyShort(), anyInt(), anyInt(), any(),
+        when(mMockNative.sendMessage(anyShort(), anyByte(), anyInt(), any(),
                 any(), anyInt())).thenAnswer(answerObj);
 
         for (int i = 0; i < numberOfMessages; ++i) {
@@ -1976,7 +1997,7 @@ public class WifiAwareStateManagerTest {
         final String callingPackage = "com.google.somePackage";
         final String serviceName = "some-service-name";
         final String ssi = "some much longer and more arbitrary data";
-        final int subscribeId = 15;
+        final byte subscribeId = 15;
         final int requestorId = 22;
         final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
         final String peerSsi = "some peer ssi data";
@@ -2015,7 +2036,8 @@ public class WifiAwareStateManagerTest {
         // (1) subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
@@ -2107,7 +2129,7 @@ public class WifiAwareStateManagerTest {
             }
         }
 
-        public boolean answer(short transactionId, int pubSubId, int requestorInstanceId,
+        public boolean answer(short transactionId, byte pubSubId, int requestorInstanceId,
                 byte[] dest, byte[] message, int messageId) throws Exception {
             if (mFailQueueCommandImmediately != null && mFailQueueCommandImmediately.contains(
                     messageId)) {
@@ -2181,7 +2203,7 @@ public class WifiAwareStateManagerTest {
         final int uid = 1000;
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
-        final int subscribeId = 15;
+        final byte subscribeId = 15;
         final int requestorId = 22;
         final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
         final String peerSsi = "some peer ssi data";
@@ -2228,7 +2250,8 @@ public class WifiAwareStateManagerTest {
         // (2) subscribe & match
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
         mDut.onMatchNotification(subscribeId, requestorId, peerMac, peerSsi.getBytes(),
                 peerMatchFilter.getBytes());
@@ -2378,7 +2401,7 @@ public class WifiAwareStateManagerTest {
         final int masterPref = 111;
         final String serviceName = "some-service-name";
         final String ssi = "some much longer and more arbitrary data";
-        final int publishId = 22;
+        final byte publishId = 22;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().setClusterLow(clusterLow)
                 .setClusterHigh(clusterHigh).setMasterPreference(masterPref).build();
@@ -2411,7 +2434,8 @@ public class WifiAwareStateManagerTest {
         // (2) publish (no response yet)
         mDut.publish(clientId, publishConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq((byte) 0),
+                eq(publishConfig));
 
         // (3) disconnect (but doesn't get executed until get a RESPONSE to the
         // previous publish)
@@ -2485,7 +2509,8 @@ public class WifiAwareStateManagerTest {
         // (2) publish - no response
         mDut.publish(clientId, publishConfig, mockPublishSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq((byte) 0),
+                eq(publishConfig));
 
         verifyNoMoreInteractions(mMockNative, mockCallback, mockPublishSessionCallback);
     }
@@ -2532,7 +2557,7 @@ public class WifiAwareStateManagerTest {
      */
     @Test
     public void testInvalidCallbackIdParameters() throws Exception {
-        final int pubSubId = 1235;
+        final byte pubSubId = 125;
         final int clientId = 132;
         final int uid = 1000;
         final int pid = 2000;
@@ -2587,7 +2612,7 @@ public class WifiAwareStateManagerTest {
         final int uid = 1000;
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
-        final int publishId = 25;
+        final byte publishId = 25;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         PublishConfig publishConfig = new PublishConfig.Builder().build();
@@ -2618,7 +2643,8 @@ public class WifiAwareStateManagerTest {
         // (2) publish
         mDut.publish(clientId, publishConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq((byte) 0),
+                eq(publishConfig));
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, publishId);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
@@ -2641,7 +2667,7 @@ public class WifiAwareStateManagerTest {
         final int uid = 1000;
         final int pid = 2000;
         final String callingPackage = "com.google.somePackage";
-        final int subscribeId = 25;
+        final byte subscribeId = 25;
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
         PublishConfig publishConfig = new PublishConfig.Builder().build();
@@ -2672,7 +2698,8 @@ public class WifiAwareStateManagerTest {
         // (2) subscribe
         mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq(0), eq(subscribeConfig));
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
         mMockLooper.dispatchAll();
         inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
@@ -2726,10 +2753,11 @@ public class WifiAwareStateManagerTest {
             // (2) publish
             mDut.publish(clientId, publishConfig, mockSessionCallback);
             mMockLooper.dispatchAll();
-            inOrder.verify(mMockNative).publish(transactionId.capture(), eq(0), eq(publishConfig));
+            inOrder.verify(mMockNative).publish(transactionId.capture(), eq((byte) 0),
+                    eq(publishConfig));
 
             // (3) publish-success
-            mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, i + 1);
+            mDut.onSessionConfigSuccessResponse(transactionId.getValue(), true, (byte) (i + 1));
             mMockLooper.dispatchAll();
             inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
 

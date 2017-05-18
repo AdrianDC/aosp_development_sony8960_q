@@ -42,14 +42,14 @@ public class WifiAwareDiscoverySessionState {
 
     private final WifiAwareNativeApi mWifiAwareNativeApi;
     private int mSessionId;
-    private int mPubSubId;
+    private byte mPubSubId;
     private IWifiAwareDiscoverySessionCallback mCallback;
     private boolean mIsPublishSession;
 
     private final SparseArray<String> mMacByRequestorInstanceId = new SparseArray<>();
 
     public WifiAwareDiscoverySessionState(WifiAwareNativeApi wifiAwareNativeApi, int sessionId,
-            int pubSubId, IWifiAwareDiscoverySessionCallback callback, boolean isPublishSession) {
+            byte pubSubId, IWifiAwareDiscoverySessionCallback callback, boolean isPublishSession) {
         mWifiAwareNativeApi = wifiAwareNativeApi;
         mSessionId = sessionId;
         mPubSubId = pubSubId;
