@@ -67,6 +67,8 @@ public class HalDeviceManager {
     // attempt.
     @VisibleForTesting
     public static final int START_HAL_RETRY_TIMES = 3;
+    @VisibleForTesting
+    public static final String HAL_INSTANCE_NAME = "default";
 
     // public API
     public HalDeviceManager() {
@@ -105,6 +107,13 @@ public class HalDeviceManager {
                 Log.w(TAG, "registerStatusListener: duplicate registration ignored");
             }
         }
+    }
+
+    /**
+     * Returns whether the vendor HAL is supported on this device or not.
+     */
+    public boolean isSupported() {
+        return isSupportedInternal();
     }
 
     /**
@@ -578,6 +587,29 @@ public class HalDeviceManager {
                     Log.wtf(TAG, "Exception while operating on IServiceManager: " + e);
                     mServiceManager = null;
                 }
+            }
+        }
+    }
+
+    /**
+     * Uses the IServiceManager to query if the vendor HAL is present in the VINTF for the device
+     * or not.
+     * @return true if supported, false otherwise.
+     */
+    private boolean isSupportedInternal() {
+        if (DBG) Log.d(TAG, "isSupportedInternal");
+
+        synchronized (mLock) {
+            if (mServiceManager == null) {
+                Log.wtf(TAG, "isSupported: called but mServiceManager is null!?");
+                return false;
+            }
+            try {
+                return (mServiceManager.getTransport(IWifi.kInterfaceName, HAL_INSTANCE_NAME)
+                        != IServiceManager.Transport.EMPTY);
+            } catch (RemoteException e) {
+                Log.wtf(TAG, "Exception while operating on IServiceManager: " + e);
+                return false;
             }
         }
     }

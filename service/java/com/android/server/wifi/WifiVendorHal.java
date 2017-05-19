@@ -247,6 +247,15 @@ public class WifiVendorHal {
     }
 
     /**
+     * Returns whether the vendor HAL is supported on this device or not.
+     */
+    public boolean isVendorHalSupported() {
+        synchronized (sLock) {
+            return mHalDeviceManager.isSupported();
+        }
+    }
+
+    /**
      * Bring up the HIDL Vendor HAL and configure for AP (Access Point) mode
      *
      * @return true for success
