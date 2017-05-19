@@ -3978,6 +3978,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mWifiDiagnostics.reportConnectionEvent(
                             (Long) message.obj, BaseWifiDiagnostics.CONNECTION_EVENT_FAILED);
                     break;
+                case 0:
+                    // We want to notice any empty messages (with what == 0) that might crop up.
+                    // For example, we may have recycled a message sent to multiple handlers.
+                    Log.wtf(TAG, "Error! empty message encountered");
+                    break;
                 default:
                     loge("Error! unhandled message" + message);
                     break;
