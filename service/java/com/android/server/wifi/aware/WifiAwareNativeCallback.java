@@ -301,8 +301,11 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
             Log.v(TAG, "eventMatch: discoverySessionId=" + event.discoverySessionId + ", peerId="
                     + event.peerId + ", addr=" + String.valueOf(HexEncoding.encode(event.addr))
                     + ", serviceSpecificInfo=" + Arrays.toString(
-                    convertArrayListToNativeByteArray(event.serviceSpecificInfo)) + ", matchFilter="
-                    + Arrays.toString(convertArrayListToNativeByteArray(event.matchFilter)));
+                    convertArrayListToNativeByteArray(event.serviceSpecificInfo)) + ", ssi.size()="
+                    + (event.serviceSpecificInfo == null ? 0 : event.serviceSpecificInfo.size())
+                    + ", matchFilter=" + Arrays.toString(
+                    convertArrayListToNativeByteArray(event.matchFilter)) + ", mf.size()=" + (
+                    event.matchFilter == null ? 0 : event.matchFilter.size()));
         }
 
         mWifiAwareStateManager.onMatchNotification(event.discoverySessionId, event.peerId,
@@ -325,7 +328,9 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub {
         if (VDBG) {
             Log.v(TAG, "eventFollowupReceived: discoverySessionId=" + event.discoverySessionId
                     + ", peerId=" + event.peerId + ", addr=" + String.valueOf(
-                    HexEncoding.encode(event.addr)));
+                    HexEncoding.encode(event.addr)) + ", serviceSpecificInfo=" + Arrays.toString(
+                    convertArrayListToNativeByteArray(event.serviceSpecificInfo)) + ", ssi.size()="
+                    + (event.serviceSpecificInfo == null ? 0 : event.serviceSpecificInfo.size()));
         }
 
         mWifiAwareStateManager.onMessageReceivedNotification(event.discoverySessionId, event.peerId,

@@ -498,8 +498,10 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
             Log.d(TAG,
                     "sendMessage: transactionId=" + transactionId + ", pubSubId=" + pubSubId
                             + ", requestorInstanceId=" + requestorInstanceId + ", dest="
-                            + String.valueOf(HexEncoding.encode(dest)) + ", messageId="
-                            + messageId);
+                            + String.valueOf(HexEncoding.encode(dest)) + ", messageId=" + messageId
+                            + ", message=" + (message == null ? "<null>"
+                            : HexEncoding.encode(message)) + ", message.length=" + (message == null
+                            ? 0 : message.length));
         }
 
         IWifiNanIface iface = mHal.getWifiNanIface();
