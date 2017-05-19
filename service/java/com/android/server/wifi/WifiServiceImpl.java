@@ -199,12 +199,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     private WifiPermissionsUtil mWifiPermissionsUtil;
 
-    private final ConcurrentHashMap<String, Integer> mIfaceIpModes;
-
     @GuardedBy("mLocalOnlyHotspotRequests")
     private final HashMap<Integer, LocalOnlyHotspotRequestInfo> mLocalOnlyHotspotRequests;
     @GuardedBy("mLocalOnlyHotspotRequests")
     private WifiConfiguration mLocalOnlyHotspotConfig = null;
+    @GuardedBy("mLocalOnlyHotspotRequests")
+    private final ConcurrentHashMap<String, Integer> mIfaceIpModes;
 
     /**
      * Callback for use with LocalOnlyHotspot to unregister requesting applications upon death.
@@ -852,12 +852,65 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         // NETWORK_STACK is a signature only permission.
         enforceNetworkStackPermission();
 
-        Integer previousMode = mIfaceIpModes.put(ifaceName, mode);
-        Slog.d(TAG, "updateInterfaceIpState: ifaceName=" + ifaceName + " mode=" + mode
-                + " previous mode= " + previousMode);
+        // hand off the work to our handler thread
+        mClientHandler.post(() -> {
+            updateInterfaceIpStateInternal(ifaceName, mode);
+        });
+    }
 
-        // TODO: check the mode when startLOHS comes in in case it is already active
-        // TODO: if mode == LOCAL_ONLY, trigger onStarted callbacks
+    private void updateInterfaceIpStateInternal(String ifaceName, int mode) {
+        // update interface IP state related to tethering and hotspot
+        synchronized (mLocalOnlyHotspotRequests) {
+            // update the mode tracker here - we clear out state below
+            Integer previousMode = WifiManager.IFACE_IP_MODE_UNSPECIFIED;
+            if (ifaceName != null) {
+                previousMode = mIfaceIpModes.put(ifaceName, mode);
+            }
+            Slog.d(TAG, "updateInterfaceIpState: ifaceName=" + ifaceName + " mode=" + mode
+                    + " previous mode= " + previousMode);
+
+            switch (mode) {
+                case WifiManager.IFACE_IP_MODE_LOCAL_ONLY:
+                    // first make sure we have registered requests..  otherwise clean up
+                    if (mLocalOnlyHotspotRequests.isEmpty()) {
+                        // we don't have requests...  stop the hotspot
+                        stopSoftAp();
+                        updateInterfaceIpStateInternal(null, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
+                        return;
+                    }
+                    // LOHS is ready to go!  Call our registered requestors!
+                    sendHotspotStartedMessageToAllLOHSRequestInfoEntriesLocked();
+                    break;
+                case WifiManager.IFACE_IP_MODE_TETHERED:
+                    // we have tethered an interface. we don't really act on this now other than if
+                    // we have LOHS requests, and this is an issue.  return incompatible mode for
+                    // onFailed for the registered requestors since this can result from a race
+                    // between a tether request and a hotspot request (tethering wins).
+                    sendHotspotFailedMessageToAllLOHSRequestInfoEntriesLocked(
+                            LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE);
+                    mLocalOnlyHotspotRequests.clear();
+                    break;
+                case WifiManager.IFACE_IP_MODE_CONFIGURATION_ERROR:
+                    // there was an error setting up the hotspot...  trigger onFailed for the
+                    // registered LOHS requestors
+                    sendHotspotFailedMessageToAllLOHSRequestInfoEntriesLocked(
+                            LocalOnlyHotspotCallback.ERROR_GENERIC);
+                    mLocalOnlyHotspotRequests.clear();
+                    updateInterfaceIpStateInternal(null, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
+                    break;
+                case WifiManager.IFACE_IP_MODE_UNSPECIFIED:
+                    if (ifaceName == null) {
+                        // interface name is null, this is due to softap teardown.  clear all
+                        // entries for now.
+                        // TODO: Deal with individual interfaces when we receive updates for them
+                        mIfaceIpModes.clear();
+                        return;
+                    }
+                    break;
+                default:
+                    mLog.trace("updateInterfaceIpStateInternal: unknown mode %").c(mode).flush();
+            }
+        }
     }
 
     /**
@@ -949,6 +1002,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 // holding the required lock: send message to requestors and clear the list
                 sendHotspotFailedMessageToAllLOHSRequestInfoEntriesLocked(
                         errorToReport);
+                // also need to clear interface ip state - send null for now since we don't know
+                // what interface (and we have one anyway)
+                updateInterfaceIpStateInternal(null, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
             }
             return;
         }
@@ -956,8 +1012,18 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         if (currentState == WIFI_AP_STATE_DISABLING || currentState == WIFI_AP_STATE_DISABLED) {
             // softap is shutting down or is down...  let requestors know via the onStopped call
             synchronized (mLocalOnlyHotspotRequests) {
-                // holding the required lock: send message to requestors and clear the list
-                sendHotspotStoppedMessageToAllLOHSRequestInfoEntriesLocked();
+                // if we are currently in hotspot mode, then trigger onStopped for registered
+                // requestors, otherwise something odd happened and we should clear state
+                if (mIfaceIpModes.contains(WifiManager.IFACE_IP_MODE_LOCAL_ONLY)) {
+                    // holding the required lock: send message to requestors and clear the list
+                    sendHotspotStoppedMessageToAllLOHSRequestInfoEntriesLocked();
+                } else {
+                    // LOHS not active: report an error (still holding the required lock)
+                    sendHotspotFailedMessageToAllLOHSRequestInfoEntriesLocked(ERROR_GENERIC);
+                }
+                // also clear interface ip state - send null for now since we don't know what
+                // interface (and we only have one anyway)
+                updateInterfaceIpState(null, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
             }
             return;
         }
@@ -1074,10 +1140,40 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         // check current mode to see if we can start localOnlyHotspot
         boolean apDisabled =
                 mWifiStateMachine.syncGetWifiApState() == WifiManager.WIFI_AP_STATE_DISABLED;
-        if (!apDisabled) {
-            // Tethering is enabled, cannot start LocalOnlyHotspot
-            mLog.trace("Cannot start localOnlyHotspot when WiFi Tethering is active.");
-            return LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
+
+        synchronized (mLocalOnlyHotspotRequests) {
+            if (!apDisabled && mLocalOnlyHotspotRequests.isEmpty()) {
+                // Tethering is enabled, cannot start LocalOnlyHotspot
+                mLog.trace("Cannot start localOnlyHotspot when WiFi Tethering is active.");
+                return LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
+            }
+
+            // does this caller already have a request?
+            LocalOnlyHotspotRequestInfo request = mLocalOnlyHotspotRequests.get(uid);
+            if (request != null) {
+                mLog.trace("caller already has an active request");
+                throw new IllegalStateException(
+                        "Caller already has an active LocalOnlyHotspot request");
+            }
+
+            // now create the new LOHS request info object
+            request = new LocalOnlyHotspotRequestInfo(binder, messenger,
+                    new LocalOnlyRequestorCallback());
+            // TODO: move this below when start is implemented
+            mLocalOnlyHotspotRequests.put(uid, request);
+
+            // check if LOHS is already active, if so, record the request and trigger the callback
+            if (mIfaceIpModes.contains(WifiManager.IFACE_IP_MODE_LOCAL_ONLY)) {
+                try {
+                    Slog.d(TAG, "LOHS already up, send started");
+                    request.sendHotspotStartedMessage(mLocalOnlyHotspotConfig);
+                    // TODO: move this return value out of the try when start is implemented
+                    return LocalOnlyHotspotCallback.REQUEST_REGISTERED;
+                } catch (RemoteException e) {
+                    mLocalOnlyHotspotRequests.remove(uid);
+                    return LocalOnlyHotspotCallback.ERROR_GENERIC;
+                }
+            }
         }
 
         throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
