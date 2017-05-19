@@ -17,11 +17,10 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -129,23 +128,48 @@ public class LocalOnlyHotspotRequestInfoTest {
     }
 
     /**
-     * Verify the uid is properly set.
+     * Verify the pid is properly set.
      */
     @Test
-    public void verifyUid() {
+    public void verifyPid() {
         mLOHSRequestInfo = new LocalOnlyHotspotRequestInfo(mAppBinder, mMessenger, mCallback);
-        assertEquals(Process.myUid(), mLOHSRequestInfo.getUid());
+        assertEquals(Process.myPid(), mLOHSRequestInfo.getPid());
     }
 
     /**
-     * Verify that sendMessage does send a Message properly
+     * Verify that sendHotspotFailedMessage does send a Message properly
      */
     @Test
-    public void verifySendMessenger() throws Exception {
+    public void verifySendFailedMessage() throws Exception {
         mLOHSRequestInfo = new LocalOnlyHotspotRequestInfo(mAppBinder, mMessenger, mCallback);
-        mLOHSRequestInfo.sendMessage(1, 1);
+        mLOHSRequestInfo.sendHotspotFailedMessage(
+                WifiManager.LocalOnlyHotspotCallback.ERROR_GENERIC);
         Message message = mTestLooper.nextMessage();
-        assertEquals(1, message.what);
-        assertEquals(1, message.arg1);
+        assertEquals(WifiManager.HOTSPOT_FAILED, message.what);
+        assertEquals(WifiManager.LocalOnlyHotspotCallback.ERROR_GENERIC, message.arg1);
+    }
+
+    /**
+     * Verify that sendHotspotStartedMessage does send a Message properly
+     */
+    @Test
+    public void verifySendStartedMessage() throws Exception {
+        mLOHSRequestInfo = new LocalOnlyHotspotRequestInfo(mAppBinder, mMessenger, mCallback);
+        WifiConfiguration config = mock(WifiConfiguration.class);
+        mLOHSRequestInfo.sendHotspotStartedMessage(config);
+        Message message = mTestLooper.nextMessage();
+        assertEquals(WifiManager.HOTSPOT_STARTED, message.what);
+        assertEquals(config, (WifiConfiguration) message.obj);
+    }
+
+    /**
+     * Verify that sendHotspotStoppedMessage does send a Message properly
+     */
+    @Test
+    public void verifySendStoppedMessage() throws Exception {
+        mLOHSRequestInfo = new LocalOnlyHotspotRequestInfo(mAppBinder, mMessenger, mCallback);
+        mLOHSRequestInfo.sendHotspotStoppedMessage();
+        Message message = mTestLooper.nextMessage();
+        assertEquals(WifiManager.HOTSPOT_STOPPED, message.what);
     }
 }
