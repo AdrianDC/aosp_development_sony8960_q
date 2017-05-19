@@ -825,12 +825,40 @@ public class WifiServiceImplTest {
     }
 
     /**
+     * Verify that a call to startWatchLocalOnlyHotspot is only allowed from callers with the
+     * signature only NETWORK_SETTINGS permission.
+     *
+     * This test is expecting the permission check to enforce the permission and throw a
+     * SecurityException for callers without the permission.  This exception should be bubbled up to
+     * the caller of startLocalOnlyHotspot.
+     */
+    @Test(expected = SecurityException.class)
+    public void testStartWatchLocalOnlyHotspotNotApprovedCaller() {
+        doThrow(new SecurityException()).when(mContext)
+                .enforceCallingOrSelfPermission(eq(android.Manifest.permission.NETWORK_SETTINGS),
+                                                eq("WifiService"));
+        mWifiServiceImpl.startWatchLocalOnlyHotspot(mAppMessenger, mAppBinder);
+    }
+
+    /**
      * Verify that the call to startWatchLocalOnlyHotspot throws the UnsupportedOperationException
-     * until the implementation is complete.
+     * when called until the implementation is complete.
      */
     @Test(expected = UnsupportedOperationException.class)
     public void testStartWatchLocalOnlyHotspotNotSupported() {
         mWifiServiceImpl.startWatchLocalOnlyHotspot(mAppMessenger, mAppBinder);
+    }
+
+    /**
+     * Verify that a call to stopWatchLocalOnlyHotspot is only allowed from callers with the
+     * signature only NETWORK_SETTINGS permission.
+     */
+    @Test(expected = SecurityException.class)
+    public void testStopWatchLocalOnlyHotspotNotApprovedCaller() {
+        doThrow(new SecurityException()).when(mContext)
+                .enforceCallingOrSelfPermission(eq(android.Manifest.permission.NETWORK_SETTINGS),
+                                                eq("WifiService"));
+        mWifiServiceImpl.stopWatchLocalOnlyHotspot();
     }
 
     /**
