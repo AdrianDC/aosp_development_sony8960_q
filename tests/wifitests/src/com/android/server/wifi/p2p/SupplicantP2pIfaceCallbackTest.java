@@ -31,6 +31,7 @@ import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pGroup;
 import android.net.wifi.p2p.WifiP2pProvDiscEvent;
+import android.net.wifi.p2p.nsd.WifiP2pServiceResponse;
 
 import com.android.server.wifi.util.NativeUtil;
 
@@ -42,6 +43,8 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
+
 
 /**
  * Unit tests for SupplicantP2pIfaceCallback
@@ -358,10 +361,10 @@ public class SupplicantP2pIfaceCallbackTest {
     }
 
     /**
-     * Test provision disovery callback.
+     * Test provision discovery callback.
      */
     @Test
-    public void testOnProvisionDisconveryCompleted() throws Exception {
+    public void testOnProvisionDiscoveryCompleted() throws Exception {
         byte[] p2pDeviceAddr = DEVICE_ADDRESS;
         boolean isRequest = false;
         byte status = ISupplicantP2pIfaceCallback.P2pProvDiscStatusCode.SUCCESS;
@@ -442,5 +445,60 @@ public class SupplicantP2pIfaceCallbackTest {
         mDut.onStaAuthorized(mDeviceAddress1Bytes, NativeUtil.ANY_MAC_BYTES);
         verify(mMonitor).broadcastP2pApStaConnected(any(String.class), p2pDeviceCaptor.capture());
         assertEquals(mDeviceAddress1String, p2pDeviceCaptor.getValue().deviceAddress);
+    }
+
+    // TLVS hex data encoded as a hex string.
+    // Taken directly from an observed supplicant service response event
+    private static final String SERV_DISC_RESP_TLVS = "1d00010100076578616d706c650b5f6166706f766572"
+            + "746370c00c001001001e000101000b5f6166706f766572746370c00c000c01074578616d706c65c0273c"
+            + "00010100096d797072696e746572045f697070c00c00100109747874766572733d311a70646c3d617070"
+            + "6c69636174696f6e2f706f73747363726970741900010100045f697070c00c000c01094d795072696e74"
+            + "6572c0275f000201000a757569643a36383539646564652d383537342d353961622d393333322d313233"
+            + "3435363738393031313a3a75726e3a736368656d61732d75706e702d6f72673a736572766963653a436f"
+            + "6e6e656374696f6e4d616e616765723a3159000201000a757569643a36383539646564652d383537342d"
+            + "353961622d393333322d3132333435363738393031313a3a75726e3a736368656d61732d75706e702d6f"
+            + "72673a736572766963653a41565472616e73706f72743a315a000201000a757569643a36383539646564"
+            + "652d383537342d353961622d393333322d3132333435363738393031313a3a75726e3a736368656d6173"
+            + "2d75706e702d6f72673a6465766963653a4d6564696152656e64657265723a313e000201000a75756964"
+            + "3a36383539646564652d383537342d353961622d393333322d3132333435363738393031313a3a75706e"
+            + "703a726f6f746465766963652d000201000a757569643a36383539646564652d383537342d353961622d"
+            + "393333322d313233343536373839303131";
+
+    /**
+     * Pretty basic onServiceDiscoveryResponse callback test.
+     * Mocks the callback event, passing some observed real data to it, and ensures that it returns
+     * a non-null WifiP2pServiceResponse list.
+     */
+    @Test
+    public void testOnServiceDiscoveryResponseCompleted_success() throws Exception {
+        ArrayList<Byte> tlvs = NativeUtil.byteArrayToArrayList(hexStr2Bin(SERV_DISC_RESP_TLVS));
+        ArgumentCaptor<List<WifiP2pServiceResponse>> respListCaptor =
+                ArgumentCaptor.forClass(List.class);
+        mDut.onServiceDiscoveryResponse(
+                mDeviceAddress1Bytes,
+                (short) 10 /* unused updateIndicator value */,
+                tlvs);
+        verify(mMonitor).broadcastP2pServiceDiscoveryResponse(anyString(),
+                respListCaptor.capture());
+        assertNotNull(respListCaptor.getValue());
+    }
+
+    /**
+     * Converts hex string to byte array.
+     *
+     * @param hex hex string. if invalid, return null.
+     * @return binary data.
+     */
+    private static byte[] hexStr2Bin(String hex) {
+        int sz = hex.length() / 2;
+        byte[] b = new byte[hex.length() / 2];
+        for (int i = 0; i < sz; i++) {
+            try {
+                b[i] = (byte) Integer.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        return b;
     }
 }

@@ -448,18 +448,14 @@ public class SupplicantP2pIfaceCallback extends ISupplicantP2pIfaceCallback.Stub
 
         logd("Service discovery response received on " + mInterface);
         try {
-            StringBuilder event = new StringBuilder();
-            event.append(NativeUtil.macAddressFromByteArray(srcAddress));
-            event.append(" ");
-            event.append(updateIndicator);
-            event.append(" ");
-            event.append(NativeUtil.stringFromByteArrayList(tlvs));
-            response = WifiP2pServiceResponse.newInstance(event.toString());
+            String srcAddressStr = NativeUtil.macAddressFromByteArray(srcAddress);
+            // updateIndicator is not used
+            response = WifiP2pServiceResponse.newInstance(srcAddressStr,
+                    NativeUtil.byteArrayFromArrayList(tlvs));
         } catch (Exception e) {
             Log.e(TAG, "Could not process service discovery response.", e);
             return;
         }
-
         mMonitor.broadcastP2pServiceDiscoveryResponse(mInterface, response);
     }
 
