@@ -640,6 +640,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
     }
 
+    private void enforceNetworkSettingsPermission() {
+        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.NETWORK_SETTINGS,
+                "WifiService");
+    }
+
     private void enforceNetworkStackPermission() {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.NETWORK_STACK,
                 "WifiService");
@@ -995,6 +1000,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     /**
      * see {@link WifiManager#watchLocalOnlyHotspot(LocalOnlyHotspotObserver)}
      *
+     * This call requires the android.permission.NETWORK_SETTINGS permission.
+     *
      * @param messenger Messenger to send messages to the corresponding WifiManager.
      * @param binder IBinder instance to allow cleanup if the app dies
      *
@@ -1005,6 +1012,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public void startWatchLocalOnlyHotspot(Messenger messenger, IBinder binder) {
+        final String packageName = mContext.getOpPackageName();
+
+        // NETWORK_SETTINGS is a signature only permission.
+        enforceNetworkSettingsPermission();
+
         throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
     }
 
@@ -1013,6 +1025,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public void stopWatchLocalOnlyHotspot() {
+        // NETWORK_STACK is a signature only permission.
+        enforceNetworkSettingsPermission();
         throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
     }
 
