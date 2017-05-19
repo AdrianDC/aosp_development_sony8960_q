@@ -21,6 +21,8 @@ import static com.android.server.wifi.HalDeviceManager.START_HAL_RETRY_TIMES;
 import static junit.framework.Assert.assertEquals;
 
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
@@ -1048,6 +1050,34 @@ public class HalDeviceManagerTest {
         mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip);
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence(1, false);
+    }
+
+    /**
+     * Validate that isSupported() returns true when IServiceManager finds the vendor HAL daemon in
+     * the VINTF.
+     */
+    @Test
+    public void testIsSupportedTrue() throws Exception {
+        when(mServiceManagerMock.getTransport(
+                eq(IWifi.kInterfaceName), eq(HalDeviceManager.HAL_INSTANCE_NAME)))
+                .thenReturn(IServiceManager.Transport.HWBINDER);
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock);
+        executeAndValidateInitializationSequence();
+        assertTrue(mDut.isSupported());
+    }
+
+    /**
+     * Validate that isSupported() returns true when IServiceManager finds the vendor HAL daemon in
+     * the VINTF.
+     */
+    @Test
+    public void testIsSupportedFalse() throws Exception {
+        when(mServiceManagerMock.getTransport(
+                eq(IWifi.kInterfaceName), eq(HalDeviceManager.HAL_INSTANCE_NAME)))
+                .thenReturn(IServiceManager.Transport.EMPTY);
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock);
+        executeAndValidateInitializationSequence();
+        assertFalse(mDut.isSupported());
     }
 
     // utilities

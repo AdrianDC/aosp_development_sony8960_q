@@ -521,14 +521,12 @@ public class WifiStateMachineTest {
 
     @Test
     public void loadComponentsFailure() throws Exception {
-        when(mWifiNative.startHal(anyBoolean())).thenReturn(false);
         when(mWifiNative.enableSupplicant()).thenReturn(false);
 
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
 
-        when(mWifiNative.startHal(anyBoolean())).thenReturn(true);
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
@@ -548,8 +546,6 @@ public class WifiStateMachineTest {
 
     @Test
     public void shouldStartSupplicantWhenConnectModeRequested() throws Exception {
-        when(mWifiNative.startHal(anyBoolean())).thenReturn(true);
-
         // The first time we start out in InitialState, we sit around here.
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
@@ -566,8 +562,6 @@ public class WifiStateMachineTest {
      */
     @Test
     public void checkIsWifiEnabledForModeChanges() throws Exception {
-        when(mWifiNative.startHal(anyBoolean())).thenReturn(true);
-
         // Check initial state
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
@@ -638,8 +632,6 @@ public class WifiStateMachineTest {
      */
     @Test
     public void checkStartInCorrectStateAfterChangingInitialState() throws Exception {
-        when(mWifiNative.startHal(anyBoolean())).thenReturn(true);
-
         // Check initial state
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
