@@ -26,6 +26,7 @@ import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLED;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLING;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_FAILED;
 
+import static com.android.server.connectivity.tethering.IControlsTethering.STATE_LOCAL_ONLY;
 import static com.android.server.connectivity.tethering.IControlsTethering.STATE_TETHERED;
 import static com.android.server.wifi.LocalOnlyHotspotRequestInfo.HOTSPOT_NO_ERROR;
 import static com.android.server.wifi.WifiController.CMD_AIRPLANE_TOGGLED;
@@ -926,6 +927,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         mLog.trace("startSoftAp uid=%").c(Binder.getCallingUid()).flush();
 
+        // TODO: determine if we need to stop softap and clean up state if a tethering request comes
+        // from the user while we are just setting up. For now, the second CMD_START_AP will be
+        // ignored in WifiStateMachine.  This will still bring up tethering and the registered LOHS
+        // requests will be cleared when we get the interface ip tethered status.
+
         return startSoftApInternal(wifiConfig, STATE_TETHERED);
     }
 
@@ -1089,7 +1095,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * Temporary method used for testing while startLocalOnlyHotspot is not fully implemented.  This
      * method allows unit tests to register callbacks directly for testing mechanisms triggered by
      * softap mode changes.
-     * TODO: remove when startLocalOnlyHotspot is implemented.
      */
     @VisibleForTesting
     void registerLOHSForTest(int pid, LocalOnlyHotspotRequestInfo request) {
@@ -1138,19 +1143,16 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         mLog.trace("startLocalOnlyHotspot uid=% pid=%").c(uid).c(pid).flush();
 
-        // check current mode to see if we can start localOnlyHotspot
-        boolean apDisabled =
-                mWifiStateMachine.syncGetWifiApState() == WifiManager.WIFI_AP_STATE_DISABLED;
-
         synchronized (mLocalOnlyHotspotRequests) {
-            if (!apDisabled && mLocalOnlyHotspotRequests.isEmpty()) {
+            // check if we are currently tethering
+            if (mIfaceIpModes.contains(WifiManager.IFACE_IP_MODE_TETHERED)) {
                 // Tethering is enabled, cannot start LocalOnlyHotspot
                 mLog.trace("Cannot start localOnlyHotspot when WiFi Tethering is active.");
                 return LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
             }
 
             // does this caller already have a request?
-            LocalOnlyHotspotRequestInfo request = mLocalOnlyHotspotRequests.get(uid);
+            LocalOnlyHotspotRequestInfo request = mLocalOnlyHotspotRequests.get(pid);
             if (request != null) {
                 mLog.trace("caller already has an active request");
                 throw new IllegalStateException(
@@ -1160,24 +1162,26 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             // now create the new LOHS request info object
             request = new LocalOnlyHotspotRequestInfo(binder, messenger,
                     new LocalOnlyRequestorCallback());
-            // TODO: move this below when start is implemented
-            mLocalOnlyHotspotRequests.put(uid, request);
 
-            // check if LOHS is already active, if so, record the request and trigger the callback
+            // check current operating state and take action if needed
             if (mIfaceIpModes.contains(WifiManager.IFACE_IP_MODE_LOCAL_ONLY)) {
+                // LOHS is already active, send out what is running
                 try {
-                    Slog.d(TAG, "LOHS already up, send started");
+                    mLog.trace("LOHS already up, trigger onStarted callback");
                     request.sendHotspotStartedMessage(mLocalOnlyHotspotConfig);
-                    // TODO: move this return value out of the try when start is implemented
-                    return LocalOnlyHotspotCallback.REQUEST_REGISTERED;
                 } catch (RemoteException e) {
-                    mLocalOnlyHotspotRequests.remove(uid);
                     return LocalOnlyHotspotCallback.ERROR_GENERIC;
                 }
+            } else if (mLocalOnlyHotspotRequests.isEmpty()) {
+                // this is the first request, then set up our config and start LOHS
+                mLocalOnlyHotspotConfig =
+                        WifiApConfigStore.generateLocalOnlyHotspotConfig(mContext);
+                startSoftApInternal(mLocalOnlyHotspotConfig, STATE_LOCAL_ONLY);
             }
-        }
 
-        throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
+            mLocalOnlyHotspotRequests.put(pid, request);
+            return LocalOnlyHotspotCallback.REQUEST_REGISTERED;
+        }
     }
 
     /**
@@ -1220,6 +1224,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
             if (mLocalOnlyHotspotRequests.isEmpty()) {
                 mLocalOnlyHotspotConfig = null;
+                updateInterfaceIpStateInternal(null, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
                 // if that was the last caller, then call stopSoftAp as WifiService
                 long identity = Binder.clearCallingIdentity();
                 try {
