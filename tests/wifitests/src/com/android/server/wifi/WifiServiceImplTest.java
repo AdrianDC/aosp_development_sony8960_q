@@ -66,6 +66,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
+import android.os.Process;
 import android.os.UserManager;
 import android.os.WorkSource;
 import android.os.test.TestLooper;
@@ -117,6 +118,7 @@ public class WifiServiceImplTest {
     private Handler mHandler;
     private Messenger mAppMessenger;
     private int mPid;
+    private int mPid2 = Process.myPid();
 
     final ArgumentCaptor<BroadcastReceiver> mBroadcastReceiverCaptor =
             ArgumentCaptor.forClass(BroadcastReceiver.class);
@@ -150,6 +152,7 @@ public class WifiServiceImplTest {
     @Mock IBinder mAppBinder;
     @Mock WifiNotificationController mWifiNotificationController;
     @Mock LocalOnlyHotspotRequestInfo mRequestInfo;
+    @Mock LocalOnlyHotspotRequestInfo mRequestInfo2;
 
     @Spy FakeWifiLog mLog;
 
@@ -213,6 +216,7 @@ public class WifiServiceImplTest {
         mAppMessenger = new Messenger(mHandler);
 
         when(mRequestInfo.getPid()).thenReturn(mPid);
+        when(mRequestInfo2.getPid()).thenReturn(mPid2);
         when(mWifiInjector.getUserManager()).thenReturn(mUserManager);
         when(mWifiInjector.getWifiController()).thenReturn(mWifiController);
         when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
@@ -814,13 +818,48 @@ public class WifiServiceImplTest {
     }
 
     /**
-     * Verify that the call to stopLocalOnlyHotspot throws the UnsupportedOperationException until
-     * the implementation is complete.
+     * Verify that the call to stopLocalOnlyHotspot does not do anything when there aren't any
+     * registered callers.
      */
-    @Test(expected = UnsupportedOperationException.class)
-    public void testStopLocalOnlyHotspotNotSupported() {
+    @Test
+    public void testStopLocalOnlyHotspotDoesNothingWithoutRegisteredRequests() {
         // allow test to proceed without a permission check failure
         mWifiServiceImpl.stopLocalOnlyHotspot();
+        // there is nothing registered, so this shouldn't do anything
+        verify(mWifiController, never()).sendMessage(eq(CMD_SET_AP), anyInt(), anyInt());
+    }
+
+    /**
+     * Verify that the call to stopLocalOnlyHotspot does not do anything when one caller unregisters
+     * but there is still an active request
+     */
+    @Test
+    public void testStopLocalOnlyHotspotDoesNothingWithARemainingRegisteredRequest() {
+        // register a request that will remain after the stopLOHS call
+        mWifiServiceImpl.registerLOHSForTest(mPid, mRequestInfo);
+
+        // make an additional request for this test...  using the current pid
+        mWifiServiceImpl.registerLOHSForTest(Process.myPid(), mRequestInfo2);
+
+        // Since we are calling with the same pid, the second register call will be removed
+        mWifiServiceImpl.stopLocalOnlyHotspot();
+        // there is still a valid registered request - do not tear down LOHS
+        verify(mWifiController, never()).sendMessage(eq(CMD_SET_AP), anyInt(), anyInt());
+    }
+
+    /**
+     * Verify that the call to stopLocalOnlyHotspot sends a message to WifiController to stop
+     * the softAp when there is one registered caller when that caller is removed.
+     */
+    @Test
+    public void testStopLocalOnlyHotspotTriggersSoftApStopWithOneRegisteredRequest() {
+        // register a request so we have something to stop - use request2 so the pid check matches
+        mWifiServiceImpl.registerLOHSForTest(Process.myPid(), mRequestInfo2);
+
+        // allow test to proceed without a permission check failure
+        mWifiServiceImpl.stopLocalOnlyHotspot();
+        // there is was only one request registered, we should tear down softap
+        verify(mWifiController).sendMessage(eq(CMD_SET_AP), eq(0), eq(0));
     }
 
     /**
@@ -838,9 +877,6 @@ public class WifiServiceImplTest {
     /**
      * Verify that WifiServiceImpl does not send the stop ap message if there were no
      * pending LOHS requests upon a binder death callback.
-     *
-     * TODO: add a test verifying it is not called when there are remaining requests.
-     * TODO: add a test verifying it is called when the last request was removed.
      */
     @Test
     public void testServiceImplNotCalledWhenBinderDeathTriggeredNoRequests() {
@@ -849,6 +885,31 @@ public class WifiServiceImplTest {
 
         binderDeathCallback.onLocalOnlyHotspotRequestorDeath(mRequestInfo);
         verify(mWifiController, never()).sendMessage(eq(CMD_SET_AP), eq(0), eq(0));
+    }
+
+    /**
+     * Verify that WifiServiceImpl does not send the stop ap message if there are remaining
+     * registered LOHS requests upon a binder death callback.  Additionally verify that softap mode
+     * will be stopped if that remaining request is removed (to verify the binder death properly
+     * cleared the requestor that died).
+     */
+    @Test
+    public void testServiceImplNotCalledWhenBinderDeathTriggeredWithRegisteredRequests() {
+        LocalOnlyRequestorCallback binderDeathCallback =
+                mWifiServiceImpl.new LocalOnlyRequestorCallback();
+
+        mWifiServiceImpl.registerLOHSForTest(mPid, mRequestInfo);
+        mWifiServiceImpl.registerLOHSForTest(mPid2, mRequestInfo2);
+
+        binderDeathCallback.onLocalOnlyHotspotRequestorDeath(mRequestInfo);
+        verify(mWifiController, never()).sendMessage(eq(CMD_SET_AP), anyInt(), anyInt());
+
+        reset(mWifiController);
+
+        // now stop as the second request and confirm CMD_SET_AP will be sent to make sure binder
+        // death requestor was removed
+        mWifiServiceImpl.stopLocalOnlyHotspot();
+        verify(mWifiController).sendMessage(eq(CMD_SET_AP), eq(0), eq(0));
     }
 
     private class IntentFilterMatcher implements ArgumentMatcher<IntentFilter> {

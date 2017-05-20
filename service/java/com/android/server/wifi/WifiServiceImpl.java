@@ -1121,6 +1121,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         // first check if the caller has permission to start a local only hotspot
         // need to check for WIFI_STATE_CHANGE and location permission
         final int uid = Binder.getCallingUid();
+        final int pid = Binder.getCallingPid();
         final String pkgName = mContext.getOpPackageName();
 
         enforceChangePermission();
@@ -1135,7 +1136,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             return LocalOnlyHotspotCallback.ERROR_TETHERING_DISALLOWED;
         }
 
-        mLog.trace("startLocalOnlyHotspot uid=%").c(uid).flush();
+        mLog.trace("startLocalOnlyHotspot uid=% pid=%").c(uid).c(pid).flush();
 
         // check current mode to see if we can start localOnlyHotspot
         boolean apDisabled =
@@ -1190,10 +1191,19 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         // first check if the caller has permission to stop a local only hotspot
         enforceChangePermission();
         final int uid = Binder.getCallingUid();
+        final int pid = Binder.getCallingPid();
 
-        mLog.trace("stopLocalOnlyHotspot uid=%").c(uid).flush();
+        mLog.trace("stopLocalOnlyHotspot uid=% pid=%").c(uid).c(pid).flush();
 
-        throw new UnsupportedOperationException("LocalOnlyHotspot is still in development");
+        synchronized (mLocalOnlyHotspotRequests) {
+            // was the caller already registered?  check request tracker - return false if not
+            LocalOnlyHotspotRequestInfo requestInfo = mLocalOnlyHotspotRequests.get(pid);
+            if (requestInfo == null) {
+                return;
+            }
+            requestInfo.unlinkDeathRecipient();
+            unregisterCallingAppAndStopLocalOnlyHotspot(requestInfo);
+        } // end synchronized
     }
 
     /**
