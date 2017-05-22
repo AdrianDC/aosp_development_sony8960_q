@@ -2388,6 +2388,75 @@ public class WifiAwareStateManagerTest {
     }
 
     /**
+     * Validate that identical configuration but with different identity callback requirements
+     * trigger the correct HAL sequence.
+     * 1. Attach w/o identity -> enable
+     * 2. Attach w/o identity -> nop
+     * 3. Attach w/ identity -> re-configure
+     * 4. Attach w/o identity -> nop
+     * 5. Attach w/ identity -> nop
+     */
+    @Test
+    public void testConfigsIdentityCallback() throws Exception {
+        int clientId = 9999;
+        final int uid = 1000;
+        final int pid = 2000;
+        final String callingPackage = "com.google.somePackage";
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().build();
+
+        InOrder inOrder = inOrder(mMockNative, mockCallback);
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
+        mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
+        mMockLooper.dispatchAll();
+
+        // (1) attach w/o identity
+        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
+                any(ConfigRequest.class), eq(false), eq(true), eq(true), eq(false));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
+
+        // (2) attach w/o identity
+        ++clientId;
+        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
+
+        // (3) attach w/ identity
+        ++clientId;
+        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, true);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
+                any(ConfigRequest.class), eq(true), eq(false), eq(true), eq(false));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
+
+        // (4) attach w/o identity
+        ++clientId;
+        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
+
+        // (5) attach w/ identity
+        ++clientId;
+        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, true);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
+
+        verifyNoMoreInteractions(mMockNative, mockCallback);
+    }
+
+    /**
      * Summary: disconnect a client while there are pending transactions.
      */
     @Test

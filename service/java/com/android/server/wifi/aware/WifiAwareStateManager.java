@@ -1981,7 +1981,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         }
 
         if (mCurrentAwareConfiguration != null && mCurrentAwareConfiguration.equals(merged)
-                && mCurrentIdentityNotification == notifyIdentityChange) {
+                && (mCurrentIdentityNotification || !notifyIdentityChange)) {
             try {
                 callback.onConnectSuccess(clientId);
             } catch (RemoteException e) {
