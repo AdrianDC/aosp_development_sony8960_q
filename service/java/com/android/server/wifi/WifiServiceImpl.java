@@ -1113,6 +1113,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *
      * @param messenger Messenger to send messages to the corresponding WifiManager.
      * @param binder IBinder instance to allow cleanup if the app dies
+     * @param packageName String name of the calling package
      *
      * @return int return code for attempt to start LocalOnlyHotspot.
      *
@@ -1122,15 +1123,14 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * have an outstanding request.
      */
     @Override
-    public int startLocalOnlyHotspot(Messenger messenger, IBinder binder) {
+    public int startLocalOnlyHotspot(Messenger messenger, IBinder binder, String packageName) {
         // first check if the caller has permission to start a local only hotspot
         // need to check for WIFI_STATE_CHANGE and location permission
         final int uid = Binder.getCallingUid();
         final int pid = Binder.getCallingPid();
-        final String pkgName = mContext.getOpPackageName();
 
         enforceChangePermission();
-        enforceLocationPermission(pkgName, uid);
+        enforceLocationPermission(packageName, uid);
         // also need to verify that Locations services are enabled.
         if (mSettingsStore.getLocationModeSetting(mContext) == Settings.Secure.LOCATION_MODE_OFF) {
             throw new SecurityException("Location mode is not enabled.");

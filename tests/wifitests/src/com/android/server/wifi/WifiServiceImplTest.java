@@ -751,7 +751,8 @@ public class WifiServiceImplTest {
                 .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
         when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING))
                 .thenReturn(false);
-        int result = mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+        int result = mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder,
+                TEST_PACKAGE_NAME);
         assertEquals(LocalOnlyHotspotCallback.REQUEST_REGISTERED, result);
     }
 
@@ -773,7 +774,7 @@ public class WifiServiceImplTest {
         doThrow(new SecurityException()).when(mContext)
                 .enforceCallingOrSelfPermission(eq(android.Manifest.permission.CHANGE_WIFI_STATE),
                                                 eq("WifiService"));
-        mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+        mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder, TEST_PACKAGE_NAME);
     }
 
     /**
@@ -786,7 +787,7 @@ public class WifiServiceImplTest {
         doThrow(new SecurityException())
                 .when(mWifiPermissionsUtil).enforceLocationPermission(eq(TEST_PACKAGE_NAME),
                                                                       anyInt());
-        mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+        mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder, TEST_PACKAGE_NAME);
     }
 
     /**
@@ -796,7 +797,7 @@ public class WifiServiceImplTest {
     @Test(expected = SecurityException.class)
     public void testStartLocalOnlyHotspotThrowsSecurityExceptionWithoutLocationEnabled() {
         when(mSettingsStore.getLocationModeSetting(mContext)).thenReturn(LOCATION_MODE_OFF);
-        mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+        mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder, TEST_PACKAGE_NAME);
     }
 
     /**
@@ -808,7 +809,8 @@ public class WifiServiceImplTest {
                             .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
         mWifiServiceImpl.updateInterfaceIpState(WIFI_IFACE_NAME, IFACE_IP_MODE_TETHERED);
         mLooper.dispatchAll();
-        int returnCode = mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+        int returnCode = mWifiServiceImpl.startLocalOnlyHotspot(
+                mAppMessenger, mAppBinder, TEST_PACKAGE_NAME);
         assertEquals(ERROR_INCOMPATIBLE_MODE, returnCode);
     }
 
@@ -821,7 +823,8 @@ public class WifiServiceImplTest {
                 .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
         when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING))
                 .thenReturn(true);
-        int returnCode = mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+        int returnCode = mWifiServiceImpl.startLocalOnlyHotspot(
+                mAppMessenger, mAppBinder, TEST_PACKAGE_NAME);
         assertEquals(ERROR_TETHERING_DISALLOWED, returnCode);
     }
 
@@ -833,7 +836,7 @@ public class WifiServiceImplTest {
         registerLOHSRequestFull();
 
         // now do the second request that will fail
-        mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder);
+        mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder, TEST_PACKAGE_NAME);
     }
 
     /**
@@ -1395,7 +1398,7 @@ public class WifiServiceImplTest {
         Messenger messenger2 = new Messenger(mHandler);
         IBinder binder2 = mock(IBinder.class);
 
-        int result = mWifiServiceImpl.startLocalOnlyHotspot(messenger2, binder2);
+        int result = mWifiServiceImpl.startLocalOnlyHotspot(messenger2, binder2, TEST_PACKAGE_NAME);
         assertEquals(LocalOnlyHotspotCallback.REQUEST_REGISTERED, result);
         mLooper.dispatchAll();
 
