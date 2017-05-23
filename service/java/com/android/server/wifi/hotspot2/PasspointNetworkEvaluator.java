@@ -92,6 +92,10 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
             Pair<PasspointProvider, PasspointMatch> bestProvider =
                     mPasspointManager.matchProvider(scanDetail.getScanResult());
             if (bestProvider != null) {
+                if (bestProvider.first.isSimCredential() && !mWifiConfigManager.isSimPresent()) {
+                    // Skip providers backed by SIM credential when SIM is not present.
+                    continue;
+                }
                 candidateList.add(new PasspointNetworkCandidate(
                         bestProvider.first, bestProvider.second, scanDetail));
             }
