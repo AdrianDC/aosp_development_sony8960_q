@@ -677,7 +677,8 @@ public class WifiAwareStateManagerTest {
      * Validate the publish flow: (1) initial publish + (2) success + (3) update + (4) update
      * fails (callback from firmware) + (5) update + (6). Expected: session is still alive after
      * update failure so second update succeeds (no callbacks) + (7) update + immediate failure from
-     * HAL.
+     * HAL + (8) update + failure for invalid ID (which should clean-up state) + (9) another update
+     * - should get no response.
      */
     @Test
     public void testPublishUpdateFail() throws Exception {
@@ -754,6 +755,22 @@ public class WifiAwareStateManagerTest {
         inOrder.verify(mMockNative).publish(transactionId.capture(), eq(publishId),
                 eq(publishConfig));
         inOrder.verify(mockSessionCallback).onSessionConfigFail(reasonFail);
+
+        // (8) an update with bad ID failure
+        when(mMockNative.publish(anyShort(), anyByte(), any())).thenReturn(true);
+
+        mDut.updatePublish(clientId, sessionId.getValue(), publishConfig);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).publish(transactionId.capture(), eq(publishId),
+                eq(publishConfig));
+        mDut.onSessionConfigFailResponse(transactionId.getValue(), true,
+                NanStatusType.INVALID_SESSION_ID);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback).onSessionConfigFail(NanStatusType.INVALID_SESSION_ID);
+
+        // (9) try updating again - do nothing/get nothing
+        mDut.updatePublish(clientId, sessionId.getValue(), publishConfig);
+        mMockLooper.dispatchAll();
 
         verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative);
     }
