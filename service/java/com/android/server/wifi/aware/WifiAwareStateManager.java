@@ -2526,6 +2526,10 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             } catch (RemoteException e) {
                 Log.e(TAG, "onSessionConfigFailLocal: onSessionConfigFail() RemoteException=" + e);
             }
+
+            if (reason == NanStatusType.INVALID_SESSION_ID) {
+                client.removeSession(sessionId);
+            }
         } else {
             Log.wtf(TAG, "onSessionConfigFailLocal: unexpected failedCommand=" + failedCommand);
         }
