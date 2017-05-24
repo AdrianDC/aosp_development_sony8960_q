@@ -98,7 +98,7 @@ public abstract class BaseWifiScannerImplTest {
     protected Set<Integer> expectedBandScanFreqs(int band) {
         ChannelCollection collection = mScanner.getChannelHelper().createChannelCollection();
         collection.addBand(band);
-        return collection.getSupplicantScanFreqs();
+        return collection.getScanFreqs();
     }
 
     protected Set<Integer> expectedBandAndChannelScanFreqs(int band, int... channels) {
@@ -107,7 +107,7 @@ public abstract class BaseWifiScannerImplTest {
         for (int channel : channels) {
             collection.addChannel(channel);
         }
-        return collection.getSupplicantScanFreqs();
+        return collection.getScanFreqs();
     }
 
     @Test

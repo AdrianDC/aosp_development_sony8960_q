@@ -406,7 +406,7 @@ public class WificondPnoScannerTest {
     private Set<Integer> expectedBandScanFreqs(int band) {
         ChannelCollection collection = mScanner.getChannelHelper().createChannelCollection();
         collection.addBand(band);
-        return collection.getSupplicantScanFreqs();
+        return collection.getScanFreqs();
     }
 
     /**
