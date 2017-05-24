@@ -3170,6 +3170,24 @@ public class WifiConfigManagerTest {
                 result.getNetworkId()); // Update networkID
     }
 
+    /**
+     * Verifies that the app specified BSSID is converted and saved in lower case.
+     */
+    @Test
+    public void testAppSpecifiedBssidIsSavedInLowerCase() {
+        final String bssid = "0A:08:5C:BB:89:6D"; // upper case
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        openNetwork.BSSID = bssid;
+
+        NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
+
+        WifiConfiguration retrievedNetwork = mWifiConfigManager.getConfiguredNetwork(
+                result.getNetworkId());
+
+        assertNotEquals(retrievedNetwork.BSSID, bssid);
+        assertEquals(retrievedNetwork.BSSID, bssid.toLowerCase());
+    }
+
     private NetworkUpdateResult verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
             boolean withConfOverride,
             boolean withProfileOwnerPolicy,
