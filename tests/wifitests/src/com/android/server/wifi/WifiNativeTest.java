@@ -29,6 +29,7 @@ import static org.mockito.Mockito.when;
 
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
+import android.net.wifi.WifiConfiguration;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import org.junit.Before;
@@ -674,4 +675,29 @@ public class WifiNativeTest {
         mWifiNative.stopPnoScan();
         verify(mWificondControl).stopPnoScan();
     }
+
+    /**
+     * Verifies that connectToNetwork() calls underlying WificondControl and SupplicantStaIfaceHal.
+     */
+    @Test
+    public void testConnectToNetwork() throws Exception {
+        WifiConfiguration config = mock(WifiConfiguration.class);
+        mWifiNative.connectToNetwork(config);
+        // connectToNetwork() should abort ongoing scan before connection.
+        verify(mWificondControl).abortScan();
+        verify(mStaIfaceHal).connectToNetwork(config);
+    }
+
+    /**
+     * Verifies that roamToNetwork() calls underlying WificondControl and SupplicantStaIfaceHal.
+     */
+    @Test
+    public void testRoamToNetwork() throws Exception {
+        WifiConfiguration config = mock(WifiConfiguration.class);
+        mWifiNative.roamToNetwork(config);
+        // roamToNetwork() should abort ongoing scan before connection.
+        verify(mWificondControl).abortScan();
+        verify(mStaIfaceHal).roamToNetwork(config);
+    }
+
 }
