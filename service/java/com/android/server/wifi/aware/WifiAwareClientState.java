@@ -240,7 +240,8 @@ public class WifiAwareClientState {
             try {
                 boolean hasPermission = hasLocationingPermission();
                 if (VDBG) Log.v(TAG, "hasPermission=" + hasPermission);
-                mCallback.onIdentityChanged(hasPermission ? mac : ALL_ZERO_MAC);
+                mCallback.onIdentityChanged(
+                        hasPermission ? currentDiscoveryInterfaceMac : ALL_ZERO_MAC);
             } catch (RemoteException e) {
                 Log.w(TAG, "onIdentityChanged: RemoteException - ignored: " + e);
             }
