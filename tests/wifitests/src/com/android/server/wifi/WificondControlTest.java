@@ -597,6 +597,17 @@ public class WificondControlTest {
     }
 
     /**
+     * Verifies that abortScan() calls underlying wificond.
+     */
+    @Test
+    public void testAbortScan() throws Exception {
+        IWifiScannerImpl scanner = setupClientInterfaceAndCreateMockWificondScanner();
+
+        mWificondControl.abortScan();
+        verify(scanner).abortScan();
+    }
+
+    /**
      * Helper method: create a mock IClientInterface which mocks all neccessary operations.
      * Returns a mock IClientInterface.
      */
