@@ -148,7 +148,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
 
     public WificondScannerImpl(Context context, WifiNative wifiNative,
                                      WifiMonitor wifiMonitor, Looper looper, Clock clock) {
-        // TODO figure out how to get channel information from supplicant
+        // TODO get channel information from wificond.
         this(context, wifiNative, wifiMonitor, new NoBandChannelHelper(), looper, clock);
     }
 
@@ -422,7 +422,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
             if ((newScanSettings.backgroundScanActive || newScanSettings.singleScanActive)
                     && !allFreqs.isEmpty()) {
                 pauseHwPnoScan();
-                Set<Integer> freqs = allFreqs.getSupplicantScanFreqs();
+                Set<Integer> freqs = allFreqs.getScanFreqs();
                 boolean success = mWifiNative.scan(freqs, hiddenNetworkSSIDSet);
                 if (success) {
                     // TODO handle scan timeout
