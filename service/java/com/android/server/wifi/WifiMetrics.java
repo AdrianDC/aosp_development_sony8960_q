@@ -30,6 +30,7 @@ import android.util.Base64;
 import android.util.Log;
 import android.util.SparseIntArray;
 
+import com.android.server.wifi.aware.WifiAwareMetrics;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.nano.WifiMetricsProto;
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent;
@@ -72,6 +73,7 @@ public class WifiMetrics {
     private Clock mClock;
     private boolean mScreenOn;
     private int mWifiState;
+    private WifiAwareMetrics mWifiAwareMetrics;
     private Handler mHandler;
     /**
      * Metrics are stored within an instance of the WifiLog proto during runtime,
@@ -344,12 +346,13 @@ public class WifiMetrics {
         }
     }
 
-    public WifiMetrics(Clock clock, Looper looper) {
+    public WifiMetrics(Clock clock, Looper looper, WifiAwareMetrics awareMetrics) {
         mClock = clock;
         mCurrentConnectionEvent = null;
         mScreenOn = true;
         mWifiState = WifiMetricsProto.WifiLog.WIFI_DISABLED;
         mRecordStartTimeSec = mClock.getElapsedSinceBootMillis() / 1000;
+        mWifiAwareMetrics = awareMetrics;
 
         mHandler = new Handler(looper) {
             public void handleMessage(Message msg) {
@@ -1224,6 +1227,9 @@ public class WifiMetrics {
                 for (StaEvent event : mStaEventList) {
                     pw.println(staEventToString(event));
                 }
+
+                pw.println("mWifiAwareMetrics:");
+                mWifiAwareMetrics.dump(fd, pw, args);
             }
         }
     }
@@ -1388,6 +1394,8 @@ public class WifiMetrics {
             }
 
             mWifiLogProto.staEventList = mStaEventList.toArray(mWifiLogProto.staEventList);
+
+            mWifiLogProto.wifiAwareLog = mWifiAwareMetrics.consolidateProto();
         }
     }
 
@@ -1411,6 +1419,7 @@ public class WifiMetrics {
             mScanResultRssiTimestampMillis = -1;
             mSoftApManagerReturnCodeCounts.clear();
             mStaEventList.clear();
+            mWifiAwareMetrics.clear();
         }
     }
 
@@ -1585,6 +1594,10 @@ public class WifiMetrics {
 
     public Handler getHandler() {
         return mHandler;
+    }
+
+    public WifiAwareMetrics getWifiAwareMetrics() {
+        return mWifiAwareMetrics;
     }
 
     // Rather than generate a StaEvent for each SUPPLICANT_STATE_CHANGE, cache these in a bitmask

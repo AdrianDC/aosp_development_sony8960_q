@@ -77,6 +77,7 @@ public class WifiAwareServiceImplTest {
     private IWifiAwareEventCallback mCallbackMock;
     @Mock
     private IWifiAwareDiscoverySessionCallback mSessionCallbackMock;
+    @Mock private WifiAwareMetrics mAwareMetricsMock;
 
     private HandlerThread mHandlerThread;
 
@@ -116,8 +117,9 @@ public class WifiAwareServiceImplTest {
 
         mDut = new WifiAwareServiceImplSpy(mContextMock);
         mDut.fakeUid = mDefaultUid;
-        mDut.start(mHandlerThreadMock, mAwareStateManagerMock, mWifiAwareShellCommandMock);
-        verify(mAwareStateManagerMock).start(eq(mContextMock), any());
+        mDut.start(mHandlerThreadMock, mAwareStateManagerMock, mWifiAwareShellCommandMock,
+                mAwareMetricsMock);
+        verify(mAwareStateManagerMock).start(eq(mContextMock), any(), eq(mAwareMetricsMock));
     }
 
     /**

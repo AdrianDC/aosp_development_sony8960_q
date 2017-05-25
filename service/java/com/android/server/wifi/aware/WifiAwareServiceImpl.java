@@ -81,12 +81,12 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
      * the components of the service.
      */
     public void start(HandlerThread handlerThread, WifiAwareStateManager awareStateManager,
-            WifiAwareShellCommand awareShellCommand) {
+            WifiAwareShellCommand awareShellCommand, WifiAwareMetrics awareMetrics) {
         Log.i(TAG, "Starting Wi-Fi Aware service");
 
         mStateManager = awareStateManager;
         mShellCommand = awareShellCommand;
-        mStateManager.start(mContext, handlerThread.getLooper());
+        mStateManager.start(mContext, handlerThread.getLooper(), awareMetrics);
     }
 
     /**

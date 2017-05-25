@@ -195,6 +195,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
      * handler thread: no need to use a lock.
      */
     private Context mContext;
+    private WifiAwareMetrics mAwareMetrics;
     private volatile Capabilities mCapabilities;
     private volatile Characteristics mCharacteristics = null;
     private WifiAwareStateMachine mSm;
@@ -315,17 +316,18 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
      *
      * @param looper Thread looper on which to run the handler.
      */
-    public void start(Context context, Looper looper) {
+    public void start(Context context, Looper looper, WifiAwareMetrics awareMetrics) {
         Log.i(TAG, "start()");
 
         mContext = context;
+        mAwareMetrics = awareMetrics;
         mSm = new WifiAwareStateMachine(TAG, looper);
         mSm.setDbg(DBG);
         mSm.start();
 
         mRtt = new WifiAwareRttStateManager();
         mDataPathMgr = new WifiAwareDataPathStateManager(this);
-        mDataPathMgr.start(mContext, mSm.getHandler().getLooper());
+        mDataPathMgr.start(mContext, mSm.getHandler().getLooper(), awareMetrics);
 
         mPowerManager = mContext.getSystemService(PowerManager.class);
 
@@ -1951,6 +1953,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             Log.w(TAG, "connect(): called with mUsageEnabled=false");
             try {
                 callback.onConnectFail(NanStatusType.INTERNAL_FAILURE);
+                mAwareMetrics.recordAttachStatus(NanStatusType.INTERNAL_FAILURE);
             } catch (RemoteException e) {
                 Log.w(TAG, "connectLocal onConnectFail(): RemoteException (FYI): " + e);
             }
@@ -1972,6 +1975,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                     + ", incompatible with current configurations");
             try {
                 callback.onConnectFail(NanStatusType.INTERNAL_FAILURE);
+                mAwareMetrics.recordAttachStatus(NanStatusType.INTERNAL_FAILURE);
             } catch (RemoteException e) {
                 Log.w(TAG, "connectLocal onConnectFail(): RemoteException (FYI): " + e);
             }
@@ -1988,9 +1992,11 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                 Log.w(TAG, "connectLocal onConnectSuccess(): RemoteException (FYI): " + e);
             }
             WifiAwareClientState client = new WifiAwareClientState(mContext, clientId, uid, pid,
-                    callingPackage, callback, configRequest, notifyIdentityChange);
+                    callingPackage, callback, configRequest, notifyIdentityChange,
+                    SystemClock.elapsedRealtime());
             client.onInterfaceAddressChange(mCurrentDiscoveryInterfaceMac);
             mClients.append(clientId, client);
+            mAwareMetrics.recordAttachSession(uid, notifyIdentityChange, mClients);
             return false;
         }
         boolean notificationRequired =
@@ -2002,6 +2008,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         if (!success) {
             try {
                 callback.onConnectFail(NanStatusType.INTERNAL_FAILURE);
+                mAwareMetrics.recordAttachStatus(NanStatusType.INTERNAL_FAILURE);
             } catch (RemoteException e) {
                 Log.w(TAG, "connectLocal onConnectFail(): RemoteException (FYI):  " + e);
             }
@@ -2022,6 +2029,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             return false;
         }
         mClients.delete(clientId);
+        mAwareMetrics.recordAttachSessionDuration(client.getCreationTime());
         client.destroy();
 
         if (mClients.size() == 0) {
@@ -2208,6 +2216,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         mUsageEnabled = true;
         queryCapabilities();
         sendAwareStateChangedBroadcast(true);
+
+        mAwareMetrics.recordEnableUsage();
     }
 
     private boolean disableUsageLocal(short transactionId) {
@@ -2226,6 +2236,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         boolean callDispatched = mWifiAwareNativeApi.disable(transactionId);
 
         sendAwareStateChangedBroadcast(false);
+
+        mAwareMetrics.recordDisableUsage();
 
         return callDispatched;
     }
@@ -2344,8 +2356,10 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             String callingPackage = data.getString(MESSAGE_BUNDLE_KEY_CALLING_PACKAGE);
 
             WifiAwareClientState client = new WifiAwareClientState(mContext, clientId, uid, pid,
-                    callingPackage, callback, configRequest, notifyIdentityChange);
+                    callingPackage, callback, configRequest, notifyIdentityChange,
+                    SystemClock.elapsedRealtime());
             mClients.put(clientId, client);
+            mAwareMetrics.recordAttachSession(uid, notifyIdentityChange, mClients);
             try {
                 callback.onConnectSuccess(clientId);
             } catch (RemoteException e) {
@@ -2387,6 +2401,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
 
             try {
                 callback.onConnectFail(reason);
+                mAwareMetrics.recordAttachStatus(reason);
             } catch (RemoteException e) {
                 Log.w(TAG, "onConfigFailedLocal onConnectFail(): RemoteException (FYI): " + e);
             }
@@ -2776,6 +2791,9 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             Log.v(TAG, "onAwareDown");
         }
 
+        for (int i = 0; i < mClients.size(); ++i) {
+            mAwareMetrics.recordAttachSessionDuration(mClients.valueAt(i).getCreationTime());
+        }
         mClients.clear();
         mCurrentAwareConfiguration = null;
         mSm.onAwareDownCleanupSendQueueState();

@@ -84,6 +84,7 @@ public class WifiAwareDataPathStateManager {
     private final Map<WifiAwareNetworkSpecifier, AwareNetworkRequestInformation>
             mNetworkRequestsCache = new ArrayMap<>();
     private Context mContext;
+    private WifiAwareMetrics mAwareMetrics;
     private Looper mLooper;
     private WifiAwareNetworkFactory mNetworkFactory;
     private INetworkManagementService mNwService;
@@ -96,10 +97,11 @@ public class WifiAwareDataPathStateManager {
      * Initialize the Aware data-path state manager. Specifically register the network factory with
      * connectivity service.
      */
-    public void start(Context context, Looper looper) {
+    public void start(Context context, Looper looper, WifiAwareMetrics awareMetrics) {
         if (VDBG) Log.v(TAG, "start");
 
         mContext = context;
+        mAwareMetrics = awareMetrics;
         mLooper = looper;
 
         mNetworkCapabilitiesFilter.clearAll();

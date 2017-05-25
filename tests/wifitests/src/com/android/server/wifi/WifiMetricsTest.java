@@ -31,6 +31,7 @@ import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Base64;
 
 
+import com.android.server.wifi.aware.WifiAwareMetrics;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.nano.WifiMetricsProto;
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent;
@@ -67,7 +68,8 @@ public class WifiMetricsTest {
         mDeserializedWifiMetrics = null;
         when(mClock.getElapsedSinceBootMillis()).thenReturn((long) 0);
         mTestLooper = new TestLooper();
-        mWifiMetrics = new WifiMetrics(mClock, mTestLooper.getLooper());
+        mWifiMetrics = new WifiMetrics(mClock, mTestLooper.getLooper(),
+                new WifiAwareMetrics(mClock));
     }
 
     /**

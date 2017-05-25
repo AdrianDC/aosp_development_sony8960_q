@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyByte;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyShort;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -97,6 +98,7 @@ public class WifiAwareStateManagerTest {
     @Mock private Context mMockContext;
     @Mock private AppOpsManager mMockAppOpsManager;
     @Mock private WifiAwareRttStateManager mMockAwareRttStateManager;
+    @Mock private WifiAwareMetrics mAwareMetricsMock;
     TestAlarmManager mAlarmManager;
     private PowerManager mMockPowerManager;
     private BroadcastReceiver mPowerBcastReceiver;
@@ -145,7 +147,7 @@ public class WifiAwareStateManagerTest {
                 BroadcastReceiver.class);
         mDut = new WifiAwareStateManager();
         mDut.setNative(mMockNative);
-        mDut.start(mMockContext, mMockLooper.getLooper());
+        mDut.start(mMockContext, mMockLooper.getLooper(), mAwareMetricsMock);
         verify(mMockContext).registerReceiver(bcastRxCaptor.capture(), any(IntentFilter.class));
         mPowerBcastReceiver = bcastRxCaptor.getValue();
         installMocksInStateManager(mDut, mMockAwareRttStateManager, mMockAwareDataPathStatemanager);
@@ -292,12 +294,15 @@ public class WifiAwareStateManagerTest {
 
         IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        ArgumentCaptor<SparseArray> sparseArrayCaptor = ArgumentCaptor.forClass(SparseArray.class);
         InOrder inOrder = inOrder(mMockContext, mMockNative, mockCallback);
+        InOrder inOrderM = inOrder(mAwareMetricsMock);
 
         // (1) check initial state
         mDut.enableUsage();
         mMockLooper.dispatchAll();
         validateCorrectAwareStatusChangeBroadcast(inOrder, true);
+        inOrderM.verify(mAwareMetricsMock).recordEnableUsage();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
@@ -312,12 +317,17 @@ public class WifiAwareStateManagerTest {
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectSuccess(clientId);
+        inOrderM.verify(mAwareMetricsMock).recordAttachSession(eq(uid), eq(false),
+                sparseArrayCaptor.capture());
+        collector.checkThat("num of clients", sparseArrayCaptor.getValue().size(), equalTo(1));
 
         // (3) disable usage & verify callbacks
         mDut.disableUsage();
         mMockLooper.dispatchAll();
         collector.checkThat("usage disabled", mDut.isUsageEnabled(), equalTo(false));
         inOrder.verify(mMockNative).disable(transactionId.capture());
+        inOrderM.verify(mAwareMetricsMock).recordAttachSessionDuration(anyLong());
+        inOrderM.verify(mAwareMetricsMock).recordDisableUsage();
         validateCorrectAwareStatusChangeBroadcast(inOrder, false);
         validateInternalClientInfoCleanedUp(clientId);
         mDut.onDisableResponse(transactionId.getValue(), NanStatusType.SUCCESS);
@@ -327,6 +337,7 @@ public class WifiAwareStateManagerTest {
         mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectFail(anyInt());
+        inOrderM.verify(mAwareMetricsMock).recordAttachStatus(NanStatusType.INTERNAL_FAILURE);
 
         // (5) disable usage again and validate that not much happens
         mDut.disableUsage();
@@ -336,6 +347,7 @@ public class WifiAwareStateManagerTest {
         // (6) enable usage
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrderM.verify(mAwareMetricsMock).recordEnableUsage();
         collector.checkThat("usage enabled", mDut.isUsageEnabled(), equalTo(true));
         validateCorrectAwareStatusChangeBroadcast(inOrder, true);
 
@@ -347,8 +359,11 @@ public class WifiAwareStateManagerTest {
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
         inOrder.verify(mockCallback).onConnectSuccess(clientId);
+        inOrderM.verify(mAwareMetricsMock).recordAttachSession(eq(uid), eq(false),
+                sparseArrayCaptor.capture());
+        collector.checkThat("num of clients", sparseArrayCaptor.getValue().size(), equalTo(1));
 
-        verifyNoMoreInteractions(mMockNative, mockCallback);
+        verifyNoMoreInteractions(mMockNative, mockCallback, mAwareMetricsMock);
     }
 
     /**
