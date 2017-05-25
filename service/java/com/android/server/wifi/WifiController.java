@@ -30,7 +30,6 @@ import android.content.IntentFilter;
 import android.database.ContentObserver;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
-import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.Looper;
@@ -480,7 +479,7 @@ public class WifiController extends StateMachine {
                         if (msg.arg2 == 0) { // previous wifi state has not been saved yet
                             mSettingsStore.setWifiSavedState(WifiSettingsStore.WIFI_DISABLED);
                         }
-                        mWifiStateMachine.setHostApRunning((WifiConfiguration) msg.obj,
+                        mWifiStateMachine.setHostApRunning((SoftApModeConfiguration) msg.obj,
                                 true);
                         transitionTo(mApEnabledState);
                     }
