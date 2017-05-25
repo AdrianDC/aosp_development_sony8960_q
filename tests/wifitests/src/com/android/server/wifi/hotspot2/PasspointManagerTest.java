@@ -18,9 +18,7 @@ package com.android.server.wifi.hotspot2;
 
 import static android.net.wifi.WifiManager.ACTION_PASSPOINT_DEAUTH_IMMINENT;
 import static android.net.wifi.WifiManager.ACTION_PASSPOINT_ICON;
-import static android.net.wifi.WifiManager.ACTION_PASSPOINT_OSU_PROVIDERS_LIST;
 import static android.net.wifi.WifiManager.ACTION_PASSPOINT_SUBSCRIPTION_REMEDIATION;
-import static android.net.wifi.WifiManager.EXTRA_ANQP_ELEMENT_DATA;
 import static android.net.wifi.WifiManager.EXTRA_BSSID_LONG;
 import static android.net.wifi.WifiManager.EXTRA_DELAY;
 import static android.net.wifi.WifiManager.EXTRA_ESS;
@@ -72,7 +70,6 @@ import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType;
 import com.android.server.wifi.hotspot2.anqp.DomainNameElement;
-import com.android.server.wifi.hotspot2.anqp.RawByteElement;
 import com.android.server.wifi.util.ScanResultUtil;
 
 import org.junit.Before;
@@ -288,36 +285,6 @@ public class PasspointManagerTest {
         verify(mAnqpCache).addEntry(TEST_ANQP_KEY, anqpElementMap);
         verify(mContext, never()).sendBroadcastAsUser(any(Intent.class), any(UserHandle.class),
                 any(String.class));
-    }
-
-    /**
-     * Verify that the ANQP elements will be added to the AQNP cache and an
-     * {@link WifiManager#ACTION_PASSPOINT_OSU_PROVIDER_LIST} intent will be broadcasted when
-     * receiving an ANQP response containing OSU Providers element.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void anqpResponseWithOSUProviders() throws Exception {
-        Map<ANQPElementType, ANQPElement> anqpElementMap = new HashMap<>();
-        byte[] testData = new byte[] {0x12, 0x34, 0x56, 0x78};
-        anqpElementMap.put(ANQPElementType.HSOSUProviders,
-                new RawByteElement(ANQPElementType.HSOSUProviders, testData));
-
-        when(mAnqpRequestManager.onRequestCompleted(TEST_BSSID, true)).thenReturn(TEST_ANQP_KEY);
-        mCallbacks.onANQPResponse(TEST_BSSID, anqpElementMap);
-        verify(mAnqpCache).addEntry(TEST_ANQP_KEY, anqpElementMap);
-
-        // Verify the broadcast intent for OSU providers.
-        ArgumentCaptor<Intent> intent = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendBroadcastAsUser(intent.capture(), eq(UserHandle.ALL),
-                eq(android.Manifest.permission.ACCESS_WIFI_STATE));
-        assertEquals(ACTION_PASSPOINT_OSU_PROVIDERS_LIST, intent.getValue().getAction());
-        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_BSSID_LONG));
-        assertEquals(TEST_BSSID, intent.getValue().getExtras().getLong(EXTRA_BSSID_LONG));
-        assertTrue(intent.getValue().getExtras().containsKey(EXTRA_ANQP_ELEMENT_DATA));
-        assertTrue(Arrays.equals(testData,
-                intent.getValue().getExtras().getByteArray(EXTRA_ANQP_ELEMENT_DATA)));
     }
 
     /**
