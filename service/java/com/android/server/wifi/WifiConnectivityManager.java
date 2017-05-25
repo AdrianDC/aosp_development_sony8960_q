@@ -655,7 +655,7 @@ public class WifiConnectivityManager {
             return;
         }
 
-        Long elapsedTimeMillis = mClock.getElapsedSinceBootMillis();
+        long elapsedTimeMillis = mClock.getElapsedSinceBootMillis();
         if (!mScreenOn && shouldSkipConnectionAttempt(elapsedTimeMillis)) {
             localLog("connectToNetwork: Too many connection attempts. Skipping this attempt!");
             mTotalConnectivityAttemptsRateLimited++;
