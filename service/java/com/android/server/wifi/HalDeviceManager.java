@@ -601,7 +601,7 @@ public class HalDeviceManager {
 
         synchronized (mLock) {
             if (mServiceManager == null) {
-                Log.wtf(TAG, "isSupported: called but mServiceManager is null!?");
+                Log.e(TAG, "isSupported: called but mServiceManager is null!?");
                 return false;
             }
             try {
