@@ -17,12 +17,14 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.when;
 
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.pm.UserInfo;
+import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -165,6 +167,24 @@ public class ConfigurationMapTest {
                 new HashSet<WifiConfiguration>(mConfigs.valuesForAllUsers()));
     }
 
+    private ScanResult createScanResultForNetwork(WifiConfiguration config) {
+        return WifiConfigurationTestUtil.createScanDetailForNetwork(config, "", 0, 0, 0, 0)
+                .getScanResult();
+    }
+
+    /**
+     * Helper function to create a scan result matching the network and ensuring that
+     * {@link ConfigurationMap#getByScanResultForCurrentUser(ScanResult)} can match that network.
+     */
+    private void verifyScanResultMatchWithNetwork(WifiConfiguration config) {
+        mConfigs.put(config);
+        ScanResult scanResult = createScanResultForNetwork(config);
+        WifiConfiguration retrievedConfig =
+                mConfigs.getByScanResultForCurrentUser(scanResult);
+        assertNotNull(retrievedConfig);
+        assertEquals(config.configKey(), retrievedConfig.configKey());
+    }
+
     /**
      * Verifies that all getters return the correct network configurations, taking into account the
      * current user. Also verifies that handleUserSwitch() returns the list of network
@@ -229,5 +249,68 @@ public class ConfigurationMapTest {
         // Verify that the getters do not return any network configurations.
         configs.clear();
         verifyGetters(configs);
+    }
+
+    /**
+     * Verifies that {@link ConfigurationMap#getByScanResultForCurrentUser(ScanResult)} can
+     * positively match the corresponding networks.
+     */
+    @Test
+    public void testScanResultDoesMatchCorrespondingNetworks() {
+        verifyScanResultMatchWithNetwork(WifiConfigurationTestUtil.createOpenNetwork());
+        verifyScanResultMatchWithNetwork(WifiConfigurationTestUtil.createPskNetwork());
+        verifyScanResultMatchWithNetwork(WifiConfigurationTestUtil.createWepNetwork());
+        verifyScanResultMatchWithNetwork(WifiConfigurationTestUtil.createEapNetwork());
+    }
+
+    /**
+     * Verifies that {@link ConfigurationMap#getByScanResultForCurrentUser(ScanResult)} does not
+     * match other networks.
+     */
+    @Test
+    public void testScanResultDoesNotMatchWithOtherNetworks() {
+        WifiConfiguration config = WifiConfigurationTestUtil.createOpenNetwork();
+        ScanResult scanResult = createScanResultForNetwork(config);
+        // Change the network security type and the old scan result should not match now.
+        config.allowedKeyManagement.clear();
+        config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
+        mConfigs.put(config);
+        assertNull(mConfigs.getByScanResultForCurrentUser(scanResult));
+    }
+
+    /**
+     * Verifies that {@link ConfigurationMap#getByScanResultForCurrentUser(ScanResult)} does not
+     * match networks which have been removed.
+     */
+    @Test
+    public void testScanResultDoesNotMatchAfterNetworkRemove() {
+        WifiConfiguration config = WifiConfigurationTestUtil.createOpenNetwork();
+        ScanResult scanResult = createScanResultForNetwork(config);
+        config.networkId = 5;
+        mConfigs.put(config);
+        // Create another network in the map.
+        mConfigs.put(WifiConfigurationTestUtil.createPskNetwork());
+        assertNotNull(mConfigs.getByScanResultForCurrentUser(scanResult));
+
+        mConfigs.remove(config.networkId);
+        assertNull(mConfigs.getByScanResultForCurrentUser(scanResult));
+    }
+
+    /**
+     * Verifies that {@link ConfigurationMap#getByScanResultForCurrentUser(ScanResult)} does not
+     * match networks after clear.
+     */
+    @Test
+    public void testScanResultDoesNotMatchAfterClear() {
+        WifiConfiguration config = WifiConfigurationTestUtil.createOpenNetwork();
+        ScanResult scanResult = createScanResultForNetwork(config);
+        config.networkId = 5;
+        mConfigs.put(config);
+        // Create another network in the map.
+        mConfigs.put(WifiConfigurationTestUtil.createPskNetwork());
+        assertNotNull(mConfigs.getByScanResultForCurrentUser(scanResult));
+
+        mConfigs.clear();
+        assertNull(mConfigs.getByScanResultForCurrentUser(scanResult));
     }
 }

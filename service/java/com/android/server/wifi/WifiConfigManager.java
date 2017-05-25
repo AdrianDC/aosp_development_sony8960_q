@@ -49,7 +49,6 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalServices;
 import com.android.server.wifi.WifiConfigStoreLegacy.WifiConfigStoreDataLegacy;
 import com.android.server.wifi.hotspot2.PasspointManager;
-import com.android.server.wifi.util.ScanResultUtil;
 import com.android.server.wifi.util.TelephonyUtil;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
@@ -1002,7 +1001,12 @@ public class WifiConfigManager {
 
         // Add it to our internal map. This will replace any existing network configuration for
         // updates.
-        mConfiguredNetworks.put(newInternalConfig);
+        try {
+            mConfiguredNetworks.put(newInternalConfig);
+        } catch (IllegalArgumentException e) {
+            Log.e(TAG, "Failed to add network to config map", e);
+            return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
+        }
 
         if (mDeletedEphemeralSSIDs.remove(config.SSID)) {
             if (mVerboseLoggingEnabled) {
@@ -1901,16 +1905,19 @@ public class WifiConfigManager {
             Log.e(TAG, "No scan result found in scan detail");
             return null;
         }
-        for (WifiConfiguration config : getInternalConfiguredNetworks()) {
-            if (ScanResultUtil.doesScanResultMatchWithNetwork(scanResult, config)) {
-                if (mVerboseLoggingEnabled) {
-                    Log.v(TAG, "getSavedNetworkFromScanDetail Found " + config.configKey()
-                            + " for " + scanResult.SSID + "[" + scanResult.capabilities + "]");
-                }
-                return config;
+        WifiConfiguration config = null;
+        try {
+            config = mConfiguredNetworks.getByScanResultForCurrentUser(scanResult);
+        } catch (IllegalArgumentException e) {
+            Log.e(TAG, "Failed to lookup network from config map", e);
+        }
+        if (config != null) {
+            if (mVerboseLoggingEnabled) {
+                Log.v(TAG, "getSavedNetworkFromScanDetail Found " + config.configKey()
+                        + " for " + scanResult.SSID + "[" + scanResult.capabilities + "]");
             }
         }
-        return null;
+        return config;
     }
 
     /**
@@ -2571,7 +2578,11 @@ public class WifiConfigManager {
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, "Adding network from shared store " + configuration.configKey());
             }
-            mConfiguredNetworks.put(configuration);
+            try {
+                mConfiguredNetworks.put(configuration);
+            } catch (IllegalArgumentException e) {
+                Log.e(TAG, "Failed to add network to config map", e);
+            }
         }
     }
 
@@ -2590,7 +2601,11 @@ public class WifiConfigManager {
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, "Adding network from user store " + configuration.configKey());
             }
-            mConfiguredNetworks.put(configuration);
+            try {
+                mConfiguredNetworks.put(configuration);
+            } catch (IllegalArgumentException e) {
+                Log.e(TAG, "Failed to add network to config map", e);
+            }
         }
         for (String ssid : deletedEphemeralSSIDs) {
             mDeletedEphemeralSSIDs.add(ssid);

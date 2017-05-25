@@ -1,24 +1,27 @@
 package com.android.server.wifi;
 
-import android.content.pm.UserInfo;
+import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.os.UserHandle;
 import android.os.UserManager;
 
+import com.android.server.wifi.util.ScanResultUtil;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 
 public class ConfigurationMap {
     private final Map<Integer, WifiConfiguration> mPerID = new HashMap<>();
 
     private final Map<Integer, WifiConfiguration> mPerIDForCurrentUser = new HashMap<>();
     private final Map<String, WifiConfiguration> mPerFQDNForCurrentUser = new HashMap<>();
+    private final Map<ScanResultMatchInfo, WifiConfiguration>
+            mScanResultMatchInfoMapForCurrentUser = new HashMap<>();
 
     private final UserManager mUserManager;
 
@@ -37,6 +40,8 @@ public class ConfigurationMap {
             if (config.FQDN != null && config.FQDN.length() > 0) {
                 mPerFQDNForCurrentUser.put(config.FQDN, config);
             }
+            mScanResultMatchInfoMapForCurrentUser.put(
+                    ScanResultMatchInfo.fromWifiConfiguration(config), config);
         }
         return current;
     }
@@ -48,11 +53,20 @@ public class ConfigurationMap {
         }
 
         mPerIDForCurrentUser.remove(netID);
-        Iterator<Map.Entry<String, WifiConfiguration>> entries =
+        Iterator<Map.Entry<String, WifiConfiguration>> fqdnEntries =
                 mPerFQDNForCurrentUser.entrySet().iterator();
-        while (entries.hasNext()) {
-            if (entries.next().getValue().networkId == netID) {
-                entries.remove();
+        while (fqdnEntries.hasNext()) {
+            if (fqdnEntries.next().getValue().networkId == netID) {
+                fqdnEntries.remove();
+                break;
+            }
+        }
+
+        Iterator<Map.Entry<ScanResultMatchInfo, WifiConfiguration>> scanResultMatchInfoEntries =
+                mScanResultMatchInfoMapForCurrentUser.entrySet().iterator();
+        while (scanResultMatchInfoEntries.hasNext()) {
+            if (scanResultMatchInfoEntries.next().getValue().networkId == netID) {
+                scanResultMatchInfoEntries.remove();
                 break;
             }
         }
@@ -63,6 +77,7 @@ public class ConfigurationMap {
         mPerID.clear();
         mPerIDForCurrentUser.clear();
         mPerFQDNForCurrentUser.clear();
+        mScanResultMatchInfoMapForCurrentUser.clear();
     }
 
     /**
@@ -107,6 +122,17 @@ public class ConfigurationMap {
         return null;
     }
 
+    /**
+     * Retrieves the |WifiConfiguration| object matching the provided |scanResult| from the internal
+     * map.
+     * Essentially checks if network config and scan result have the same SSID and encryption type.
+     */
+    public WifiConfiguration getByScanResultForCurrentUser(ScanResult scanResult) {
+        return mScanResultMatchInfoMapForCurrentUser.get(
+                ScanResultMatchInfo.fromScanResult(scanResult));
+    }
+
+
     public Collection<WifiConfiguration> getEnabledNetworksForCurrentUser() {
         List<WifiConfiguration> list = new ArrayList<>();
         for (WifiConfiguration config : mPerIDForCurrentUser.values()) {
@@ -132,5 +158,84 @@ public class ConfigurationMap {
 
     public Collection<WifiConfiguration> valuesForCurrentUser() {
         return mPerIDForCurrentUser.values();
+    }
+
+    /**
+     * Class to store the info needed to match a scan result to the provided network configuration.
+     */
+    private static class ScanResultMatchInfo {
+        private static final int NETWORK_TYPE_OPEN = 0;
+        private static final int NETWORK_TYPE_WEP = 1;
+        private static final int NETWORK_TYPE_PSK = 2;
+        private static final int NETWORK_TYPE_EAP = 3;
+
+        /**
+         * SSID of the network.
+         */
+        public String networkSsid;
+        /**
+         * Security Type of the network.
+         */
+        public int networkType;
+
+        public static ScanResultMatchInfo fromWifiConfiguration(WifiConfiguration config) {
+            ScanResultMatchInfo info = new ScanResultMatchInfo();
+            info.networkSsid = config.SSID;
+            if (WifiConfigurationUtil.isConfigForPskNetwork(config)) {
+                info.networkType = NETWORK_TYPE_PSK;
+            } else if (WifiConfigurationUtil.isConfigForEapNetwork(config)) {
+                info.networkType = NETWORK_TYPE_EAP;
+            } else if (WifiConfigurationUtil.isConfigForWepNetwork(config)) {
+                info.networkType = NETWORK_TYPE_WEP;
+            } else if (WifiConfigurationUtil.isConfigForOpenNetwork(config)) {
+                info.networkType = NETWORK_TYPE_OPEN;
+            } else {
+                throw new IllegalArgumentException("Invalid WifiConfiguration: " + config);
+            }
+            return info;
+        }
+
+        public static ScanResultMatchInfo fromScanResult(ScanResult scanResult) {
+            ScanResultMatchInfo info = new ScanResultMatchInfo();
+            // Scan result ssid's are not quoted, hence add quotes.
+            // TODO: This matching algo works only if the scan result contains a string SSID.
+            // However, according to our public documentation ths {@link WifiConfiguration#SSID} can
+            // either have a hex string or quoted ASCII string SSID.
+            info.networkSsid = ScanResultUtil.createQuotedSSID(scanResult.SSID);
+            if (ScanResultUtil.isScanResultForPskNetwork(scanResult)) {
+                info.networkType = NETWORK_TYPE_PSK;
+            } else if (ScanResultUtil.isScanResultForEapNetwork(scanResult)) {
+                info.networkType = NETWORK_TYPE_EAP;
+            } else if (ScanResultUtil.isScanResultForWepNetwork(scanResult)) {
+                info.networkType = NETWORK_TYPE_WEP;
+            } else if (ScanResultUtil.isScanResultForOpenNetwork(scanResult)) {
+                info.networkType = NETWORK_TYPE_OPEN;
+            } else {
+                throw new IllegalArgumentException("Invalid ScanResult: " + scanResult);
+            }
+            return info;
+        }
+
+        @Override
+        public boolean equals(Object otherObj) {
+            if (this == otherObj) {
+                return true;
+            } else if (!(otherObj instanceof ScanResultMatchInfo)) {
+                return false;
+            }
+            ScanResultMatchInfo other = (ScanResultMatchInfo) otherObj;
+            return Objects.equals(networkSsid, other.networkSsid)
+                    && networkType == other.networkType;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(networkSsid, networkType);
+        }
+
+        @Override
+        public String toString() {
+            return "ScanResultMatchInfo: " + networkSsid + ", type: " + networkType;
+        }
     }
 }
