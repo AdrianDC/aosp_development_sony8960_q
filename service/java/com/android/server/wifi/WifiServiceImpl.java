@@ -142,9 +142,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private static final boolean DBG = true;
     private static final boolean VDBG = false;
 
-    // Package names for Settings, QuickSettings and QuickQuickSettings
-    private static final String SYSUI_PACKAGE_NAME = "com.android.systemui";
-    private static final String SETTINGS_PACKAGE_NAME = "com.android.settings";
+    // Dumpsys argument to enable/disable disconnect on IP reachability failures.
+    private static final String DUMP_ARG_SET_IPREACH_DISCONNECT = "set-ipreach-disconnect";
+    private static final String DUMP_ARG_SET_IPREACH_DISCONNECT_ENABLED = "enabled";
+    private static final String DUMP_ARG_SET_IPREACH_DISCONNECT_DISABLED = "disabled";
 
     // Default scan background throttling interval if not overriden in settings
     private static final long DEFAULT_SCAN_BACKGROUND_THROTTLE_INTERVAL_MS = 30 * 60 * 1000;
@@ -719,6 +720,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mWifiPermissionsUtil.enforceLocationPermission(pkgName, uid);
     }
 
+    private boolean checkNetworkSettingsPermission() {
+        int result = mContext.checkCallingOrSelfPermission(
+                android.Manifest.permission.NETWORK_SETTINGS);
+        return result == PackageManager.PERMISSION_GRANTED;
+    }
+
     /**
      * see {@link android.net.wifi.WifiManager#setWifiEnabled(boolean)}
      * @param enable {@code true} to enable, {@code false} to disable.
@@ -737,8 +744,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         // If SoftAp is enabled, only Settings is allowed to toggle wifi
         boolean apEnabled =
                 mWifiStateMachine.syncGetWifiApState() != WifiManager.WIFI_AP_STATE_DISABLED;
-        boolean isFromSettings =
-                packageName.equals(SYSUI_PACKAGE_NAME) || packageName.equals(SETTINGS_PACKAGE_NAME);
+        boolean isFromSettings = checkNetworkSettingsPermission();
         if (apEnabled && !isFromSettings) {
             mLog.trace("setWifiEnabled SoftAp not disabled: only Settings can enable wifi").flush();
             return false;
