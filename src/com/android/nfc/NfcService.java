@@ -69,6 +69,8 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
+import android.service.vr.IVrManager;
+import android.service.vr.IVrStateCallbacks;
 import android.util.Log;
 
 import com.android.internal.logging.MetricsLogger;
@@ -260,6 +262,9 @@ public class NfcService implements DeviceHostListener {
 
     boolean mIsLiveCaseEnabled; // whether live cases are enabled
     int mLiveCaseTechnology; // Technology mask of accepted NFC tags
+
+    private IVrManager vrManager;
+    boolean mIsVrModeEnabled;
 
     public static NfcService getInstance() {
         return sService;
@@ -464,6 +469,17 @@ public class NfcService implements DeviceHostListener {
         new EnableDisableTask().execute(TASK_BOOT);  // do blocking boot tasks
 
         mHandler.sendEmptyMessageDelayed(MSG_UPDATE_STATS, STATS_UPDATE_INTERVAL_MS);
+
+        IVrManager mVrManager = IVrManager.Stub.asInterface(ServiceManager.getService(
+                mContext.VR_SERVICE));
+        if (mVrManager != null) {
+            try {
+                mVrManager.registerListener(mVrStateCallbacks);
+                mIsVrModeEnabled = mVrManager.getVrModeState();
+            } catch (RemoteException e) {
+                Log.e(TAG, "Failed to register VR mode state listener: " + e);
+            }
+        }
     }
 
     void initSoundPool() {
@@ -692,6 +708,11 @@ public class NfcService implements DeviceHostListener {
         synchronized (this) {
             if (mSoundPool == null) {
                 Log.w(TAG, "Not playing sound when NFC is disabled");
+                return;
+            }
+
+            if (mIsVrModeEnabled) {
+                Log.d(TAG, "Not playing NFC sound when Vr Mode is enabled");
                 return;
             }
             switch (sound) {
@@ -2238,6 +2259,15 @@ public class NfcService implements DeviceHostListener {
                     .equals(action)) {
                 enforceBeamShareActivityPolicy(context,
                         new UserHandle(getSendingUserId()), mIsNdefPushEnabled);
+            }
+        }
+    };
+
+    private final IVrStateCallbacks mVrStateCallbacks = new IVrStateCallbacks.Stub() {
+        @Override
+        public void onVrStateChanged(boolean enabled) {
+            synchronized (this) {
+                mIsVrModeEnabled = enabled;
             }
         }
     };
