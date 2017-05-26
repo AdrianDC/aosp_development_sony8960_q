@@ -389,6 +389,7 @@ public class InformationElementUtil {
         private static final int CAP_PRIVACY_BIT_OFFSET = 4;
 
         private static final int WPA_VENDOR_OUI_TYPE_ONE = 0x01f25000;
+        private static final int WPS_VENDOR_OUI_TYPE = 0x04f25000;
         private static final short WPA_VENDOR_OUI_VERSION = 0x0001;
         private static final short RSNE_VERSION = 0x0001;
 
@@ -417,6 +418,7 @@ public class InformationElementUtil {
         public ArrayList<Integer> groupCipher;
         public boolean isESS;
         public boolean isPrivacy;
+        public boolean isWPS;
 
         public Capabilities() {
         }
@@ -532,6 +534,17 @@ public class InformationElementUtil {
             }
         }
 
+        private static boolean isWpsElement(InformationElement ie) {
+            ByteBuffer buf = ByteBuffer.wrap(ie.bytes).order(ByteOrder.LITTLE_ENDIAN);
+            try {
+                // WPS OUI and type
+                return (buf.getInt() == WPS_VENDOR_OUI_TYPE);
+            } catch (BufferUnderflowException e) {
+                Log.e("IE_Capabilities", "Couldn't parse VSA IE, buffer underflow");
+                return false;
+            }
+        }
+
         private static boolean isWpaOneElement(InformationElement ie) {
             ByteBuffer buf = ByteBuffer.wrap(ie.bytes).order(ByteOrder.LITTLE_ENDIAN);
 
@@ -630,8 +643,6 @@ public class InformationElementUtil {
             keyManagement = new ArrayList<ArrayList<Integer>>();
             groupCipher = new ArrayList<Integer>();
             pairwiseCipher = new ArrayList<ArrayList<Integer>>();
-            boolean rsneFound = false;
-            boolean wpaFound = false;
 
             if (ies == null || beaconCap == null) {
                 return;
@@ -640,14 +651,16 @@ public class InformationElementUtil {
             isPrivacy = beaconCap.get(CAP_PRIVACY_BIT_OFFSET);
             for (InformationElement ie : ies) {
                 if (ie.id == InformationElement.EID_RSN) {
-                    rsneFound = true;
                     parseRsnElement(ie);
                 }
 
                 if (ie.id == InformationElement.EID_VSA) {
                     if (isWpaOneElement(ie)) {
-                        wpaFound = true;
                         parseWpaOneElement(ie);
+                    }
+                    if (isWpsElement(ie)) {
+                        // TODO(b/62134557): parse WPS IE to provide finer granularity information.
+                        isWPS = true;
                     }
                 }
             }
@@ -728,6 +741,10 @@ public class InformationElementUtil {
             if (isESS) {
                 capabilities += "[ESS]";
             }
+            if (isWPS) {
+                capabilities += "[WPS]";
+            }
+
             return capabilities;
         }
     }
