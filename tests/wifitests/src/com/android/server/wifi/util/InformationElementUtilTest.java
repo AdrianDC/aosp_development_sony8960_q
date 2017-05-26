@@ -337,6 +337,40 @@ public class InformationElementUtilTest {
     }
 
     /**
+     * Test Capabilities.generateCapabilitiesString() with both WPS and WPA1 IE.
+     * Expect the function to return a string with the proper security information.
+     */
+    @Test
+    public void buildCapabilities_wpaAndWpsElement() {
+        InformationElement ieWpa = new InformationElement();
+        ieWpa.id = InformationElement.EID_VSA;
+        ieWpa.bytes = new byte[] { (byte) 0x00, (byte) 0x50, (byte) 0xF2, (byte) 0x01,
+                                   (byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x50,
+                                   (byte) 0xF2, (byte) 0x02, (byte) 0x02, (byte) 0x00,
+                                   (byte) 0x00, (byte) 0x50, (byte) 0xF2, (byte) 0x04,
+                                   (byte) 0x00, (byte) 0x50, (byte) 0xF2, (byte) 0x02,
+                                   (byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x50,
+                                   (byte) 0xF2, (byte) 0x02, (byte) 0x00, (byte) 0x00 };
+
+        InformationElement ieWps = new InformationElement();
+        ieWps.id = InformationElement.EID_VSA;
+        ieWps.bytes = new byte[] { (byte) 0x00, (byte) 0x50, (byte) 0xF2, (byte) 0x04 };
+
+        InformationElement[] ies = new InformationElement[] { ieWpa, ieWps };
+
+        BitSet beaconCap = new BitSet(16);
+        beaconCap.set(4);
+
+
+        InformationElementUtil.Capabilities capabilities =
+                 new InformationElementUtil.Capabilities();
+        capabilities.from(ies, beaconCap);
+        String result = capabilities.generateCapabilitiesString();
+
+        assertEquals("[WPA-PSK-CCMP+TKIP][WPS]", result);
+    }
+
+    /**
      * Test Capabilities.generateCapabilitiesString() with a vendor specific element which
      * is not WPA type 1. Beacon Capability Information field has the Privacy
      * bit set.
