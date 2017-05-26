@@ -56,12 +56,15 @@ import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.net.IpConfiguration;
 import android.net.wifi.ScanSettings;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.LocalOnlyHotspotCallback;
+import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -1449,5 +1452,32 @@ public class WifiServiceImplTest {
     @Test(expected = UnsupportedOperationException.class)
     public void testStopWatchLocalOnlyHotspotNotSupported() {
         mWifiServiceImpl.stopWatchLocalOnlyHotspot();
+    }
+
+    /**
+     * Verify that the call to addOrUpdateNetwork for installing Passpoint profile is redirected
+     * to the Passpoint specific API addOrUpdatePasspointConfiguration.
+     */
+    @Test
+    public void testAddPasspointProfileViaAddNetwork() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createPasspointNetwork();
+        config.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
+
+        PackageManager pm = mock(PackageManager.class);
+        when(pm.hasSystemFeature(PackageManager.FEATURE_WIFI_PASSPOINT)).thenReturn(true);
+        when(mContext.getPackageManager()).thenReturn(pm);
+
+        when(mWifiStateMachine.syncAddOrUpdatePasspointConfig(any(),
+                any(PasspointConfiguration.class), anyInt())).thenReturn(true);
+        assertEquals(0, mWifiServiceImpl.addOrUpdateNetwork(config));
+        verify(mWifiStateMachine).syncAddOrUpdatePasspointConfig(any(),
+                any(PasspointConfiguration.class), anyInt());
+        reset(mWifiStateMachine);
+
+        when(mWifiStateMachine.syncAddOrUpdatePasspointConfig(any(),
+                any(PasspointConfiguration.class), anyInt())).thenReturn(false);
+        assertEquals(-1, mWifiServiceImpl.addOrUpdateNetwork(config));
+        verify(mWifiStateMachine).syncAddOrUpdatePasspointConfig(any(),
+                any(PasspointConfiguration.class), anyInt());
     }
 }
