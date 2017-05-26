@@ -18,9 +18,7 @@ package com.android.server.wifi.hotspot2;
 
 import static android.net.wifi.WifiManager.ACTION_PASSPOINT_DEAUTH_IMMINENT;
 import static android.net.wifi.WifiManager.ACTION_PASSPOINT_ICON;
-import static android.net.wifi.WifiManager.ACTION_PASSPOINT_OSU_PROVIDERS_LIST;
 import static android.net.wifi.WifiManager.ACTION_PASSPOINT_SUBSCRIPTION_REMEDIATION;
-import static android.net.wifi.WifiManager.EXTRA_ANQP_ELEMENT_DATA;
 import static android.net.wifi.WifiManager.EXTRA_BSSID_LONG;
 import static android.net.wifi.WifiManager.EXTRA_DELAY;
 import static android.net.wifi.WifiManager.EXTRA_ESS;
@@ -49,7 +47,6 @@ import com.android.server.wifi.WifiKeyStore;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.Constants;
-import com.android.server.wifi.hotspot2.anqp.RawByteElement;
 import com.android.server.wifi.util.InformationElementUtil;
 import com.android.server.wifi.util.ScanResultUtil;
 
@@ -121,18 +118,6 @@ public class PasspointManager {
 
             // Add new entry to the cache.
             mAnqpCache.addEntry(anqpKey, anqpElements);
-
-            // Broadcast OSU providers info.
-            if (anqpElements.containsKey(Constants.ANQPElementType.HSOSUProviders)) {
-                RawByteElement osuProviders = (RawByteElement) anqpElements.get(
-                        Constants.ANQPElementType.HSOSUProviders);
-                Intent intent = new Intent(ACTION_PASSPOINT_OSU_PROVIDERS_LIST);
-                intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-                intent.putExtra(EXTRA_BSSID_LONG, bssid);
-                intent.putExtra(EXTRA_ANQP_ELEMENT_DATA, osuProviders.getPayload());
-                mContext.sendBroadcastAsUser(intent, UserHandle.ALL,
-                        android.Manifest.permission.ACCESS_WIFI_STATE);
-            }
         }
 
         @Override
