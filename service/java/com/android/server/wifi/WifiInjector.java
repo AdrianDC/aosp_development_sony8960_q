@@ -96,7 +96,7 @@ public class WifiInjector {
     private final PropertyService mPropertyService = new SystemPropertyService();
     private final BuildProperties mBuildProperties = new SystemBuildProperties();
     private final KeyStore mKeyStore = KeyStore.getInstance();
-    private final WifiBackupRestore mWifiBackupRestore = new WifiBackupRestore();
+    private final WifiBackupRestore mWifiBackupRestore;
     private final WifiMulticastLockManager mWifiMulticastLockManager;
     private final WifiConfigStore mWifiConfigStore;
     private final WifiKeyStore mWifiKeyStore;
@@ -150,6 +150,7 @@ public class WifiInjector {
                 mWifiNetworkScoreCache, NetworkScoreManager.CACHE_FILTER_NONE);
         mWifiPermissionsUtil = new WifiPermissionsUtil(mWifiPermissionsWrapper, mContext,
                 mSettingsStore, UserManager.get(mContext), mNetworkScoreManager, this);
+        mWifiBackupRestore = new WifiBackupRestore(mWifiPermissionsUtil);
         mBatteryStats = IBatteryStats.Stub.asInterface(mFrameworkFacade.getService(
                 BatteryStats.SERVICE_NAME));
         mWifiStateTracker = new WifiStateTracker(mBatteryStats);
