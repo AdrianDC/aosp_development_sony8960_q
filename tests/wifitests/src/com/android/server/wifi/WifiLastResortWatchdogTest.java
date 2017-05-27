@@ -41,7 +41,7 @@ import java.util.List;
 public class WifiLastResortWatchdogTest {
     WifiLastResortWatchdog mLastResortWatchdog;
     @Mock WifiMetrics mWifiMetrics;
-    @Mock WifiController mWifiController;
+    @Mock SelfRecovery mSelfRecovery;
     private String[] mSsids = {"\"test1\"", "\"test2\"", "\"test3\"", "\"test4\""};
     private String[] mBssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4", "de:ad:ba:b1:e5:55",
             "c0:ff:ee:ee:e3:ee"};
@@ -55,7 +55,7 @@ public class WifiLastResortWatchdogTest {
     @Before
     public void setUp() throws Exception {
         initMocks(this);
-        mLastResortWatchdog = new WifiLastResortWatchdog(mWifiController, mWifiMetrics);
+        mLastResortWatchdog = new WifiLastResortWatchdog(mSelfRecovery, mWifiMetrics);
     }
 
     private List<Pair<ScanDetail, WifiConfiguration>> createFilteredQnsCandidates(String[] ssids,
@@ -1279,8 +1279,8 @@ public class WifiLastResortWatchdogTest {
                     ssids[ssids.length - 1], bssids[ssids.length - 1],
                     WifiLastResortWatchdog.FAILURE_CODE_ASSOCIATION);
         assertEquals(true, watchdogTriggered);
-        verify(mWifiController).sendMessage(WifiController.CMD_RESTART_WIFI);
-        reset(mWifiController);
+        verify(mSelfRecovery).trigger(eq(SelfRecovery.REASON_LAST_RESORT_WATCHDOG));
+        reset(mSelfRecovery);
     }
 
     /**

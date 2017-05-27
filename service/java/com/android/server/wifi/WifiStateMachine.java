@@ -3965,14 +3965,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case CMD_CLIENT_INTERFACE_BINDER_DEATH:
-                    Log.wtf(TAG, "wificond died unexpectedly");
-                    // TODO(b/36586897): Automatically recover from this.
-                    transitionTo(mInitialState);
+                    Log.e(TAG, "wificond died unexpectedly. Triggering recovery");
+                    mWifiMetrics.incrementNumWificondCrashes();
+                    mWifiInjector.getSelfRecovery().trigger(SelfRecovery.REASON_WIFICOND_CRASH);
                     break;
                 case CMD_VENDOR_HAL_HWBINDER_DEATH:
-                    Log.wtf(TAG, "Vendor HAL died unexpectedly");
-                    // TODO(b/36586897): Automatically recover from this.
-                    transitionTo(mInitialState);
+                    Log.e(TAG, "Vendor HAL died unexpectedly. Triggering recovery");
+                    mWifiMetrics.incrementNumHalCrashes();
+                    mWifiInjector.getSelfRecovery().trigger(SelfRecovery.REASON_HAL_CRASH);
                     break;
                 case CMD_DIAGS_CONNECT_TIMEOUT:
                     mWifiDiagnostics.reportConnectionEvent(

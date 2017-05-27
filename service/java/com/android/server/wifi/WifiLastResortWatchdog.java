@@ -77,12 +77,11 @@ public class WifiLastResortWatchdog {
     // successfully connecting or a new network (SSID) becomes available to connect to.
     private boolean mWatchdogAllowedToTrigger = true;
 
+    private SelfRecovery mSelfRecovery;
     private WifiMetrics mWifiMetrics;
 
-    private WifiController mWifiController;
-
-    WifiLastResortWatchdog(WifiController wifiController, WifiMetrics wifiMetrics) {
-        mWifiController = wifiController;
+    WifiLastResortWatchdog(SelfRecovery selfRecovery, WifiMetrics wifiMetrics) {
+        mSelfRecovery = selfRecovery;
         mWifiMetrics = wifiMetrics;
     }
 
@@ -196,7 +195,8 @@ public class WifiLastResortWatchdog {
         if (isRestartNeeded) {
             // Stop the watchdog from triggering until re-enabled
             setWatchdogTriggerEnabled(false);
-            restartWifiStack();
+            Log.e(TAG, "Watchdog triggering recovery");
+            mSelfRecovery.trigger(SelfRecovery.REASON_LAST_RESORT_WATCHDOG);
             // increment various watchdog trigger count stats
             incrementWifiMetricsTriggerCounts();
             clearAllFailureCounts();
@@ -328,22 +328,6 @@ public class WifiLastResortWatchdog {
             Log.v(TAG, "checkTriggerCondition: return = " + atleastOneNetworkHasEverConnected);
         }
         return atleastOneNetworkHasEverConnected;
-    }
-
-    /**
-     * Trigger a restart of the wifi stack.
-     */
-    private void restartWifiStack() {
-        if (mVerboseLoggingEnabled) Log.v(TAG, "restartWifiStack.");
-
-        // First verify that we can send the trigger message.
-        if (mWifiController == null) {
-            Log.e(TAG, "WifiLastResortWatchdog unable to trigger: WifiController is null");
-            return;
-        }
-
-        mWifiController.sendMessage(WifiController.CMD_RESTART_WIFI);
-        Log.i(TAG, "Triggered WiFi stack restart.\n" + toString());
     }
 
     /**
