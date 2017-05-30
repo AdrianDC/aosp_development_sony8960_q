@@ -6645,8 +6645,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 return false;
             }
             for (Map.Entry<String, WifiConfiguration> entry : configs.entrySet()) {
+                WifiConfiguration config = entry.getValue();
+                // Reset the network ID retrieved from wpa_supplicant, since we want to treat
+                // this as a new network addition in framework.
+                config.networkId = WifiConfiguration.INVALID_NETWORK_ID;
                 NetworkUpdateResult result = mWifiConfigManager.addOrUpdateNetwork(
-                        entry.getValue(), mSourceMessage.sendingUid);
+                        config, mSourceMessage.sendingUid);
                 if (!result.isSuccess()) {
                     loge("Failed to add network after WPS: " + entry.getValue());
                     return false;
