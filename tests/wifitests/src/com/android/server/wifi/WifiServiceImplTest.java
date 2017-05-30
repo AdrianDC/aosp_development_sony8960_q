@@ -56,6 +56,7 @@ import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.net.IpConfiguration;
 import android.net.wifi.ScanSettings;
@@ -110,7 +111,6 @@ public class WifiServiceImplTest {
     private static final long WIFI_BACKGROUND_SCAN_INTERVAL = 10000;
     private static final String ANDROID_SYSTEM_PACKAGE = "android";
     private static final String TEST_PACKAGE_NAME = "TestPackage";
-    private static final String SETTINGS_PACKAGE_NAME = "com.android.settings";
     private static final String SYSUI_PACKAGE_NAME = "com.android.systemui";
     private static final int TEST_PID = 6789;
     private static final int TEST_PID2 = 9876;
@@ -363,23 +363,16 @@ public class WifiServiceImplTest {
     }
 
     /**
-     * Verify that a call from Settings can enable wifi if we are in softap mode.
+     * Verify that a call from an app with the NETWORK_SETTINGS permission can enable wifi if we
+     * are in softap mode.
      */
     @Test
-    public void testSetWifiEnabledFromSettingsWhenApEnabled() throws Exception {
+    public void testSetWifiEnabledFromNetworkSettingsHolderWhenApEnabled() throws Exception {
         when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
         when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
-        assertTrue(mWifiServiceImpl.setWifiEnabled(SETTINGS_PACKAGE_NAME, true));
-        verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
-    }
-
-    /**
-     * Verify that a call from SysUI can enable wifi if we are in softap mode.
-     */
-    @Test
-    public void testSetWifiEnabledFromSysUiWhenApEnabled() throws Exception {
-        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
-        when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
+        when(mContext.checkCallingOrSelfPermission(
+                eq(android.Manifest.permission.NETWORK_SETTINGS)))
+                        .thenReturn(PackageManager.PERMISSION_GRANTED);
         assertTrue(mWifiServiceImpl.setWifiEnabled(SYSUI_PACKAGE_NAME, true));
         verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
     }
@@ -390,6 +383,9 @@ public class WifiServiceImplTest {
     @Test
     public void testSetWifiEnabledFromAppFailsWhenApEnabled() throws Exception {
         when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
+        when(mContext.checkCallingOrSelfPermission(
+                eq(android.Manifest.permission.NETWORK_SETTINGS)))
+                        .thenReturn(PackageManager.PERMISSION_DENIED);
         assertFalse(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
         verify(mSettingsStore, never()).handleWifiToggled(anyBoolean());
         verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
