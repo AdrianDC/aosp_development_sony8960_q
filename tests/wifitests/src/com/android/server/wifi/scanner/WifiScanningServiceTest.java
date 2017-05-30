@@ -1257,10 +1257,10 @@ public class WifiScanningServiceTest {
     }
 
     /**
-     * Verify that the newest scan results are returned by WifiService.getSingleScanResults.
+     * Verify that the newest full scan results are returned by WifiService.getSingleScanResults.
      */
     @Test
-    public void retrieveMostRecentSingleScanResults() throws Exception {
+    public void retrieveMostRecentFullSingleScanResults() throws Exception {
         WifiScanner.ScanSettings requestSettings = createRequest(WifiScanner.WIFI_BAND_BOTH, 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
         ScanResults expectedResults = ScanResults.create(0, true, 2400, 5150, 5175);
@@ -1309,6 +1309,64 @@ public class WifiScanningServiceTest {
         List<ScanResult> results2 = Arrays.asList(
                 ((WifiScanner.ParcelableScanResults) response2.obj).getResults());
         assertEquals(results2.size(), expectedSingleResult.getRawScanResults().length);
+    }
+
+    /**
+     * Verify that the newest partial scan results are not returned by
+     * WifiService.getSingleScanResults.
+     */
+    @Test
+    public void doesNotRetrieveMostRecentPartialSingleScanResults() throws Exception {
+        WifiScanner.ScanSettings fullRequestSettings = createRequest(WifiScanner.WIFI_BAND_BOTH, 0,
+                0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        ScanResults expectedFullResults = ScanResults.create(0, true, 2400, 5150, 5175);
+        doSuccessfulSingleScan(fullRequestSettings,
+                computeSingleScanNativeSettings(fullRequestSettings),
+                expectedFullResults);
+
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler, mWifiScannerImpl);
+
+        controlChannel.sendMessage(
+                Message.obtain(null, WifiScanner.CMD_GET_SINGLE_SCAN_RESULTS, 0));
+        mLooper.dispatchAll();
+        Message response = verifyHandleMessageAndGetMessage(order, handler);
+
+        List<ScanResult> results = Arrays.asList(
+                ((WifiScanner.ParcelableScanResults) response.obj).getResults());
+        assertEquals(results.size(), expectedFullResults.getRawScanResults().length);
+
+        // now update with a new scan that only has one result
+        int secondScanRequestId = 35;
+        WifiScanner.ScanSettings partialRequestSettings = createRequest(WifiScanner.WIFI_BAND_BOTH,
+                0, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        ScanResults expectedPartialResults = ScanResults.create(0, false, 5150);
+        sendSingleScanRequest(controlChannel, secondScanRequestId, partialRequestSettings, null);
+
+        mLooper.dispatchAll();
+        WifiNative.ScanEventHandler eventHandler = verifyStartSingleScan(order,
+                computeSingleScanNativeSettings(partialRequestSettings));
+        verifySuccessfulResponse(order, handler, secondScanRequestId);
+
+        // dispatch scan 2 results
+        when(mWifiScannerImpl.getLatestSingleScanResults())
+                .thenReturn(expectedPartialResults.getScanData());
+        eventHandler.onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
+
+        mLooper.dispatchAll();
+        verifyScanResultsReceived(order, handler, secondScanRequestId,
+                expectedPartialResults.getScanData());
+        verifySingleScanCompletedReceived(order, handler, secondScanRequestId);
+
+        controlChannel.sendMessage(
+                Message.obtain(null, WifiScanner.CMD_GET_SINGLE_SCAN_RESULTS, 0));
+        mLooper.dispatchAll();
+        Message response2 = verifyHandleMessageAndGetMessage(order, handler);
+
+        List<ScanResult> results2 = Arrays.asList(
+                ((WifiScanner.ParcelableScanResults) response2.obj).getResults());
+        assertEquals(results2.size(), expectedFullResults.getRawScanResults().length);
     }
 
     /**
