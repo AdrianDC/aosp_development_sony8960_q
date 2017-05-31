@@ -443,6 +443,7 @@ public class HalDeviceManager {
     private final Set<ManagerStatusListenerProxy> mManagerStatusListeners = new HashSet<>();
     private final SparseArray<Set<InterfaceAvailableForRequestListenerProxy>>
             mInterfaceAvailableForRequestListeners = new SparseArray<>();
+    private final SparseArray<IWifiChipEventCallback.Stub> mDebugCallbacks = new SparseArray<>();
 
     /*
      * This is the only place where we cache HIDL information in this manager. Necessary since
@@ -720,7 +721,7 @@ public class HalDeviceManager {
                         continue; // still try next one?
                     }
 
-                    WifiStatus status = chipResp.value.registerEventCallback(
+                    IWifiChipEventCallback.Stub callback =
                             new IWifiChipEventCallback.Stub() {
                                 @Override
                                 public void onChipReconfigured(int modeId) throws RemoteException {
@@ -759,7 +760,9 @@ public class HalDeviceManager {
                                         throws RemoteException {
                                     Log.d(TAG, "onDebugErrorAlert");
                                 }
-                            });
+                            };
+                    mDebugCallbacks.put(chipId, callback); // store to prevent GC: needed by HIDL
+                    WifiStatus status = chipResp.value.registerEventCallback(callback);
                     if (status.code != WifiStatusCode.SUCCESS) {
                         Log.e(TAG, "registerEventCallback failed: " + statusString(status));
                         continue; // still try next one?
