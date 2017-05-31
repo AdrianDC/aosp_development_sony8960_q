@@ -264,11 +264,12 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
 
             for (WifiConfiguration network : associatedConfigurations) {
                 /**
-                 * Ignore Passpoint networks. Passpoint networks are also considered as "saved"
-                 * network, but without being persisted to the storage. They are being evaluated
-                 * by {@link PasspointNetworkEvaluator}.
+                 * Ignore Passpoint and Ephemeral networks. They are configured networks,
+                 * but without being persisted to the storage. They are evaluated by
+                 * {@link PasspointNetworkEvaluator} and {@link ScoredNetworkEvaluator}
+                 * respectively.
                  */
-                if (network.isPasspoint()) {
+                if (network.isPasspoint() || network.isEphemeral()) {
                     continue;
                 }
 
