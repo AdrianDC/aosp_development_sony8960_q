@@ -271,6 +271,32 @@ public class InformationElementUtilTest {
     }
 
     /**
+     * Test Capabilities.generateCapabilitiesString() with a RSN IE which is malformed.
+     * Expect the function to return a string with empty key management & pairswise cipher security
+     * information.
+     */
+    @Test
+    public void buildCapabilities_malformedRsnElement() {
+        InformationElement ie = new InformationElement();
+        ie.id = InformationElement.EID_RSN;
+        ie.bytes = new byte[] { (byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x0F,
+                (byte) 0xAC, (byte) 0x02, (byte) 0x02, (byte) 0x00,
+                (byte) 0x00, (byte) 0x0F, (byte) 0xAC };
+
+        InformationElement[] ies = new InformationElement[] { ie };
+
+        BitSet beaconCap = new BitSet(16);
+        beaconCap.set(4);
+
+        InformationElementUtil.Capabilities capabilities =
+                new InformationElementUtil.Capabilities();
+        capabilities.from(ies, beaconCap);
+        String result = capabilities.generateCapabilitiesString();
+
+        assertEquals("[WPA2]", result);
+    }
+
+    /**
      * Test Capabilities.generateCapabilitiesString() with a WPA type 1 IE.
      * Expect the function to return a string with the proper security information.
      */
@@ -296,6 +322,30 @@ public class InformationElementUtilTest {
         String result = capabilities.generateCapabilitiesString();
 
         assertEquals("[WPA-PSK-CCMP+TKIP]", result);
+    }
+
+    /**
+     * Test Capabilities.generateCapabilitiesString() with a WPA type 1 IE which is malformed.
+     * Expect the function to return a string with empty key management & pairswise cipher security
+     * information.
+     */
+    @Test
+    public void buildCapabilities_malformedWpa1Element() {
+        InformationElement ie = new InformationElement();
+        ie.id = InformationElement.EID_VSA;
+        ie.bytes = new byte[] { (byte) 0x00, (byte) 0x50, (byte) 0xF2, (byte) 0x01,
+                (byte) 0x01, (byte) 0x00 };
+
+        InformationElement[] ies = new InformationElement[] { ie };
+
+        BitSet beaconCap = new BitSet(16);
+        beaconCap.set(4);
+        InformationElementUtil.Capabilities capabilities =
+                new InformationElementUtil.Capabilities();
+        capabilities.from(ies, beaconCap);
+        String result = capabilities.generateCapabilitiesString();
+
+        assertEquals("[WPA]", result);
     }
 
     /**
@@ -334,6 +384,38 @@ public class InformationElementUtilTest {
         String result = capabilities.generateCapabilitiesString();
 
         assertEquals("[WPA-PSK-CCMP+TKIP][WPA2-PSK-CCMP+TKIP]", result);
+    }
+
+    /**
+     * Test Capabilities.generateCapabilitiesString() with both RSN and WPA1 IE which are malformed.
+     * Expect the function to return a string with empty key management & pairswise cipher security
+     * information.
+     */
+    @Test
+    public void buildCapabilities_malformedRsnAndWpaElement() {
+        InformationElement ieRsn = new InformationElement();
+        ieRsn.id = InformationElement.EID_RSN;
+        ieRsn.bytes = new byte[] { (byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x0F,
+                (byte) 0xAC, (byte) 0x02, (byte) 0x02 };
+
+        InformationElement ieWpa = new InformationElement();
+        ieWpa.id = InformationElement.EID_VSA;
+        ieWpa.bytes = new byte[] { (byte) 0x00, (byte) 0x50, (byte) 0xF2, (byte) 0x01,
+                (byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x50,
+                (byte) 0xF2, (byte) 0x02, (byte) 0x02, (byte) 0x00,
+                (byte) 0x00, (byte) 0x50 };
+
+        InformationElement[] ies = new InformationElement[] { ieWpa, ieRsn };
+
+        BitSet beaconCap = new BitSet(16);
+        beaconCap.set(4);
+
+        InformationElementUtil.Capabilities capabilities =
+                new InformationElementUtil.Capabilities();
+        capabilities.from(ies, beaconCap);
+        String result = capabilities.generateCapabilitiesString();
+
+        assertEquals("[WPA][WPA2]", result);
     }
 
     /**
