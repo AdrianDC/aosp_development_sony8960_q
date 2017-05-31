@@ -108,7 +108,7 @@ public class WifiNetworkSelectorTest {
             ScanDetail scanDetail = scanDetails.get(0);
             mWifiConfigManager.setNetworkCandidateScanResult(0, scanDetail.getScanResult(), 100);
 
-            return mWifiConfigManager.getSavedNetworkForScanDetailAndCache(scanDetail);
+            return mWifiConfigManager.getConfiguredNetworkForScanDetailAndCache(scanDetail);
         }
     }
 
