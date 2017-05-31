@@ -727,14 +727,18 @@ public class InformationElementUtil {
                 capabilities += "[WEP]";
             }
             for (int i = 0; i < protocol.size(); i++) {
-                capabilities += "[" +  protocolToString(protocol.get(i));
-                for (int j = 0; j < keyManagement.get(i).size(); j++) {
-                    capabilities += ((j == 0) ? "-" : "+")
-                        + keyManagementToString(keyManagement.get(i).get(j));
+                capabilities += "[" + protocolToString(protocol.get(i));
+                if (i < keyManagement.size()) {
+                    for (int j = 0; j < keyManagement.get(i).size(); j++) {
+                        capabilities += ((j == 0) ? "-" : "+")
+                                + keyManagementToString(keyManagement.get(i).get(j));
+                    }
                 }
-                for (int j = 0; j < pairwiseCipher.get(i).size(); j++) {
-                    capabilities += ((j == 0) ? "-" : "+")
-                            + cipherToString(pairwiseCipher.get(i).get(j));
+                if (i < pairwiseCipher.size()) {
+                    for (int j = 0; j < pairwiseCipher.get(i).size(); j++) {
+                        capabilities += ((j == 0) ? "-" : "+")
+                                + cipherToString(pairwiseCipher.get(i).get(j));
+                    }
                 }
                 capabilities += "]";
             }
