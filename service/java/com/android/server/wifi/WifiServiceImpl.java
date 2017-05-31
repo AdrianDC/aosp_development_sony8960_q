@@ -68,7 +68,6 @@ import android.net.wifi.ScanSettings;
 import android.net.wifi.WifiActivityEnergyInfo;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConnectionStatistics;
-import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiManager;
@@ -93,7 +92,6 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.WorkSource;
 import android.provider.Settings;
-import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.Log;
@@ -105,6 +103,7 @@ import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
+import com.android.server.wifi.hotspot2.PasspointProvider;
 import com.android.server.wifi.util.WifiHandler;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
@@ -120,7 +119,6 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathValidator;
-import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.PKIXParameters;
 import java.security.cert.X509Certificate;
@@ -1521,33 +1519,32 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public int addOrUpdateNetwork(WifiConfiguration config) {
         enforceChangePermission();
         mLog.trace("addOrUpdateNetwork uid=%").c(Binder.getCallingUid()).flush();
-        if (isValid(config) && isValidPasspoint(config)) {
 
-            WifiEnterpriseConfig enterpriseConfig = config.enterpriseConfig;
-
-            if (config.isPasspoint() &&
-                    (enterpriseConfig.getEapMethod() == WifiEnterpriseConfig.Eap.TLS ||
-                            enterpriseConfig.getEapMethod() == WifiEnterpriseConfig.Eap.TTLS)) {
-                if (config.updateIdentifier != null) {
-                    enforceAccessPermission();
-                }
-                else {
-                    try {
-                        verifyCert(enterpriseConfig.getCaCertificate());
-                    } catch (CertPathValidatorException cpve) {
-                        Slog.e(TAG, "CA Cert " +
-                                enterpriseConfig.getCaCertificate().getSubjectX500Principal() +
-                                " untrusted: " + cpve.getMessage());
-                        return -1;
-                    } catch (GeneralSecurityException | IOException e) {
-                        Slog.e(TAG, "Failed to verify certificate" +
-                                enterpriseConfig.getCaCertificate().getSubjectX500Principal() +
-                                ": " + e);
-                        return -1;
-                    }
-                }
+        // Previously, this API is overloaded for installing Passpoint profiles.  Now
+        // that we have a dedicated API for doing it, redirect the call to the dedicated API.
+        if (config.isPasspoint()) {
+            PasspointConfiguration passpointConfig =
+                    PasspointProvider.convertFromWifiConfig(config);
+            if (passpointConfig.getCredential() == null) {
+                Slog.e(TAG, "Missing credential for Passpoint profile");
+                return -1;
             }
+            // Copy over certificates and keys.
+            passpointConfig.getCredential().setCaCertificate(
+                    config.enterpriseConfig.getCaCertificate());
+            passpointConfig.getCredential().setClientCertificateChain(
+                    config.enterpriseConfig.getClientCertificateChain());
+            passpointConfig.getCredential().setClientPrivateKey(
+                    config.enterpriseConfig.getClientPrivateKey());
+            if (!addOrUpdatePasspointConfiguration(passpointConfig)) {
+                Slog.e(TAG, "Failed to add Passpoint profile");
+                return -1;
+            }
+            // There is no network ID associated with a Passpoint profile.
+            return 0;
+        }
 
+        if (isValid(config)) {
             //TODO: pass the Uid the WifiStateMachine as a message parameter
             Slog.i("addOrUpdateNetwork", " uid = " + Integer.toString(Binder.getCallingUid())
                     + " SSID " + config.SSID
@@ -2422,11 +2419,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         return validity == null || logAndReturnFalse(validity);
     }
 
-    public static boolean isValidPasspoint(WifiConfiguration config) {
-        String validity = checkPasspointValidity(config);
-        return validity == null || logAndReturnFalse(validity);
-    }
-
     public static String checkValidity(WifiConfiguration config) {
         if (config.allowedKeyManagement == null)
             return "allowed kmgmt";
@@ -2450,33 +2442,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             }
             if (staticIpConf.ipAddress == null) {
                 return "null static ip Address";
-            }
-        }
-        return null;
-    }
-
-    public static String checkPasspointValidity(WifiConfiguration config) {
-        if (!TextUtils.isEmpty(config.FQDN)) {
-            /* this is passpoint configuration; it must not have an SSID */
-            if (!TextUtils.isEmpty(config.SSID)) {
-                return "SSID not expected for Passpoint: '" + config.SSID +
-                        "' FQDN " + toHexString(config.FQDN);
-            }
-            /* this is passpoint configuration; it must have a providerFriendlyName */
-            if (TextUtils.isEmpty(config.providerFriendlyName)) {
-                return "no provider friendly name";
-            }
-            WifiEnterpriseConfig enterpriseConfig = config.enterpriseConfig;
-            /* this is passpoint configuration; it must have enterprise config */
-            if (enterpriseConfig == null
-                    || enterpriseConfig.getEapMethod() == WifiEnterpriseConfig.Eap.NONE ) {
-                return "no enterprise config";
-            }
-            if ((enterpriseConfig.getEapMethod() == WifiEnterpriseConfig.Eap.TLS ||
-                    enterpriseConfig.getEapMethod() == WifiEnterpriseConfig.Eap.TTLS ||
-                    enterpriseConfig.getEapMethod() == WifiEnterpriseConfig.Eap.PEAP) &&
-                    enterpriseConfig.getCaCertificate() == null) {
-                return "no CA certificate";
             }
         }
         return null;
