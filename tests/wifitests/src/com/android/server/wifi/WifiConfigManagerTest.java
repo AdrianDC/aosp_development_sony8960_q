@@ -927,6 +927,7 @@ public class WifiConfigManagerTest {
         wepKeys[0] = "";
         wepTxKeyIdx = -1;
         assertAndSetNetworkWepKeysAndTxIndex(network, wepKeys, wepTxKeyIdx);
+        network.allowedKeyManagement.clear();
         network.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
         assertAndSetNetworkPreSharedKey(network, WifiConfigurationTestUtil.TEST_PSK);
 
@@ -982,7 +983,6 @@ public class WifiConfigManagerTest {
         network.allowedKeyManagement.clear();
         network.allowedPairwiseCiphers.clear();
         network.allowedGroupCiphers.clear();
-        network.setIpConfiguration(null);
         network.enterpriseConfig = null;
 
         // Update the network.
@@ -1005,6 +1005,20 @@ public class WifiConfigManagerTest {
         WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
                 originalNetwork,
                 mWifiConfigManager.getConfiguredNetworkWithPassword(originalNetwork.networkId));
+    }
+
+    /**
+     * Verifies the addition of a single network using
+     * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} by passing in null
+     * in IpConfiguraion fails.
+     */
+    @Test
+    public void testAddSingleNetworkWithNullIpConfigurationFails() {
+        WifiConfiguration network = WifiConfigurationTestUtil.createEapNetwork();
+        network.setIpConfiguration(null);
+        NetworkUpdateResult result =
+                mWifiConfigManager.addOrUpdateNetwork(network, TEST_CREATOR_UID);
+        assertFalse(result.isSuccess());
     }
 
     /**
@@ -1220,8 +1234,9 @@ public class WifiConfigManagerTest {
         verifyUpdateNetworkAfterConnectHasEverConnectedTrue(pskNetwork.networkId);
 
         // Now update the same network with a different psk.
-        assertFalse(pskNetwork.preSharedKey.equals("newpassword"));
-        pskNetwork.preSharedKey = "newpassword";
+        String newPsk = "\"newpassword\"";
+        assertFalse(pskNetwork.preSharedKey.equals(newPsk));
+        pskNetwork.preSharedKey = newPsk;
         verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(pskNetwork);
     }
 
@@ -1266,6 +1281,7 @@ public class WifiConfigManagerTest {
         verifyUpdateNetworkAfterConnectHasEverConnectedTrue(pskNetwork.networkId);
 
         assertFalse(pskNetwork.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X));
+        pskNetwork.allowedKeyManagement.clear();
         pskNetwork.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.IEEE8021X);
         verifyUpdateNetworkWithCredentialChangeHasEverConnectedFalse(pskNetwork);
     }
@@ -2779,7 +2795,7 @@ public class WifiConfigManagerTest {
      */
     @Test
     public void testAddMultipleNetworksWithSameSSIDAndDefaultKeyMgmt() {
-        final String ssid = "test_blah";
+        final String ssid = "\"test_blah\"";
         // Add a network with the above SSID and default key mgmt and ensure it was added
         // successfully.
         WifiConfiguration network1 = new WifiConfiguration();
@@ -2815,12 +2831,13 @@ public class WifiConfigManagerTest {
      */
     @Test
     public void testAddMultipleNetworksWithSameSSIDAndDifferentKeyMgmt() {
-        final String ssid = "test_blah";
+        final String ssid = "\"test_blah\"";
         // Add a network with the above SSID and WPA_PSK key mgmt and ensure it was added
         // successfully.
         WifiConfiguration network1 = new WifiConfiguration();
         network1.SSID = ssid;
         network1.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
+        network1.preSharedKey = "\"test_blah\"";
         NetworkUpdateResult result = addNetworkToWifiConfigManager(network1);
         assertTrue(result.getNetworkId() != WifiConfiguration.INVALID_NETWORK_ID);
         assertTrue(result.isNewNetwork());
@@ -3566,6 +3583,7 @@ public class WifiConfigManagerTest {
      */
     private NetworkUpdateResult addNetworkToWifiConfigManager(WifiConfiguration configuration,
                                                               int uid) {
+        clearInvocations(mContext, mWifiConfigStore, mNetworkListStoreData);
         triggerStoreReadIfNeeded();
         when(mClock.getWallClockMillis()).thenReturn(TEST_WALLCLOCK_CREATION_TIME_MILLIS);
         NetworkUpdateResult result =
@@ -3637,6 +3655,7 @@ public class WifiConfigManagerTest {
      * to modify the configuration before we compare the added network with the retrieved network.
      */
     private NetworkUpdateResult updateNetworkToWifiConfigManager(WifiConfiguration configuration) {
+        clearInvocations(mContext, mWifiConfigStore, mNetworkListStoreData);
         when(mClock.getWallClockMillis()).thenReturn(TEST_WALLCLOCK_UPDATE_TIME_MILLIS);
         NetworkUpdateResult result =
                 mWifiConfigManager.addOrUpdateNetwork(configuration, TEST_UPDATE_UID);

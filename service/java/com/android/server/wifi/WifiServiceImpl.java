@@ -268,7 +268,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                             + " uid=" + msg.sendingUid
                             + " name="
                             + mContext.getPackageManager().getNameForUid(msg.sendingUid));
-                    if (config != null && isValid(config)) {
+                    if (config != null) {
                         if (DBG) Slog.d(TAG, "Connect with config " + config);
                         /* Command is forwarded to state machine */
                         mWifiStateMachine.sendMessage(Message.obtain(msg));
@@ -291,7 +291,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                             + " uid=" + msg.sendingUid
                             + " name="
                             + mContext.getPackageManager().getNameForUid(msg.sendingUid));
-                    if (config != null && isValid(config)) {
+                    if (config != null) {
                         if (DBG) Slog.d(TAG, "Save network with config " + config);
                         /* Command is forwarded to state machine */
                         mWifiStateMachine.sendMessage(Message.obtain(msg));
@@ -1545,7 +1545,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             return 0;
         }
 
-        if (isValid(config)) {
+        if (config != null) {
             //TODO: pass the Uid the WifiStateMachine as a message parameter
             Slog.i("addOrUpdateNetwork", " uid = " + Integer.toString(Binder.getCallingUid())
                     + " SSID " + config.SSID

@@ -1040,8 +1040,8 @@ public class WifiConfigManager {
             Log.e(TAG, "UID " + uid + " not visible to the current user");
             return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
         }
-        if (config == null) {
-            Log.e(TAG, "Cannot add/update network with null config");
+        if (!WifiConfigurationUtil.validate(config)) {
+            Log.e(TAG, "Cannot add/update network with invalid config");
             return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
         }
         if (mPendingStoreRead) {

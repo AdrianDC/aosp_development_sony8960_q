@@ -18,15 +18,19 @@ package com.android.server.wifi;
 
 import android.content.pm.UserInfo;
 import android.net.IpConfiguration;
+import android.net.StaticIpConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiScanner;
 import android.os.UserHandle;
+import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.wifi.util.NativeUtil;
 
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -38,6 +42,20 @@ import java.util.Objects;
  *   > Helper methods to identify the encryption of a WifiConfiguration object.
  */
 public class WifiConfigurationUtil {
+    private static final String TAG = "WifiConfigurationUtil";
+
+    /**
+     * Constants used for validating external config objects.
+     */
+    private static final int ENCLOSING_QUTOES_LEN = 2;
+    private static final int SSID_ASCII_MIN_LEN = 1 + ENCLOSING_QUTOES_LEN;
+    private static final int SSID_ASCII_MAX_LEN = 32 + ENCLOSING_QUTOES_LEN;
+    private static final int SSID_HEX_MIN_LEN = 2;
+    private static final int SSID_HEX_MAX_LEN = 64;
+    private static final int PSK_ASCII_MIN_LEN = 8 + ENCLOSING_QUTOES_LEN;
+    private static final int PSK_ASCII_MAX_LEN = 63 + ENCLOSING_QUTOES_LEN;
+    private static final int PSK_HEX_LEN = 128;
+
     /**
      * Check whether a network configuration is visible to a user or any of its managed profiles.
      *
@@ -232,6 +250,155 @@ public class WifiConfigurationUtil {
             return true;
         }
         return false;
+    }
+
+    private static boolean validateSsid(String ssid) {
+        if (ssid == null) {
+            Log.e(TAG, "validateSsid failed: null string");
+            return false;
+        }
+        if (ssid.isEmpty()) {
+            Log.e(TAG, "validateSsid failed: empty string");
+            return false;
+        }
+        if (ssid.startsWith("\"")) {
+            // ASCII SSID string
+            if (ssid.length() < SSID_ASCII_MIN_LEN) {
+                Log.e(TAG, "validateSsid failed: ascii string size too small: " + ssid.length());
+                return false;
+            }
+            if (ssid.length() > SSID_ASCII_MAX_LEN) {
+                Log.e(TAG, "validateSsid failed: ascii string size too large: " + ssid.length());
+                return false;
+            }
+        } else {
+            // HEX SSID string
+            if (ssid.length() < SSID_HEX_MIN_LEN) {
+                Log.e(TAG, "validateSsid failed: hex string size too small: " + ssid.length());
+                return false;
+            }
+            if (ssid.length() > SSID_HEX_MAX_LEN) {
+                Log.e(TAG, "validateSsid failed: hex string size too large: " + ssid.length());
+                return false;
+            }
+        }
+        try {
+            NativeUtil.decodeSsid(ssid);
+        } catch (IllegalArgumentException e) {
+            Log.e(TAG, "validateSsid failed: malformed string: " + ssid);
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean validatePsk(String psk) {
+        if (psk == null) {
+            Log.e(TAG, "validatePsk failed: null string");
+            return false;
+        }
+        if (psk.isEmpty()) {
+            Log.e(TAG, "validatePsk failed: empty string");
+            return false;
+        }
+        if (psk.startsWith("\"")) {
+            // ASCII PSK string
+            if (psk.length() < PSK_ASCII_MIN_LEN) {
+                Log.e(TAG, "validatePsk failed: ascii string size too small: " + psk.length());
+                return false;
+            }
+            if (psk.length() > PSK_ASCII_MAX_LEN) {
+                Log.e(TAG, "validatePsk failed: ascii string size too large: " + psk.length());
+                return false;
+            }
+        } else {
+            // HEX PSK string
+            if (psk.length() != PSK_HEX_LEN) {
+                Log.e(TAG, "validatePsk failed: hex string size mismatch: " + psk.length());
+                return false;
+            }
+        }
+        try {
+            NativeUtil.hexOrQuotedAsciiStringToBytes(psk);
+        } catch (IllegalArgumentException e) {
+            Log.e(TAG, "validatePsk failed: malformed string: " + psk);
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean validateKeyMgmt(BitSet keyMgmnt) {
+        if (keyMgmnt == null) {
+            Log.e(TAG, "validateKeyMgmt failed: null bitset");
+            return false;
+        }
+        if (keyMgmnt.cardinality() > 1) {
+            if (keyMgmnt.cardinality() != 2) {
+                Log.e(TAG, "validateKeyMgmt failed: cardinality != 2");
+                return false;
+            }
+            if (!keyMgmnt.get(WifiConfiguration.KeyMgmt.WPA_EAP)) {
+                Log.e(TAG, "validateKeyMgmt failed: not WPA_EAP");
+                return false;
+            }
+            if (!keyMgmnt.get(WifiConfiguration.KeyMgmt.IEEE8021X)
+                    && !keyMgmnt.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
+                Log.e(TAG, "validateKeyMgmt failed: not PSK or 8021X");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean validateIpConfiguration(IpConfiguration ipConfig) {
+        if (ipConfig == null) {
+            Log.e(TAG, "validateIpConfiguration failed: null IpConfiguration");
+            return false;
+        }
+        if (ipConfig.getIpAssignment() == IpConfiguration.IpAssignment.STATIC) {
+            StaticIpConfiguration staticIpConfig = ipConfig.getStaticIpConfiguration();
+            if (staticIpConfig == null) {
+                Log.e(TAG, "validateIpConfiguration failed: null StaticIpConfiguration");
+                return false;
+            }
+            if (staticIpConfig.ipAddress == null) {
+                Log.e(TAG, "validateIpConfiguration failed: null static ip Address");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Validate the configuration received from an external application.
+     *
+     * This method checks for the following parameters:
+     * 1. {@link WifiConfiguration#SSID}
+     * 2. {@link WifiConfiguration#preSharedKey}
+     * 3. {@link WifiConfiguration#allowedKeyManagement}
+     * 4. {@link WifiConfiguration#getIpConfiguration()}
+     * @param config {@link WifiConfiguration} received from an external application.
+     * @return true if the parameters are valid, false otherwise.
+     */
+    public static boolean validate(WifiConfiguration config) {
+        if (config == null) {
+            Log.e(TAG, "validate failed: null WifiConfiguration");
+            return false;
+        }
+        if (!validateSsid(config.SSID)) {
+            return false;
+        }
+        if (!validateKeyMgmt(config.allowedKeyManagement)) {
+            return false;
+        }
+        if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)
+                && !validatePsk(config.preSharedKey)) {
+            return false;
+        }
+        if (!validateIpConfiguration(config.getIpConfiguration())) {
+            return false;
+        }
+        // TBD: Validate some enterprise params as well in the future here.
+        return true;
     }
 
     /**
