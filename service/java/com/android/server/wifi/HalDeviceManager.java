@@ -244,12 +244,13 @@ public class HalDeviceManager {
      * other functions - e.g. calling the debug/trace methods.
      */
     public IWifiChip getChip(IWifiIface iface) {
-        if (DBG) Log.d(TAG, "getChip: iface(name)=" + getName(iface));
+        String name = getName(iface);
+        if (DBG) Log.d(TAG, "getChip: iface(name)=" + name);
 
         synchronized (mLock) {
-            InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(iface);
+            InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(name);
             if (cacheEntry == null) {
-                Log.e(TAG, "getChip: no entry for iface(name)=" + getName(iface));
+                Log.e(TAG, "getChip: no entry for iface(name)=" + name);
                 return null;
             }
 
@@ -267,13 +268,13 @@ public class HalDeviceManager {
     public boolean registerDestroyedListener(IWifiIface iface,
             InterfaceDestroyedListener destroyedListener,
             Looper looper) {
-        if (DBG) Log.d(TAG, "registerDestroyedListener: iface(name)=" + getName(iface));
+        String name = getName(iface);
+        if (DBG) Log.d(TAG, "registerDestroyedListener: iface(name)=" + name);
 
         synchronized (mLock) {
-            InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(iface);
+            InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(name);
             if (cacheEntry == null) {
-                Log.e(TAG, "registerDestroyedListener: no entry for iface(name)="
-                        + getName(iface));
+                Log.e(TAG, "registerDestroyedListener: no entry for iface(name)=" + name);
                 return false;
             }
 
@@ -450,7 +451,7 @@ public class HalDeviceManager {
      * we need to keep a list of registered destroyed listeners. Will be validated regularly
      * in getAllChipInfoAndValidateCache().
      */
-    private final Map<IWifiIface, InterfaceCacheEntry> mInterfaceInfoCache = new HashMap<>();
+    private final Map<String, InterfaceCacheEntry> mInterfaceInfoCache = new HashMap<>();
 
     private class InterfaceCacheEntry {
         public IWifiChip chip;
@@ -1031,37 +1032,36 @@ public class HalDeviceManager {
         if (DBG) Log.d(TAG, "validateInterfaceCache");
 
         synchronized (mLock) {
-            for (Map.Entry<IWifiIface, InterfaceCacheEntry> entry: mInterfaceInfoCache.entrySet()) {
+            for (InterfaceCacheEntry entry: mInterfaceInfoCache.values()) {
                 // search for chip
                 WifiChipInfo matchingChipInfo = null;
                 for (WifiChipInfo ci: chipInfos) {
-                    if (ci.chipId == entry.getValue().chipId) {
+                    if (ci.chipId == entry.chipId) {
                         matchingChipInfo = ci;
                         break;
                     }
                 }
                 if (matchingChipInfo == null) {
-                    Log.e(TAG, "validateInterfaceCache: no chip found for " + entry.getValue());
+                    Log.e(TAG, "validateInterfaceCache: no chip found for " + entry);
                     return false;
                 }
 
                 // search for interface
-                WifiIfaceInfo[] ifaceInfoList = matchingChipInfo.ifaces[entry.getValue().type];
+                WifiIfaceInfo[] ifaceInfoList = matchingChipInfo.ifaces[entry.type];
                 if (ifaceInfoList == null) {
-                    Log.e(TAG, "validateInterfaceCache: invalid type on entry " + entry.getValue());
+                    Log.e(TAG, "validateInterfaceCache: invalid type on entry " + entry);
                     return false;
                 }
 
                 boolean matchFound = false;
                 for (WifiIfaceInfo ifaceInfo: ifaceInfoList) {
-                    if (ifaceInfo.name.equals(entry.getValue().name)) {
+                    if (ifaceInfo.name.equals(entry.name)) {
                         matchFound = true;
                         break;
                     }
                 }
                 if (!matchFound) {
-                    Log.e(TAG, "validateInterfaceCache: no interface found for "
-                            + entry.getValue());
+                    Log.e(TAG, "validateInterfaceCache: no interface found for " + entry);
                     return false;
                 }
             }
@@ -1326,7 +1326,8 @@ public class HalDeviceManager {
                                         looper == null ? Looper.myLooper() : looper));
                     }
 
-                    mInterfaceInfoCache.put(iface, cacheEntry);
+                    if (DBG) Log.d(TAG, "createIfaceIfPossible: added cacheEntry=" + cacheEntry);
+                    mInterfaceInfoCache.put(cacheEntry.name, cacheEntry);
                     return iface;
                 }
             }
@@ -1679,21 +1680,21 @@ public class HalDeviceManager {
     }
 
     private boolean removeIfaceInternal(IWifiIface iface) {
-        if (DBG) Log.d(TAG, "removeIfaceInternal: iface(name)=" + getName(iface));
+        String name = getName(iface);
+        if (DBG) Log.d(TAG, "removeIfaceInternal: iface(name)=" + name);
 
         synchronized (mLock) {
             if (mWifi == null) {
-                Log.e(TAG, "removeIfaceInternal: null IWifi -- iface(name)=" + getName(iface));
+                Log.e(TAG, "removeIfaceInternal: null IWifi -- iface(name)=" + name);
                 return false;
             }
 
             IWifiChip chip = getChip(iface);
             if (chip == null) {
-                Log.e(TAG, "removeIfaceInternal: null IWifiChip -- iface(name)=" + getName(iface));
+                Log.e(TAG, "removeIfaceInternal: null IWifiChip -- iface(name)=" + name);
                 return false;
             }
 
-            String name = getName(iface);
             if (name == null) {
                 Log.e(TAG, "removeIfaceInternal: can't get name");
                 return false;
@@ -1701,7 +1702,7 @@ public class HalDeviceManager {
 
             int type = getType(iface);
             if (type == -1) {
-                Log.e(TAG, "removeIfaceInternal: can't get type -- iface(name)=" + getName(iface));
+                Log.e(TAG, "removeIfaceInternal: can't get type -- iface(name)=" + name);
                 return false;
             }
 
@@ -1729,7 +1730,7 @@ public class HalDeviceManager {
             }
 
             // dispatch listeners no matter what status
-            dispatchDestroyedListeners(iface);
+            dispatchDestroyedListeners(name);
 
             if (status != null && status.code == WifiStatusCode.SUCCESS) {
                 return true;
@@ -1789,14 +1790,13 @@ public class HalDeviceManager {
 
     // dispatch all destroyed listeners registered for the specified interface AND remove the
     // cache entry
-    private void dispatchDestroyedListeners(IWifiIface iface) {
-        if (DBG) Log.d(TAG, "dispatchDestroyedListeners: iface(name)=" + getName(iface));
+    private void dispatchDestroyedListeners(String name) {
+        if (DBG) Log.d(TAG, "dispatchDestroyedListeners: iface(name)=" + name);
 
         synchronized (mLock) {
-            InterfaceCacheEntry entry = mInterfaceInfoCache.get(iface);
+            InterfaceCacheEntry entry = mInterfaceInfoCache.get(name);
             if (entry == null) {
-                Log.e(TAG, "dispatchDestroyedListeners: no cache entry for iface(name)="
-                        + getName(iface));
+                Log.e(TAG, "dispatchDestroyedListeners: no cache entry for iface(name)=" + name);
                 return;
             }
 
@@ -1804,7 +1804,7 @@ public class HalDeviceManager {
                 listener.trigger();
             }
             entry.destroyedListeners.clear(); // for insurance (though cache entry is removed)
-            mInterfaceInfoCache.remove(iface);
+            mInterfaceInfoCache.remove(name);
         }
     }
 
@@ -1813,7 +1813,7 @@ public class HalDeviceManager {
         if (DBG) Log.d(TAG, "dispatchAllDestroyedListeners");
 
         synchronized (mLock) {
-            Iterator<Map.Entry<IWifiIface, InterfaceCacheEntry>> it =
+            Iterator<Map.Entry<String, InterfaceCacheEntry>> it =
                     mInterfaceInfoCache.entrySet().iterator();
             while (it.hasNext()) {
                 InterfaceCacheEntry entry = it.next().getValue();
