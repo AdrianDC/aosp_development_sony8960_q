@@ -108,10 +108,6 @@ public class WifiConnectivityManager {
     public static final int MAX_CONNECTION_ATTEMPTS_TIME_INTERVAL_MS = 4 * 60 * 1000; // 4 mins
     // Max number of connection attempts in the above time interval.
     public static final int MAX_CONNECTION_ATTEMPTS_RATE = 6;
-    // Packet tx/rx rates to determine if we want to do partial vs full scans.
-    // TODO(b/31180330): Make these device configs.
-    public static final int MAX_TX_PACKET_FOR_FULL_SCANS = 8;
-    public static final int MAX_RX_PACKET_FOR_FULL_SCANS = 16;
 
     // WifiStateMachine has a bunch of states. From the
     // WifiConnectivityManager's perspective it only cares
@@ -161,6 +157,8 @@ public class WifiConnectivityManager {
     // Device configs
     private boolean mEnableAutoJoinWhenAssociated;
     private boolean mWaitForFullBandScanResults = false;
+    private int mFullScanMaxTxRate;
+    private int mFullScanMaxRxRate;
 
     // PNO settings
     private int mMin5GHzRssi;
@@ -546,6 +544,10 @@ public class WifiConnectivityManager {
                             R.integer.config_wifi_framework_RSSI_SCORE_OFFSET))
                 * context.getResources().getInteger(
                         R.integer.config_wifi_framework_RSSI_SCORE_SLOPE);
+        mFullScanMaxTxRate = context.getResources().getInteger(
+                R.integer.config_wifi_framework_max_tx_rate_for_full_scan);
+        mFullScanMaxRxRate = context.getResources().getInteger(
+                R.integer.config_wifi_framework_max_rx_rate_for_full_scan);
 
         localLog("PNO settings:" + " min5GHzRssi " + mMin5GHzRssi
                 + " min24GHzRssi " + mMin24GHzRssi
@@ -773,8 +775,8 @@ public class WifiConnectivityManager {
 
         // If the WiFi traffic is heavy, only partial scan is initiated.
         if (mWifiState == WIFI_STATE_CONNECTED
-                && (mWifiInfo.txSuccessRate > MAX_TX_PACKET_FOR_FULL_SCANS
-                    || mWifiInfo.rxSuccessRate > MAX_RX_PACKET_FOR_FULL_SCANS)) {
+                && (mWifiInfo.txSuccessRate > mFullScanMaxTxRate
+                    || mWifiInfo.rxSuccessRate > mFullScanMaxRxRate)) {
             localLog("No full band scan due to ongoing traffic");
             isFullBandScan = false;
         }
