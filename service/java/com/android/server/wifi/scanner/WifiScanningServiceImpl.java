@@ -1353,7 +1353,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         WifiPnoScanStateMachine(Looper looper) {
             super("WifiPnoScanStateMachine", looper);
 
-            setLogRecSize(512);
+            setLogRecSize(256);
             setLogOnlyTransitions(false);
 
             // CHECKSTYLE:OFF IndentationCheck
@@ -2100,6 +2100,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         pw.println();
 
         if (mSingleScanStateMachine != null) {
+            mSingleScanStateMachine.dump(fd, pw, args);
+            pw.println();
             pw.println("Latest scan results:");
             List<ScanResult> scanResults = mSingleScanStateMachine.getCachedScanResultsAsList();
             long nowMs = System.currentTimeMillis();
