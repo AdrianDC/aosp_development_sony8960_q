@@ -91,6 +91,7 @@ public class WifiAwareDataPathStateManagerTest {
     private TestLooper mMockLooper;
     private Handler mMockLooperHandler;
     private WifiAwareStateManager mDut;
+    @Mock private WifiAwareNativeManager mMockNativeManager;
     @Mock private WifiAwareNativeApi mMockNative;
     @Mock private Context mMockContext;
     @Mock private IWifiAwareManager mMockAwareService;
@@ -130,9 +131,10 @@ public class WifiAwareDataPathStateManagerTest {
         when(mMockContext.getSystemService(PowerManager.class)).thenReturn(mMockPowerManager);
 
         mDut = new WifiAwareStateManager();
-        mDut.setNative(mMockNative);
+        mDut.setNative(mMockNativeManager, mMockNative);
         mDut.start(mMockContext, mMockLooper.getLooper(), mAwareMetricsMock);
         mDut.startLate();
+        mMockLooper.dispatchAll();
 
         when(mMockNative.getCapabilities(anyShort())).thenReturn(true);
         when(mMockNative.enableAndConfigure(anyShort(), any(), anyBoolean(),
