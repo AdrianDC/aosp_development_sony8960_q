@@ -563,6 +563,16 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                 }
                 mLastScanSettings.pnoScanEventHandler.onPnoNetworkFound(pnoScanResultsArray);
             }
+            // On pno scan result event, we are expecting a mLastScanSettings for pno scan.
+            // However, if unlikey mLastScanSettings is for single scan, we need this part
+            // to protect from leaving WifiSingleScanStateMachine in a forever wait state.
+            if (mLastScanSettings.singleScanActive
+                    && mLastScanSettings.singleScanEventHandler != null) {
+                Log.wtf(TAG, "Polling pno scan result when single scan is active, reporting"
+                        + " single scan failure");
+                mLastScanSettings.singleScanEventHandler
+                        .onScanStatus(WifiNative.WIFI_SCAN_FAILED);
+            }
             // mLastScanSettings is for either single/batched scan or pno scan.
             // We can safely set it to null when pno scan finishes.
             mLastScanSettings = null;
