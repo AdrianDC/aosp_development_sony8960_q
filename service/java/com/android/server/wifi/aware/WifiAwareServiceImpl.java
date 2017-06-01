@@ -38,6 +38,8 @@ import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 
+import com.android.server.wifi.util.WifiPermissionsWrapper;
+
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Arrays;
@@ -81,12 +83,13 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
      * the components of the service.
      */
     public void start(HandlerThread handlerThread, WifiAwareStateManager awareStateManager,
-            WifiAwareShellCommand awareShellCommand, WifiAwareMetrics awareMetrics) {
+            WifiAwareShellCommand awareShellCommand, WifiAwareMetrics awareMetrics,
+            WifiPermissionsWrapper permissionsWrapper) {
         Log.i(TAG, "Starting Wi-Fi Aware service");
 
         mStateManager = awareStateManager;
         mShellCommand = awareShellCommand;
-        mStateManager.start(mContext, handlerThread.getLooper(), awareMetrics);
+        mStateManager.start(mContext, handlerThread.getLooper(), awareMetrics, permissionsWrapper);
     }
 
     /**

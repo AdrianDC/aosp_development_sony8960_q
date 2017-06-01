@@ -48,6 +48,7 @@ import com.android.internal.util.MessageUtils;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.internal.util.WakeupMessage;
+import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import libcore.util.HexEncoding;
 
@@ -320,7 +321,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
      *
      * @param looper Thread looper on which to run the handler.
      */
-    public void start(Context context, Looper looper, WifiAwareMetrics awareMetrics) {
+    public void start(Context context, Looper looper, WifiAwareMetrics awareMetrics,
+            WifiPermissionsWrapper permissionsWrapper) {
         Log.i(TAG, "start()");
 
         mContext = context;
@@ -331,7 +333,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
 
         mRtt = new WifiAwareRttStateManager();
         mDataPathMgr = new WifiAwareDataPathStateManager(this);
-        mDataPathMgr.start(mContext, mSm.getHandler().getLooper(), awareMetrics);
+        mDataPathMgr.start(mContext, mSm.getHandler().getLooper(), awareMetrics,
+                permissionsWrapper);
 
         mPowerManager = mContext.getSystemService(PowerManager.class);
 
