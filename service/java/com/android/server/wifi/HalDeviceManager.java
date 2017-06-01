@@ -303,9 +303,13 @@ public class HalDeviceManager {
      */
     public void registerInterfaceAvailableForRequestListener(int ifaceType,
             InterfaceAvailableForRequestListener listener, Looper looper) {
-        mInterfaceAvailableForRequestListeners.get(ifaceType).add(
-                new InterfaceAvailableForRequestListenerProxy(listener,
-                        looper == null ? Looper.myLooper() : looper));
+        if (DBG) Log.d(TAG, "registerInterfaceAvailableForRequestListener: ifaceType=" + ifaceType);
+
+        synchronized (mLock) {
+            mInterfaceAvailableForRequestListeners.get(ifaceType).add(
+                    new InterfaceAvailableForRequestListenerProxy(listener,
+                            looper == null ? Looper.myLooper() : looper));
+        }
 
         WifiChipInfo[] chipInfos = getAllChipInfo();
         if (chipInfos == null) {
@@ -323,12 +327,18 @@ public class HalDeviceManager {
     public void unregisterInterfaceAvailableForRequestListener(
             int ifaceType,
             InterfaceAvailableForRequestListener listener) {
-        Iterator<InterfaceAvailableForRequestListenerProxy> it =
-                mInterfaceAvailableForRequestListeners.get(ifaceType).iterator();
-        while (it.hasNext()) {
-            if (it.next().mListener == listener) {
-                it.remove();
-                return;
+        if (DBG) {
+            Log.d(TAG, "unregisterInterfaceAvailableForRequestListener: ifaceType=" + ifaceType);
+        }
+
+        synchronized (mLock) {
+            Iterator<InterfaceAvailableForRequestListenerProxy> it =
+                    mInterfaceAvailableForRequestListeners.get(ifaceType).iterator();
+            while (it.hasNext()) {
+                if (it.next().mListener == listener) {
+                    it.remove();
+                    return;
+                }
             }
         }
     }

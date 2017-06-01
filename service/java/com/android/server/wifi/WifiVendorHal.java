@@ -840,6 +840,9 @@ public class WifiVendorHal {
      */
     public int getSupportedFeatureSet() {
         int featureSet = 0;
+        if (!mHalDeviceManager.isStarted()) {
+            return featureSet; // TODO: can't get capabilities with Wi-Fi down
+        }
         try {
             final MutableInt feat = new MutableInt(0);
             synchronized (sLock) {
