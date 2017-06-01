@@ -457,13 +457,35 @@ public class SupplicantStaIfaceHalTest {
         executeAndValidateConnectSequence(0, false);
     }
 
-    /**
-     * Tests connection to a specified network with single existing network.
-     */
     @Test
-    public void testConnectWithSingleExistingNetwork() throws Exception {
+    public void testConnectToNetworkWithDifferentConfigReplacesNetworkInSupplicant()
+            throws Exception {
         executeAndValidateInitializationSequence();
-        executeAndValidateConnectSequence(0, true);
+        WifiConfiguration config = executeAndValidateConnectSequence(
+                SUPPLICANT_NETWORK_ID, false);
+        // Reset mocks for mISupplicantStaIfaceMock because we finished the first connection.
+        reset(mISupplicantStaIfaceMock);
+        setupMocksForConnectSequence(true /*haveExistingNetwork*/);
+        // Make this network different by changing SSID.
+        config.SSID = "AnDifferentSSID";
+        assertTrue(mDut.connectToNetwork(config));
+        verify(mISupplicantStaIfaceMock).removeNetwork(SUPPLICANT_NETWORK_ID);
+        verify(mISupplicantStaIfaceMock)
+                .addNetwork(any(ISupplicantStaIface.addNetworkCallback.class));
+    }
+
+    @Test
+    public void connectToNetworkWithSameNetworkDoesNotRemoveNetworkFromSupplicant()
+            throws Exception {
+        executeAndValidateInitializationSequence();
+        WifiConfiguration config = executeAndValidateConnectSequence(SUPPLICANT_NETWORK_ID, false);
+        // Reset mocks for mISupplicantStaIfaceMock because we finished the first connection.
+        reset(mISupplicantStaIfaceMock);
+        setupMocksForConnectSequence(true /*haveExistingNetwork*/);
+        assertTrue(mDut.connectToNetwork(config));
+        verify(mISupplicantStaIfaceMock, never()).removeNetwork(anyInt());
+        verify(mISupplicantStaIfaceMock, never())
+                .addNetwork(any(ISupplicantStaIface.addNetworkCallback.class));
     }
 
     /**
@@ -481,7 +503,7 @@ public class SupplicantStaIfaceHalTest {
         }).when(mISupplicantStaIfaceMock).addNetwork(
                 any(ISupplicantStaIface.addNetworkCallback.class));
 
-        assertFalse(mDut.connectToNetwork(new WifiConfiguration()));
+        assertFalse(mDut.connectToNetwork(createTestWifiConfiguration()));
     }
 
     /**
@@ -495,7 +517,7 @@ public class SupplicantStaIfaceHalTest {
         when(mSupplicantStaNetworkMock.saveWifiConfiguration(any(WifiConfiguration.class)))
                 .thenReturn(false);
 
-        assertFalse(mDut.connectToNetwork(new WifiConfiguration()));
+        assertFalse(mDut.connectToNetwork(createTestWifiConfiguration()));
         // We should have removed the existing network once before connection and once more
         // on failure to save network configuration.
         verify(mISupplicantStaIfaceMock, times(2)).removeNetwork(anyInt());
@@ -513,7 +535,7 @@ public class SupplicantStaIfaceHalTest {
                 .when(mSupplicantStaNetworkMock).saveWifiConfiguration(
                         any(WifiConfiguration.class));
 
-        assertFalse(mDut.connectToNetwork(new WifiConfiguration()));
+        assertFalse(mDut.connectToNetwork(createTestWifiConfiguration()));
         // We should have removed the existing network once before connection and once more
         // on failure to save network configuration.
         verify(mISupplicantStaIfaceMock, times(2)).removeNetwork(anyInt());
@@ -529,7 +551,7 @@ public class SupplicantStaIfaceHalTest {
 
         when(mSupplicantStaNetworkMock.select()).thenReturn(false);
 
-        assertFalse(mDut.connectToNetwork(new WifiConfiguration()));
+        assertFalse(mDut.connectToNetwork(createTestWifiConfiguration()));
     }
 
     /**
@@ -539,6 +561,7 @@ public class SupplicantStaIfaceHalTest {
     public void testRoamToSameNetwork() throws Exception {
         executeAndValidateInitializationSequence();
         executeAndValidateRoamSequence(true);
+        assertTrue(mDut.connectToNetwork(createTestWifiConfiguration()));
     }
 
     /**
@@ -1282,6 +1305,12 @@ public class SupplicantStaIfaceHalTest {
         verify(mISupplicantStaIfaceMock).startWpsPbc(eq(anyBssidBytes));
     }
 
+    private WifiConfiguration createTestWifiConfiguration() {
+        WifiConfiguration config = new WifiConfiguration();
+        config.networkId = SUPPLICANT_NETWORK_ID;
+        return config;
+    }
+
     private void executeAndValidateHs20DeauthImminentCallback(boolean isEss) throws Exception {
         executeAndValidateInitializationSequence();
         assertNotNull(mISupplicantStaIfaceCallback);
@@ -1493,14 +1522,16 @@ public class SupplicantStaIfaceHalTest {
      *
      * @param newFrameworkNetworkId Framework Network Id of the new network to connect.
      * @param haveExistingNetwork Removes the existing network.
+     * @return the WifiConfiguration object of the new network to connect.
      */
-    private void executeAndValidateConnectSequence(
+    private WifiConfiguration executeAndValidateConnectSequence(
             final int newFrameworkNetworkId, final boolean haveExistingNetwork) throws Exception {
         setupMocksForConnectSequence(haveExistingNetwork);
         WifiConfiguration config = new WifiConfiguration();
         config.networkId = newFrameworkNetworkId;
         assertTrue(mDut.connectToNetwork(config));
         validateConnectSequence(haveExistingNetwork, 1);
+        return config;
     }
 
     /**

@@ -247,6 +247,8 @@ public class WifiConfigManagerTest {
         networks.add(openNetwork);
 
         verifyAddNetworkToWifiConfigManager(openNetwork);
+        verify(mWcmListener).onSavedNetworkAdded(openNetwork.networkId);
+        reset(mWcmListener);
 
         // Now change BSSID for the network.
         assertAndSetNetworkBSSID(openNetwork, TEST_BSSID);
@@ -257,7 +259,7 @@ public class WifiConfigManagerTest {
                 mWifiConfigManager.getConfiguredNetworksWithPasswords();
         WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
                 networks, retrievedNetworks);
-        verify(mWcmListener, times(2)).onSavedNetworkUpdate();
+        verify(mWcmListener).onSavedNetworkUpdated(openNetwork.networkId);
     }
 
     /**
@@ -281,7 +283,7 @@ public class WifiConfigManagerTest {
 
         // Ensure that this is not returned in the saved network list.
         assertTrue(mWifiConfigManager.getSavedNetworks().isEmpty());
-        verify(mWcmListener, never()).onSavedNetworkUpdate();
+        verify(mWcmListener, never()).onSavedNetworkAdded(ephemeralNetwork.networkId);
     }
 
     /**
@@ -453,13 +455,16 @@ public class WifiConfigManagerTest {
         WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
 
         verifyAddNetworkToWifiConfigManager(openNetwork);
+        verify(mWcmListener).onSavedNetworkAdded(openNetwork.networkId);
+        reset(mWcmListener);
+
         // Ensure that configured network list is not empty.
         assertFalse(mWifiConfigManager.getConfiguredNetworks().isEmpty());
 
         verifyRemoveNetworkFromWifiConfigManager(openNetwork);
         // Ensure that configured network list is empty now.
         assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
-        verify(mWcmListener, times(2)).onSavedNetworkUpdate();
+        verify(mWcmListener).onSavedNetworkRemoved(openNetwork.networkId);
     }
 
     /**
@@ -474,11 +479,12 @@ public class WifiConfigManagerTest {
         verifyAddEphemeralNetworkToWifiConfigManager(ephemeralNetwork);
         // Ensure that configured network list is not empty.
         assertFalse(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+        verify(mWcmListener, never()).onSavedNetworkAdded(ephemeralNetwork.networkId);
 
         verifyRemoveEphemeralNetworkFromWifiConfigManager(ephemeralNetwork);
         // Ensure that configured network list is empty now.
         assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
-        verify(mWcmListener, never()).onSavedNetworkUpdate();
+        verify(mWcmListener, never()).onSavedNetworkRemoved(ephemeralNetwork.networkId);
     }
 
     /**
@@ -492,11 +498,12 @@ public class WifiConfigManagerTest {
         verifyAddPasspointNetworkToWifiConfigManager(passpointNetwork);
         // Ensure that configured network list is not empty.
         assertFalse(mWifiConfigManager.getConfiguredNetworks().isEmpty());
+        verify(mWcmListener, never()).onSavedNetworkAdded(passpointNetwork.networkId);
 
         verifyRemovePasspointNetworkFromWifiConfigManager(passpointNetwork);
         // Ensure that configured network list is empty now.
         assertTrue(mWifiConfigManager.getConfiguredNetworks().isEmpty());
-        verify(mWcmListener, never()).onSavedNetworkUpdate();
+        verify(mWcmListener, never()).onSavedNetworkRemoved(passpointNetwork.networkId);
     }
 
     /**
@@ -588,9 +595,10 @@ public class WifiConfigManagerTest {
 
         NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
 
+        int networkId = result.getNetworkId();
         // First set it to enabled.
         verifyUpdateNetworkSelectionStatus(
-                result.getNetworkId(), NetworkSelectionStatus.NETWORK_SELECTION_ENABLE, 0);
+                networkId, NetworkSelectionStatus.NETWORK_SELECTION_ENABLE, 0);
 
         // Now set it to temporarily disabled. The threshold for association rejection is 5, so
         // disable it 5 times to actually mark it temporarily disabled.
@@ -600,16 +608,17 @@ public class WifiConfigManagerTest {
         for (int i = 1; i <= assocRejectThreshold; i++) {
             verifyUpdateNetworkSelectionStatus(result.getNetworkId(), assocRejectReason, i);
         }
+        verify(mWcmListener).onSavedNetworkTemporarilyDisabled(networkId);
 
         // Now set it to permanently disabled.
         verifyUpdateNetworkSelectionStatus(
                 result.getNetworkId(), NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER, 0);
-        verify(mWcmListener, times(3)).onSavedNetworkUpdate();
+        verify(mWcmListener).onSavedNetworkPermanentlyDisabled(networkId);
 
         // Now set it back to enabled.
         verifyUpdateNetworkSelectionStatus(
                 result.getNetworkId(), NetworkSelectionStatus.NETWORK_SELECTION_ENABLE, 0);
-        verify(mWcmListener, times(4)).onSavedNetworkUpdate();
+        verify(mWcmListener, times(2)).onSavedNetworkEnabled(networkId);
     }
 
     /**

@@ -26,6 +26,7 @@ import static com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType.HS
 import static com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType.HSOSUProviders;
 import static com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType.HSWANMetrics;
 
+import android.annotation.NonNull;
 import android.content.Context;
 import android.hardware.wifi.supplicant.V1_0.ISupplicant;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantIface;
@@ -49,6 +50,7 @@ import android.os.HwRemoteBinder;
 import android.os.RemoteException;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.server.wifi.hotspot2.AnqpEvent;
@@ -125,10 +127,8 @@ public class SupplicantStaIfaceHal {
             };
 
     private String mIfaceName;
-    // Currently configured network in wpa_supplicant
-    private SupplicantStaNetworkHal mCurrentNetwork;
-    // Currently configured network's framework network Id.
-    private int mFrameworkNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
+    private SupplicantStaNetworkHal mCurrentNetworkRemoteHandle;
+    private WifiConfiguration mCurrentNetworkLocalConfig;
     private final Context mContext;
     private final WifiMonitor mWifiMonitor;
 
@@ -254,6 +254,13 @@ public class SupplicantStaIfaceHal {
         return true;
     }
 
+    private int getCurrentNetworkId() {
+        if (mCurrentNetworkLocalConfig == null) {
+            return WifiConfiguration.INVALID_NETWORK_ID;
+        }
+        return mCurrentNetworkLocalConfig.networkId;
+    }
+
     private boolean initSupplicantStaIface() {
         synchronized (mLock) {
             /** List all supplicant Ifaces */
@@ -353,9 +360,11 @@ public class SupplicantStaIfaceHal {
      * Add a network configuration to wpa_supplicant.
      *
      * @param config Config corresponding to the network.
-     * @return SupplicantStaNetwork of the added network in wpa_supplicant.
+     * @return a Pair object including SupplicantStaNetworkHal and WifiConfiguration objects
+     * for the current network.
      */
-    private SupplicantStaNetworkHal addNetworkAndSaveConfig(WifiConfiguration config) {
+    private Pair<SupplicantStaNetworkHal, WifiConfiguration>
+            addNetworkAndSaveConfig(WifiConfiguration config) {
         logi("addSupplicantStaNetwork via HIDL");
         if (config == null) {
             loge("Cannot add NULL network!");
@@ -379,39 +388,43 @@ public class SupplicantStaIfaceHal {
             }
             return null;
         }
-        return network;
+        return new Pair(network, new WifiConfiguration(config));
     }
 
     /**
      * Add the provided network configuration to wpa_supplicant and initiate connection to it.
      * This method does the following:
-     * 1. Triggers disconnect command to wpa_supplicant (if |shouldDisconnect| is true).
-     * 2. Remove any existing network in wpa_supplicant.
-     * 3. Add a new network to wpa_supplicant.
-     * 4. Save the provided configuration to wpa_supplicant.
-     * 5. Select the new network in wpa_supplicant.
+     * 1. If |config| is different to the current supplicant network, removes all supplicant
+     * networks and saves |config|.
+     * 2. Select the new network in wpa_supplicant.
      *
      * @param config WifiConfiguration parameters for the provided network.
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
-    public boolean connectToNetwork(WifiConfiguration config) {
-        mFrameworkNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
-        mCurrentNetwork = null;
+    public boolean connectToNetwork(@NonNull WifiConfiguration config) {
         logd("connectToNetwork " + config.configKey());
-        if (!removeAllNetworks()) {
-            loge("Failed to remove existing networks");
-            return false;
+        if (WifiConfigurationUtil.isSameNetwork(config, mCurrentNetworkLocalConfig)) {
+            logd("Network is already saved, will not trigger remove and add operation.");
+        } else {
+            mCurrentNetworkRemoteHandle = null;
+            mCurrentNetworkLocalConfig = null;
+            if (!removeAllNetworks()) {
+                loge("Failed to remove existing networks");
+                return false;
+            }
+            Pair<SupplicantStaNetworkHal, WifiConfiguration> pair = addNetworkAndSaveConfig(config);
+            if (pair == null) {
+                loge("Failed to add/save network configuration: " + config.configKey());
+                return false;
+            }
+            mCurrentNetworkRemoteHandle = pair.first;
+            mCurrentNetworkLocalConfig = pair.second;
         }
-        mCurrentNetwork = addNetworkAndSaveConfig(config);
-        if (mCurrentNetwork == null) {
-            loge("Failed to add/save network configuration: " + config.configKey());
-            return false;
-        }
-        if (!mCurrentNetwork.select()) {
+
+        if (!mCurrentNetworkRemoteHandle.select()) {
             loge("Failed to select network configuration: " + config.configKey());
             return false;
         }
-        mFrameworkNetworkId = config.networkId;
         return true;
     }
 
@@ -428,14 +441,14 @@ public class SupplicantStaIfaceHal {
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
     public boolean roamToNetwork(WifiConfiguration config) {
-        if (mFrameworkNetworkId != config.networkId || mCurrentNetwork == null) {
+        if (getCurrentNetworkId() != config.networkId) {
             Log.w(TAG, "Cannot roam to a different network, initiate new connection. "
-                    + "Current network ID: " + mFrameworkNetworkId);
+                    + "Current network ID: " + getCurrentNetworkId());
             return connectToNetwork(config);
         }
         String bssid = config.getNetworkSelectionStatus().getNetworkSelectionBSSID();
         logd("roamToNetwork" + config.configKey() + " (bssid " + bssid + ")");
-        if (!mCurrentNetwork.setBssid(bssid)) {
+        if (!mCurrentNetworkRemoteHandle.setBssid(bssid)) {
             loge("Failed to set new bssid on network: " + config.configKey());
             return false;
         }
@@ -498,6 +511,21 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Remove the request |networkId| from supplicant if it's the current network,
+     * if the current configured network matches |networkId|.
+     *
+     * @param networkId network id of the network to be removed from supplicant.
+     */
+    public void removeNetworkIfCurrent(int networkId) {
+        synchronized (mLock) {
+            if (getCurrentNetworkId() == networkId) {
+                // Currently we only save 1 network in supplicant.
+                removeAllNetworks();
+            }
+        }
+    }
+
+    /**
      * Remove all networks from supplicant
      */
     public boolean removeAllNetworks() {
@@ -516,8 +544,8 @@ public class SupplicantStaIfaceHal {
         }
         // Reset current network info.  Probably not needed once we add support to remove/reset
         // current network on receiving disconnection event from supplicant (b/32898136).
-        mFrameworkNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
-        mCurrentNetwork = null;
+        mCurrentNetworkLocalConfig = null;
+        mCurrentNetworkRemoteHandle = null;
         return true;
     }
 
@@ -528,8 +556,8 @@ public class SupplicantStaIfaceHal {
      * @return true if succeeds, false otherwise.
      */
     public boolean setCurrentNetworkBssid(String bssidStr) {
-        if (mCurrentNetwork == null) return false;
-        return mCurrentNetwork.setBssid(bssidStr);
+        if (mCurrentNetworkRemoteHandle == null) return false;
+        return mCurrentNetworkRemoteHandle.setBssid(bssidStr);
     }
 
     /**
@@ -538,8 +566,8 @@ public class SupplicantStaIfaceHal {
      * @return Hex string corresponding to the WPS NFC token.
      */
     public String getCurrentNetworkWpsNfcConfigurationToken() {
-        if (mCurrentNetwork == null) return null;
-        return mCurrentNetwork.getWpsNfcConfigurationToken();
+        if (mCurrentNetworkRemoteHandle == null) return null;
+        return mCurrentNetworkRemoteHandle.getWpsNfcConfigurationToken();
     }
 
     /**
@@ -548,8 +576,8 @@ public class SupplicantStaIfaceHal {
      * @return anonymous identity string if succeeds, null otherwise.
      */
     public String getCurrentNetworkEapAnonymousIdentity() {
-        if (mCurrentNetwork == null) return null;
-        return mCurrentNetwork.fetchEapAnonymousIdentity();
+        if (mCurrentNetworkRemoteHandle == null) return null;
+        return mCurrentNetworkRemoteHandle.fetchEapAnonymousIdentity();
     }
 
     /**
@@ -559,8 +587,8 @@ public class SupplicantStaIfaceHal {
      * @return true if succeeds, false otherwise.
      */
     public boolean sendCurrentNetworkEapIdentityResponse(String identityStr) {
-        if (mCurrentNetwork == null) return false;
-        return mCurrentNetwork.sendNetworkEapIdentityResponse(identityStr);
+        if (mCurrentNetworkRemoteHandle == null) return false;
+        return mCurrentNetworkRemoteHandle.sendNetworkEapIdentityResponse(identityStr);
     }
 
     /**
@@ -570,8 +598,8 @@ public class SupplicantStaIfaceHal {
      * @return true if succeeds, false otherwise.
      */
     public boolean sendCurrentNetworkEapSimGsmAuthResponse(String paramsStr) {
-        if (mCurrentNetwork == null) return false;
-        return mCurrentNetwork.sendNetworkEapSimGsmAuthResponse(paramsStr);
+        if (mCurrentNetworkRemoteHandle == null) return false;
+        return mCurrentNetworkRemoteHandle.sendNetworkEapSimGsmAuthResponse(paramsStr);
     }
 
     /**
@@ -580,8 +608,8 @@ public class SupplicantStaIfaceHal {
      * @return true if succeeds, false otherwise.
      */
     public boolean sendCurrentNetworkEapSimGsmAuthFailure() {
-        if (mCurrentNetwork == null) return false;
-        return mCurrentNetwork.sendNetworkEapSimGsmAuthFailure();
+        if (mCurrentNetworkRemoteHandle == null) return false;
+        return mCurrentNetworkRemoteHandle.sendNetworkEapSimGsmAuthFailure();
     }
 
     /**
@@ -591,8 +619,8 @@ public class SupplicantStaIfaceHal {
      * @return true if succeeds, false otherwise.
      */
     public boolean sendCurrentNetworkEapSimUmtsAuthResponse(String paramsStr) {
-        if (mCurrentNetwork == null) return false;
-        return mCurrentNetwork.sendNetworkEapSimUmtsAuthResponse(paramsStr);
+        if (mCurrentNetworkRemoteHandle == null) return false;
+        return mCurrentNetworkRemoteHandle.sendNetworkEapSimUmtsAuthResponse(paramsStr);
     }
 
     /**
@@ -602,8 +630,8 @@ public class SupplicantStaIfaceHal {
      * @return true if succeeds, false otherwise.
      */
     public boolean sendCurrentNetworkEapSimUmtsAutsResponse(String paramsStr) {
-        if (mCurrentNetwork == null) return false;
-        return mCurrentNetwork.sendNetworkEapSimUmtsAutsResponse(paramsStr);
+        if (mCurrentNetworkRemoteHandle == null) return false;
+        return mCurrentNetworkRemoteHandle.sendNetworkEapSimUmtsAutsResponse(paramsStr);
     }
 
     /**
@@ -612,8 +640,8 @@ public class SupplicantStaIfaceHal {
      * @return true if succeeds, false otherwise.
      */
     public boolean sendCurrentNetworkEapSimUmtsAuthFailure() {
-        if (mCurrentNetwork == null) return false;
-        return mCurrentNetwork.sendNetworkEapSimUmtsAuthFailure();
+        if (mCurrentNetworkRemoteHandle == null) return false;
+        return mCurrentNetworkRemoteHandle.sendNetworkEapSimUmtsAuthFailure();
     }
 
     /**
@@ -1858,10 +1886,10 @@ public class SupplicantStaIfaceHal {
                 mStateIsFourway = (newState == ISupplicantStaIfaceCallback.State.FOURWAY_HANDSHAKE);
                 if (newSupplicantState == SupplicantState.COMPLETED) {
                     mWifiMonitor.broadcastNetworkConnectionEvent(
-                            mIfaceName, mFrameworkNetworkId, bssidStr);
+                            mIfaceName, getCurrentNetworkId(), bssidStr);
                 }
                 mWifiMonitor.broadcastSupplicantStateChangeEvent(
-                        mIfaceName, mFrameworkNetworkId, wifiSsid, bssidStr, newSupplicantState);
+                        mIfaceName, getCurrentNetworkId(), wifiSsid, bssidStr, newSupplicantState);
             }
         }
 

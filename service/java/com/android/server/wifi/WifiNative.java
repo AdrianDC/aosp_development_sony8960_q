@@ -787,6 +787,16 @@ public class WifiNative {
     public String getCurrentNetworkWpsNfcConfigurationToken() {
         return mSupplicantStaIfaceHal.getCurrentNetworkWpsNfcConfigurationToken();
     }
+
+    /** Remove the request |networkId| from supplicant if it's the current network,
+     * if the current configured network matches |networkId|.
+     *
+     * @param networkId network id of the network to be removed from supplicant.
+     */
+    public void removeNetworkIfCurrent(int networkId) {
+        mSupplicantStaIfaceHal.removeNetworkIfCurrent(networkId);
+    }
+
     /********************************************************
      * Vendor HAL operations
      ********************************************************/
