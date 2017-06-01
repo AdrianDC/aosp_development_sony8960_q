@@ -117,6 +117,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     private static final int COMMAND_TYPE_END_DATA_PATH = 118;
     private static final int COMMAND_TYPE_TRANSMIT_NEXT_MESSAGE = 119;
     private static final int COMMAND_TYPE_RECONFIGURE = 120;
+    private static final int COMMAND_TYPE_DELAYED_INITIALIZATION = 121;
 
     private static final int RESPONSE_TYPE_ON_CONFIG_SUCCESS = 200;
     private static final int RESPONSE_TYPE_ON_CONFIG_FAIL = 201;
@@ -184,6 +185,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     private static final String MESSAGE_BUNDLE_KEY_OOB = "out_of_band";
 
     private WifiAwareNativeApi mWifiAwareNativeApi;
+    private WifiAwareNativeManager mWifiAwareNativeManager;
 
     /*
      * Asynchronous access with no lock
@@ -218,7 +220,9 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
      * Inject references to other manager objects. Needed to resolve
      * circular dependencies and to allow mocking.
      */
-    public void setNative(WifiAwareNativeApi wifiAwareNativeApi) {
+    public void setNative(WifiAwareNativeManager wifiAwareNativeManager,
+            WifiAwareNativeApi wifiAwareNativeApi) {
+        mWifiAwareNativeManager = wifiAwareNativeManager;
         mWifiAwareNativeApi = wifiAwareNativeApi;
     }
 
@@ -364,7 +368,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
      * Initialize the late-initialization sub-services: depend on other services already existing.
      */
     public void startLate() {
-        mRtt.start(mContext, mSm.getHandler().getLooper());
+        delayedInitialization();
     }
 
     /**
@@ -395,6 +399,15 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     /*
      * COMMANDS
      */
+
+    /**
+     * Place a request for delayed start operation on the state machine queue.
+     */
+    public void delayedInitialization() {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_DELAYED_INITIALIZATION;
+        mSm.sendMessage(msg);
+    }
 
     /**
      * Place a request for a new client connection on the state machine queue.
@@ -1579,6 +1592,11 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                 case COMMAND_TYPE_END_DATA_PATH:
                     waitForResponse = endDataPathLocal(mCurrentTransactionId, msg.arg2);
                     break;
+                case COMMAND_TYPE_DELAYED_INITIALIZATION:
+                    mWifiAwareNativeManager.start();
+                    mRtt.start(mContext, mSm.getHandler().getLooper());
+                    waitForResponse = false;
+                    break;
                 default:
                     waitForResponse = false;
                     Log.wtf(TAG, "processCommand: this isn't a COMMAND -- msg=" + msg);
@@ -1826,6 +1844,11 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                 case COMMAND_TYPE_END_DATA_PATH:
                     // TODO: fix status: timeout
                     onEndPathEndResponseLocal(mCurrentCommand, false, 0);
+                    break;
+                case COMMAND_TYPE_DELAYED_INITIALIZATION:
+                    Log.wtf(TAG,
+                            "processTimeout: COMMAND_TYPE_DELAYED_INITIALIZATION - shouldn't be "
+                                    + "waiting!");
                     break;
                 default:
                     Log.wtf(TAG, "processTimeout: this isn't a COMMAND -- msg=" + msg);

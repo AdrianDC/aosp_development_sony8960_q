@@ -146,8 +146,10 @@ public class WifiAwareStateManagerTest {
         ArgumentCaptor<BroadcastReceiver> bcastRxCaptor = ArgumentCaptor.forClass(
                 BroadcastReceiver.class);
         mDut = new WifiAwareStateManager();
-        mDut.setNative(mMockNative);
+        mDut.setNative(mMockNativeManager, mMockNative);
         mDut.start(mMockContext, mMockLooper.getLooper(), mAwareMetricsMock);
+        mDut.startLate();
+        mMockLooper.dispatchAll();
         verify(mMockContext).registerReceiver(bcastRxCaptor.capture(), any(IntentFilter.class));
         mPowerBcastReceiver = bcastRxCaptor.getValue();
         installMocksInStateManager(mDut, mMockAwareRttStateManager, mMockAwareDataPathStatemanager);
@@ -2945,6 +2947,7 @@ public class WifiAwareStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
         InOrder inOrder = inOrder(mMockContext, mMockNativeManager, mMockNative, mockCallback);
+        inOrder.verify(mMockNativeManager).start();
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
