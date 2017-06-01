@@ -1860,13 +1860,13 @@ public class WifiConfigManager {
     }
 
     /**
-     * Retrieves a saved network corresponding to the provided scan detail if one exists.
+     * Retrieves a configured network corresponding to the provided scan detail if one exists.
      *
      * @param scanDetail ScanDetail instance  to use for looking up the network.
      * @return WifiConfiguration object representing the network corresponding to the scanDetail,
      * null if none exists.
      */
-    private WifiConfiguration getSavedNetworkForScanDetail(ScanDetail scanDetail) {
+    private WifiConfiguration getConfiguredNetworkForScanDetail(ScanDetail scanDetail) {
         ScanResult scanResult = scanDetail.getScanResult();
         if (scanResult == null) {
             Log.e(TAG, "No scan result found in scan detail");
@@ -1885,16 +1885,16 @@ public class WifiConfigManager {
     }
 
     /**
-     * Retrieves a saved network corresponding to the provided scan detail if one exists and caches
-     * the provided |scanDetail| into the corresponding scan detail cache entry
+     * Retrieves a configured network corresponding to the provided scan detail if one exists and
+     * caches the provided |scanDetail| into the corresponding scan detail cache entry
      * {@link #mScanDetailCaches} for the retrieved network.
      *
      * @param scanDetail input a scanDetail from the scan result
      * @return WifiConfiguration object representing the network corresponding to the scanDetail,
      * null if none exists.
      */
-    public WifiConfiguration getSavedNetworkForScanDetailAndCache(ScanDetail scanDetail) {
-        WifiConfiguration network = getSavedNetworkForScanDetail(scanDetail);
+    public WifiConfiguration getConfiguredNetworkForScanDetailAndCache(ScanDetail scanDetail) {
+        WifiConfiguration network = getConfiguredNetworkForScanDetail(scanDetail);
         if (network == null) {
             return null;
         }

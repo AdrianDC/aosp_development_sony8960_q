@@ -254,7 +254,7 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
             // the scores and use the highest one as the ScanResult's score.
             List<WifiConfiguration> associatedConfigurations = null;
             WifiConfiguration associatedConfiguration =
-                    mWifiConfigManager.getSavedNetworkForScanDetailAndCache(scanDetail);
+                    mWifiConfigManager.getConfiguredNetworkForScanDetailAndCache(scanDetail);
 
             if (associatedConfiguration == null) {
                 continue;
