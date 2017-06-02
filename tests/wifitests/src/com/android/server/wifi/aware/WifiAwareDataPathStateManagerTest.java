@@ -16,7 +16,7 @@
 
 package com.android.server.wifi.aware;
 
-import static android.hardware.wifi.V1_0.NanDataPathChannelCfg.REQUEST_CHANNEL_SETUP;
+import static android.hardware.wifi.V1_0.NanDataPathChannelCfg.CHANNEL_NOT_REQUESTED;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertTrue;
@@ -606,7 +606,7 @@ public class WifiAwareDataPathStateManagerTest {
         mMockLooper.dispatchAll();
         inOrder.verify(mMockNative).initiateDataPath(transactionId.capture(),
                 eq(useDirect ? 0 : peerHandle.peerId),
-                eq(REQUEST_CHANNEL_SETUP), eq(2437), eq(peerDiscoveryMac),
+                eq(CHANNEL_NOT_REQUESTED), anyInt(), eq(peerDiscoveryMac),
                 eq(sAwareInterfacePrefix + "0"), eq(pmk), eq(null), eq(useDirect), any());
         if (immediateHalFailure) {
             // short-circuit the rest of this test
