@@ -172,6 +172,33 @@ public class SavedNetworkEvaluatorTest {
     }
 
     /**
+     * Do not evaluate networks that {@link WifiConfiguration#isEphemeral}.
+     */
+    @Test
+    public void ignoreEphemeralNetworks() {
+        String[] ssids = {"\"test1\"", "\"test2\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] freqs = {2470, 2437};
+        String[] caps = {"[ESS]", "[ESS]"};
+        int[] levels = {mThresholdQualifiedRssi2G + 8, mThresholdQualifiedRssi2G + 10};
+        int[] securities = {SECURITY_NONE, SECURITY_NONE};
+
+        ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
+                WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
+                        freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
+        WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
+        for (WifiConfiguration wifiConfiguration : savedConfigs) {
+            wifiConfiguration.ephemeral = true;
+        }
+
+        WifiConfiguration candidate = mSavedNetworkEvaluator.evaluateNetworks(scanDetails,
+                null, null, true, false, null);
+
+        assertNull(candidate);
+    }
+
+    /**
      * Set the candidate {@link ScanResult} for all {@link WifiConfiguration}s regardless of
      * whether they are secure saved, open saved, or {@link WifiConfiguration#useExternalScores}.
      */
