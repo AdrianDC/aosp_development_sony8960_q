@@ -38,6 +38,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -91,19 +92,38 @@ public class ConfigurationMapTest {
         mConfigs = new ConfigurationMap(mUserManager);
     }
 
-    public void switchUser(int newUserId) {
+    private void switchUser(int newUserId) {
         mCurrentUserId = newUserId;
         mConfigs.setNewUser(newUserId);
         mConfigs.clear();
     }
 
-    public void addNetworks(List<WifiConfiguration> configs) {
+    private Collection<WifiConfiguration> getEnabledNetworksForCurrentUser() {
+        List<WifiConfiguration> list = new ArrayList<>();
+        for (WifiConfiguration config : mConfigs.valuesForCurrentUser()) {
+            if (config.status != WifiConfiguration.Status.DISABLED) {
+                list.add(config);
+            }
+        }
+        return list;
+    }
+
+    private WifiConfiguration getEphemeralForCurrentUser(String ssid) {
+        for (WifiConfiguration config : mConfigs.valuesForCurrentUser()) {
+            if (ssid.equals(config.SSID) && config.ephemeral) {
+                return config;
+            }
+        }
+        return null;
+    }
+
+    private void addNetworks(List<WifiConfiguration> configs) {
         for (WifiConfiguration config : configs) {
             assertNull(mConfigs.put(config));
         }
     }
 
-    public void verifyGetters(List<WifiConfiguration> configs) {
+    private void verifyGetters(List<WifiConfiguration> configs) {
         final Set<WifiConfiguration> configsForCurrentUser = new HashSet<>();
         final Set<WifiConfiguration> enabledConfigsForCurrentUser = new HashSet<>();
         final List<WifiConfiguration> configsNotForCurrentUser = new ArrayList<>();
@@ -129,15 +149,12 @@ public class ConfigurationMapTest {
         // visible to the current user.
         for (WifiConfiguration config : configsForCurrentUser) {
             assertEquals(config, mConfigs.getForCurrentUser(config.networkId));
-            if (config.FQDN != null) {
-                assertEquals(config, mConfigs.getByFQDNForCurrentUser(config.FQDN));
-            }
             assertEquals(config, mConfigs.getByConfigKeyForCurrentUser(config.configKey()));
             final boolean wasEphemeral = config.ephemeral;
             config.ephemeral = false;
-            assertNull(mConfigs.getEphemeralForCurrentUser(config.SSID));
+            assertNull(getEphemeralForCurrentUser(config.SSID));
             config.ephemeral = true;
-            assertEquals(config, mConfigs.getEphemeralForCurrentUser(config.SSID));
+            assertEquals(config, getEphemeralForCurrentUser(config.SSID));
             config.ephemeral = wasEphemeral;
         }
 
@@ -145,15 +162,12 @@ public class ConfigurationMapTest {
         // visible to the current user.
         for (WifiConfiguration config : configsNotForCurrentUser) {
             assertNull(mConfigs.getForCurrentUser(config.networkId));
-            if (config.FQDN != null) {
-                assertNull(mConfigs.getByFQDNForCurrentUser(config.FQDN));
-            }
             assertNull(mConfigs.getByConfigKeyForCurrentUser(config.configKey()));
             final boolean wasEphemeral = config.ephemeral;
             config.ephemeral = false;
-            assertNull(mConfigs.getEphemeralForCurrentUser(config.SSID));
+            assertNull(getEphemeralForCurrentUser(config.SSID));
             config.ephemeral = true;
-            assertNull(mConfigs.getEphemeralForCurrentUser(config.SSID));
+            assertNull(getEphemeralForCurrentUser(config.SSID));
             config.ephemeral = wasEphemeral;
         }
 
@@ -162,7 +176,7 @@ public class ConfigurationMapTest {
         assertEquals(configs.size(), mConfigs.sizeForAllUsers());
         assertEquals(configsForCurrentUser.size(), mConfigs.sizeForCurrentUser());
         assertEquals(enabledConfigsForCurrentUser,
-                new HashSet<WifiConfiguration>(mConfigs.getEnabledNetworksForCurrentUser()));
+                new HashSet<WifiConfiguration>(getEnabledNetworksForCurrentUser()));
         assertEquals(new HashSet<>(configs),
                 new HashSet<WifiConfiguration>(mConfigs.valuesForAllUsers()));
     }

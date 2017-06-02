@@ -7,11 +7,9 @@ import android.os.UserManager;
 
 import com.android.server.wifi.util.ScanResultUtil;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -19,7 +17,6 @@ public class ConfigurationMap {
     private final Map<Integer, WifiConfiguration> mPerID = new HashMap<>();
 
     private final Map<Integer, WifiConfiguration> mPerIDForCurrentUser = new HashMap<>();
-    private final Map<String, WifiConfiguration> mPerFQDNForCurrentUser = new HashMap<>();
     private final Map<ScanResultMatchInfo, WifiConfiguration>
             mScanResultMatchInfoMapForCurrentUser = new HashMap<>();
 
@@ -37,9 +34,6 @@ public class ConfigurationMap {
         if (WifiConfigurationUtil.isVisibleToAnyProfile(config,
                 mUserManager.getProfiles(mCurrentUserId))) {
             mPerIDForCurrentUser.put(config.networkId, config);
-            if (config.FQDN != null && config.FQDN.length() > 0) {
-                mPerFQDNForCurrentUser.put(config.FQDN, config);
-            }
             mScanResultMatchInfoMapForCurrentUser.put(
                     ScanResultMatchInfo.fromWifiConfiguration(config), config);
         }
@@ -53,14 +47,6 @@ public class ConfigurationMap {
         }
 
         mPerIDForCurrentUser.remove(netID);
-        Iterator<Map.Entry<String, WifiConfiguration>> fqdnEntries =
-                mPerFQDNForCurrentUser.entrySet().iterator();
-        while (fqdnEntries.hasNext()) {
-            if (fqdnEntries.next().getValue().networkId == netID) {
-                fqdnEntries.remove();
-                break;
-            }
-        }
 
         Iterator<Map.Entry<ScanResultMatchInfo, WifiConfiguration>> scanResultMatchInfoEntries =
                 mScanResultMatchInfoMapForCurrentUser.entrySet().iterator();
@@ -76,7 +62,6 @@ public class ConfigurationMap {
     public void clear() {
         mPerID.clear();
         mPerIDForCurrentUser.clear();
-        mPerFQDNForCurrentUser.clear();
         mScanResultMatchInfoMapForCurrentUser.clear();
     }
 
@@ -106,10 +91,6 @@ public class ConfigurationMap {
         return mPerIDForCurrentUser.size();
     }
 
-    public WifiConfiguration getByFQDNForCurrentUser(String fqdn) {
-        return mPerFQDNForCurrentUser.get(fqdn);
-    }
-
     public WifiConfiguration getByConfigKeyForCurrentUser(String key) {
         if (key == null) {
             return null;
@@ -130,26 +111,6 @@ public class ConfigurationMap {
     public WifiConfiguration getByScanResultForCurrentUser(ScanResult scanResult) {
         return mScanResultMatchInfoMapForCurrentUser.get(
                 ScanResultMatchInfo.fromScanResult(scanResult));
-    }
-
-
-    public Collection<WifiConfiguration> getEnabledNetworksForCurrentUser() {
-        List<WifiConfiguration> list = new ArrayList<>();
-        for (WifiConfiguration config : mPerIDForCurrentUser.values()) {
-            if (config.status != WifiConfiguration.Status.DISABLED) {
-                list.add(config);
-            }
-        }
-        return list;
-    }
-
-    public WifiConfiguration getEphemeralForCurrentUser(String ssid) {
-        for (WifiConfiguration config : mPerIDForCurrentUser.values()) {
-            if (ssid.equals(config.SSID) && config.ephemeral) {
-                return config;
-            }
-        }
-        return null;
     }
 
     public Collection<WifiConfiguration> valuesForAllUsers() {
