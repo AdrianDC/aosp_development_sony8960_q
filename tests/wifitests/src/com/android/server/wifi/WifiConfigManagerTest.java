@@ -34,7 +34,6 @@ import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
-import android.net.wifi.WifiSsid;
 import android.os.Process;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -3819,25 +3818,9 @@ public class WifiConfigManagerTest {
      */
     private ScanDetail createScanDetailForNetwork(
             WifiConfiguration configuration, String bssid, int level, int frequency) {
-        String caps;
-        if (configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
-            caps = "[WPA2-PSK-CCMP]";
-        } else if (configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP)
-                || configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
-            caps = "[WPA2-EAP-CCMP]";
-        } else if (configuration.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)
-                && WifiConfigurationUtil.hasAnyValidWepKey(configuration.wepKeys)) {
-            caps = "[WEP]";
-        } else {
-            caps = "[]";
-        }
-        WifiSsid ssid = WifiSsid.createFromAsciiEncoded(configuration.getPrintableSsid());
-        // Fill in 0's in the fields we don't care about.
-        return new ScanDetail(
-                ssid, bssid, caps, level, frequency, mClock.getUptimeSinceBootMillis(),
-                mClock.getWallClockMillis());
+        return WifiConfigurationTestUtil.createScanDetailForNetwork(configuration, bssid, level,
+                frequency, mClock.getUptimeSinceBootMillis(), mClock.getWallClockMillis());
     }
-
     /**
      * Creates a scan detail corresponding to the provided network and BSSID value.
      */
