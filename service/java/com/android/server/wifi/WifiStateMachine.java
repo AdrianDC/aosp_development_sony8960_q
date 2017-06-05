@@ -221,6 +221,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private final WifiCountryCode mCountryCode;
     // Object holding most recent wifi score report and bad Linkspeed count
     private final WifiScoreReport mWifiScoreReport;
+    public WifiScoreReport getWifiScoreReport() {
+        return mWifiScoreReport;
+    }
     private final PasspointManager mPasspointManager;
 
     /* Scan results handling */
@@ -931,7 +934,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         mCountryCode = countryCode;
 
-        mWifiScoreReport = new WifiScoreReport(mContext, mWifiConfigManager);
+        mWifiScoreReport = new WifiScoreReport(mContext, mWifiConfigManager, mClock);
 
         mUserWantsSuspendOpt.set(mFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_SUSPEND_OPTIMIZATIONS_ENABLED, 1) == 1);
