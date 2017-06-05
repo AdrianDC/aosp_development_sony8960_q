@@ -76,10 +76,11 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
 
     private Map<String, Integer> mSettableParameters = new HashMap<>();
     {
-        mSettableParameters.put(PARAM_DW_ON_INACTIVE_24GHZ, -1); // -1 mean no-op, don't override
-        mSettableParameters.put(PARAM_DW_ON_INACTIVE_5GHZ, -1); // -1 mean no-op, don't override
-        mSettableParameters.put(PARAM_DW_ON_IDLE_24GHZ, -1); // -1 mean no-op, don't override
-        mSettableParameters.put(PARAM_DW_ON_IDLE_5GHZ, -1); // -1 mean no-op, don't override
+        // see wifi/1.0/types.hal NanBandSpecificConfig.discoveryWindowIntervalVal for description
+        mSettableParameters.put(PARAM_DW_ON_INACTIVE_24GHZ, 4); // 4 = DW=8, latency 4s
+        mSettableParameters.put(PARAM_DW_ON_INACTIVE_5GHZ, 0); // 0 = disabled
+        mSettableParameters.put(PARAM_DW_ON_IDLE_24GHZ, -1); // NOP (but disabling on IDLE)
+        mSettableParameters.put(PARAM_DW_ON_IDLE_5GHZ, -1); // NOP (but disabling on IDLE)
     }
 
     /**
@@ -859,21 +860,21 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
     private void updateConfigForPowerSettings(NanConfigRequest req, boolean isInteractive,
             boolean isIdle) {
         if (isIdle) { // lowest power state: doze
-            updateSingleConigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ],
+            updateSingleConfigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ],
                     mSettableParameters.get(PARAM_DW_ON_IDLE_5GHZ));
-            updateSingleConigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ],
+            updateSingleConfigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ],
                     mSettableParameters.get(PARAM_DW_ON_IDLE_24GHZ));
         } else if (!isInteractive) { // intermediate power state: inactive
-            updateSingleConigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ],
+            updateSingleConfigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ],
                     mSettableParameters.get(PARAM_DW_ON_INACTIVE_5GHZ));
-            updateSingleConigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ],
+            updateSingleConfigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ],
                     mSettableParameters.get(PARAM_DW_ON_INACTIVE_24GHZ));
         }
 
         // else do nothing - normal power state
     }
 
-    private void updateSingleConigForPowerSettings(NanBandSpecificConfig cfg, int override) {
+    private void updateSingleConfigForPowerSettings(NanBandSpecificConfig cfg, int override) {
         if (override != -1) {
             cfg.validDiscoveryWindowIntervalVal = true;
             cfg.discoveryWindowIntervalVal = (byte) override;

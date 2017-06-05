@@ -2883,6 +2883,9 @@ public class WifiAwareStateManagerTest {
 
         ConfigRequest configRequest = new ConfigRequest.Builder().build();
 
+        setSettableParam(WifiAwareStateManager.PARAM_ON_IDLE_DISABLE_AWARE, Integer.toString(0),
+                true);
+
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
         InOrder inOrder = inOrder(mMockNative, mockCallback);
