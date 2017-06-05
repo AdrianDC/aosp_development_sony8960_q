@@ -233,7 +233,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
 
     private Map<String, Integer> mSettableParameters = new HashMap<>();
     {
-        mSettableParameters.put(PARAM_ON_IDLE_DISABLE_AWARE, 0); // 0 = false
+        mSettableParameters.put(PARAM_ON_IDLE_DISABLE_AWARE, 1); // 0 = false, 1 = true
     }
 
     /**
