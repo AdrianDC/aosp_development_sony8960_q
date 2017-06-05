@@ -169,7 +169,13 @@ public class WifiAwareDataPathStateManager {
     public void deleteAllInterfaces() {
         if (VDBG) Log.v(TAG, "deleteAllInterfaces");
 
-        for (String name : mInterfaces) {
+        if (mMgr.getCapabilities() == null) {
+            Log.e(TAG, "deleteAllInterfaces: capabilities aren't initialized yet!");
+            return;
+        }
+
+        for (int i = 0; i < mMgr.getCapabilities().maxNdiInterfaces; ++i) {
+            String name = AWARE_INTERFACE_PREFIX + i;
             mMgr.deleteDataPathInterface(name);
         }
     }
