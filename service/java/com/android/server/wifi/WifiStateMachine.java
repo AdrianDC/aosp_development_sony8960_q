@@ -2807,6 +2807,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     private void setWifiApState(int wifiApState, int reason) {
+        setWifiApState(wifiApState, reason, null);
+    }
+
+    private void setWifiApState(int wifiApState, int reason, String ifaceName) {
         final int previousWifiApState = mWifiApState.get();
 
         try {
@@ -2831,6 +2835,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         if (wifiApState == WifiManager.WIFI_AP_STATE_FAILED) {
             //only set reason number when softAP start failed
             intent.putExtra(WifiManager.EXTRA_WIFI_AP_FAILURE_REASON, reason);
+        }
+
+        if (ifaceName == null) {
+            loge("Updating wifiApState with a null iface name");
+        } else {
+            intent.putExtra(WifiManager.EXTRA_WIFI_AP_INTERFACE_NAME, ifaceName);
         }
 
         mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
@@ -6672,6 +6682,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     class SoftApState extends State {
         private SoftApManager mSoftApManager;
+        private String mIfaceName;
 
         private class SoftApListener implements SoftApManager.Listener {
             @Override
@@ -6682,7 +6693,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     sendMessage(CMD_START_AP_FAILURE);
                 }
 
-                setWifiApState(state, reason);
+                setWifiApState(state, reason, mIfaceName);
             }
         }
 
@@ -6705,6 +6716,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 return;
             }
 
+            try {
+                mIfaceName = apInterface.getInterfaceName();
+            } catch (RemoteException e) {
+                // Failed to get the interface name. The name will not be available for
+                // the enabled broadcast, but since we had an error getting the name, we most likely
+                // won't be able to fully start softap mode.
+            }
             WifiConfiguration config = (WifiConfiguration) message.obj;
 
             checkAndSetConnectivityInstance();
@@ -6719,6 +6737,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         @Override
         public void exit() {
             mSoftApManager = null;
+            mIfaceName = null;
         }
 
         @Override

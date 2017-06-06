@@ -1069,7 +1069,7 @@ public class WifiServiceImplTest {
         registerLOHSRequestFull();
 
         TestUtil.sendWifiApStateChanged(mBroadcastReceiverCaptor.getValue(), mContext,
-                WIFI_AP_STATE_ENABLED, WIFI_AP_STATE_DISABLED, HOTSPOT_NO_ERROR);
+                WIFI_AP_STATE_ENABLED, WIFI_AP_STATE_DISABLED, HOTSPOT_NO_ERROR, WIFI_IFACE_NAME);
 
         mLooper.dispatchAll();
         verifyNoMoreInteractions(mHandler);

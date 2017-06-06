@@ -18,6 +18,7 @@ package com.android.server.wifi;
 
 import static android.net.wifi.WifiManager.EXTRA_PREVIOUS_WIFI_AP_STATE;
 import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_FAILURE_REASON;
+import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_INTERFACE_NAME;
 import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_STATE;
 import static android.net.wifi.WifiManager.LocalOnlyHotspotCallback.ERROR_GENERIC;
 import static android.net.wifi.WifiManager.LocalOnlyHotspotCallback.ERROR_NO_CHANNEL;
@@ -492,7 +493,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                                                                  WIFI_AP_STATE_DISABLED);
                         final int errorCode = intent.getIntExtra(EXTRA_WIFI_AP_FAILURE_REASON,
                                                                  HOTSPOT_NO_ERROR);
-                        handleWifiApStateChange(currentState, prevState, errorCode);
+                        final String ifaceName =
+                                intent.getStringExtra(EXTRA_WIFI_AP_INTERFACE_NAME);
+                        handleWifiApStateChange(currentState, prevState, errorCode, ifaceName);
                     }
                 },
                 new IntentFilter(WifiManager.WIFI_AP_STATE_CHANGED_ACTION));
@@ -994,10 +997,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     /**
      * Private method to handle SoftAp state changes
      */
-    private void handleWifiApStateChange(int currentState, int previousState, int errorCode) {
+    private void handleWifiApStateChange(
+            int currentState, int previousState, int errorCode, String ifaceName) {
         // The AP state update from WifiStateMachine for softap
         Slog.d(TAG, "handleWifiApStateChange: currentState=" + currentState
-                + " previousState=" + previousState + " errorCode= " + errorCode);
+                + " previousState=" + previousState + " errorCode= " + errorCode
+                + " ifaceName=" + ifaceName);
 
         // check if we have a failure - since it is possible (worst case scenario where
         // WifiController and WifiStateMachine are out of sync wrt modes) to get two FAILED
