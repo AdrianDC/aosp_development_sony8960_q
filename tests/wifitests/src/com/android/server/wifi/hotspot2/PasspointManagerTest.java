@@ -265,6 +265,7 @@ public class PasspointManagerTest {
         scanResult.SSID = TEST_SSID;
         scanResult.BSSID = TEST_BSSID_STRING;
         scanResult.hessid = TEST_HESSID;
+        scanResult.flags = ScanResult.FLAG_PASSPOINT_NETWORK;
         return scanResult;
     }
 
@@ -770,14 +771,53 @@ public class PasspointManagerTest {
     }
 
     /**
-     * Verify that a {@code null} will returned when trying to get a matching
-     * {@link WifiConfiguration} a {@code null} {@link ScanResult}.
+     * Verify that a {@code null} will be returned when trying to get a matching
+     * {@link WifiConfiguration} for a {@code null} {@link ScanResult}.
      *
      * @throws Exception
      */
     @Test
     public void getMatchingWifiConfigWithNullScanResult() throws Exception {
         assertNull(mManager.getMatchingWifiConfig(null));
+    }
+
+    /**
+     * Verify that a {@code null} will be returned when trying to get a matching
+     * {@link WifiConfiguration} for a {@link ScanResult} with a {@code null} BSSID.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getMatchingWifiConfigWithNullBSSID() throws Exception {
+        ScanResult scanResult = createTestScanResult();
+        scanResult.BSSID = null;
+        assertNull(mManager.getMatchingWifiConfig(scanResult));
+    }
+
+    /**
+     * Verify that a {@code null} will be returned when trying to get a matching
+     * {@link WifiConfiguration} for a {@link ScanResult} with an invalid BSSID.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getMatchingWifiConfigWithInvalidBSSID() throws Exception {
+        ScanResult scanResult = createTestScanResult();
+        scanResult.BSSID = "asdfdasfas";
+        assertNull(mManager.getMatchingWifiConfig(scanResult));
+    }
+
+    /**
+     * Verify that a {@code null} will be returned when trying to get a matching
+     * {@link WifiConfiguration} for a non-Passpoint AP.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getMatchingWifiConfigForNonPasspointAP() throws Exception {
+        ScanResult scanResult = createTestScanResult();
+        scanResult.flags = 0;
+        assertNull(mManager.getMatchingWifiConfig(scanResult));
     }
 
     /**

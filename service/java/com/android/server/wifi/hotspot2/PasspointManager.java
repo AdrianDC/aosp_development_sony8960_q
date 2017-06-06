@@ -322,7 +322,13 @@ public class PasspointManager {
                 scanResult.informationElements);
 
         // Lookup ANQP data in the cache.
-        long bssid = Utils.parseMac(scanResult.BSSID);
+        long bssid;
+        try {
+            bssid = Utils.parseMac(scanResult.BSSID);
+        } catch (IllegalArgumentException e) {
+            Log.e(TAG, "Invalid BSSID provided in the scan result: " + scanResult.BSSID);
+            return null;
+        }
         ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(scanResult.SSID, bssid, scanResult.hessid,
                 vsa.anqpDomainID);
         ANQPData anqpEntry = mAnqpCache.getEntry(anqpKey);
@@ -455,6 +461,10 @@ public class PasspointManager {
     public WifiConfiguration getMatchingWifiConfig(ScanResult scanResult) {
         if (scanResult == null) {
             Log.e(TAG, "Attempt to get matching config for a null ScanResult");
+            return null;
+        }
+        if (!scanResult.isPasspointNetwork()) {
+            Log.e(TAG, "Attempt to get matching config for a non-Passpoint AP");
             return null;
         }
         Pair<PasspointProvider, PasspointMatch> matchedProvider = matchProvider(scanResult);
