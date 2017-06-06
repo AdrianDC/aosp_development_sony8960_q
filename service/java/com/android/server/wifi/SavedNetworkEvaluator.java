@@ -108,9 +108,6 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
                 continue;
             }
 
-            WifiConfiguration.NetworkSelectionStatus status =
-                    network.getNetworkSelectionStatus();
-
             // If a configuration is temporarily disabled, re-enable it before trying
             // to connect to it.
             mWifiConfigManager.tryEnableNetwork(network.networkId);
@@ -121,28 +118,26 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
             // Clear the cached candidate, score and seen.
             mWifiConfigManager.clearNetworkCandidateScanResult(network.networkId);
 
-            boolean networkDisabled = false;
-            boolean networkStringLogged = false;
-            for (int index = WifiConfiguration.NetworkSelectionStatus
-                    .NETWORK_SELECTION_DISABLED_STARTING_INDEX;
-                    index < WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_DISABLED_MAX;
-                    index++) {
-                int count = status.getDisableReasonCounter(index);
-                if (count > 0) {
-                    networkDisabled = true;
-                    if (!networkStringLogged) {
-                        sbuf.append("  ").append(WifiNetworkSelector.toNetworkString(network))
-                                .append(" ");
-                        networkStringLogged = true;
+            // Log disabled network.
+            WifiConfiguration.NetworkSelectionStatus status = network.getNetworkSelectionStatus();
+            if (!status.isNetworkEnabled()) {
+                sbuf.append("  ").append(WifiNetworkSelector.toNetworkString(network)).append(" ");
+                for (int index = WifiConfiguration.NetworkSelectionStatus
+                            .NETWORK_SELECTION_DISABLED_STARTING_INDEX;
+                        index < WifiConfiguration.NetworkSelectionStatus
+                            .NETWORK_SELECTION_DISABLED_MAX;
+                        index++) {
+                    int count = status.getDisableReasonCounter(index);
+                    // Here we log the reason as long as its count is greater than zero. The
+                    // network may not be disabled because of this particular reason. Logging
+                    // this information anyway to help understand what happened to the network.
+                    if (count > 0) {
+                        sbuf.append("reason=")
+                                .append(WifiConfiguration.NetworkSelectionStatus
+                                        .getNetworkDisableReasonString(index))
+                                .append(", count=").append(count).append("; ");
                     }
-                    sbuf.append("reason=")
-                            .append(WifiConfiguration.NetworkSelectionStatus
-                                    .getNetworkDisableReasonString(index))
-                            .append(", count=").append(count).append("; ");
                 }
-            }
-
-            if (networkDisabled) {
                 sbuf.append("\n");
             }
         }
