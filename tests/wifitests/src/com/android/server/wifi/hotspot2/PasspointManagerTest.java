@@ -47,10 +47,13 @@ import static org.mockito.MockitoAnnotations.initMocks;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.drawable.Icon;
+import android.net.Uri;
 import android.net.wifi.EAPConstants;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.net.wifi.WifiSsid;
+import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.hotspot2.pps.Credential;
 import android.net.wifi.hotspot2.pps.HomeSp;
@@ -70,6 +73,9 @@ import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType;
 import com.android.server.wifi.hotspot2.anqp.DomainNameElement;
+import com.android.server.wifi.hotspot2.anqp.HSOsuProvidersElement;
+import com.android.server.wifi.hotspot2.anqp.I18Name;
+import com.android.server.wifi.hotspot2.anqp.OsuProviderInfo;
 import com.android.server.wifi.util.ScanResultUtil;
 
 import org.junit.Before;
@@ -84,6 +90,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -818,6 +825,93 @@ public class PasspointManagerTest {
         ScanResult scanResult = createTestScanResult();
         scanResult.flags = 0;
         assertNull(mManager.getMatchingWifiConfig(scanResult));
+    }
+
+    /**
+     * Verify that an empty list will be returned when retrieving OSU providers for an AP with
+     * null scan result.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getMatchingOsuProvidersForNullScanResult() throws Exception {
+        assertTrue(mManager.getMatchingOsuProviders(null).isEmpty());
+    }
+
+    /**
+     * Verify that an empty list will be returned when retrieving OSU providers for an AP with
+     * invalid BSSID.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getMatchingOsuProvidersForInvalidBSSID() throws Exception {
+        ScanResult scanResult = createTestScanResult();
+        scanResult.BSSID = "asdfdasfas";
+        assertTrue(mManager.getMatchingOsuProviders(scanResult).isEmpty());
+    }
+
+    /**
+     * Verify that an empty list will be returned when retrieving OSU providers for a
+     * non-Passpoint AP.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getMatchingOsuProvidersForNonPasspointAP() throws Exception {
+        ScanResult scanResult = createTestScanResult();
+        scanResult.flags = 0;
+        assertTrue(mManager.getMatchingOsuProviders(scanResult).isEmpty());
+    }
+
+    /**
+     * Verify that an empty list will be returned when no match is found from the ANQP cache.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getMatchingOsuProviderWithNoMatch() throws Exception {
+        when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(null);
+        assertTrue(mManager.getMatchingOsuProviders(createTestScanResult()).isEmpty());
+    }
+
+    /**
+     * Verify that an expected provider list will be returned when a match is found from
+     * the ANQP cache.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getMatchingOsuProvidersWithMatch() throws Exception {
+        // Test data.
+        WifiSsid osuSsid = WifiSsid.createFromAsciiEncoded("Test SSID");
+        String friendlyName = "Test Provider";
+        String serviceDescription = "Dummy Service";
+        Uri serverUri = Uri.parse("https://test.com");
+        String nai = "access.test.com";
+        List<Integer> methodList = Arrays.asList(1);
+        List<I18Name> friendlyNames = Arrays.asList(
+                new I18Name(Locale.ENGLISH.getLanguage(), Locale.ENGLISH, friendlyName));
+        List<I18Name> serviceDescriptions = Arrays.asList(
+                new I18Name(Locale.ENGLISH.getLanguage(), Locale.ENGLISH, serviceDescription));
+
+        // Setup OSU providers ANQP element.
+        List<OsuProviderInfo> providerInfoList = new ArrayList<>();
+        providerInfoList.add(new OsuProviderInfo(
+                friendlyNames, serverUri, methodList, null, nai, serviceDescriptions));
+        Map<ANQPElementType, ANQPElement> anqpElementMap = new HashMap<>();
+        anqpElementMap.put(ANQPElementType.HSOSUProviders,
+                new HSOsuProvidersElement(osuSsid, providerInfoList));
+        ANQPData entry = new ANQPData(mClock, anqpElementMap);
+
+        // Setup expectation.
+        OsuProvider provider = new OsuProvider(
+                osuSsid, friendlyName, serviceDescription, serverUri, nai, methodList, null);
+        List<OsuProvider> expectedList = new ArrayList<>();
+        expectedList.add(provider);
+
+        when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
+        assertEquals(expectedList, mManager.getMatchingOsuProviders(createTestScanResult()));
     }
 
     /**
