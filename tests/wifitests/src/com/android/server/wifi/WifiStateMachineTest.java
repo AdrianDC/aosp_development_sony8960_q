@@ -796,6 +796,9 @@ public class WifiStateMachineTest {
 
         mWsm.sendMessage(WifiMonitor.SUP_CONNECTION_EVENT);
         mLooper.dispatchAll();
+
+        verify(mWifiNative).setupForClientMode();
+        verify(mWifiLastResortWatchdog).clearAllFailureCounts();
     }
 
     private void addNetworkAndVerifySuccess(boolean isHidden) throws Exception {
