@@ -64,6 +64,8 @@ import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
 import android.util.SparseArray;
 
+import com.android.server.wifi.util.WifiPermissionsWrapper;
+
 import libcore.util.HexEncoding;
 
 import org.junit.Before;
@@ -99,6 +101,7 @@ public class WifiAwareStateManagerTest {
     @Mock private AppOpsManager mMockAppOpsManager;
     @Mock private WifiAwareRttStateManager mMockAwareRttStateManager;
     @Mock private WifiAwareMetrics mAwareMetricsMock;
+    @Mock private WifiPermissionsWrapper mPermissionsWrapperMock;
     TestAlarmManager mAlarmManager;
     private PowerManager mMockPowerManager;
     private BroadcastReceiver mPowerBcastReceiver;
@@ -147,7 +150,8 @@ public class WifiAwareStateManagerTest {
                 BroadcastReceiver.class);
         mDut = new WifiAwareStateManager();
         mDut.setNative(mMockNativeManager, mMockNative);
-        mDut.start(mMockContext, mMockLooper.getLooper(), mAwareMetricsMock);
+        mDut.start(mMockContext, mMockLooper.getLooper(), mAwareMetricsMock,
+                mPermissionsWrapperMock);
         mDut.startLate();
         mMockLooper.dispatchAll();
         verify(mMockContext).registerReceiver(bcastRxCaptor.capture(), any(IntentFilter.class));
