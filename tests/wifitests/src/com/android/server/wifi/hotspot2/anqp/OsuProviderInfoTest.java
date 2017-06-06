@@ -25,6 +25,9 @@ import org.junit.Test;
 import java.net.ProtocolException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * Unit tests for {@link com.android.server.wifi.hotspot2.anqp.OsuProviderInfo}.
@@ -79,5 +82,126 @@ public class OsuProviderInfoTest {
                 OsuProviderInfoTestUtil.TEST_OSU_PROVIDER_INFO_RAW_BYTES);
         assertEquals(OsuProviderInfoTestUtil.TEST_OSU_PROVIDER_INFO,
                 OsuProviderInfo.parse(buffer));
+    }
+
+    /**
+     * Verify that when a provider contained multiple friendly names in different languages, the
+     * friendly name that's in default language is returned.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getFriendlyNameMatchingDefaultLocale() throws Exception {
+        List<I18Name> friendlyNames = new ArrayList<>();
+        Locale defaultLocale = Locale.getDefault();
+        Locale nonDefaultLocale = Locale.FRENCH;
+        if (defaultLocale.equals(nonDefaultLocale)) {
+            nonDefaultLocale = Locale.ENGLISH;
+        }
+        String nonDefaultString = "Non-default";
+        String defaultString = "Default";
+        friendlyNames.add(
+                new I18Name(nonDefaultLocale.getLanguage(), nonDefaultLocale, nonDefaultString));
+        friendlyNames.add(new I18Name(defaultLocale.getLanguage(), defaultLocale, defaultString));
+        OsuProviderInfo providerInfo =
+                new OsuProviderInfo(friendlyNames, null, null, null, null, null);
+        assertEquals(defaultString, providerInfo.getFriendlyName());
+    }
+
+    /**
+     * Verify that when a provider contained multiple friendly names where no friendly name
+     * is in default language, the first name in the list is returned.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getFriendlyNameNotMatchingDefaultLocale() throws Exception {
+        List<I18Name> friendlyNames = new ArrayList<>();
+        Locale nonDefaultLocale = Locale.FRENCH;
+        if (nonDefaultLocale.equals(Locale.getDefault())) {
+            nonDefaultLocale = Locale.ENGLISH;
+        }
+        String firstString = "First name";
+        String secondString = "Second name";
+        friendlyNames.add(
+                new I18Name(nonDefaultLocale.getLanguage(), nonDefaultLocale, firstString));
+        friendlyNames.add(
+                new I18Name(nonDefaultLocale.getLanguage(), nonDefaultLocale, secondString));
+        OsuProviderInfo providerInfo =
+                new OsuProviderInfo(friendlyNames, null, null, null, null, null);
+        assertEquals(firstString, providerInfo.getFriendlyName());
+    }
+
+    /**
+     * Verify that null will be returned for a provider containing empty friendly name list.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getFriendlyNameWithEmptyList() throws Exception {
+        OsuProviderInfo providerInfo =
+                new OsuProviderInfo(new ArrayList<I18Name>(), null, null, null, null, null);
+        assertEquals(null, providerInfo.getFriendlyName());
+    }
+
+    /**
+     * Verify that when a provider contained multiple service descriptions in different languages,
+     * the service description that's in default language is returned.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getServiceDescriptionMatchingDefaultLocale() throws Exception {
+        List<I18Name> serviceDescriptions = new ArrayList<>();
+        Locale defaultLocale = Locale.getDefault();
+        Locale nonDefaultLocale = Locale.FRENCH;
+        if (defaultLocale.equals(nonDefaultLocale)) {
+            nonDefaultLocale = Locale.ENGLISH;
+        }
+        String nonDefaultString = "Non-default";
+        String defaultString = "Default";
+        serviceDescriptions.add(
+                new I18Name(nonDefaultLocale.getLanguage(), nonDefaultLocale, nonDefaultString));
+        serviceDescriptions.add(
+                new I18Name(defaultLocale.getLanguage(), defaultLocale, defaultString));
+        OsuProviderInfo providerInfo =
+                new OsuProviderInfo(null, null, null, null, null, serviceDescriptions);
+        assertEquals(defaultString, providerInfo.getServiceDescription());
+    }
+
+    /**
+     * Verify that when a provider contained multiple service descriptions where none of them
+     * is in default language, the first element in the list is returned.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getServiceDescriptionNotMatchingDefaultLocale() throws Exception {
+        List<I18Name> serviceDescriptions = new ArrayList<>();
+        Locale nonDefaultLocale = Locale.FRENCH;
+        if (nonDefaultLocale.equals(Locale.getDefault())) {
+            nonDefaultLocale = Locale.ENGLISH;
+        }
+        String firstString = "First name";
+        String secondString = "Second name";
+        serviceDescriptions.add(
+                new I18Name(nonDefaultLocale.getLanguage(), nonDefaultLocale, firstString));
+        serviceDescriptions.add(
+                new I18Name(nonDefaultLocale.getLanguage(), nonDefaultLocale, secondString));
+        OsuProviderInfo providerInfo =
+                new OsuProviderInfo(null, null, null, null, null, serviceDescriptions);
+        assertEquals(firstString, providerInfo.getServiceDescription());
+    }
+
+    /**
+     * Verify that null will be returned for a provider containing empty friendly name list.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getServiceDescriptionWithEmptyList() throws Exception {
+        OsuProviderInfo providerInfo =
+                new OsuProviderInfo(null, null, null, null, null, new ArrayList<I18Name>());
+        assertEquals(null, providerInfo.getServiceDescription());
     }
 }
