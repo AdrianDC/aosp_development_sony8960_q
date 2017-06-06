@@ -75,6 +75,7 @@ import android.net.wifi.WifiSsid;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.WpsResult;
 import android.net.wifi.WpsResult.Status;
+import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
@@ -589,6 +590,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     // Get the list of installed Passpoint configurations.
     static final int CMD_GET_PASSPOINT_CONFIGS                          = BASE + 108;
+
+    // Get the list of OSU providers associated with a Passpoint network.
+    static final int CMD_GET_MATCHING_OSU_PROVIDERS                     = BASE + 109;
 
     /* Commands from/to the SupplicantStateTracker */
     /* Reset the supplicant state tracker */
@@ -1861,6 +1865,22 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         WifiConfiguration config = (WifiConfiguration) resultMsg.obj;
         resultMsg.recycle();
         return config;
+    }
+
+    /**
+     * Retrieve a list of {@link OsuProvider} associated with the given AP synchronously.
+     *
+     * @param scanResult The scan result of the AP
+     * @param channel Channel for communicating with the state machine
+     * @return List of {@link OsuProvider}
+     */
+    public List<OsuProvider> syncGetMatchingOsuProviders(ScanResult scanResult,
+            AsyncChannel channel) {
+        Message resultMsg =
+                channel.sendMessageSynchronously(CMD_GET_MATCHING_OSU_PROVIDERS, scanResult);
+        List<OsuProvider> providers = (List<OsuProvider>) resultMsg.obj;
+        resultMsg.recycle();
+        return providers;
     }
 
     /**
@@ -3883,6 +3903,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_GET_MATCHING_CONFIG:
                     replyToMessage(message, message.what);
                     break;
+                case CMD_GET_MATCHING_OSU_PROVIDERS:
+                    replyToMessage(message, message.what, new ArrayList<OsuProvider>());
+                    break;
                 case CMD_IP_CONFIGURATION_SUCCESSFUL:
                 case CMD_IP_CONFIGURATION_LOST:
                 case CMD_IP_REACHABILITY_LOST:
@@ -4964,6 +4987,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_GET_MATCHING_CONFIG:
                     replyToMessage(message, message.what,
                             mPasspointManager.getMatchingWifiConfig((ScanResult) message.obj));
+                    break;
+                case CMD_GET_MATCHING_OSU_PROVIDERS:
+                    replyToMessage(message, message.what,
+                            mPasspointManager.getMatchingOsuProviders((ScanResult) message.obj));
                     break;
                 case CMD_RECONNECT:
                     mWifiConnectivityManager.forceConnectivityScan();

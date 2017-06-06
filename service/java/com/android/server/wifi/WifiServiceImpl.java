@@ -73,6 +73,7 @@ import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.LocalOnlyHotspotCallback;
 import android.net.wifi.WifiScanner;
+import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.os.AsyncTask;
 import android.os.BatteryStats;
@@ -1509,6 +1510,23 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             throw new UnsupportedOperationException("Passpoint not enabled");
         }
         return mWifiStateMachine.syncGetMatchingWifiConfig(scanResult, mWifiStateMachineChannel);
+    }
+
+    /**
+     * Returns list of OSU (Online Sign-Up) providers associated with the given Passpoint network.
+     *
+     * @param scanResult scanResult of the Passpoint AP
+     * @return List of {@link OsuProvider}
+     */
+    @Override
+    public List<OsuProvider> getMatchingOsuProviders(ScanResult scanResult) {
+        enforceAccessPermission();
+        mLog.trace("getMatchingOsuProviders uid=%").c(Binder.getCallingUid()).flush();
+        if (!mContext.getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_WIFI_PASSPOINT)) {
+            throw new UnsupportedOperationException("Passpoint not enabled");
+        }
+        return mWifiStateMachine.syncGetMatchingOsuProviders(scanResult, mWifiStateMachineChannel);
     }
 
     /**
