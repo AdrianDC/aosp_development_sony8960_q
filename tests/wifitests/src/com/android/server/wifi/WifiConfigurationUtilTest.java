@@ -215,6 +215,18 @@ public class WifiConfigurationUtilTest {
     }
 
     /**
+     * Verify that the validate method validates WifiConfiguration with masked psk string.
+     */
+    @Test
+    public void testValidatePositiveCases_MaskedPskString() {
+        WifiConfiguration config = WifiConfigurationTestUtil.createPskNetwork();
+        assertTrue(WifiConfigurationUtil.validate(config));
+
+        config.preSharedKey = WifiConfigurationUtil.PASSWORD_MASK;
+        assertTrue(WifiConfigurationUtil.validate(config));
+    }
+
+    /**
      * Verify that the validate method fails to validate WifiConfiguration with bad ssid length.
      */
     @Test
