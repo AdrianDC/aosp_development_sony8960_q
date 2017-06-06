@@ -161,7 +161,6 @@ public class WifiServiceImplTest {
     @Mock ActivityManager mActivityManager;
     @Mock AppOpsManager mAppOpsManager;
     @Mock IBinder mAppBinder;
-    @Mock WifiNotificationController mWifiNotificationController;
     @Mock LocalOnlyHotspotRequestInfo mRequestInfo;
     @Mock LocalOnlyHotspotRequestInfo mRequestInfo2;
 
@@ -278,7 +277,6 @@ public class WifiServiceImplTest {
         when(mWifiInjector.getWifiPermissionsUtil()).thenReturn(mWifiPermissionsUtil);
         when(mWifiInjector.getWifiSettingsStore()).thenReturn(mSettingsStore);
         when(mWifiInjector.getClock()).thenReturn(mClock);
-        when(mWifiInjector.getWifiNotificationController()).thenReturn(mWifiNotificationController);
         mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
         mWifiServiceImpl.setWifiHandlerLogForTest(mLog);
     }
