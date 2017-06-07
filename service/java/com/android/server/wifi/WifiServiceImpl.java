@@ -768,12 +768,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mWifiPermissionsUtil.enforceLocationPermission(pkgName, uid);
     }
 
-    private boolean checkNetworkSettingsPermission() {
-        int result = mContext.checkCallingOrSelfPermission(
-                android.Manifest.permission.NETWORK_SETTINGS);
-        return result == PackageManager.PERMISSION_GRANTED;
-    }
-
     /**
      * see {@link android.net.wifi.WifiManager#setWifiEnabled(boolean)}
      * @param enable {@code true} to enable, {@code false} to disable.
@@ -792,7 +786,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         // If SoftAp is enabled, only Settings is allowed to toggle wifi
         boolean apEnabled =
                 mWifiStateMachine.syncGetWifiApState() != WifiManager.WIFI_AP_STATE_DISABLED;
-        boolean isFromSettings = checkNetworkSettingsPermission();
+        boolean isFromSettings =
+                mWifiPermissionsUtil.checkNetworkSettingsPermission(Binder.getCallingUid());
         if (apEnabled && !isFromSettings) {
             mLog.trace("setWifiEnabled SoftAp not disabled: only Settings can enable wifi").flush();
             return false;
