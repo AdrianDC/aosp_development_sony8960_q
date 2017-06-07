@@ -202,5 +202,7 @@ public class WifiApConfigStoreTest {
     public void generateLocalOnlyHotspotConfigIsValid() {
         WifiConfiguration config = WifiApConfigStore.generateLocalOnlyHotspotConfig(mContext);
         verifyDefaultApConfig(config, TEST_DEFAULT_HOTSPOT_SSID);
+        // The LOHS config should also have a specific network id set - check that as well.
+        assertEquals(WifiConfiguration.LOCAL_ONLY_NETWORK_ID, config.networkId);
     }
 }
