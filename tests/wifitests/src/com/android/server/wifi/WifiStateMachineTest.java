@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import static android.net.wifi.WifiManager.EXTRA_PREVIOUS_WIFI_AP_STATE;
 import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_FAILURE_REASON;
 import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_INTERFACE_NAME;
+import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_MODE;
 import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_STATE;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLED;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLING;
@@ -495,20 +496,23 @@ public class WifiStateMachineTest {
     }
 
     private void checkApStateChangedBroadcast(Intent intent, int expectedCurrentState,
-            int expectedPrevState, int expectedErrorCode, String expectedIfaceName) {
+            int expectedPrevState, int expectedErrorCode, String expectedIfaceName,
+            int expectedMode) {
         int currentState = intent.getIntExtra(EXTRA_WIFI_AP_STATE, WIFI_AP_STATE_DISABLED);
         int prevState = intent.getIntExtra(EXTRA_PREVIOUS_WIFI_AP_STATE, WIFI_AP_STATE_DISABLED);
         int errorCode = intent.getIntExtra(EXTRA_WIFI_AP_FAILURE_REASON, HOTSPOT_NO_ERROR);
         String ifaceName = intent.getStringExtra(EXTRA_WIFI_AP_INTERFACE_NAME);
+        int mode = intent.getIntExtra(EXTRA_WIFI_AP_MODE, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
         assertEquals(expectedCurrentState, currentState);
         assertEquals(expectedPrevState, prevState);
         assertEquals(expectedErrorCode, errorCode);
         assertEquals(expectedIfaceName, ifaceName);
+        assertEquals(expectedMode, mode);
     }
 
-    @Test
-    public void loadComponentsInApMode() throws Exception {
-        mWsm.setHostApRunning(new WifiConfiguration(), true);
+    private void loadComponentsInApMode(int mode) throws Exception {
+        SoftApModeConfiguration config = new SoftApModeConfiguration(mode, new WifiConfiguration());
+        mWsm.setHostApRunning(config, true);
         mLooper.dispatchAll();
 
         assertEquals("SoftApState", getCurrentState().getName());
@@ -532,13 +536,23 @@ public class WifiStateMachineTest {
 
         List<Intent> capturedIntents = intentCaptor.getAllValues();
         checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_ENABLING,
-                WIFI_AP_STATE_DISABLED, HOTSPOT_NO_ERROR, WIFI_IFACE_NAME);
+                WIFI_AP_STATE_DISABLED, HOTSPOT_NO_ERROR, WIFI_IFACE_NAME, mode);
         checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_ENABLED,
-                WIFI_AP_STATE_ENABLING, HOTSPOT_NO_ERROR, WIFI_IFACE_NAME);
+                WIFI_AP_STATE_ENABLING, HOTSPOT_NO_ERROR, WIFI_IFACE_NAME, mode);
         checkApStateChangedBroadcast(capturedIntents.get(2), WIFI_AP_STATE_DISABLING,
-                WIFI_AP_STATE_ENABLED, HOTSPOT_NO_ERROR, WIFI_IFACE_NAME);
+                WIFI_AP_STATE_ENABLED, HOTSPOT_NO_ERROR, WIFI_IFACE_NAME, mode);
         checkApStateChangedBroadcast(capturedIntents.get(3), WIFI_AP_STATE_DISABLED,
-                WIFI_AP_STATE_DISABLING, HOTSPOT_NO_ERROR, WIFI_IFACE_NAME);
+                WIFI_AP_STATE_DISABLING, HOTSPOT_NO_ERROR, WIFI_IFACE_NAME, mode);
+    }
+
+    @Test
+    public void loadComponentsInApModeForTethering() throws Exception {
+        loadComponentsInApMode(WifiManager.IFACE_IP_MODE_TETHERED);
+    }
+
+    @Test
+    public void loadComponentsInApModeForLOHS() throws Exception {
+        loadComponentsInApMode(WifiManager.IFACE_IP_MODE_LOCAL_ONLY);
     }
 
     @Test
@@ -662,7 +676,9 @@ public class WifiStateMachineTest {
         mWsm.setSupplicantRunning(false);
         mWsm.sendMessage(WifiStateMachine.CMD_DISABLE_P2P_RSP);
         mWsm.sendMessage(WifiMonitor.SUP_DISCONNECTION_EVENT);
-        mWsm.setHostApRunning(new WifiConfiguration(), true);
+        SoftApModeConfiguration config = new SoftApModeConfiguration(
+                WifiManager.IFACE_IP_MODE_TETHERED, new WifiConfiguration());
+        mWsm.setHostApRunning(config, true);
         mLooper.dispatchAll();
         assertEquals("SoftApState", getCurrentState().getName());
         assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
