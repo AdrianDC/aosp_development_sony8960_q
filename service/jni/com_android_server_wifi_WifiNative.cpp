@@ -34,7 +34,7 @@
 namespace android {
 
 static jint DBG = false;
-constexpr int SAFE_NET_LOG_ID = 0x534e4554;
+const int SAFE_NET_LOG_ID = 0x534e4554;
 
 static bool doCommand(JNIEnv* env, jstring javaCommand,
                       char* reply, size_t reply_len) {
