@@ -55,6 +55,8 @@ public class WifiConfigurationUtil {
     private static final int PSK_ASCII_MIN_LEN = 8 + ENCLOSING_QUTOES_LEN;
     private static final int PSK_ASCII_MAX_LEN = 63 + ENCLOSING_QUTOES_LEN;
     private static final int PSK_HEX_LEN = 128;
+    @VisibleForTesting
+    public static final String PASSWORD_MASK = "*";
 
     /**
      * Check whether a network configuration is visible to a user or any of its managed profiles.
@@ -299,6 +301,10 @@ public class WifiConfigurationUtil {
         if (psk.isEmpty()) {
             Log.e(TAG, "validatePsk failed: empty string");
             return false;
+        }
+        // The app returned back the masked password, let it thru. WifiConfigManager will handle it.
+        if (psk.equals(PASSWORD_MASK)) {
+            return true;
         }
         if (psk.startsWith("\"")) {
             // ASCII PSK string
