@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import static android.net.wifi.WifiManager.EXTRA_PREVIOUS_WIFI_AP_STATE;
 import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_FAILURE_REASON;
 import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_INTERFACE_NAME;
+import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_MODE;
 import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_STATE;
 import static android.net.wifi.WifiManager.LocalOnlyHotspotCallback.ERROR_GENERIC;
 import static android.net.wifi.WifiManager.LocalOnlyHotspotCallback.ERROR_NO_CHANNEL;
@@ -27,8 +28,6 @@ import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLED;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLING;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_FAILED;
 
-import static com.android.server.connectivity.tethering.IControlsTethering.STATE_LOCAL_ONLY;
-import static com.android.server.connectivity.tethering.IControlsTethering.STATE_TETHERED;
 import static com.android.server.wifi.LocalOnlyHotspotRequestInfo.HOTSPOT_NO_ERROR;
 import static com.android.server.wifi.WifiController.CMD_AIRPLANE_TOGGLED;
 import static com.android.server.wifi.WifiController.CMD_BATTERY_CHANGED;
@@ -487,7 +486,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 new BroadcastReceiver() {
                     @Override
                     public void onReceive(Context context, Intent intent) {
-                        final int currentState = intent.getIntExtra(EXTRA_WIFI_AP_STATE,
+                        final int currState = intent.getIntExtra(EXTRA_WIFI_AP_STATE,
                                                                     WIFI_AP_STATE_DISABLED);
                         final int prevState = intent.getIntExtra(EXTRA_PREVIOUS_WIFI_AP_STATE,
                                                                  WIFI_AP_STATE_DISABLED);
@@ -495,7 +494,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                                                                  HOTSPOT_NO_ERROR);
                         final String ifaceName =
                                 intent.getStringExtra(EXTRA_WIFI_AP_INTERFACE_NAME);
-                        handleWifiApStateChange(currentState, prevState, errorCode, ifaceName);
+                        final int mode = intent.getIntExtra(EXTRA_WIFI_AP_MODE,
+                                                            WifiManager.IFACE_IP_MODE_UNSPECIFIED);
+                        handleWifiApStateChange(currState, prevState, errorCode, ifaceName, mode);
                     }
                 },
                 new IntentFilter(WifiManager.WIFI_AP_STATE_CHANGED_ACTION));
@@ -822,7 +823,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
         // null wifiConfig is a meaningful input for CMD_SET_AP
         if (wifiConfig == null || isValid(wifiConfig)) {
-            mWifiController.sendMessage(CMD_SET_AP, enabled ? 1 : 0, 0, wifiConfig);
+            int mode = WifiManager.IFACE_IP_MODE_UNSPECIFIED;
+            SoftApModeConfiguration softApConfig = new SoftApModeConfiguration(mode, wifiConfig);
+            mWifiController.sendMessage(CMD_SET_AP, enabled ? 1 : 0, 0, softApConfig);
         } else {
             Slog.e(TAG, "Invalid WifiConfiguration");
         }
@@ -896,14 +899,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                     // between a tether request and a hotspot request (tethering wins).
                     sendHotspotFailedMessageToAllLOHSRequestInfoEntriesLocked(
                             LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE);
-                    mLocalOnlyHotspotRequests.clear();
                     break;
                 case WifiManager.IFACE_IP_MODE_CONFIGURATION_ERROR:
                     // there was an error setting up the hotspot...  trigger onFailed for the
                     // registered LOHS requestors
                     sendHotspotFailedMessageToAllLOHSRequestInfoEntriesLocked(
                             LocalOnlyHotspotCallback.ERROR_GENERIC);
-                    mLocalOnlyHotspotRequests.clear();
                     updateInterfaceIpStateInternal(null, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
                     break;
                 case WifiManager.IFACE_IP_MODE_UNSPECIFIED:
@@ -934,12 +935,15 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         mLog.trace("startSoftAp uid=%").c(Binder.getCallingUid()).flush();
 
-        // TODO: determine if we need to stop softap and clean up state if a tethering request comes
-        // from the user while we are just setting up. For now, the second CMD_START_AP will be
-        // ignored in WifiStateMachine.  This will still bring up tethering and the registered LOHS
-        // requests will be cleared when we get the interface ip tethered status.
+        synchronized (mLocalOnlyHotspotRequests) {
+            // If a tethering request comes in while we have LOHS running (or requested), call stop
+            // for softap mode and restart softap with the tethering config.
+            if (!mLocalOnlyHotspotRequests.isEmpty()) {
+                stopSoftApInternal();
+            }
 
-        return startSoftApInternal(wifiConfig, STATE_TETHERED);
+            return startSoftApInternal(wifiConfig, WifiManager.IFACE_IP_MODE_TETHERED);
+        }
     }
 
     /**
@@ -952,8 +956,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         // null wifiConfig is a meaningful input for CMD_SET_AP
         if (wifiConfig == null || isValid(wifiConfig)) {
-            // TODO: need a way to set the mode
-            mWifiController.sendMessage(CMD_SET_AP, 1, 0, wifiConfig);
+            SoftApModeConfiguration softApConfig = new SoftApModeConfiguration(mode, wifiConfig);
+            mWifiController.sendMessage(CMD_SET_AP, 1, 0, softApConfig);
             return true;
         }
         Slog.e(TAG, "Invalid WifiConfiguration");
@@ -970,12 +974,21 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         // NETWORK_STACK is a signature only permission.
         enforceNetworkStackPermission();
 
+        // only permitted callers are allowed to this point - they must have gone through
+        // connectivity service since this method is protected with the NETWORK_STACK PERMISSION
+
         mLog.trace("stopSoftAp uid=%").c(Binder.getCallingUid()).flush();
 
-        // add checks here to make sure this is the proper caller - apps can't disable tethering or
-        // instances of local only hotspot that they didn't start.  return false for those cases
+        synchronized (mLocalOnlyHotspotRequests) {
+            // If a tethering request comes in while we have LOHS running (or requested), call stop
+            // for softap mode and restart softap with the tethering config.
+            if (!mLocalOnlyHotspotRequests.isEmpty()) {
+                mLog.trace("Call to stop Tethering while LOHS is active,"
+                        + " Registered LOHS callers will be updated when softap stopped.");
+            }
 
-        return stopSoftApInternal();
+            return stopSoftApInternal();
+        }
     }
 
     /**
@@ -985,11 +998,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private boolean stopSoftApInternal() {
         mLog.trace("stopSoftApInternal uid=%").c(Binder.getCallingUid()).flush();
 
-        // we have an allowed caller - clear local only hotspot if it was enabled
-        synchronized (mLocalOnlyHotspotRequests) {
-            mLocalOnlyHotspotRequests.clear();
-            mLocalOnlyHotspotConfig = null;
-        }
         mWifiController.sendMessage(CMD_SET_AP, 0, 0);
         return true;
     }
@@ -998,11 +1006,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * Private method to handle SoftAp state changes
      */
     private void handleWifiApStateChange(
-            int currentState, int previousState, int errorCode, String ifaceName) {
+            int currentState, int previousState, int errorCode, String ifaceName, int mode) {
         // The AP state update from WifiStateMachine for softap
         Slog.d(TAG, "handleWifiApStateChange: currentState=" + currentState
                 + " previousState=" + previousState + " errorCode= " + errorCode
-                + " ifaceName=" + ifaceName);
+                + " ifaceName=" + ifaceName + " mode=" + mode);
 
         // check if we have a failure - since it is possible (worst case scenario where
         // WifiController and WifiStateMachine are out of sync wrt modes) to get two FAILED
@@ -1056,6 +1064,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         for (LocalOnlyHotspotRequestInfo requestor : mLocalOnlyHotspotRequests.values()) {
             try {
                 requestor.sendHotspotFailedMessage(arg1);
+                requestor.unlinkDeathRecipient();
             } catch (RemoteException e) {
                 // This will be cleaned up by binder death handling
             }
@@ -1075,6 +1084,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         for (LocalOnlyHotspotRequestInfo requestor : mLocalOnlyHotspotRequests.values()) {
             try {
                 requestor.sendHotspotStoppedMessage();
+                requestor.unlinkDeathRecipient();
             } catch (RemoteException e) {
                 // This will be cleaned up by binder death handling
             }
@@ -1185,7 +1195,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 // this is the first request, then set up our config and start LOHS
                 mLocalOnlyHotspotConfig =
                         WifiApConfigStore.generateLocalOnlyHotspotConfig(mContext);
-                startSoftApInternal(mLocalOnlyHotspotConfig, STATE_LOCAL_ONLY);
+                startSoftApInternal(mLocalOnlyHotspotConfig, WifiManager.IFACE_IP_MODE_LOCAL_ONLY);
             }
 
             mLocalOnlyHotspotRequests.put(pid, request);
@@ -2384,8 +2394,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
 
         if (!mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING)) {
-            // Turn mobile hotspot off
-            setWifiApEnabled(null, false);
+            // Turn mobile hotspot off - will also clear any registered LOHS requests when it is
+            // shut down
+            stopSoftApInternal();
         }
 
         if (!mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI)) {
