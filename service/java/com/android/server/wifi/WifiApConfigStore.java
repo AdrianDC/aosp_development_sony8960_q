@@ -218,6 +218,7 @@ public class WifiApConfigStore {
               R.string.wifi_localhotspot_configure_ssid_default) + "_"
                       + getRandomIntForDefaultSsid();
         config.allowedKeyManagement.set(KeyMgmt.WPA2_PSK);
+        config.networkId = WifiConfiguration.LOCAL_ONLY_NETWORK_ID;
         String randomUUID = UUID.randomUUID().toString();
         // first 12 chars from xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
         config.preSharedKey = randomUUID.substring(0, 8) + randomUUID.substring(9, 13);
