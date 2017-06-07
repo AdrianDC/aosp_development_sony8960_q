@@ -568,7 +568,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
             // to protect from leaving WifiSingleScanStateMachine in a forever wait state.
             if (mLastScanSettings.singleScanActive
                     && mLastScanSettings.singleScanEventHandler != null) {
-                Log.wtf(TAG, "Polling pno scan result when single scan is active, reporting"
+                Log.w(TAG, "Polling pno scan result when single scan is active, reporting"
                         + " single scan failure");
                 mLastScanSettings.singleScanEventHandler
                         .onScanStatus(WifiNative.WIFI_SCAN_FAILED);
