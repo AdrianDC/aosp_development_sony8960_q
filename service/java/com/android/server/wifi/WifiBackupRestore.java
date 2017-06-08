@@ -28,6 +28,7 @@ import android.util.Xml;
 import com.android.internal.util.FastXmlSerializer;
 import com.android.server.net.IpConfigStore;
 import com.android.server.wifi.util.NativeUtil;
+import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.XmlUtil;
 import com.android.server.wifi.util.XmlUtil.IpConfigurationXmlUtil;
 import com.android.server.wifi.util.XmlUtil.WifiConfigurationXmlUtil;
@@ -96,6 +97,7 @@ public class WifiBackupRestore {
     private static final String WEP_KEYS_MASK_SEARCH_PATTERN = "(<.*=)(.*)(/>)";
     private static final String WEP_KEYS_MASK_REPLACE_PATTERN = "$1*$3";
 
+    private final WifiPermissionsUtil mWifiPermissionsUtil;
     /**
      * Verbose logging flag.
      */
@@ -108,6 +110,10 @@ public class WifiBackupRestore {
     private byte[] mDebugLastBackupDataRetrieved;
     private byte[] mDebugLastBackupDataRestored;
     private byte[] mDebugLastSupplicantBackupDataRestored;
+
+    public WifiBackupRestore(WifiPermissionsUtil wifiPermissionsUtil) {
+        mWifiPermissionsUtil = wifiPermissionsUtil;
+    }
 
     /**
      * Retrieve an XML byte stream representing the data that needs to be backed up from the
@@ -163,7 +169,9 @@ public class WifiBackupRestore {
             if (configuration.isEnterprise() || configuration.isPasspoint()) {
                 continue;
             }
-            if (configuration.creatorUid >= Process.FIRST_APPLICATION_UID) {
+            if (!mWifiPermissionsUtil.checkConfigOverridePermission(configuration.creatorUid)) {
+                Log.d(TAG, "Ignoring network from an app with no config override permission: "
+                        + configuration.configKey());
                 continue;
             }
             // Write this configuration data now.
@@ -702,6 +710,8 @@ public class WifiBackupRestore {
                                 Integer.parseInt(extras.get(
                                         SupplicantStaNetworkHal.ID_STRING_KEY_CREATOR_UID));
                         if (creatorUid >= Process.FIRST_APPLICATION_UID) {
+                            Log.d(TAG, "Ignoring network from non-system app: "
+                                    + configuration.configKey());
                             return null;
                         }
                     }
