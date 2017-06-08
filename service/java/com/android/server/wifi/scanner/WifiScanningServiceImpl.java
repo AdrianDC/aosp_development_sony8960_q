@@ -447,7 +447,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         private RequestList<ScanSettings> mActiveScans = new RequestList<>();
         private RequestList<ScanSettings> mPendingScans = new RequestList<>();
 
-        // Scan results cached from the last full single scan request.
         private ScanResult[] mCachedScanResults = new ScanResult[0];
 
         WifiSingleScanStateMachine(Looper looper) {
@@ -880,11 +879,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 entry.reportEvent(WifiScanner.CMD_SCAN_RESULT, 0, parcelableAllResults);
             }
 
-            // Since we use NoBandChannelHelper, as long as a specific band is mentioned, the scan
-            // request is treated as full band (WifiScanner.WIFI_BAND_*).
-            if (results.isAllChannelsScanned()) {
-                mCachedScanResults = results.getResults();
-            }
+            // Cache the results here so that apps can retrieve them.
+            mCachedScanResults = results.getResults();
             sendScanResultBroadcast(true);
         }
 
