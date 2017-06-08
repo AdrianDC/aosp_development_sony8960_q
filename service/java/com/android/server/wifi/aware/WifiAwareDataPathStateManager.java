@@ -34,10 +34,12 @@ import android.net.NetworkSpecifier;
 import android.net.RouteInfo;
 import android.net.wifi.aware.WifiAwareManager;
 import android.net.wifi.aware.WifiAwareNetworkSpecifier;
+import android.net.wifi.aware.WifiAwareUtils;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.ServiceManager;
+import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.Log;
 
@@ -932,6 +934,20 @@ public class WifiAwareDataPathStateManager {
                             + " -- UID doesn't have permission to use PMK API");
                     return null;
                 }
+            }
+
+            // validate passphrase & PMK (if provided)
+            if (!TextUtils.isEmpty(ns.passphrase)) { // non-null indicates usage
+                if (!WifiAwareUtils.validatePassphrase(ns.passphrase)) {
+                    Log.e(TAG, "processNetworkSpecifier: networkSpecifier=" + ns.toString()
+                            + " -- invalid passphrase length: " + ns.passphrase.length());
+                    return null;
+                }
+            }
+            if (ns.pmk != null && !WifiAwareUtils.validatePmk(ns.pmk)) { // non-null indicates usage
+                Log.e(TAG, "processNetworkSpecifier: networkSpecifier=" + ns.toString()
+                        + " -- invalid pmk length: " + ns.pmk.length);
+                return null;
             }
 
             // create container and populate
