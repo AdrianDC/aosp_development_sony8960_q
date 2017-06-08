@@ -260,7 +260,7 @@ public class WifiAwareDataPathStateManagerTest {
     public void testDataPathPmkWithoutPermission() throws Exception {
         final int clientId = 123;
         final byte pubSubId = 55;
-        final byte[] pmk = "some bytes".getBytes();
+        final byte[] pmk = "01234567890123456789012345678901".getBytes();
         final PeerHandle peerHandle = new PeerHandle(1341234);
         final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
 
@@ -498,7 +498,7 @@ public class WifiAwareDataPathStateManagerTest {
         final int clientId = 123;
         final byte pubSubId = 55;
         final int ndpId = 2;
-        final byte[] pmk = "some bytes".getBytes();
+        final byte[] pmk = "01234567890123456789012345678901".getBytes();
         final PeerHandle peerHandle = new PeerHandle(1341234);
         final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
 
@@ -553,7 +553,7 @@ public class WifiAwareDataPathStateManagerTest {
         final int clientId = 123;
         final byte pubSubId = 56;
         final int ndpId = 2;
-        final byte[] pmk = "some bytes".getBytes();
+        final byte[] pmk = "01234567890123456789012345678901".getBytes();
         final PeerHandle peerHandle = new PeerHandle(1341234);
         final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
 
@@ -611,7 +611,7 @@ public class WifiAwareDataPathStateManagerTest {
         final byte pubSubId = 58;
         final PeerHandle peerHandle = new PeerHandle(1341234);
         final int ndpId = 2;
-        final byte[] pmk = "some bytes".getBytes();
+        final byte[] pmk = "01234567890123456789012345678901".getBytes();
         final String passphrase = "some passphrase";
         final String peerToken = "let's go!";
         final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
@@ -712,7 +712,7 @@ public class WifiAwareDataPathStateManagerTest {
         final byte pubSubId = 60;
         final PeerHandle peerHandle = new PeerHandle(1341234);
         final int ndpId = 2;
-        final byte[] pmk = "some bytes".getBytes();
+        final byte[] pmk = "01234567890123456789012345678901".getBytes();
         final String passphrase = "some passphrase";
         final String peerToken = "let's go!";
         final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
