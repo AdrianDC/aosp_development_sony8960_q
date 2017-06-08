@@ -74,6 +74,7 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
 import android.os.Process;
+import android.os.RemoteException;
 import android.os.UserManager;
 import android.os.WorkSource;
 import android.os.test.TestLooper;
@@ -760,6 +761,9 @@ public class WifiServiceImplTest {
         // allow test to proceed without a permission check failure
         when(mSettingsStore.getLocationModeSetting(mContext))
                 .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
+        try {
+            when(mFrameworkFacade.isAppForeground(anyInt())).thenReturn(true);
+        } catch (RemoteException e) { }
         when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING))
                 .thenReturn(false);
         int result = mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder,
@@ -812,12 +816,43 @@ public class WifiServiceImplTest {
     }
 
     /**
+     * Only start LocalOnlyHotspot if the caller is the foreground app at the time of the request.
+     */
+    @Test
+    public void testStartLocalOnlyHotspotFailsIfRequestorNotForegroundApp() throws Exception {
+        when(mSettingsStore.getLocationModeSetting(mContext))
+                .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
+
+        when(mFrameworkFacade.isAppForeground(anyInt())).thenReturn(false);
+        int result = mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder,
+                TEST_PACKAGE_NAME);
+        assertEquals(LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE, result);
+    }
+
+    /**
+     * Do not register the LocalOnlyHotspot request if the caller app cannot be verified as the
+     * foreground app at the time of the request (ie, throws an exception in the check).
+     */
+    @Test
+    public void testStartLocalOnlyHotspotFailsIfForegroundAppCheckThrowsRemoteException()
+            throws Exception {
+        when(mSettingsStore.getLocationModeSetting(mContext))
+                .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
+
+        when(mFrameworkFacade.isAppForeground(anyInt())).thenThrow(new RemoteException());
+        int result = mWifiServiceImpl.startLocalOnlyHotspot(mAppMessenger, mAppBinder,
+                TEST_PACKAGE_NAME);
+        assertEquals(LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE, result);
+    }
+
+    /**
      * Only start LocalOnlyHotspot if we are not tethering.
      */
     @Test
-    public void testHotspotDoesNotStartWhenAlreadyTethering() {
+    public void testHotspotDoesNotStartWhenAlreadyTethering() throws Exception {
         when(mSettingsStore.getLocationModeSetting(mContext))
                             .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
+        when(mFrameworkFacade.isAppForeground(anyInt())).thenReturn(true);
         mWifiServiceImpl.updateInterfaceIpState(WIFI_IFACE_NAME, IFACE_IP_MODE_TETHERED);
         mLooper.dispatchAll();
         int returnCode = mWifiServiceImpl.startLocalOnlyHotspot(
@@ -829,9 +864,10 @@ public class WifiServiceImplTest {
      * Only start LocalOnlyHotspot if admin setting does not disallow tethering.
      */
     @Test
-    public void testHotspotDoesNotStartWhenTetheringDisallowed() {
+    public void testHotspotDoesNotStartWhenTetheringDisallowed() throws Exception {
         when(mSettingsStore.getLocationModeSetting(mContext))
                 .thenReturn(LOCATION_MODE_HIGH_ACCURACY);
+        when(mFrameworkFacade.isAppForeground(anyInt())).thenReturn(true);
         when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING))
                 .thenReturn(true);
         int returnCode = mWifiServiceImpl.startLocalOnlyHotspot(
