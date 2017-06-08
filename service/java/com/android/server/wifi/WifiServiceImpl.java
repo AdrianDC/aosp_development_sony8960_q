@@ -2507,8 +2507,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public byte[] retrieveBackupData() {
-        enforceReadCredentialPermission();
-        enforceAccessPermission();
+        enforceNetworkSettingsPermission();
         mLog.trace("retrieveBackupData uid=%").c(Binder.getCallingUid()).flush();
         if (mWifiStateMachineChannel == null) {
             Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
@@ -2553,7 +2552,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public void restoreBackupData(byte[] data) {
-        enforceChangePermission();
+        enforceNetworkSettingsPermission();
         mLog.trace("restoreBackupData uid=%").c(Binder.getCallingUid()).flush();
         if (mWifiStateMachineChannel == null) {
             Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
@@ -2575,7 +2574,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @param ipConfigData Raw byte stream of ipconfig.txt
      */
     public void restoreSupplicantBackupData(byte[] supplicantData, byte[] ipConfigData) {
-        enforceChangePermission();
+        enforceNetworkSettingsPermission();
         mLog.trace("restoreSupplicantBackupData uid=%").c(Binder.getCallingUid()).flush();
         if (mWifiStateMachineChannel == null) {
             Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
