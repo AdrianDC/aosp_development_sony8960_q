@@ -24,10 +24,13 @@ import android.os.Process;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.server.net.IpConfigStore;
+import com.android.server.wifi.util.WifiPermissionsUtil;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -48,11 +51,15 @@ import java.util.Random;
 @SmallTest
 public class WifiBackupRestoreTest {
 
-    private final WifiBackupRestore mWifiBackupRestore = new WifiBackupRestore();
+    @Mock WifiPermissionsUtil mWifiPermissionsUtil;
+    private WifiBackupRestore mWifiBackupRestore;
     private boolean mCheckDump = true;
 
     @Before
     public void setUp() throws Exception {
+        MockitoAnnotations.initMocks(this);
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
+        mWifiBackupRestore = new WifiBackupRestore(mWifiPermissionsUtil);
         // Enable verbose logging before tests to check the backup data dumps.
         mWifiBackupRestore.enableVerboseLogging(1);
     }
@@ -361,25 +368,34 @@ public class WifiBackupRestoreTest {
      */
     @Test
     public void testMultipleNetworksSystemAppBackupRestore() {
+        int systemAppUid = Process.SYSTEM_UID;
+        int nonSystemAppUid = Process.FIRST_APPLICATION_UID + 556;
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(eq(systemAppUid)))
+                .thenReturn(true);
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(eq(nonSystemAppUid)))
+                .thenReturn(false);
+
         List<WifiConfiguration> configurations = new ArrayList<>();
         List<WifiConfiguration> expectedConfigurations = new ArrayList<>();
 
         WifiConfiguration wepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        wepNetwork.creatorUid = systemAppUid;
         configurations.add(wepNetwork);
         expectedConfigurations.add(wepNetwork);
 
         // These should not be in |expectedConfigurations|.
         WifiConfiguration nonSystemAppWepNetwork = WifiConfigurationTestUtil.createWepNetwork();
-        nonSystemAppWepNetwork.creatorUid = Process.FIRST_APPLICATION_UID;
+        nonSystemAppWepNetwork.creatorUid = nonSystemAppUid;
         configurations.add(nonSystemAppWepNetwork);
 
         WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        pskNetwork.creatorUid = systemAppUid;
         configurations.add(pskNetwork);
         expectedConfigurations.add(pskNetwork);
 
         // These should not be in |expectedConfigurations|.
         WifiConfiguration nonSystemAppPskNetwork = WifiConfigurationTestUtil.createPskNetwork();
-        nonSystemAppPskNetwork.creatorUid = Process.FIRST_APPLICATION_UID + 1;
+        nonSystemAppPskNetwork.creatorUid = nonSystemAppUid;
         configurations.add(nonSystemAppPskNetwork);
 
         WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
