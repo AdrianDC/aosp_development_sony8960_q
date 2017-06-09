@@ -74,6 +74,8 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
     public static final String PARAM_DW_ON_IDLE_24GHZ = "dw_on_idle_24ghz";
     public static final String PARAM_DW_ON_IDLE_5GHZ = "dw_on_idle_5ghz";
 
+    public static final String PARAM_MAC_RANDOM_INTERVAL_SEC = "mac_random_interval_sec";
+
     private Map<String, Integer> mSettableParameters = new HashMap<>();
     {
         // see wifi/1.0/types.hal NanBandSpecificConfig.discoveryWindowIntervalVal for description
@@ -81,6 +83,8 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
         mSettableParameters.put(PARAM_DW_ON_INACTIVE_5GHZ, 0); // 0 = disabled
         mSettableParameters.put(PARAM_DW_ON_IDLE_24GHZ, -1); // NOP (but disabling on IDLE)
         mSettableParameters.put(PARAM_DW_ON_IDLE_5GHZ, -1); // NOP (but disabling on IDLE)
+
+        mSettableParameters.put(PARAM_MAC_RANDOM_INTERVAL_SEC, 1800); // 30 minutes
     }
 
     /**
@@ -206,7 +210,8 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
                 req.configParams.includeSubscribeServiceIdsInBeacon = true;
                 req.configParams.numberOfSubscribeServiceIdsInBeacon = 0;
                 req.configParams.rssiWindowSize = 8;
-                req.configParams.macAddressRandomizationIntervalSec = 1800;
+                req.configParams.macAddressRandomizationIntervalSec = mSettableParameters.get(
+                        PARAM_MAC_RANDOM_INTERVAL_SEC);
 
                 NanBandSpecificConfig config24 = new NanBandSpecificConfig();
                 config24.rssiClose = 60;
@@ -276,7 +281,8 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
                 req.includeSubscribeServiceIdsInBeacon = true;
                 req.numberOfSubscribeServiceIdsInBeacon = 0;
                 req.rssiWindowSize = 8;
-                req.macAddressRandomizationIntervalSec = 1800;
+                req.macAddressRandomizationIntervalSec = mSettableParameters.get(
+                        PARAM_MAC_RANDOM_INTERVAL_SEC);
 
                 NanBandSpecificConfig config24 = new NanBandSpecificConfig();
                 config24.rssiClose = 60;
