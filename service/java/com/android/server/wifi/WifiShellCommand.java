@@ -75,6 +75,30 @@ public class WifiShellCommand extends ShellCommand {
                     pw.println("IPREACH_DISCONNECT state is "
                             + mStateMachine.getIpReachabilityDisconnectEnabled());
                     return 0;
+                case "set-poll-rssi-interval-msecs":
+                    int newPollIntervalMsecs;
+                    try {
+                        newPollIntervalMsecs = Integer.parseInt(getNextArgRequired());
+                    } catch (NumberFormatException e) {
+                        pw.println(
+                                "Invalid argument to 'set-poll-rssi-interval-msecs' "
+                                        + "- must be a positive integer");
+                        return -1;
+                    }
+
+                    if (newPollIntervalMsecs < 1) {
+                        pw.println(
+                                "Invalid argument to 'set-poll-rssi-interval-msecs' "
+                                        + "- must be a positive integer");
+                        return -1;
+                    }
+
+                    mStateMachine.setPollRssiIntervalMsecs(newPollIntervalMsecs);
+                    return 0;
+                case "get-poll-rssi-interval-msecs":
+                    pw.println("WifiStateMachine.mPollRssiIntervalMsecs = "
+                            + mStateMachine.getPollRssiIntervalMsecs());
+                    return 0;
                 default:
                     return handleDefaultCommands(cmd);
             }
@@ -104,6 +128,10 @@ public class WifiShellCommand extends ShellCommand {
         pw.println("    Sets whether CMD_IP_REACHABILITY_LOST events should trigger disconnects.");
         pw.println("  get-ipreach-disconnect");
         pw.println("    Gets setting of CMD_IP_REACHABILITY_LOST events triggering disconnects.");
+        pw.println("  set-poll-rssi-interval-msecs <int>");
+        pw.println("    Sets the interval between RSSI polls to <int> milliseconds.");
+        pw.println("  get-poll-rssi-interval-msecs");
+        pw.println("    Gets current interval between RSSI polls, in milliseconds.");
         pw.println();
     }
 }
