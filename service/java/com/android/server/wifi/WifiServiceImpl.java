@@ -1159,6 +1159,16 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             return LocalOnlyHotspotCallback.ERROR_TETHERING_DISALLOWED;
         }
 
+        // the app should be in the foreground
+        try {
+            if (!mFrameworkFacade.isAppForeground(uid)) {
+                return LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
+            }
+        } catch (RemoteException e) {
+            mLog.trace("RemoteException during isAppForeground when calling startLOHS");
+            return LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
+        }
+
         mLog.trace("startLocalOnlyHotspot uid=% pid=%").c(uid).c(pid).flush();
 
         synchronized (mLocalOnlyHotspotRequests) {
