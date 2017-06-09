@@ -284,6 +284,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private boolean testNetworkDisconnect = false;
 
     private boolean mEnableRssiPolling = false;
+    // Accessed via Binder thread ({get,set}PollRssiIntervalMsecs), and WifiStateMachine thread.
+    private volatile int mPollRssiIntervalMsecs = DEFAULT_POLL_RSSI_INTERVAL_MSECS;
     private int mRssiPollToken = 0;
     /* 3 operational states for STA operation: CONNECT_MODE, SCAN_ONLY_MODE, SCAN_ONLY_WIFI_OFF_MODE
     * In CONNECT_MODE, the STA can scan and connect to an access point
@@ -311,7 +313,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * Interval in milliseconds between polling for RSSI
      * and linkspeed information
      */
-    private static final int POLL_RSSI_INTERVAL_MSECS = 3000;
+    private static final int DEFAULT_POLL_RSSI_INTERVAL_MSECS = 3000;
 
     /**
      * Interval in milliseconds between receiving a disconnect event
@@ -378,6 +380,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private int mTargetNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
     private long mLastDriverRoamAttempt = 0;
     private WifiConfiguration targetWificonfiguration = null;
+
+    int getPollRssiIntervalMsecs() {
+        return mPollRssiIntervalMsecs;
+    }
+
+    void setPollRssiIntervalMsecs(int newPollIntervalMsecs) {
+        mPollRssiIntervalMsecs = newPollIntervalMsecs;
+    }
 
     /**
      * Method to clear {@link #mTargetRoamBSSID} and reset the the current connected network's
@@ -5709,8 +5719,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                     mWifiInfo, mNetworkAgent, mAggressiveHandover,
                                     mWifiMetrics);
                         }
-                        sendMessageDelayed(obtainMessage(CMD_RSSI_POLL,
-                                mRssiPollToken, 0), POLL_RSSI_INTERVAL_MSECS);
+                        sendMessageDelayed(obtainMessage(CMD_RSSI_POLL, mRssiPollToken, 0),
+                                mPollRssiIntervalMsecs);
                         if (mVerboseLoggingEnabled) sendRssiChangeBroadcast(mWifiInfo.getRssi());
                     } else {
                         // Polling has completed
@@ -5727,8 +5737,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (mEnableRssiPolling) {
                         // First poll
                         fetchRssiLinkSpeedAndFrequencyNative();
-                        sendMessageDelayed(obtainMessage(CMD_RSSI_POLL,
-                                mRssiPollToken, 0), POLL_RSSI_INTERVAL_MSECS);
+                        sendMessageDelayed(obtainMessage(CMD_RSSI_POLL, mRssiPollToken, 0),
+                                mPollRssiIntervalMsecs);
                     }
                     break;
                 case WifiManager.RSSI_PKTCNT_FETCH:
