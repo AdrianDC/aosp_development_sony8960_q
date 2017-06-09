@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.app.ActivityManager;
 import android.app.AppGlobals;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -160,5 +161,15 @@ public class FrameworkFacade {
      */
     public boolean inStorageManagerCryptKeeperBounce() {
         return StorageManager.inCryptKeeperBounce();
+    }
+
+    /**
+     * Check if the provided uid is the app in the foreground.
+     * @param uid the uid to check
+     * @return true if the app is in the foreground, false otherwise
+     * @throws RemoteException
+     */
+    public boolean isAppForeground(int uid) throws RemoteException {
+        return ActivityManager.getService().isAppForeground(uid);
     }
 }
