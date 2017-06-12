@@ -109,6 +109,14 @@ bool HostapdManager::WriteHostapdConfig(const string& config) {
     int error = errno;
     LOG(ERROR) << "Cannot write hostapd config to \""
                << kHostapdConfigFilePath << "\": " << strerror(error);
+    struct stat st;
+    int result = stat(kHostapdConfigFilePath, &st);
+    if (result == 0) {
+      LOG(ERROR) << "hostapd config file uid: "<< st.st_uid << ", gid: " << st.st_gid
+                 << ", mode: " << st.st_mode;
+    } else {
+      LOG(ERROR) << "Error calling stat() on hostapd config file: " << strerror(errno);
+    }
     return false;
   }
   return true;
