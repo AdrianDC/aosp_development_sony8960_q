@@ -3581,6 +3581,27 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     }
 
+    /**
+     * Determine if the specified auth failure is considered to be a permanent wrong password
+     * failure. The criteria for such failure is when wrong password error is detected
+     * and the network had never been connected before.
+     *
+     * For networks that have previously connected successfully, we consider wrong password
+     * failures to be temporary, to be on the conservative side.  Since this might be the
+     * case where we are trying to connect to a wrong network (e.g. A network with same SSID
+     * but different password).
+     */
+    private boolean isPermanentWrongPasswordFailure(int networkId, int reasonCode) {
+        if (reasonCode != WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD) {
+            return false;
+        }
+        WifiConfiguration network = mWifiConfigManager.getConfiguredNetwork(networkId);
+        if (network != null && network.getNetworkSelectionStatus().getHasEverConnected()) {
+            return false;
+        }
+        return true;
+    }
+
     private class WifiNetworkFactory extends NetworkFactory {
         public WifiNetworkFactory(Looper l, Context c, String TAG, NetworkCapabilities f) {
             super(l, c, TAG, f);
@@ -4837,9 +4858,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mWifiDiagnostics.captureBugReportData(
                             WifiDiagnostics.REPORT_REASON_AUTH_FAILURE);
                     mSupplicantStateTracker.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT);
-                    mWifiConfigManager.updateNetworkSelectionStatus(mTargetNetworkId,
-                            WifiConfiguration.NetworkSelectionStatus
-                                    .DISABLED_AUTHENTICATION_FAILURE);
+                    int disableReason = WifiConfiguration.NetworkSelectionStatus
+                            .DISABLED_AUTHENTICATION_FAILURE;
+                    // Check if this is a permanent wrong password failure.
+                    if (isPermanentWrongPasswordFailure(mTargetNetworkId, message.arg2)) {
+                        disableReason = WifiConfiguration.NetworkSelectionStatus
+                                .DISABLED_BY_WRONG_PASSWORD;
+                    }
+                    mWifiConfigManager.updateNetworkSelectionStatus(
+                            mTargetNetworkId, disableReason);
                     //If failure occurred while Metrics is tracking a ConnnectionEvent, end it.
                     reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_AUTHENTICATION_FAILURE,
