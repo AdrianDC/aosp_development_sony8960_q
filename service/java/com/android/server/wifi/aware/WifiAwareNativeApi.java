@@ -69,6 +69,8 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
     /*
      * Parameters settable through the shell command.
      */
+    public static final String PARAM_DW_DEFAULT_24GHZ = "dw_default_24ghz";
+    public static final String PARAM_DW_DEFAULT_5GHZ = "dw_default_5ghz";
     public static final String PARAM_DW_ON_INACTIVE_24GHZ = "dw_on_inactive_24ghz";
     public static final String PARAM_DW_ON_INACTIVE_5GHZ = "dw_on_inactive_5ghz";
     public static final String PARAM_DW_ON_IDLE_24GHZ = "dw_on_idle_24ghz";
@@ -79,6 +81,8 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
     private Map<String, Integer> mSettableParameters = new HashMap<>();
     {
         // see wifi/1.0/types.hal NanBandSpecificConfig.discoveryWindowIntervalVal for description
+        mSettableParameters.put(PARAM_DW_DEFAULT_24GHZ, -1); // Firmware default
+        mSettableParameters.put(PARAM_DW_DEFAULT_5GHZ, -1); // Firmware default
         mSettableParameters.put(PARAM_DW_ON_INACTIVE_24GHZ, 4); // 4 = DW=8, latency 4s
         mSettableParameters.put(PARAM_DW_ON_INACTIVE_5GHZ, 0); // 0 = disabled
         mSettableParameters.put(PARAM_DW_ON_IDLE_24GHZ, -1); // NOP (but disabling on IDLE)
@@ -875,6 +879,11 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
                     mSettableParameters.get(PARAM_DW_ON_INACTIVE_5GHZ));
             updateSingleConfigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ],
                     mSettableParameters.get(PARAM_DW_ON_INACTIVE_24GHZ));
+        } else { // the default state
+            updateSingleConfigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ],
+                    mSettableParameters.get(PARAM_DW_DEFAULT_5GHZ));
+            updateSingleConfigForPowerSettings(req.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ],
+                    mSettableParameters.get(PARAM_DW_DEFAULT_24GHZ));
         }
 
         // else do nothing - normal power state
