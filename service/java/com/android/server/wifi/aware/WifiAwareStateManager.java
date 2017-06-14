@@ -214,7 +214,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     private byte[] mCurrentDiscoveryInterfaceMac = ALL_ZERO_MAC;
 
     public WifiAwareStateManager() {
-        // empty
+        onReset();
     }
 
     /**
@@ -231,11 +231,9 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
      * parameters settable through shell command
      */
     public static final String PARAM_ON_IDLE_DISABLE_AWARE = "on_idle_disable_aware";
+    public static final int PARAM_ON_IDLE_DISABLE_AWARE_DEFAULT = 1; // 0 = false, 1 = true
 
     private Map<String, Integer> mSettableParameters = new HashMap<>();
-    {
-        mSettableParameters.put(PARAM_ON_IDLE_DISABLE_AWARE, 1); // 0 = false, 1 = true
-    }
 
     /**
      * Interpreter of adb shell command 'adb shell wifiaware native_api ...'.
@@ -268,6 +266,17 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                     return -1;
                 }
                 mSettableParameters.put(name, value);
+                return 0;
+            }
+            case "get": {
+                String name = parentShell.getNextArgRequired();
+                if (VDBG) Log.v(TAG, "onCommand: name='" + name + "'");
+                if (!mSettableParameters.containsKey(name)) {
+                    pw_err.println("Unknown parameter name -- '" + name + "'");
+                    return -1;
+                }
+
+                pw_out.println((int) mSettableParameters.get(name));
                 return 0;
             }
             case "get_capabilities": {
@@ -306,11 +315,18 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     }
 
     @Override
+    public void onReset() {
+        mSettableParameters.put(PARAM_ON_IDLE_DISABLE_AWARE, PARAM_ON_IDLE_DISABLE_AWARE_DEFAULT);
+    }
+
+    @Override
     public void onHelp(String command, ShellCommand parentShell) {
         final PrintWriter pw = parentShell.getOutPrintWriter();
 
         pw.println("  " + command);
         pw.println("    set <name> <value>: sets named parameter to value. Names: "
+                + mSettableParameters.keySet());
+        pw.println("    get <name>: gets named parameter value. Names: "
                 + mSettableParameters.keySet());
         pw.println("    get_capabilities: prints out the capabilities as a JSON string");
     }

@@ -64,32 +64,30 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
 
     public WifiAwareNativeApi(WifiAwareNativeManager wifiAwareNativeManager) {
         mHal = wifiAwareNativeManager;
+        onReset();
     }
 
     /*
      * Parameters settable through the shell command.
+     * see wifi/1.0/types.hal NanBandSpecificConfig.discoveryWindowIntervalVal for description
      */
     public static final String PARAM_DW_DEFAULT_24GHZ = "dw_default_24ghz";
+    public static final int PARAM_DW_DEFAULT_24GHZ_DEFAULT = -1; // Firmware default
     public static final String PARAM_DW_DEFAULT_5GHZ = "dw_default_5ghz";
+    public static final int PARAM_DW_DEFAULT_5GHZ_DEFAULT = -1; // Firmware default
     public static final String PARAM_DW_ON_INACTIVE_24GHZ = "dw_on_inactive_24ghz";
+    public static final int PARAM_DW_ON_INACTIVE_24GHZ_DEFAULT = 4; // 4 -> DW=8, latency=4s
     public static final String PARAM_DW_ON_INACTIVE_5GHZ = "dw_on_inactive_5ghz";
+    public static final int PARAM_DW_ON_INACTIVE_5GHZ_DEFAULT = 0; // 0 = disabled
     public static final String PARAM_DW_ON_IDLE_24GHZ = "dw_on_idle_24ghz";
+    public static final int PARAM_DW_ON_IDLE_24GHZ_DEFAULT = -1; // NOP (but disabling on IDLE)
     public static final String PARAM_DW_ON_IDLE_5GHZ = "dw_on_idle_5ghz";
+    public static final int PARAM_DW_ON_IDLE_5GHZ_DEFAULT = -1; // NOP (but disabling on IDLE)
 
     public static final String PARAM_MAC_RANDOM_INTERVAL_SEC = "mac_random_interval_sec";
+    public static final int PARAM_MAC_RANDOM_INTERVAL_SEC_DEFAULT = 1800; // 30 minutes
 
     private Map<String, Integer> mSettableParameters = new HashMap<>();
-    {
-        // see wifi/1.0/types.hal NanBandSpecificConfig.discoveryWindowIntervalVal for description
-        mSettableParameters.put(PARAM_DW_DEFAULT_24GHZ, -1); // Firmware default
-        mSettableParameters.put(PARAM_DW_DEFAULT_5GHZ, -1); // Firmware default
-        mSettableParameters.put(PARAM_DW_ON_INACTIVE_24GHZ, 4); // 4 = DW=8, latency 4s
-        mSettableParameters.put(PARAM_DW_ON_INACTIVE_5GHZ, 0); // 0 = disabled
-        mSettableParameters.put(PARAM_DW_ON_IDLE_24GHZ, -1); // NOP (but disabling on IDLE)
-        mSettableParameters.put(PARAM_DW_ON_IDLE_5GHZ, -1); // NOP (but disabling on IDLE)
-
-        mSettableParameters.put(PARAM_MAC_RANDOM_INTERVAL_SEC, 1800); // 30 minutes
-    }
 
     /**
      * Interpreter of adb shell command 'adb shell wifiaware native_api ...'.
@@ -123,6 +121,17 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
                 mSettableParameters.put(name, value);
                 return 0;
             }
+            case "get": {
+                String name = parentShell.getNextArgRequired();
+                if (VDBG) Log.v(TAG, "onCommand: name='" + name + "'");
+                if (!mSettableParameters.containsKey(name)) {
+                    pw.println("Unknown parameter name -- '" + name + "'");
+                    return -1;
+                }
+
+                parentShell.getOutPrintWriter().println((int) mSettableParameters.get(name));
+                return 0;
+            }
             default:
                 pw.println("Unknown 'wifiaware native_api <cmd>'");
         }
@@ -131,11 +140,26 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
     }
 
     @Override
+    public void onReset() {
+        mSettableParameters.put(PARAM_DW_DEFAULT_24GHZ, PARAM_DW_DEFAULT_24GHZ_DEFAULT);
+        mSettableParameters.put(PARAM_DW_DEFAULT_5GHZ, PARAM_DW_DEFAULT_5GHZ_DEFAULT);
+        mSettableParameters.put(PARAM_DW_ON_INACTIVE_24GHZ, PARAM_DW_ON_INACTIVE_24GHZ_DEFAULT);
+        mSettableParameters.put(PARAM_DW_ON_INACTIVE_5GHZ, PARAM_DW_ON_INACTIVE_5GHZ_DEFAULT);
+        mSettableParameters.put(PARAM_DW_ON_IDLE_24GHZ, PARAM_DW_ON_IDLE_24GHZ_DEFAULT);
+        mSettableParameters.put(PARAM_DW_ON_IDLE_5GHZ, PARAM_DW_ON_IDLE_5GHZ_DEFAULT);
+
+        mSettableParameters.put(PARAM_MAC_RANDOM_INTERVAL_SEC,
+                PARAM_MAC_RANDOM_INTERVAL_SEC_DEFAULT);
+    }
+
+    @Override
     public void onHelp(String command, ShellCommand parentShell) {
         final PrintWriter pw = parentShell.getOutPrintWriter();
 
         pw.println("  " + command);
         pw.println("    set <name> <value>: sets named parameter to value. Names: "
+                + mSettableParameters.keySet());
+        pw.println("    get <name>: gets named parameter value. Names: "
                 + mSettableParameters.keySet());
     }
 
