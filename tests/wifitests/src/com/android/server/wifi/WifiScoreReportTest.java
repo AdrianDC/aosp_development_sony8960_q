@@ -17,8 +17,10 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,6 +38,7 @@ import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.io.PrintWriter;
 import java.util.Arrays;
 
 /**
@@ -55,6 +58,7 @@ public class WifiScoreReportTest {
     @Mock Resources mResources;
     @Mock WifiConfigManager mWifiConfigManager;
     @Mock WifiMetrics mWifiMetrics;
+    @Mock PrintWriter mPrintWriter;
 
     /**
      * Sets up resource values for testing
@@ -118,7 +122,7 @@ public class WifiScoreReportTest {
         when(mWifiConfigManager.getScanDetailCacheForNetwork(anyInt()))
                 .thenReturn(mScanDetailCache);
         when(mContext.getResources()).thenReturn(mResources);
-        mWifiScoreReport = new WifiScoreReport(mContext, mWifiConfigManager);
+        mWifiScoreReport = new WifiScoreReport(mContext, mWifiConfigManager, new Clock());
     }
 
     /**
@@ -243,4 +247,44 @@ public class WifiScoreReportTest {
         assertTrue(score > CELLULAR_THRESHOLD_SCORE);
     }
 
+    /**
+     * Test data logging
+     */
+    @Test
+    public void testDataLogging() throws Exception {
+        mAggr = 1;
+        for (int i = 0; i < 10; i++) {
+            mWifiInfo.setRssi(-65 + i);
+            mWifiInfo.setLinkSpeed(300);
+            mWifiInfo.setFrequency(5220);
+            mWifiInfo.txSuccessRate = 0.1 + i;
+            mWifiInfo.txRetriesRate = 0.2 + i;
+            mWifiInfo.txBadRate = 0.01 * i;
+            mWifiInfo.rxSuccessRate = 0.3 + i;
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
+        }
+        mWifiScoreReport.dump(null, mPrintWriter, null);
+        verify(mPrintWriter, atLeast(11)).println(anyString());
+    }
+
+    /**
+     *  Test data logging limit
+     *  <p>
+     *  Check that only a bounded amount of data is collected for dumpsys report
+     */
+    @Test
+    public void testDataLoggingLimit() throws Exception {
+        for (int i = 0; i < 14500; i++) {
+            mWifiInfo.setRssi(-65 + i % 20);
+            mWifiInfo.setLinkSpeed(300);
+            mWifiInfo.setFrequency(5220);
+            mWifiInfo.txSuccessRate = 0.1 + i % 100;
+            mWifiInfo.txRetriesRate = 0.2 + i % 100;
+            mWifiInfo.txBadRate = 0.0001 * i;
+            mWifiInfo.rxSuccessRate = 0.3 + i % 200;
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
+        }
+        mWifiScoreReport.dump(null, mPrintWriter, null);
+        verify(mPrintWriter, atMost(14401)).println(anyString());
+    }
 }
