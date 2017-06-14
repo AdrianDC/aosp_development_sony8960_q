@@ -148,8 +148,13 @@ public class WifiScoreReport {
                                         int aggressiveHandover, WifiMetrics wifiMetrics) {
         int score;
 
-        updateScoringState(wifiInfo, aggressiveHandover);
-        score = calculateScore(wifiInfo, aggressiveHandover);
+        if (aggressiveHandover == 0) {
+            // Use the old method
+            updateScoringState(wifiInfo, aggressiveHandover);
+            score = calculateScore(wifiInfo, aggressiveHandover);
+        } else {
+            score = calculateAlternativeScore(wifiInfo);
+        }
 
         //sanitize boundaries
         if (score > NetworkAgent.WIFI_BASE_SCORE) {
@@ -320,4 +325,17 @@ public class WifiScoreReport {
         }
         return false;
     }
+
+    /**
+     * Experimental scorer, used when aggressive handover preference is set
+     */
+    private int calculateAlternativeScore(WifiInfo wifiInfo) {
+        double rssi = wifiInfo.getRssi();
+        double badRssi = wifiInfo.is5GHz() ? mThresholdQualifiedRssi5 : mThresholdQualifiedRssi24;
+
+        double baseScore = 50.0; // The score to beat to be chosen over mobile data
+        double score = (rssi - badRssi) + baseScore;
+        return (int) Math.round(score);
+    }
+
 }
