@@ -51,15 +51,21 @@ public class WifiAwareShellCommand extends ShellCommand {
 
         final PrintWriter pw = getErrPrintWriter();
         try {
-            DelegatedShellCommand delegatedCmd = null;
-            if (!TextUtils.isEmpty(cmd)) {
-                delegatedCmd = mDelegatedCommands.get(cmd);
-            }
-
-            if (delegatedCmd != null) {
-                return delegatedCmd.onCommand(this);
+            if ("reset".equals(cmd)) {
+                for (DelegatedShellCommand dsc: mDelegatedCommands.values()) {
+                    dsc.onReset();
+                }
             } else {
-                return handleDefaultCommands(cmd);
+                DelegatedShellCommand delegatedCmd = null;
+                if (!TextUtils.isEmpty(cmd)) {
+                    delegatedCmd = mDelegatedCommands.get(cmd);
+                }
+
+                if (delegatedCmd != null) {
+                    return delegatedCmd.onCommand(this);
+                } else {
+                    return handleDefaultCommands(cmd);
+                }
             }
         } catch (Exception e) {
             pw.println("Exception: " + e);
@@ -83,6 +89,8 @@ public class WifiAwareShellCommand extends ShellCommand {
         pw.println("Wi-Fi Aware (wifiaware) commands:");
         pw.println("  help");
         pw.println("    Print this help text.");
+        pw.println("  reset");
+        pw.println("    Reset parameters to default values.");
         for (Map.Entry<String, DelegatedShellCommand> sce: mDelegatedCommands.entrySet()) {
             sce.getValue().onHelp(sce.getKey(), this);
         }
@@ -101,10 +109,16 @@ public class WifiAwareShellCommand extends ShellCommand {
         int onCommand(ShellCommand parentShell);
 
         /**
+         * Reset all parameters to their default values.
+         */
+        void onReset();
+
+        /**
          * Print out help for the delegated command. The name of the delegated command is passed
          * as a first argument as an assist (prevents hard-coding of that string in multiple
          * places).
          */
         void onHelp(String command, ShellCommand parentShell);
+
     }
 }
