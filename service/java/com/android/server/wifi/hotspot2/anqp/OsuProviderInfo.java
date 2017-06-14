@@ -30,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -168,6 +169,28 @@ public class OsuProviderInfo {
         return Collections.unmodifiableList(mServiceDescriptions);
     }
 
+    /**
+     * Return the friendly name string from the friendly name list.  The string matching
+     * the default locale will be returned if it is found, otherwise the first name in the list
+     * will be returned.  A null will be returned if the list is empty.
+     *
+     * @return friendly name string
+     */
+    public String getFriendlyName() {
+        return getI18String(mFriendlyNames);
+    }
+
+    /**
+     * Return the service description string from the service description list.  The string
+     * matching the default locale will be returned if it is found, otherwise the first element in
+     * the list will be returned.  A null will be returned if the list is empty.
+     *
+     * @return service description string
+     */
+    public String getServiceDescription() {
+        return getI18String(mServiceDescriptions);
+    }
+
     @Override
     public boolean equals(Object thatObject) {
         if (this == thatObject) {
@@ -254,5 +277,25 @@ public class OsuProviderInfo {
         // Advance the original buffer's current position.
         payload.position(payload.position() + length);
         return subBuffer;
+    }
+
+    /**
+     * Return the appropriate I18 string value from the list of I18 string values.
+     * The string matching the default locale will be returned if it is found, otherwise the
+     * first string in the list will be returned.  A null will be returned if the list is empty.
+     *
+     * @param i18Strings List of I18 string values
+     * @return String matching the default locale, null otherwise
+     */
+    private static String getI18String(List<I18Name> i18Strings) {
+        for (I18Name name : i18Strings) {
+            if (name.getLanguage().equals(Locale.getDefault().getLanguage())) {
+                return name.getText();
+            }
+        }
+        if (i18Strings.size() > 0) {
+            return i18Strings.get(0).getText();
+        }
+        return null;
     }
 }
