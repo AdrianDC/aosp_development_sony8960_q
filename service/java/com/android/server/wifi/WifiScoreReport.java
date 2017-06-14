@@ -24,6 +24,13 @@ import android.util.Log;
 
 import com.android.internal.R;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.Locale;
+
 /**
  * Class used to calculate scores for connected wifi networks and report it to the associated
  * network agent.
@@ -47,6 +54,7 @@ public class WifiScoreReport {
     private static final int LINK_STUCK_PENALTY = 2;
     private static final int BAD_LINKSPEED_PENALTY = 4;
     private static final int GOOD_LINKSPEED_BONUS = 4;
+    private static final int DUMPSYS_ENTRY_COUNT_LIMIT = 14400; // 12 hours on 3 second poll
 
     // Device configs. The values are examples.
     private final int mThresholdMinimumRssi5;      // -82
@@ -71,7 +79,10 @@ public class WifiScoreReport {
     private boolean mMultiBandScanResults;
     private boolean mIsHomeNetwork;
 
-    WifiScoreReport(Context context, WifiConfigManager wifiConfigManager) {
+    private final Clock mClock;
+    private int mSessionNumber = 0;
+
+    WifiScoreReport(Context context, WifiConfigManager wifiConfigManager, Clock clock) {
         // Fetch all the device configs.
         mThresholdMinimumRssi5 = context.getResources().getInteger(
                 R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz);
@@ -95,6 +106,7 @@ public class WifiScoreReport {
                 R.integer.config_wifi_framework_wifi_score_good_link_speed_5);
 
         mWifiConfigManager = wifiConfigManager;
+        mClock = clock;
     }
 
     /**
@@ -112,6 +124,8 @@ public class WifiScoreReport {
     public void reset() {
         mReport = "";
         mReportValid = false;
+        mSessionNumber++;
+        if (mVerboseLoggingEnabled) Log.d(TAG, "reset");
     }
 
     /**
@@ -148,6 +162,7 @@ public class WifiScoreReport {
                                         int aggressiveHandover, WifiMetrics wifiMetrics) {
         int score;
 
+        logLinkMetrics(wifiInfo);
         if (aggressiveHandover == 0) {
             // Use the old method
             updateScoringState(wifiInfo, aggressiveHandover);
@@ -175,7 +190,7 @@ public class WifiScoreReport {
             }
         }
 
-        mReport = String.format(" score=%d", score);
+        mReport = String.format(Locale.US, " score=%d", score);
         mReportValid = true;
         wifiMetrics.incrementWifiScoreCount(score);
     }
@@ -338,4 +353,55 @@ public class WifiScoreReport {
         return (int) Math.round(score);
     }
 
+    /**
+     * Data for dumpsys
+     *
+     * These are stored as csv formatted lines
+     */
+    private LinkedList<String> mLinkMetricsHistory = new LinkedList<String>();
+
+    /**
+     * Data logging for dumpsys
+     */
+    private void logLinkMetrics(WifiInfo wifiInfo) {
+        long now = mClock.getWallClockMillis();
+        double rssi = wifiInfo.getRssi();
+        int freq = wifiInfo.getFrequency();
+        int linkSpeed = wifiInfo.getLinkSpeed();
+        double txSuccessRate = wifiInfo.txSuccessRate;
+        double txRetriesRate = wifiInfo.txRetriesRate;
+        double txBadRate = wifiInfo.txBadRate;
+        double rxSuccessRate = wifiInfo.rxSuccessRate;
+        try {
+            String timestamp = new SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(new Date(now));
+            String s = String.format(Locale.US, // Use US to avoid comma/decimal confusion
+                    "%s,%d,%.1f,%d,%d,%.2f,%.2f,%.2f,%.2f",
+                    timestamp, mSessionNumber, rssi, freq, linkSpeed,
+                    txSuccessRate, txRetriesRate, txBadRate, rxSuccessRate);
+            mLinkMetricsHistory.add(s);
+        } catch (Exception e) {
+            Log.e(TAG, "format problem", e);
+        }
+        while (mLinkMetricsHistory.size() > DUMPSYS_ENTRY_COUNT_LIMIT) {
+            mLinkMetricsHistory.removeFirst();
+        }
+    }
+
+    /**
+     * Tag to be used in dumpsys request
+     */
+    public static final String DUMP_ARG = "WifiScoreReport";
+
+    /**
+     * Dump logged signal strength and traffic measurements.
+     * @param fd unused
+     * @param pw PrintWriter for writing dump to
+     * @param args unused
+     */
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        pw.println("time,session,rssi,freq,linkspeed,tx_good,tx_retry,tx_bad,rx");
+        for (String line : mLinkMetricsHistory) {
+            pw.println(line);
+        }
+    }
 }
