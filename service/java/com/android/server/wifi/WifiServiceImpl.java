@@ -2239,6 +2239,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             String[] ipManagerArgs = new String[args.length - 1];
             System.arraycopy(args, 1, ipManagerArgs, 0, ipManagerArgs.length);
             mWifiStateMachine.dumpIpManager(fd, pw, ipManagerArgs);
+        } else if (args != null && args.length > 0 && WifiScoreReport.DUMP_ARG.equals(args[0])) {
+            WifiScoreReport wifiScoreReport = mWifiStateMachine.getWifiScoreReport();
+            if (wifiScoreReport != null) wifiScoreReport.dump(fd, pw, args);
         } else {
             pw.println("Wi-Fi is " + mWifiStateMachine.syncGetWifiStateByName());
             pw.println("Stay-awake conditions: " +
@@ -2262,6 +2265,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             mWifiMetrics.dump(fd, pw, args);
             pw.println();
             mWifiBackupRestore.dump(fd, pw, args);
+            pw.println();
+            WifiScoreReport wifiScoreReport = mWifiStateMachine.getWifiScoreReport();
+            if (wifiScoreReport != null) {
+                pw.println("WifiScoreReport:");
+                wifiScoreReport.dump(fd, pw, args);
+            }
             pw.println();
         }
     }
