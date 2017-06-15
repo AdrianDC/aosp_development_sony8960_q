@@ -459,6 +459,10 @@ public class WifiConnectivityManager {
         @Override
         public void onPnoNetworkFound(ScanResult[] results) {
             for (ScanResult result: results) {
+                if (result.informationElements == null) {
+                    localLog("Skipping scan result with null information elements");
+                    continue;
+                }
                 mScanDetails.add(ScanResultUtil.toScanDetail(result));
             }
 
