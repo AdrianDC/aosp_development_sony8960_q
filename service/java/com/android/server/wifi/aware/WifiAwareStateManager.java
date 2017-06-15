@@ -2474,11 +2474,11 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         /*
          * do nothing:
          * - success: was waiting so that don't enable while disabling
-         * - fail: should never happen, serious error (nothing to be done)
+         * - fail: shouldn't happen (though can if already disabled for instance)
          */
         if (reason != NanStatusType.SUCCESS) {
-            Log.wtf(TAG, "onDisableResponseLocal: FAILED!? command=" + command
-                    + ", reason=" + reason);
+            Log.e(TAG, "onDisableResponseLocal: FAILED!? command=" + command + ", reason="
+                    + reason);
         }
     }
 
