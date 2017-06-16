@@ -75,6 +75,8 @@ public class WifiAwareNativeManager {
                     }
                 }, null);
         if (mHalDeviceManager.isStarted()) {
+            mHalDeviceManager.registerInterfaceAvailableForRequestListener(
+                    IfaceType.NAN, mInterfaceAvailableForRequestListener, null);
             tryToGetAware();
         }
     }
