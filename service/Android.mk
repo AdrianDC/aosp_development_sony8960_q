@@ -69,6 +69,10 @@ LOCAL_MODULE_TAGS :=
 LOCAL_MODULE := wifi-service
 LOCAL_INIT_RC := wifi-events.rc
 
+LOCAL_DEX_PREOPT_APP_IMAGE := false
+LOCAL_DEX_PREOPT_GENERATE_PROFILE := true
+LOCAL_DEX_PREOPT_PROFILE_CLASS_LISTING := frameworks/base/services/art-profile
+
 ifeq ($(EMMA_INSTRUMENT_FRAMEWORK),true)
 LOCAL_EMMA_INSTRUMENT := true
 endif
