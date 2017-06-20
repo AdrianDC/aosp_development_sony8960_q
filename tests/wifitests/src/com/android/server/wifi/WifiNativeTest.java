@@ -616,13 +616,27 @@ public class WifiNativeTest {
     }
 
     /**
-     * Verifies that tearDownInterfaces() calls underlying WificondControl.
+     * Verifies that tearDownInterfaces() calls underlying WificondControl and WifiVendorHal
+     * methods.
      */
     @Test
     public void testTearDown() {
         when(mWificondControl.tearDownInterfaces()).thenReturn(true);
 
-        assertTrue(mWifiNative.tearDown());
+        mWifiNative.tearDown();
+        verify(mWificondControl).tearDownInterfaces();
+        verify(mWifiVendorHal).stopVendorHal();
+    }
+
+    /**
+     * Verifies that tearDownInterfaces() calls underlying WificondControl and WifiVendorHal
+     * methods even if wificond returns an error.
+     */
+    @Test
+    public void testTearDownWificondError() {
+        when(mWificondControl.tearDownInterfaces()).thenReturn(false);
+
+        mWifiNative.tearDown();
         verify(mWificondControl).tearDownInterfaces();
         verify(mWifiVendorHal).stopVendorHal();
     }
