@@ -42,6 +42,7 @@ import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
@@ -64,6 +65,7 @@ public class WifiNetworkSelectorTest {
         mWifiNetworkSelector = new WifiNetworkSelector(mContext, mWifiConfigManager, mClock,
                 mLocalLog);
         mWifiNetworkSelector.registerNetworkEvaluator(mDummyEvaluator, 1);
+        mDummyEvaluator.setEvaluatorToSelectCandidate(true);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
 
         mThresholdMinimumRssi2G = mResource.getInteger(
@@ -93,6 +95,8 @@ public class WifiNetworkSelectorTest {
     public class DummyNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluator {
         private static final String NAME = "DummyNetworkEvaluator";
 
+        private boolean mEvaluatorShouldSelectCandidate = true;
+
         @Override
         public String getName() {
             return NAME;
@@ -102,17 +106,33 @@ public class WifiNetworkSelectorTest {
         public void update(List<ScanDetail> scanDetails) {}
 
         /**
-         * Always return the first network in the scan results for connection.
+         * Sets whether the evaluator should return a candidate for connection or null.
+         */
+        public void setEvaluatorToSelectCandidate(boolean shouldSelectCandidate) {
+            mEvaluatorShouldSelectCandidate = shouldSelectCandidate;
+        }
+
+        /**
+         * This NetworkEvaluator can be configured to return a candidate or null.  If returning a
+         * candidate, the first entry in the provided scanDetails will be selected. This requires
+         * that the mock WifiConfigManager be set up to return a WifiConfiguration for the first
+         * scanDetail entry, through
+         * {@link WifiNetworkSelectorTestUtil#setupScanDetailsAndConfigStore}.
          */
         @Override
         public WifiConfiguration evaluateNetworks(List<ScanDetail> scanDetails,
                     WifiConfiguration currentNetwork, String currentBssid, boolean connected,
                     boolean untrustedNetworkAllowed,
                     List<Pair<ScanDetail, WifiConfiguration>> connectableNetworks) {
+            if (!mEvaluatorShouldSelectCandidate) {
+                return null;
+            }
             ScanDetail scanDetail = scanDetails.get(0);
             mWifiConfigManager.setNetworkCandidateScanResult(0, scanDetail.getScanResult(), 100);
+
             assertNotNull("Saved network must not be null",
                     mWifiConfigManager.getConfiguredNetworkForScanDetailAndCache(scanDetail));
+
             return mWifiConfigManager.getConfiguredNetworkForScanDetailAndCache(scanDetail);
         }
     }
@@ -198,6 +218,7 @@ public class WifiNetworkSelectorTest {
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
                 blacklist, mWifiInfo, false, true, false);
         assertEquals("Expect null configuration", null, candidate);
+        assertTrue(mWifiNetworkSelector.getConnectableScanDetails().isEmpty());
     }
 
 
@@ -227,6 +248,7 @@ public class WifiNetworkSelectorTest {
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
                 blacklist, mWifiInfo, false, true, false);
         assertEquals("Expect null configuration", null, candidate);
+        assertTrue(mWifiNetworkSelector.getConnectableScanDetails().isEmpty());
     }
 
     /**
@@ -265,6 +287,7 @@ public class WifiNetworkSelectorTest {
                 blacklist, mWifiInfo, true, false, false);
 
         assertEquals("Expect null configuration", null, candidate);
+        assertTrue(mWifiNetworkSelector.getConnectableScanDetails().isEmpty());
     }
 
     /**
@@ -429,6 +452,7 @@ public class WifiNetworkSelectorTest {
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
                 blacklist, mWifiInfo, false, true, false);
         assertEquals("Expect null configuration", null, candidate);
+        assertTrue(mWifiNetworkSelector.getConnectableScanDetails().isEmpty());
     }
 
     /**
@@ -481,6 +505,7 @@ public class WifiNetworkSelectorTest {
         // The second network selection is skipped since current connected network is
         // missing from the scan results.
         assertEquals("Expect null configuration", null, candidate);
+        assertTrue(mWifiNetworkSelector.getConnectableScanDetails().isEmpty());
     }
 
     /**
@@ -680,7 +705,7 @@ public class WifiNetworkSelectorTest {
         // Make a network selection to connect to test1.
         ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
                 WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
-                    freqs, caps, levels, securities, mWifiConfigManager, mClock);
+                        freqs, caps, levels, securities, mWifiConfigManager, mClock);
         List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
         HashSet<String> blacklist = new HashSet<String>();
         WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
@@ -706,4 +731,133 @@ public class WifiNetworkSelectorTest {
                     expectedResult, candidate);
         }
     }
+
+    /**
+     * {@link WifiNetworkSelector#getFilteredScanDetailsForOpenUnsavedNetworks()} should filter out
+     * networks that are not open after network selection is made.
+     *
+     * Expected behavior: return open networks only
+     */
+    @Test
+    public void getfilterOpenUnsavedNetworks_filtersForOpenNetworks() {
+        String[] ssids = {"\"test1\"", "\"test2\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] freqs = {2437, 5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[ESS]"};
+        int[] levels = {mThresholdMinimumRssi2G + 1, mThresholdMinimumRssi5G + 1};
+        mDummyEvaluator.setEvaluatorToSelectCandidate(false);
+
+        List<ScanDetail> scanDetails = WifiNetworkSelectorTestUtil.buildScanDetails(
+                ssids, bssids, freqs, caps, levels, mClock);
+        HashSet<String> blacklist = new HashSet<>();
+
+        mWifiNetworkSelector.selectNetwork(scanDetails, blacklist, mWifiInfo, false, true, false);
+        List<ScanDetail> expectedOpenUnsavedNetworks = new ArrayList<>();
+        expectedOpenUnsavedNetworks.add(scanDetails.get(1));
+        assertEquals("Expect open unsaved networks",
+                expectedOpenUnsavedNetworks,
+                mWifiNetworkSelector.getFilteredScanDetailsForOpenUnsavedNetworks());
+    }
+
+    /**
+     * {@link WifiNetworkSelector#getFilteredScanDetailsForOpenUnsavedNetworks()} should filter out
+     * saved networks after network selection is made. This should return an empty list when there
+     * are no unsaved networks available.
+     *
+     * Expected behavior: return unsaved networks only. Return empty list if there are no unsaved
+     * networks.
+     */
+    @Test
+    public void getfilterOpenUnsavedNetworks_filtersOutSavedNetworks() {
+        String[] ssids = {"\"test1\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3"};
+        int[] freqs = {2437, 5180};
+        String[] caps = {"[ESS]"};
+        int[] levels = {mThresholdMinimumRssi2G + 1};
+        int[] securities = {SECURITY_NONE};
+        mDummyEvaluator.setEvaluatorToSelectCandidate(false);
+
+        List<ScanDetail> unSavedScanDetails = WifiNetworkSelectorTestUtil.buildScanDetails(
+                ssids, bssids, freqs, caps, levels, mClock);
+        HashSet<String> blacklist = new HashSet<>();
+
+        mWifiNetworkSelector.selectNetwork(
+                unSavedScanDetails, blacklist, mWifiInfo, false, true, false);
+        assertEquals("Expect open unsaved networks",
+                unSavedScanDetails,
+                mWifiNetworkSelector.getFilteredScanDetailsForOpenUnsavedNetworks());
+
+        ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
+                WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
+                        freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        List<ScanDetail> savedScanDetails = scanDetailsAndConfigs.getScanDetails();
+
+        mWifiNetworkSelector.selectNetwork(
+                savedScanDetails, blacklist, mWifiInfo, false, true, false);
+        // Saved networks are filtered out.
+        assertTrue(mWifiNetworkSelector.getFilteredScanDetailsForOpenUnsavedNetworks().isEmpty());
+    }
+
+    /**
+     * {@link WifiNetworkSelector#getFilteredScanDetailsForOpenUnsavedNetworks()} should filter out
+     * bssid blacklisted networks.
+     *
+     * Expected behavior: do not return blacklisted network
+     */
+    @Test
+    public void getfilterOpenUnsavedNetworks_filtersOutBlacklistedNetworks() {
+        String[] ssids = {"\"test1\"", "\"test2\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] freqs = {2437, 5180};
+        String[] caps = {"[ESS]", "[ESS]"};
+        int[] levels = {mThresholdMinimumRssi2G + 1, mThresholdMinimumRssi5G + 1};
+        mDummyEvaluator.setEvaluatorToSelectCandidate(false);
+
+        List<ScanDetail> scanDetails = WifiNetworkSelectorTestUtil.buildScanDetails(
+                ssids, bssids, freqs, caps, levels, mClock);
+        HashSet<String> blacklist = new HashSet<>();
+        blacklist.add(bssids[0]);
+
+        mWifiNetworkSelector.selectNetwork(scanDetails, blacklist, mWifiInfo, false, true, false);
+        List<ScanDetail> expectedOpenUnsavedNetworks = new ArrayList<>();
+        expectedOpenUnsavedNetworks.add(scanDetails.get(1));
+        assertEquals("Expect open unsaved networks",
+                expectedOpenUnsavedNetworks,
+                mWifiNetworkSelector.getFilteredScanDetailsForOpenUnsavedNetworks());
+    }
+
+    /**
+     * {@link WifiNetworkSelector#getFilteredScanDetailsForOpenUnsavedNetworks()} should return
+     * empty list when there are no open networks after network selection is made.
+     *
+     * Expected behavior: return empty list
+     */
+    @Test
+    public void getfilterOpenUnsavedNetworks_returnsEmptyListWhenNoOpenNetworksPresent() {
+        String[] ssids = {"\"test1\"", "\"test2\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] freqs = {2437, 5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
+        int[] levels = {mThresholdMinimumRssi2G + 1, mThresholdMinimumRssi5G + 1};
+        mDummyEvaluator.setEvaluatorToSelectCandidate(false);
+
+        List<ScanDetail> scanDetails = WifiNetworkSelectorTestUtil.buildScanDetails(
+                ssids, bssids, freqs, caps, levels, mClock);
+        HashSet<String> blacklist = new HashSet<>();
+
+        mWifiNetworkSelector.selectNetwork(scanDetails, blacklist, mWifiInfo, false, true, false);
+        assertTrue(mWifiNetworkSelector.getFilteredScanDetailsForOpenUnsavedNetworks().isEmpty());
+    }
+
+    /**
+     * {@link WifiNetworkSelector#getFilteredScanDetailsForOpenUnsavedNetworks()} should return
+     * empty list when no network selection has been made.
+     *
+     * Expected behavior: return empty list
+     */
+    @Test
+    public void getfilterOpenUnsavedNetworks_returnsEmptyListWhenNoNetworkSelectionMade() {
+        assertTrue(mWifiNetworkSelector.getFilteredScanDetailsForOpenUnsavedNetworks().isEmpty());
+    }
 }
+

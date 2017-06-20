@@ -56,6 +56,7 @@ public class WifiNetworkSelector {
     // WifiConfiguration (if any).
     private volatile List<Pair<ScanDetail, WifiConfiguration>> mConnectableNetworks =
             new ArrayList<>();
+    private List<ScanDetail> mFilteredNetworks = new ArrayList<>();
     private final int mThresholdQualifiedRssi24;
     private final int mThresholdQualifiedRssi5;
     private final int mThresholdMinimumRssi24;
@@ -327,12 +328,41 @@ public class WifiNetworkSelector {
     }
 
     /**
+     * This returns a list of ScanDetails that were filtered in the process of network selection.
+     * The list is further filtered for only open unsaved networks.
+     *
+     * @return the list of ScanDetails for open unsaved networks that do not have invalid SSIDS,
+     * blacklisted BSSIDS, or low signal strength. This will return an empty list when there are
+     * no open unsaved networks, or when network selection has not been run.
+     */
+    public List<ScanDetail> getFilteredScanDetailsForOpenUnsavedNetworks() {
+        List<ScanDetail> openUnsavedNetworks = new ArrayList<>();
+        for (ScanDetail scanDetail : mFilteredNetworks) {
+            ScanResult scanResult = scanDetail.getScanResult();
+
+            // A capability of [ESS] represents an open access point
+            // that is available for an STA to connect
+            if (scanResult.capabilities == null || !scanResult.capabilities.equals("[ESS]")) {
+                continue;
+            }
+
+            // Skip saved networks
+            if (mWifiConfigManager.getConfiguredNetworkForScanDetailAndCache(scanDetail) != null) {
+                continue;
+            }
+
+            openUnsavedNetworks.add(scanDetail);
+        }
+        return openUnsavedNetworks;
+    }
+
+    /**
      * @return the list of ScanDetails scored as potential candidates by the last run of
      * selectNetwork, this will be empty if Network selector determined no selection was
      * needed on last run. This includes scan details of sufficient signal strength, and
      * had an associated WifiConfiguration.
      */
-    public List<Pair<ScanDetail, WifiConfiguration>> getFilteredScanDetails() {
+    public List<Pair<ScanDetail, WifiConfiguration>> getConnectableScanDetails() {
         return mConnectableNetworks;
     }
 
@@ -450,6 +480,7 @@ public class WifiNetworkSelector {
     public WifiConfiguration selectNetwork(List<ScanDetail> scanDetails,
             HashSet<String> bssidBlacklist, WifiInfo wifiInfo,
             boolean connected, boolean disconnected, boolean untrustedNetworkAllowed) {
+        mFilteredNetworks.clear();
         mConnectableNetworks.clear();
         if (scanDetails.size() == 0) {
             localLog("Empty connectivity scan result");
@@ -476,9 +507,9 @@ public class WifiNetworkSelector {
         }
 
         // Filter out unwanted networks.
-        List<ScanDetail> filteredScanDetails = filterScanResults(scanDetails, bssidBlacklist,
+        mFilteredNetworks = filterScanResults(scanDetails, bssidBlacklist,
                 connected, currentBssid);
-        if (filteredScanDetails.size() == 0) {
+        if (mFilteredNetworks.size() == 0) {
             return null;
         }
 
@@ -488,9 +519,9 @@ public class WifiNetworkSelector {
         for (NetworkEvaluator registeredEvaluator : mEvaluators) {
             if (registeredEvaluator != null) {
                 localLog("About to run " + registeredEvaluator.getName() + " :");
-                selectedNetwork = registeredEvaluator.evaluateNetworks(filteredScanDetails,
-                            currentNetwork, currentBssid, connected,
-                            untrustedNetworkAllowed, mConnectableNetworks);
+                selectedNetwork = registeredEvaluator.evaluateNetworks(
+                        new ArrayList<>(mFilteredNetworks), currentNetwork, currentBssid, connected,
+                        untrustedNetworkAllowed, mConnectableNetworks);
                 if (selectedNetwork != null) {
                     localLog(registeredEvaluator.getName() + " selects "
                             + WifiNetworkSelector.toNetworkString(selectedNetwork) + " : "
