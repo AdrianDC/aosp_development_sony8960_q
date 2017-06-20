@@ -44,7 +44,7 @@ adb shell rm -f $REMOTE_COVERAGE_OUTPUT_FILE
 
 adb install -r -g "$OUT/data/app/FrameworksWifiTests/FrameworksWifiTests.apk"
 
-adb shell am instrument -e coverage true -w 'com.android.server.wifi.test/android.support.test.runner.AndroidJUnitRunner'
+adb shell am instrument -e coverage true -w 'com.android.server.wifi.test/com.android.server.wifi.CustomTestRunner'
 
 mkdir -p $OUTPUT_DIR
 
