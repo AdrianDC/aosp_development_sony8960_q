@@ -579,6 +579,17 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
         }
     }
 
+    /**
+     * Check if the provided channel collection contains all the channels.
+     */
+    private static boolean isAllChannelsScanned(ChannelCollection channelCollection) {
+        // TODO(b/62253332): Get rid of this hack.
+        // We're treating 2g + 5g and 2g + 5g + dfs as all channels scanned to work around
+        // the lack of a proper cache.
+        return (channelCollection.containsBand(WifiScanner.WIFI_BAND_24_GHZ)
+                && channelCollection.containsBand(WifiScanner.WIFI_BAND_5_GHZ));
+    }
+
     private void pollLatestScanData() {
         synchronized (mSettingsLock) {
             if (mLastScanSettings == null) {
@@ -665,7 +676,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                 }
                 Collections.sort(singleScanResults, SCAN_RESULT_SORT_COMPARATOR);
                 mLatestSingleScanResult = new WifiScanner.ScanData(mLastScanSettings.scanId, 0, 0,
-                        mLastScanSettings.singleScanFreqs.isAllChannels(),
+                        isAllChannelsScanned(mLastScanSettings.singleScanFreqs),
                         singleScanResults.toArray(new ScanResult[singleScanResults.size()]));
                 mLastScanSettings.singleScanEventHandler
                         .onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
