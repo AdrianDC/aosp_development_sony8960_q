@@ -438,6 +438,15 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
      * executed after transitioning back to IdleState.
      */
     class WifiSingleScanStateMachine extends StateMachine implements WifiNative.ScanEventHandler {
+        /**
+         * Maximum age of results that we return from our cache via
+         * {@link WifiScanner#getScanResults()}.
+         * This is currently set to 3 minutes to restore parity with the wpa_supplicant's scan
+         * result cache expiration policy. (See b/62253332 for details)
+         */
+        @VisibleForTesting
+        public static final int CACHED_SCAN_RESULTS_MAX_AGE_IN_MILLIS = 180 * 1000;
+
         private final DefaultState mDefaultState = new DefaultState();
         private final DriverStartedState mDriverStartedState = new DriverStartedState();
         private final IdleState  mIdleState  = new IdleState();
@@ -447,7 +456,8 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         private RequestList<ScanSettings> mActiveScans = new RequestList<>();
         private RequestList<ScanSettings> mPendingScans = new RequestList<>();
 
-        private ScanResult[] mCachedScanResults = new ScanResult[0];
+        // Scan results cached from the last full single scan request.
+        private final List<ScanResult> mCachedScanResults = new ArrayList<>();
 
         WifiSingleScanStateMachine(Looper looper) {
             super("WifiSingleScanStateMachine", looper);
@@ -534,13 +544,30 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         if (DBG) localLog("ignored full scan result event");
                         return HANDLED;
                     case WifiScanner.CMD_GET_SINGLE_SCAN_RESULTS:
-                        msg.obj = new WifiScanner.ParcelableScanResults(mCachedScanResults.clone());
+                        msg.obj = new WifiScanner.ParcelableScanResults(
+                            filterCachedScanResultsByAge());
                         replySucceeded(msg);
                         return HANDLED;
                     default:
                         return NOT_HANDLED;
                 }
+            }
 
+            /**
+             * Filter out  any scan results that are older than
+             * {@link #CACHED_SCAN_RESULTS_MAX_AGE_IN_MILLIS}.
+             *
+             * @return Filtered list of scan results.
+             */
+            private ScanResult[] filterCachedScanResultsByAge() {
+                // Using ScanResult.timestamp here to ensure that we use the same fields as
+                // WificondScannerImpl for filtering stale results.
+                long currentTimeInMillis = mClock.getElapsedSinceBootMillis();
+                return mCachedScanResults.stream()
+                        .filter(scanResult
+                                -> ((currentTimeInMillis - (scanResult.timestamp / 1000))
+                                        < CACHED_SCAN_RESULTS_MAX_AGE_IN_MILLIS))
+                        .toArray(ScanResult[]::new);
             }
         }
 
@@ -553,7 +580,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             @Override
             public void exit() {
                 // clear scan results when scan mode is not active
-                mCachedScanResults = new ScanResult[0];
+                mCachedScanResults.clear();
 
                 mWifiMetrics.incrementScanReturnEntry(
                         WifiMetricsProto.WifiLog.SCAN_FAILURE_INTERRUPTED,
@@ -879,13 +906,15 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 entry.reportEvent(WifiScanner.CMD_SCAN_RESULT, 0, parcelableAllResults);
             }
 
-            // Cache the results here so that apps can retrieve them.
-            mCachedScanResults = results.getResults();
-            sendScanResultBroadcast(true);
+            if (results.isAllChannelsScanned()) {
+                mCachedScanResults.clear();
+                mCachedScanResults.addAll(Arrays.asList(results.getResults()));
+                sendScanResultBroadcast(true);
+            }
         }
 
         List<ScanResult> getCachedScanResultsAsList() {
-            return Arrays.asList(mCachedScanResults);
+            return mCachedScanResults;
         }
     }
 
